@@ -305,7 +305,7 @@ pub(super) fn shoot_spawn_projectile(
                         name: "Torpedo Controller".to_string(),
                         description: "The controller for the torpedo warhead".to_string(),
                         mass: 1.0,
-                        health: 1.0,
+                        health: config.projectile_health,
                         ..default()
                     }),
                     Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)).with_rotation(
@@ -331,7 +331,7 @@ pub(super) fn shoot_spawn_projectile(
                         name: "Torpedo Thruster".to_string(),
                         description: "The thruster for the torpedo".to_string(),
                         mass: 1.0,
-                        health: 1.0,
+                        health: config.projectile_health,
                         ..default()
                     }),
                     Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
@@ -473,6 +473,37 @@ mod tests {
             .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
             .iter(app.world())
             .count()
+    }
+
+    /// The authored `projectile_health` is what the launched ordnance's two
+    /// collider sections actually carry - the armored-torpedo knob is real,
+    /// not a config field the bay ignores (both children were hardcoded to
+    /// 1.0 before the field existed).
+    #[test]
+    fn projectile_health_lands_on_the_launched_ordnance() {
+        let mut app = firing_app(2.0);
+        let section = spawn_firing_bay(&mut app, None);
+        app.world_mut()
+            .get_mut::<TorpedoSectionConfigHelper>(section)
+            .unwrap()
+            .0
+            .projectile_health = 250.0;
+
+        app.update();
+        app.update();
+        assert!(torpedo_count(&mut app) >= 1, "the bay launched");
+
+        let healths: Vec<f32> = app
+            .world_mut()
+            .query_filtered::<&Health, Or<(With<TorpedoControllerMarker>, With<TorpedoThrusterMarker>)>>()
+            .iter(app.world())
+            .map(|health| health.max)
+            .collect();
+        assert_eq!(healths.len(), torpedo_count(&mut app) * 2);
+        assert!(
+            healths.iter().all(|health| *health == 250.0),
+            "both collider sections carry the authored durability: {healths:?}"
+        );
     }
 
     /// The disable marker lands on the section, never on the spawner, so the

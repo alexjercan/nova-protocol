@@ -841,6 +841,125 @@
     )),
     Section((
         base: (
+            id: "heavy_torpedo_section",
+            name: "Siege Torpedo Bay Section",
+            description: "A capital-grade siege torpedo battery: slow salvo, armored ordnance, ship-killing blast.",
+            mass: 1.0,
+            health: 100.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+            hide_in_editor: true,
+        ),
+        kind: Torpedo((
+            render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
+            spawn_offset: (
+                0.0,
+                0.0,
+                -2.0,
+            ),
+            spawn_rotation: (
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+            ),
+            fire_rate: 1.0,
+            spawner_speed: 2.0,
+            projectile_lifetime: 60.0,
+            arm_time: 0.5,
+            arm_distance: 5.0,
+            nav_constant: 4.0,
+            max_speed: 70.0,
+            linear_damping: 0.4,
+            blast_radius: 45.0,
+            blast_damage: 2000.0,
+            launch_sound: Some("self://sounds/torpedo_launch.wav"),
+            detonation_sound: Some("self://sounds/explosion.wav"),
+            projectile_health: 5000.0,
+        )),
+    )),
+    Section((
+        base: (
             id: "racer_engine_starboard",
             name: "Engine Starboard",
             description: "A semantic ship part from a Kenney spacecraft.",

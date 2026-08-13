@@ -251,6 +251,7 @@ fn torpedo_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
         launch_effect: None,
         launch_sound: Some(meshes.torpedo_launch_sound.clone()),
         detonation_sound: Some(meshes.section_destroy_sound.clone()),
+        projectile_health: 1.0,
         ammo_capacity: Some(6),
         reload: Some(SectionReloadConfig {
             reload_time: 4.0,

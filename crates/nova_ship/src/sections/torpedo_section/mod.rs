@@ -154,6 +154,20 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub detonation_sound: Option<AssetRef<AudioSource>>,
+    /// Hit points on EACH of the projectile's two collider sections
+    /// (controller and thruster); either one reaching zero shoots the
+    /// torpedo down (silently - no blast). The 1.0 default keeps ordnance
+    /// one-bullet fragile, the balance point defense is tuned around; an
+    /// armored siege torpedo authors more and PDC fire has to chew through
+    /// it in the closing window instead of swatting it with the first hit.
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            default = "default_projectile_health",
+            skip_serializing_if = "is_default_projectile_health"
+        )
+    )]
+    pub projectile_health: f32,
     /// Magazine size in torpedoes. `None` launches without limit (the pre-ammo
     /// behavior); `Some(n)` gives the bay a [`SectionAmmo`] of `n` torpedoes
     /// that depletes one per launch and blocks firing once empty.
@@ -195,10 +209,24 @@ impl Default for TorpedoSectionConfig {
             launch_effect: None,
             launch_sound: None,
             detonation_sound: None,
+            projectile_health: default_projectile_health(),
             ammo_capacity: None,
             reload: None,
         }
     }
+}
+
+/// Serde default for [`TorpedoSectionConfig::projectile_health`]: the
+/// one-bullet-fragile baseline every pre-field torpedo authored implicitly.
+fn default_projectile_health() -> f32 {
+    1.0
+}
+
+/// Serde skip for [`TorpedoSectionConfig::projectile_health`], so content
+/// authored before the field round-trips byte-identical.
+#[cfg_attr(not(feature = "serde"), allow(dead_code))]
+fn is_default_projectile_health(health: &f32) -> bool {
+    *health == default_projectile_health()
 }
 
 /// Bundle factory for a torpedo launch bay from its [`TorpedoSectionConfig`],

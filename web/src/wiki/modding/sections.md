@@ -372,6 +372,10 @@ kind: Torpedo((
   (falls off to zero at the radius).
 - `blast_effect`, `launch_effect` (both optional) - custom particle effects;
   omit for the built-in bursts.
+- `projectile_health` (optional, default `1.0`) - hit points on each of the
+  torpedo's two collider sections; either reaching zero shoots it down
+  (silently, no blast). The default keeps ordnance one-bullet fragile; author
+  more for armored ordnance point defense has to chew through.
 - `ammo_capacity` (optional) - magazine size in torpedoes; `None` for unlimited.
 - `reload` (optional) - auto-reload for the bay (needs `ammo_capacity`); same
   `Some((reload_time, rounds_per_cycle, only_when_empty))` shape as the turret.

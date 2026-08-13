@@ -356,6 +356,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // The blast IS the destruction voice: same wav as section
                 // destruction (per-target authoring; playtest can diverge it).
                 detonation_sound: Some(meshes.section_destroy_sound.clone()),
+                projectile_health: 1.0,
                 // A small salvo of torpedoes before the bay is spent. Playtest
                 // knob.
                 ammo_capacity: Some(6),
@@ -367,6 +368,60 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                     rounds_per_cycle: 1,
                     only_when_empty: false,
                 }),
+            }),
+        },
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: "heavy_torpedo_section".to_string(),
+                name: "Siege Torpedo Bay Section".to_string(),
+                description: "A capital-grade siege torpedo battery: slow salvo, \
+                              armored ordnance, ship-killing blast."
+                    .to_string(),
+                mass: 1.0,
+                health: TORPEDO_BASE_HEALTH,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
+                link_points: unit_cube_link_points(),
+                // Scene dressing, not player kit: one hit deletes a ship, so
+                // the editor gallery does not offer it.
+                hide_in_editor: true,
+            },
+            kind: SectionKind::Torpedo(TorpedoSectionConfig {
+                render_mesh: Some(meshes.torpedo_bay.clone()),
+                render_mesh_transform: None,
+                projectile_render_mesh: None,
+                spawn_offset: Vec3::NEG_Z * 2.0,
+                spawn_rotation: Quat::IDENTITY,
+                fire_rate: 1.0,
+                spawner_speed: 2.0,
+                // Long enough to cross a backdrop arena, short enough that a
+                // torpedo whose target died mid-flight cleans itself up.
+                projectile_lifetime: 60.0,
+                arm_time: 0.5,
+                arm_distance: 5.0,
+                nav_constant: 4.0,
+                // Twice the standard cruise: the closing window through a
+                // 400 u point-defense envelope is what makes it hard to stop.
+                max_speed: 70.0,
+                linear_damping: 0.4,
+                // One hit destroys every section of a racer outright:
+                // 2000 at the centre with linear falloff over 45 u leaves
+                // >=1000 (before class multipliers) across a ship-sized
+                // target - past any shipped section's health, so the kill is
+                // a real full destruction, not a neutralized hulk.
+                blast_radius: 45.0,
+                blast_damage: 2000.0,
+                blast_effect: None,
+                launch_effect: None,
+                launch_sound: Some(meshes.torpedo_launch_sound.clone()),
+                detonation_sound: Some(meshes.section_destroy_sound.clone()),
+                // Armored ordnance: a PDC burst (~800 DPS) cannot chew
+                // through this inside the ~6 s closing window, so point
+                // defense visibly hammers it and still loses.
+                projectile_health: 5000.0,
+                ammo_capacity: None,
+                reload: None,
             }),
         },
     ];

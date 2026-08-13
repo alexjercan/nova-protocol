@@ -14,6 +14,15 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Combat & Weapons
+
+- Torpedo bays gain an authorable `projectile_health` (default 1.0, the old
+  hardcoded fragility): armored ordnance survives point-defense fire instead
+  of dying to the first hit.
+- New `heavy_torpedo_section` prototype: a capital-grade siege bay with a
+  ship-killing blast and armored ordnance, hidden from the editor gallery
+  (scene dressing, not player kit).
+
 ### Gameplay & Flight
 
 - Sliced mesh fragments (asteroid debris) now despawn after 30 seconds instead

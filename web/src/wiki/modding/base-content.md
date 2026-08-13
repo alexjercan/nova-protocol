@@ -38,6 +38,7 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 | `light_hull_section` | Hull | Light Hull Section | 60 | scavenger-grade hull |
 | `light_turret_section` | Turret | Light Turret Section | 60 | Kinetic 3.825/hit at 25 rps, ammo 150 |
 | `torpedo_section` | Torpedo | Torpedo Bay Section | 100 | blast 100 dmg / 30 u, ammo 6 |
+| `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; scene dressing, hidden in the editor |
 
 ### Semantic ship parts
 
