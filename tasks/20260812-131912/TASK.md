@@ -20,9 +20,9 @@ so this path has trustworthy evidence.
 1. `20260805-015136` (p98) - fix `ScriptBuilder::on_enter` composition. This
    removes a silent hook-loss bug before any new editor harness work composes
    multi-action steps.
-2. `20260806-140928` (p96) - reproduce and fix the intermittent combat
-   screenshot torpedo intercept. Stabilize the release-wide screenshot fleet
-   before editor screenshot updates increase its use.
+2. `20260806-140928` (p96) - split the combat screenshot story into private
+   in-memory scenario chapters. Each scenario load replaces the cast and
+   transients; readiness barriers settle and assert each shot's setup.
 3. `20260804-190142` (p94) - add wheel synthesis and cover the scenarios row
    below the fold. This completes the pointer vocabulary needed by long
    galleries and scenario lists.

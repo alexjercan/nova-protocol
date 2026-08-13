@@ -28,11 +28,13 @@
 //! The owner's plain run flies the approach out; the cut is an edit, and only
 //! the capture makes it.
 //!
-//! ACT 3, the ordnance: the boat looses a salvo at the raider, guided and fuzed
-//! by the production torpedo path. It exists because the set's juice was one
-//! graded hull on one ship - a launch burst, a drive plume and a 30-unit blast
-//! sphere eating sections belong to a SECOND ship, which is what makes the
-//! hollow read as a fight. Two of its frames SHIP: `wiki-combat-torpedo` (the
+//! ACT 3, the ordnance: the capture replaces the live fight with a private
+//! in-memory scenario containing a fresh raider and torpedo boat. The boat
+//! looses a salvo at the raider, guided and fuzed by the production torpedo
+//! path. Scenario replacement removes prior rounds, debris, and actors before
+//! this shot. It exists because the set's juice was one graded hull on one ship
+//! - a launch burst, a drive plume and a 30-unit blast sphere eating sections
+//! belong to a SECOND ship, which is what makes the hollow read as a fight. Two of its frames SHIP: `wiki-combat-torpedo` (the
 //! salvo in flight) and `wiki-combat-aftermath` (what the blast left), which the
 //! combat wiki page carries under Torpedoes and Damage types (owner's pick,
 //! 2026-08-05). The tight exchange and hollow neutralized-wreck marker stay
@@ -72,10 +74,10 @@
 //!   cargo run --example screenshot_combat --features debug
 //! ```
 //!
-//! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
+//! No-display correctness run:
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example screenshot_combat --features debug
-//! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
+//! env -u DISPLAY -u WAYLAND_DISPLAY cargo run --features debug -- \
+//!   probe run screenshot_combat --correctness-only
 //! ```
 
 #[path = "shared/kit.rs"]
@@ -94,6 +96,9 @@ struct Cli;
 
 /// Scenario id of the player's ship - the ambush event filters on it.
 const PLAYER_ID: &str = "hollow_player";
+/// Private scenario ids divide the capture into deterministic chapters.
+const APPROACH_CHAPTER_ID: &str = "rock_hollow";
+const ORDNANCE_CHAPTER_ID: &str = "rock_hollow_ordnance";
 /// Where the leg starts: up, out and roughly 750 units short of the hollow, so
 /// the GOTO has room for a full align-burn-coast-flip-brake profile.
 const START_POSITION: Vec3 = Vec3::new(0.0, -60.0, 754.0);
@@ -150,6 +155,8 @@ const LANCE_POSITION: Vec3 = Vec3::new(-38.0, 30.0, -56.0);
 /// not off the raider - 15 units is a third of the frame at a close camera.
 #[cfg(feature = "debug")]
 const TORPEDO_FUZE_RANGE: f32 = 15.0;
+#[cfg(feature = "debug")]
+const EXPECTED_TORPEDO_COUNT: usize = 2;
 
 /// Seconds each AI flight holds fire after it spawns, so the shots are taken of
 /// a fight that has settled rather than of four ships still sorting out where
@@ -429,8 +436,20 @@ fn main() -> bevy::app::AppExit {
                 .until(shot_written("feature-juice.png"))
                 .deadline(SHOT_DEADLINE_SECS)
                 .add()
-                // ACT 3 - the ordnance, and the set's variant frames. A dead
-                // section is a graded hull; a torpedo is the engine's loudest
+                // ACT 3 - the ordnance. Replace the live battle with a private
+                // scenario chapter. Scenario ownership removes the old cast,
+                // rounds, debris, and effects; the new chapter contains only
+                // the player camera rig, raider, lance, hollow, and lighting.
+                .step("load the ordnance chapter")
+                .on_enter(load_ordnance_chapter)
+                .until(ordnance_chapter_ready())
+                .deadline(15.0)
+                .add()
+                .step("settle the ordnance chapter")
+                .on_enter(assert_ordnance_chapter)
+                .until(frames(12))
+                .add()
+                // A dead section is a graded hull; a torpedo is the engine's loudest
                 // effect (launch burst, drive plume, a 30-unit blast sphere
                 // eating sections), and it belongs to a SECOND ship, which is
                 // what makes the hollow read as a fight rather than a duel.
@@ -461,7 +480,7 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("loose the torpedoes")
                 .on_enter(loose_torpedoes)
-                .until(torpedo_in_flight())
+                .until(torpedo_salvo_in_flight(EXPECTED_TORPEDO_COUNT))
                 .deadline(6.0)
                 .add()
                 // The salvo is committed to the raider the frame after launch,
@@ -474,6 +493,7 @@ fn main() -> bevy::app::AppExit {
                 // Inbound: a beat before the fuze, with the drive still lit and
                 // the target intact.
                 .step("track the torpedoes in")
+                .each(assert_salvo_still_live)
                 .until(torpedo_within(TORPEDO_FUZE_RANGE + 8.0))
                 .deadline(12.0)
                 .add()
@@ -567,6 +587,15 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
     commands.trigger(LoadScenario(rock_hollow(&game_assets, &sections)));
 }
 
+#[cfg(feature = "debug")]
+fn load_ordnance_chapter(world: &mut World) {
+    let game_assets = world.resource::<GameAssets>().clone();
+    let sections = world.resource::<GameSections>().clone();
+    world.remove_resource::<HoldStation>();
+    world.trigger(LoadScenario(ordnance_chapter(&game_assets, &sections)));
+    info!("combat: loading scenario chapter `{ORDNANCE_CHAPTER_ID}`");
+}
+
 /// The set: an empty start, a beacon 750 units downrange, a rock hollow around
 /// it, and an ambush that springs when the player gets there.
 fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
@@ -643,8 +672,73 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             ambush(sections),
         ],
         ..ScenarioConfig::new(
-            "rock_hollow".to_string(),
+            APPROACH_CHAPTER_ID.to_string(),
             "Rock Hollow".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
+    }
+}
+
+/// Private ordnance chapter: the same hollow, but no unrelated combatants or
+/// live guns. Loading it replaces every scenario-scoped transient from the gun
+/// exchange instead of trying to enumerate and clean them in the script.
+fn ordnance_chapter(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+    let player = ship(
+        PLAYER_ID,
+        "Player Ship",
+        Vec3::ZERO,
+        Quat::IDENTITY,
+        SpaceshipController::Player(PlayerControllerConfig {
+            input_mapping: HashMap::new(),
+            speed_cap: None,
+            infinite_ammo: true,
+        }),
+        None,
+        kit::kenney_hull(sections, "racer"),
+    );
+    let raider = ship(
+        RAIDER_ID,
+        "Raider",
+        RAIDER_POSITION,
+        Quat::from_rotation_y(std::f32::consts::PI - 0.4),
+        SpaceshipController::None,
+        Some(Allegiance::Enemy),
+        kit::kenney_hull(sections, "racer"),
+    );
+    let lance = ship(
+        LANCE_ID,
+        "Lance",
+        LANCE_POSITION,
+        Transform::from_translation(LANCE_POSITION)
+            .looking_at(RAIDER_POSITION, Vec3::Y)
+            .rotation,
+        SpaceshipController::None,
+        Some(Allegiance::Player),
+        kit::kenney_hull(sections, "cargob"),
+    );
+    let shell = kit::NearField {
+        id_prefix: "ordnance_rock_",
+        count: 48,
+        seed: 40507,
+        distance: (48.0, 130.0),
+        radius: (1.2, 3.2),
+        y_spread: 46.0,
+    };
+
+    ScenarioConfig {
+        description: "The controlled ordnance chapter of Rock Hollow.".to_string(),
+        events: vec![ScenarioEventConfig {
+            name: EventConfig::OnStart,
+            filters: vec![],
+            actions: [
+                vec![shell.action(game_assets), player, raider, lance],
+                ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+            ]
+            .concat(),
+        }],
+        ..ScenarioConfig::new(
+            ORDNANCE_CHAPTER_ID.to_string(),
+            "Rock Hollow - Ordnance".to_string(),
             game_assets.cubemap.clone().into(),
         )
     }
@@ -1077,6 +1171,64 @@ fn raider_present() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predic
     })
 }
 
+#[cfg(feature = "debug")]
+fn ordnance_chapter_ready() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let current = world.resource::<CurrentScenario>();
+        if current
+            .as_ref()
+            .is_none_or(|scenario| scenario.id != ORDNANCE_CHAPTER_ID)
+        {
+            return false;
+        }
+        let Some(mut ships) = world.try_query_filtered::<&EntityId, With<SpaceshipRootMarker>>()
+        else {
+            return false;
+        };
+        let ids: Vec<&str> = ships.iter(world).map(|id| id.0.as_str()).collect();
+        ids.len() == 3
+            && [PLAYER_ID, RAIDER_ID, LANCE_ID]
+                .iter()
+                .all(|required| ids.contains(required))
+            && world
+                .try_query_filtered::<Entity, With<TorpedoSectionMarker>>()
+                .is_some_and(|mut bays| bays.iter(world).count() == 2)
+            && world
+                .try_query_filtered::<Entity, With<TurretBulletProjectileMarker>>()
+                .is_none_or(|mut bullets| bullets.iter(world).next().is_none())
+            && world
+                .try_query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+                .is_none_or(|mut torpedoes| torpedoes.iter(world).next().is_none())
+    })
+}
+
+#[cfg(feature = "debug")]
+fn assert_ordnance_chapter(world: &mut World) {
+    let current = world.resource::<CurrentScenario>();
+    assert_eq!(
+        current.as_ref().map(|scenario| scenario.id.as_str()),
+        Some(ORDNANCE_CHAPTER_ID),
+        "combat: ordnance cast settled under the wrong scenario"
+    );
+    let ids: Vec<String> = world
+        .query_filtered::<&EntityId, With<SpaceshipRootMarker>>()
+        .iter(world)
+        .map(|id| id.0.clone())
+        .collect();
+    assert_eq!(
+        ids.len(),
+        3,
+        "combat: ordnance chapter must have three ships: {ids:?}"
+    );
+    for required in [PLAYER_ID, RAIDER_ID, LANCE_ID] {
+        assert!(
+            ids.iter().any(|id| id == required),
+            "combat: ordnance chapter is missing `{required}`"
+        );
+    }
+    info!("combat: scenario chapter `{ORDNANCE_CHAPTER_ID}` ready");
+}
+
 /// The live numbers of the player's engaged leg, if there is one.
 #[cfg(feature = "debug")]
 fn maneuver(world: &World) -> Option<&ManeuverTelemetry> {
@@ -1253,6 +1405,11 @@ fn commit_torpedoes(world: &mut World) {
         .query_filtered::<Entity, (With<TorpedoProjectileMarker>, Without<TorpedoTargetChosen>)>()
         .iter(world)
         .collect();
+    assert_eq!(
+        torpedoes.len(),
+        EXPECTED_TORPEDO_COUNT,
+        "combat: ordnance chapter must commit the complete salvo"
+    );
     for torpedo in &torpedoes {
         world
             .entity_mut(*torpedo)
@@ -1277,8 +1434,14 @@ fn ordnance_subject(world: &mut World) -> Vec3 {
 
 /// Advance once a torpedo is actually in the world.
 #[cfg(feature = "debug")]
-fn torpedo_in_flight() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| torpedo_range(world).is_some())
+fn torpedo_salvo_in_flight(
+    expected: usize,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        world
+            .try_query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+            .is_some_and(|mut torpedoes| torpedoes.iter(world).count() == expected)
+    })
 }
 
 /// Advance once the last torpedo is gone - the fuze despawns it and spawns the
@@ -1294,6 +1457,18 @@ fn torpedo_within(distance: f32) -> std::sync::Arc<nova_protocol::nova_debug::ha
     std::sync::Arc::new(move |world: &World| {
         torpedo_range(world).is_some_and(|range| range < distance)
     })
+}
+
+#[cfg(feature = "debug")]
+fn assert_salvo_still_live(world: &mut World, _: f32) {
+    let live = world
+        .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+        .iter(world)
+        .count();
+    assert!(
+        live > 0,
+        "combat: the complete torpedo salvo was lost before reaching the capture range"
+    );
 }
 
 /// How far the closest live torpedo is from the raider, if there is one of each.
