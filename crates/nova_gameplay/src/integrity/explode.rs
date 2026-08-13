@@ -190,6 +190,11 @@ fn on_destroyed_entity(
         // Persist the exact-once guard through the rest of this frame. This
         // also prevents neutralization detection from reporting a second
         // defeat if destruction and section loss converge in one update.
+        // try_insert: `despawn_destroyed_without_mesh` observes this same Add
+        // event and observer order is unspecified, so its queued despawn can
+        // land before this insert; a plain insert then panics at apply time.
+        // A root despawned mid-batch cannot be defeated twice, so losing the
+        // marker is harmless - the events below still fire either way.
         // A sibling destruction reaction can despawn the root in this command flush.
         commands.entity(entity).try_insert(DefeatedMarker);
         commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
@@ -325,6 +330,39 @@ mod tests {
         assert!(
             app.world().entity(ship).contains::<DefeatedMarker>(),
             "direct destruction persists the exact-once guard"
+        );
+    }
+
+    #[test]
+    fn defeat_survives_a_sibling_observer_despawning_the_root() {
+        // Bevy gives no ordering between two observers of one Add event, so
+        // `despawn_destroyed_without_mesh` can queue the root's despawn BEFORE
+        // this observer's DefeatedMarker insert. Model that exact queue shape:
+        // a despawn already queued ahead of the observer pass. The marker
+        // insert must tolerate the dead root (a plain insert panics at
+        // command-apply time and takes down the whole frame - the 2026-08-13
+        // "The Raid" crash), and the defeat/destroy events must still reach
+        // the scenario.
+        let mut app = destruction_event_app();
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                EntityId::new("raider"),
+                EntityTypeName::new("spaceship"),
+            ))
+            .id();
+
+        app.world_mut().commands().entity(ship).try_despawn();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(IntegrityDestroyMarker);
+
+        assert!(!app.world().entities().contains(ship));
+        assert_eq!(
+            app.world().resource::<FiredEvents>().0,
+            [OnDefeatedEvent::name(), OnDestroyedEvent::name()],
+            "the scenario still hears a kill whose root died mid-batch"
         );
     }
 
