@@ -3,8 +3,8 @@
 //! The avian-free halves of nova's pipelines are unit-tested directly in their
 //! own modules (driving `ConnectedTo` / `HealthApplyDamage` by hand). These
 //! helpers cover the other half - anything whose inputs are physics-driven
-//! (collision and blast damage, `build_integrity_relations`' graph
-//! construction, the flight controller, the turret and torpedo sections) and
+//! (collision and blast damage, ship graph publication, the flight controller,
+//! the turret and torpedo sections) and
 //! so needs a real avian world to produce `ColliderOf` links and
 //! `ComputedMass`.
 //!

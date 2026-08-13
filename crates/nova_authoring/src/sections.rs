@@ -192,6 +192,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
+                link_points: unit_cube_link_points(),
                 hide_in_editor: false,
             },
             kind: SectionKind::Hull(HullSectionConfig {
@@ -211,6 +212,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
+                link_points: unit_cube_link_points(),
                 hide_in_editor: false,
             },
             kind: SectionKind::Thruster(ThrusterSectionConfig {
@@ -232,6 +234,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
+                link_points: unit_cube_link_points(),
                 hide_in_editor: false,
             },
             kind: SectionKind::Controller(ControllerSectionConfig {
@@ -273,6 +276,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
+                link_points: unit_cube_link_points(),
                 hide_in_editor: false,
             },
             kind: SectionKind::Turret(TurretSectionConfig {
@@ -322,6 +326,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
+                link_points: unit_cube_link_points(),
                 hide_in_editor: false,
             },
             kind: SectionKind::Hull(HullSectionConfig {
@@ -343,6 +348,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
+                link_points: unit_cube_link_points(),
                 hide_in_editor: false,
             },
             kind: SectionKind::Turret(TurretSectionConfig {
@@ -392,6 +398,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
+                link_points: unit_cube_link_points(),
                 hide_in_editor: false,
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {

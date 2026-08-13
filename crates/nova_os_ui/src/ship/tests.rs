@@ -783,11 +783,26 @@ fn view_fixture(
         name: "Bow gun".to_string(),
         local: Transform::default(),
         half_extents: Vec3::ONE,
+        link_points: Vec::new(),
         health,
         ammo,
         inactive: false,
         zero_health: false,
     }
+}
+
+#[test]
+fn mate_overlay_is_derived_from_live_section_link_points() {
+    let mut left = view_fixture(SectionDamageClass::Hull, None, None);
+    left.link_points = unit_cube_link_points();
+    let mut right = view_fixture(SectionDamageClass::Hull, None, None);
+    right.local.translation = Vec3::X;
+    right.link_points = unit_cube_link_points();
+
+    assert!(mate_edges_mesh(&[left.clone(), right.clone()]).is_some());
+    left.link_points.clear();
+    right.link_points.clear();
+    assert!(mate_edges_mesh(&[left, right]).is_none());
 }
 
 #[test]
@@ -1236,6 +1251,7 @@ fn rig_section_view(entity: Entity, code: &str) -> ShipSectionView {
         name: code.to_string(),
         local: Transform::IDENTITY,
         half_extents: Vec3::splat(0.5),
+        link_points: Vec::new(),
         health: None,
         ammo: None,
         inactive: false,

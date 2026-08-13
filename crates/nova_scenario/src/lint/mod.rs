@@ -11,9 +11,9 @@
 //! id prefix counts as satisfiable (the actual `<prefix><n>` ids exist only at
 //! runtime); variable set/use is checked scenario-wide, not in firing order.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
-use nova_ship::prelude::{SectionConfig, SectionKind};
+use nova_ship::prelude::{LinkPoint, SectionConfig, SectionKind};
 
 use crate::prelude::*;
 
@@ -29,30 +29,24 @@ pub use ship::lint_section_config;
 /// content-lint entry points and result types into scope.
 pub mod prelude {
     pub use super::{
-        lint_campaign, lint_scenario, lint_section_config, KnownSections, LintIssue, LintSeverity,
+        lint_campaign, lint_scenario, lint_section_config, KnownSection, KnownSections, LintIssue,
+        LintSeverity,
     };
 }
 
-/// The section-prototype view a caller lints against: every visible
-/// prototype id, plus the subset that MOUNTS - kinds whose model has a base
-/// face at local -Y that must sit flush against a neighboring section
-/// (turrets and torpedo bays; the turret turntable and the bay hatch sit at
-/// +Y in the GLB vertex data). Built from full configs via
-/// [`KnownSections::from_configs`] so the kind classification lives in ONE
-/// place for every caller (author CLI walk, CI gate, runtime merge sweep).
+/// Resolved lint-relevant data for one visible section prototype.
+#[derive(Clone, Debug, Default)]
+pub struct KnownSection {
+    /// Whether the prototype is a turret or torpedo mount.
+    pub mounts: bool,
+    /// Structural sockets copied from the resolved prototype.
+    pub link_points: Vec<LinkPoint>,
+}
+
+/// Last-wins section-prototype view used by scenario lint.
 #[derive(Clone, Debug, Default)]
 pub struct KnownSections {
-    /// Every visible section-prototype id.
-    pub ids: HashSet<String>,
-    /// The ids whose every visible definition is a mount kind. Conservative
-    /// on cross-bundle id conflicts (a mod overriding a mount id with a
-    /// hull, say): a contested id is NOT treated as a mount, so the
-    /// adjacency check can under-flag but never false-fail. The static
-    /// walk unions every VISIBLE definition and is where a contested id
-    /// can under-flag; the runtime merge gate classifies from the actual
-    /// last-wins overlay, so it is the accurate one - conflicting content
-    /// can pass CI yet still be refused in-game.
-    pub mounts: HashSet<String>,
+    entries: HashMap<String, KnownSection>,
 }
 
 impl KnownSections {
@@ -61,22 +55,29 @@ impl KnownSections {
         matches!(kind, SectionKind::Turret(_) | SectionKind::Torpedo(_))
     }
 
-    /// Classify full section configs into the catalog view.
+    /// Resolve full section configs in iterator order; later duplicate IDs replace earlier ones.
     pub fn from_configs<'a>(configs: impl IntoIterator<Item = &'a SectionConfig>) -> Self {
-        let mut ids = HashSet::new();
-        let mut mounts = HashSet::new();
-        let mut non_mounts = HashSet::new();
+        let mut entries = HashMap::new();
         for config in configs {
-            let id = &config.base.id;
-            if Self::kind_mounts(&config.kind) {
-                mounts.insert(id.clone());
-            } else {
-                non_mounts.insert(id.clone());
-            }
-            ids.insert(id.clone());
+            entries.insert(
+                config.base.id.clone(),
+                KnownSection {
+                    mounts: Self::kind_mounts(&config.kind),
+                    link_points: config.base.link_points.clone(),
+                },
+            );
         }
-        mounts.retain(|id| !non_mounts.contains(id));
-        Self { ids, mounts }
+        Self { entries }
+    }
+
+    /// Look up one resolved prototype by content ID.
+    pub fn get(&self, id: &str) -> Option<&KnownSection> {
+        self.entries.get(id)
+    }
+
+    /// Whether one prototype ID resolves in this catalog.
+    pub fn contains(&self, id: &str) -> bool {
+        self.entries.contains_key(id)
     }
 }
 

@@ -165,6 +165,7 @@ pub(crate) struct ShipSectionView {
     pub(crate) name: String,
     pub(crate) local: Transform,
     pub(crate) half_extents: Vec3,
+    pub(crate) link_points: Vec<LinkPoint>,
     pub(crate) health: Option<Health>,
     pub(crate) ammo: Option<SectionAmmo>,
     pub(crate) inactive: bool,
@@ -248,6 +249,7 @@ pub struct ShipSections<'w, 's> {
             Option<&'static Name>,
             &'static Transform,
             Option<&'static SectionCollider>,
+            Option<&'static SectionLinkPoints>,
             Option<&'static Health>,
             Option<&'static SectionAmmo>,
             // Nested so the whole row stays under the 15-item query-tuple cap.
@@ -294,6 +296,7 @@ impl ShipSections<'_, '_> {
                     name,
                     local,
                     collider,
+                    link_points,
                     health,
                     ammo,
                     (class, hull, controller, thruster, turret, torpedo),
@@ -311,6 +314,9 @@ impl ShipSections<'_, '_> {
                             .unwrap_or_else(|| code.0.clone()),
                         local: *local,
                         half_extents: collider.copied().unwrap_or_default().aabb_half_extents(),
+                        link_points: link_points
+                            .map(|points| points.0.clone())
+                            .unwrap_or_default(),
                         health: health.cloned(),
                         ammo: ammo.copied(),
                         inactive,

@@ -12,7 +12,7 @@ how sections connect and handles damage, disabling, and cascading destruction.
 
 A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 `BaseSectionConfig` is shared by all kinds: `id`, `name`, `description`, `mass`,
-`health`, optional `collider`, and `hide_in_editor`.
+`health`, optional `collider`, structural `link_points`, and `hide_in_editor`.
 
 `SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`;
 `turret_section/` and `torpedo_section/` are directories, not single files):
@@ -64,7 +64,7 @@ Spawning: the base scenario bundle gives the root `RigidBody::Dynamic`; the
 spaceship object adds `SpaceshipRootMarker`, and an observer
 (`insert_spaceship_sections`) spawns each section as a direct child. Every
 section gets `SectionMarker`, its `Collider` (the authored `collider` shape, or
-a unit cube by default), and `Health` (`base_section` in
+a unit cube by default), `SectionLinkPoints`, `ConnectedTo`, and `Health` (`base_section` in
 `sections/base_section.rs`), so the ship is one rigid body whose child colliders
 each carry their own health.
 
@@ -76,22 +76,29 @@ damage pipeline.
 ## Integrity: damage -> disable -> destroy
 
 The destruction stack is nova's own, in
-`crates/nova_gameplay/src/integrity/`. `NovaIntegrityPlugin` composes five
-pieces:
+`crates/nova_gameplay/src/integrity/`, with the ship adapter in
+`crates/nova_ship/src/sections/integrity.rs`. `NovaIntegrityPlugin` composes five
+generic pieces:
 
 - `health.rs` - the hit-point store: `Health`, `HealthApplyDamage` and the
   `HealthZeroMarker` its observer adds at zero.
 - `core.rs` (`IntegrityCorePlugin`) - the generic disable/destroy core, plus
   the mass-times-velocity impact damage.
-- `glue.rs` - builds the graph and rolls section health up to the ship root.
+- Ship-owned `ShipIntegrityPlugin` - derives the section graph, handles disabled
+  sections, and rolls section health up to the ship root.
 - `explode.rs` - reacts to destruction: debris, mesh fragments, `OnDestroyedEvent`.
 - `neutralize.rs` - combat-death: fires `OnNeutralized` when a ship stops
   being a threat.
 
-Graph build: when avian links a collider to its body (`ColliderOf`),
-`build_integrity_relations` connects sections one grid unit apart via
-`ConnectedTo` neighbor lists and marks the body `IntegrityRoot`. A lone body
-(asteroid) gets an empty list, so it is a leaf.
+Graph build: every section prototype authors local `link_points` with an id,
+position, and outward unit normal. When avian links a collider to its body
+(`ColliderOf`), `ShipIntegrityPlugin` transforms those points into ship-root
+space. Coincident points with opposed normals become symmetric `ConnectedTo`
+neighbor edges. IDs are for diagnostics and UI, not compatibility. A malformed,
+ambiguous, or disconnected graph is rejected as a whole; collider contact and
+center distance never create fallback edges. `SpaceshipRootMarker` declares the
+body as `IntegrityRoot`. Asteroids declare the same root role and give their lone
+collider node an empty list, so it is a leaf.
 
 Damage flow:
 

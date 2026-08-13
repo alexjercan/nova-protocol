@@ -2,6 +2,7 @@
 
 use bevy::prelude::Vec3;
 use nova_ship::prelude::{
+    derive_link_point_graph, LinkPointGraphError, LinkPointRef, PlacedSectionLinkPoints,
     SectionCollider, SectionConfig, SectionKind, TurretJoint, TurretSectionConfig,
 };
 
@@ -19,7 +20,7 @@ pub(super) fn check_object_prototypes(
     if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
         for section in &ship.sections {
             if let SectionSource::Prototype(proto) = &section.source {
-                if !sections.ids.contains(proto) {
+                if !sections.contains(proto) {
                     issues.push(LintIssue::error(
                         scenario,
                         format!(
@@ -31,6 +32,7 @@ pub(super) fn check_object_prototypes(
             }
         }
         check_section_overlaps(config.base.id.as_str(), ship, scenario, issues);
+        check_link_point_graph(config.base.id.as_str(), ship, scenario, sections, issues);
         check_mount_adjacency(config.base.id.as_str(), ship, scenario, sections, issues);
         // Inline section configs a scenario writes directly (a Prototype ref
         // resolves to a catalog section, which is linted where the catalog is
@@ -53,6 +55,7 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
     if let SectionKind::Turret(turret) = &config.kind {
         check_turret_tree(config.base.id.as_str(), turret, source, &mut issues);
     }
+    check_link_point_config(config, source, &mut issues);
     issues
 }
 
@@ -153,6 +156,169 @@ fn check_turret_tree(
     }
 }
 
+fn check_link_point_config(config: &SectionConfig, source: &str, issues: &mut Vec<LintIssue>) {
+    let placed = [PlacedSectionLinkPoints {
+        position: Vec3::ZERO,
+        rotation: bevy::prelude::Quat::IDENTITY,
+        link_points: &config.base.link_points,
+    }];
+    let Err(errors) = derive_link_point_graph(&placed) else {
+        return;
+    };
+    for error in errors {
+        let message = match error {
+            LinkPointGraphError::EmptyLinkPointId { link_point } => format!(
+                "section '{}': link point {} has an empty id",
+                config.base.id, link_point.link_point_index
+            ),
+            LinkPointGraphError::DuplicateLinkPointId { first, duplicate } => format!(
+                "section '{}': link points {} and {} use duplicate id '{}'",
+                config.base.id,
+                first.link_point_index,
+                duplicate.link_point_index,
+                config.base.link_points[duplicate.link_point_index].id
+            ),
+            LinkPointGraphError::NonFiniteLinkPointPosition { link_point } => format!(
+                "section '{}': link point '{}' has a non-finite position {:?}",
+                config.base.id,
+                link_point_name(&config.base.link_points, link_point),
+                config.base.link_points[link_point.link_point_index].position
+            ),
+            LinkPointGraphError::NonFiniteLinkPointNormal { link_point } => format!(
+                "section '{}': link point '{}' has a non-finite normal {:?}",
+                config.base.id,
+                link_point_name(&config.base.link_points, link_point),
+                config.base.link_points[link_point.link_point_index].normal
+            ),
+            LinkPointGraphError::ZeroLinkPointNormal { link_point } => format!(
+                "section '{}': link point '{}' has a zero normal",
+                config.base.id,
+                link_point_name(&config.base.link_points, link_point)
+            ),
+            LinkPointGraphError::NonUnitLinkPointNormal { link_point } => format!(
+                "section '{}': link point '{}' normal {:?} must have unit length",
+                config.base.id,
+                link_point_name(&config.base.link_points, link_point),
+                config.base.link_points[link_point.link_point_index].normal
+            ),
+            _ => continue,
+        };
+        issues.push(LintIssue::error(source, message));
+    }
+}
+
+fn link_point_name(points: &[nova_ship::prelude::LinkPoint], reference: LinkPointRef) -> &str {
+    points
+        .get(reference.link_point_index)
+        .map(|point| point.id.as_str())
+        .unwrap_or("<invalid>")
+}
+
+fn check_link_point_graph(
+    ship_id: &str,
+    ship: &SpaceshipConfig,
+    scenario: &str,
+    sections: &KnownSections,
+    issues: &mut Vec<LintIssue>,
+) {
+    let resolved: Option<Vec<_>> = ship
+        .sections
+        .iter()
+        .map(|section| match &section.source {
+            SectionSource::Inline(config) => Some(config.base.link_points.as_slice()),
+            SectionSource::Prototype(id) => {
+                sections.get(id).map(|known| known.link_points.as_slice())
+            }
+        })
+        .collect();
+    let Some(resolved) = resolved else {
+        return;
+    };
+    let placed: Vec<_> = ship
+        .sections
+        .iter()
+        .zip(resolved)
+        .map(|(section, link_points)| PlacedSectionLinkPoints {
+            position: section.position,
+            rotation: section.rotation,
+            link_points,
+        })
+        .collect();
+    let Err(errors) = derive_link_point_graph(&placed) else {
+        return;
+    };
+
+    for error in errors {
+        let message = match error {
+            LinkPointGraphError::NonFiniteSectionPosition { section_index } => format!(
+                "ship '{ship_id}' section '{}': position {:?} must be finite",
+                ship.sections[section_index].id, ship.sections[section_index].position
+            ),
+            LinkPointGraphError::NonFiniteSectionRotation { section_index } => format!(
+                "ship '{ship_id}' section '{}': rotation {:?} must be finite",
+                ship.sections[section_index].id, ship.sections[section_index].rotation
+            ),
+            LinkPointGraphError::NonUnitSectionRotation { section_index } => format!(
+                "ship '{ship_id}' section '{}': rotation {:?} must have unit length",
+                ship.sections[section_index].id, ship.sections[section_index].rotation
+            ),
+            LinkPointGraphError::AmbiguousMate {
+                link_point,
+                candidates,
+            } => {
+                let point = &resolved_link_point(ship, sections, link_point);
+                let candidates = candidates
+                    .into_iter()
+                    .map(|candidate| {
+                        let candidate_point = resolved_link_point(ship, sections, candidate);
+                        format!(
+                            "{}.{}",
+                            ship.sections[candidate.section_index].id, candidate_point.id
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "ship '{ship_id}' section '{}' link point '{}': ambiguous mates [{candidates}]",
+                    ship.sections[link_point.section_index].id, point.id
+                )
+            }
+            LinkPointGraphError::Disconnected { components } => {
+                let components = components
+                    .into_iter()
+                    .map(|component| {
+                        component
+                            .into_iter()
+                            .map(|index| ship.sections[index].id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" | ");
+                format!(
+                    "ship '{ship_id}': link-point graph is disconnected; components: [{components}]"
+                )
+            }
+            // Section configs are linted independently, so do not duplicate local findings here.
+            _ => continue,
+        };
+        issues.push(LintIssue::error(scenario, message));
+    }
+}
+
+fn resolved_link_point<'a>(
+    ship: &'a SpaceshipConfig,
+    sections: &'a KnownSections,
+    reference: LinkPointRef,
+) -> &'a nova_ship::prelude::LinkPoint {
+    let section = &ship.sections[reference.section_index];
+    let points = match &section.source {
+        SectionSource::Inline(config) => &config.base.link_points,
+        SectionSource::Prototype(id) => &sections.get(id).expect("prototype resolved").link_points,
+    };
+    &points[reference.link_point_index]
+}
+
 /// Two sections of one ship OVERLAP - clip visually and double up their
 /// colliders in the same space - iff their axis-aligned collider boxes
 /// interpenetrate: centers strictly closer than the sum of their half-extents
@@ -230,7 +396,9 @@ fn check_mount_adjacency(
     for section in &ship.sections {
         let is_mount = match &section.source {
             SectionSource::Inline(config) => KnownSections::kind_mounts(&config.kind),
-            SectionSource::Prototype(proto) => sections.mounts.contains(proto),
+            SectionSource::Prototype(proto) => {
+                sections.get(proto).is_some_and(|section| section.mounts)
+            }
         };
         if !is_mount {
             continue;
@@ -290,6 +458,75 @@ mod tests {
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("no_such_proto"));
+    }
+
+    #[test]
+    fn malformed_link_points_and_disconnected_ships_are_errors() {
+        use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, LinkPoint};
+
+        let malformed = SectionConfig {
+            base: BaseSectionConfig {
+                id: "bad".to_string(),
+                link_points: vec![
+                    LinkPoint {
+                        id: "dup".to_string(),
+                        position: Vec3::ZERO,
+                        normal: Vec3::X,
+                    },
+                    LinkPoint {
+                        id: "dup".to_string(),
+                        position: Vec3::X,
+                        normal: Vec3::ZERO,
+                    },
+                ],
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        };
+        let issues = lint_section_config(&malformed, "mod");
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.message.contains("duplicate id")),
+            "{issues:?}"
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.message.contains("zero normal")),
+            "{issues:?}"
+        );
+
+        let no_points = SectionConfig {
+            base: BaseSectionConfig {
+                id: "empty".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        };
+        let catalog = KnownSections::from_configs([&no_points]);
+        let mut action = spawn_ship("ship", "empty");
+        let EventActionConfig::SpawnScenarioObject(object) = &mut action else {
+            unreachable!()
+        };
+        let ScenarioObjectKind::Spaceship(ship) = &mut object.kind else {
+            unreachable!()
+        };
+        ship.sections.push(SpaceshipSectionConfig {
+            id: "second".to_string(),
+            position: Vec3::X,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Prototype("empty".to_string()),
+            modifications: Vec::new(),
+        });
+        let scenario = scenario(vec![action], vec![]);
+        let issues = lint_scenario(&scenario, &catalog, &known(&["test_scenario"]));
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.message.contains("disconnected")),
+            "{issues:?}"
+        );
     }
 
     /// A scatter TEMPLATE ship with a bad prototype must flag like a directly
@@ -362,8 +599,14 @@ mod tests {
         // The Auditor shape: half-embedded on the spine.
         let s = scenario(vec![ship_with(Vec3::new(0.0, 0.0, 0.5))], vec![]);
         let issues = lint_scenario(&s, &sections(&["known"]), &known(&["test_scenario"]));
-        assert_eq!(errors(&issues).len(), 1, "{issues:?}");
-        assert!(issues[0].message.contains("overlap"));
+        assert_eq!(
+            issues
+                .iter()
+                .filter(|issue| issue.message.contains("overlap"))
+                .count(),
+            1,
+            "{issues:?}"
+        );
 
         // Flush side mount: legal.
         let s = scenario(vec![ship_with(Vec3::new(1.0, 0.0, 0.0))], vec![]);
@@ -388,6 +631,7 @@ mod tests {
                 source: SectionSource::Inline(SectionConfig {
                     base: BaseSectionConfig {
                         collider,
+                        link_points: nova_ship::prelude::unit_cube_link_points(),
                         ..Default::default()
                     },
                     kind: SectionKind::Hull(HullSectionConfig {
@@ -431,11 +675,13 @@ mod tests {
         );
         let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert_eq!(
-            errors(&issues).len(),
+            issues
+                .iter()
+                .filter(|issue| issue.message.contains("overlap"))
+                .count(),
             1,
             "unit cubes should clip: {issues:?}"
         );
-        assert!(issues[0].message.contains("overlap"));
 
         // Same spacing, both tightened to 0.8 cubes: sum 0.8 == distance -> flush.
         let s = scenario(
@@ -446,7 +692,12 @@ mod tests {
             vec![],
         );
         let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
-        assert!(issues.is_empty(), "tightened cubes are flush: {issues:?}");
+        assert!(
+            issues
+                .iter()
+                .all(|issue| !issue.message.contains("overlap")),
+            "tightened cubes are flush: {issues:?}"
+        );
 
         // 1.5 apart, oversized 2.0 cubes: sum 2.0 > 1.5 -> overlap where unit
         // cubes (sum 1.0) would pass.
@@ -458,7 +709,14 @@ mod tests {
             vec![],
         );
         let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
-        assert_eq!(errors(&issues).len(), 1, "oversized cubes clip: {issues:?}");
+        assert_eq!(
+            issues
+                .iter()
+                .filter(|issue| issue.message.contains("overlap"))
+                .count(),
+            1,
+            "oversized cubes clip: {issues:?}"
+        );
     }
 
     /// The mount-fixture ship: a hull cell at the origin plus one MOUNT
@@ -559,11 +817,18 @@ mod tests {
             );
             let issues = lint_scenario(&s, &catalog, &known(&["test_scenario"]));
             assert!(
-                errors(&issues).is_empty(),
-                "warn-only for {rotation:?}: {issues:?}"
+                issues.iter().any(|issue| {
+                    issue.message.contains("disconnected")
+                        || issue.message.contains("must have unit length")
+                }),
+                "the link graph rejects the placement: {issues:?}"
             );
-            assert_eq!(issues.len(), 1, "{issues:?}");
-            assert!(issues[0].message.contains("non-quarter"), "{issues:?}");
+            assert!(
+                issues
+                    .iter()
+                    .any(|issue| issue.message.contains("non-quarter")),
+                "{issues:?}"
+            );
         }
     }
 
@@ -630,7 +895,10 @@ mod tests {
             unreachable!()
         };
         ship.sections[1].source = SectionSource::Inline(SectionConfig {
-            base: BaseSectionConfig::default(),
+            base: BaseSectionConfig {
+                link_points: nova_ship::prelude::unit_cube_link_points(),
+                ..default()
+            },
             kind: SectionKind::Turret(TurretSectionConfig::default()),
         });
         let s = scenario(vec![action], vec![]);
@@ -750,10 +1018,7 @@ mod tests {
         }
     }
 
-    /// `KnownSections::from_configs` classifies turret/torpedo kinds as
-    /// mounts and everything else as plain sections - and an id CONFLICT
-    /// (one definition a mount, another not) conservatively drops the id
-    /// from the mount set rather than risking a false Error.
+    /// `KnownSections::from_configs` classifies the resolved last-wins definition.
     #[test]
     fn section_catalog_classifies_mount_kinds() {
         use nova_ship::prelude::{
@@ -794,11 +1059,21 @@ mod tests {
             section("contested", SectionKind::Hull(HullSectionConfig::default())),
         ];
         let catalog = KnownSections::from_configs(&configs);
-        assert_eq!(catalog.ids.len(), 6, "{catalog:?}");
-        assert_eq!(
-            catalog.mounts,
-            known(&["turret", "torpedo"]),
-            "only uncontested mount kinds: {catalog:?}"
+        for id in [
+            "hull",
+            "thruster",
+            "controller",
+            "turret",
+            "torpedo",
+            "contested",
+        ] {
+            assert!(catalog.contains(id), "missing {id}: {catalog:?}");
+        }
+        assert!(catalog.get("turret").unwrap().mounts);
+        assert!(catalog.get("torpedo").unwrap().mounts);
+        assert!(
+            !catalog.get("contested").unwrap().mounts,
+            "the later hull override wins: {catalog:?}"
         );
     }
 }

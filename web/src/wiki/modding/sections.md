@@ -51,6 +51,7 @@ shared `base` block and one kind-specific block:
 | `base.impact_sound` | `Option` asset ref | `None` | Sound played when this section is hit. Omitted means silent. |
 | `base.destroy_sound` | `Option` asset ref | `None` | Sound played when this section is destroyed. Omitted means silent. |
 | `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
+| `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. |
 | `base.hide_in_editor` | bool | `false` | `true` hides the prototype from the editor palette. Ships can still reference it. |
 | `kind` | section kind | required | `Hull((...))`, `Thruster((...))`, `Controller((...))`, `Turret((...))`, or `Torpedo((...))`. |
 
@@ -66,6 +67,45 @@ collider: Some(Cylinder(radius: 0.5, height: 1.0)),
 `Cuboid.size` is the full size on each axis. Capsules and cylinders extend
 along local Y. A larger collider also increases real mass because `base.mass`
 is density.
+
+### Structural link points
+
+Structural attachment is explicit and independent of the collider. Two points
+mate when their transformed positions coincide and their outward unit normals
+oppose. The point `id` is unique within its section and is used for diagnostics
+and UI; IDs do not have to match.
+
+A one-unit cube normally authors six face-center points. Example pair:
+
+```ron
+link_points: [
+    (
+        id: "positive_x",
+        position: (0.5, 0.0, 0.0),
+        normal: (1.0, 0.0, 0.0),
+    ),
+    (
+        id: "negative_x",
+        position: (-0.5, 0.0, 0.0),
+        normal: (-1.0, 0.0, 0.0),
+    ),
+    // Add positive_y, negative_y, positive_z, and negative_z as needed.
+],
+```
+
+Rules:
+
+- Positions and normals are section-local.
+- Normals must be finite, nonzero, and unit length.
+- One point cannot mate with multiple points.
+- Unused exterior points are valid.
+- A multi-section ship must form one connected mate graph.
+- Omitted `link_points` means no sockets. Collider contact and one-unit spacing
+  do not provide compatibility behavior.
+- A section override replaces the complete prototype. Repeat its link points or
+  author new ones; it does not inherit sockets from the replaced section.
+
+Error-level graph findings prevent the scenario from starting.
 
 ### Assets and visual transforms
 

@@ -6,6 +6,8 @@
 //!
 //! Touch this module when changing how the ship is drawn or selected in.
 
+use std::collections::BTreeSet;
+
 use bevy::{
     asset::RenderAssetUsages,
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
@@ -16,6 +18,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_os::prelude::*;
+use nova_ship::prelude::{derive_link_point_graph, PlacedSectionLinkPoints};
 use nova_ui::font::UiFont;
 
 use super::{sections::*, *};
@@ -49,6 +52,9 @@ pub(crate) enum ShipPanelButton {
 pub(crate) struct ShipCameraMarker;
 #[derive(Component)]
 pub(crate) struct ShipSceneRoot;
+/// Default-off structural edge overlay derived from live section sockets.
+#[derive(Component)]
+pub(crate) struct ShipMateOverlay;
 
 /// A schematic block for one section: a dim, uniform-green translucent fill. It
 /// no longer tracks status by colour (status rides the blip integrity bar); it
@@ -129,6 +135,8 @@ pub(crate) struct ShipRuntime {
     /// disabled action without re-deriving the section's validity.
     pub(crate) panel_repair_enabled: bool,
     pub(crate) panel_reload_enabled: bool,
+    /// Whether the structural mate overlay is visible.
+    pub(crate) show_mates: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -163,6 +171,7 @@ pub(crate) fn manage_ship_scene(
         runtime.image = None;
         runtime.selected = None;
         runtime.note = None;
+        runtime.show_mates = false;
         return;
     }
 
@@ -172,6 +181,7 @@ pub(crate) fn manage_ship_scene(
     };
 
     let views = sections.collect();
+    runtime.show_mates = false;
     // Frame the whole ship: centroid of the section blocks + a radius that fits
     // the furthest one.
     let centroid = if views.is_empty() {
@@ -276,6 +286,18 @@ pub(crate) fn manage_ship_scene(
             });
     }
 
+    if let Some(mesh) = mate_edges_mesh(&views) {
+        commands.spawn((
+            ShipMateOverlay,
+            Mesh3d(meshes.add(mesh)),
+            MeshMaterial3d(materials.add(unlit(NOVA_OS_AMBER))),
+            Transform::default(),
+            Visibility::Hidden,
+            RenderLayers::layer(SHIP_LAYER),
+            ChildOf(scene_root),
+        ));
+    }
+
     runtime.scene_root = Some(scene_root);
     // Default the selection to the first section so the panel is useful at once.
     runtime.selected = views.first().map(|v| v.entity);
@@ -342,6 +364,7 @@ pub(crate) fn ship_input(
     sections: ShipSections,
     mut commands: MessageWriter<ShipSectionCommand>,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
+    mut q_mates: Query<&mut Visibility, With<ShipMateOverlay>>,
 ) {
     if !input.app_is_active(SHIP_APP_ID) {
         return;
@@ -382,6 +405,17 @@ pub(crate) fn ship_input(
         if wheel_delta != 0.0 {
             orbit.radius =
                 (orbit.radius * (1.0 - wheel_delta * 0.12)).clamp(SHIP_RADIUS_MIN, SHIP_RADIUS_MAX);
+        }
+    }
+
+    if input.just_pressed(KeyCode::KeyG) {
+        runtime.show_mates = !runtime.show_mates;
+        for mut visibility in &mut q_mates {
+            *visibility = if runtime.show_mates {
+                Visibility::Visible
+            } else {
+                Visibility::Hidden
+            };
         }
     }
 
@@ -777,6 +811,45 @@ pub(crate) fn update_ship_panel(
 // ---------------------------------------------------------------------------
 // Small render helpers
 // ---------------------------------------------------------------------------
+
+pub(crate) fn mate_edges_mesh(views: &[ShipSectionView]) -> Option<Mesh> {
+    let placed: Vec<_> = views
+        .iter()
+        .map(|view| PlacedSectionLinkPoints {
+            position: view.local.translation,
+            rotation: view.local.rotation,
+            link_points: &view.link_points,
+        })
+        .collect();
+    let mates = derive_link_point_graph(&placed).ok()?;
+    let edges: BTreeSet<_> = mates
+        .into_iter()
+        .map(|mate| {
+            let a = mate.a.section_index;
+            let b = mate.b.section_index;
+            (a.min(b), a.max(b))
+        })
+        .collect();
+    if edges.is_empty() {
+        return None;
+    }
+    let positions: Vec<[f32; 3]> = edges
+        .into_iter()
+        .flat_map(|(a, b)| {
+            [
+                views[a].local.translation.to_array(),
+                views[b].local.translation.to_array(),
+            ]
+        })
+        .collect();
+    let count = positions.len();
+    Some(
+        Mesh::new(PrimitiveTopology::LineList, RenderAssetUsages::default())
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; count])
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; count]),
+    )
+}
 
 /// A `LineList` mesh of a unit cuboid's 12 edges (corners at +/-0.5, no face
 /// diagonals), so a block can carry a crisp box outline instead of merging into

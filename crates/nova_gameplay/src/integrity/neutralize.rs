@@ -130,9 +130,11 @@ fn detect_neutralized(
 
         // Combat-dead: no working weapons and no working thrusters. Stamp the
         // unified edge before the persistent wreck state.
+        // The integrity root can be destroyed later in this same command flush.
+        // A stale neutralization reaction must not turn that valid race into a panic.
         commands
             .entity(root)
-            .insert((DefeatedMarker, NeutralizedMarker));
+            .try_insert((DefeatedMarker, NeutralizedMarker));
 
         // Fire the scenario-facing signal, mirroring the destroy path's use of
         // the ship's scenario id/type name.

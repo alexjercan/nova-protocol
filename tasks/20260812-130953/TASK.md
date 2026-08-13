@@ -1,6 +1,6 @@
 # Replace distance-based integrity with authoritative link-point mates
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.10.0, ship, integrity, nova-os
 

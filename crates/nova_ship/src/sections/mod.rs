@@ -9,6 +9,8 @@ pub mod base_section;
 pub mod controller_section;
 pub mod damage_tint;
 pub mod hull_section;
+pub mod integrity;
+pub mod link_points;
 pub mod thruster_section;
 pub mod torpedo_section;
 pub mod turret_section;
@@ -18,9 +20,10 @@ pub mod turret_section;
 pub mod prelude {
     pub use super::{
         ammo::prelude::*, base_section::prelude::*, controller_section::prelude::*,
-        damage_tint::prelude::*, hull_section::prelude::*, live_structure_anchor,
-        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
-        SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        damage_tint::prelude::*, hull_section::prelude::*, integrity::prelude::*,
+        link_points::prelude::*, live_structure_anchor, thruster_section::prelude::*,
+        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
+        SpaceshipSectionSystems,
     };
 }
 
@@ -130,6 +133,7 @@ impl Plugin for SpaceshipSectionPlugin {
 
         app.register_type::<ammo::SectionAmmo>();
         app.register_type::<ammo::SectionReload>();
+        app.add_plugins(integrity::ShipIntegrityPlugin);
         // NOTE: reload is add-only against the consume in
         // `shoot_spawn_projectile`, so it needs no ordering versus the fire
         // systems - only the same fixed clock.

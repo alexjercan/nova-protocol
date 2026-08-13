@@ -21,7 +21,8 @@
 //! blips); each blip carries a per-kind glyph + its code, an integrity bar
 //! (width = HP, colour = status) and, for weapons, ammo pips - that is where a
 //! section's status now shows. Orbit the camera with Q/E/R/F + drag + wheel;
-//! `[`/`]` cycle the selection; `L` reloads and `P` repairs the selected section.
+//! `[`/`]` cycle the selection; `G` toggles structural mates; `L` reloads and
+//! `P` repairs the selected section.
 //!
 //! Actions are instant and free for now, but they route through a single
 //! `ShipSectionCommand` seam (CLI verb -> [`NovaOsCommandInvocation`], in-app key
@@ -83,6 +84,7 @@ const SHIP_HINTS: &[&str] = &[
     "DRAG: LOOK",
     "WHEEL: ZOOM",
     "[ / ]: SELECT",
+    "G: MATES",
     "L: RELOAD",
     "P: REPAIR",
     "T: RESET",

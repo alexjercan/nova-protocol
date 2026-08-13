@@ -171,12 +171,12 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         .get("base")
         .map(|s| s.iter().collect())
         .unwrap_or_default();
-    visible.extend(bundle.sections.iter());
     for dep in &bundle.manifest.meta.dependencies {
         if let Some(dep_sections) = sections_by_bundle.get(dep.as_str()) {
             visible.extend(dep_sections.iter());
         }
     }
+    visible.extend(bundle.sections.iter());
     let known_sections = KnownSections::from_configs(visible);
 
     let mut issues = Vec::new();

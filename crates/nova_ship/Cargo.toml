@@ -28,6 +28,7 @@ nova_gameplay = { path = "../nova_gameplay" }
 ron = { version = "0.12" }
 # The headless avian app every section/flight/input/camera test builds on.
 nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
+bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }
 
 [lints]
 workspace = true

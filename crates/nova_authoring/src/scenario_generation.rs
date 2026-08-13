@@ -174,3 +174,102 @@ pub fn content_files() -> Vec<(String, String)> {
     }));
     files
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::{HashMap, HashSet};
+
+    use nova_scenario::prelude::{
+        EventActionConfig, ScenarioObjectConfig, ScenarioObjectKind, SectionSource, SpaceshipConfig,
+    };
+    use nova_ship::prelude::{derive_link_point_graph, PlacedSectionLinkPoints};
+
+    use super::*;
+
+    fn ship_objects(action: &EventActionConfig) -> Vec<&ScenarioObjectConfig> {
+        match action {
+            EventActionConfig::SpawnScenarioObject(object) => vec![object],
+            EventActionConfig::ScatterObjects(scatter) => vec![&scatter.template],
+            _ => Vec::new(),
+        }
+    }
+
+    fn old_edges(ship: &SpaceshipConfig) -> HashSet<(usize, usize)> {
+        let mut edges = HashSet::new();
+        for a in 0..ship.sections.len() {
+            for b in (a + 1)..ship.sections.len() {
+                if (ship.sections[a]
+                    .position
+                    .distance(ship.sections[b].position)
+                    - 1.0)
+                    .abs()
+                    < 0.1
+                {
+                    edges.insert((a, b));
+                }
+            }
+        }
+        edges
+    }
+
+    #[test]
+    fn link_points_preserve_every_built_in_cube_ship_edge() {
+        let catalog: HashMap<_, _> = build_section_catalog()
+            .into_iter()
+            .map(|section| (section.base.id.clone(), section))
+            .collect();
+
+        for scenario in build_scenarios() {
+            for event in &scenario.events {
+                for action in &event.actions {
+                    for object in ship_objects(action) {
+                        let ScenarioObjectKind::Spaceship(ship) = &object.kind else {
+                            continue;
+                        };
+                        let resolved: Vec<_> = ship
+                            .sections
+                            .iter()
+                            .map(|section| match &section.source {
+                                SectionSource::Inline(config) => config,
+                                SectionSource::Prototype(id) => catalog
+                                    .get(id)
+                                    .unwrap_or_else(|| panic!("missing prototype '{id}'")),
+                            })
+                            .collect();
+                        let placed: Vec<_> = ship
+                            .sections
+                            .iter()
+                            .zip(&resolved)
+                            .map(|(section, config)| PlacedSectionLinkPoints {
+                                position: section.position,
+                                rotation: section.rotation,
+                                link_points: &config.base.link_points,
+                            })
+                            .collect();
+                        let mates = derive_link_point_graph(&placed).unwrap_or_else(|errors| {
+                            panic!(
+                                "scenario '{}' ship '{}' has invalid points: {errors:?}",
+                                scenario.id, object.base.id
+                            )
+                        });
+                        let new_edges: HashSet<_> = mates
+                            .into_iter()
+                            .map(|mate| {
+                                let a = mate.a.section_index;
+                                let b = mate.b.section_index;
+                                (a.min(b), a.max(b))
+                            })
+                            .collect();
+                        assert_eq!(
+                            new_edges,
+                            old_edges(ship),
+                            "scenario '{}' ship '{}' changed its integrity graph",
+                            scenario.id,
+                            object.base.id
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

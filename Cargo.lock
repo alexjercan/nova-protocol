@@ -4820,6 +4820,7 @@ dependencies = [
  "bevy",
  "bevy_enhanced_input",
  "bevy_hanabi",
+ "bevy_rand",
  "bevy_transform_interpolation",
  "nova_events",
  "nova_gameplay",

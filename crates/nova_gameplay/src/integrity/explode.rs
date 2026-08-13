@@ -4,9 +4,8 @@
 //! by the integrity glue rather than deciding when something dies.
 //!
 //! Touch this module to change how wrecks come apart (fragment count, spread,
-//! lifetime). The health/disable/destroy bookkeeping lives in the sibling
-//! `glue` module and the generic [`core`](super::core)
-//! integrity layer.
+//! lifetime). Health, disable, and destroy bookkeeping lives in the generic
+//! [`core`](super::core) integrity layer; structure owners publish its graph.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -191,7 +190,8 @@ fn on_destroyed_entity(
         // Persist the exact-once guard through the rest of this frame. This
         // also prevents neutralization detection from reporting a second
         // defeat if destruction and section loss converge in one update.
-        commands.entity(entity).insert(DefeatedMarker);
+        // A sibling destruction reaction can despawn the root in this command flush.
+        commands.entity(entity).try_insert(DefeatedMarker);
         commands.fire::<OnDefeatedEvent>(OnDefeatedEventInfo {
             id: id.clone(),
             type_name: type_name.clone(),

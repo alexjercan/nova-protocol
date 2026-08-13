@@ -14,6 +14,10 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Ships & Sections
+
+- **(breaking)** Ship integrity now uses explicit section link-point mates. Collider contact and one-unit center spacing no longer create structural edges; multi-section mods must author one connected link-point graph. NOVA OS toggles a `MATES` structure overlay with `G`.
+
 ### Scenarios & Objectives
 
 - **(breaking)** Scenario world reads now use typed queries and declared watched variables. `Scenario(Elapsed)` replaces the implicit `scenario_elapsed` value, `Entity(... Speed)` replaces implicit player speed, and inline `Query(...)` factors support one-shot snapshots.

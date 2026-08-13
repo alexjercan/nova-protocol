@@ -19,7 +19,7 @@ use bevy::prelude::*;
 use nova_gameplay::{
     asset_ref::AssetRef,
     markers::prelude::*,
-    prelude::{destructible_body, ExplodableEntity},
+    prelude::{destructible_body, ConnectedTo, ExplodableEntity},
 };
 
 use super::prelude::*;
@@ -215,6 +215,13 @@ pub struct BaseSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub collider: Option<SectionCollider>,
+    /// Structural sockets in section-local space. Empty means the section has
+    /// no structural attachment points; collider geometry never supplies them.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
+    pub link_points: Vec<LinkPoint>,
     /// When true this section is hidden from the editor sandbox's section
     /// palette - it can still be authored and spawned, it just does not clutter
     /// the picker. Used for the cut-cube spaceship prototypes (racer/cargob/
@@ -305,6 +312,8 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
     (
         Name::new(config.name.clone()),
         SectionMarker,
+        SectionLinkPoints(config.link_points),
+        ConnectedTo::default(),
         collider.to_collider(),
         // Keep the authored collider shape ON the section so the NOVA OS ship app
         // can build its schematic blocks from exact authored extents
@@ -327,16 +336,16 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
 /// It renders (via the kind-specific `*_section` bundle inserted alongside it) and can be
 /// clicked to place adjacent sections, but unlike [`base_section`] it carries no `Health`,
 /// `ColliderDensity` or `ExplodableEntity`, so it never enters the integrity/damage
-/// pipeline. As long as neither it nor its root has a `RigidBody`, avian keeps its collider
-/// in the standalone spatial-query tree (still pickable) and never links it with
-/// `ColliderOf`, so no integrity graph is built for the preview ship and none of the
-/// gameplay/health systems act on it.
+/// pipeline. Its root uses the editor-only preview marker rather than
+/// `SpaceshipRootMarker`, so no integrity graph is built for the preview ship and none of
+/// the gameplay/health systems act on it.
 pub fn preview_section(config: BaseSectionConfig) -> impl Bundle {
     debug!("preview_section: config {:?}", config);
 
     (
         Name::new(config.name.clone()),
         SectionMarker,
+        SectionLinkPoints(config.link_points),
         config.collider.unwrap_or_default().to_collider(),
         Visibility::Inherited,
     )
@@ -411,6 +420,25 @@ mod tests {
         .to_collider();
     }
 
+    #[test]
+    fn live_and_preview_sections_snapshot_link_points_but_only_live_has_a_graph_node() {
+        let config = BaseSectionConfig {
+            name: "section".to_string(),
+            health: 10.0,
+            mass: 1.0,
+            link_points: unit_cube_link_points(),
+            ..default()
+        };
+        let mut world = World::new();
+        let live = world.spawn(base_section(config.clone())).id();
+        let preview = world.spawn(preview_section(config)).id();
+
+        assert_eq!(world.get::<SectionLinkPoints>(live).unwrap().len(), 6);
+        assert_eq!(world.get::<SectionLinkPoints>(preview).unwrap().len(), 6);
+        assert!(world.get::<ConnectedTo>(live).is_some());
+        assert!(world.get::<ConnectedTo>(preview).is_none());
+    }
+
     #[cfg(feature = "serde")]
     #[test]
     fn collider_field_round_trips_and_is_omitted_when_unset() {
@@ -426,6 +454,7 @@ mod tests {
             collider: Some(SectionCollider::Cuboid {
                 size: Vec3::new(0.8, 0.8, 0.8),
             }),
+            link_points: Vec::new(),
             hide_in_editor: false,
         };
         let ron = ron::ser::to_string(&authored).expect("serialize");
@@ -460,6 +489,7 @@ mod tests {
             impact_sound: None,
             destroy_sound: None,
             collider: None,
+            link_points: Vec::new(),
             hide_in_editor: false,
         };
         let ron = ron::ser::to_string(&visible).expect("serialize");

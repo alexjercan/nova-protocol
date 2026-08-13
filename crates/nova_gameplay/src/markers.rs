@@ -5,8 +5,9 @@
 //! crate spawns them; `integrity` and `gravity` here classify entities by them
 //! (is this a ship root? a live section? a torpedo?) without depending on the
 //! sections that define one. They are plain unit components with no systems and
-//! no requirements beyond each other, which is what lets them sit below the
-//! seam instead of straddling it.
+//! minimal requirements, which lets them sit below the seam instead of
+//! straddling it. A ship root declares the generic integrity role every ship
+//! requires.
 //!
 //! The AI counterparts are deliberately NOT here: `AISpaceshipMarker` requires
 //! the AI behavior state, and `AINonCombatant` is an AI directive, so both live
@@ -15,7 +16,7 @@
 
 use bevy::prelude::*;
 
-use crate::relations::prelude::Allegiance;
+use crate::{integrity::prelude::IntegrityRoot, relations::prelude::Allegiance};
 
 /// The whole module - every marker is part of the shared vocabulary.
 pub mod prelude {
@@ -29,6 +30,7 @@ pub mod prelude {
 /// The root component for an entire spaceship. Every section is a child of the
 /// entity carrying this.
 #[derive(Component, Clone, Debug, Default, Reflect)]
+#[require(IntegrityRoot)]
 pub struct SpaceshipRootMarker;
 
 /// Marks the player's spaceship root.

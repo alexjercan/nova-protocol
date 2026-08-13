@@ -278,6 +278,7 @@ pub(crate) fn apply_ship_cli_commands(
                 name,
                 local: Transform::default(),
                 half_extents: Vec3::ONE,
+                link_points: Vec::new(),
                 health: q_health.get(entity).ok().cloned(),
                 ammo: q_ammo.get(entity).ok().copied(),
                 inactive,

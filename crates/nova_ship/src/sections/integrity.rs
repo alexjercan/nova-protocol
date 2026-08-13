@@ -1,29 +1,37 @@
-//! Section-specific "glue" between the generic integrity core ([`super::core`]) and
-//! the spaceship sections. These systems know about `SectionMarker` and the ship hierarchy;
-//! the integrity core itself only deals with generic nodes ([`ConnectedTo`]) and roots
-//! ([`IntegrityRoot`]). Keeping them here stops the core from depending on sections.
+//! Ship-specific adapter for the generic integrity graph and lifecycle.
+//!
+//! Change this module when ship structure publication or aggregate health semantics change.
 
-use avian3d::prelude::*;
+use std::collections::BTreeSet;
+
 use bevy::prelude::*;
+use nova_events::prelude::EntityId;
+use nova_gameplay::prelude::*;
 
-use super::{components::prelude::*, core::prelude::*, health::prelude::*};
-use crate::prelude::{SectionInactiveMarker, SectionMarker, SpaceshipRootMarker};
+use super::link_points::prelude::*;
 
-pub(super) struct IntegrityGluePlugin;
+/// Ship graph publication, disabled-section behavior, and aggregate health.
+pub mod prelude {
+    pub use super::ShipIntegrityPlugin;
+}
 
-impl Plugin for IntegrityGluePlugin {
+/// Adapts section-based ships to the generic gameplay integrity pipeline.
+pub struct ShipIntegrityPlugin;
+
+impl Plugin for ShipIntegrityPlugin {
     fn build(&self, app: &mut App) {
-        debug!("IntegrityGluePlugin: build");
+        debug!("ShipIntegrityPlugin: build");
 
+        app.register_type::<LinkPoint>();
+        app.register_type::<SectionLinkPoints>();
         app.add_observer(on_section_disable);
-        app.add_observer(build_integrity_relations);
+        app.add_systems(Update, build_ship_integrity_graph.before(IntegritySystems));
         app.add_systems(Update, aggregate_ship_health.in_set(IntegritySystems));
     }
 }
 
-/// A disabled section that is not (yet) a leaf is visually/functionally deactivated but kept
-/// in place. A disabled leaf is instead destroyed (see
-/// [`destroy_a_disabled_leaf`](super::core)).
+/// A disabled section that is not yet a leaf is deactivated but kept in place.
+/// A disabled leaf is destroyed by the generic integrity core instead.
 fn on_section_disable(
     add: On<Add, IntegrityDisabledMarker>,
     mut commands: Commands,
@@ -49,59 +57,90 @@ fn on_section_disable(
     commands.entity(entity).insert(SectionInactiveMarker);
 }
 
-/// Build (or rebuild) the integrity relations for a body whenever one of its colliders is
-/// physics-linked (avian adds `ColliderOf`).
+/// Build each ship's authoritative section graph after its section spawn batch is complete.
 ///
-/// Keyed on `ColliderOf` rather than `SectionMarker`: avian adds `ColliderOf` *after* the
-/// section entities are spawned, so by the time this fires every section of the body already
-/// exists and can be seen. Rebuilding on each collider is idempotent - the last call, once
-/// every collider is linked, yields the complete set of neighbor lists.
-///
-/// - Ship: connect sections that are one unit apart (adjacent in the section grid); each
-///   section gets a [`ConnectedTo`] neighbor list.
-/// - Lone body (e.g. an asteroid): the single collider node gets an empty [`ConnectedTo`], so
-///   it is a leaf and is destroyed as soon as it is disabled.
-///
-/// The body itself is marked [`IntegrityRoot`] so aggregate health and whole-body
-/// destruction can find it.
-fn build_integrity_relations(
-    add: On<Add, ColliderOf>,
+/// An observer on Avian's `Add<ColliderOf>` sees colliders one at a time. A valid ship can be
+/// disconnected halfway through that sequence, which briefly publishes an empty graph and
+/// emits false errors. `Added<SectionLinkPoints>` is evaluated once per update, after all
+/// section commands from the spawn observer have landed, so each affected root is derived once
+/// from its complete authored batch.
+fn build_ship_integrity_graph(
     mut commands: Commands,
-    q_collider: Query<&ChildOf, With<ColliderOf>>,
-    q_sections: Query<(Entity, &Transform, &ChildOf), With<SectionMarker>>,
+    q_added_sections: Query<&ChildOf, (With<SectionMarker>, Added<SectionLinkPoints>)>,
+    q_root: Query<(), With<SpaceshipRootMarker>>,
+    q_sections: Query<
+        (
+            Entity,
+            &Transform,
+            &SectionLinkPoints,
+            &ChildOf,
+            Option<&EntityId>,
+        ),
+        With<SectionMarker>,
+    >,
 ) {
-    let entity = add.entity;
-    trace!("build_integrity_relations: entity {:?}", entity);
-
-    let Ok(ChildOf(rigidbody)) = q_collider.get(entity) else {
-        return;
-    };
-    let rigidbody = *rigidbody;
-
-    // All sections belonging to this rigidbody, with their local (root-relative) positions.
-    let sections: Vec<(Entity, Vec3)> = q_sections
+    let roots: BTreeSet<_> = q_added_sections
         .iter()
-        .filter(|(_, _, ChildOf(parent))| *parent == rigidbody)
-        .map(|(section, transform, _)| (section, transform.translation))
+        .map(|ChildOf(root)| *root)
+        .filter(|root| q_root.contains(*root))
         .collect();
 
-    if sections.is_empty() {
-        // Non-section body (e.g. an asteroid): a single collider node with no neighbors.
-        commands.entity(entity).insert(ConnectedTo(Vec::new()));
-    } else {
-        for (section, position) in &sections {
-            let neighbors: Vec<Entity> = sections
+    for root in roots {
+        let mut sections: Vec<_> = q_sections
+            .iter()
+            .filter(|(_, _, _, ChildOf(parent), _)| *parent == root)
+            .collect();
+        sections.sort_by_key(|(entity, ..)| entity.to_bits());
+        if sections.is_empty() {
+            continue;
+        }
+
+        let placed: Vec<_> = sections
+            .iter()
+            .map(
+                |(_, transform, link_points, _, _)| PlacedSectionLinkPoints {
+                    position: transform.translation,
+                    rotation: transform.rotation,
+                    link_points,
+                },
+            )
+            .collect();
+
+        let mut neighbors = vec![BTreeSet::new(); sections.len()];
+        match derive_link_point_graph(&placed) {
+            Ok(mates) => {
+                for mate in mates {
+                    let a = mate.a.section_index;
+                    let b = mate.b.section_index;
+                    neighbors[a].insert(b);
+                    neighbors[b].insert(a);
+                }
+            }
+            Err(errors) => {
+                let section_order: Vec<_> = sections
+                    .iter()
+                    .map(|(entity, _, _, _, id)| {
+                        id.map(|id| id.0.clone())
+                            .unwrap_or_else(|| format!("{entity:?}"))
+                    })
+                    .collect();
+                for graph_error in errors {
+                    error!(
+                        "ship {root:?} has an invalid link-point graph; section order \
+                         {section_order:?}: {graph_error:?}"
+                    );
+                }
+            }
+        }
+
+        for (section_index, (section, ..)) in sections.iter().enumerate() {
+            let connected = neighbors[section_index]
                 .iter()
-                .filter(|(other, other_position)| {
-                    *other != *section && (position.distance(*other_position) - 1.0).abs() < 0.1
-                })
-                .map(|(other, _)| *other)
+                .map(|neighbor| sections[*neighbor].0)
                 .collect();
-            commands.entity(*section).insert(ConnectedTo(neighbors));
+            commands.entity(*section).insert(ConnectedTo(connected));
         }
     }
-
-    commands.entity(rigidbody).insert(IntegrityRoot);
 }
 
 /// Keep each ship's aggregate health equal to the sum of its section children, so the health
@@ -117,14 +156,13 @@ fn build_integrity_relations(
 /// recomputes the root's health every frame as the sum of its living sections. When the sum
 /// hits zero, the fatal damage that removed the last section also bubbles up to the root
 /// (`HealthApplyDamage` auto-propagates through `ChildOf`), marking it with `HealthZeroMarker`
-/// which flows through disable -> destroy ([`on_health_depleted_insert_disabled`](super::core) ->
-/// [`destroy_the_structure_of_a_disabled_root`](super::core), the ROOT-specific hop: roots carry
-/// no `ConnectedTo`, are never leaves, so the leaf-gated
-/// [`destroy_a_disabled_leaf`](super::core) cannot fire for them); the meshless root is then
+/// which flows through the generic disable and root-destruction path. Roots carry no
+/// `ConnectedTo` and are never leaves, so root destruction is a separate integrity-core hop;
+/// the meshless root is then
 /// despawned and the ship dies (its `PlayerSpaceshipMarker` is removed, reverting the camera
 /// and clearing the HUDs).
 ///
-/// The bubbled amount is *clamped to what actually landed on the section*: [`on_damage`](super::health)
+/// The bubbled amount is clamped to what actually landed on the section by the health layer,
 /// propagates `min(amount, section.current)`, not the raw hit. That is why overkill on one
 /// section cannot kill the ship (a 1000-damage hit on a 100 hp section costs the root 100, not
 /// 1000), while the last-section case still works - there the aggregate
@@ -292,23 +330,37 @@ mod tests {
     }
 }
 
-/// Physics-level tests for `build_integrity_relations`, which derives each node's `ConnectedTo`
-/// from the real `ColliderOf` links avian adds once a body's colliders are prepared.
+/// Physics-level tests for link-point graph publication at Avian's real `ColliderOf` seam.
 #[cfg(test)]
 mod physics_tests {
+    use avian3d::prelude::*;
     use bevy_rand::prelude::*;
+    use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 
     use super::*;
-    use crate::test_support::{integrity_physics_app, settle, unfinished_integrity_physics_app};
+
+    fn integrity_physics_app() -> App {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
+        app.finish();
+        app
+    }
 
     /// Spawn a ship section entity (as `base_section` does: `SectionMarker` + cuboid collider
     /// + health/density) at a grid position, parented to `root`.
-    fn spawn_section(app: &mut App, root: Entity, at: Vec3) -> Entity {
+    fn spawn_section_with_points(
+        app: &mut App,
+        root: Entity,
+        at: Vec3,
+        link_points: Vec<LinkPoint>,
+    ) -> Entity {
         app.world_mut()
             .spawn((
                 ChildOf(root),
                 SectionMarker,
                 Transform::from_translation(at),
+                SectionLinkPoints(link_points),
+                ConnectedTo::default(),
                 Collider::cuboid(1.0, 1.0, 1.0),
                 ColliderDensity(1.0),
                 Health::new(100.0),
@@ -316,14 +368,17 @@ mod physics_tests {
             .id()
     }
 
+    fn spawn_section(app: &mut App, root: Entity, at: Vec3) -> Entity {
+        spawn_section_with_points(app, root, at, unit_cube_link_points())
+    }
+
     fn neighbors(app: &App, entity: Entity) -> Vec<Entity> {
         app.world().get::<ConnectedTo>(entity).unwrap().0.clone()
     }
 
     #[test]
-    fn a_ship_builds_adjacency_from_section_positions() {
-        // Three sections in a line at x = 0, 1, 2. Adjacency is "one grid unit apart", so the
-        // middle section neighbors both ends, and each end neighbors only the middle.
+    fn a_ship_builds_adjacency_from_link_point_mates() {
+        // Explicit cube sockets reproduce the existing three-cell line graph.
         let mut app = integrity_physics_app();
         let root = app
             .world_mut()
@@ -348,6 +403,84 @@ mod physics_tests {
         assert!(mid_neighbors.contains(&left) && mid_neighbors.contains(&right));
         assert_eq!(neighbors(&app, left), vec![mid]);
         assert_eq!(neighbors(&app, right), vec![mid]);
+    }
+
+    #[test]
+    fn graph_build_uses_the_complete_section_spawn_batch() {
+        let mut app = App::new();
+        app.add_systems(Update, build_ship_integrity_graph);
+
+        let root = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let left = spawn_section(&mut app, root, Vec3::ZERO);
+        let right = spawn_section(&mut app, root, Vec3::X * 2.0);
+        let bridge = spawn_section(&mut app, root, Vec3::X);
+
+        app.update();
+
+        assert_eq!(neighbors(&app, left), vec![bridge]);
+        assert_eq!(neighbors(&app, right), vec![bridge]);
+        let bridge_neighbors = neighbors(&app, bridge);
+        assert_eq!(bridge_neighbors.len(), 2);
+        assert!(bridge_neighbors.contains(&left));
+        assert!(bridge_neighbors.contains(&right));
+    }
+
+    #[test]
+    fn link_points_connect_sections_at_non_grid_distances() {
+        let mut app = integrity_physics_app();
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        let left = spawn_section_with_points(
+            &mut app,
+            root,
+            Vec3::ZERO,
+            vec![LinkPoint {
+                id: "out".to_string(),
+                position: Vec3::X,
+                normal: Vec3::X,
+            }],
+        );
+        let right = spawn_section_with_points(
+            &mut app,
+            root,
+            Vec3::X * 2.0,
+            vec![LinkPoint {
+                id: "in".to_string(),
+                position: Vec3::NEG_X,
+                normal: Vec3::NEG_X,
+            }],
+        );
+
+        settle(&mut app);
+
+        assert_eq!(neighbors(&app, left), vec![right]);
+        assert_eq!(neighbors(&app, right), vec![left]);
+    }
+
+    #[test]
+    fn adjacent_sections_without_link_points_do_not_gain_distance_edges() {
+        let mut app = integrity_physics_app();
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        let left = spawn_section_with_points(&mut app, root, Vec3::ZERO, Vec::new());
+        let right = spawn_section_with_points(&mut app, root, Vec3::X, Vec::new());
+
+        settle(&mut app);
+
+        assert!(neighbors(&app, left).is_empty());
+        assert!(neighbors(&app, right).is_empty());
     }
 
     /// When a section is gone, the body's mass, center of mass and angular
@@ -437,6 +570,7 @@ mod physics_tests {
     #[test]
     fn mass_properties_follow_a_section_destroyed_by_damage() {
         let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
         // The destroy path's debris observers need material assets and the
         // global rng even in a headless run.
         app.init_asset::<StandardMaterial>();
@@ -496,6 +630,7 @@ mod physics_tests {
     #[test]
     fn overkill_on_one_section_does_not_kill_the_ship() {
         let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
         // The destroy path's debris observers need material assets and the
         // global rng even in a headless run.
         app.init_asset::<StandardMaterial>();
@@ -576,13 +711,14 @@ mod physics_tests {
         let mut app = integrity_physics_app();
         let body = app
             .world_mut()
-            .spawn((RigidBody::Dynamic, Transform::default()))
+            .spawn((RigidBody::Dynamic, Transform::default(), IntegrityRoot))
             .id();
         let node = app
             .world_mut()
             .spawn((
                 ChildOf(body),
                 Collider::sphere(1.0),
+                ConnectedTo::default(),
                 ColliderDensity(1.0),
                 Health::new(100.0),
             ))
@@ -605,37 +741,39 @@ mod physics_tests {
 /// pins (null-result-becomes-a-pin).
 #[cfg(test)]
 mod ghost_ship_tests {
+    use avian3d::prelude::*;
     use bevy_rand::prelude::*;
-    use nova_events::prelude::{EntityId, EntityTypeName, GameEvent};
+    use nova_events::prelude::{EntityTypeName, GameEvent};
+    use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 
     use super::*;
-    use crate::test_support::{settle, unfinished_integrity_physics_app};
 
-    /// Counts every fired [`GameEvent`]. `GameEvent.name` has no public
-    /// accessor, so this counts ALL of them - which in THIS rig means
-    /// exactly "the root's OnDestroyed": the root is the only entity
-    /// carrying the `EntityId` + `EntityTypeName` the explode observer needs
-    /// to fire (sections deliberately lack them, so their destroys stay
-    /// silent), and no scenario plugin is loaded to fire anything else.
+    /// Records lifecycle events so unified defeat and physical destruction remain distinct.
     #[derive(Resource, Default)]
-    struct FiredEvents(usize);
+    struct FiredEvents(Vec<&'static str>);
 
     fn ghost_app() -> App {
         let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
         // The destroy path's debris observers need material assets and the
         // global rng even in a headless run.
         app.init_asset::<StandardMaterial>();
         app.add_plugins(EntropyPlugin::<WyRand>::default());
         app.init_resource::<FiredEvents>();
-        app.add_observer(|_: On<GameEvent>, mut fired: ResMut<FiredEvents>| {
-            fired.0 += 1;
+        app.add_observer(|event: On<GameEvent>, mut fired: ResMut<FiredEvents>| {
+            fired.0.push(event.name());
         });
         app.finish();
         app
     }
 
     fn destroy_events(app: &App) -> usize {
-        app.world().resource::<FiredEvents>().0
+        app.world()
+            .resource::<FiredEvents>()
+            .0
+            .iter()
+            .filter(|name| **name == "ondestroyed")
+            .count()
     }
 
     fn spawn_ship(app: &mut App, section_count: usize) -> (Entity, Vec<Entity>) {
@@ -656,6 +794,8 @@ mod ghost_ship_tests {
                         ChildOf(root),
                         SectionMarker,
                         Transform::from_translation(Vec3::X * i as f32),
+                        SectionLinkPoints(unit_cube_link_points()),
+                        ConnectedTo::default(),
                         Collider::cuboid(1.0, 1.0, 1.0),
                         ColliderDensity(1.0),
                         Health::new(100.0),

@@ -135,6 +135,7 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
 /// child node). Inserted by `asteroid_scenario_object`; the asteroid observers
 /// key on it to derive the collider, gravity well, and destruction handling.
 #[derive(Component, Clone, Debug, Reflect)]
+#[require(IntegrityRoot)]
 pub struct AsteroidMarker;
 
 /// The asteroid's surface texture ref (from [`AsteroidConfig::texture`]),
@@ -349,6 +350,7 @@ fn insert_asteroid_collider(
             Transform::from_scale(Vec3::splat(**radius)),
             AsteroidRenderMesh(mesh.clone()),
             collider,
+            ConnectedTo::default(),
             ColliderDensity(1.0),
             Visibility::Inherited,
         )],));
@@ -357,6 +359,7 @@ fn insert_asteroid_collider(
             Transform::from_scale(Vec3::splat(**radius)),
             AsteroidRenderMesh(mesh.clone()),
             collider,
+            ConnectedTo::default(),
             destructible_body(**health, 1.0),
             // destructible_body (nova_gameplay::integrity::health) is Health +
             // density + visibility; add

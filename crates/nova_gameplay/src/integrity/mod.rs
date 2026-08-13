@@ -6,14 +6,13 @@
 //! - [`components`] is the graph a destructible structure describes itself with.
 //! - [`core`] drives the lifecycle over that graph: ram damage in, disable at
 //!   zero, destroy leaves, prune, cascade, [`IntegrityDestroyMarker`] out.
-//! - [`glue`] builds the graph from the ship section grid and rolls section
-//!   health up to the ship root.
+//! - ship-specific adapters declare and build their graphs in their owning crates;
 //! - [`explode`] reacts to the destroy marker: slice meshes, spawn debris, fire
 //!   `OnDestroyedEvent`.
 //! - [`neutralize`] calls a ship combat-dead once its weapons and thrusters are
 //!   gone.
 //!
-//! [`NovaIntegrityPlugin`] bundles all six.
+//! [`NovaIntegrityPlugin`] bundles the five generic gameplay modules.
 //!
 //! [`IntegrityDestroyMarker`]: components::IntegrityDestroyMarker
 
@@ -22,7 +21,6 @@ use bevy::prelude::*;
 pub mod components;
 pub mod core;
 pub mod explode;
-pub mod glue;
 pub mod health;
 pub mod neutralize;
 
@@ -34,8 +32,8 @@ pub mod prelude {
     };
 }
 
-/// Nova's integrity plugin: the health store, the destruction core, and nova's
-/// section-graph glue, explosion reaction and combat-death detection.
+/// Nova's generic integrity plugin: health, graph lifecycle, explosion reaction,
+/// and combat-death detection. Structure owners publish their own graphs.
 pub struct NovaIntegrityPlugin;
 
 impl Plugin for NovaIntegrityPlugin {
@@ -45,9 +43,6 @@ impl Plugin for NovaIntegrityPlugin {
         // The hit-point store the core spends, and the destruction pipeline.
         app.add_plugins(health::NovaHealthPlugin);
         app.add_plugins(core::IntegrityCorePlugin);
-
-        // Section-specific graph construction, section disable, and aggregate ship health.
-        app.add_plugins(glue::IntegrityGluePlugin);
 
         // Nova's reaction to destruction: mesh slice, debris, OnDestroyedEvent.
         app.add_plugins(explode::ExplodablePlugin);
