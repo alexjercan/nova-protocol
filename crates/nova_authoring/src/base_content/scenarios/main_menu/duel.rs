@@ -5,39 +5,31 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
-use super::shared::{backdrop_planetoid, backdrop_rig, planetoid_glow};
+use super::shared::{backdrop_anchor, backdrop_rig, planetoid_glow};
 use crate::{
     base_content::{scenarios::SCATTER_SEED, ships},
-    scenario_helpers::{despawn_object, entity, number},
+    scenario_helpers::{entity, number},
 };
 
-/// The finisher battery's park: far outside the ~+-240 u camera frame, the
-/// planetoid's 424 u SOI (it has no thrusters to fight the pull with), AND
-/// the winner's default 800 u detection pull - the victor must never break
-/// its victory lap to charge the battery. The battery's own widened
-/// `engage_range` is what lets it wake from this distance once flipped
-/// hostile; the arena stays inside the 1000 u torpedo launch envelope.
+/// The finisher battery's park: far outside the ~+-230 u camera frame AND
+/// beyond the winner's leash + turret reach (300 + 450) of the arena center,
+/// so a victor lunging off a blast hit can never bring its guns onto the
+/// battery before the leash walks it home. With the launch SCRIPTED there is
+/// no AI envelope to stay inside of.
 const BATTERY_POS: Vec3 = Vec3::new(-950.0, 0.0, 0.0);
-/// The altitude the whole duel is staged at. Engage-state flight has NO
-/// obstacle avoidance (only passive patrol legs do), and the first cut of
-/// this scene proved it: two ships entering from +-420 on the y=0 plane
-/// chase along a line straight through the planetoid, pin themselves
-/// against its surface, and stall the fight forever with the line-of-fire
-/// gate holding both triggers. The planetoid's geometric radius runs to
-/// ~91 u across seeds; a fight plane at 110 keeps every chase line - and
-/// the head-on entrance line - clear of the rock, floating the duel above
-/// the planetoid in the frame.
-const DUEL_PLANE_Y: f32 = 110.0;
-/// Off-screen entrances, one per side.
-const VICTOR_SPAWN: Vec3 = Vec3::new(-420.0, DUEL_PLANE_Y, 100.0);
-const RIVAL_SPAWN: Vec3 = Vec3::new(420.0, DUEL_PLANE_Y, -100.0);
+/// Off-screen entrances, one per side, with a little vertical split so the
+/// approach lines cross instead of meeting head-on.
+const VICTOR_SPAWN: Vec3 = Vec3::new(-420.0, 25.0, 100.0);
+const RIVAL_SPAWN: Vec3 = Vec3::new(420.0, -15.0, -100.0);
 
 /// One duelist: a racer that flies in from off-screen onto an in-frame
 /// patrol triangle. The arrival grace holds the entrance (ships spawn in
 /// the Engage state and hold on ANY acquired target, so an ungraced spawn
 /// would turn and burn from the spawn point instead of flying in); the
-/// leash, anchored on the patrol centroid near the planetoid, keeps the
-/// fight from drifting out of frame.
+/// leash, anchored on the patrol centroid at the frame's center, keeps the
+/// fight from drifting out of shot. With no rock and no gravity anywhere in
+/// the scene, every chase line through the center is clear - the fight
+/// happens IN the middle of the frame, not pinned against a planetoid.
 fn duelist(
     id: &str,
     name: &str,
@@ -57,7 +49,11 @@ fn duelist(
             allegiance,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: patrol.to_vec(),
-                leash: Some(300.0),
+                // Tight tether: both leashes anchor on center-hugging patrol
+                // centroids, so the dogfight cannot range more than ~200 u
+                // from the middle of the frame - the fight stays in shot and
+                // each wave plays out over the same ground.
+                leash: Some(200.0),
                 engage_delay: Some(6.0),
                 ..Default::default()
             }),
@@ -68,35 +64,36 @@ fn duelist(
 
 /// A repeating three-act battle behind the menu. Act one: a player-grade
 /// racer (Player allegiance) and an enemy-grade racer fly in from opposite
-/// sides and fight; the gun gap makes the outcome all but certain. Act two:
-/// the rival's defeat starts a short beat, then the off-screen siege
-/// battery goes hostile and feeds armored ship-killing torpedoes at the
-/// winner until one connects - point defense hammers the ordnance and
-/// loses. Act three: the stage is cleared, the battery stands down, and a
-/// timer flies in the next pair. Every ship id has exactly ONE spawning
-/// handler (the respawn timer), so the cycle repeats forever without
-/// duplicate-spawn lint noise.
+/// sides and dogfight through the open center of the frame; the gun gap
+/// makes the outcome all but certain. Act two: the rival's defeat starts a
+/// short beat, then the off-screen siege battery is SCRIPTED to launch an
+/// armored ship-killing torpedo at the winner - point defense hammers the
+/// ordnance and loses - re-firing on a slow clock until one connects. Act
+/// three: the aftermath drifts for a beat, then the scenario reloads ITSELF
+/// (`NextScenario` to its own id) - a genuine full reset that clears wrecks,
+/// debris and in-flight ordnance and rebuilds the seeded rock field,
+/// destroyed rocks included - and the fresh OnStart flies in the next pair.
 pub(crate) fn menu_duel(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
     let mut stage = Vec::new();
 
-    // A LIGHT planetoid: the camera contract only needs the well's id and
-    // geometry, but its pull is real - at the default 45 000 the arena
-    // (110-180 u from the center) sits deep inside the 424 u SOI, and two
-    // dogfighting ships under a constant ~2 u/s^2 drag spiral onto the rock
-    // and pin there (the first cut of this scene). 6 000 shrinks the SOI to
-    // ~155 u, leaving the duel plane on its edge where the drift is noise.
-    stage.push(backdrop_planetoid(asteroid_texture.clone(), 6_000.0));
+    // The camera contract, rock-free: the anchor frames an EMPTY arena. The
+    // first cut of this scene proved both failure modes of a real planetoid
+    // here: head-on chase lines cross it and pin the fight against its
+    // surface with the line-of-fire gate holding both triggers, and its SOI
+    // drags a dogfight onto the rock. Zero mass, zero body: the duel owns
+    // the center.
+    stage.push(backdrop_anchor(80.0));
     stage.extend(backdrop_rig("duel").objects());
     stage.push(planetoid_glow("duel_lamp"));
 
-    // The finisher: one siege bay, nothing else. Neutral until scripted
-    // hostile - a Neutral ship never acquires and is never point-defensed,
-    // so it is scenery until the flip. No controller section: the authored
-    // rotation (-Z toward the arena, within the launch gate's 60 degrees)
-    // IS the aim, and nothing can knock it off it.
+    // The finisher: one siege bay, nothing else. No controller - the launch
+    // is scripted, so the battery needs no AI, no detection range, and no
+    // allegiance dance; it sits Enemy from the start and simply never fires
+    // until told to. Enemy allegiance is what its ordnance inherits, which
+    // is what makes the victor's point defense engage (and lose to) it.
     stage.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "duel_finisher".to_string(),
@@ -105,18 +102,8 @@ pub(crate) fn menu_duel(
             rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            allegiance: Some(Allegiance::Neutral),
-            controller: SpaceshipController::AI(AIControllerConfig {
-                // Sitting Neutral, the battery is passive (Idle) when the
-                // allegiance flip lands; a passive ship only wakes for a
-                // hostile inside its detection range, and the arena runs
-                // 810-1092 u out - past the 800 u default. The widened range
-                // is the whole trick: the battery sees the winner, the
-                // winner's default range never sees far enough to charge
-                // the battery back.
-                engage_range: Some(1600.0),
-                ..Default::default()
-            }),
+            allegiance: Some(Allegiance::Enemy),
+            controller: SpaceshipController::None,
             sections: vec![SpaceshipSectionConfig {
                 id: "siege_bay".to_string(),
                 position: Vec3::ZERO,
@@ -127,15 +114,15 @@ pub(crate) fn menu_duel(
         }),
     });
 
-    // Sparse dressing ring, below the y=0 fight plane.
+    // Sparse dressing ring, below the fight plane.
     let rock_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
         id_prefix: "duel_rock_".to_string(),
         count: 12,
         seed: SCATTER_SEED ^ 0x5,
         region: ScatterRegion::Ring {
             center: Vec3::ZERO,
-            inner: 175.0,
-            outer: 235.0,
+            inner: 150.0,
+            outer: 220.0,
             y_min: -70.0,
             y_max: -35.0,
         },
@@ -162,39 +149,42 @@ pub(crate) fn menu_duel(
         min_separation: None,
     });
 
+    // The victor's routine is a TIGHT ring on the frame center: it is the
+    // fight's center of gravity while the duel runs (the leash anchors on
+    // the patrol centroid), and after the win it parks the victory lap right
+    // where the finisher's torpedo will land - mid-shot, not drifting at the
+    // frame edge.
     let spawn_victor = EventActionConfig::SpawnScenarioObject(duelist(
         "duel_victor",
         "Duel Victor",
         VICTOR_SPAWN,
         [
-            Vec3::new(-140.0, DUEL_PLANE_Y, 100.0),
-            Vec3::new(0.0, DUEL_PLANE_Y, -100.0),
-            Vec3::new(140.0, DUEL_PLANE_Y, 100.0),
+            Vec3::new(-70.0, 10.0, 50.0),
+            Vec3::new(70.0, 15.0, -50.0),
+            Vec3::new(0.0, 5.0, 70.0),
         ],
         ships::ShipGrade::Player,
         // The relation model only makes Player<->Enemy hostile: one duelist
-        // must fly the player's colors for AI-vs-AI combat to exist.
+        // must fly the player's colors for AI-vs-AI combat to exist. It also
+        // makes the Enemy finisher's ordnance hostile to the winner.
         Some(Allegiance::Player),
     ));
+    // The rival's ring mirrors the victor's tight center ring, so the
+    // fight's whole geometry - approach, merge, chase - happens in the
+    // middle of the frame instead of wandering to the edges.
     let spawn_rival = EventActionConfig::SpawnScenarioObject(duelist(
         "duel_rival",
         "Duel Rival",
         RIVAL_SPAWN,
         [
-            Vec3::new(140.0, DUEL_PLANE_Y, -100.0),
-            Vec3::new(0.0, DUEL_PLANE_Y, 100.0),
-            Vec3::new(-140.0, DUEL_PLANE_Y, -100.0),
+            Vec3::new(70.0, -5.0, -50.0),
+            Vec3::new(-70.0, -10.0, 50.0),
+            Vec3::new(0.0, -15.0, -70.0),
         ],
         ships::ShipGrade::Enemy,
         None,
     ));
 
-    let battery_allegiance = |allegiance: Allegiance| {
-        EventActionConfig::SetAllegiance(SetAllegianceActionConfig {
-            id: "duel_finisher".to_string(),
-            allegiance,
-        })
-    };
     let timer = |key: &str, seconds: f64| {
         EventActionConfig::TimerStart(TimerStartActionConfig {
             key: key.to_string(),
@@ -212,19 +202,13 @@ pub(crate) fn menu_duel(
                 .chain([rock_scatter, timer("duel_respawn", 0.5)])
                 .collect(),
         },
-        // The single spawn site for both duelists; also re-safeties the
-        // battery, so a cycle that ended weirdly (both ships dead at once,
-        // the beat timer firing into an empty arena) self-heals here.
+        // The single spawn site for both duelists.
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "duel_respawn".to_string(),
             })],
-            actions: vec![
-                battery_allegiance(Allegiance::Neutral),
-                spawn_victor,
-                spawn_rival,
-            ],
+            actions: vec![spawn_victor, spawn_rival],
         },
         // Act two, armed by the rival's defeat (destroyed OR neutralized -
         // AI stops shooting a neutralized wreck, so waiting for full
@@ -234,26 +218,56 @@ pub(crate) fn menu_duel(
             filters: vec![entity("duel_rival")],
             actions: vec![timer("duel_finisher_beat", 4.0)],
         },
+        // The finisher clock: launch at the winner and re-arm itself, so a
+        // miss (or a launch skipped because the victor just died to a wreck
+        // collision) retries instead of stalling the cycle. The re-arm is
+        // LONGER than the ~16 s flight from the park, so exactly one siege
+        // torpedo is ever in the air - the first cut re-armed at 12 s and
+        // doubled up. Expired keys are removed before dispatch, so the
+        // self-restart is legal.
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "duel_finisher_beat".to_string(),
             })],
-            actions: vec![battery_allegiance(Allegiance::Enemy)],
+            actions: vec![
+                EventActionConfig::ForceTorpedoLaunch(ForceTorpedoLaunchActionConfig {
+                    id: "duel_finisher".to_string(),
+                    target: "duel_victor".to_string(),
+                }),
+                timer("duel_finisher_beat", 20.0),
+            ],
         },
-        // Act three: clear the stage (the rival's wreck too, if it ended
-        // neutralized rather than destroyed - despawning an id that already
-        // fully despawned is a warn-and-skip, not an error) and fly in the
-        // next pair.
+        // Act three: stop the finisher clock and let the aftermath drift for
+        // a beat - the wrecks stay in shot - then a FULL scenario reset.
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
             filters: vec![entity("duel_victor")],
             actions: vec![
-                battery_allegiance(Allegiance::Neutral),
-                despawn_object("duel_victor"),
-                despawn_object("duel_rival"),
-                timer("duel_respawn", 10.0),
+                EventActionConfig::TimerCancel(TimerCancelActionConfig {
+                    key: "duel_finisher_beat".to_string(),
+                }),
+                timer("duel_reset", 8.0),
             ],
+        },
+        // The reset is the scenario reloading ITSELF: teardown despawns every
+        // scoped entity (wrecks, debris, in-flight ordnance - runtime
+        // projectiles are scenario-scoped too), the event world resets, and
+        // the seeded scatter rebuilds the SAME rock field, destroyed rocks
+        // included. In its own handler with a short delay: an instant switch
+        // consumed in the same flush would discard sibling handlers' queued
+        // commands. The menu ambience holds no scenario state, so the
+        // backdrop survives the swap (one ~2-frame camera blink).
+        ScenarioEventConfig {
+            name: EventConfig::OnTimerEnd,
+            filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
+                key: "duel_reset".to_string(),
+            })],
+            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
+                scenario_id: "menu_duel".to_string(),
+                linger: false,
+                delay: Some(1.0),
+            })],
         },
     ];
 

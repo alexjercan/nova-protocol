@@ -13,7 +13,7 @@
                     SpawnScenarioObject((
                         base: (
                             id: "menu_planetoid",
-                            name: "Menu Planetoid",
+                            name: "Menu Anchor",
                             position: (
                                 0.0,
                                 0.0,
@@ -26,14 +26,8 @@
                                 1.0,
                             ),
                         ),
-                        kind: Asteroid((
-                            radius: 20.0,
-                            texture: "self://textures/asteroid.png",
-                            health: 2000.0,
-                            impact_sound: Some("self://sounds/impact.wav"),
-                            destroy_sound: Some("self://sounds/explosion.wav"),
-                            mass: Some(6000.0),
-                            invulnerable: true,
+                        kind: Anchor((
+                            body_radius: 80.0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -163,10 +157,8 @@
                             ),
                         ),
                         kind: Spaceship((
-                            controller: AI((
-                                engage_range: Some(1600.0),
-                            )),
-                            allegiance: Some(Neutral),
+                            controller: r#None,
+                            allegiance: Some(Enemy),
                             sections: [
                                 (
                                     id: "siege_bay",
@@ -196,8 +188,8 @@
                                 0.0,
                                 0.0,
                             ),
-                            inner: 175.0,
-                            outer: 235.0,
+                            inner: 150.0,
+                            outer: 220.0,
                             y_min: -70.0,
                             y_max: -35.0,
                         ),
@@ -245,17 +237,13 @@
                     )),
                 ],
                 actions: [
-                    SetAllegiance((
-                        id: "duel_finisher",
-                        allegiance: Neutral,
-                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "duel_victor",
                             name: "Duel Victor",
                             position: (
                                 -420.0,
-                                110.0,
+                                25.0,
                                 100.0,
                             ),
                             rotation: (
@@ -269,22 +257,22 @@
                             controller: AI((
                                 patrol: [
                                     (
-                                        -140.0,
-                                        110.0,
-                                        100.0,
+                                        -70.0,
+                                        10.0,
+                                        50.0,
+                                    ),
+                                    (
+                                        70.0,
+                                        15.0,
+                                        -50.0,
                                     ),
                                     (
                                         0.0,
-                                        110.0,
-                                        -100.0,
-                                    ),
-                                    (
-                                        140.0,
-                                        110.0,
-                                        100.0,
+                                        5.0,
+                                        70.0,
                                     ),
                                 ],
-                                leash: Some(300.0),
+                                leash: Some(200.0),
                                 engage_delay: Some(6.0),
                             )),
                             allegiance: Some(Player),
@@ -433,7 +421,7 @@
                             name: "Duel Rival",
                             position: (
                                 420.0,
-                                110.0,
+                                -15.0,
                                 -100.0,
                             ),
                             rotation: (
@@ -447,22 +435,22 @@
                             controller: AI((
                                 patrol: [
                                     (
-                                        140.0,
-                                        110.0,
-                                        -100.0,
+                                        70.0,
+                                        -5.0,
+                                        -50.0,
+                                    ),
+                                    (
+                                        -70.0,
+                                        -10.0,
+                                        50.0,
                                     ),
                                     (
                                         0.0,
-                                        110.0,
-                                        100.0,
-                                    ),
-                                    (
-                                        -140.0,
-                                        110.0,
-                                        -100.0,
+                                        -15.0,
+                                        -70.0,
                                     ),
                                 ],
-                                leash: Some(300.0),
+                                leash: Some(200.0),
                                 engage_delay: Some(6.0),
                             )),
                             sections: [
@@ -649,9 +637,13 @@
                     )),
                 ],
                 actions: [
-                    SetAllegiance((
+                    ForceTorpedoLaunch((
                         id: "duel_finisher",
-                        allegiance: Enemy,
+                        target: "duel_victor",
+                    )),
+                    TimerStart((
+                        key: "duel_finisher_beat",
+                        seconds: Term(Factor(Literal(Number(20.0)))),
                     )),
                 ],
             ),
@@ -663,19 +655,27 @@
                     )),
                 ],
                 actions: [
-                    SetAllegiance((
-                        id: "duel_finisher",
-                        allegiance: Neutral,
-                    )),
-                    DespawnScenarioObject((
-                        id: "duel_victor",
-                    )),
-                    DespawnScenarioObject((
-                        id: "duel_rival",
+                    TimerCancel((
+                        key: "duel_finisher_beat",
                     )),
                     TimerStart((
-                        key: "duel_respawn",
-                        seconds: Term(Factor(Literal(Number(10.0)))),
+                        key: "duel_reset",
+                        seconds: Term(Factor(Literal(Number(8.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "duel_reset",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_duel",
+                        linger: false,
+                        delay: Some(1.0),
                     )),
                 ],
             ),

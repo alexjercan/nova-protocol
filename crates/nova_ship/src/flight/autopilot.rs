@@ -59,6 +59,9 @@ pub(super) fn autopilot_system(
             &ComputedAngularInertia,
             Option<&ComputedCenterOfMass>,
             Option<&ManeuverTelemetry>,
+            // The per-ship translation-arrival override (scenario-authored;
+            // ships without it fly the global standoff).
+            Option<&FlightArrivalStandoff>,
             // RCS terminal settle: the per-hull cap override and the intent the
             // autopilot writes to hand the last-meters brake to the torque-free
             // RCS primitive.
@@ -133,12 +136,15 @@ pub(super) fn autopilot_system(
         inertia,
         com,
         prev_telemetry,
+        standoff_override,
         rcs_cap_override,
         rcs_intent,
         rcs_reference,
     ) in &mut q_ship
     {
         let has_telemetry = prev_telemetry.is_some();
+        let arrival_standoff =
+            standoff_override.map_or(settings.arrival_standoff, |standoff| **standoff);
         // No flight computer, no autopilot - the ship is adrift on manual.
         // The turn-rate budget derives from the strongest live computer (see
         // ship_turn_rate).
@@ -292,7 +298,7 @@ pub(super) fn autopilot_system(
         // body is given its size instead of being treated as a point.
         // Published distances are surface-relative too.
         let arrival_desired = |goal: Vec3, target_radius: f32| -> (Vec3, ManeuverTelemetry) {
-            let standoff = settings.arrival_standoff + target_radius.max(0.0);
+            let standoff = arrival_standoff + target_radius.max(0.0);
             let to_target = goal - position.0;
             let distance = to_target.length();
             // Zero only if the ship sits exactly on the goal center; the
@@ -476,7 +482,7 @@ pub(super) fn autopilot_system(
                 // correction assumes it starts near the ring. The
                 // published distance is surface-relative, so the
                 // envelope test is against the bare standoff.
-                goto_arrived = numbers.distance <= settings.arrival_standoff;
+                goto_arrived = numbers.distance <= arrival_standoff;
                 numbers.goal_entity = Some(target);
                 telemetry = Some(numbers);
                 desired

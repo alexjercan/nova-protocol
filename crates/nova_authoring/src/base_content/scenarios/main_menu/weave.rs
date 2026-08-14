@@ -5,23 +5,35 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
-use super::shared::{backdrop_beacon, backdrop_planetoid, backdrop_rig, planetoid_glow};
+use super::shared::{backdrop_anchor, backdrop_beacon, backdrop_rig, planetoid_glow};
 use crate::base_content::{scenarios::SCATTER_SEED, ships};
 
-/// The patrol loop: a square-ish circuit through the middle of the rock
-/// band (radius band 175-235, y -65..-30), so every leg has rocks ON it and
-/// the passive pilot's avoidance detours are what the camera watches. The
-/// waypoints are authored mid-band on purpose - the route is NOT threaded
+/// The circuit's center, nudged left of the frame center: the menu panel
+/// owns the right half of the shot, so the loop leans into the open side.
+const LOOP_CENTER: Vec3 = Vec3::new(-40.0, 0.0, 0.0);
+
+/// The patrol circuit: TEN waypoints on a 140 u ring around [`LOOP_CENTER`],
+/// through the middle of the rock band (radius band 100-190, y -60..-28).
+/// Short ~87 u legs mean the autopilot spends its time decelerating, turning
+/// and detouring instead of cruising - a slow, deliberate thread. The
+/// waypoints are authored mid-band on purpose: the route is NOT threaded
 /// through measured gaps; the field is deterministic (seeded scatter, seeded
-/// silhouettes) but the pilot, not the author, does the dodging.
-const WEAVE_LOOP: [Vec3; 4] = [
-    Vec3::new(205.0, -48.0, 0.0),
-    Vec3::new(0.0, -40.0, 205.0),
-    Vec3::new(-205.0, -55.0, 0.0),
-    Vec3::new(0.0, -45.0, -205.0),
+/// silhouettes) but the pilot, not the author, does the dodging. The whole
+/// loop (plus worst-case detours, ~45 u) stays inside the ~230 u half-frame.
+const WEAVE_LOOP: [Vec3; 10] = [
+    Vec3::new(100.0, -38.0, 0.0),
+    Vec3::new(73.3, -50.0, 82.3),
+    Vec3::new(3.3, -42.0, 133.1),
+    Vec3::new(-83.3, -55.0, 133.1),
+    Vec3::new(-153.3, -35.0, 82.3),
+    Vec3::new(-180.0, -48.0, 0.0),
+    Vec3::new(-153.3, -40.0, -82.3),
+    Vec3::new(-83.3, -52.0, -133.1),
+    Vec3::new(3.3, -36.0, -133.1),
+    Vec3::new(73.3, -46.0, -82.3),
 ];
 
-/// A navigation drill behind the menu: a racer flies a four-waypoint loop
+/// A navigation drill behind the menu: a racer flies a ten-waypoint loop
 /// straight through the backdrop's rock band. There is nothing hostile
 /// anywhere; the scene is the passive pilot itself - GOTO legs, waypoint
 /// turns, and the avoidance detours around every rock the seeded scatter
@@ -32,18 +44,22 @@ pub(crate) fn menu_weave(
 ) -> ScenarioConfig {
     let mut objects = Vec::new();
 
-    // The camera contract well, plus the shared rig and lamp.
-    objects.push(backdrop_planetoid(asteroid_texture.clone(), 45_000.0));
+    // The camera contract well (invisible - the band and the pilot ARE the
+    // scene), plus the shared rig and lamp. Radius 130 pulls the camera back
+    // to (0, 128, 425): the loop's far rim plus its avoidance detours kept
+    // escaping the default frame, and a 4:3 window sees only ~+-245 u at
+    // origin depth even from here - the loop's worst case is ~225.
+    objects.push(backdrop_anchor(130.0));
     objects.extend(backdrop_rig("weave").objects());
     objects.push(planetoid_glow("weave_lamp"));
 
-    // Nav beacons at the circuit's corners: the waypoints, made visible.
-    // Intangible dressing - beacon volumes stop nothing, so the ship can fly
-    // through its own markers.
-    for (index, corner) in WEAVE_LOOP.iter().enumerate() {
+    // Nav beacons at every other corner: the circuit, made visible without
+    // ten blinking orbs of clutter. Intangible dressing - beacon volumes
+    // stop nothing, so the ship can fly through its own markers.
+    for (index, corner) in WEAVE_LOOP.iter().enumerate().step_by(2) {
         objects.push(backdrop_beacon(
             &format!("weave_nav_{index}"),
-            &format!("NAV-{}", index + 1),
+            &format!("NAV-{}", index / 2 + 1),
             *corner,
             Color::srgb(0.55, 0.85, 1.0),
         ));
@@ -63,27 +79,32 @@ pub(crate) fn menu_weave(
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: WEAVE_LOOP.to_vec(),
+                // Press in close to each mark: the default 25 u slack (on
+                // top of the autopilot's 50 u standoff) turns 75 u out -
+                // most of an 87 u leg. 5 u makes the runner carry each leg
+                // nearly to its beacon before rolling onto the next.
+                waypoint_slack: Some(5.0),
                 ..Default::default()
             }),
             sections: ships::racer_sections(ships::ShipGrade::Player, vec![]),
         }),
     });
 
-    // The band itself: denser than the other backdrops' dressing rings, in
-    // the SAME altitude slab as the patrol loop - the route runs through it,
-    // not above it. min_separation keeps spawned dynamic bodies from being
+    // The band itself: a tight, genuinely dense shell in the SAME altitude
+    // slab as the patrol loop - the route runs through it, not above it.
+    // min_separation keeps spawned dynamic bodies from being
     // penetration-shoved into each other (worst-case geometric extent is
     // radius * 6, so 3 u nominal rocks need ~36 u plus ship room).
     let band = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
         id_prefix: "weave_rock_".to_string(),
-        count: 28,
+        count: 40,
         seed: SCATTER_SEED ^ 0x4,
         region: ScatterRegion::Ring {
-            center: Vec3::ZERO,
-            inner: 175.0,
-            outer: 235.0,
-            y_min: -65.0,
-            y_max: -30.0,
+            center: LOOP_CENTER,
+            inner: 100.0,
+            outer: 190.0,
+            y_min: -60.0,
+            y_max: -28.0,
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
@@ -108,15 +129,40 @@ pub(crate) fn menu_weave(
         min_separation: Some(45.0),
     });
 
-    let events = vec![ScenarioEventConfig {
-        name: EventConfig::OnStart,
-        filters: vec![],
-        actions: objects
-            .into_iter()
-            .map(EventActionConfig::SpawnScenarioObject)
-            .chain([band])
-            .collect(),
-    }];
+    let events = vec![
+        ScenarioEventConfig {
+            name: EventConfig::OnStart,
+            filters: vec![],
+            actions: objects
+                .into_iter()
+                .map(EventActionConfig::SpawnScenarioObject)
+                .chain([band])
+                .collect(),
+        },
+        // Failsafe: the runner ramming a rock must not leave the menu
+        // staring at a pilotless band. A short aftermath linger, then the
+        // scenario reloads itself - same full-reset idiom as the other
+        // backdrops (destroyed rocks come back too; the scatter is seeded).
+        ScenarioEventConfig {
+            name: EventConfig::OnDefeated,
+            filters: vec![crate::scenario_helpers::entity("weave_runner")],
+            actions: vec![EventActionConfig::TimerStart(TimerStartActionConfig {
+                key: "weave_reset".to_string(),
+                seconds: crate::scenario_helpers::number(6.0),
+            })],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnTimerEnd,
+            filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
+                key: "weave_reset".to_string(),
+            })],
+            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
+                scenario_id: "menu_weave".to_string(),
+                linger: false,
+                delay: Some(1.0),
+            })],
+        },
+    ];
 
     ScenarioConfig {
         description: "An AI ship weaves a waypoint circuit through a dense rock band.".to_string(),

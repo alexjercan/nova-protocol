@@ -94,6 +94,114 @@ Everything below was discovered by RUNNING the scenes, not by review.
   over ~3 min; duel 4 full cycles in ~5.5 min, one siege torpedo per
   cycle, PD never stops it (0 shootdowns vs 5000 hp ordnance).
 
+## Round 2 (owner feedback, 2026-08-14)
+
+Feedback: (a) remove the big central rock from all three scenes but keep
+the camera pose; (b) weave drifts offscreen - tighter loop, more
+waypoints, more rocks; (c) gauntlet racer should hold near-station while
+multiple dumb "torpedo-bay ships" on BOTH flanks fire scripted shots;
+(d) the duel read as lame because the planetoid owned the center.
+
+Design:
+
+- New `Anchor` object kind: invisible `GravityWell` with an AUTHORED
+  `body_radius` (deterministic camera pose - a rock's radius comes off
+  the noise mesh and jitters per load), optional mass, no collider, no
+  `BodyRadius` (avoidance must fly through it). All three scenes anchor
+  `menu_planetoid` at radius 80 -> camera (0, 90, 300) every load; the
+  visible half-frame at origin depth is ~230 u (tighter than the old
+  rock average - scene geometry shrank to fit).
+- New `ForceTorpedoLaunch` action + `ScriptedTorpedoOrder` in nova_ship:
+  holds the bay trigger until the bay's own cooldown/ammo fire it, then
+  commits the projectile (the commit is what PD acquisition requires).
+  Missing target skips the launch (no duds during respawn gaps).
+  Batteries become `SpaceshipController::None` + authored Enemy.
+- Gauntlet v2: racer holds a ~60 u-leg diamond left of center
+  (`engage_range: 300` so the 700+ u batteries never pull it; parks also
+  beyond leash 250 + turret 450 so a damage-memory lunge is safe), four
+  single-bay batteries on both flanks fire on staggered self-restarting
+  timers (15/18/21/24 s), torpedoes cross both frame edges into the PD.
+- Weave v2: ten waypoints on a 140 u ring (legs ~87 u - the autopilot
+  decelerates/turns instead of cruising), loop center nudged to -40 x,
+  40 rocks in a tighter shell (ring 100-190, y -60..-28) - ~1.5x the
+  old volume density; whole loop + worst-case detours < the half-frame.
+- Duel v2: empty center (no rock, no gravity) - chase lines through the
+  middle are clear and the fight owns the frame; entrances/patrols carry
+  a small y-split for depth. Finisher is scripted: rival's defeat arms a
+  4 s beat, the beat launches at the victor and re-arms every 12 s (a
+  miss retries), the victor's defeat cancels the clock. No allegiance
+  flip anymore - the battery sits Enemy and simply never fires unless
+  told to.
+
+## Round 3 (owner feedback, 2026-08-14)
+
+Feedback: (1) weave camera further back - ship escapes the frame; (2)
+duel: winner should hold the middle of the frame, exactly one finisher
+torpedo at a time, stray torpedoes must not survive into the next wave,
+clear everything on reset, bring destroyed rocks back - "would full
+reset make more sense?"; (3) gauntlet: intercepts should happen ON
+screen, racer should move a bit more, more scene dressing.
+
+Design:
+
+- `backdrop_anchor(body_radius)` is now the per-scene framing knob (the
+  camera math makes radius the zoom): weave authors 115 -> camera
+  (0, 116, 388); gauntlet/duel stay at the reference 80.
+- New engine knob `pd_range` (`AIPointDefenseRange`), the PD sibling of
+  `engage_range`: gauntlet racer authors 160 so the tracer stream opens
+  up mid-frame instead of at the 400 u default (frame edge).
+- Gauntlet: six-point hold circuit (~75 u legs, slight y wander), 26
+  rocks in a wider band, two amber nav beacons and a Neutral drifting
+  cargoa wreck (all off every torpedo lane - dressing must not eat
+  ordnance).
+- Duel: victor's patrol is a tight ring on the frame center (fight's
+  leash anchor AND the victory-lap park where the torpedo lands);
+  finisher re-arm 12 s -> 20 s (> the ~16 s flight, so exactly one
+  torpedo is ever in the air - 12 s doubled up, the reported bug).
+- Duel full reset: research confirmed runtime projectiles/bullets/debris
+  ARE scenario-scoped (loader observers), teardown clears the event
+  world, and seeded scatter rebuilds the identical field - so the wave
+  reset is `NextScenario` to the scenario's OWN id (precedent:
+  asteroid_field's lingering retry). Safe shape: dedicated handler,
+  `linger: false` (linger would make Enter in the menu trigger it),
+  `delay: Some(1.0)` (an instant switch consumed in the same flush
+  discards other handlers' queued commands). Cost: a ~2-frame camera
+  blink per reset. The menu ambience holds no scenario handle, so the
+  pinned backdrop survives the swap.
+
+## Round 4 (owner feedback, 2026-08-14)
+
+Feedback: (1) gauntlet racer should RUN OUT of bullets, get overrun and
+blown up - and the second ship (the dressing wreck) is useless; (2) make
+AI_WAYPOINT_SLACK authorable so the weave runner presses closer to its
+waypoints; (3) duel wants more determinism and a more centered fight;
+(+) failsafe: any scene whose main ship is blown up lingers 5-10 s and
+restarts.
+
+Design:
+
+- New `SetAmmo(u32)` section modification: a HARD magazine - rounds
+  overridden AND auto-reload stripped (racer PDCs shipped with a
+  self-refilling 500-round magazine, so they could never be permanently
+  overrun). Twin apply-on-add observers cover both build orders (weapon
+  components land via deferred setup observers).
+- Gauntlet arc: 1800 rounds per turret, no reload -> the stand falls by
+  ammo clock; wreck dressing removed; the in-place respawn loop replaced
+  by the linger-then-full-reset idiom.
+- New `waypoint_slack` knob (`AIWaypointSlack`): the patrol advance gate
+  is `arrival_standoff (50) + slack (default 25)`; the weave runner
+  authors 5 and turns ~55 u out instead of 75. NOTE the knob's floor:
+  the autopilot still brakes toward rest at 50 u from the mark, so slack
+  below ~2 risks asymptoting outside the gate - the wiki row documents
+  "author small, not zero".
+- Failsafe restarts everywhere: gauntlet 8 s linger, weave 6 s (a rammed
+  runner previously left a pilotless band forever), duel already had it.
+  All three use NextScenario-to-self in a dedicated handler with
+  delay 1.0.
+- Duel centering: both duelists tether leash 200 to center-hugging
+  patrol rings (rival mirrors the victor's tight ring); each wave now
+  fights over the same ground mid-frame.
+
 ## Retention
 
 - `shots/gauntlet-pd-intercept.png` - tracer stream vs inbound torpedo.

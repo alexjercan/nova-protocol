@@ -157,6 +157,16 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub waypoint_slack: Option<f32>,
+    /// Translation-arrival standoff override (world units): how far from a
+    /// GOTO goal this ship's computer comes to rest, instead of the engine's
+    /// 50 u default. Author it small (with a small `waypoint_slack`) on a
+    /// ship that must visibly REACH its waypoints. None = the default. See
+    /// `FlightArrivalStandoff`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub arrival_standoff: Option<f32>,
 }
 
 /// A ship section's scenario-local id, used to key input bindings and address
@@ -484,6 +494,13 @@ fn insert_spaceship_sections(
                     commands.entity(entity).insert(AIWaypointSlack(slack));
                 }
             }
+            if let Some(standoff) = config.arrival_standoff {
+                if standoff > 0.0 {
+                    commands
+                        .entity(entity)
+                        .insert(FlightArrivalStandoff(standoff));
+                }
+            }
         }
     }
 }
@@ -556,6 +573,7 @@ mod tests {
                 engage_range: None,
                 pd_range: None,
                 waypoint_slack: None,
+                arrival_standoff: None,
             },
         );
         assert!(world.entity(both).get::<AIOrbitDirective>().is_some());
@@ -569,6 +587,7 @@ mod tests {
                 engage_range: Some(1600.0),
                 pd_range: Some(150.0),
                 waypoint_slack: Some(5.0),
+                arrival_standoff: Some(10.0),
                 ..default()
             },
         );
@@ -586,6 +605,13 @@ mod tests {
         assert_eq!(
             world.entity(watcher).get::<AIWaypointSlack>().map(|s| s.0),
             Some(5.0)
+        );
+        assert_eq!(
+            world
+                .entity(watcher)
+                .get::<FlightArrivalStandoff>()
+                .map(|s| **s),
+            Some(10.0)
         );
         assert!(world.entity(orbiter).get::<AIEngageRange>().is_none());
         assert!(world.entity(orbiter).get::<AIPointDefenseRange>().is_none());

@@ -39,6 +39,18 @@ pub struct FlightIntent {
 #[reflect(Component)]
 pub struct FlightSpeedCap(pub f32);
 
+/// Per-ship override (world units) of [`FlightSettings::arrival_standoff`]
+/// for translation legs, on the ship root: how far from a GOTO/GotoPos goal
+/// this ship's computer comes to rest. Scenario-authored for ships that must
+/// visibly REACH their marks (a nav drill parking on its beacons) instead of
+/// stopping the default 50 u short. Narrow like the speed cap: only the
+/// GOTO/GotoPos arrival rule reads it - the ORBIT park and every global
+/// tuning stay on [`FlightSettings`] - and ships without the component keep
+/// the default.
+#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct FlightArrivalStandoff(pub f32);
+
 /// The pilot's (or autopilot's) RCS fine-adjustment command, on the ship root:
 /// a desired translation direction in the ship's LOCAL frame, each component
 /// roughly `-1..1` (the magnitude is how hard the nudge). Written by the player

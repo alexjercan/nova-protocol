@@ -31,6 +31,30 @@ pub(super) fn backdrop_planetoid(
     }
 }
 
+/// The rock-free camera contract: an invisible anchor publishing the
+/// `menu_planetoid` well the menu camera frames. The camera sits at
+/// `(0, 0.75r, 2.5r)` with `r = body_radius + 40`, so the authored radius IS
+/// the scene's framing knob, and it lands the pose DETERMINISTICALLY - a
+/// real planetoid's radius comes off its noise mesh and jitters the pose per
+/// load (`body_radius: 80` = the reference pose (0, 90, 300); bigger pulls
+/// the camera back for a wider stage). Zero mass: the anchor frames without
+/// pulling, and ships fly (and fight) straight through the empty center it
+/// marks.
+pub(super) fn backdrop_anchor(body_radius: f32) -> ScenarioObjectConfig {
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: "menu_planetoid".to_string(),
+            name: "Menu Anchor".to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Anchor(AnchorConfig {
+            body_radius,
+            mass: None,
+        }),
+    }
+}
+
 /// A small AI ship on the orbit directive around the backdrop planetoid -
 /// the proven menu actor (the ORBIT autopilot plans its ring from the
 /// well's runtime geometry). `extra_hull` adds a mid hull segment for a

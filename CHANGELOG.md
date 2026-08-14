@@ -41,6 +41,11 @@ tagged **(breaking)**.
 - AI ships gain an authorable `pd_range` (default 400): the distance point
   defense starts engaging inbound torpedoes, so a scene can stage its
   intercepts close-in instead of at the edge of turret reach.
+- AI ships gain an authorable `waypoint_slack` (default 25): the patrol
+  arrival slack on top of the autopilot's standoff, so a nav-drill ship can
+  press in close to its waypoints instead of turning 75 u out.
+- New `SetAmmo` section modification: a hard magazine (rounds overridden,
+  auto-reload stripped) for ships whose ammunition is the scene's clock.
 
 ### Scenarios & Objectives
 
@@ -48,11 +53,13 @@ tagged **(breaking)**.
   optional mass, no mesh or collider) for camera framing and orbit targets in
   scenes that do not want a rock at the anchor point.
 - Three combat menu backdrops join the rotation: Torpedo Gauntlet (a
-  station-keeping racer's point defense against scripted batteries on both
-  flanks), Asteroid Weave (a ten-waypoint run threading a dense rock band),
-  and Duel Cycle (a repeating center-frame duel whose winner is erased by a
-  siege torpedo). All real simulation, self-re-arming, staged around an
-  invisible anchor instead of a planetoid.
+  station-keeping racer's doomed point-defense stand against scripted
+  batteries on both flanks - hard magazines run dry and the stream wins),
+  Asteroid Weave (a ten-waypoint run threading a dense rock band), and Duel
+  Cycle (a repeating center-frame duel whose winner is erased by a siege
+  torpedo). All real simulation, staged around an invisible anchor instead
+  of a planetoid, and each act ends in the scenario reloading itself - a
+  full reset that clears wrecks and ordnance and rebuilds the seeded field.
 - Asteroids gain an optional `seed` pinning the generated silhouette (and the
   derived geometric radius) across runs; `ScatterObjects` fills it
   deterministically from the scatter seed, so authored fields keep the same

@@ -50,8 +50,9 @@ mod tests;
 #[cfg(test)]
 pub(crate) use self::guidance::hull_turn_rate;
 pub use self::state::{
-    Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightIntent, FlightSettings,
-    FlightSpeedCap, ManeuverTelemetry, OrbitPlan, RcsActive, RcsIntent, RcsReference, RcsSpeedCap,
+    Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightIntent,
+    FlightSettings, FlightSpeedCap, ManeuverTelemetry, OrbitPlan, RcsActive, RcsIntent,
+    RcsReference, RcsSpeedCap,
 };
 use self::{
     autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
@@ -67,9 +68,9 @@ pub(crate) use self::{
 /// telemetry, and `NovaFlightPlugin` with `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
-        Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightIntent, FlightSettings,
-        FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
-        RcsActive, RcsIntent, RcsSpeedCap,
+        Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff,
+        FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin,
+        NovaFlightSystems, OrbitPlan, RcsActive, RcsIntent, RcsSpeedCap,
     };
 }
 
@@ -104,6 +105,7 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<ManeuverTelemetry>()
             .register_type::<BodyRadius>()
             .register_type::<FlightSpeedCap>()
+            .register_type::<FlightArrivalStandoff>()
             .register_type::<RcsIntent>()
             .register_type::<RcsSpeedCap>()
             .register_type::<RcsReference>()

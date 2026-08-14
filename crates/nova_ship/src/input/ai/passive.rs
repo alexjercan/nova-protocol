@@ -177,6 +177,7 @@ pub(super) fn update_passive_flight(
             Option<&Autopilot>,
             Option<&AIAvoidanceDetour>,
             Option<&AIWaypointSlack>,
+            Option<&FlightArrivalStandoff>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
@@ -190,11 +191,15 @@ pub(super) fn update_passive_flight(
         .iter()
         .map(|(transform, radius)| (transform.translation, **radius))
         .collect();
-    for (ship, transform, velocity, state, route, orbit, autopilot, detour, slack) in
+    for (ship, transform, velocity, state, route, orbit, autopilot, detour, slack, standoff) in
         &mut q_spaceship
     {
         let has_autopilot = autopilot.is_some();
         let waypoint_slack = slack.map_or(AI_WAYPOINT_SLACK, |slack| slack.0);
+        // The gate mirrors the autopilot's own arrival rule, per-ship
+        // override included: a ship authored to park closer must not have
+        // its patrol turn early on the global standoff.
+        let arrival_standoff = standoff.map_or(settings.arrival_standoff, |standoff| **standoff);
         match *state {
             AIBehaviorState::Patrol => {
                 // Patrol without a route cannot happen through the
@@ -210,7 +215,7 @@ pub(super) fn update_passive_flight(
                 // ship's position, not on autopilot completion, so a ship
                 // shoved onto its waypoint (or re-entering Patrol on top of
                 // one) advances too.
-                let arrive_radius = settings.arrival_standoff + waypoint_slack;
+                let arrive_radius = arrival_standoff + waypoint_slack;
                 let position = transform.translation;
                 let mut detour = detour.map(|detour| detour.0);
                 if position.distance(waypoint) <= arrive_radius {
