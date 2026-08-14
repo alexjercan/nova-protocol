@@ -1,0 +1,684 @@
+[
+    Scenario((
+        id: "menu_duel",
+        name: "Duel Cycle",
+        description: "Two racers duel; a siege torpedo erases the winner; repeat.",
+        cubemap: "self://textures/cubemap.png",
+        hidden: true,
+        menu_backdrop: true,
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "menu_planetoid",
+                            name: "Menu Planetoid",
+                            position: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 20.0,
+                            texture: "self://textures/asteroid.png",
+                            health: 2000.0,
+                            impact_sound: Some("self://sounds/impact.wav"),
+                            destroy_sound: Some("self://sounds/explosion.wav"),
+                            mass: Some(6000.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_key",
+                            name: "Key Light",
+                            position: (
+                                -120.0,
+                                100.0,
+                                120.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_rim",
+                            name: "Rim Light",
+                            position: (
+                                60.0,
+                                80.0,
+                                -160.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_fill",
+                            name: "Fill Light",
+                            position: (
+                                140.0,
+                                -40.0,
+                                80.0,
+                            ),
+                            rotation: (
+                                0.104897276,
+                                0.49822173,
+                                -0.060874254,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_lamp",
+                            name: "Planetoid Glow",
+                            position: (
+                                -60.0,
+                                20.0,
+                                90.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Light(Point(
+                            intensity: 2500000.0,
+                            range: 400.0,
+                            radius: 12.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.82,
+                                blue: 0.6,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_finisher",
+                            name: "Duel Finisher",
+                            position: (
+                                -950.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                -0.70710677,
+                                0.0,
+                                0.70710677,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                engage_range: Some(1600.0),
+                            )),
+                            allegiance: Some(Neutral),
+                            sections: [
+                                (
+                                    id: "siege_bay",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("heavy_torpedo_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "duel_rock_",
+                        count: 12,
+                        seed: 433757350076153861,
+                        region: Ring(
+                            center: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inner: 175.0,
+                            outer: 235.0,
+                            y_min: -70.0,
+                            y_max: -35.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "duel_rock_",
+                                name: "Duel Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.0,
+                                texture: "self://textures/asteroid.png",
+                                health: 100.0,
+                                impact_sound: Some("self://sounds/impact.wav"),
+                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            1.0,
+                            3.0,
+                        )),
+                    )),
+                    TimerStart((
+                        key: "duel_respawn",
+                        seconds: Term(Factor(Literal(Number(0.5)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "duel_respawn",
+                    )),
+                ],
+                actions: [
+                    SetAllegiance((
+                        id: "duel_finisher",
+                        allegiance: Neutral,
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_victor",
+                            name: "Duel Victor",
+                            position: (
+                                -420.0,
+                                110.0,
+                                100.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                patrol: [
+                                    (
+                                        -140.0,
+                                        110.0,
+                                        100.0,
+                                    ),
+                                    (
+                                        0.0,
+                                        110.0,
+                                        -100.0,
+                                    ),
+                                    (
+                                        140.0,
+                                        110.0,
+                                        100.0,
+                                    ),
+                                ],
+                                leash: Some(300.0),
+                                engage_delay: Some(6.0),
+                            )),
+                            allegiance: Some(Player),
+                            sections: [
+                                (
+                                    id: "engine_starboard",
+                                    position: (
+                                        0.655,
+                                        0.570945,
+                                        1.512835,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_engine_starboard"),
+                                ),
+                                (
+                                    id: "engine_port",
+                                    position: (
+                                        -0.655,
+                                        0.570945,
+                                        1.512835,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_engine_port"),
+                                ),
+                                (
+                                    id: "wing_starboard",
+                                    position: (
+                                        0.805,
+                                        0.5,
+                                        0.11783552,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_wing_starboard"),
+                                ),
+                                (
+                                    id: "wing_port",
+                                    position: (
+                                        -0.805,
+                                        0.5,
+                                        0.11783552,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_wing_port"),
+                                ),
+                                (
+                                    id: "nose",
+                                    position: (
+                                        0.0,
+                                        0.611325,
+                                        -1.512835,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_nose"),
+                                ),
+                                (
+                                    id: "tail",
+                                    position: (
+                                        0.0,
+                                        0.85,
+                                        1.6128349,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_tail"),
+                                ),
+                                (
+                                    id: "fuselage",
+                                    position: (
+                                        0.0,
+                                        0.7,
+                                        0.100000024,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_fuselage"),
+                                ),
+                                (
+                                    id: "turret_starboard",
+                                    position: (
+                                        1.35,
+                                        0.4,
+                                        -0.8,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_turret_starboard"),
+                                ),
+                                (
+                                    id: "turret_port",
+                                    position: (
+                                        -1.35,
+                                        0.4,
+                                        -0.8,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_turret_port"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_rival",
+                            name: "Duel Rival",
+                            position: (
+                                420.0,
+                                110.0,
+                                -100.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                patrol: [
+                                    (
+                                        140.0,
+                                        110.0,
+                                        -100.0,
+                                    ),
+                                    (
+                                        0.0,
+                                        110.0,
+                                        100.0,
+                                    ),
+                                    (
+                                        -140.0,
+                                        110.0,
+                                        -100.0,
+                                    ),
+                                ],
+                                leash: Some(300.0),
+                                engage_delay: Some(6.0),
+                            )),
+                            sections: [
+                                (
+                                    id: "engine_starboard",
+                                    position: (
+                                        0.655,
+                                        0.570945,
+                                        1.512835,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_engine_starboard"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
+                                ),
+                                (
+                                    id: "engine_port",
+                                    position: (
+                                        -0.655,
+                                        0.570945,
+                                        1.512835,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_engine_port"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
+                                ),
+                                (
+                                    id: "wing_starboard",
+                                    position: (
+                                        0.805,
+                                        0.5,
+                                        0.11783552,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_wing_starboard"),
+                                    modifications: [
+                                        SetHealth(104.399994),
+                                    ],
+                                ),
+                                (
+                                    id: "wing_port",
+                                    position: (
+                                        -0.805,
+                                        0.5,
+                                        0.11783552,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_wing_port"),
+                                    modifications: [
+                                        SetHealth(104.399994),
+                                    ],
+                                ),
+                                (
+                                    id: "nose",
+                                    position: (
+                                        0.0,
+                                        0.611325,
+                                        -1.512835,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_nose"),
+                                    modifications: [
+                                        SetHealth(69.6),
+                                    ],
+                                ),
+                                (
+                                    id: "tail",
+                                    position: (
+                                        0.0,
+                                        0.85,
+                                        1.6128349,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_tail"),
+                                    modifications: [
+                                        SetHealth(69.6),
+                                    ],
+                                ),
+                                (
+                                    id: "fuselage",
+                                    position: (
+                                        0.0,
+                                        0.7,
+                                        0.100000024,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_fuselage"),
+                                    modifications: [
+                                        SetHealth(140.0),
+                                    ],
+                                ),
+                                (
+                                    id: "turret_starboard",
+                                    position: (
+                                        1.35,
+                                        0.4,
+                                        -0.8,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_turret_starboard_light"),
+                                ),
+                                (
+                                    id: "turret_port",
+                                    position: (
+                                        -1.35,
+                                        0.4,
+                                        -0.8,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_turret_port_light"),
+                                ),
+                            ],
+                        )),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                filters: [
+                    Entity((
+                        id: Some("duel_rival"),
+                    )),
+                ],
+                actions: [
+                    TimerStart((
+                        key: "duel_finisher_beat",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "duel_finisher_beat",
+                    )),
+                ],
+                actions: [
+                    SetAllegiance((
+                        id: "duel_finisher",
+                        allegiance: Enemy,
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                filters: [
+                    Entity((
+                        id: Some("duel_victor"),
+                    )),
+                ],
+                actions: [
+                    SetAllegiance((
+                        id: "duel_finisher",
+                        allegiance: Neutral,
+                    )),
+                    DespawnScenarioObject((
+                        id: "duel_victor",
+                    )),
+                    DespawnScenarioObject((
+                        id: "duel_rival",
+                    )),
+                    TimerStart((
+                        key: "duel_respawn",
+                        seconds: Term(Factor(Literal(Number(10.0)))),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

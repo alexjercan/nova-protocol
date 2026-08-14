@@ -81,7 +81,29 @@ pub(crate) fn load_menu_ambience(
         return;
     }
 
-    let pick = backdrops[rng.next_u32() as usize % backdrops.len()].clone();
+    // Dev/capture override: NOVA_MENU_BACKDROP pins the pick to one id, so a
+    // screenshot run (or a scene being authored) can look at a SPECIFIC
+    // backdrop instead of re-rolling the menu until the draw cooperates. An
+    // unknown id warns and falls back to the draw - a stale script must not
+    // brick the menu.
+    let forced = std::env::var("NOVA_MENU_BACKDROP")
+        .ok()
+        .filter(|id| !id.is_empty());
+    let pick = match &forced {
+        Some(id) => backdrops
+            .iter()
+            .find(|s| s.id == *id)
+            .copied()
+            .unwrap_or_else(|| {
+                warn!(
+                    "load_menu_ambience: NOVA_MENU_BACKDROP='{id}' matches no clean \
+                     menu_backdrop scenario; drawing at random instead"
+                );
+                backdrops[rng.next_u32() as usize % backdrops.len()]
+            }),
+        None => backdrops[rng.next_u32() as usize % backdrops.len()],
+    }
+    .clone();
     commands.trigger(LoadScenario(pick));
 }
 

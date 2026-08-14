@@ -31,9 +31,17 @@ tagged **(breaking)**.
 - AI patrol legs steer around sized bodies: a leg blocked by an asteroid's
   geometric radius detours past it instead of flying the GOTO straight
   through the rock.
+- AI ships gain an authorable `engage_range` (default 800): the
+  hostile-detection distance a passive ship leaves its routine for, so
+  long-watch emplacements can wake for targets that cannot be pulled toward
+  them in return.
 
 ### Scenarios & Objectives
 
+- Three combat menu backdrops join the rotation: Torpedo Gauntlet (a racer's
+  point defense against an off-screen battery), Asteroid Weave (a waypoint
+  run threading a dense rock band), and Duel Cycle (a repeating duel whose
+  winner is erased by a siege torpedo). All real simulation, self-re-arming.
 - Asteroids gain an optional `seed` pinning the generated silhouette (and the
   derived geometric radius) across runs; `ScatterObjects` fills it
   deterministically from the scatter seed, so authored fields keep the same
@@ -41,6 +49,8 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- `NOVA_MENU_BACKDROP=<scenario id>` pins the menu's backdrop draw for
+  capture and authoring runs; unknown ids fall back to the random pick.
 - Built-in authoring content now has an explicit `base_content` inventory grouped into Nova Protocol chapters, private main-menu backdrops, sandboxes, standard section prototypes, and per-craft semantic parts; generated RON is unchanged.
 
 ## [0.10.0] - 2026-08-13

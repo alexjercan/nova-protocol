@@ -89,6 +89,9 @@ launchable by id.
 | `menu_ambience` | Menu Ambience | yes | menu backdrop: planetoid + orbiting ship |
 | `menu_waystation` | Waystation Traffic | yes | menu backdrop: hauler convoy |
 | `menu_scrapyard` | Scrapyard Drift | yes | menu backdrop: drifting salvage yard |
+| `menu_gauntlet` | Torpedo Gauntlet | yes | menu backdrop: point defense vs an off-screen battery |
+| `menu_weave` | Asteroid Weave | yes | menu backdrop: waypoint run through a dense rock band |
+| `menu_duel` | Duel Cycle | yes | menu backdrop: a repeating duel ended by a siege torpedo |
 
 One campaign ships: `nova_protocol` ("Nova Protocol"), members
 `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline`, `final_tally`

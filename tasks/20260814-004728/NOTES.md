@@ -62,3 +62,40 @@ Order of work; one commit per line unless noted.
 - Mesh fragments previously lived until scenario teardown; long-lived
   menu scenes accumulate dynamic convex hulls forever. Fragments now
   carry a fixed lifetime.
+
+## Findings from live verification (Xvfb + NOVA_MENU_BACKDROP)
+
+Everything below was discovered by RUNNING the scenes, not by review.
+
+- The app's debug log filter does not include nova_ship; run with
+  `RUST_LOG=info,nova_ship=debug` when diagnosing AI/weapons.
+- Passive re-engage: a passive AI only leaves its routine for hostiles
+  inside 800 u, and the batteries idle whenever their target respawns.
+  This produced the `engage_range` authoring knob: the battery watches
+  from 1600 while the racer's default 800 never pulls it back.
+- Avoidance v1 crashed the weave runner after 66 s: the held corner's
+  own leg was never re-validated (a neighbor rock on the way to the
+  corner was flown into blind), and waypoint-hugging rocks were skipped
+  as blockers. v2 adds corner-leg hop + goal-outside-clearance; a 3 min
+  live run has ZERO ship impacts in the dense band.
+- Engage-state flight has NO avoidance (by design). Duel v1 staged the
+  fight on the y=0 plane: the head-on chase line crosses the planetoid,
+  both ships pin against it, LOS holds both triggers - permanent
+  stalemate. Fix: the whole duel is staged at y=110 (above the ~91 u
+  worst-case geometric radius).
+- Gravity: the arena sits 110-180 u out; at the default mass 45 000 the
+  424 u SOI drags the dogfight onto the rock. The duel's planetoid is
+  authored at mass 6 000 (SOI ~155) - per-scene mass is exactly the
+  knob the waystation already used.
+- Menu framing: the panel owns the frame's right half; both batteries
+  park on -X so torpedo runs and PD intercepts cross the OPEN left half.
+- Verified cycles (logs in this folder's shots/ + scratchpad): gauntlet
+  18 launches / 12 shot down / racer alive over ~3 min; weave 0 impacts
+  over ~3 min; duel 4 full cycles in ~5.5 min, one siege torpedo per
+  cycle, PD never stops it (0 shootdowns vs 5000 hp ordnance).
+
+## Retention
+
+- `shots/gauntlet-pd-intercept.png` - tracer stream vs inbound torpedo.
+- `shots/weave-threading.png` - the runner inside the rock band.
+- `shots/duel-dogfight.png`, `shots/duel-finisher-window.png`.

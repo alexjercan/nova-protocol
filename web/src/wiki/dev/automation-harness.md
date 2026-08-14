@@ -53,6 +53,7 @@ so.
 | `NOVA_SHOT_DIR` | nothing on its own | `capture_window`, and the scenario `Screenshot` action (`nova_scenario/src/actions/view.rs`) reads it independently | directory that relative capture paths resolve under; absolute paths ignore it |
 | `NOVA_PERF_CONTRACT` | the contract writer | `ProbeContract` | file path the run writes its declared capabilities to (probe passes `probe-contract.json`), so the grader can tell an unwired capability from a failed one. Unset - a hand-run example - writes nothing |
 | `NOVA_AUTOPILOT_DEADLINE` | nothing on its own | the completion watcher | seconds before the run gives up and error-exits naming the laggards (default 120); the RUN-level backstop under a script's own per-step deadlines |
+| `NOVA_MENU_BACKDROP` | pins the menu's backdrop draw to one scenario, so a capture run (or a backdrop being authored) looks at a SPECIFIC scene instead of re-rolling the menu | `load_menu_ambience` (`nova_menu/src/ambience.rs`) | a `menu_backdrop`-flagged scenario id (for example `menu_duel`); an unknown or error-flagged id warns and falls back to the random draw |
 
 `NOVA_SHOT` and `NOVA_CAPTURE` are deliberately separate: a scripted capture
 run and a one-off snapshot must never fight over the same window.
