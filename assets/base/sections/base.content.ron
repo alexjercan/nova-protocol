@@ -828,7 +828,7 @@
             max_speed: 35.0,
             linear_damping: 0.8,
             blast_radius: 30.0,
-            blast_damage: 100.0,
+            blast_damage: 750.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
             detonation_sound: Some("self://sounds/explosion.wav"),
             ammo_capacity: Some(6),

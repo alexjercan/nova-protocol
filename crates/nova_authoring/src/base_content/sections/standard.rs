@@ -349,7 +349,14 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 max_speed: 35.0,
                 linear_damping: 0.8,
                 blast_radius: 30.0,
-                blast_damage: 100.0,
+                // A torpedo that CONNECTS should all but decide the fight
+                // (owner direction, 2026-08-14: Expanse-style near-one-hit
+                // ordnance; the old 100 took ~7 hits to kill a racer while a
+                // PDC sustains ~400 DPS). 750 with linear falloff over 30 u
+                // kills or guts every small-craft section on a direct hit;
+                // the counter is shooting the fragile (1 hp) torpedo down,
+                // not tanking it.
+                blast_damage: 750.0,
                 blast_effect: None,
                 launch_effect: None,
                 launch_sound: Some(meshes.torpedo_launch_sound.clone()),
