@@ -8,6 +8,7 @@
 
 use avian3d::prelude::*;
 use bevy::{
+    light::NotShadowCaster,
     pbr::{ExtendedMaterial, MaterialExtension},
     prelude::*,
     render::render_resource::AsBindGroup,
@@ -470,6 +471,7 @@ fn insert_velocity_hud_indicator_system(
         VelocityHudIndicatorMarker,
         Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
         Mesh3d(meshes.add(Cone::new(0.2, 0.1))),
+        NotShadowCaster,
         MeshMaterial3d(
             direction_materials.add(ExtendedMaterial {
                 base: StandardMaterial {
@@ -563,6 +565,7 @@ fn insert_velocity_hud_sphere_system(
         VelocityHudSphereMarker,
         Transform::from_translation(Vec3::new(0.0, 0.0, radius)).with_scale(Vec3::splat(radius)),
         Mesh3d(meshes.add(mesh)),
+        NotShadowCaster,
         MeshMaterial3d(
             direction_materials.add(ExtendedMaterial {
                 base: StandardMaterial {
@@ -705,6 +708,40 @@ mod tests {
 
     fn palette_of(world: &World, widget: Entity) -> VelocityHudPalette {
         *world.entity(widget).get::<VelocityHudPalette>().unwrap()
+    }
+
+    #[test]
+    fn the_widget_meshes_never_cast_a_shadow() {
+        // THE BUG this convention came from: the sphere is a real world-space
+        // Mesh3d centred a radius AHEAD of the ship and scaled to that radius,
+        // so with Bevy's default casting its round shadow lands on the hull and
+        // reads as the ship's own shadow. Both children go through the spawn
+        // observers, which is where the opt-out has to live.
+        let mut world = palette_world();
+        world.init_resource::<Assets<Mesh>>();
+        world.add_observer(insert_velocity_hud_indicator_system);
+        world.add_observer(insert_velocity_hud_sphere_system);
+        let ship = world.spawn(LinearVelocity(Vec3::ZERO)).id();
+        let widget = spawn_widget(&mut world, ship, VelocityHudSource::Velocity);
+        world.flush();
+
+        let children: Vec<Entity> = world
+            .entity(widget)
+            .get::<Children>()
+            .expect("the observers attach the cone and the sphere")
+            .iter()
+            .collect();
+        let meshed: Vec<Entity> = children
+            .into_iter()
+            .filter(|&child| world.entity(child).contains::<Mesh3d>())
+            .collect();
+        assert_eq!(meshed.len(), 2, "the cone and the sphere are both meshes");
+        for child in meshed {
+            assert!(
+                world.entity(child).contains::<NotShadowCaster>(),
+                "widget mesh {child:?} must not cast a shadow onto the ship"
+            );
+        }
     }
 
     #[test]

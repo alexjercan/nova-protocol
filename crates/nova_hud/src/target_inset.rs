@@ -28,7 +28,10 @@
 //! scope-like player-relative bearing.
 
 use avian3d::prelude::{ColliderAabb, ComputedCenterOfMass, Sensor};
-use bevy::{camera::RenderTarget, prelude::*, render::render_resource::TextureFormat};
+use bevy::{
+    camera::RenderTarget, light::NotShadowCaster, prelude::*,
+    render::render_resource::TextureFormat,
+};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
@@ -1018,6 +1021,7 @@ fn highlight_bundle(assets: &TargetInsetHighlightAssets, section: Entity) -> imp
         TargetInsetHighlightOf(section),
         Mesh3d(assets.mesh.clone()),
         MeshMaterial3d(assets.material.clone()),
+        NotShadowCaster,
         Transform::from_scale(Vec3::splat(HIGHLIGHT_SCALE)),
     )
 }
@@ -1742,6 +1746,25 @@ mod tests {
             .collect();
         v.sort();
         v
+    }
+
+    #[test]
+    fn the_highlight_shell_never_casts_a_shadow() {
+        // Crate convention: an instrument is a projection. This one is the
+        // worst-placed of them - it wraps a real ship section, so a cast
+        // shadow lands on the hull it is meant to be marking.
+        let (mut world, player, sections) = highlight_rig(1);
+        world.get_mut::<ComponentLock>(player).unwrap().section = Some(sections[0]);
+        world.run_system_once(sync_section_highlight).unwrap();
+
+        let highlight = world
+            .query_filtered::<Entity, With<TargetInsetHighlightMarker>>()
+            .single(&world)
+            .expect("selecting a section spawns its shell");
+        assert!(
+            world.entity(highlight).contains::<NotShadowCaster>(),
+            "the highlight shell must not cast a shadow onto its own section"
+        );
     }
 
     #[test]

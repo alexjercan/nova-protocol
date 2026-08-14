@@ -14,7 +14,7 @@
 //!   the in-world home of the old status line's `r` readout.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{light::NotShadowCaster, prelude::*};
 use nova_gameplay::{gravity::prelude::*, markers::prelude::*};
 use nova_ship::flight::prelude::*;
 use nova_ui::hud::{chip_node, chip_paint, ChipTone};
@@ -317,6 +317,7 @@ fn sync_orbit_ring(
                         plan.radius - RING_MINOR_RADIUS,
                         plan.radius + RING_MINOR_RADIUS,
                     ))),
+                    NotShadowCaster,
                     MeshMaterial3d(assets.material(&mut materials)),
                     Transform::from_translation(well_position).with_rotation(rotation),
                     Visibility::Visible,
@@ -428,6 +429,7 @@ fn sync_radius_spoke(
             crate::HudTier::Instrument,
             RadiusSpokeMarker { ship },
             Mesh3d(assets.segment_mesh(&mut meshes)),
+            NotShadowCaster,
             MeshMaterial3d(assets.material(&mut materials)),
             transform,
             Visibility::Visible,
@@ -528,6 +530,51 @@ mod tests {
 
         assert!(anchor_of(&world, readout).is_some(), "readout stays");
         assert_eq!(anchor_of(&world, flip), None, "no flip while braking");
+    }
+
+    #[test]
+    fn the_orbit_holo_geometry_never_casts_a_shadow() {
+        // Crate convention: an instrument is a projection, not a thing in the
+        // world. The ring is the size of the orbit, so a cast shadow from it
+        // would sweep the whole scene.
+        let mut world = World::new();
+        world.init_resource::<Assets<Mesh>>();
+        world.init_resource::<Assets<StandardMaterial>>();
+        world.init_resource::<HoloAssets>();
+
+        let gravity = GravitySettings::default();
+        let well = world
+            .spawn((
+                Position(Vec3::ZERO),
+                GravityWell::from_mass(1200.0, 20.0, &gravity),
+            ))
+            .id();
+        world.spawn((
+            PlayerSpaceshipMarker,
+            SpaceshipRootMarker,
+            Position(Vec3::new(50.0, 0.0, 0.0)),
+            Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: Some(OrbitPlan {
+                    radius: 50.0,
+                    normal: Vec3::Z,
+                }),
+            }),
+        ));
+        world.run_system_once(sync_orbit_ring).unwrap();
+        world.run_system_once(sync_radius_spoke).unwrap();
+
+        let meshed: Vec<Entity> = world
+            .query_filtered::<Entity, With<Mesh3d>>()
+            .iter(&world)
+            .collect();
+        assert!(!meshed.is_empty(), "the ring and spoke must have spawned");
+        for entity in meshed {
+            assert!(
+                world.entity(entity).contains::<NotShadowCaster>(),
+                "maneuver holo mesh {entity:?} must not cast a shadow"
+            );
+        }
     }
 
     #[test]

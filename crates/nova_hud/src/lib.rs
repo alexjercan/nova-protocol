@@ -10,6 +10,17 @@
 //! flight, sections) but does not drive it, so the dependency runs
 //! `nova_hud -> nova_gameplay` and never the reverse. This is the code-level
 //! view; the HUD design lives in the wiki.
+//!
+//! CONVENTION - every world-space HUD mesh carries `NotShadowCaster`. An
+//! instrument is a projection the flight computer draws for the pilot, not a
+//! thing in the world, so it must not throw a shadow onto the scene. Bevy casts
+//! from every `Mesh3d` by default and the opt-out is per-entity, so a new
+//! instrument that forgets it drops its own shadow across the hull - the
+//! velocity sphere sits a radius ahead of the ship, and its round shadow
+//! covered the ship's own until this was swept in. Not `NotShadowReceiver` as
+//! well: the holo instruments and the target-inset highlight are `unlit`, which
+//! never samples lighting anyway, and the velocity widget's shading is
+//! deliberate.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;

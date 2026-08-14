@@ -13,7 +13,7 @@
 //! - **Flip gate**: a ring at the flip point, perpendicular to the path,
 //!   sized to fly through.
 
-use bevy::prelude::*;
+use bevy::{light::NotShadowCaster, prelude::*};
 use nova_gameplay::markers::prelude::*;
 use nova_ship::flight::prelude::*;
 
@@ -193,6 +193,7 @@ fn sync_trajectory_ribbon(
             crate::HudTier::Instrument,
             TrajectoryRibbonSegment { ship, index },
             Mesh3d(assets.segment_mesh(&mut meshes)),
+            NotShadowCaster,
             MeshMaterial3d(assets.material(&mut materials)),
             segment_transform(points[index], points[index + 1]),
             Visibility::Visible,
@@ -253,6 +254,7 @@ fn sync_flip_gate(
             crate::HudTier::Instrument,
             FlipGateMarker { ship },
             Mesh3d(assets.gate_mesh(&mut meshes)),
+            NotShadowCaster,
             MeshMaterial3d(assets.material(&mut materials)),
             Transform::from_translation(flip).with_rotation(rotation),
             Visibility::Visible,
@@ -303,6 +305,32 @@ mod tests {
                 telemetry_value,
             ))
             .id()
+    }
+
+    #[test]
+    fn the_holo_geometry_never_casts_a_shadow() {
+        // The instruments are a projection, not a thing in the world - see the
+        // crate doc. Bevy casts from every Mesh3d by default, so a ribbon
+        // segment or gate ring left to default drops its own shadow across
+        // whatever it is drawn over.
+        let mut world = holo_world();
+        let goal = Vec3::new(0.0, 0.0, -300.0);
+        let flip = Vec3::new(0.0, 0.0, -240.0);
+        spawn_ship(&mut world, telemetry(goal, Some(flip)));
+        world.run_system_once(sync_trajectory_ribbon).unwrap();
+        world.run_system_once(sync_flip_gate).unwrap();
+
+        let meshed: Vec<Entity> = world
+            .query_filtered::<Entity, With<Mesh3d>>()
+            .iter(&world)
+            .collect();
+        assert!(!meshed.is_empty(), "the ribbon and gate must have spawned");
+        for entity in meshed {
+            assert!(
+                world.entity(entity).contains::<NotShadowCaster>(),
+                "holo mesh {entity:?} must not cast a shadow"
+            );
+        }
     }
 
     #[test]

@@ -1,8 +1,8 @@
 # The velocity HUD sphere casts a world shadow over the ship's
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.11.0,hud,render
+- TAGS: v0.11.0, hud, render
 
 # The velocity HUD sphere casts a world shadow over the ship's
 
