@@ -17,7 +17,6 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
 use crate::{
-    ambience::MENU_PLANETOID_ID,
     mods::{ModEnableCheckbox, ModRow, ModToggle, SelectedModId},
     NovaMenuPlugin,
 };
@@ -168,16 +167,16 @@ pub(crate) fn app_with_outcome() -> App {
     app
 }
 
-pub(crate) fn spawn_planetoid_well(app: &mut App) {
-    app.world_mut().spawn((
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        GravityWell {
-            mu: 2400.0,
-            body_radius: 80.0,
-            soi_radius: 600.0,
-        },
-        EntityId::new(MENU_PLANETOID_ID),
-    ));
+/// Simulate the backdrop's own `SetCamera` landing: pin the scripted pose
+/// on the scenario camera, exactly what the action inserts (the reference
+/// backdrop pose (0, 90, 300) looking at the origin).
+pub(crate) fn script_backdrop_pose(app: &mut App, camera: Entity) {
+    app.world_mut()
+        .entity_mut(camera)
+        .insert(ScriptedCameraPose {
+            position: Vec3::new(0.0, 90.0, 300.0),
+            look_at: Vec3::ZERO,
+        });
 }
 
 /// A menu app with a two-mod catalog (locked base + toggleable demo, both

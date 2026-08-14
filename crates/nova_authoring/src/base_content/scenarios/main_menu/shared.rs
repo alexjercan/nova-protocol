@@ -31,28 +31,17 @@ pub(super) fn backdrop_planetoid(
     }
 }
 
-/// The rock-free camera contract: an invisible anchor publishing the
-/// `menu_planetoid` well the menu camera frames. The camera sits at
-/// `(0, 0.75r, 2.5r)` with `r = body_radius + 40`, so the authored radius IS
-/// the scene's framing knob, and it lands the pose DETERMINISTICALLY - a
-/// real planetoid's radius comes off its noise mesh and jitters the pose per
-/// load (`body_radius: 80` = the reference pose (0, 90, 300); bigger pulls
-/// the camera back for a wider stage). Zero mass: the anchor frames without
-/// pulling, and ships fly (and fight) straight through the empty center it
-/// marks.
-pub(super) fn backdrop_anchor(body_radius: f32) -> ScenarioObjectConfig {
-    ScenarioObjectConfig {
-        base: BaseScenarioObjectConfig {
-            id: "menu_planetoid".to_string(),
-            name: "Menu Anchor".to_string(),
-            position: Vec3::ZERO,
-            rotation: Quat::IDENTITY,
-        },
-        kind: ScenarioObjectKind::Anchor(AnchorConfig {
-            body_radius,
-            mass: None,
-        }),
-    }
+/// The backdrop camera contract: every backdrop poses its OWN camera with a
+/// `SetCamera` in its OnStart (lint makes a poseless backdrop an Error).
+/// The menu derives nothing - the authored position IS the framing, fully
+/// deterministic. The reference pose is `(0, 90, 300)` looking at the
+/// origin (a 4:3 window then sees ~+-173 u at origin depth, 16:9 ~+-230);
+/// pull the camera further back for a wider stage.
+pub(super) fn backdrop_camera(position: Vec3) -> EventActionConfig {
+    EventActionConfig::SetCamera(SetCameraActionConfig {
+        position,
+        look_at: Vec3::ZERO,
+    })
 }
 
 /// A small AI ship on the orbit directive around the backdrop planetoid -

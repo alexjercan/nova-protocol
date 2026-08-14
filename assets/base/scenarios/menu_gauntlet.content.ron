@@ -12,26 +12,6 @@
                 actions: [
                     SpawnScenarioObject((
                         base: (
-                            id: "menu_planetoid",
-                            name: "Menu Anchor",
-                            position: (
-                                0.0,
-                                0.0,
-                                0.0,
-                            ),
-                            rotation: (
-                                0.0,
-                                0.0,
-                                0.0,
-                                1.0,
-                            ),
-                        ),
-                        kind: Anchor((
-                            body_radius: 80.0,
-                        )),
-                    )),
-                    SpawnScenarioObject((
-                        base: (
                             id: "gauntlet_key",
                             name: "Key Light",
                             position: (
@@ -346,6 +326,18 @@
                             ],
                         )),
                     )),
+                    SetCamera((
+                        position: (
+                            0.0,
+                            90.0,
+                            300.0,
+                        ),
+                        look_at: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                    )),
                     ScatterObjects((
                         id_prefix: "gauntlet_rock_",
                         count: 26,
@@ -568,7 +560,7 @@
                                     ),
                                     source: Prototype("racer_turret_starboard"),
                                     modifications: [
-                                        SetAmmo(1800),
+                                        SetAmmo(400),
                                     ],
                                 ),
                                 (
@@ -586,7 +578,7 @@
                                     ),
                                     source: Prototype("racer_turret_port"),
                                     modifications: [
-                                        SetAmmo(1800),
+                                        SetAmmo(400),
                                     ],
                                 ),
                             ],

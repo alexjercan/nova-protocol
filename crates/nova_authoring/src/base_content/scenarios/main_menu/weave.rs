@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
-use super::shared::{backdrop_anchor, backdrop_beacon, backdrop_rig, planetoid_glow};
+use super::shared::{backdrop_beacon, backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::base_content::{scenarios::SCATTER_SEED, ships};
 
 /// The circuit's center, nudged left of the frame center: the menu panel
@@ -44,12 +44,6 @@ pub(crate) fn menu_weave(
 ) -> ScenarioConfig {
     let mut objects = Vec::new();
 
-    // The camera contract well (invisible - the band and the pilot ARE the
-    // scene), plus the shared rig and lamp. Radius 130 pulls the camera back
-    // to (0, 128, 425): the loop's far rim plus its avoidance detours kept
-    // escaping the default frame, and a 4:3 window sees only ~+-245 u at
-    // origin depth even from here - the loop's worst case is ~225.
-    objects.push(backdrop_anchor(130.0));
     objects.extend(backdrop_rig("weave").objects());
     objects.push(planetoid_glow("weave_lamp"));
 
@@ -79,11 +73,13 @@ pub(crate) fn menu_weave(
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: WEAVE_LOOP.to_vec(),
-                // Press in close to each mark: the default 25 u slack (on
-                // top of the autopilot's 50 u standoff) turns 75 u out -
-                // most of an 87 u leg. 5 u makes the runner carry each leg
-                // nearly to its beacon before rolling onto the next.
+                // Press in close to each mark: the DEFAULTS turn 75 u out
+                // (50 u autopilot standoff + 25 u slack) - most of an 87 u
+                // leg. Standoff 10 parks the computer nearly on the beacon
+                // and slack 5 turns at ~15 u, so the runner visibly REACHES
+                // each mark before rolling onto the next.
                 waypoint_slack: Some(5.0),
+                arrival_standoff: Some(10.0),
                 ..Default::default()
             }),
             sections: ships::racer_sections(ships::ShipGrade::Player, vec![]),
@@ -136,7 +132,11 @@ pub(crate) fn menu_weave(
             actions: objects
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
-                .chain([band])
+                // Pulled further back than the reference shot: the loop's
+                // far rim plus its avoidance detours kept escaping the
+                // default frame. From (0, 127, 425) a 4:3 window sees
+                // ~+-245 u at origin depth; the loop's worst case is ~225.
+                .chain([backdrop_camera(Vec3::new(0.0, 127.0, 425.0)), band])
                 .collect(),
         },
         // Failsafe: the runner ramming a rock must not leave the menu

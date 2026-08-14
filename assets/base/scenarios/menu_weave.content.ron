@@ -12,26 +12,6 @@
                 actions: [
                     SpawnScenarioObject((
                         base: (
-                            id: "menu_planetoid",
-                            name: "Menu Anchor",
-                            position: (
-                                0.0,
-                                0.0,
-                                0.0,
-                            ),
-                            rotation: (
-                                0.0,
-                                0.0,
-                                0.0,
-                                1.0,
-                            ),
-                        ),
-                        kind: Anchor((
-                            body_radius: 130.0,
-                        )),
-                    )),
-                    SpawnScenarioObject((
-                        base: (
                             id: "weave_key",
                             name: "Key Light",
                             position: (
@@ -346,6 +326,7 @@
                                     ),
                                 ],
                                 waypoint_slack: Some(5.0),
+                                arrival_standoff: Some(10.0),
                             )),
                             sections: [
                                 (
@@ -485,6 +466,18 @@
                                 ),
                             ],
                         )),
+                    )),
+                    SetCamera((
+                        position: (
+                            0.0,
+                            127.0,
+                            425.0,
+                        ),
+                        look_at: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
                     )),
                     ScatterObjects((
                         id_prefix: "weave_rock_",

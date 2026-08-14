@@ -19,6 +19,10 @@ tagged **(breaking)**.
 - Torpedo bays gain an authorable `projectile_health` (default 1.0, the old
   hardcoded fragility): armored ordnance survives point-defense fire instead
   of dying to the first hit.
+- **(breaking)** Standard torpedoes hit like torpedoes now: blast damage
+  100 -> 750, so a connecting torpedo all but decides a small-craft fight
+  (Expanse-style). The counter is point defense, not armor - the ordnance
+  itself stays fragile.
 - New `heavy_torpedo_section` prototype: a capital-grade siege bay with a
   ship-killing blast and armored ordnance, hidden from the editor gallery
   (scene dressing, not player kit).
@@ -41,29 +45,41 @@ tagged **(breaking)**.
 - AI ships gain an authorable `pd_range` (default 400): the distance point
   defense starts engaging inbound torpedoes, so a scene can stage its
   intercepts close-in instead of at the edge of turret reach.
-- AI ships gain an authorable `waypoint_slack` (default 25): the patrol
-  arrival slack on top of the autopilot's standoff, so a nav-drill ship can
-  press in close to its waypoints instead of turning 75 u out.
+- AI ships gain an authorable `waypoint_slack` (default 25) and
+  `arrival_standoff` (default 50): together they set how close a patrol
+  presses to its waypoints - a nav-drill ship can park nearly ON its
+  beacons instead of turning 75 u out.
 - New `SetAmmo` section modification: a hard magazine (rounds overridden,
   auto-reload stripped) for ships whose ammunition is the scene's clock.
 
 ### Scenarios & Objectives
 
 - New `Anchor` scenario object: an invisible authored gravity well (radius +
-  optional mass, no mesh or collider) for camera framing and orbit targets in
-  scenes that do not want a rock at the anchor point.
+  optional mass, no mesh or collider) for orbit targets and bodiless gravity
+  in scenes that do not want a rock at the anchor point.
+- **(breaking)** Menu backdrops pose their own camera: a `SetCamera` in
+  OnStart is the contract (lint Error without one), replacing the old
+  derive-from-`menu_planetoid`-well framing.
 - Three combat menu backdrops join the rotation: Torpedo Gauntlet (a
   station-keeping racer's doomed point-defense stand against scripted
   batteries on both flanks - hard magazines run dry and the stream wins),
   Asteroid Weave (a ten-waypoint run threading a dense rock band), and Duel
   Cycle (a repeating center-frame duel whose winner is erased by a siege
-  torpedo). All real simulation, staged around an invisible anchor instead
-  of a planetoid, and each act ends in the scenario reloading itself - a
-  full reset that clears wrecks and ordnance and rebuilds the seeded field.
+  torpedo). All real simulation on an open rock-free stage, each posing its
+  own camera, and each act ends in the scenario reloading itself - a full
+  reset that clears wrecks and ordnance and rebuilds the seeded field.
 - Asteroids gain an optional `seed` pinning the generated silhouette (and the
   derived geometric radius) across runs; `ScatterObjects` fills it
   deterministically from the scatter seed, so authored fields keep the same
   shapes every load.
+
+### Fixes
+
+- A mid-menu backdrop reload (the self-resetting backdrops) no longer
+  crashes the UI layout: the menu interface renders through its OWN camera
+  now, so the scenario camera being torn down and respawned can never yank
+  the UI's render target mid-frame; the backdrop view itself holds its last
+  scripted pose through the swap instead of blinking.
 
 ### Internals & Tooling
 

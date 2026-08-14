@@ -50,10 +50,11 @@ folder and bundle shape.
 | `menu_backdrop` | bool | `false` | `true` adds the scenario to the random main-menu backdrop rotation. Backdrops normally also use `hidden: true`. |
 | `events` | list of handlers | `[]` | Scenario script. Empty is valid but does nothing. |
 
-A menu backdrop should spawn a gravity-well object with id `menu_planetoid` so
-the menu camera can frame it - a big rock, or an invisible
-[`Anchor`](../objects/#anchor) when the scene wants the framing without the
-body.
+A menu backdrop POSES ITS OWN CAMERA: author a
+[`SetCamera`](../actions/#setcamera) in its `OnStart` (the reference shot is
+`position: (0, 100, 335)` looking at the origin). A backdrop without one is
+a content Error and never enters the menu rotation - the menu derives no
+pose of its own.
 
 ## Handler shape
 

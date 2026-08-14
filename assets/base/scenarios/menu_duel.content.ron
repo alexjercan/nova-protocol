@@ -12,26 +12,6 @@
                 actions: [
                     SpawnScenarioObject((
                         base: (
-                            id: "menu_planetoid",
-                            name: "Menu Anchor",
-                            position: (
-                                0.0,
-                                0.0,
-                                0.0,
-                            ),
-                            rotation: (
-                                0.0,
-                                0.0,
-                                0.0,
-                                1.0,
-                            ),
-                        ),
-                        kind: Anchor((
-                            body_radius: 80.0,
-                        )),
-                    )),
-                    SpawnScenarioObject((
-                        base: (
                             id: "duel_key",
                             name: "Key Light",
                             position: (
@@ -158,7 +138,7 @@
                         ),
                         kind: Spaceship((
                             controller: r#None,
-                            allegiance: Some(Enemy),
+                            allegiance: Some(Neutral),
                             sections: [
                                 (
                                     id: "siege_bay",
@@ -177,6 +157,18 @@
                                 ),
                             ],
                         )),
+                    )),
+                    SetCamera((
+                        position: (
+                            0.0,
+                            90.0,
+                            300.0,
+                        ),
+                        look_at: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
                     )),
                     ScatterObjects((
                         id_prefix: "duel_rock_",
@@ -637,6 +629,10 @@
                     )),
                 ],
                 actions: [
+                    SetAllegiance((
+                        id: "duel_finisher",
+                        allegiance: Enemy,
+                    )),
                     ForceTorpedoLaunch((
                         id: "duel_finisher",
                         target: "duel_victor",

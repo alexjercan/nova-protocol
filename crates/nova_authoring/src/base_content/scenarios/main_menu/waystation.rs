@@ -90,7 +90,10 @@ pub(crate) fn menu_waystation(
         actions: objects
             .into_iter()
             .map(EventActionConfig::SpawnScenarioObject)
-            .chain([lane_scatter])
+            // The scene poses its own camera: the planetoid scenes share a
+            // fixed mid-range shot (the old well-derived pose averaged ~here;
+            // the noise mesh runs to ~120 u, safely inside the frame).
+            .chain([backdrop_camera(Vec3::new(0.0, 100.0, 335.0)), lane_scatter])
             .collect::<_>(),
     }];
 

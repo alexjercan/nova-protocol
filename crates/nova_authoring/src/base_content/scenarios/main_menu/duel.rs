@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
-use super::shared::{backdrop_anchor, backdrop_rig, planetoid_glow};
+use super::shared::{backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::{
     base_content::{scenarios::SCATTER_SEED, ships},
     scenario_helpers::{entity, number},
@@ -79,21 +79,23 @@ pub(crate) fn menu_duel(
 ) -> ScenarioConfig {
     let mut stage = Vec::new();
 
-    // The camera contract, rock-free: the anchor frames an EMPTY arena. The
-    // first cut of this scene proved both failure modes of a real planetoid
-    // here: head-on chase lines cross it and pin the fight against its
-    // surface with the line-of-fire gate holding both triggers, and its SOI
-    // drags a dogfight onto the rock. Zero mass, zero body: the duel owns
-    // the center.
-    stage.push(backdrop_anchor(80.0));
+    // An EMPTY arena on purpose. The first cut of this scene proved both
+    // failure modes of a real planetoid here: head-on chase lines cross it
+    // and pin the fight against its surface with the line-of-fire gate
+    // holding both triggers, and its SOI drags a dogfight onto the rock.
+    // No body, no gravity: the duel owns the center.
     stage.extend(backdrop_rig("duel").objects());
     stage.push(planetoid_glow("duel_lamp"));
 
     // The finisher: one siege bay, nothing else. No controller - the launch
-    // is scripted, so the battery needs no AI, no detection range, and no
-    // allegiance dance; it sits Enemy from the start and simply never fires
-    // until told to. Enemy allegiance is what its ordnance inherits, which
-    // is what makes the victor's point defense engage (and lose to) it.
+    // is scripted, so the battery needs no AI and no detection range. It
+    // sits NEUTRAL until the beat flips it Enemy: an Enemy battery would be
+    // a live acquisition target, and the freshly-victorious ship - still in
+    // its combat hold, which keeps ANY acquired hostile - would break off
+    // its victory lap and drift toward the frame's left edge chasing it
+    // (the observed end-of-duel drift). Neutral is invisible to
+    // acquisition; the flip lands only for the kill window, when the
+    // ordnance must inherit Enemy so the victor's PD engages (and loses).
     stage.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "duel_finisher".to_string(),
@@ -102,7 +104,7 @@ pub(crate) fn menu_duel(
             rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            allegiance: Some(Allegiance::Enemy),
+            allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::None,
             sections: vec![SpaceshipSectionConfig {
                 id: "siege_bay".to_string(),
@@ -199,7 +201,13 @@ pub(crate) fn menu_duel(
             actions: stage
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
-                .chain([rock_scatter, timer("duel_respawn", 0.5)])
+                // The scene poses its own camera: the reference backdrop
+                // shot, dead on the arena center the duel fights over.
+                .chain([
+                    backdrop_camera(Vec3::new(0.0, 90.0, 300.0)),
+                    rock_scatter,
+                    timer("duel_respawn", 0.5),
+                ])
                 .collect(),
         },
         // The single spawn site for both duelists.
@@ -231,6 +239,12 @@ pub(crate) fn menu_duel(
                 key: "duel_finisher_beat".to_string(),
             })],
             actions: vec![
+                // Hostile only for the kill window (see the battery's spawn
+                // comment); the full reset restores the authored Neutral.
+                EventActionConfig::SetAllegiance(SetAllegianceActionConfig {
+                    id: "duel_finisher".to_string(),
+                    allegiance: Allegiance::Enemy,
+                }),
                 EventActionConfig::ForceTorpedoLaunch(ForceTorpedoLaunchActionConfig {
                     id: "duel_finisher".to_string(),
                     target: "duel_victor".to_string(),

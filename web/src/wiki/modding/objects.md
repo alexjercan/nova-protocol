@@ -25,11 +25,11 @@ an object kind - and beacons and crates can be their own areas, below.)
 An invisible authored point that publishes a [gravity
 well](#asteroid) with an AUTHORED radius: no mesh, no collider, and no
 geometric extent for AI [obstacle avoidance](#the-controller) to steer
-around. Use it where a contract needs a position plus a radius but the scene
-does not want a rock there - a menu backdrop's `menu_planetoid` camera
-anchor, or an orbit directive's target. Because the radius is authored (an
-asteroid's is derived from its generated mesh), everything reading the well
-sees the same geometry on every load.
+around. Use it where a contract needs a position plus well geometry but the
+scene does not want a rock there - an orbit directive's target, or a real
+gravity source with no body. Because the radius is authored (an asteroid's
+is derived from its generated mesh), everything reading the well sees the
+same geometry on every load.
 
 | field | type | default | meaning |
 |---|---|---|---|
@@ -38,9 +38,10 @@ sees the same geometry on every load.
 
 ```ron
 SpawnScenarioObject((
-    base: (id: "menu_planetoid", name: "Menu Anchor", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    base: (id: "patrol_anchor", name: "Patrol Anchor", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
     kind: Anchor((
         body_radius: 80.0,
+        mass: Some(30000.0),
     )),
 )),
 ```
@@ -180,7 +181,8 @@ than complete flyable ships. Copy the full player or AI section list from
 | `orbit` | `Option` string | `None` | id of a gravity-well object to orbit passively. Precedence: orbit > patrol > idle |
 | `engage_range` | `Option` number | `None` | hostile-detection override (world units): a passive ship leaves its routine for a hostile inside this range instead of the 800 u default. Wide = a long-watch emplacement that wakes for targets nothing else detects; short = a ship that ignores a nearby brawl |
 | `pd_range` | `Option` number | `None` | point-defense override (world units): the guns hold fire until an inbound hostile torpedo is inside this range instead of the 400 u default. Short = staged close-in intercepts; past the turret's ~450 u reach it just wastes the opening shots |
-| `waypoint_slack` | `Option` number | `None` | patrol arrival slack override (world units) on top of the autopilot's 50 u arrival standoff; the default is 25. Small = the ship presses in close to each waypoint before turning. Below ~2 risks stalling outside the advance gate - author small, not zero |
+| `waypoint_slack` | `Option` number | `None` | patrol arrival slack override (world units) on top of the arrival standoff; the default is 25. Small = the ship turns onto the next leg closer to each waypoint. Below ~2 risks stalling outside the advance gate - author small, not zero |
+| `arrival_standoff` | `Option` number | `None` | how far from a GOTO goal this ship's computer comes to rest, instead of the engine's 50 u default. Pair a small standoff with a small `waypoint_slack` so a nav ship visibly REACHES its marks (the patrol turns at `standoff + slack`) |
 | `leash` | `Option` number | `None` | territorial tether radius; combat breaks off beyond it; `None` = chases freely |
 | `engage_delay` | `Option` number | `None` | arrival grace in seconds: flies its passive routine and refuses to engage until it elapses; being SHOT ends the grace instantly and permanently. The telegraphed-arrival tool |
 

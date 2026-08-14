@@ -499,8 +499,8 @@ are dynamic), and the asteroid alone opts into `Dynamic` +
 
 - `Anchor(AnchorConfig)` - an invisible point publishing a `GravityWell` with
   an AUTHORED `body_radius` (deterministic, unlike the asteroid's mesh-derived
-  radius) and an optional `mass`; no mesh, no collider, no `BodyRadius` - the
-  camera-contract / orbit-target anchor for scenes that do not want a rock.
+  radius) and an optional `mass`; no mesh, no collider, no `BodyRadius` - an
+  orbit-target / bodiless-gravity anchor for scenes that do not want a rock.
 - `Asteroid(AsteroidConfig)` - radius, texture, health, `mass` (the body's
   `mu`: it alone sets both the pull `a = mu / r^2` and the sphere of influence,
   the distance where that decays to `GravitySettings::soi_cutoff_accel` - so
@@ -524,8 +524,9 @@ are dynamic), and the asteroid alone opts into `Dynamic` +
   T` announce line -> spawn far with `engage_delay` covering the
   approach -> the fight starts when the player has read the warning;
   optional `engage_range` hostile-detection override (`AIEngageRange`),
-  `pd_range` point-defense override (`AIPointDefenseRange`), and
-  `waypoint_slack` patrol-arrival override (`AIWaypointSlack`)).
+  `pd_range` point-defense override (`AIPointDefenseRange`),
+  `waypoint_slack` patrol-arrival override (`AIWaypointSlack`), and
+  `arrival_standoff` GOTO-rest override (`FlightArrivalStandoff`)).
   Section geometry is linted: overlapping unit-cube cells and a
   turret/torpedo mount whose base (local -Y under its rotation) points at
   an empty neighbor cell are `content lint` errors (see the authoring

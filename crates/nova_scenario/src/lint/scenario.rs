@@ -67,6 +67,26 @@ pub fn lint_scenario(
 ) -> Vec<LintIssue> {
     let id = scenario.id.as_str();
     let mut issues = Vec::new();
+
+    // A menu backdrop poses its OWN camera (the SetCamera contract): the
+    // menu strips the loader's flyable camera and shows nothing until the
+    // backdrop's scripted pose lands, so a poseless backdrop would sit on a
+    // blank camera forever. An ERROR on purpose: erroring scenarios are
+    // filtered out of the menu draw, so the broken backdrop degrades to
+    // "not in the rotation" instead of "menu with no picture".
+    if scenario.menu_backdrop
+        && !scenario
+            .events
+            .iter()
+            .flat_map(|event| &event.actions)
+            .any(|action| matches!(action, EventActionConfig::SetCamera(_)))
+    {
+        issues.push(LintIssue::error(
+            id,
+            "menu backdrop authors no SetCamera; the menu camera would never be posed".to_string(),
+        ));
+    }
+
     let mut watch_names = HashSet::new();
     for watch in &scenario.watches {
         if watch.variable.trim().is_empty() {
@@ -947,6 +967,35 @@ mod tests {
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("ghost"));
         assert!(errs[0].message.contains("SetAllegiance"));
+    }
+
+    /// The backdrop camera contract: a menu backdrop must pose its own
+    /// camera (SetCamera) - the menu never derives a pose. An ERROR so the
+    /// draw filters the broken backdrop out of the rotation.
+    #[test]
+    fn a_backdrop_without_a_camera_pose_is_an_error() {
+        let mut poseless = scenario(vec![], vec![]);
+        poseless.menu_backdrop = true;
+        let issues = lint_scenario(&poseless, &sections(&[]), &known(&["test_scenario"]));
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(errs[0].message.contains("SetCamera"));
+
+        let mut posed = scenario(
+            vec![EventActionConfig::SetCamera(SetCameraActionConfig {
+                position: Vec3::new(0.0, 90.0, 300.0),
+                look_at: Vec3::ZERO,
+            })],
+            vec![],
+        );
+        posed.menu_backdrop = true;
+        let issues = lint_scenario(&posed, &sections(&[]), &known(&["test_scenario"]));
+        assert!(errors(&issues).is_empty(), "{issues:?}");
+
+        // Non-backdrop scenarios owe no camera.
+        let plain = scenario(vec![], vec![]);
+        let issues = lint_scenario(&plain, &sections(&[]), &known(&["test_scenario"]));
+        assert!(errors(&issues).is_empty(), "{issues:?}");
     }
 
     /// ForceTorpedoLaunch references TWO ships by id (launcher and target);

@@ -8,16 +8,16 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
-use super::shared::{backdrop_anchor, backdrop_beacon, backdrop_rig, planetoid_glow};
+use super::shared::{backdrop_beacon, backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::{
     base_content::{scenarios::SCATTER_SEED, ships},
     scenario_helpers::{entity, number},
 };
 
 /// The racer's HARD magazine per PDC turret (SetAmmo strips the auto-reload).
-/// At 100 rounds/s the pair holds roughly 15-20 intercepts' worth of fire -
-/// a few minutes of defense before the guns run dry and the stand is lost.
-const RACER_ROUNDS_PER_TURRET: u32 = 1800;
+/// Sized for roughly a TEN-torpedo defense across the pair: the first cut
+/// shipped 1800 per turret and the stand never fell inside a menu visit.
+const RACER_ROUNDS_PER_TURRET: u32 = 400;
 
 /// The racer's station-keeping circuit, just left of frame center (the menu
 /// panel owns the right half): a six-point ring with ~55 u legs and a little
@@ -120,9 +120,6 @@ pub(crate) fn menu_gauntlet(
 ) -> ScenarioConfig {
     let mut stage = Vec::new();
 
-    // The camera contract, rock-free: the invisible anchor frames the empty
-    // stage the torpedo lanes cross.
-    stage.push(backdrop_anchor(80.0));
     stage.extend(backdrop_rig("gauntlet").objects());
     stage.push(planetoid_glow("gauntlet_lamp"));
 
@@ -248,7 +245,14 @@ pub(crate) fn menu_gauntlet(
             actions: stage
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
-                .chain([rock_scatter, spawn_ship])
+                // The scene poses its own camera: the reference backdrop
+                // shot, empty stage centered, station circuit on the open
+                // left half.
+                .chain([
+                    backdrop_camera(Vec3::new(0.0, 90.0, 300.0)),
+                    rock_scatter,
+                    spawn_ship,
+                ])
                 .chain(
                     BATTERY_PARKS
                         .iter()

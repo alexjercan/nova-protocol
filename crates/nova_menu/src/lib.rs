@@ -94,6 +94,7 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<SelectedScenarioId>();
         app.init_resource::<NewGameScenario>();
         app.init_resource::<PendingScenarioThumbnail>();
+        app.init_resource::<ambience::MenuCameraMemory>();
         app.init_resource::<CollapsedCampaigns>();
         app.init_resource::<UpdateRequested>();
         // NOTE: ungated by menu state on purpose - an update started from the
@@ -123,7 +124,12 @@ impl Plugin for NovaMenuPlugin {
 
         app.add_systems(
             OnEnter(GameStates::MainMenu),
-            (load_menu_ambience, setup_menu_ui, hide_hud_chrome),
+            (
+                load_menu_ambience,
+                ambience::spawn_menu_ui_camera,
+                setup_menu_ui,
+                hide_hud_chrome,
+            ),
         );
         // NOTE: EVERY exit from the menu unloads the backdrop, so no exit path
         // can leak a simulating scenario. OnExit runs before OnEnter(Playing),

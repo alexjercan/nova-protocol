@@ -1,6 +1,7 @@
 //! The main menu's live backdrop: that entering the menu loads the ambience
-//! scenario, that the camera is staged from the well geometry, and that a
-//! missing or broken backdrop degrades to a bare camera instead of failing.
+//! scenario, that the camera activates on the backdrop's own scripted pose,
+//! and that a missing or broken backdrop degrades to a bare camera instead
+//! of failing.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -10,7 +11,7 @@ use nova_ship::prelude::*;
 
 use super::support::{
     app, dummy_backdrop, dummy_scenario, dummy_scenarios, observe_load_scenario,
-    spawn_planetoid_well, LoadedScenario, TEST_BACKDROP_ID, TEST_START_ID,
+    script_backdrop_pose, LoadedScenario, TEST_BACKDROP_ID, TEST_START_ID,
 };
 
 /// Entering MainMenu loads the ambience backdrop through the real OnEnter systems.
@@ -39,12 +40,13 @@ fn entering_main_menu_loads_the_ambience_scenario() {
     );
 }
 
-/// Review R1.1: the camera staging that carried dev bug 1 (pose written in
-/// the same frame as the controller removal gets overwritten by the
-/// controller). Frame 1 must deactivate + strip the controller; frame 2
-/// must stage the runtime-derived pose and reactivate.
+/// The camera contract: each backdrop poses its OWN camera (a SetCamera in
+/// its OnStart). The menu blanks + strips the loader's flyable camera and
+/// only activates it once the backdrop's scripted pose is pinned - entry
+/// never flashes the loader's default pose, and the menu never derives a
+/// pose of its own.
 #[test]
-fn menu_camera_is_staged_from_the_wells_geometry() {
+fn menu_camera_activates_on_the_backdrops_scripted_pose() {
     let mut app = app();
     app.insert_resource(dummy_scenarios());
     app.world_mut()
@@ -60,7 +62,6 @@ fn menu_camera_is_staged_from_the_wells_geometry() {
             Transform::from_xyz(0.0, 10.0, 20.0),
         ))
         .id();
-    spawn_planetoid_well(&mut app);
 
     app.update();
     assert!(
@@ -72,13 +73,123 @@ fn menu_camera_is_staged_from_the_wells_geometry() {
         app.world().get::<WASDCameraController>(cam).is_none(),
         "controller must be stripped"
     );
-    // r_orbit = body_radius 80 + clearance 40 = 120 -> pose (0, 90, 300).
-    let staged = app.world().get::<Transform>(cam).unwrap().translation;
     assert!(
-        (staged - Vec3::new(0.0, 90.0, 300.0)).length() < 1e-3,
-        "pose must derive from the well's runtime geometry, got {staged:?}"
+        !app.world().get::<Camera>(cam).unwrap().is_active,
+        "no scripted pose yet - the camera stays blank, it never invents a pose"
     );
+
+    script_backdrop_pose(&mut app, cam);
+    app.update();
+    assert!(
+        app.world().get::<Camera>(cam).unwrap().is_active,
+        "the backdrop's own pose is what turns the picture on"
+    );
+}
+
+/// A MID-MENU backdrop reload (the self-resetting backdrops fire
+/// NextScenario at their own id) tears down the posed camera and spawns a
+/// fresh flyable one, whose own SetCamera only lands a frame later. The
+/// remembered pose bridges the gap: the fresh camera stays ACTIVE at the
+/// last scripted pose instead of blinking through the loader's default.
+#[test]
+fn a_mid_menu_reload_holds_the_last_scripted_pose() {
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+
+    // First load: classic blank-then-pose.
+    let cam = app
+        .world_mut()
+        .spawn((
+            Camera3d::default(),
+            WASDCameraController,
+            Transform::from_xyz(0.0, 10.0, 20.0),
+        ))
+        .id();
+    app.update();
+    app.update();
+    script_backdrop_pose(&mut app, cam);
+    app.update();
     assert!(app.world().get::<Camera>(cam).unwrap().is_active);
+
+    // The reload: scoped teardown takes the posed camera; the loader spawns
+    // a fresh flyable one; its SetCamera has not landed yet.
+    app.world_mut().entity_mut(cam).despawn();
+    let fresh = app
+        .world_mut()
+        .spawn((
+            Camera3d::default(),
+            WASDCameraController,
+            Transform::from_xyz(0.0, 10.0, 20.0),
+        ))
+        .id();
+
+    app.update();
+    assert!(
+        app.world().get::<Camera>(fresh).unwrap().is_active,
+        "the reload camera must stay active on the remembered pose, not blank"
+    );
+    app.update();
+    assert!(
+        app.world().get::<WASDCameraController>(fresh).is_none(),
+        "controller must still be stripped"
+    );
+    assert!(app.world().get::<Camera>(fresh).unwrap().is_active);
+    let held = app.world().get::<Transform>(fresh).unwrap().translation;
+    assert!(
+        (held - Vec3::new(0.0, 90.0, 300.0)).length() < 1e-3,
+        "the held pose is the last scripted pose, got {held:?}"
+    );
+
+    // The reloading backdrop's own SetCamera lands; the camera stays on.
+    script_backdrop_pose(&mut app, fresh);
+    app.update();
+    assert!(app.world().get::<Camera>(fresh).unwrap().is_active);
+}
+
+/// The interface renders through the menu's OWN UI camera, spawned on menu
+/// entry and independent of every scenario camera - a backdrop reload that
+/// despawns the scenario camera can no longer yank the UI's render target
+/// out from under the layout (the live BorderRadius::resolve crash on every
+/// backdrop self-reset).
+#[test]
+fn the_menu_owns_a_ui_camera_independent_of_the_backdrop() {
+    use bevy::ui::IsDefaultUiCamera;
+
+    use crate::ambience::MenuUiCameraMarker;
+
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+
+    let mut q_ui_cam = app
+        .world_mut()
+        .query_filtered::<(&Camera, Option<&IsDefaultUiCamera>), With<MenuUiCameraMarker>>();
+    let (camera, default_ui) = q_ui_cam
+        .single(app.world())
+        .expect("menu UI camera spawned");
+    assert!(camera.is_active);
+    assert!(
+        default_ui.is_some(),
+        "IsDefaultUiCamera is what routes every root Node to this camera"
+    );
+
+    // Leaving the menu removes it (DespawnOnExit), so gameplay HUD keeps
+    // rendering through the gameplay camera.
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::Playing);
+    app.update();
+    let mut q_ui_cam = app
+        .world_mut()
+        .query_filtered::<Entity, With<MenuUiCameraMarker>>();
+    assert!(q_ui_cam.iter(app.world()).next().is_none());
 }
 
 /// The backdrop draw stays inside the `menu_backdrop`-flagged set and,

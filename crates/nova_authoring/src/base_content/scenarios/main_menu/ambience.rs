@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
-use super::shared::{backdrop_rig, planetoid_glow};
+use super::shared::{backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::base_content::{scenarios::SCATTER_SEED, ships};
 
 /// The main menu's living backdrop: a big planetoid with a real gravity well, a
@@ -135,7 +135,13 @@ pub(crate) fn menu_ambience(
         actions: objects
             .into_iter()
             .map(EventActionConfig::SpawnScenarioObject)
-            .chain([menu_rock_scatter])
+            // The scene poses its own camera: the planetoid scenes share a
+            // fixed mid-range shot (the old well-derived pose averaged ~here;
+            // the noise mesh runs to ~120 u, safely inside the frame).
+            .chain([
+                backdrop_camera(Vec3::new(0.0, 100.0, 335.0)),
+                menu_rock_scatter,
+            ])
             .collect::<_>(),
     }];
 

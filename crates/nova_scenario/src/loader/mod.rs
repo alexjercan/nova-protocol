@@ -184,9 +184,9 @@ pub struct ScenarioConfig {
     /// random, so several ambience scenes can ship and mods can add their own.
     /// Backdrops normally also set `hidden: true` (the flags are orthogonal -
     /// this one opts INTO the menu rotation, `hidden` opts OUT of the picker).
-    /// A backdrop should contain a gravity well with entity id
-    /// `menu_planetoid` for the cinematic camera framing; without one the menu
-    /// falls back to the scenario's own camera pose after a short grace.
+    /// A backdrop POSES ITS OWN CAMERA: it must author a `SetCamera` action
+    /// (lint makes a poseless backdrop an Error, and erroring backdrops are
+    /// filtered out of the menu draw - the menu derives no pose of its own).
     /// Serde-defaulted to false; author as `menu_backdrop: true`.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
     pub menu_backdrop: bool,

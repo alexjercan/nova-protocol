@@ -456,6 +456,18 @@
                             shadows: false,
                         )),
                     )),
+                    SetCamera((
+                        position: (
+                            0.0,
+                            100.0,
+                            335.0,
+                        ),
+                        look_at: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                    )),
                     ScatterObjects((
                         id_prefix: "waystation_cargo_",
                         count: 18,

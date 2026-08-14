@@ -655,6 +655,14 @@
                 name: OnStart,
                 filters: [],
                 actions: [
+                    // The backdrop camera contract: every menu backdrop poses
+                    // its OWN camera with a SetCamera (a backdrop without one
+                    // is a content Error and never enters the menu rotation).
+                    // The authored position IS the framing.
+                    SetCamera((
+                        position: (0.0, 100.0, 335.0),
+                        look_at: (0.0, 0.0, 0.0),
+                    )),
                     // The backdrop lights itself, like every shipped menu scene.
                     SpawnScenarioObject((
                         base: (
@@ -713,11 +721,9 @@
                             aim: Some((0.0, 0.0, 0.0)),
                         )),
                     )),
-                    // A slow, invulnerable planetoid to anchor the view, plus an
-                    // AI ship set to orbit it - calm motion, nothing to fight.
-                    // The well is id `menu_planetoid`: the menu's cinematic
-                    // camera frames on exactly that id (any other id makes the
-                    // menu fall back to the scenario's own camera pose).
+                    // A slow, invulnerable planetoid to anchor the view, plus
+                    // an AI ship set to orbit it - calm motion, nothing to
+                    // fight. The orbit directive names the well by its id.
                     SpawnScenarioObject((
                         base: (
                             id: "menu_planetoid",
