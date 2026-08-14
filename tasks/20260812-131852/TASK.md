@@ -1,6 +1,6 @@
 # Editor: gallery section picker with previews, dropdowns, filters
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.11.0, editor, ui
 
