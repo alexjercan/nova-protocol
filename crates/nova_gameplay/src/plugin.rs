@@ -60,6 +60,11 @@ impl Plugin for NovaGameplayPlugin {
         app.init_resource::<crate::GameMode>();
         app.register_type::<crate::GameMode>();
 
+        // Escape is a back gesture before it is a pause gesture; whichever
+        // scene surface is up says so here (see `EscapeOwner`).
+        app.init_resource::<crate::EscapeOwner>();
+        app.register_type::<crate::EscapeOwner>();
+
         // Mission state, not HUD state: the scenario loader writes it whether or
         // not anything renders it, so it is owned here rather than by the
         // render-gated HUD.

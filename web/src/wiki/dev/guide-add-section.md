@@ -28,7 +28,7 @@ flowchart LR
     B --> C[damage table]
     C --> D[section plugin]
     D --> E[spawn arm]
-    E --> F[editor place + card]
+    E --> F[editor place + gallery]
     F --> G[asset prototype]
     G --> H[example]
 ```
@@ -144,17 +144,21 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    `player_config.sections` is generic (`register_preview_section`, called
    from the click handler) - the arm only spawns.
 
-7. **Editor card tint + glyph.**
-   In `crates/nova_editor/src/ui/card.rs`, add an arm to BOTH `kind_tint()`
-   (grep for `fn kind_tint`) and `kind_glyph()` (grep for `fn kind_glyph`) --
-   both match `SectionKind`
-   exhaustively:
+7. **Parts gallery category + readouts.**
+   In `crates/nova_editor/src/gallery/catalog.rs`, add a `GalleryCategory`
+   variant (with its `ROW` entry, `label()` and `accepts()` arms), then arms to
+   `kind_label()` and `behaviour()`. All of them match `SectionKind`
+   exhaustively, so the compiler walks you through it:
 
    ```rust
-   // kind_tint
-   SectionKind::Shield(_) => Color::srgb_u8(120, 200, 180),
-   // kind_glyph  (pick an unused letter; H T C U B are taken)
-   SectionKind::Shield(_) => "S",
+   // accepts
+   Self::Shields => matches!(kind, SectionKind::Shield(_)),
+   // kind_label - the tile's category line
+   SectionKind::Shield(_) => "shields",
+   // behaviour - the two or three numbers a builder picks the part BY
+   SectionKind::Shield(shield) => {
+       vec![("capacity".to_string(), format!("{:.0}", shield.capacity))]
+   }
    ```
 
 8. **Asset prototype.**

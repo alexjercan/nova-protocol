@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::Binding;
 use nova_ship::prelude::*;
 
-use crate::{config::PlayerSpaceshipConfig, ExampleStates};
+use crate::{config::PlayerSpaceshipConfig, gallery::EditorCamera, ExampleStates};
 
 /// The section currently awaiting a new keybind. Armed by clicking a bindable
 /// section in select mode (`SectionChoice::None`); `apply_section_rebind`
@@ -107,7 +107,11 @@ pub(crate) fn sync_section_keybind_labels(
 )]
 pub(crate) fn position_section_keybind_labels(
     rebind: Res<EditorRebind>,
-    camera: Single<(&Camera, &GlobalTransform), With<WASDCameraController>>,
+    // Keyed on the editor's camera MARKER, not on the free-fly controller: the
+    // gallery removes that controller while it parks the camera, and a `Single`
+    // that stops matching stops the system - which used to leave every chip
+    // frozen on screen, over the gallery, at the pose it last had.
+    camera: Single<(&Camera, &GlobalTransform), With<EditorCamera>>,
     q_section: Query<(
         &GlobalTransform,
         Option<&SpaceshipThrusterInputBinding>,
@@ -146,6 +150,21 @@ pub(crate) fn position_section_keybind_labels(
         };
         if text.0 != wanted {
             text.0 = wanted;
+        }
+    }
+}
+
+/// Take every chip off screen. The chips label the ship the builder is
+/// standing in front of, so a surface that COVERS that ship - the parts gallery
+/// - must not be read through them. Paired with the run condition that stops
+/// the positioner while the gallery is up: exactly one of the two writes the
+/// chips' visibility in any frame, so neither can fight the other.
+pub(crate) fn hide_section_keybind_labels(
+    mut q_labels: Query<&mut Visibility, With<SectionKeybindLabel>>,
+) {
+    for mut visibility in &mut q_labels {
+        if *visibility != Visibility::Hidden {
+            *visibility = Visibility::Hidden;
         }
     }
 }

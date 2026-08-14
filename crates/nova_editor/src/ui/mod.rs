@@ -1,76 +1,76 @@
-//! The editor UI: a wiki-inspired left rail of categories plus a component
-//! drawer of cards. The theme + shared button widgets live in `nova_ui`; the
-//! submodules here hold the editor-specific rail, drawer,
-//! cards and hover tooltip, and this module assembles them into the scene.
+//! The editor UI: a wiki-inspired left rail of categories, the ship tools and
+//! the placement readout. The theme + shared button widgets live in `nova_ui`;
+//! `rail` holds the editor-specific category rows and this module assembles
+//! them into the scene.
+//!
+//! Parts are picked in the `gallery`, which replaced the component drawer that
+//! used to sit beside this rail. The drawer listed every prototype as a text
+//! card, which cannot say what a part LOOKS like - the one thing a builder
+//! needs from a parts list.
 
-pub(crate) mod card;
-pub(crate) mod drawer;
 pub(crate) mod rail;
-pub(crate) mod tooltip;
 
 use bevy::{prelude::*, ui_widgets::observe};
 use nova_assets::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{panel, panel_header, separator, themed_button, ButtonValue, UiSkin},
-    screen::{scroll_column, scroll_viewport},
     theme,
 };
 
 use crate::{
-    config::{PlacementStatus, SectionChoice},
+    config::{EditorKeyLegend, PlacementStatus, SectionChoice},
     gallery::{EditorCamera, EditorChrome, GalleryAction},
     placement::{
         continue_to_simulation, create_new_spaceship, create_new_spaceship_with_controller,
     },
-    ui::{
-        card::component_card,
-        drawer::DrawerPanel,
-        rail::{category_row, coming_soon_category, components_category},
-    },
+    ui::rail::{category_row, coming_soon_category},
     ExampleStates,
 };
 
-/// Left rail width (px). Kept narrow so the rail + drawer stay clear of screen
-/// centre on the 1024-wide window, where the editor preview ship projects - a
-/// UI panel over that point would block the placement raycast.
+/// Left rail width (px). Kept narrow so the rail stays clear of screen centre
+/// on the 1024-wide window, where the editor preview ship projects - a UI panel
+/// over that point would block the placement raycast.
 const RAIL_W: f32 = 150.0;
-/// Component drawer width (px). RAIL_W + DRAWER_W = 430 < 512 (half of 1024),
-/// so the centred build area stays pickable.
-const DRAWER_W: f32 = 280.0;
 
-/// Register the UI's observers (button colours, selection, tooltips). The
-/// per-state systems and the `SectionChoice` setting observer are wired by the
-/// plugin, which owns those types.
+/// Register the UI's observers (button colours, selection). The per-state
+/// systems and the `SectionChoice` setting observer are wired by the plugin,
+/// which owns those types.
 pub(crate) fn register(app: &mut App) {
     // The menu and gameplay want the same app-global UI wiring; whoever gets
     // there first adds it.
     if !app.is_plugin_added::<nova_ui::NovaUiPlugin>() {
         app.add_plugins(nova_ui::NovaUiPlugin);
     }
-    tooltip::register(app);
 }
 
 pub(crate) fn setup_editor_scene(
     mut commands: Commands,
     skin: Res<UiSkin>,
     game_assets: Res<GameAssets>,
-    sections: Res<GameSections>,
 ) {
     let skin = *skin;
+    // Key + rim, the same bearings the parts viewer lights its turntable with.
+    // The editor used to carry one light shining straight down, which put every
+    // vertical face of every part in flat shadow - fine for a ship seen from
+    // above, wrong for the gallery, where the part IS the tile.
     commands.spawn((
         DespawnOnExit(ExampleStates::Editor),
+        Name::new("Editor Key Light"),
         DirectionalLight {
-            illuminance: 10000.0,
+            illuminance: 9_000.0,
             ..default()
         },
-        Transform::from_rotation(Quat::from_euler(
-            EulerRot::XYZ,
-            -std::f32::consts::FRAC_PI_2,
-            0.0,
-            0.0,
-        )),
-        GlobalTransform::default(),
+        Transform::from_xyz(-6.0, 8.0, 6.0).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+    commands.spawn((
+        DespawnOnExit(ExampleStates::Editor),
+        Name::new("Editor Rim Light"),
+        DirectionalLight {
+            illuminance: 2_500.0,
+            ..default()
+        },
+        Transform::from_xyz(5.0, -2.0, -7.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
     commands.spawn((
@@ -83,6 +83,13 @@ pub(crate) fn setup_editor_scene(
         // it needs a handle that does not assume a single Camera3d.
         EditorCamera,
         Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+        // The Kenney parts are flat-Kd meshes; a touch of ambient keeps their
+        // shadow side readable without washing out the key light's form.
+        AmbientLight {
+            color: Color::WHITE,
+            brightness: 220.0,
+            affects_lightmapped_meshes: true,
+        },
         // NOTE: direct SkyboxConfig insert (no PendingSkyboxSwap) is safe
         // because `game_assets.cubemap` already has its Cube view.
         // `prepare_cubemap_view` (nova_assets) sets it at startup, before any
@@ -147,10 +154,9 @@ pub(crate) fn setup_editor_scene(
                 ));
 
                 rail.spawn(panel_header("Categories"));
-                rail.spawn(components_category());
                 rail.spawn((
                     Name::new("Parts Gallery Category"),
-                    category_row("Parts Gallery"),
+                    category_row("Parts"),
                     GalleryAction::Open,
                 ));
                 rail.spawn(coming_soon_category("Ships", skin));
@@ -243,40 +249,57 @@ pub(crate) fn setup_editor_scene(
                 )],
             ));
 
+            // The key legend, bottom-left and out of the build area. Contextual
+            // (see `sync_key_legend`): a builder holding a part needs the pose
+            // keys, and one in select mode needs to be told the pipette exists.
             root.spawn((
-                Name::new("Component Drawer"),
-                DrawerPanel,
+                Name::new("Editor Key Legend"),
+                EditorKeyLegend,
+                Pickable {
+                    should_block_lower: false,
+                    is_hoverable: false,
+                },
                 Node {
-                    width: px(DRAWER_W),
-                    height: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::Stretch,
-                    padding: UiRect::all(px(12)),
-                    border: UiRect::right(px(theme::BORDER_W)),
+                    position_type: PositionType::Absolute,
+                    bottom: px(8),
+                    left: px(RAIL_W + 12.0),
                     ..default()
                 },
-                BorderColor::all(theme::PHOSPHOR_MUTED),
-                BackgroundColor(theme::SPACE),
-            ))
-            .with_children(|drawer| {
-                drawer.spawn(panel_header("Components"));
-                drawer
-                    .spawn((
-                        Name::new("Component List"),
-                        scroll_viewport(),
-                        Node {
-                            align_items: AlignItems::Stretch,
-                            ..scroll_column()
-                        },
-                    ))
-                    .with_children(|list| {
-                        // Skip sections flagged `hide_in_editor` (the cut-cube
-                        // spaceship prototypes) - they only make sense assembled
-                        // into a ship, not placed one tile at a time.
-                        for section in sections.iter().filter(|s| !s.base.hide_in_editor) {
-                            list.spawn(component_card(section));
-                        }
-                    });
-            });
+                GlobalZIndex(10),
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR_MUTED),
+            ));
         });
+}
+
+/// Keep the key legend in step with the armed tool.
+///
+/// Compared before writing rather than gated on `SectionChoice` changing: the
+/// legend is spawned on entering the editor, which is not necessarily a frame
+/// the tool changed on, and an empty legend is worse than a redundant compare
+/// across three text nodes.
+pub(crate) fn sync_key_legend(
+    selection: Res<SectionChoice>,
+    mut legend: Query<&mut Text, With<EditorKeyLegend>>,
+) {
+    let line = match *selection {
+        SectionChoice::None => {
+            "LMB rebind a section   Q pick its part   RMB+drag look   WASD/Space/Shift fly   \
+             Esc pause"
+        }
+        SectionChoice::Section(_) => {
+            "LMB place   wheel roll   Shift+wheel socket   R roll   F socket   Q pick   \
+             Esc put down"
+        }
+        SectionChoice::Delete => "LMB delete   Q pick a part   Esc put down",
+    };
+    for mut text in &mut legend {
+        if text.0 != line {
+            text.0 = line.to_string();
+        }
+    }
 }

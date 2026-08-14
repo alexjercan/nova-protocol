@@ -72,6 +72,31 @@ tagged **(breaking)**.
   the racer flies unarmed as the civilian the story protects - the Ceres
   Queen is a yacht, the Lifeline convoy a yacht and a courier. The
   `racer_turret_*` prototypes stay in the catalog for mods that want them.
+- The editor places parts by MATING link points instead of stepping one unit
+  along the surface it hit: it snaps the part's chosen socket onto the socket
+  nearest the pointer, opposes their normals, and leaves the builder the roll
+  and which of the part's sockets does the mating. A placement that would take
+  an occupied socket, leave a socket with two suitors, or bury the part inside
+  a section it does not mate with is refused, and the status line says which.
+  The ghost is the part's real mesh.
+- The semantic Racer, CargoA and CargoB parts join the editor palette - they
+  were hidden while placement was a grid step, because a nose only fits a
+  fuselage where its authored sockets say.
+- A part now mates the same way up on ANY socket, so parts from different
+  craft fit each other. A socket's roll zero is derived from its normal and
+  the two socket FRAMES are mated (a shortest-arc rotation left the roll to
+  whatever axis it happened to sweep about), and authored normals derived from
+  part geometry snap to an axis - the cargob's pod faced its fuselage 36
+  degrees off -X, and everything mated onto that socket arrived tilted by
+  exactly that much.
+- New `pdc_turret_section` ("PDC Turret"): one compact point-defense mount that
+  fits any hull face, replacing ten per-craft copies of the same gun in the
+  editor's Weapons tab. Its sockets follow its own 0.3 size, which is what lets
+  a small mount sit ON a unit-cube hull instead of standing in for one.
+- The per-craft `*_turret_*` prototypes are catalog-only now: ships and mods
+  still name them, the editor offers the shared PDC instead.
+- Semantic parts are named for the craft they came off - `CargoB // Nose`
+  rather than a third part called `Nose`.
 
 ### Scenarios & Objectives
 
@@ -105,7 +130,45 @@ tagged **(breaking)**.
   deterministically from the scatter seed, so authored fields keep the same
   shapes every load.
 
+### Interface & HUD
+
+- The editor grows a **parts gallery**: a full-screen browser of the section
+  catalog with a live 3D preview per tile, a category row, a text filter (just
+  type) and a focus card that turntables the part beside its stats. Picking
+  from it arms the placement tool, so a part is found by LOOKING at it.
+- **(breaking)** The Components drawer is gone; the gallery replaces it. A text
+  card cannot say what a part looks like, which is the one thing a parts list
+  owes a builder.
+- The focus card takes direction: drag to turn the part, wheel to zoom, and the
+  turntable picks up again from wherever you left it once you stop.
+- Link points are visible while a part is armed - every free socket draws a ring
+  and a stub along its normal, the one under the pointer draws bright, and the
+  armed part's mating socket draws on the ghost.
+- Placement pose control is reversible: the wheel rolls the ghost and
+  Shift+wheel cycles its socket, so overshooting costs one notch back instead of
+  five more forward. `R` and `F` still step forward.
+- `Q` picks up whatever part is under the cursor, Factorio-style, and the
+  editor's bottom-left legend lists the keys that apply to what you are holding.
+- The preview ship draws its forward direction, which a pile of boxes otherwise
+  has no way to show.
+- The editor lights its scene with a key and a rim (it had one light pointing
+  straight down, leaving every vertical face flat), and a gallery tile is
+  fitted to what it DRAWS rather than to its collider - a turret used to spill
+  its barrel four cells wide.
+
 ### Fixes
+
+- ESC in the editor backs out (closing the parts gallery, then putting the
+  armed part down) instead of stacking the pause overlay on top of it.
+- TAB no longer arms the NOVA OS where there is no ship to fly: the editor's
+  build mode is inside `Playing`, so a TAB there set the freeze state
+  invisibly - and pressing Play dropped straight into a NOVA OS nobody opened.
+- The section keybind chips no longer hang over the parts gallery. They were
+  positioned by a system keyed on the free-fly camera controller, which the
+  gallery removes when it parks the camera, so the chips froze where they were.
+- A gallery rebuild no longer flashes its parts across the middle of the screen:
+  the preview bundle carried a `Visibility` that overwrote the tile's own
+  hidden one, so every tile drew a frame at the stage origin.
 
 - A mid-menu backdrop reload (the self-resetting backdrops) no longer
   crashes the UI layout: the menu interface renders through its OWN camera
@@ -203,26 +266,8 @@ tagged **(breaking)**.
   mismatch, so without the bump an installed copy would keep its unlit content
   and render black, and its wells would silently lose their authored gravity.
 
-### Ships & Sections
-
-- The editor places parts by MATING link points instead of stepping one unit
-  along the surface it hit: it snaps the part's chosen socket onto the socket
-  nearest the pointer, opposes their normals, and leaves the builder the roll
-  (`R`) and which of the part's sockets does the mating (`F`). A placement
-  that would take an occupied socket, leave a socket with two suitors, or bury
-  the part inside a section it does not mate with is refused, and the status
-  line says which. The ghost is the part's real mesh.
-- The semantic Racer, CargoA and CargoB parts join the editor palette - they
-  were hidden while placement was a grid step, because a nose only fits a
-  fuselage where its authored sockets say.
-
 ### Interface & HUD
 
-- The editor grows a **parts gallery**: a full-screen browser of the section
-  catalog with a live 3D preview per tile, a category row, a text filter (just
-  type) and a focus card that turntables the part beside its stats. Picking
-  from it arms the placement tool, so a part can be found by LOOKING at it
-  rather than by reading the drawer list, which stays for quick repeat picks.
 - Setting buttons commit on RELEASE over the button, not on mouse-down: press
   a wrong option, drag off and release, and nothing changes.
 - Every button variant now has its own pressed face on BOTH skins. `Ghost` (the

@@ -13,6 +13,7 @@
 #![warn(missing_docs)]
 
 use bevy::{
+    input::mouse::MouseWheel,
     prelude::*,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
@@ -30,17 +31,17 @@ mod ui;
 
 use config::{PlacementPose, PlacementPreview, PlayerSpaceshipConfig, SectionChoice};
 use keybind::{
-    apply_section_rebind, position_section_keybind_labels, sync_section_keybind_labels,
-    EditorRebind,
+    apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
+    sync_section_keybind_labels, EditorRebind,
 };
 use nova_ui::widget::button_on_setting;
 use placement::{
-    cycle_placement_pose, draw_delete_target, on_click_spaceship_section,
-    rebuild_editor_preview_on_enter, sync_placement_ghost, sync_tool_selection,
-    update_placement_preview,
+    cycle_placement_pose, draw_delete_target, draw_link_points, draw_ship_heading,
+    on_click_spaceship_section, pick_section_under_pointer, rebuild_editor_preview_on_enter,
+    sync_placement_ghost, sync_tool_selection, update_placement_preview, wheel_placement_pose,
 };
 use scenario::setup_scenario;
-use ui::setup_editor_scene;
+use ui::{setup_editor_scene, sync_key_legend};
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`]
 /// into scope.
@@ -73,6 +74,20 @@ fn editor_plugin(app: &mut App) {
     app.insert_resource(SectionChoice::None);
     app.insert_resource(PlayerSpaceshipConfig::default());
     app.init_resource::<EditorRebind>();
+    // Normally the gameplay plugin's; init'd here too so a menu-less rig (and
+    // the tests below) still has one to write.
+    app.init_resource::<EscapeOwner>();
+
+    // Escape is a BACK key in the editor and a pause key only when there is
+    // nothing to back out of. `PreUpdate` on purpose: `nova_menu`'s pause
+    // toggle reads the answer in `Update`, and the two crates cannot order
+    // against each other.
+    app.add_systems(PreUpdate, declare_editor_escape_owner);
+    app.add_systems(
+        Update,
+        escape_puts_down_the_armed_part
+            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
+    );
 
     // The editor is the Sandbox game. When the main menu fronts the app it hands
     // off to Playing with GameMode set: Sandbox enters the editor, NewGame goes
@@ -144,7 +159,7 @@ fn editor_plugin(app: &mut App) {
     ui::register(app);
     // The parts browser: its own state, overlay and 3D stage.
     gallery::register(app);
-    // Component cards + rail tools set the placement tool via their ButtonValue.
+    // The rail tools set the placement tool via their ButtonValue.
     app.add_observer(button_on_setting::<SectionChoice>);
 
     app.add_observer(on_click_spaceship_section);
@@ -158,12 +173,25 @@ fn editor_plugin(app: &mut App) {
         Update,
         (
             sync_tool_selection,
+            sync_key_legend,
+            pick_section_under_pointer,
             cycle_placement_pose,
             update_placement_preview,
             sync_placement_ghost,
+            draw_link_points,
+            draw_ship_heading,
             draw_delete_target,
         )
             .chain()
+            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
+    );
+    // The wheel half of the pose control, split off so a headless rig with no
+    // input plugin (and so no wheel message queue) still runs the rest.
+    app.add_systems(
+        Update,
+        wheel_placement_pose
+            .before(update_placement_preview)
+            .run_if(resource_exists::<Messages<MouseWheel>>)
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
     );
     // A fresh visit starts with the part's first socket, unrolled.
@@ -191,7 +219,10 @@ fn editor_plugin(app: &mut App) {
         (
             sync_section_keybind_labels,
             apply_section_rebind.run_if(not(gallery::gallery_open)),
-            position_section_keybind_labels,
+            position_section_keybind_labels.run_if(not(gallery::gallery_open)),
+            // The gallery covers the ship the chips label, so they go off with
+            // the rest of the editor's chrome while it is up.
+            hide_section_keybind_labels.run_if(gallery::gallery_open),
         )
             .run_if(in_state(ExampleStates::Editor)),
     );
@@ -216,6 +247,41 @@ fn editor_plugin(app: &mut App) {
     // scenario-liveness. The editor's build-mode preview stays inert because the
     // Editor state never has a scenario loaded: initial entry loads nothing and
     // F1 triggers UnloadScenario.
+}
+
+/// Say whether the editor answers Escape itself this frame (see
+/// [`EscapeOwner`]).
+///
+/// It does while there is something to back OUT of: the parts gallery is up,
+/// a part is armed, or a rebind is waiting for a key. With none of those the
+/// key falls through to the pause menu, which stays the sanctioned way out of
+/// the editor. Written every frame, including the `false`: whoever claims the
+/// key also has to release it.
+fn declare_editor_escape_owner(
+    editor: Res<State<ExampleStates>>,
+    gallery: Res<gallery::GalleryState>,
+    choice: Res<SectionChoice>,
+    rebind: Res<EditorRebind>,
+    mut owner: ResMut<EscapeOwner>,
+) {
+    let owned = *editor.get() == ExampleStates::Editor
+        && (gallery.open || rebind.target.is_some() || *choice != SectionChoice::None);
+    if owner.0 != owned {
+        owner.0 = owned;
+    }
+}
+
+/// Escape puts the armed part down. The gallery answers its own Escape while it
+/// is up (see `gallery::input`), and a pending rebind cancels on Escape in
+/// `keybind`; this is the last step of the same gesture, and it leaves the
+/// editor in select mode rather than raising the pause overlay.
+fn escape_puts_down_the_armed_part(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut choice: ResMut<SectionChoice>,
+) {
+    if keys.just_pressed(KeyCode::Escape) && *choice != SectionChoice::None {
+        *choice = SectionChoice::None;
+    }
 }
 
 fn switch_scene_editor(
@@ -272,9 +338,105 @@ fn lock_on_left_click(
 
 #[cfg(test)]
 mod tests {
-    use bevy::state::app::StatesPlugin;
+    use bevy::{ecs::system::RunSystemOnce, state::app::StatesPlugin};
 
     use super::*;
+
+    /// Escape is the editor's only while it HAS a back step. With nothing armed
+    /// and no gallery up the key falls through to the pause menu, which is the
+    /// sanctioned way out of the editor - and in flight the pause menu owns it
+    /// outright.
+    #[test]
+    fn the_editor_claims_escape_only_when_it_has_a_back_step() {
+        let cases = [
+            (
+                ExampleStates::Editor,
+                false,
+                SectionChoice::None,
+                false,
+                false,
+            ),
+            (
+                ExampleStates::Editor,
+                true,
+                SectionChoice::None,
+                false,
+                true,
+            ),
+            (
+                ExampleStates::Editor,
+                false,
+                SectionChoice::Section("hull".to_string()),
+                false,
+                true,
+            ),
+            (
+                ExampleStates::Editor,
+                false,
+                SectionChoice::Delete,
+                false,
+                true,
+            ),
+            // A rebind waiting for a key: Escape cancels it (see `keybind`).
+            (
+                ExampleStates::Editor,
+                false,
+                SectionChoice::None,
+                true,
+                true,
+            ),
+            // Flying: the pause menu owns Escape whatever the editor left behind.
+            (
+                ExampleStates::Scenario,
+                true,
+                SectionChoice::Section("hull".to_string()),
+                true,
+                false,
+            ),
+        ];
+
+        for (state, gallery_open, choice, rebinding, expected) in cases {
+            let mut world = World::new();
+            world.insert_resource(State::new(state.clone()));
+            world.insert_resource(gallery::GalleryState {
+                open: gallery_open,
+                ..default()
+            });
+            world.insert_resource(choice.clone());
+            world.insert_resource(EditorRebind {
+                target: rebinding.then_some(Entity::PLACEHOLDER),
+                awaiting_release: false,
+            });
+            world.init_resource::<EscapeOwner>();
+
+            world
+                .run_system_once(declare_editor_escape_owner)
+                .expect("the claim system runs");
+
+            assert_eq!(
+                world.resource::<EscapeOwner>().0,
+                expected,
+                "{state:?} / gallery {gallery_open} / {choice:?} / rebinding {rebinding}"
+            );
+        }
+    }
+
+    /// The last step of the back gesture: Escape with a part in hand puts it
+    /// down rather than raising the pause overlay.
+    #[test]
+    fn escape_puts_the_armed_part_down() {
+        let mut world = World::new();
+        let mut keys = ButtonInput::<KeyCode>::default();
+        keys.press(KeyCode::Escape);
+        world.insert_resource(keys);
+        world.insert_resource(SectionChoice::Section("hull".to_string()));
+
+        world
+            .run_system_once(escape_puts_down_the_armed_part)
+            .expect("the disarm system runs");
+
+        assert_eq!(*world.resource::<SectionChoice>(), SectionChoice::None);
+    }
 
     /// Counts LoadScenario triggers so the NewGame test can prove the editor
     /// stayed out of the menu's scenario load (review R1.1).

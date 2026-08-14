@@ -122,7 +122,7 @@ pub(super) const CARGOA_EDGES: [(usize, usize); 8] = [
 ];
 
 pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
-    prototypes(&CARGOA_PARTS, &CARGOA_EDGES, assets, true)
+    prototypes(&CARGOA_PARTS, &CARGOA_EDGES, "CargoA", assets, true)
 }
 
 pub(crate) fn sections(

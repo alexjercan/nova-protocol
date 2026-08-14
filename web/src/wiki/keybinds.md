@@ -264,4 +264,47 @@ Weapon sections are rebindable: in the editor, click a section to bind it to any
     </tr>
 </table>
 
+## Editor
+
+The editor is mouse-first; these are the keys that save a trip to the rail. The
+bottom-left legend shows the ones that apply to whatever you are holding.
+
+<table class="controls">
+    <tr>
+        <td>Open the parts gallery</td>
+        <td>click <b>Parts</b> in the rail</td>
+    </tr>
+    <tr>
+        <td>Gallery: select / page / focus / filter</td>
+        <td>
+            arrow keys, <kbd>PgUp</kbd> <kbd>PgDn</kbd>, <kbd>Enter</kbd>,
+            or just type
+        </td>
+    </tr>
+    <tr>
+        <td>Gallery focus: turn and zoom the part</td>
+        <td>drag, wheel</td>
+    </tr>
+    <tr>
+        <td>Place the part you are holding</td>
+        <td>left click on the ship</td>
+    </tr>
+    <tr>
+        <td>Roll it about the mating axis</td>
+        <td>wheel &nbsp;or&nbsp; <kbd>R</kbd></td>
+    </tr>
+    <tr>
+        <td>Cycle which of its sockets mates</td>
+        <td><kbd>Shift</kbd>+wheel &nbsp;or&nbsp; <kbd>F</kbd></td>
+    </tr>
+    <tr>
+        <td>Pick up the part under the cursor</td>
+        <td><kbd>Q</kbd></td>
+    </tr>
+    <tr>
+        <td>Back out: leave the gallery, then put the part down</td>
+        <td><kbd>Esc</kbd></td>
+    </tr>
+</table>
+
 Button glyphs from [PromptFont](https://shinmera.com/promptfont/) by Yukari "Shinmera" Hafner (SIL Open Font License).

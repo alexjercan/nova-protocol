@@ -96,7 +96,7 @@ pub mod prelude {
         lifetime::prelude::*, markers::prelude::*, math::prelude::*, mesh::prelude::*,
         objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
         relations::prelude::*, settings::prelude::*, shake::prelude::*, transform::prelude::*,
-        GameMode, GameStates, PauseStates,
+        EscapeOwner, GameMode, GameStates, PauseStates,
     };
 }
 
@@ -142,6 +142,25 @@ pub enum PauseStates {
     /// but without the pause menu.
     NovaOs,
 }
+
+/// Whether a scene-local surface owns Escape right now, so the pause menu must
+/// leave the key alone.
+///
+/// Escape is a BACK gesture before it is a pause gesture: in the editor it
+/// leaves the parts gallery, or puts down the armed part, and only when there
+/// is nothing left to back out of does it mean "pause". The scene that owns the
+/// surface is the only code that knows which of those is true, but it lives
+/// downstream of the pause menu and cannot reach into it - so it declares
+/// ownership here instead, in `PreUpdate`, and the pause toggle reads it in
+/// `Update`. A state flag rather than a per-frame claim: a claim would race the
+/// toggle it is meant to suppress.
+///
+/// Whoever sets it is responsible for clearing it, which is why the editor
+/// writes the answer unconditionally every frame rather than only when it
+/// changes.
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq, Reflect)]
+#[reflect(Resource)]
+pub struct EscapeOwner(pub bool);
 
 impl PauseStates {
     /// True when gameplay is frozen (any

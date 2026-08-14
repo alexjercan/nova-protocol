@@ -127,6 +127,17 @@ fn render_transform(spec: PartSpec) -> Option<RenderMeshTransform> {
     })
 }
 
+/// The sockets one authored adjacency gives a part: one per edge it takes part
+/// in, sitting at the midpoint between the two part centres.
+///
+/// The normal is SNAPPED to a cardinal axis rather than left pointing at the
+/// neighbour's centre. Cut parts sit wherever the craft's art put them, so a
+/// raw centre-to-centre direction is oblique - the cargob's pod faces its
+/// fuselage 36 degrees off -X - and anything mated onto that socket arrived
+/// tilted by exactly that much, which is what made parts look like they only
+/// fit the craft they were cut from. The snap is antisymmetric (see
+/// [`cardinal_axis`]), so both ends of an edge stay exactly opposed and every
+/// shipped mate survives.
 pub(super) fn link_points(
     specs: &[PartSpec],
     edges: &[(usize, usize)],
@@ -146,7 +157,9 @@ pub(super) fn link_points(
                 return None;
             };
             let other_center = specs[other].center();
-            let direction = (other_center - center).normalize();
+            // Snapped in SHIP space, not in the part's: both ends then read the
+            // same axis off the same direction, whatever each part is rotated by.
+            let direction = cardinal_axis(other_center - center);
             let world_position = (center + other_center) * 0.5;
             Some(LinkPoint {
                 id: format!("to_{}", specs[other].id),
@@ -157,26 +170,34 @@ pub(super) fn link_points(
         .collect()
 }
 
+/// Title-case one snake_case part id: `pod_starboard` -> `Pod Starboard`.
+fn title_case(id: &str) -> String {
+    id.split('_')
+        .map(|word| {
+            let mut chars = word.chars();
+            chars
+                .next()
+                .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn base_config(
     spec: PartSpec,
+    family: &str,
     links: Vec<LinkPoint>,
     meshes: &BaseContentAssets,
 ) -> BaseSectionConfig {
     BaseSectionConfig {
         id: spec.prototype.to_string(),
-        name: spec
-            .id
-            .split('_')
-            .map(|word| {
-                let mut chars = word.chars();
-                chars
-                    .next()
-                    .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
-                    .unwrap_or_default()
-            })
-            .collect::<Vec<_>>()
-            .join(" "),
-        description: "A semantic ship part from a Kenney spacecraft.".to_string(),
+        // Named for the craft it was cut off, not for its role alone: three
+        // craft each contribute a "Nose" and a "Tail", and a bare role name
+        // leaves a browser no way to tell them apart or to find the rest of a
+        // set.
+        name: format!("{family} // {}", title_case(spec.id)),
+        description: format!("The {family}'s {} section.", spec.id.replace('_', " ")),
         mass: 1.0,
         health: spec.health,
         impact_sound: Some(meshes.section_impact_sound.clone()),
@@ -185,8 +206,9 @@ fn base_config(
         link_points: links,
         // Placeable now that editor placement MATES link points: a semantic
         // part only goes where its authored sockets say it does, which is what
-        // hiding it was waiting for.
-        hide_in_editor: false,
+        // hiding it was waiting for. The one exception is the turret modules -
+        // see `prototypes`.
+        hide_in_editor: matches!(spec.role, PartRole::Turret),
     }
 }
 
@@ -297,9 +319,19 @@ fn turret_kind(meshes: &BaseContentAssets, enemy: bool) -> SectionKind {
     })
 }
 
+/// Every catalog prototype one craft's parts contribute, named for `family`.
+///
+/// The turret modules are catalog-only (`hide_in_editor`): they carry no mesh
+/// of their own, so all six of them - port and starboard, across three craft,
+/// doubled again by `light_turrets` - are the SAME PDC on the same joint tree.
+/// Offering ten identical turrets buried the two that actually differ, and now
+/// that a part mates onto any socket the same way up (see [`link_points`]),
+/// there is nothing a per-craft copy could do that the standard turret cannot.
+/// The ships still build from them, and mods can still name them.
 pub(super) fn prototypes(
     specs: &[PartSpec],
     edges: &[(usize, usize)],
+    family: &str,
     meshes: &BaseContentAssets,
     light_turrets: bool,
 ) -> Vec<SectionConfig> {
@@ -314,11 +346,11 @@ pub(super) fn prototypes(
             PartRole::Turret => turret_kind(meshes, false),
         };
         output.push(SectionConfig {
-            base: base_config(spec, links.clone(), meshes),
+            base: base_config(spec, family, links.clone(), meshes),
             kind,
         });
         if light_turrets && matches!(spec.role, PartRole::Turret) {
-            let mut base = base_config(spec, links, meshes);
+            let mut base = base_config(spec, family, links, meshes);
             base.id = format!("{}_light", spec.prototype);
             base.name = format!("{} Light", base.name);
             base.health = 60.0;

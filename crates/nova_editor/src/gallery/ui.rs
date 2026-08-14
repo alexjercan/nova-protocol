@@ -257,10 +257,13 @@ pub(crate) fn rebuild_gallery(
             root.spawn((
                 Name::new("Gallery Hint"),
                 UiText,
-                Text::new(
-                    "arrows: select   PgUp/PgDn: page   Enter: focus / place   \
-                     Esc: back   type: filter",
-                ),
+                // Contextual: the focus card's controls are not the grid's, and
+                // a hint line that lists both is one nobody reads.
+                Text::new(if state.focused {
+                    "drag: turn   wheel: zoom   arrows: next part   Enter: place   Esc: back"
+                } else {
+                    "arrows: select   PgUp/PgDn: page   Enter: focus   Esc: close   type: filter"
+                }),
                 TextFont {
                     font_size: FontSize::Px(12.0),
                     ..default()

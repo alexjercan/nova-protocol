@@ -12,7 +12,10 @@ mod input;
 mod scene;
 mod ui;
 
-use bevy::prelude::*;
+use bevy::{
+    input::mouse::{MouseMotion, MouseWheel},
+    prelude::*,
+};
 use nova_ship::prelude::*;
 pub(crate) use scene::EditorCamera;
 pub(crate) use ui::{EditorChrome, GalleryAction};
@@ -73,6 +76,7 @@ pub(crate) fn gallery_open(state: Res<GalleryState>) -> bool {
 /// Wire the gallery into the editor plugin.
 pub(crate) fn register(app: &mut App) {
     app.init_resource::<GalleryState>();
+    app.init_resource::<scene::FocusView>();
 
     // A stale gallery must not survive a scene change, exactly as the section
     // choice and the pending rebind do not.
@@ -89,10 +93,21 @@ pub(crate) fn register(app: &mut App) {
             ui::paint_gallery_cells,
             ui::sync_editor_chrome,
             scene::park_camera_for_gallery,
+            scene::measure_gallery_items,
             scene::place_gallery_items,
-            scene::spin_focused_item,
+            scene::pose_focused_item,
         )
             .chain()
+            .run_if(in_state(ExampleStates::Editor)),
+    );
+    // The focus view's zoom and orbit, split off so a headless rig with no
+    // input plugin (and so no wheel or motion queue) still runs the rest.
+    app.add_systems(
+        Update,
+        scene::drive_focus_view
+            .before(scene::place_gallery_items)
+            .run_if(resource_exists::<Messages<MouseMotion>>)
+            .run_if(resource_exists::<Messages<MouseWheel>>)
             .run_if(in_state(ExampleStates::Editor)),
     );
 

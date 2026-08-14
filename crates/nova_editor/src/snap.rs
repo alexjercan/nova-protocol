@@ -102,7 +102,13 @@ pub(crate) fn solve(
         };
     }
 
-    let source = source % part_link_points.len();
+    // `source` is an OFFSET from the socket the part would naturally use, not
+    // an absolute index: zero mounts the part AS DRAWN, and stepping the key
+    // walks away from that. An absolute index made the default arbitrary - a
+    // thruster's first socket is its +X face, so bolting one to a tail turned
+    // it broadside until the builder found the right number of presses.
+    let source =
+        (natural_source(part_link_points, target_normal) + source) % part_link_points.len();
     let (position, rotation) = snap_placement(
         target_position,
         target_normal,
@@ -124,6 +130,27 @@ pub(crate) fn solve(
             transform,
         ),
     }
+}
+
+/// The socket a part would naturally mate with on a face pointing
+/// `target_normal`: the one facing most nearly the opposite way.
+///
+/// That socket is the one whose mate leaves the part in the orientation it was
+/// AUTHORED in - an engine keeps its nozzle aft, a bay keeps its doors forward
+/// - because opposing two already-opposed normals asks for no rotation at all.
+/// It is the answer a builder means nine times in ten, so it is where the
+/// socket cycle starts rather than somewhere the cycle has to reach.
+fn natural_source(part_link_points: &[LinkPoint], target_normal: Vec3) -> usize {
+    part_link_points
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| {
+            let score = |point: &LinkPoint| point.normal.dot(-target_normal);
+            score(a)
+                .partial_cmp(&score(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map_or(0, |(index, _)| index)
 }
 
 /// The socket of `section` nearest `hit`, with its ship-root position and
@@ -407,6 +434,55 @@ mod tests {
                 - std::f32::consts::FRAC_PI_2)
                 .abs()
                 < 1e-4
+        );
+    }
+
+    /// A part arrives AS DRAWN: with no cycling, the socket that mates is the
+    /// one already facing the other way, so the mate asks for no rotation.
+    /// Before this, the socket cycle started at the part's first authored
+    /// socket - its +X face for anything on the cube grid - so a thruster
+    /// bolted to a tail arrived broadside until the builder found the right
+    /// number of presses.
+    #[test]
+    fn an_uncycled_part_arrives_in_the_orientation_it_was_authored_in() {
+        let points = unit_cube_link_points();
+        let ship = [cube(Vec3::ZERO)];
+
+        for (hit, expected) in [
+            (Vec3::new(0.5, 0.0, 0.0), Vec3::X),
+            (Vec3::new(-0.5, 0.0, 0.0), Vec3::NEG_X),
+            (Vec3::new(0.0, 0.5, 0.0), Vec3::Y),
+            (Vec3::new(0.0, 0.0, -0.5), Vec3::NEG_Z),
+        ] {
+            let placement = solve(&ship, 0, hit, &points, SectionCollider::default(), 0, 0);
+            assert_eq!(placement.refusal, None);
+            assert!(
+                placement
+                    .transform
+                    .rotation
+                    .abs_diff_eq(Quat::IDENTITY, 1e-5),
+                "an uncycled part must not be turned ({:?} on the {expected:?} face)",
+                placement.transform.rotation
+            );
+            assert!(
+                placement.transform.translation.abs_diff_eq(expected, 1e-5),
+                "and it still lands on the face it was aimed at"
+            );
+        }
+
+        // Delivery guard: cycling still walks AWAY from that natural socket.
+        let cycled = solve(
+            &ship,
+            0,
+            Vec3::new(0.5, 0.0, 0.0),
+            &points,
+            SectionCollider::default(),
+            1,
+            0,
+        );
+        assert!(
+            !cycled.transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5),
+            "one press of the socket key must change the answer"
         );
     }
 

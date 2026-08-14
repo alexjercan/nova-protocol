@@ -41,6 +41,11 @@ const TORPEDO_BASE_HEALTH: f32 = 100.0;
 // the shakedown pirate still dying in a short burst (~0.15s on a 60-HP hull).
 const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
 
+/// Side of the shared PDC turret's mount box, matching the per-craft turret
+/// modules the shipped ships carry (`shared::module`, +-0.15). Small on
+/// purpose: a weapon mount SITS ON a hull face, it does not replace one.
+const PDC_TURRET_SIZE: f32 = 0.3;
+
 /// How far a shipped turret's pitch hinge may DEPRESS below level (10 deg).
 /// Every shipped mount sits ON a hull - the cargoa's nose cheeks most tightly -
 /// so a deeper floor only swings the barrel back across its own ship.
@@ -327,6 +332,53 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 reload: Some(SectionReloadConfig {
                     reload_time: 2.5,
                     rounds_per_cycle: 150,
+                    only_when_empty: true,
+                }),
+            }),
+        },
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: "pdc_turret_section".to_string(),
+                name: "PDC Turret".to_string(),
+                description: "A compact point-defense mount that fits any hull face.".to_string(),
+                mass: 1.0,
+                health: TURRET_BASE_HEALTH,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                // The mount the shipped craft carry: a small box that sits ON a
+                // hull face instead of standing in for one. Sockets follow the
+                // authored size (`box_link_points`), so it mates against a part
+                // of any size at all - which is what lets ONE turret serve every
+                // craft. The per-craft copies (`cargob_turret_port` and its nine
+                // siblings) are the same gun on the same joint tree, and are
+                // catalog-only now that this exists.
+                collider: Some(SectionCollider::Cuboid {
+                    size: Vec3::splat(PDC_TURRET_SIZE),
+                }),
+                link_points: box_link_points(Vec3::splat(PDC_TURRET_SIZE)),
+                hide_in_editor: false,
+            },
+            kind: SectionKind::Turret(TurretSectionConfig {
+                // The player-grade PDC, numbers for numbers with
+                // `better_turret_section`: what differs is the mount, not the
+                // gun.
+                root: turret_joint_tree(
+                    &meshes.turret_yaw,
+                    &meshes.turret_pitch,
+                    &meshes.turret_barrel,
+                    100.0,
+                ),
+                muzzle_speed: 100.0,
+                projectile_lifetime: 5.0,
+                bullet_damage: BETTER_TURRET_BULLET_DAMAGE,
+                bullet_kind: DamageType::Kinetic,
+                projectile_render_mesh: None,
+                fire_sound: Some(meshes.turret_fire_sound.clone()),
+                dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
+                ammo_capacity: Some(500),
+                reload: Some(SectionReloadConfig {
+                    reload_time: 3.0,
+                    rounds_per_cycle: 500,
                     only_when_empty: true,
                 }),
             }),

@@ -53,6 +53,9 @@ fn toggle_app() -> App {
     app.init_state::<PauseStates>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<NovaOsCloseTransition>();
+    // The computer belongs to a ship: with none on the field the toggle is
+    // inert (see `toggle_nova_os`), so the rig flies one.
+    app.world_mut().spawn(PlayerSpaceshipMarker);
     app.add_systems(Update, toggle_nova_os.run_if(in_state(GameStates::Playing)));
     // Enter Playing so the toggle runs.
     app.world_mut()
@@ -127,6 +130,18 @@ fn terminal_command_app() -> App {
     );
     press_tab(&mut app);
     assert_eq!(pause_state(&app), PauseStates::NovaOs);
+    // The rig flies a bare ship because Tab does not open the computer without
+    // one; the command tests spawn the ship they actually inspect, so the
+    // placeholder goes once the monitor is up. Two player ships is not a state
+    // the game has, and `ship view` would report the wrong one.
+    for ship in app
+        .world_mut()
+        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+        .iter(app.world())
+        .collect::<Vec<_>>()
+    {
+        app.world_mut().despawn(ship);
+    }
     app
 }
 

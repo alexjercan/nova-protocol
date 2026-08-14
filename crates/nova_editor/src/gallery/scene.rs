@@ -7,6 +7,8 @@
 //! module when the stage framing or the tile fitting changes.
 
 use bevy::{
+    camera::primitives::Aabb,
+    input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
     ui::{ComputedNode, UiGlobalTransform},
 };
@@ -31,10 +33,31 @@ const STAGE_DISTANCE: f32 = 8.0;
 /// Fraction of a grid cell's smaller side the largest part axis fills.
 const TILE_FILL: f32 = 0.7;
 
-/// The same fraction for the focus stage. Lower than a tile's: the stage is
-/// most of the screen, and a part that fills it reads as a perspective smear
-/// rather than as a shape.
+/// The same fraction for the focus stage, before the builder zooms. Lower than
+/// a tile's: the stage is most of the screen, and a part that fills it reads as
+/// a perspective smear rather than as a shape.
 const FOCUS_FILL: f32 = 0.55;
+
+/// Zoom limits on that fraction. The far end still leaves a small part legible;
+/// the near end stops before the part outgrows the stage it is framed in.
+const FOCUS_FILL_MIN: f32 = 0.2;
+/// See [`FOCUS_FILL_MIN`].
+const FOCUS_FILL_MAX: f32 = 1.6;
+
+/// Zoom factor per wheel notch.
+const FOCUS_ZOOM_STEP: f32 = 1.12;
+
+/// Radians of turn per pixel of drag.
+const FOCUS_DRAG_RATE: f32 = 0.006;
+
+/// How far the orbit tips before it stops, so a part is never viewed from
+/// exactly its own pole (where yaw stops meaning anything).
+const FOCUS_PITCH_LIMIT: f32 = 1.2;
+
+/// Seconds of no drag or zoom before the turntable takes back over. Long enough
+/// not to fight a builder who paused mid-inspection, short enough that the view
+/// does not sit frozen once they have moved on.
+const FOCUS_IDLE_RESUME: f32 = 2.0;
 
 /// Three-quarter presentation, lifted from the parts viewer: yaw the nose
 /// (-Z) mostly toward the camera.
@@ -42,6 +65,37 @@ const PRESENT_YAW: f32 = 2.5;
 
 /// Turntable rate of the focused preview, in radians per second.
 const SPIN_RATE: f32 = 0.5;
+
+/// How the focus view is framed right now: how much of the stage the part
+/// fills, where the builder turned it to, and how long since they last touched
+/// it.
+///
+/// The turntable and the drag share one yaw on purpose - the spin resumes from
+/// wherever the drag left the part rather than snapping back to a canned pose.
+#[derive(Resource, Debug, Clone, Copy, PartialEq)]
+pub(crate) struct FocusView {
+    /// Fraction of the stage's smaller side the part fills.
+    fill: f32,
+    /// Turntable angle, driven by the drag and then by the spin.
+    yaw: f32,
+    /// Orbit elevation, clamped to [`FOCUS_PITCH_LIMIT`].
+    pitch: f32,
+    /// Seconds since the last drag or zoom.
+    idle: f32,
+}
+
+impl Default for FocusView {
+    fn default() -> Self {
+        Self {
+            fill: FOCUS_FILL,
+            yaw: PRESENT_YAW,
+            pitch: 0.0,
+            // Already idle, so a freshly focused part turntables at once rather
+            // than sitting still for the resume delay.
+            idle: FOCUS_IDLE_RESUME,
+        }
+    }
+}
 
 /// The editor's free-fly camera. The gallery parks it, so it needs a handle
 /// that does not depend on there being exactly one [`Camera3d`] in the scene.
@@ -61,8 +115,12 @@ pub(crate) struct ParkedPose(Transform);
 pub(crate) struct GalleryItem {
     /// The UI node this preview centres itself on.
     cell: Entity,
-    /// Largest authored axis of the part, for the fit-to-cell scale.
+    /// Largest authored axis of the part: the fit-to-cell size until the real
+    /// meshes have loaded and [`measure_gallery_items`] has measured them.
     extent: f32,
+    /// Measured bounding-sphere radius of everything the tile actually DRAWS,
+    /// in the tile's own unscaled local space. `None` until the meshes are up.
+    radius: Option<f32>,
     /// Whether this is the focus view's single part: it turntables, and it
     /// fits to the stage more loosely than a tile does.
     focused: bool,
@@ -84,10 +142,10 @@ pub(crate) fn spawn_tile(
         GalleryItem {
             cell,
             extent,
+            radius: None,
             focused,
         },
         Transform::from_translation(STAGE_ORIGIN).with_rotation(Quat::from_rotation_y(PRESENT_YAW)),
-        Visibility::Hidden,
         // A tile is scenery: the build observers must never see it as a
         // section of the ship under the pointer.
         Pickable {
@@ -96,6 +154,12 @@ pub(crate) fn spawn_tile(
         },
     ));
     insert_preview_section(&mut entity, section, PreviewRole::Display, vec![]);
+    // Hidden AFTER the preview bundle, which carries a `Visibility` of its own
+    // and used to overwrite this one. An unhidden tile draws one frame at the
+    // stage origin - which projects to the middle of the screen - so every
+    // category switch flashed its parts across the view before the grid caught
+    // them.
+    entity.insert(Visibility::Hidden);
 }
 
 /// Park the camera on the gallery stage while the gallery is open, and put it
@@ -134,12 +198,75 @@ pub(crate) fn park_camera_for_gallery(
     }
 }
 
+/// Measure what each tile actually DRAWS, so the fit is to the part on screen
+/// rather than to the box physics gives it.
+///
+/// A section's authored collider is not its silhouette: a turret's collider is
+/// the small box it mounts through, while the thing that renders is a joint
+/// tree with a barrel over a metre long. Fitting to the collider drew that
+/// barrel four cells wide. Measured as a bounding-sphere RADIUS about the
+/// tile's origin, which no rotation changes - so the focus turntable cannot
+/// pulse the part's size as it turns.
+///
+/// Re-measured every frame rather than cached: a scene streams its meshes in
+/// over several frames, and a radius cached from the first of them would fit
+/// the part that had arrived so far.
+pub(crate) fn measure_gallery_items(
+    mut items: Query<(Entity, &mut GalleryItem, &GlobalTransform)>,
+    q_children: Query<&Children>,
+    q_bounds: Query<(&Aabb, &GlobalTransform)>,
+) {
+    for (entity, mut item, tile) in &mut items {
+        let to_local = tile.affine().inverse();
+        let mut radius = 0.0f32;
+        let mut stack = vec![entity];
+        while let Some(current) = stack.pop() {
+            if let Ok((aabb, transform)) = q_bounds.get(current) {
+                let centre = Vec3::from(aabb.center);
+                let half = Vec3::from(aabb.half_extents);
+                for corner in AABB_CORNERS {
+                    let world = transform.transform_point(centre + half * corner);
+                    radius = radius.max(to_local.transform_point3(world).length());
+                }
+            }
+            if let Ok(children) = q_children.get(current) {
+                stack.extend(children.iter());
+            }
+        }
+
+        if radius <= f32::EPSILON {
+            continue;
+        }
+        // Compared with a tolerance: a bare inequality on floats would flag the
+        // component changed every frame for no change anyone can see.
+        if item
+            .radius
+            .is_none_or(|previous| (previous - radius).abs() > previous.max(radius) * 1e-3)
+        {
+            item.radius = Some(radius);
+        }
+    }
+}
+
+/// The eight sign combinations of an AABB's half-extents.
+const AABB_CORNERS: [Vec3; 8] = [
+    Vec3::new(-1.0, -1.0, -1.0),
+    Vec3::new(-1.0, -1.0, 1.0),
+    Vec3::new(-1.0, 1.0, -1.0),
+    Vec3::new(-1.0, 1.0, 1.0),
+    Vec3::new(1.0, -1.0, -1.0),
+    Vec3::new(1.0, -1.0, 1.0),
+    Vec3::new(1.0, 1.0, -1.0),
+    Vec3::new(1.0, 1.0, 1.0),
+];
+
 /// Centre every preview on its cell and fit it to that cell's height.
 ///
 /// Reads the PREVIOUS frame's layout (UI layout runs in `PostUpdate`), which
 /// is invisible on a static grid and keeps this out of the layout schedule.
 pub(crate) fn place_gallery_items(
     camera: Option<Single<(&Camera, &GlobalTransform), With<EditorCamera>>>,
+    view: Res<FocusView>,
     cells: Query<(&ComputedNode, &UiGlobalTransform)>,
     mut items: Query<(&GalleryItem, &mut Transform, &mut Visibility)>,
 ) {
@@ -177,19 +304,79 @@ pub(crate) fn place_gallery_items(
         let side = at(top)
             .distance(at(bottom))
             .min(at(left).distance(at(right)));
-        let fill = if item.focused { FOCUS_FILL } else { TILE_FILL };
+        let fill = if item.focused { view.fill } else { TILE_FILL };
+        // The measured silhouette once the meshes are up, the authored collider
+        // until then - so a tile is never fitted to nothing.
+        let size = item.radius.map_or(item.extent, |radius| radius * 2.0);
         transform.translation = at(middle);
-        transform.scale = Vec3::splat(side * fill / item.extent);
+        transform.scale = Vec3::splat(side * fill / size.max(f32::EPSILON));
         *visibility = Visibility::Inherited;
     }
 }
 
-/// Turntable the focused preview.
-pub(crate) fn spin_focused_item(time: Res<Time>, mut items: Query<(&GalleryItem, &mut Transform)>) {
+/// Zoom and orbit the focused part: the wheel scales it, a left-drag turns it.
+///
+/// Resets whenever the focus card is not up, so every part is met at the same
+/// framing rather than at whatever the last one was left in.
+pub(crate) fn drive_focus_view(
+    state: Res<GalleryState>,
+    time: Res<Time>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut motion: MessageReader<MouseMotion>,
+    mut wheel: MessageReader<MouseWheel>,
+    mut view: ResMut<FocusView>,
+) {
+    if !state.open || !state.focused {
+        // Drained, so a drag or scroll made in the grid is not replayed into
+        // the focus view on the frame it opens.
+        motion.clear();
+        wheel.clear();
+        if *view != FocusView::default() {
+            *view = FocusView::default();
+        }
+        return;
+    }
+
+    let mut touched = false;
+    let drag: Vec2 = motion.read().map(|event| event.delta).sum();
+    if mouse.pressed(MouseButton::Left) && drag != Vec2::ZERO {
+        view.yaw -= drag.x * FOCUS_DRAG_RATE;
+        view.pitch =
+            (view.pitch - drag.y * FOCUS_DRAG_RATE).clamp(-FOCUS_PITCH_LIMIT, FOCUS_PITCH_LIMIT);
+        touched = true;
+    }
+    for event in wheel.read() {
+        // Line and pixel units both arrive here; only the SIGN is a gesture.
+        let factor = match event.y.partial_cmp(&0.0) {
+            Some(std::cmp::Ordering::Greater) => FOCUS_ZOOM_STEP,
+            Some(std::cmp::Ordering::Less) => 1.0 / FOCUS_ZOOM_STEP,
+            _ => continue,
+        };
+        view.fill = (view.fill * factor).clamp(FOCUS_FILL_MIN, FOCUS_FILL_MAX);
+        touched = true;
+    }
+
+    view.idle = if touched {
+        0.0
+    } else {
+        view.idle + time.delta_secs()
+    };
+}
+
+/// Pose the focused preview: the builder's orbit, and the turntable once they
+/// have left it alone for [`FOCUS_IDLE_RESUME`].
+pub(crate) fn pose_focused_item(
+    time: Res<Time>,
+    mut view: ResMut<FocusView>,
+    mut items: Query<(&GalleryItem, &mut Transform)>,
+) {
+    if view.idle >= FOCUS_IDLE_RESUME {
+        view.yaw += SPIN_RATE * time.delta_secs();
+    }
+    let rotation = Quat::from_euler(EulerRot::YXZ, view.yaw, view.pitch, 0.0);
     for (item, mut transform) in &mut items {
         if item.focused {
-            transform.rotation =
-                Quat::from_rotation_y(PRESENT_YAW + time.elapsed_secs() * SPIN_RATE);
+            transform.rotation = rotation;
         }
     }
 }

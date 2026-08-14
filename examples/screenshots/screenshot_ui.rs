@@ -82,11 +82,12 @@ const EDITOR_EYE: Vec3 = Vec3::new(4.44, 3.17, 7.25);
 
 /// What the editor camera looks at.
 ///
-/// NOT the built ship's centre: the rail and the component drawer own the left
-/// 430 px of the frame, so a ship centred in the WINDOW sits left of centre in
-/// the picture. The look point is pushed a little over a unit along the camera's
-/// screen-left, which slides the ship the same distance right into the free part
-/// of the frame.
+/// NOT the built ship's centre: the rail owns the left edge of the frame, so a
+/// ship centred in the WINDOW sits left of centre in the picture. The look point
+/// is pushed a little over a unit along the camera's screen-left, which slides
+/// the ship the same distance right into the free part of the frame. (The push
+/// was sized against the rail PLUS the 280 px component drawer; the drawer is
+/// gone, so it now clears more room than it has to.)
 #[cfg(feature = "debug")]
 const EDITOR_LOOK: Vec3 = Vec3::new(0.62, 0.25, 0.5);
 
@@ -226,16 +227,16 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         .step("settle the new ship and its colliders")
         .until(frames(SETTLE_FRAMES))
         .add()
-        // Build it: arm a card, then click the ship itself through the real
-        // picking pipeline. A placed section lands at the hit section's position
-        // plus the hit FACE normal, so each beat below names the section it
-        // grows from and the face it grows out of.
-        .click("arm the hull", "Reinforced Hull Section")
+        // Build it: arm a part through the gallery, then click the ship itself
+        // through the real picking pipeline. A placed section mates the socket
+        // nearest the pointer, so each beat below names the section it grows
+        // from and the face it grows out of.
+        .arm("arm the hull", "reinforced_hull_section")
         .place("hull ahead of the controller", Vec3::ZERO, Vec3::X)
         .place("hull ahead of that", Vec3::new(1.0, 0.0, 0.0), Vec3::X)
-        .click("arm the thruster", "Basic Thruster Section")
+        .arm("arm the thruster", "basic_thruster_section")
         .place("thruster on the tail", Vec3::new(2.0, 0.0, 0.0), Vec3::X)
-        .click("arm the turret", "Better Turret Section")
+        .arm("arm the turret", "pdc_turret_section")
         .place("turret on the spine", Vec3::new(1.0, 0.0, 0.0), Vec3::Y)
         .step("the ship was built")
         .on_enter(|world: &mut World| {
@@ -252,6 +253,10 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         })
         .until(frames(1))
         .add()
+        // Put the part down before the shot: a builder holding one sees every
+        // free socket drawn on the ship, which is the right answer while
+        // building and pure clutter in a figure of the finished thing.
+        .click("put the part down", "Select Section Button")
         // Park the pointer clear of the ship: hovering a section raises the
         // placement GHOST, and a translucent extra section is exactly the thing
         // a reader would mistake for part of the built ship.
@@ -340,6 +345,12 @@ trait Gestures {
     /// mounted at `on`, press, release. The editor acts on `Pointer<Press>`, so
     /// the press does the work and the release only lets go.
     fn place(self, label: &str, on: Vec3, face: Vec3) -> Self;
+
+    /// Arm `prototype` through the parts gallery - the editor's only parts
+    /// picker. The gallery owns the keyboard while it is up, so the walk types
+    /// the catalog id to narrow the grid to one tile, then Enter to focus it
+    /// and Enter again to place it (which closes the gallery).
+    fn arm(self, label: &str, prototype: &str) -> Self;
 }
 
 #[cfg(feature = "debug")]
@@ -379,6 +390,41 @@ impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
                 info!("editor build: {sections} sections");
             })
             .until(frames(1))
+            .add()
+    }
+
+    fn arm(self, label: &str, prototype: &str) -> Self {
+        let filter = prototype.to_string();
+        let mut script = self
+            .click(
+                &format!("{label}: open the gallery"),
+                "Parts Gallery Category",
+            )
+            .step(format!("{label}: filter to `{prototype}`"))
+            .on_enter(move |world: &mut World| type_text(filter.clone())(world))
+            .until(frames(GESTURE_FRAMES))
+            .add();
+        for beat in ["focus", "place"] {
+            script = script
+                .step(format!("{label}: Enter to {beat}"))
+                .on_enter(press_key(KeyCode::Enter))
+                .until(frames(GESTURE_FRAMES))
+                .add()
+                .step(format!("{label}: release Enter"))
+                .on_enter(release_key(KeyCode::Enter))
+                .until(frames(GESTURE_FRAMES))
+                .add();
+        }
+        script
+            .step(format!("{label}: the gallery closed"))
+            .on_enter(|world: &mut World| {
+                assert!(
+                    ui_node_rect(world, "Parts Gallery").is_none(),
+                    "placing from the gallery must close it - a shot taken with \
+                     the overlay still up would be of the overlay"
+                );
+            })
+            .until(frames(SETTLE_FRAMES))
             .add()
     }
 }

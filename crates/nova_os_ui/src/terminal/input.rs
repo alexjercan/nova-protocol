@@ -39,9 +39,16 @@ use crate::ship::prelude::SectionCode;
 /// live outcome (it forces `Paused`) blocks the NOVA OS without a cross-crate
 /// dependency. The pad button is `RightThumb`, the one free button, mirroring
 /// `nova_menu`'s optional-gamepad guard.
+///
+/// OPENING also needs a ship to be the computer OF. `Playing` covers the
+/// editor's build mode as well as flight, and there Tab used to arm the freeze
+/// axis over a scene with no ship: the monitor never drew, but the state stuck,
+/// so pressing Play dropped the player straight into a NOVA OS they never asked
+/// for. Closing stays ungated - a computer that opened must always be closable.
 pub(crate) fn toggle_nova_os(
     keys: Res<ButtonInput<KeyCode>>,
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    player: Query<(), With<PlayerSpaceshipMarker>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
     mut close: ResMut<NovaOsCloseTransition>,
@@ -54,6 +61,7 @@ pub(crate) fn toggle_nova_os(
         return;
     }
     match current.get() {
+        PauseStates::Unpaused if player.is_empty() => {}
         PauseStates::Unpaused => {
             close.closing = false;
             next.set(PauseStates::NovaOs);

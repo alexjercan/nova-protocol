@@ -28,12 +28,20 @@ use crate::{
 pub(crate) fn toggle_pause(
     keys: Res<ButtonInput<KeyCode>>,
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    escape_owner: Option<Res<EscapeOwner>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     outcome: Option<Res<CurrentOutcome>>,
     mut commands: Commands,
 ) {
+    // A scene surface that owns Escape this frame answers it as BACK - leaving
+    // the editor's parts gallery, putting down an armed part - and the pause
+    // overlay must not stack on top of that answer. Optional so a headless rig
+    // without the gameplay plugin keeps the plain toggle.
+    if escape_owner.is_some_and(|owner| owner.0) {
+        return;
+    }
     // A shown outcome frame is its own paused modal (`sync_outcome_pause` holds the app
     // in `Paused` while `CurrentOutcome` is set), with its own Continue/Retry/Main Menu
     // buttons: ESC/Start must not toggle here, or it would either resume the sim behind

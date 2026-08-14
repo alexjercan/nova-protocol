@@ -2,8 +2,8 @@
 //!
 //! This runs the exact same editor the `nova_protocol` binary launches (via the shared
 //! [`editor_app`]), just with the autopilot + screenshot harness attached. Every beat is a real
-//! gesture at a real screen position - the run clicks the menu, the rail buttons and the component
-//! cards by `Name`, and it clicks the ship itself by projecting a section onto the viewport. No
+//! gesture at a real screen position - the run clicks the menu, the rail buttons and the gallery
+//! tiles by `Name`, and it clicks the ship itself by projecting a section onto the viewport. No
 //! editor code is reached by triggering its observer or by inserting its state component.
 //!
 //! The arc, one beat per gesture:
@@ -12,17 +12,15 @@
 //! 2. click New Ship - which keeps the editor-preview controller fix (task 20260706-212909) honest:
 //!    a live controller on the non-physics preview root used to flood the log with "root not found"
 //!    every frame, so this run staying quiet is the regression check;
-//! 3. hover a hull component card and assert the tooltip NAMES that section - the editor's one
-//!    surface that identifies a section to the player;
-//! 4. click that card, then place TWO sections by clicking the ship through the real picking
-//!    pipeline (avian's physics-picking backend raycasts the pointer to a hit, and the editor's own
+//! 3. arm a hull through the parts gallery - the editor's only parts picker;
+//! 4. place TWO sections by clicking the ship through the real picking pipeline (avian's
+//!    physics-picking backend raycasts the pointer to a hit, and the editor's own
 //!    `on_click_spaceship_section` observer places the section);
 //! 5. click Select / Rebind and click the ship again - select mode must place NOTHING;
 //! 6. click Delete Section and click the ship again - the count drops back;
-//! 7. open the parts gallery from the rail and walk it end to end - browse (the tiles are up),
-//!    filter (typing narrows the grid to one part), focus (the card names that part), select
-//!    (Place arms the tool and closes the gallery) and place (a click on the ship builds the
-//!    part the gallery picked).
+//! 7. walk the gallery end to end - browse (the tiles are up), filter (typing narrows the grid to
+//!    one part), focus (the card names that part), select (Place arms the tool and closes the
+//!    gallery) and place (a click on the ship builds the part the gallery picked).
 //!
 //! Controls (interactive run): use the on-screen buttons to create ships and place sections.
 //!
@@ -77,6 +75,11 @@ const SETTLE: u32 = 10;
 /// avian to prepare its section colliders before anything is clicked.
 #[cfg(feature = "debug")]
 const SHIP_SETTLE: u32 = 40;
+
+/// The hull the run builds with. The same id `create_new_spaceship` seeds a
+/// hull ship from, so a catalog that dropped it has already broken the editor.
+#[cfg(feature = "debug")]
+const HULL_PROTOTYPE: &str = "reinforced_hull_section";
 
 /// What a beat measured, so a later beat can say whether the gesture changed
 /// anything.
@@ -148,42 +151,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .until(frames(1))
         .add()
-        // Inspect: hovering a component card is the editor's one surface that
-        // NAMES a section to the player.
-        .step("editor: hover the hull card")
-        .on_enter(|world: &mut World| {
-            let hull = world.resource::<EditorProbe>().hull.clone();
-            hover_named(hull)(world);
-        })
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: the tooltip names the section")
-        .on_enter(|world: &mut World| {
-            let hull = world.resource::<EditorProbe>().hull.clone();
-            let named = tooltip_text(world);
-            assert!(
-                named.contains(&hull),
-                "hovering the `{hull}` card must raise a tooltip naming it; the \
-                 tooltip read {named:?}"
-            );
-            info!("editor: tooltip names `{hull}`");
-        })
-        .until(frames(1))
-        .add()
-        .step("editor: click the hull card")
-        .on_enter(|world: &mut World| {
-            let hull = world.resource::<EditorProbe>().hull.clone();
-            click_named(hull)(world);
-        })
-        .until(frames(SETTLE))
-        .add()
-        // The cards carry `ButtonValue<SectionChoice>`, which `button_on_setting`
-        // applies on `Add<Pressed>` - so the tool is already chosen here, and the
-        // release only lets go of the card.
-        .step("editor: release the hull card")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
+        // Arm the hull through the gallery - the editor's only parts picker now
+        // that the component drawer is gone.
+        .arm_from_the_gallery("editor: arm the hull", HULL_PROTOTYPE)
         // `SectionChoice` - the armed tool - is crate-private to `nova_editor`, so
         // the example cannot read it. The arming is proven the only way it is
         // observable from outside: the next two clicks on the ship place sections,
@@ -419,10 +389,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(frames(1))
         .add()
         // The refusal path needs a socket that is taken but still POINTABLE, so
-        // the run mounts a small semantic module on a hull face: it fills that
-        // face's socket while covering only a corner of the face. (Those parts
-        // are in the palette at all because placement mates link points now.)
-        .arm_from_the_gallery("editor: arm a semantic turret module", "racer_turret_port")
+        // the run mounts the compact PDC on a hull face: it fills that face's
+        // socket while covering only a corner of the face. It is also the part
+        // that proves a mount authored at its own size mates against a unit
+        // cube at all - which is what `box_link_points` is for.
+        .arm_from_the_gallery("editor: arm the shared PDC turret", "pdc_turret_section")
         .step("editor: aim at the face the camera can see")
         .on_enter(|world: &mut World| {
             let (centre, _) = aim_at_a_visible_face(world).expect("a section faces the camera");
@@ -446,10 +417,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             assert_eq!(
                 now,
                 before + 1,
-                "a semantic part must be placeable - link-point snapping is what \
-                 unhid it"
+                "a mount authored at its own size must mate onto a unit-cube \
+                 hull face - one turret for every craft is the whole point"
             );
-            info!("editor: mounted a semantic module ({before} -> {now})");
+            info!("editor: mounted the shared PDC ({before} -> {now})");
         })
         .until(frames(1))
         .add()
@@ -491,7 +462,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor: the occupied socket refused the click ({now} sections)");
 
-            // The graph as BUILT, semantic module included - what the flown
+            // The graph as BUILT, the PDC mount included - what the flown
             // ship has to re-derive from the flat saved poses.
             let mates = mate_graph(world).unwrap_or_else(|error| {
                 panic!("the assembled ship must derive one connected graph: {error}")
@@ -688,12 +659,6 @@ fn count_sections(world: &mut World) -> usize {
 fn stamp_sections(world: &mut World) {
     let count = count_sections(world);
     world.resource_mut::<EditorProbe>().sections = count;
-}
-
-/// Every line of text in the component tooltip, if one is up.
-#[cfg(feature = "debug")]
-fn tooltip_text(world: &mut World) -> Vec<String> {
-    subtree_text(world, "Component Tooltip")
 }
 
 /// Every line of text under the named UI node, empty when no such node is up.

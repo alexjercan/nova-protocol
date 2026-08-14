@@ -113,7 +113,7 @@ pub(super) const RACER_EDGES: [(usize, usize); 10] = [
 ];
 
 pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
-    prototypes(&RACER_PARTS, &RACER_EDGES, assets, true)
+    prototypes(&RACER_PARTS, &RACER_EDGES, "Racer", assets, true)
 }
 
 pub(crate) fn sections() -> Vec<SpaceshipSectionConfig> {

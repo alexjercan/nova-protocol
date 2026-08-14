@@ -37,6 +37,7 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 | `better_turret_section` | Turret | Better Turret Section | 130 | Kinetic 4.0/hit at 100 rps, ammo 500 |
 | `light_hull_section` | Hull | Light Hull Section | 60 | scavenger-grade hull |
 | `light_turret_section` | Turret | Light Turret Section | 60 | Kinetic 3.825/hit at 25 rps, ammo 150 |
+| `pdc_turret_section` | Turret | PDC Turret | 130 | the better turret's gun on a 0.3 mount box; fits any hull face |
 | `torpedo_section` | Torpedo | Torpedo Bay Section | 100 | blast 100 dmg / 30 u, ammo 6 |
 | `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; scene dressing, hidden in the editor |
 
@@ -47,6 +48,11 @@ tight primitive colliders and authored link points are part of each prototype -
 and those link points are what places one: a part attaches only where its own
 sockets meet another's. Ships use the suffix as the instance id: prototype
 `racer_engine_port` normally becomes instance `engine_port`.
+
+The `turret_*` suffixes are the exception: they carry no mesh of their own, so
+all ten of them are the same PDC on the same joint tree. They stay in the
+catalog for ships and mods, but the editor hides them and offers
+`pdc_turret_section` instead - one mount that fits any hull face.
 
 | family | prototype suffix | kind | health |
 |---|---|---|---|

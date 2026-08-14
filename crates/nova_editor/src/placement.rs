@@ -7,7 +7,10 @@
 //! runtime's own integrity graph accepts. Nothing here spawns live physics - it
 //! only edits `PlayerSpaceshipConfig` and the pickable preview entities.
 
-use bevy::{picking::pointer::PointerInteraction, prelude::*, ui_widgets::Activate};
+use bevy::{
+    input::mouse::MouseWheel, picking::pointer::PointerInteraction, prelude::*,
+    ui_widgets::Activate,
+};
 use bevy_enhanced_input::prelude::Binding;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
@@ -32,6 +35,13 @@ use crate::{
 const PLACEMENT_ROLL_KEY: KeyCode = KeyCode::KeyR;
 /// Cycles which socket of the armed part does the mating.
 const PLACEMENT_SOCKET_KEY: KeyCode = KeyCode::KeyF;
+/// Arms whatever section is under the pointer, Factorio-pipette style.
+const PLACEMENT_PICK_KEY: KeyCode = KeyCode::KeyQ;
+
+/// How far a socket marker is drawn, and how long its normal stub runs.
+const SOCKET_MARKER_RADIUS: f32 = 0.07;
+/// Length of the stub that shows which way a socket faces.
+const SOCKET_NORMAL_LENGTH: f32 = 0.4;
 
 /// Keys the editor's own WASD camera drives (`wasd_controller`). Binding one to
 /// a section makes that section fire on every camera move once the ship flies,
@@ -320,6 +330,27 @@ pub(crate) fn continue_to_simulation(
     game_state.set(ExampleStates::Scenario);
 }
 
+/// One step around a cycle of `len`, forwards or `back`.
+fn step_cycle(current: usize, len: usize, back: bool) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    if back {
+        (current + len - 1) % len
+    } else {
+        (current + 1) % len
+    }
+}
+
+/// The number of sockets the armed part carries, or `None` when nothing is
+/// armed.
+fn armed_socket_count(selection: &SectionChoice, sections: &GameSections) -> Option<usize> {
+    let SectionChoice::Section(id) = selection else {
+        return None;
+    };
+    Some(sections.get_section(id)?.base.link_points.len())
+}
+
 /// Cycle the placement pose: which of the part's sockets does the mating, and
 /// how far it is rolled about the mating axis.
 ///
@@ -327,19 +358,100 @@ pub(crate) fn continue_to_simulation(
 /// roll free by definition, and which face of a part points at the ship is a
 /// design decision, not a geometry one. Inert unless a part is armed, so the
 /// keys stay free for the select/rebind tool.
+///
+/// The keys step FORWARD only; the wheel (see [`wheel_placement_pose`]) is the
+/// reversible half of the same control, because overshooting the socket you
+/// wanted on a six-socket part should cost one gesture back, not five more
+/// forward.
 pub(crate) fn cycle_placement_pose(
     keys: Res<ButtonInput<KeyCode>>,
     selection: Res<SectionChoice>,
+    sections: Res<GameSections>,
     mut pose: ResMut<PlacementPose>,
 ) {
-    if !matches!(*selection, SectionChoice::Section(_)) {
+    let Some(sockets) = armed_socket_count(&selection, &sections) else {
+        return;
+    };
+    if keys.just_pressed(PLACEMENT_ROLL_KEY) {
+        pose.roll = step_cycle(pose.roll as usize, 4, false) as u32;
+    }
+    if keys.just_pressed(PLACEMENT_SOCKET_KEY) && sockets > 0 {
+        pose.source = step_cycle(pose.source % sockets, sockets, false);
+    }
+}
+
+/// Roll the ghost with the wheel, and cycle its socket with Shift+wheel - the
+/// reversible half of [`cycle_placement_pose`].
+///
+/// The wheel is free in the editor (the free-fly rig drives off WASD), and it
+/// is the one gesture that reads as "turn this a bit either way".
+pub(crate) fn wheel_placement_pose(
+    mut wheel: MessageReader<MouseWheel>,
+    keys: Res<ButtonInput<KeyCode>>,
+    selection: Res<SectionChoice>,
+    sections: Res<GameSections>,
+    mut pose: ResMut<PlacementPose>,
+) {
+    let Some(sockets) = armed_socket_count(&selection, &sections) else {
+        // Drained, so a scroll made before a part was armed is not replayed
+        // into the pose on the frame it arms.
+        wheel.clear();
+        return;
+    };
+    let socket_modifier = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+
+    for event in wheel.read() {
+        // Line and pixel units both arrive here; only the SIGN is a gesture.
+        let back = match event.y.partial_cmp(&0.0) {
+            Some(std::cmp::Ordering::Greater) => false,
+            Some(std::cmp::Ordering::Less) => true,
+            _ => continue,
+        };
+        if socket_modifier {
+            if sockets > 0 {
+                pose.source = step_cycle(pose.source % sockets, sockets, back);
+            }
+        } else {
+            pose.roll = step_cycle(pose.roll as usize, 4, back) as u32;
+        }
+    }
+}
+
+/// Arm whatever prototype the section under the pointer was built from -
+/// Factorio's pipette.
+///
+/// Finding a part you can SEE on the ship meant opening the gallery and
+/// recognising it in a grid; this is the shortcut for "another one of those".
+/// Reads the build state rather than the catalog because that is where a placed
+/// section's prototype is recorded.
+pub(crate) fn pick_section_under_pointer(
+    keys: Res<ButtonInput<KeyCode>>,
+    q_pointer: Query<&PointerInteraction>,
+    player_config: Res<PlayerSpaceshipConfig>,
+    q_section: Query<(), With<SectionMarker>>,
+    mut selection: ResMut<SectionChoice>,
+) {
+    if !keys.just_pressed(PLACEMENT_PICK_KEY) {
         return;
     }
-    if keys.just_pressed(PLACEMENT_ROLL_KEY) {
-        pose.roll = pose.roll.wrapping_add(1) % 4;
-    }
-    if keys.just_pressed(PLACEMENT_SOCKET_KEY) {
-        pose.source = pose.source.wrapping_add(1);
+    let Some(entity) = q_pointer
+        .iter()
+        .filter_map(|interaction| interaction.get_nearest_hit())
+        .map(|(entity, _)| *entity)
+        .find(|entity| q_section.get(*entity).is_ok())
+    else {
+        return;
+    };
+    let Some(SectionSource::Inline(config)) = player_config
+        .sections
+        .get(&entity)
+        .map(|section| &section.source)
+    else {
+        return;
+    };
+    let picked = SectionChoice::Section(config.base.id.clone());
+    if *selection != picked {
+        *selection = picked;
     }
 }
 
@@ -448,11 +560,12 @@ pub(crate) fn sync_placement_ghost(
         Some(match placement.solve.refusal {
             Some(refusal) => (refusal.message().to_string(), theme::RED),
             // Naming the mate is the readout: which socket of the ship the part
-            // is about to take, with which of its own, and the two keys that
-            // change that answer.
+            // is about to take, and which of its own it takes it with. The keys
+            // that change that answer live in the legend now, so the line does
+            // not repeat them under the pointer every frame.
             None => (
                 format!(
-                    "{} <- {}   [{PLACEMENT_SOCKET_KEY:?}] socket   [{PLACEMENT_ROLL_KEY:?}] roll",
+                    "{} <- {}",
                     socket_id(
                         q_link_points.get(placement.target_section).ok(),
                         placement.solve.target
@@ -639,6 +752,133 @@ pub(crate) fn on_click_spaceship_section(
             player_config.inputs.remove(&entity);
         }
     }
+}
+
+/// Draw the ship's sockets while a part is armed, and the socket on the armed
+/// part that is about to mate.
+///
+/// Link points are the only thing placement snaps to, and until now they were
+/// invisible: the builder swept the pointer across a hull and read the status
+/// line to find out where the part would go. A free socket draws as a ring with
+/// a stub along its normal, the socket under the pointer draws bright, and the
+/// armed part's own mating socket draws on the ghost - so "which link point"
+/// becomes something you point at rather than something you count presses to.
+pub(crate) fn draw_link_points(
+    preview: Res<PlacementPreview>,
+    selection: Res<SectionChoice>,
+    sections: Res<GameSections>,
+    spaceship: Option<Single<&Children, With<SpaceshipPreviewMarker>>>,
+    q_section: Query<(&Transform, &SectionLinkPoints), With<SectionMarker>>,
+    mut gizmos: Gizmos,
+) {
+    let (SectionChoice::Section(_), Some(spaceship)) = (&*selection, spaceship) else {
+        return;
+    };
+
+    let mut entities = Vec::new();
+    let mut ship = Vec::new();
+    for child in spaceship.iter() {
+        let Ok((transform, link_points)) = q_section.get(child) else {
+            continue;
+        };
+        entities.push(child);
+        ship.push(PlacedSectionLinkPoints {
+            position: transform.translation,
+            rotation: transform.rotation,
+            link_points: link_points.as_slice(),
+        });
+    }
+
+    // A socket that already carries a neighbour is not somewhere a part can go,
+    // so it is not drawn: the markers on screen are exactly the free ones.
+    let taken: std::collections::BTreeSet<(usize, usize)> = candidate_link_point_mates(&ship)
+        .iter()
+        .flat_map(|mate| [mate.a, mate.b])
+        .map(|reference| (reference.section_index, reference.link_point_index))
+        .collect();
+
+    let aimed = preview.placement.as_ref().and_then(|placement| {
+        let section = entities
+            .iter()
+            .position(|e| *e == placement.target_section)?;
+        Some((section, placement.solve.target))
+    });
+
+    for (section_index, section) in ship.iter().enumerate() {
+        for (point_index, point) in section.link_points.iter().enumerate() {
+            if taken.contains(&(section_index, point_index)) {
+                continue;
+            }
+            let position = section.position + section.rotation * point.position;
+            let normal = (section.rotation * point.normal).normalize_or(Vec3::Z);
+            let colour = if aimed == Some((section_index, point_index)) {
+                theme::PHOSPHOR
+            } else {
+                theme::PHOSPHOR_MUTED
+            };
+            draw_socket(&mut gizmos, position, normal, colour);
+        }
+    }
+
+    // The part's own mating socket, drawn where the ghost puts it, in the
+    // colour of the verdict - which is what says "this end goes here".
+    let Some(placement) = preview.placement.as_ref() else {
+        return;
+    };
+    let Some(source) = sections
+        .get_section(&placement.prototype)
+        .and_then(|section| section.base.link_points.get(placement.solve.source))
+    else {
+        return;
+    };
+    let transform = placement.solve.transform;
+    draw_socket(
+        &mut gizmos,
+        transform.translation + transform.rotation * source.position,
+        (transform.rotation * source.normal).normalize_or(Vec3::Z),
+        match placement.solve.refusal {
+            None => theme::PHOSPHOR,
+            Some(_) => theme::RED,
+        },
+    );
+}
+
+/// One socket marker: a ring on the socket's plane plus a stub along its
+/// normal, so both WHERE it is and which way it faces read at a glance.
+fn draw_socket(gizmos: &mut Gizmos, position: Vec3, normal: Vec3, colour: Color) {
+    gizmos.circle(
+        Isometry3d::new(position, Quat::from_rotation_arc(Vec3::Z, normal)),
+        SOCKET_MARKER_RADIUS,
+        colour,
+    );
+    gizmos.line(position, position + normal * SOCKET_NORMAL_LENGTH, colour);
+}
+
+/// Draw the preview ship's forward direction.
+///
+/// A ship under assembly is a pile of boxes with no obvious front, and forward
+/// is -Z here as it is everywhere else in the game - a fact the editor never
+/// showed, so a builder could only find out which way their thrusters pointed
+/// by flying it.
+pub(crate) fn draw_ship_heading(
+    spaceship: Option<Single<&Transform, With<SpaceshipPreviewMarker>>>,
+    q_section: Query<(&Transform, &SectionCollider), With<SectionMarker>>,
+    mut gizmos: Gizmos,
+) {
+    let Some(spaceship) = spaceship else {
+        return;
+    };
+    // Reach past the nose of the ship, so the arrow is never buried inside it.
+    let reach = q_section
+        .iter()
+        .map(|(transform, collider)| {
+            (transform.translation.z - collider.aabb_half_extents().z).abs()
+        })
+        .fold(1.0f32, f32::max)
+        + 1.0;
+    let origin = spaceship.translation;
+    let nose = origin + spaceship.rotation * (Vec3::NEG_Z * reach);
+    gizmos.arrow(origin, nose, theme::AMBER_NOVA);
 }
 
 /// Outline the section a delete click would remove.

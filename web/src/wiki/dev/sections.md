@@ -107,7 +107,35 @@ Editor placement mates the same sockets, so the editor cannot build a ship the
 graph would reject. `snap_placement` (`nova_ship::sections::link_points`) poses a
 part from one mate: the two sockets become coincident and their normals opposed,
 which leaves only the ROLL about that axis free - the builder's choice, alongside
-which of the part's own sockets does the mating. `candidate_link_point_mates` is
+which of the part's own sockets does the mating.
+
+That roll has a defined ZERO, and it is what makes one part usable on every
+other part. Each socket carries an implied up vector, `link_point_up(normal)`:
+ship up (+Y) projected onto the socket's plane, or forward (+Z) on the sockets
+that face +-Y. It is DERIVED from the normal rather than authored, so two parts
+that never met agree on it without anyone writing a second vector, and
+`snap_placement` mates the two socket FRAMES rather than just the two normals.
+Aligning normals alone leaves the roll to whichever axis a shortest-arc rotation
+happened to sweep about - and for a socket facing exactly opposite the part's
+own, to an arbitrary perpendicular.
+
+The other half is the normals themselves. An authoring tool that derives a
+socket from part GEOMETRY gets whatever angle the neighbour happened to sit at,
+so `cardinal_axis` snaps the derived normal to the nearest axis. It is
+antisymmetric (`cardinal_axis(-d) == -cardinal_axis(d)`), so both ends of one
+authored edge stay exactly opposed and no existing mate is lost. Without it the
+cargob's pod faced its fuselage 36 degrees off -X and anything mated onto that
+socket arrived tilted by exactly that much - which is what made parts look like
+they only fit the craft they were cut from.
+
+`box_link_points(size)` is the general face-socket helper
+(`unit_cube_link_points` is `box_link_points(Vec3::ONE)`). A part authored at its
+own size mates against a part of any other size, because the sockets meet face to
+face and the roll comes from the axis alone; `pdc_turret_section` is the shipped
+example - one compact mount that fits every hull, replacing ten per-craft copies
+of the same gun.
+
+`candidate_link_point_mates` is
 the same pairing WITHOUT the ambiguity and connectivity gates, because a ship
 under assembly is legitimately disconnected; the editor uses it to see which
 sockets are taken and to refuse a placement that would leave one with two

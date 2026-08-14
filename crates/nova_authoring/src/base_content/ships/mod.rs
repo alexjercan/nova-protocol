@@ -38,7 +38,11 @@ pub(crate) fn cargoa_sections(
 
 #[cfg(test)]
 mod tests {
-    use nova_ship::prelude::{derive_link_point_graph, PlacedSectionLinkPoints, SectionLinkPoints};
+    use bevy::prelude::Vec3;
+    use nova_ship::prelude::{
+        cardinal_axis, derive_link_point_graph, snap_placement, unit_cube_link_points,
+        PlacedSectionLinkPoints, SectionLinkPoints,
+    };
 
     use super::{cargo_a::*, cargo_b::*, racer::*, shared::*};
 
@@ -65,6 +69,43 @@ mod tests {
                 .collect();
             let mates = derive_link_point_graph(&placed).unwrap();
             assert_eq!(mates.len(), edges.len());
+        }
+    }
+
+    /// The claim the whole snap exists for: a part cut off ONE craft mates onto
+    /// a plain cube square, not at whatever angle its neighbour on that craft
+    /// happened to sit at.
+    ///
+    /// The cargob's torpedo pod is the case the owner hit - its fuselage socket
+    /// used to point 36 degrees off -X, and the pod arrived on a hull tilted by
+    /// exactly that much. Every socket of every shipped part is checked, on
+    /// every face of the cube, because "only parts from the same ship fit" was
+    /// the shape of the bug.
+    #[test]
+    fn every_semantic_part_mates_square_onto_a_plain_cube() {
+        for (specs, edges) in [
+            (RACER_PARTS.as_slice(), RACER_EDGES.as_slice()),
+            (CARGOB_PARTS.as_slice(), CARGOB_EDGES.as_slice()),
+            (CARGOA_PARTS.as_slice(), CARGOA_EDGES.as_slice()),
+        ] {
+            for index in 0..specs.len() {
+                for socket in link_points(specs, edges, index) {
+                    for face in unit_cube_link_points() {
+                        let (_, rotation) = snap_placement(face.position, face.normal, &socket, 0);
+
+                        for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
+                            let placed = rotation * axis;
+                            assert!(
+                                placed.abs_diff_eq(cardinal_axis(placed), 1e-4),
+                                "part {index} socket `{}` arrived tilted ({placed:?}) on \
+                                 the cube's `{}` face",
+                                socket.id,
+                                face.id,
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 

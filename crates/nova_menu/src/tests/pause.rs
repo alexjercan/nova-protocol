@@ -52,6 +52,49 @@ fn the_escape_pause_toggle_blips_on_both_directions() {
     );
 }
 
+/// Escape is a BACK gesture before it is a pause gesture. While a scene
+/// surface claims it - the editor's parts gallery, an armed part - the overlay
+/// must stay down, or one press both backs out AND stacks a pause panel over
+/// whatever is left.
+#[test]
+fn a_scene_surface_that_owns_escape_keeps_the_pause_overlay_down() {
+    let mut app = cue_app();
+    app.add_plugins(StatesPlugin);
+    app.init_state::<PauseStates>();
+    app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<EscapeOwner>();
+    app.add_systems(Update, toggle_pause);
+
+    let tap_escape = |app: &mut App| {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Escape);
+        app.update();
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(KeyCode::Escape);
+        keys.clear();
+        app.update();
+    };
+
+    app.world_mut().resource_mut::<EscapeOwner>().0 = true;
+    tap_escape(&mut app);
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "a claimed Escape must not reach the pause menu"
+    );
+    assert_eq!(
+        app.world().resource::<PlayedCues>().0,
+        0,
+        "and must not blip the overlay cue either"
+    );
+
+    // Delivery guard: the identical press pauses once the claim is released.
+    app.world_mut().resource_mut::<EscapeOwner>().0 = false;
+    tap_escape(&mut app);
+    assert_eq!(pause_state(&app), PauseStates::Paused);
+}
+
 /// Delivery-guarded per press: ESC pauses, freezes both clocks, and a
 /// second press resumes and unfreezes.
 #[test]

@@ -75,6 +75,13 @@ mate when their transformed positions coincide and their outward unit normals
 oppose. The point `id` is unique within its section and is used for diagnostics
 and UI; IDs do not have to match.
 
+Author normals on an AXIS, and positions at face centres, unless the part really
+needs otherwise. A socket's roll zero is derived from its normal, so two parts
+that were never drawn together still mate square; an off-axis normal instead
+tilts everything mated onto it by exactly its own angle. Size is free: a part
+authored at its own size mates one of any other size - a 0.3 mount sits on a 1.0
+hull face - so a small mount does not have to pretend to be a cube.
+
 A one-unit cube normally authors six face-center points. Example pair:
 
 ```ron

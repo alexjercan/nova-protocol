@@ -10,9 +10,10 @@ use bevy::prelude::*;
 /// snap placement, and fixed mate tolerances.
 pub mod prelude {
     pub use super::{
-        candidate_link_point_mates, derive_link_point_graph, snap_placement, unit_cube_link_points,
-        LinkPoint, LinkPointGraphError, LinkPointMate, LinkPointRef, PlacedSectionLinkPoints,
-        SectionLinkPoints, LINK_POINT_NORMAL_MIN_DOT, LINK_POINT_POSITION_EPSILON,
+        box_link_points, candidate_link_point_mates, cardinal_axis, derive_link_point_graph,
+        link_point_up, snap_placement, unit_cube_link_points, LinkPoint, LinkPointGraphError,
+        LinkPointMate, LinkPointRef, PlacedSectionLinkPoints, SectionLinkPoints,
+        LINK_POINT_NORMAL_MIN_DOT, LINK_POINT_POSITION_EPSILON,
     };
 }
 
@@ -368,6 +369,58 @@ pub fn candidate_link_point_mates(sections: &[PlacedSectionLinkPoints<'_>]) -> V
     mates
 }
 
+/// The roll reference of a socket: the unit vector orthogonal to `normal` that
+/// a part mated onto that socket stands "up" along.
+///
+/// DERIVED from the normal rather than authored, and that is the whole point: a
+/// socket's up is a pure function of where it faces, so two parts drawn from
+/// different craft - or a hand-authored mod part and a shipped one - agree on
+/// the mate without anyone having written a second vector. Same normal, same
+/// up, every time.
+///
+/// The reference is ship up (+Y) everywhere except on the sockets that face it,
+/// where +Y projects to nothing and forward (+Z) takes over. The formula is
+/// even in `normal`, so a socket and the socket it mates always resolve to the
+/// SAME up.
+pub fn link_point_up(normal: Vec3) -> Vec3 {
+    let normal = normal.normalize_or(Vec3::Z);
+    let reference = if normal.dot(Vec3::Y).abs() > 0.95 {
+        Vec3::Z
+    } else {
+        Vec3::Y
+    };
+    (reference - normal * reference.dot(normal)).normalize_or(Vec3::Z)
+}
+
+/// The cardinal axis nearest `direction`, in whatever space it was given in.
+///
+/// Authoring tools that derive a socket from part GEOMETRY (a centre-to-centre
+/// direction, a cut plane) get whatever angle the neighbour happened to sit at,
+/// and a part mated onto such a socket arrives tilted by exactly that angle.
+/// Snapping the authored normal to an axis is what lets one part mate cleanly
+/// onto a part it was never drawn beside.
+///
+/// Antisymmetric by construction (`cardinal_axis(-d) == -cardinal_axis(d)`), so
+/// snapping BOTH ends of an authored edge keeps their normals exactly opposed
+/// and no existing mate is lost.
+pub fn cardinal_axis(direction: Vec3) -> Vec3 {
+    let magnitude = direction.abs();
+    let (axis, component) = if magnitude.x >= magnitude.y && magnitude.x >= magnitude.z {
+        (Vec3::X, direction.x)
+    } else if magnitude.y >= magnitude.z {
+        (Vec3::Y, direction.y)
+    } else {
+        (Vec3::Z, direction.z)
+    };
+    axis * component.signum()
+}
+
+/// The orthonormal frame of a socket: its normal is local +Z and its
+/// [`link_point_up`] is local +Y.
+fn socket_frame(normal: Vec3, up: Vec3) -> Quat {
+    Quat::from_mat3(&Mat3::from_cols(up.cross(normal), up, normal))
+}
+
 /// The pose that mates `source` - a socket in the placed part's own frame -
 /// onto a socket already at `target_position` facing `target_normal`, rolled
 /// by `quarter_turns` about the mating axis.
@@ -377,28 +430,44 @@ pub fn candidate_link_point_mates(sections: &[PlacedSectionLinkPoints<'_>]) -> V
 /// of freedom - the roll about that shared axis, which is the builder's to
 /// choose. Returns the part's `(position, rotation)` in the same space the
 /// target socket was given in.
+///
+/// The two socket FRAMES are what is mated, not just the two normals. Aligning
+/// normals alone (a shortest-arc rotation) leaves the roll to whatever axis the
+/// arc happened to sweep about, which is why the same part used to arrive at a
+/// different, unpredictable tilt on every socket it was offered.
 pub fn snap_placement(
     target_position: Vec3,
     target_normal: Vec3,
     source: &LinkPoint,
     quarter_turns: u32,
 ) -> (Vec3, Quat) {
-    let facing = -target_normal.normalize_or(Vec3::Z);
-    let align = Quat::from_rotation_arc(source.normal.normalize_or(Vec3::Z), facing);
+    let target_normal = target_normal.normalize_or(Vec3::Z);
+    let source_normal = source.normal.normalize_or(Vec3::Z);
+    // The part's socket ends up facing INTO the target's, so the frame it is
+    // rotated onto is the target's flipped about its own up.
+    let facing = -target_normal;
+    let align = socket_frame(facing, link_point_up(target_normal))
+        * socket_frame(source_normal, link_point_up(source_normal)).inverse();
     let roll = Quat::from_axis_angle(facing, quarter_turns as f32 * std::f32::consts::FRAC_PI_2);
     let rotation = (roll * align).normalize();
     (target_position - rotation * source.position, rotation)
 }
 
-/// Six face-center structural sockets for the existing one-unit cube grid.
-pub fn unit_cube_link_points() -> Vec<LinkPoint> {
+/// Six face-centre structural sockets for a box of `size` (FULL side lengths,
+/// the same units [`SectionCollider::Cuboid`] takes).
+///
+/// Axis-aligned normals and centred positions, which is what makes a boxy part
+/// mate with any other boxy part whatever their sizes: the sockets meet face to
+/// face and [`snap_placement`] resolves the roll from the axis alone.
+pub fn box_link_points(size: Vec3) -> Vec<LinkPoint> {
+    let half = size * 0.5;
     [
-        ("positive_x", Vec3::X * 0.5, Vec3::X),
-        ("negative_x", Vec3::NEG_X * 0.5, Vec3::NEG_X),
-        ("positive_y", Vec3::Y * 0.5, Vec3::Y),
-        ("negative_y", Vec3::NEG_Y * 0.5, Vec3::NEG_Y),
-        ("positive_z", Vec3::Z * 0.5, Vec3::Z),
-        ("negative_z", Vec3::NEG_Z * 0.5, Vec3::NEG_Z),
+        ("positive_x", Vec3::X * half.x, Vec3::X),
+        ("negative_x", Vec3::NEG_X * half.x, Vec3::NEG_X),
+        ("positive_y", Vec3::Y * half.y, Vec3::Y),
+        ("negative_y", Vec3::NEG_Y * half.y, Vec3::NEG_Y),
+        ("positive_z", Vec3::Z * half.z, Vec3::Z),
+        ("negative_z", Vec3::NEG_Z * half.z, Vec3::NEG_Z),
     ]
     .into_iter()
     .map(|(id, position, normal)| LinkPoint {
@@ -407,6 +476,11 @@ pub fn unit_cube_link_points() -> Vec<LinkPoint> {
         normal,
     })
     .collect()
+}
+
+/// Six face-center structural sockets for the existing one-unit cube grid.
+pub fn unit_cube_link_points() -> Vec<LinkPoint> {
+    box_link_points(Vec3::ONE)
 }
 
 #[cfg(test)]
@@ -712,6 +786,87 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    /// The claim the whole frame-mate exists for: ONE part mates the same way
+    /// up on EVERY socket. Aligning normals alone left the roll to the arc's
+    /// axis, and for a socket facing exactly opposite the part's own that arc
+    /// has no axis at all - it fell back to an arbitrary perpendicular, so the
+    /// same turret mounted under a hull faced somewhere else than the one
+    /// mounted on top of it.
+    #[test]
+    fn one_part_mates_the_same_way_up_on_every_socket() {
+        // A part that stands on its -Y face.
+        let foot = point("foot", Vec3::NEG_Y * 0.5, Vec3::NEG_Y);
+
+        for target_normal in [
+            Vec3::X,
+            Vec3::NEG_X,
+            Vec3::Y,
+            Vec3::NEG_Y,
+            Vec3::Z,
+            Vec3::NEG_Z,
+        ] {
+            let (_, rotation) = snap_placement(target_normal * 0.5, target_normal, &foot, 0);
+
+            // It STANDS on the socket: the part's own up - the axis opposite
+            // the foot it mates with - points back out along the target normal.
+            assert!(
+                (rotation * Vec3::Y).abs_diff_eq(target_normal, 1e-5),
+                "a part standing on {target_normal:?} must point its up back out along it"
+            );
+            // And it arrives untilted: every part axis lands on an axis.
+            for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
+                let placed = rotation * axis;
+                assert!(
+                    placed.abs_diff_eq(cardinal_axis(placed), 1e-5),
+                    "{axis:?} arrived tilted ({placed:?}) on the {target_normal:?} socket"
+                );
+            }
+        }
+    }
+
+    /// The two ends of one authored edge point exactly opposite ways, so
+    /// snapping both to an axis has to keep them opposed - including on a tie,
+    /// where each end picks from the same two candidates.
+    #[test]
+    fn the_cardinal_axis_is_antisymmetric() {
+        // A real cargob pod -> fuselage direction: 36 degrees off -X, which is
+        // exactly how far a part mated onto it used to arrive tilted.
+        let oblique = Vec3::new(-0.8055, 0.1527, 0.5726).normalize();
+        assert_eq!(cardinal_axis(oblique), Vec3::NEG_X);
+        assert_eq!(cardinal_axis(-oblique), Vec3::X);
+
+        for direction in [
+            Vec3::new(0.5, 0.5, 0.0),
+            Vec3::new(0.0, 0.5, 0.5),
+            Vec3::new(0.5, 0.5, 0.5),
+        ] {
+            assert_eq!(
+                cardinal_axis(direction),
+                -cardinal_axis(-direction),
+                "a tie must resolve to the same axis from both ends"
+            );
+        }
+    }
+
+    /// A socket and the socket it mates face opposite ways, so the up they roll
+    /// against must come out the same for both - otherwise the mate would have
+    /// two different zeroes.
+    #[test]
+    fn the_socket_up_is_the_same_from_either_end() {
+        for normal in [
+            Vec3::X,
+            Vec3::Y,
+            Vec3::Z,
+            Vec3::new(0.6, 0.0, 0.8),
+            Vec3::new(0.0, 0.99, 0.14).normalize(),
+        ] {
+            let up = link_point_up(normal);
+            assert!(up.is_normalized(), "{normal:?} -> {up:?}");
+            assert!(up.dot(normal).abs() < 1e-5, "{normal:?} -> {up:?}");
+            assert!(up.abs_diff_eq(link_point_up(-normal), 1e-6), "{normal:?}");
+        }
     }
 
     /// Snapping is not cube-only: an off-centre socket on a rotated target is

@@ -718,6 +718,179 @@
     )),
     Section((
         base: (
+            id: "pdc_turret_section",
+            name: "PDC Turret",
+            description: "A compact point-defense mount that fits any hull face.",
+            mass: 1.0,
+            health: 130.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.3,
+                    0.3,
+                    0.3,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.15,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.15,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.15,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.15,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.15,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.15,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.5,
+                    0.0,
+                ),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.1,
+                            0.0,
+                        ),
+                        axis: Some((
+                            0.0,
+                            1.0,
+                            0.0,
+                        )),
+                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.332706,
+                                    0.303954,
+                                ),
+                                axis: Some((
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                )),
+                                min: Some(-0.17453294),
+                                max: Some(1.5707964),
+                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.128437,
+                                            -0.110729,
+                                        ),
+                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.0,
+                                                    -1.2,
+                                                ),
+                                                muzzle: Some((
+                                                    fire_rate: 100.0,
+                                                )),
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 100.0,
+            projectile_lifetime: 5.0,
+            bullet_damage: 4.0,
+            bullet_kind: Kinetic,
+            fire_sound: Some("self://sounds/turret_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                reload_time: 3.0,
+                rounds_per_cycle: 500,
+                only_when_empty: true,
+            )),
+        )),
+    )),
+    Section((
+        base: (
             id: "torpedo_section",
             name: "Torpedo Bay Section",
             description: "A torpedo bay section for spaceships.",
@@ -961,8 +1134,8 @@
     Section((
         base: (
             id: "racer_engine_starboard",
-            name: "Engine Starboard",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Engine Starboard",
+            description: "The Racer\'s engine starboard section.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -983,9 +1156,9 @@
                         0.049999952,
                     ),
                     normal: (
-                        -0.91104406,
-                        0.38813958,
-                        0.13909057,
+                        -1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -996,9 +1169,9 @@
                         -0.69749975,
                     ),
                     normal: (
-                        0.10677426,
-                        -0.050500672,
-                        -0.99300003,
+                        0.0,
+                        0.0,
+                        -1.0,
                     ),
                 ),
             ],
@@ -1055,8 +1228,8 @@
     Section((
         base: (
             id: "racer_engine_port",
-            name: "Engine Port",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Engine Port",
+            description: "The Racer\'s engine port section.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1077,9 +1250,9 @@
                         0.049999952,
                     ),
                     normal: (
-                        0.91104406,
-                        0.38813958,
-                        0.13909057,
+                        1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -1090,9 +1263,9 @@
                         -0.69749975,
                     ),
                     normal: (
-                        -0.10677426,
-                        -0.050500672,
-                        -0.99300003,
+                        0.0,
+                        0.0,
+                        -1.0,
                     ),
                 ),
             ],
@@ -1149,8 +1322,8 @@
     Section((
         base: (
             id: "racer_wing_starboard",
-            name: "Wing Starboard",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Wing Starboard",
+            description: "The Racer\'s wing starboard section.",
             mass: 1.0,
             health: 180.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1171,9 +1344,9 @@
                         -0.008917749,
                     ),
                     normal: (
-                        -0.97027177,
-                        0.24106129,
-                        -0.021497242,
+                        -1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -1184,9 +1357,9 @@
                         0.69749975,
                     ),
                     normal: (
-                        -0.10677426,
-                        0.050500672,
-                        0.99300003,
+                        0.0,
+                        0.0,
+                        1.0,
                     ),
                 ),
                 (
@@ -1197,9 +1370,9 @@
                         -0.45891777,
                     ),
                     normal: (
-                        0.5083374,
-                        -0.0932729,
-                        -0.85609186,
+                        0.0,
+                        0.0,
+                        -1.0,
                     ),
                 ),
             ],
@@ -1218,8 +1391,8 @@
     Section((
         base: (
             id: "racer_wing_port",
-            name: "Wing Port",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Wing Port",
+            description: "The Racer\'s wing port section.",
             mass: 1.0,
             health: 180.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1240,9 +1413,9 @@
                         -0.008917749,
                     ),
                     normal: (
-                        0.97027177,
-                        0.24106129,
-                        -0.021497242,
+                        1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -1253,9 +1426,9 @@
                         0.69749975,
                     ),
                     normal: (
-                        0.10677426,
-                        0.050500672,
-                        0.99300003,
+                        0.0,
+                        0.0,
+                        1.0,
                     ),
                 ),
                 (
@@ -1266,9 +1439,9 @@
                         -0.45891777,
                     ),
                     normal: (
-                        -0.5083374,
-                        -0.0932729,
-                        -0.85609186,
+                        0.0,
+                        0.0,
+                        -1.0,
                     ),
                 ),
             ],
@@ -1287,8 +1460,8 @@
     Section((
         base: (
             id: "racer_nose",
-            name: "Nose",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Nose",
+            description: "The Racer\'s nose section.",
             mass: 1.0,
             health: 120.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1310,8 +1483,8 @@
                     ),
                     normal: (
                         0.0,
-                        0.05489789,
-                        0.998492,
+                        0.0,
+                        1.0,
                     ),
                 ),
             ],
@@ -1330,8 +1503,8 @@
     Section((
         base: (
             id: "racer_tail",
-            name: "Tail",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Tail",
+            description: "The Racer\'s tail section.",
             mass: 1.0,
             health: 120.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1353,8 +1526,8 @@
                     ),
                     normal: (
                         0.0,
-                        -0.09866781,
-                        -0.99512047,
+                        0.0,
+                        -1.0,
                     ),
                 ),
                 (
@@ -1365,9 +1538,9 @@
                         -0.049999952,
                     ),
                     normal: (
-                        0.91104406,
-                        -0.38813958,
-                        -0.13909057,
+                        1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -1378,9 +1551,9 @@
                         -0.049999952,
                     ),
                     normal: (
-                        -0.91104406,
-                        -0.38813958,
-                        -0.13909057,
+                        -1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
             ],
@@ -1399,8 +1572,8 @@
     Section((
         base: (
             id: "racer_fuselage",
-            name: "Fuselage",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Fuselage",
+            description: "The Racer\'s fuselage section.",
             mass: 1.0,
             health: 240.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1422,8 +1595,8 @@
                     ),
                     normal: (
                         0.0,
-                        -0.05489789,
-                        -0.998492,
+                        0.0,
+                        -1.0,
                     ),
                 ),
                 (
@@ -1435,8 +1608,8 @@
                     ),
                     normal: (
                         0.0,
-                        0.09866781,
-                        0.99512047,
+                        0.0,
+                        1.0,
                     ),
                 ),
                 (
@@ -1447,9 +1620,9 @@
                         0.008917749,
                     ),
                     normal: (
-                        0.97027177,
-                        -0.24106129,
-                        0.021497242,
+                        1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -1460,9 +1633,9 @@
                         0.008917749,
                     ),
                     normal: (
-                        -0.97027177,
-                        -0.24106129,
-                        0.021497242,
+                        -1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
             ],
@@ -1490,8 +1663,8 @@
     Section((
         base: (
             id: "racer_turret_starboard",
-            name: "Turret Starboard",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Turret Starboard",
+            description: "The Racer\'s turret starboard section.",
             mass: 1.0,
             health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1512,12 +1685,13 @@
                         0.45891777,
                     ),
                     normal: (
-                        -0.0932729,
-                        -0.5083373,
-                        0.85609186,
+                        0.0,
+                        0.0,
+                        0.99999994,
                     ),
                 ),
             ],
+            hide_in_editor: true,
         ),
         kind: Turret((
             root: (
@@ -1598,8 +1772,8 @@
     Section((
         base: (
             id: "racer_turret_starboard_light",
-            name: "Turret Starboard Light",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Turret Starboard Light",
+            description: "The Racer\'s turret starboard section.",
             mass: 1.0,
             health: 60.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1620,12 +1794,13 @@
                         0.45891777,
                     ),
                     normal: (
-                        -0.0932729,
-                        -0.5083373,
-                        0.85609186,
+                        0.0,
+                        0.0,
+                        0.99999994,
                     ),
                 ),
             ],
+            hide_in_editor: true,
         ),
         kind: Turret((
             root: (
@@ -1706,8 +1881,8 @@
     Section((
         base: (
             id: "racer_turret_port",
-            name: "Turret Port",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Turret Port",
+            description: "The Racer\'s turret port section.",
             mass: 1.0,
             health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1728,12 +1903,13 @@
                         0.45891777,
                     ),
                     normal: (
-                        0.0932729,
-                        -0.5083373,
-                        0.85609186,
+                        0.0,
+                        0.0,
+                        0.99999994,
                     ),
                 ),
             ],
+            hide_in_editor: true,
         ),
         kind: Turret((
             root: (
@@ -1814,8 +1990,8 @@
     Section((
         base: (
             id: "racer_turret_port_light",
-            name: "Turret Port Light",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "Racer // Turret Port Light",
+            description: "The Racer\'s turret port section.",
             mass: 1.0,
             health: 60.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1836,12 +2012,13 @@
                         0.45891777,
                     ),
                     normal: (
-                        0.0932729,
-                        -0.5083373,
-                        0.85609186,
+                        0.0,
+                        0.0,
+                        0.99999994,
                     ),
                 ),
             ],
+            hide_in_editor: true,
         ),
         kind: Turret((
             root: (
@@ -1922,8 +2099,8 @@
     Section((
         base: (
             id: "cargob_engine_starboard",
-            name: "Engine Starboard",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoB // Engine Starboard",
+            description: "The CargoB\'s engine starboard section.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -1944,9 +2121,9 @@
                         -1.25,
                     ),
                     normal: (
-                        0.01999603,
                         0.0,
-                        -0.9998,
+                        0.0,
+                        -1.0,
                     ),
                 ),
             ],
@@ -2003,8 +2180,8 @@
     Section((
         base: (
             id: "cargob_engine_port",
-            name: "Engine Port",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoB // Engine Port",
+            description: "The CargoB\'s engine port section.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2025,9 +2202,9 @@
                         -1.25,
                     ),
                     normal: (
-                        -0.01999603,
                         0.0,
-                        -0.9998,
+                        0.0,
+                        -1.0,
                     ),
                 ),
             ],
@@ -2084,8 +2261,8 @@
     Section((
         base: (
             id: "cargob_pod_starboard",
-            name: "Pod Starboard",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoB // Pod Starboard",
+            description: "The CargoB\'s pod starboard section.",
             mass: 1.0,
             health: 350.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2106,9 +2283,9 @@
                         0.375,
                     ),
                     normal: (
-                        -0.80547845,
-                        0.15269731,
-                        0.57261497,
+                        -1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -2119,9 +2296,9 @@
                         1.25,
                     ),
                     normal: (
-                        -0.01999603,
                         0.0,
-                        0.9998,
+                        0.0,
+                        1.0,
                     ),
                 ),
                 (
@@ -2132,9 +2309,9 @@
                         0.25,
                     ),
                     normal: (
-                        0.5734819,
-                        0.57927483,
-                        0.5792748,
+                        0.0,
+                        1.0,
+                        0.0,
                     ),
                 ),
             ],
@@ -2182,8 +2359,8 @@
     Section((
         base: (
             id: "cargob_pod_port",
-            name: "Pod Port",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoB // Pod Port",
+            description: "The CargoB\'s pod port section.",
             mass: 1.0,
             health: 350.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2204,9 +2381,9 @@
                         0.375,
                     ),
                     normal: (
-                        0.80547845,
-                        0.15269731,
-                        0.57261497,
+                        1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -2217,9 +2394,9 @@
                         1.25,
                     ),
                     normal: (
-                        0.01999603,
                         0.0,
-                        0.9998,
+                        0.0,
+                        1.0,
                     ),
                 ),
                 (
@@ -2230,9 +2407,9 @@
                         0.25,
                     ),
                     normal: (
-                        -0.5734819,
-                        0.57927483,
-                        0.5792748,
+                        0.0,
+                        1.0,
+                        0.0,
                     ),
                 ),
             ],
@@ -2280,8 +2457,8 @@
     Section((
         base: (
             id: "cargob_nose",
-            name: "Nose",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoB // Nose",
+            description: "The CargoB\'s nose section.",
             mass: 1.0,
             health: 180.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2303,8 +2480,8 @@
                     ),
                     normal: (
                         0.0,
-                        -0.04993763,
-                        0.99875236,
+                        0.0,
+                        1.0,
                     ),
                 ),
             ],
@@ -2323,8 +2500,8 @@
     Section((
         base: (
             id: "cargob_tail",
-            name: "Tail",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoB // Tail",
+            description: "The CargoB\'s tail section.",
             mass: 1.0,
             health: 150.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2346,8 +2523,8 @@
                     ),
                     normal: (
                         0.0,
-                        0.14142136,
-                        -0.9899495,
+                        0.0,
+                        -1.0,
                     ),
                 ),
             ],
@@ -2366,8 +2543,8 @@
     Section((
         base: (
             id: "cargob_fuselage",
-            name: "Fuselage",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoB // Fuselage",
+            description: "The CargoB\'s fuselage section.",
             mass: 1.0,
             health: 300.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2389,8 +2566,8 @@
                     ),
                     normal: (
                         0.0,
-                        0.04993763,
-                        -0.99875236,
+                        0.0,
+                        -1.0,
                     ),
                 ),
                 (
@@ -2402,8 +2579,8 @@
                     ),
                     normal: (
                         0.0,
-                        -0.14142136,
-                        0.9899495,
+                        0.0,
+                        1.0,
                     ),
                 ),
                 (
@@ -2414,9 +2591,9 @@
                         -0.375,
                     ),
                     normal: (
-                        0.80547845,
-                        -0.15269731,
-                        -0.57261497,
+                        1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -2427,9 +2604,9 @@
                         -0.375,
                     ),
                     normal: (
-                        -0.80547845,
-                        -0.15269731,
-                        -0.57261497,
+                        -1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
             ],
@@ -2457,8 +2634,8 @@
     Section((
         base: (
             id: "cargob_turret_starboard",
-            name: "Turret Starboard",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoB // Turret Starboard",
+            description: "The CargoB\'s turret starboard section.",
             mass: 1.0,
             health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2479,12 +2656,13 @@
                         -0.24999999,
                     ),
                     normal: (
-                        0.57927483,
-                        -0.5734819,
-                        -0.5792748,
+                        0.99999994,
+                        -0.0,
+                        0.0,
                     ),
                 ),
             ],
+            hide_in_editor: true,
         ),
         kind: Turret((
             root: (
@@ -2565,8 +2743,8 @@
     Section((
         base: (
             id: "cargob_turret_port",
-            name: "Turret Port",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoB // Turret Port",
+            description: "The CargoB\'s turret port section.",
             mass: 1.0,
             health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2587,12 +2765,13 @@
                         -0.24999999,
                     ),
                     normal: (
-                        -0.57927483,
-                        -0.5734819,
-                        -0.5792748,
+                        -0.99999994,
+                        0.0,
+                        0.0,
                     ),
                 ),
             ],
+            hide_in_editor: true,
         ),
         kind: Turret((
             root: (
@@ -2673,8 +2852,8 @@
     Section((
         base: (
             id: "cargoa_engine_starboard",
-            name: "Engine Starboard",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Engine Starboard",
+            description: "The CargoA\'s engine starboard section.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2696,8 +2875,8 @@
                     ),
                     normal: (
                         0.0,
-                        0.066518985,
-                        -0.99778515,
+                        0.0,
+                        -1.0,
                     ),
                 ),
             ],
@@ -2754,8 +2933,8 @@
     Section((
         base: (
             id: "cargoa_engine_port",
-            name: "Engine Port",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Engine Port",
+            description: "The CargoA\'s engine port section.",
             mass: 1.0,
             health: 70.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2777,8 +2956,8 @@
                     ),
                     normal: (
                         0.0,
-                        0.066518985,
-                        -0.99778515,
+                        0.0,
+                        -1.0,
                     ),
                 ),
             ],
@@ -2835,8 +3014,8 @@
     Section((
         base: (
             id: "cargoa_pod_starboard",
-            name: "Pod Starboard",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Pod Starboard",
+            description: "The CargoA\'s pod starboard section.",
             mass: 1.0,
             health: 350.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2857,9 +3036,9 @@
                         -0.15,
                     ),
                     normal: (
-                        -0.9672477,
-                        0.08026954,
-                        -0.24080856,
+                        -1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -2871,8 +3050,8 @@
                     ),
                     normal: (
                         0.0,
-                        -0.066518985,
-                        0.99778515,
+                        0.0,
+                        1.0,
                     ),
                 ),
             ],
@@ -2891,8 +3070,8 @@
     Section((
         base: (
             id: "cargoa_pod_port",
-            name: "Pod Port",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Pod Port",
+            description: "The CargoA\'s pod port section.",
             mass: 1.0,
             health: 350.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2913,9 +3092,9 @@
                         -0.15,
                     ),
                     normal: (
-                        0.9672477,
-                        0.08026954,
-                        -0.24080856,
+                        1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -2927,8 +3106,8 @@
                     ),
                     normal: (
                         0.0,
-                        -0.066518985,
-                        0.99778515,
+                        0.0,
+                        1.0,
                     ),
                 ),
             ],
@@ -2947,8 +3126,8 @@
     Section((
         base: (
             id: "cargoa_nose",
-            name: "Nose",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Nose",
+            description: "The CargoA\'s nose section.",
             mass: 1.0,
             health: 180.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -2971,7 +3150,7 @@
                     normal: (
                         0.0,
                         0.0,
-                        0.99999994,
+                        1.0,
                     ),
                 ),
                 (
@@ -3016,8 +3195,8 @@
     Section((
         base: (
             id: "cargoa_tail",
-            name: "Tail",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Tail",
+            description: "The CargoA\'s tail section.",
             mass: 1.0,
             health: 150.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -3039,8 +3218,8 @@
                     ),
                     normal: (
                         0.0,
-                        0.11724141,
-                        -0.9931035,
+                        0.0,
+                        -1.0,
                     ),
                 ),
             ],
@@ -3059,8 +3238,8 @@
     Section((
         base: (
             id: "cargoa_fuselage",
-            name: "Fuselage",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Fuselage",
+            description: "The CargoA\'s fuselage section.",
             mass: 1.0,
             health: 350.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -3083,7 +3262,7 @@
                     normal: (
                         0.0,
                         0.0,
-                        -0.99999994,
+                        -1.0,
                     ),
                 ),
                 (
@@ -3095,8 +3274,8 @@
                     ),
                     normal: (
                         0.0,
-                        -0.11724141,
-                        0.9931035,
+                        0.0,
+                        1.0,
                     ),
                 ),
                 (
@@ -3107,9 +3286,9 @@
                         0.15,
                     ),
                     normal: (
-                        0.9672477,
-                        -0.08026954,
-                        0.24080856,
+                        1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
                 (
@@ -3120,9 +3299,9 @@
                         0.15,
                     ),
                     normal: (
-                        -0.9672477,
-                        -0.08026954,
-                        0.24080856,
+                        -1.0,
+                        0.0,
+                        0.0,
                     ),
                 ),
             ],
@@ -3150,8 +3329,8 @@
     Section((
         base: (
             id: "cargoa_turret_starboard",
-            name: "Turret Starboard",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Turret Starboard",
+            description: "The CargoA\'s turret starboard section.",
             mass: 1.0,
             health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -3172,12 +3351,13 @@
                         0.0,
                     ),
                     normal: (
-                        -0.0,
+                        0.0,
                         -0.99999994,
                         0.0,
                     ),
                 ),
             ],
+            hide_in_editor: true,
         ),
         kind: Turret((
             root: (
@@ -3258,8 +3438,8 @@
     Section((
         base: (
             id: "cargoa_turret_starboard_light",
-            name: "Turret Starboard Light",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Turret Starboard Light",
+            description: "The CargoA\'s turret starboard section.",
             mass: 1.0,
             health: 60.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -3280,12 +3460,13 @@
                         0.0,
                     ),
                     normal: (
-                        -0.0,
+                        0.0,
                         -0.99999994,
                         0.0,
                     ),
                 ),
             ],
+            hide_in_editor: true,
         ),
         kind: Turret((
             root: (
@@ -3366,8 +3547,8 @@
     Section((
         base: (
             id: "cargoa_turret_port",
-            name: "Turret Port",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Turret Port",
+            description: "The CargoA\'s turret port section.",
             mass: 1.0,
             health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -3394,6 +3575,7 @@
                     ),
                 ),
             ],
+            hide_in_editor: true,
         ),
         kind: Turret((
             root: (
@@ -3474,8 +3656,8 @@
     Section((
         base: (
             id: "cargoa_turret_port_light",
-            name: "Turret Port Light",
-            description: "A semantic ship part from a Kenney spacecraft.",
+            name: "CargoA // Turret Port Light",
+            description: "The CargoA\'s turret port section.",
             mass: 1.0,
             health: 60.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -3502,6 +3684,7 @@
                     ),
                 ),
             ],
+            hide_in_editor: true,
         ),
         kind: Turret((
             root: (

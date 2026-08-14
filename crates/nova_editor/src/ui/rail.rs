@@ -1,5 +1,5 @@
 //! The left category rail, styled after the web wiki sidebar: an active
-//! "Components" category that opens the drawer, plus greyed coming-soon rows
+//! "Parts" category that opens the gallery, plus greyed coming-soon rows
 //! (Ships/Objects/Events/Objectives) that advertise "the rest".
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
@@ -8,18 +8,6 @@ use nova_ui::{
     theme,
     widget::{badge, BadgeKind},
 };
-
-use crate::ui::drawer::toggle_drawer;
-
-/// The active "Components" category row: a category row that toggles the
-/// drawer.
-pub(crate) fn components_category() -> impl Bundle {
-    (
-        Name::new("Components Category"),
-        category_row("Components"),
-        bevy::ui_widgets::observe(toggle_drawer),
-    )
-}
 
 /// A live category row. Uses `ThemedButton` so it gets the shared hover
 /// colouring, but carries no `ButtonValue`, so pressing one never touches

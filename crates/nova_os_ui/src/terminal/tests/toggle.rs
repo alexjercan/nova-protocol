@@ -20,6 +20,31 @@ fn tab_toggles_nova_os_state() {
     );
 }
 
+/// Tab is inert with no ship on the field. `Playing` also covers the editor's
+/// build mode, and a Tab there used to arm the freeze axis over a scene the
+/// monitor cannot draw for: the press looked like it did nothing, then Play
+/// opened straight into the NOVA OS.
+#[test]
+fn tab_does_not_open_the_nova_os_without_a_ship() {
+    let mut app = toggle_app();
+    for ship in app
+        .world_mut()
+        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+        .iter(app.world())
+        .collect::<Vec<_>>()
+    {
+        app.world_mut().despawn(ship);
+    }
+
+    press_tab(&mut app);
+
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "no ship, no computer - and no stuck freeze state either"
+    );
+}
+
 #[test]
 fn tab_opens_nova_os_then_completes_terminal_command() {
     let mut app = toggle_app();

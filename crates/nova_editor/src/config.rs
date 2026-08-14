@@ -87,3 +87,9 @@ pub(crate) struct SectionGhost {
 /// The editor's placement status line: why the ghost is refused.
 #[derive(Component)]
 pub(crate) struct PlacementStatus;
+
+/// The editor's key legend, bottom-left. Its text follows the armed tool, so
+/// the keys that do nothing in the current mode are not listed and the line
+/// stays short enough to read rather than long enough to ignore.
+#[derive(Component)]
+pub(crate) struct EditorKeyLegend;
