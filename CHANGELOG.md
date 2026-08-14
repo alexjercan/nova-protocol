@@ -144,6 +144,13 @@ tagged **(breaking)**.
   derived geometric radius) across runs; `ScatterObjects` fills it
   deterministically from the scatter seed, so authored fields keep the same
   shapes every load.
+- The editor's Play sandbox becomes a RANGE rather than an empty field: two
+  seeded rock belts (64 rocks, up from 20), a corridor of five inert target
+  hulks to shoot, three DORMANT pickets that stay neutral until you paint them
+  with a combat lock or fly into their trip sphere, and two beacons that swap
+  the skybox as you pass through. It still has no ending - the standing
+  objective just names F1 as the way back to the editor - but dying now offers
+  a Retry of the same range instead of a silent restart.
 
 ### Interface & HUD
 
@@ -181,6 +188,11 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- The editor sandbox no longer spawns you on top of the planetoid. An
+  asteroid's drawn surface is 3.5-6x its authored radius, so the old 55u
+  planetoid was a ~250u ball of rock parked 314u away, with a well reaching
+  1095u - you started ~60u off its surface and fell in. It is now a smaller,
+  seed-pinned body far outside its own reach of the spawn.
 - ESC in the editor backs out (closing the parts gallery, then putting the
   armed part down) instead of stacking the pause overlay on top of it.
 - TAB no longer arms the NOVA OS where there is no ship to fly: the editor's

@@ -17,6 +17,18 @@ Everything moves under real Newtonian physics - momentum persists and nothing da
 
 That is the whole core loop: burn, lock, GOTO, shoot. The Shakedown Run walks you through each beat and completes as you go.
 
+## The sandbox
+
+**Sandbox** opens the ship editor. Build a hull, press **Play**, and you launch into a free-flight range with nothing to win and nothing to lose but the ship:
+
+- **Rock belts**: a shallow one off to starboard, and a deeper wall of bigger rocks straight ahead.
+- **Target hulks** off to port - inert bare-hull wrecks that never shoot back. Practice fire.
+- **Pickets** further out. They sit neutral and ignore you until you paint one with a combat lock or fly too close, and then they fight. There is no way to un-wake one.
+- **Beacons** that swap the sky as you pass through them - one out, one back.
+- A **planetoid** off to port with a real gravity well. It is far enough that you have to go looking for it.
+
+Nothing here ends. The objective on your HUD just names the way out: <kbd>F1</kbd> returns to the editor at any time, and if you die the overlay offers **Retry** on the same range with the same ship.
+
 ## Where to go next
 
 - [Tutorial](../../tutorial/) - the full guided first flight, beat by beat.

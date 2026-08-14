@@ -384,7 +384,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             // The claim snapping exists to make: what the editor built is a
             // ship the RUNTIME derivation accepts - one connected structure,
             // every mate unambiguous.
-            let mates = mate_graph(world).unwrap_or_else(|error| {
+            let mates = mate_graph(world, None).unwrap_or_else(|error| {
                 panic!("the assembled ship must derive one connected graph: {error}")
             });
             assert!(
@@ -533,7 +533,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
 
             // The graph as BUILT, the PDC mount included - what the flown
             // ship has to re-derive from the flat saved poses.
-            let mates = mate_graph(world).unwrap_or_else(|error| {
+            let mates = mate_graph(world, None).unwrap_or_else(|error| {
                 panic!("the assembled ship must derive one connected graph: {error}")
             });
             info!("editor: the finished ship derives {mates} mates over {now} sections");
@@ -569,7 +569,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("editor: the flown ship derives the same mate graph")
         .on_enter(|world: &mut World| {
             let built = world.resource::<EditorProbe>().mates;
-            let flown = mate_graph(world)
+            let root = player_root(world);
+            let flown = mate_graph(world, Some(root))
                 .unwrap_or_else(|error| panic!("the spawned ship must derive a graph: {error}"));
             assert_eq!(
                 flown, built,
@@ -585,25 +586,42 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
 #[cfg(feature = "debug")]
 const GALLERY_TILE: &str = "Gallery Tile ";
 
-/// Every section on screen, as the pure link-point derivation takes them.
+/// The sections of ONE ship, as the pure link-point derivation takes them.
 ///
 /// Works on the editor's preview ship and on the flown one alike: both are a
 /// root plus section children carrying local poses and authored sockets, which
 /// is all the derivation reads.
+///
+/// `None` takes every section in the world, which is only the same thing in
+/// the EDITOR scene: the preview is the only ship there. In flight it is not -
+/// the sandbox spawns target hulks and pickets whose sections carry the same
+/// marker - and the derivation demands ONE connected structure, so a
+/// world-wide sweep out there hands it several ships at once and is rejected.
 #[cfg(feature = "debug")]
-fn placed_sections(world: &mut World) -> Vec<(Transform, SectionLinkPoints)> {
+fn placed_sections(world: &mut World, root: Option<Entity>) -> Vec<(Transform, SectionLinkPoints)> {
     world
-        .query_filtered::<(&Transform, &SectionLinkPoints), With<SectionMarker>>()
+        .query_filtered::<(&Transform, &SectionLinkPoints, &ChildOf), With<SectionMarker>>()
         .iter(world)
-        .map(|(transform, points)| (*transform, points.clone()))
+        .filter(|(_, _, ChildOf(parent))| root.is_none_or(|root| *parent == root))
+        .map(|(transform, points, _)| (*transform, points.clone()))
         .collect()
 }
 
-/// How many mates the runtime derivation finds over the sections on screen, or
-/// the errors that rejected the whole ship.
+/// The flown player ship's root.
 #[cfg(feature = "debug")]
-fn mate_graph(world: &mut World) -> Result<usize, String> {
-    let sections = placed_sections(world);
+fn player_root(world: &mut World) -> Entity {
+    world
+        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+        .iter(world)
+        .next()
+        .expect("the beat before this one waited for the player ship")
+}
+
+/// How many mates the runtime derivation finds over one ship's sections, or
+/// the errors that rejected it.
+#[cfg(feature = "debug")]
+fn mate_graph(world: &mut World, root: Option<Entity>) -> Result<usize, String> {
+    let sections = placed_sections(world, root);
     let placed: Vec<PlacedSectionLinkPoints> = sections
         .iter()
         .map(|(transform, points)| PlacedSectionLinkPoints {
@@ -621,7 +639,7 @@ fn mate_graph(world: &mut World) -> Result<usize, String> {
 /// leaves behind.
 #[cfg(feature = "debug")]
 fn sections_with_a_rotation(world: &mut World) -> usize {
-    placed_sections(world)
+    placed_sections(world, None)
         .iter()
         .filter(|(transform, _)| transform.rotation.angle_between(Quat::IDENTITY) > 1e-3)
         .count()
@@ -646,7 +664,7 @@ fn aim_at_a_visible_face(world: &mut World) -> Option<(Vec2, Vec2)> {
 
     // The unit-cube hull sections are the ship's body; a mounted module is
     // smaller than a face and must not become the target itself.
-    let sections = placed_sections(world);
+    let sections = placed_sections(world, None);
     let (transform, points) = sections
         .iter()
         .filter(|(_, points)| points.len() >= 6)
