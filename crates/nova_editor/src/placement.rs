@@ -380,11 +380,13 @@ pub(crate) fn cycle_placement_pose(
     }
 }
 
-/// Roll the ghost with the wheel, and cycle its socket with Shift+wheel - the
+/// Roll the ghost with the wheel, and cycle its socket with Ctrl+wheel - the
 /// reversible half of [`cycle_placement_pose`].
 ///
 /// The wheel is free in the editor (the free-fly rig drives off WASD), and it
-/// is the one gesture that reads as "turn this a bit either way".
+/// is the one gesture that reads as "turn this a bit either way". CTRL and not
+/// Shift: Shift is the free-fly rig's descend key, so a builder holding it to
+/// cycle a socket also sank the camera.
 pub(crate) fn wheel_placement_pose(
     mut wheel: MessageReader<MouseWheel>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -398,7 +400,7 @@ pub(crate) fn wheel_placement_pose(
         wheel.clear();
         return;
     };
-    let socket_modifier = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+    let socket_modifier = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
 
     for event in wheel.read() {
         // Line and pixel units both arrive here; only the SIGN is a gesture.

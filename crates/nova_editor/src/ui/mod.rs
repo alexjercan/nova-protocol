@@ -288,14 +288,14 @@ pub(crate) fn sync_key_legend(
 ) {
     let line = match *selection {
         SectionChoice::None => {
-            "LMB rebind a section   Q pick its part   RMB+drag look   WASD/Space/Shift fly   \
-             Esc pause"
+            "Tab parts   LMB rebind a section   Q pick its part   RMB+drag look   \
+             WASD/Space/Shift fly   Esc pause"
         }
         SectionChoice::Section(_) => {
-            "LMB place   wheel roll   Shift+wheel socket   R roll   F socket   Q pick   \
-             Esc put down"
+            "LMB place   wheel roll   Ctrl+wheel socket   R roll   F socket   Q pick   \
+             Tab parts   Esc put down"
         }
-        SectionChoice::Delete => "LMB delete   Q pick a part   Esc put down",
+        SectionChoice::Delete => "LMB delete   Q pick a part   Tab parts   Esc put down",
     };
     for mut text in &mut legend {
         if text.0 != line {

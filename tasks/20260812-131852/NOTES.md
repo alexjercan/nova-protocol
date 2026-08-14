@@ -261,3 +261,56 @@ a muzzle over its own hull cannot self-hit.
 Still not corrected, same reason as before: the per-craft turret modules pair a
 0.3 box with unit-size art at the unit-cube offset. Making them agree would move
 AND resize the turret on every shipped ship.
+
+## Round 2 follow-up 3: the editor's keyboard, from the owner's playtest
+
+Three asks, all about the keyboard being in the way.
+
+**Shift+wheel cycled the socket AND sank the camera.** Shift is the free-fly
+rig's descend key (`EDITOR_CAMERA_KEYS`). Moved to Ctrl+wheel. Ctrl is the
+flight radar-lock key, but the editor's build mode does not fly, so it is free
+here.
+
+**Tab opens the parts gallery.** It is already the game's "open the panel" key,
+and it is free in the editor for the same reason the NOVA OS gate landed
+earlier this round: the computer Tab opens in flight needs a ship to be the
+computer OF, and build mode has none. Tab closes it again.
+
+**Typing no longer eats the keyboard.** The filter used to swallow every
+keystroke while the gallery was up, which is why there was no room for a pick
+key in the first place. The field now takes the caret explicitly - `/` or a
+click - and only then do letters reach it. The caret is the tell (the box draws
+one, and lights its border); unfocused the box reads `/ to filter`.
+
+**Hover + Q takes a part.** Point at a tile, press Q, and you are back in the
+build view holding it. Same key as the build view's pipette, which is the point:
+one gesture for "that one", whichever surface you are looking at.
+
+Escape now backs out one step at a time - out of the field, out of the focus
+card, out of the gallery - and only then reaches the pause menu.
+
+### Two things the work turned up
+
+`Enter` in the search field first only left the field, so placing after typing
+took three Enters. The editor's own harness caught it: the walk hung with the
+gallery still up. Enter means "the top hit" now - it leaves the field AND opens
+what the filter narrowed to, which is what a search box is expected to do and
+what keeps the flow at two presses.
+
+Q means two things in two surfaces, and both systems live in `Update`. On the
+frame Q closes the gallery, the build view's `not(gallery_open)` gate turns TRUE
+again, so an unordered schedule could run the build pipette on the same press -
+against whatever the overlay had been covering. The editor's placement chain and
+its Escape handler now run `.before(gallery_keyboard)`: the surface on top
+answers second, so the build view reads the state the gesture was AIMED at
+rather than the one it just changed.
+
+Coverage: `tab_opens_and_closes_the_gallery`,
+`letters_reach_the_filter_only_once_the_field_is_focused` (including that the
+`/` which focuses is not itself typed), `q_takes_the_part_under_the_pointer_and_leaves`
+(the hovered tile, not the selected one - a pass that read the selection would
+take the wrong part), and `q_types_while_the_filter_has_the_caret`. The editor
+example walks Tab -> hover -> Q -> click as real gestures and asserts the part
+Q took is the one the next click builds; both harnesses now focus the field
+before typing (one by click, one by `/`), which is also how the two focus paths
+stay covered.

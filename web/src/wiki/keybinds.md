@@ -271,15 +271,20 @@ bottom-left legend shows the ones that apply to whatever you are holding.
 
 <table class="controls">
     <tr>
-        <td>Open the parts gallery</td>
-        <td>click <b>Parts</b> in the rail</td>
+        <td>Open or close the parts gallery</td>
+        <td><kbd>Tab</kbd> &nbsp;(or click <b>Parts</b> in the rail)</td>
     </tr>
     <tr>
-        <td>Gallery: select / page / focus / filter</td>
-        <td>
-            arrow keys, <kbd>PgUp</kbd> <kbd>PgDn</kbd>, <kbd>Enter</kbd>,
-            or just type
-        </td>
+        <td>Gallery: take the part under the cursor and go build it</td>
+        <td><kbd>Q</kbd></td>
+    </tr>
+    <tr>
+        <td>Gallery: select / page / open the focused part</td>
+        <td>arrow keys, <kbd>PgUp</kbd> <kbd>PgDn</kbd>, <kbd>Enter</kbd></td>
+    </tr>
+    <tr>
+        <td>Gallery: search (typing needs the caret in the field)</td>
+        <td><kbd>/</kbd>, then type; <kbd>Enter</kbd> opens the top hit</td>
     </tr>
     <tr>
         <td>Gallery focus: turn and zoom the part</td>
@@ -295,14 +300,14 @@ bottom-left legend shows the ones that apply to whatever you are holding.
     </tr>
     <tr>
         <td>Cycle which of its sockets mates</td>
-        <td><kbd>Shift</kbd>+wheel &nbsp;or&nbsp; <kbd>F</kbd></td>
+        <td><kbd>Ctrl</kbd>+wheel &nbsp;or&nbsp; <kbd>F</kbd></td>
     </tr>
     <tr>
         <td>Pick up the part under the cursor</td>
         <td><kbd>Q</kbd></td>
     </tr>
     <tr>
-        <td>Back out: leave the gallery, then put the part down</td>
+        <td>Back out: leave the search field, the gallery, then the part</td>
         <td><kbd>Esc</kbd></td>
     </tr>
 </table>

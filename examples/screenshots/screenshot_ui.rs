@@ -400,6 +400,15 @@ impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
                 &format!("{label}: open the gallery"),
                 "Parts Gallery Category",
             )
+            // The filter takes the keyboard only once it has the caret.
+            .step(format!("{label}: put the caret in the filter"))
+            .on_enter(press_key(KeyCode::Slash))
+            .until(frames(GESTURE_FRAMES))
+            .add()
+            .step(format!("{label}: release /"))
+            .on_enter(release_key(KeyCode::Slash))
+            .until(frames(GESTURE_FRAMES))
+            .add()
             .step(format!("{label}: filter to `{prototype}`"))
             .on_enter(move |world: &mut World| type_text(filter.clone())(world))
             .until(frames(GESTURE_FRAMES))

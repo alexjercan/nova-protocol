@@ -86,6 +86,9 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(
         Update,
         escape_puts_down_the_armed_part
+            // Same reason as the placement chain below: the Escape that closes
+            // the gallery must not also put down the part it was holding.
+            .before(gallery::gallery_keyboard)
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
     );
 
@@ -183,6 +186,14 @@ fn editor_plugin(app: &mut App) {
             draw_delete_target,
         )
             .chain()
+            // BEFORE the gallery's keyboard, which shares two keys with the
+            // build view: Q takes a part in both, and Esc backs out of both. The
+            // gallery answers first because it is on top, and running the build
+            // view ahead of it means these read the gallery-open state the
+            // gesture was AIMED at rather than the one it just changed - the
+            // frame Q closes the gallery is not also a frame the pipette fires
+            // on whatever the overlay was covering.
+            .before(gallery::gallery_keyboard)
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
     );
     // The wheel half of the pose control, split off so a headless rig with no

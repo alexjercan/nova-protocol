@@ -164,6 +164,14 @@ tagged **(breaking)**.
   five more forward. `R` and `F` still step forward.
 - `Q` picks up whatever part is under the cursor, Factorio-style, and the
   editor's bottom-left legend lists the keys that apply to what you are holding.
+- `Tab` opens and closes the parts gallery from the build view, and `Q` over a
+  tile takes that part and hands you straight back to placing it - no focus
+  card, no Place button, no click.
+- The gallery's search takes the keyboard only once the field has the caret
+  (`/`, or click it), so letters are free to be shortcuts; `Enter` opens the top
+  hit and `Esc` backs out of the field before it backs out of the gallery.
+- The socket cycle moved from Shift+wheel to **Ctrl**+wheel: Shift is the
+  free-fly rig's descend key, so cycling a socket also sank the camera.
 - The preview ship draws its forward direction, which a pile of boxes otherwise
   has no way to show.
 - The editor lights its scene with a key and a rim (it had one light pointing

@@ -255,8 +255,17 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(shot_written("editor-gallery.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
-        // Typing goes to the filter field: the gallery owns the keyboard while
-        // it is up.
+        // Typing reaches the filter only once the field has the caret. `/` is
+        // the keyboard way to give it one - the mouse way (a click on the
+        // field) is what `arm_from_the_gallery` drives.
+        .step("editor: put the caret in the filter")
+        .on_enter(press_key(KeyCode::Slash))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release /")
+        .on_enter(release_key(KeyCode::Slash))
+        .until(frames(SETTLE))
+        .add()
         .step("editor: filter the gallery")
         .on_enter(|world: &mut World| {
             let needle = filter_needle(world);
@@ -385,6 +394,66 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor: {now} sections, {mates} mates, one connected structure");
             world.resource_mut::<EditorProbe>().mates = mates;
+        })
+        .until(frames(1))
+        .add()
+        // The FAST path through the same picker: Tab opens it, and a part is
+        // taken by pointing at it and pressing Q. No focus card, no Place
+        // button, no click. This is the shape a builder repeats all session, so
+        // it is walked as a whole gesture rather than trusted to unit tests.
+        .step("editor: open the gallery with Tab")
+        .on_enter(press_key(KeyCode::Tab))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release Tab")
+        .on_enter(release_key(KeyCode::Tab))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: Tab put the gallery up")
+        .on_enter(|world: &mut World| {
+            assert!(
+                ui_node_rect(world, "Parts Gallery").is_some(),
+                "Tab must open the parts gallery from the build view"
+            );
+            stamp_sections(world);
+        })
+        .until(frames(1))
+        .add()
+        .step("editor: hover a tile")
+        .on_enter(|world: &mut World| {
+            let hull = world.resource::<EditorProbe>().hull.clone();
+            hover_named(format!("{GALLERY_TILE}{hull}"))(world);
+        })
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: take it with Q")
+        .on_enter(press_key(KeyCode::KeyQ))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release Q")
+        .on_enter(release_key(KeyCode::KeyQ))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: Q closed the gallery holding that part")
+        .on_enter(|world: &mut World| {
+            assert!(
+                ui_node_rect(world, "Parts Gallery").is_none(),
+                "taking a part with Q must hand the builder back to the ship"
+            );
+        })
+        .until(frames(SETTLE))
+        .add()
+        .click_the_ship("editor: place the part Q took")
+        .step("editor: the pipette's part was placed")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorProbe>().sections;
+            let now = count_sections(world);
+            assert_eq!(
+                now,
+                before + 1,
+                "hover + Q must arm the hovered part, so the next click builds it"
+            );
+            info!("editor: placed the part Q took ({before} -> {now})");
         })
         .until(frames(1))
         .add()
@@ -741,6 +810,16 @@ impl ArmFromTheGallery for nova_protocol::nova_debug::harness::AutopilotPlugin<G
             .until(frames(SETTLE))
             .add()
             .step(format!("{label}: release"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(frames(SETTLE))
+            .add()
+            // The filter takes the keyboard only once it has the caret; a
+            // click on the field is how a mouse user gives it one.
+            .step(format!("{label}: click the filter field"))
+            .on_enter(click_named("Gallery Filter"))
+            .until(frames(SETTLE))
+            .add()
+            .step(format!("{label}: release the filter field"))
             .on_enter(release_mouse(MouseButton::Left))
             .until(frames(SETTLE))
             .add()

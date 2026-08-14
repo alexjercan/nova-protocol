@@ -2,8 +2,9 @@
 //! catalog - 3D preview tiles with labels, a category row, a text filter and a
 //! focus turntable - that hands its pick to the editor's placement tool.
 //!
-//! It is a second picker, not a replacement: the drawer list stays the
-//! quick-pick surface for a part you already know. Change this module when the
+//! It is the editor's ONLY parts picker (the component drawer it replaced could
+//! not show what a part looks like), so it carries both a browse flow and a
+//! fast one: Tab up, point, Q, back to building. Change this module when the
 //! browse flow changes; `catalog` owns WHAT is listed, `ui` the layout, `scene`
 //! the 3D tiles and `input` the keyboard.
 
@@ -16,6 +17,7 @@ use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
 };
+pub(crate) use input::gallery_keyboard;
 use nova_ship::prelude::*;
 pub(crate) use scene::EditorCamera;
 pub(crate) use ui::{EditorChrome, GalleryAction};
@@ -39,6 +41,9 @@ pub(crate) struct GalleryState {
     pub(crate) category: GalleryCategory,
     /// Case-insensitive name/id filter.
     pub(crate) filter: String,
+    /// Whether the filter field has the caret. Typing reaches the filter only
+    /// while it does, which is what leaves the letters free to be shortcuts.
+    pub(crate) filter_focused: bool,
     /// Selection index into the FILTERED list, not the catalog.
     pub(crate) selected: usize,
     /// Whether the focus card is up for the selection.
@@ -88,6 +93,10 @@ pub(crate) fn register(app: &mut App) {
     app.add_systems(
         Update,
         (
+            // Ahead of the rest: Tab is the only gallery key that acts while
+            // the gallery is CLOSED, and the frame it opens on is a frame the
+            // browse keys must already see as open.
+            input::toggle_gallery,
             input::gallery_keyboard,
             ui::rebuild_gallery,
             ui::paint_gallery_cells,

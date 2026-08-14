@@ -63,7 +63,7 @@ pub(crate) fn sync_editor_chrome(
 #[derive(Component)]
 pub(crate) struct GalleryCell {
     /// Index into the filtered list, not the catalog.
-    listed: usize,
+    pub(crate) listed: usize,
 }
 
 /// What pressing a gallery widget does. One component + one observer, so a new
@@ -84,6 +84,8 @@ pub(crate) enum GalleryAction {
     Category(GalleryCategory),
     /// Step the selection by whole pages.
     Page(isize),
+    /// Put the caret in the filter field.
+    FocusFilter,
 }
 
 /// Height of the tile's label strip. The strip is opaque so the name stays
@@ -194,7 +196,7 @@ pub(crate) fn rebuild_gallery(
                         });
                 }
 
-                header.spawn(filter_box(&state.filter));
+                header.spawn(filter_box(&state.filter, state.filter_focused));
 
                 for (label, name, step) in [
                     ("<", "Gallery Previous Page Button", -1),
@@ -261,8 +263,11 @@ pub(crate) fn rebuild_gallery(
                 // a hint line that lists both is one nobody reads.
                 Text::new(if state.focused {
                     "drag: turn   wheel: zoom   arrows: next part   Enter: place   Esc: back"
+                } else if state.filter_focused {
+                    "type: filter   Enter: the top hit   Esc: leave the field"
                 } else {
-                    "arrows: select   PgUp/PgDn: page   Enter: focus   Esc: close   type: filter"
+                    "hover + Q: take it   arrows: select   Enter: focus   /: filter   \
+                     Esc/Tab: close"
                 }),
                 TextFont {
                     font_size: FontSize::Px(12.0),
@@ -557,14 +562,20 @@ fn focus_body(
 
 /// The filter field. Not an editable text widget: the gallery owns the keyboard
 /// while it is up (see `input`), so the box only has to SHOW what was typed.
-fn filter_box(filter: &str) -> impl Bundle {
-    let (text, color) = if filter.is_empty() {
-        ("type to filter...".to_string(), theme::PHOSPHOR_MUTED)
-    } else {
-        (format!("{filter}_"), theme::SCREEN_TEXT)
+fn filter_box(filter: &str, focused: bool) -> impl Bundle {
+    // The caret is the focus tell, as it is in every text field: without one
+    // there is no way to know whether a keystroke is about to filter or to
+    // trigger a shortcut.
+    let (text, color) = match (focused, filter.is_empty()) {
+        (true, _) => (format!("{filter}_"), theme::SCREEN_TEXT),
+        (false, true) => ("/ to filter".to_string(), theme::PHOSPHOR_MUTED),
+        (false, false) => (filter.to_string(), theme::SCREEN_TEXT),
     };
     (
         Name::new("Gallery Filter"),
+        GalleryAction::FocusFilter,
+        Button,
+        Hovered::default(),
         Node {
             width: px(190),
             min_height: px(26),
@@ -575,7 +586,11 @@ fn filter_box(filter: &str) -> impl Bundle {
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR_MUTED),
+        BorderColor::all(if focused {
+            theme::PHOSPHOR
+        } else {
+            theme::PHOSPHOR_MUTED
+        }),
         BackgroundColor(theme::SCREEN_0),
         children![(
             UiText,
@@ -644,10 +659,12 @@ pub(crate) fn on_gallery_action(
             // visit would open the gallery on a near-empty grid with no obvious
             // cause, since the field is the only thing that says why.
             state.filter.clear();
+            state.filter_focused = false;
             state.selected = 0;
             state.focused = false;
             state.open = true;
         }
+        GalleryAction::FocusFilter => state.filter_focused = true,
         GalleryAction::Close => {
             state.open = false;
             state.focused = false;
@@ -656,6 +673,7 @@ pub(crate) fn on_gallery_action(
         GalleryAction::Focus(listed) => {
             state.selected = *listed;
             state.focused = true;
+            state.filter_focused = false;
         }
         GalleryAction::Place => {
             if let Some(id) = state.selected_id(&sections) {
@@ -668,6 +686,7 @@ pub(crate) fn on_gallery_action(
             state.category = *category;
             state.selected = 0;
             state.focused = false;
+            state.filter_focused = false;
         }
         GalleryAction::Page(step) => {
             let listed = catalog::browsable(&sections, state.category, &state.filter);
