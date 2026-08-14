@@ -232,18 +232,30 @@ pub struct AIPointDefenseTarget(pub Option<Entity>);
 /// actually reach what it defends against.
 const AI_POINT_DEFENSE_RANGE: f32 = 400.0;
 
+/// Per-ship override of the point-defense range: this ship's guns hold their
+/// fire until an inbound hostile torpedo is inside THIS range instead of the
+/// default [`AI_POINT_DEFENSE_RANGE`]. Author it SHORT to stage close-in
+/// intercepts (a display scene that wants the kill to happen in frame, a
+/// ship that conserves ammo); authoring it past the turret's own reach just
+/// wastes the opening shots. Authored via `AIControllerConfig::pd_range`.
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct AIPointDefenseRange(pub f32);
+
 /// Choose the torpedo to defend against: ones hunting THIS ship outrank
 /// ones hunting someone else (a tier, like the ship/torpedo target tiers),
-/// nearest wins within a tier, nothing outside
-/// [`AI_POINT_DEFENSE_RANGE`]. Pure for unit testing.
+/// nearest wins within a tier, nothing outside `pd_range` (the authored
+/// [`AIPointDefenseRange`] or the [`AI_POINT_DEFENSE_RANGE`] default). Pure
+/// for unit testing.
 fn pick_point_defense_target(
     own_anchor: Vec3,
     candidates: impl Iterator<Item = (Entity, Vec3, bool)>,
+    pd_range: f32,
 ) -> Option<Entity> {
     candidates
         .filter_map(|(entity, position, targeting_me)| {
             let distance = own_anchor.distance(position);
-            if distance > AI_POINT_DEFENSE_RANGE || distance <= f32::EPSILON {
+            if distance > pd_range || distance <= f32::EPSILON {
                 return None;
             }
             // false < true, so invert: hunting-me sorts first.
@@ -279,12 +291,13 @@ pub(super) fn update_point_defense_target(
             &Transform,
             Option<&ComputedCenterOfMass>,
             &Allegiance,
+            Option<&AIPointDefenseRange>,
             &mut AIPointDefenseTarget,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
 ) {
-    for (ship, transform, com, own_allegiance, mut pd_target) in &mut q_spaceship {
+    for (ship, transform, com, own_allegiance, pd_range, mut pd_target) in &mut q_spaceship {
         let own_anchor = live_structure_anchor(transform, com);
         let candidates =
             q_torpedoes
@@ -297,7 +310,11 @@ pub(super) fn update_point_defense_target(
                     Some((entity, t_transform.translation, targeting_me))
                 });
 
-        let next = pick_point_defense_target(own_anchor, candidates);
+        let next = pick_point_defense_target(
+            own_anchor,
+            candidates,
+            pd_range.map_or(AI_POINT_DEFENSE_RANGE, |range| range.0),
+        );
         // Change-detection hygiene, and stale-entity safety as with AITarget.
         if **pd_target != next {
             **pd_target = next;
@@ -854,6 +871,7 @@ mod point_defense_tests {
                 (mine, Vec3::new(0.0, 0.0, -300.0), true),
             ]
             .into_iter(),
+            AI_POINT_DEFENSE_RANGE,
         );
         assert_eq!(picked, Some(mine));
     }
@@ -870,6 +888,7 @@ mod point_defense_tests {
                     (near, Vec3::new(0.0, 0.0, -100.0), true),
                 ]
                 .into_iter(),
+                AI_POINT_DEFENSE_RANGE,
             ),
             Some(near)
         );
@@ -877,9 +896,30 @@ mod point_defense_tests {
             pick_point_defense_target(
                 Vec3::ZERO,
                 [(near, Vec3::new(0.0, 0.0, -500.0), true)].into_iter(),
+                AI_POINT_DEFENSE_RANGE,
             ),
             None,
             "outside point-defense range: the primary target keeps the guns"
+        );
+    }
+
+    /// An authored [`AIPointDefenseRange`] moves the gate: a torpedo the
+    /// default range would engage is ignored until it crosses the shorter
+    /// authored ring - the knob a display scene uses to stage its
+    /// intercepts in frame.
+    #[test]
+    fn an_authored_pd_range_moves_the_gate() {
+        let torpedo = entity(1);
+        let candidates = || [(torpedo, Vec3::new(0.0, 0.0, -250.0), true)].into_iter();
+        assert_eq!(
+            pick_point_defense_target(Vec3::ZERO, candidates(), AI_POINT_DEFENSE_RANGE),
+            Some(torpedo),
+            "the default range engages at 250"
+        );
+        assert_eq!(
+            pick_point_defense_target(Vec3::ZERO, candidates(), 150.0),
+            None,
+            "an authored 150 holds fire until the torpedo is closer"
         );
     }
 

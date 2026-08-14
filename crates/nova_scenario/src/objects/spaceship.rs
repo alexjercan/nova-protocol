@@ -136,6 +136,16 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub engage_range: Option<f32>,
+    /// Point-defense range override (world units): the guns hold fire until
+    /// an inbound hostile torpedo is inside this range instead of the
+    /// engine's 400 u default. Author it short to stage intercepts close-in;
+    /// past the turret's ~450 u reach it just wastes the opening shots.
+    /// None = the default. See `AIPointDefenseRange`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub pd_range: Option<f32>,
 }
 
 /// A ship section's scenario-local id, used to key input bindings and address
@@ -453,6 +463,11 @@ fn insert_spaceship_sections(
                     commands.entity(entity).insert(AIEngageRange(range));
                 }
             }
+            if let Some(range) = config.pd_range {
+                if range > 0.0 {
+                    commands.entity(entity).insert(AIPointDefenseRange(range));
+                }
+            }
         }
     }
 }
@@ -523,17 +538,19 @@ mod tests {
                 leash: None,
                 engage_delay: None,
                 engage_range: None,
+                pd_range: None,
             },
         );
         assert!(world.entity(both).get::<AIOrbitDirective>().is_some());
         assert!(world.entity(both).get::<AIPatrolRoute>().is_some());
 
-        // The detection override maps on; the default inserts nothing (the
-        // orbiter above authored none).
+        // The detection and point-defense overrides map on; the default
+        // inserts nothing (the orbiter above authored none).
         let watcher = spawn(
             &mut world,
             AIControllerConfig {
                 engage_range: Some(1600.0),
+                pd_range: Some(150.0),
                 ..default()
             },
         );
@@ -541,7 +558,15 @@ mod tests {
             world.entity(watcher).get::<AIEngageRange>().map(|r| r.0),
             Some(1600.0)
         );
+        assert_eq!(
+            world
+                .entity(watcher)
+                .get::<AIPointDefenseRange>()
+                .map(|r| r.0),
+            Some(150.0)
+        );
         assert!(world.entity(orbiter).get::<AIEngageRange>().is_none());
+        assert!(world.entity(orbiter).get::<AIPointDefenseRange>().is_none());
     }
 
     /// A Player ship flagged `infinite_ammo` builds its weapon with no magazine

@@ -38,16 +38,21 @@ tagged **(breaking)**.
   hostile-detection distance a passive ship leaves its routine for, so
   long-watch emplacements can wake for targets that cannot be pulled toward
   them in return.
+- AI ships gain an authorable `pd_range` (default 400): the distance point
+  defense starts engaging inbound torpedoes, so a scene can stage its
+  intercepts close-in instead of at the edge of turret reach.
 
 ### Scenarios & Objectives
 
 - New `Anchor` scenario object: an invisible authored gravity well (radius +
   optional mass, no mesh or collider) for camera framing and orbit targets in
   scenes that do not want a rock at the anchor point.
-- Three combat menu backdrops join the rotation: Torpedo Gauntlet (a racer's
-  point defense against an off-screen battery), Asteroid Weave (a waypoint
-  run threading a dense rock band), and Duel Cycle (a repeating duel whose
-  winner is erased by a siege torpedo). All real simulation, self-re-arming.
+- Three combat menu backdrops join the rotation: Torpedo Gauntlet (a
+  station-keeping racer's point defense against scripted batteries on both
+  flanks), Asteroid Weave (a ten-waypoint run threading a dense rock band),
+  and Duel Cycle (a repeating center-frame duel whose winner is erased by a
+  siege torpedo). All real simulation, self-re-arming, staged around an
+  invisible anchor instead of a planetoid.
 - Asteroids gain an optional `seed` pinning the generated silhouette (and the
   derived geometric radius) across runs; `ScatterObjects` fills it
   deterministically from the scatter seed, so authored fields keep the same
