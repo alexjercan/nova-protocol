@@ -202,6 +202,114 @@ Design:
   patrol rings (rival mirrors the victor's tight ring); each wave now
   fights over the same ground mid-frame.
 
+## Round 5 (owner feedback, 2026-08-14)
+
+Feedback: the backdrop self-reset CRASHES the game (bevy_ui
+BorderRadius::resolve, min 0 max -12, on every duel/gauntlet reload);
+the duel winner still drifts left at the end; the gauntlet never runs
+dry (and the wreck reads as a useless second ship); the weave runner
+still does not reach its beacons; the owner also rejects the menu's
+well-derived camera ("each scenario poses its own camera") and wants
+torpedoes rebalanced to Expanse-style near-one-hit lethality.
+
+Root causes and fixes:
+
+- CRASH: the menu UI resolved its render target through the SCENARIO
+  camera; a self-reload despawns that camera mid-frame and the UI lays
+  out against a degenerate target (negative node size). The
+  remembered-pose hold (round 4's attempt) kept a camera ACTIVE but
+  could not keep the UI's target entity alive. Real fix: the menu owns
+  a dedicated UI camera (`IsDefaultUiCamera`, order 100, no clear),
+  spawned on menu entry - backdrop reloads can no longer touch the
+  interface's target. The remembered pose stays, now only to keep the
+  backdrop VIEW from blinking through the loader pose.
+- Camera contract inverted per owner direction: every backdrop authors
+  a `SetCamera` in OnStart (the existing photo-mode action - it pins
+  `ScriptedCameraPose` and strips the fly controller itself). The menu
+  derives nothing: blank until the pose lands, hold remembered pose
+  across reloads. A poseless backdrop is a lint ERROR - erroring
+  scenarios are already filtered out of the menu draw, so the failure
+  mode is "not in rotation", never "blank menu". Grace-frames fallback
+  machinery deleted. The three new scenes DROP their invisible anchors
+  entirely (nothing orbits there); the Anchor kind stays engine
+  vocabulary for orbit targets. The example mod's backdrop teaches the
+  new contract.
+- Duel left-drift: the battery sat authored-Enemy (round 4), and the
+  freshly victorious ship - still in its combat hold, which keeps ANY
+  acquired hostile - chased it left to the leash edge. The battery is
+  Neutral again and the beat's handler flips it Enemy just for the kill
+  window (the scripted launch still needs Enemy ordnance for PD).
+- Gauntlet never ran dry: 1800 rounds/turret was ~4x too generous ->
+  400 (a roughly ten-torpedo defense across the pair).
+- Weave beacons: `waypoint_slack` alone could not beat the autopilot's
+  own 50 u rest distance -> new `arrival_standoff` per-ship override
+  (`FlightArrivalStandoff`, read by the GOTO arrival rule and the
+  patrol advance gate). Weave authors standoff 10 + slack 5: turns
+  ~15 u off each beacon.
+- Torpedo lethality: standard blast damage 100 -> 750 (breaking). A
+  hit decides a small-craft fight; the counter is PD, and the ordnance
+  stays 1 hp. Balance audit: clean.
+
+## Round 5b (owner live-testing, 2026-08-14)
+
+Owner hit two regressions from the camera rework: the backdrop
+rendered BLACK behind a working menu, and everything ran at ~10 FPS.
+
+- 10 FPS: two full game instances were sharing the GPU - my background
+  verification run plus the owner's (scene_baseline was slow too, which
+  ruled out menu code). Background instance killed; single-instance
+  runs pace normally.
+- BLACK backdrop, root-caused by bisection (disable the UI camera ->
+  scene renders): `CameraOutputMode`'s DEFAULT has `blend_state: None`,
+  and per bevy_camera's own doc an unblended write "ignores the
+  existing data in the final render target" - the overlay camera's
+  mostly-empty view replaced the scenario camera's whole frame. Bonus
+  artifact: view textures are POOLED, and the overlay's uncleared view
+  inherited the boot loading screen's final frame - the "NOVA OS /
+  LOADING" ghost was a stale pooled texture, not a leaked entity
+  (instrumentation proved the loading screen despawns cleanly). Fix:
+  the overlay clears its own view to transparent
+  (`ClearColorConfig::Custom(Color::NONE)`) and writes with
+  `BlendState::ALPHA_BLENDING` over the scene.
+- Duel stall found in the same session: a rival lost its flight
+  computer WITHOUT counting as defeated, drifted out of the victor's
+  leash reach, and froze the cycle for 11 minutes (plus a per-frame
+  autopilot engage/disengage churn on the computer-less hulk - engine
+  wart, noted in open threads). Blunt fix: duel and gauntlet arm a
+  watchdog timer at OnStart (300 s / 360 s) that reloads the scenario;
+  healthy cycles reload far earlier and the reload re-arms it.
+- Verified after the fix: gauntlet backdrop + menu composite correctly
+  through self-reloads (2 loads, 0 panics in the capture window; the
+  earlier broken-compositing run did 6 crash-free reloads, pinning the
+  round-5 UI-camera fix as the crash cure).
+
+## Round 6 (owner feedback, 2026-08-14)
+
+Feedback: make the menu a Factorio-style carousel (backdrops switch
+between each other), give the endless scenes a limit, and prune the
+three planetoid-and-orbiter scenes to the single most interesting one.
+
+Design:
+
+- Fixed hand-off ring, pure data: each scene's terminal reset now
+  targets the NEXT scenario id instead of its own (gauntlet -> weave ->
+  duel -> waystation -> gauntlet). Scenes with a natural act end
+  (gauntlet's fallen stand, duel's erased victor) hand off from the
+  aftermath linger; the endless ones (weave, waystation) arm a 150 s
+  rotation timer at OnStart; the stall watchdogs also point at the next
+  scene. The menu's random draw picks only the ENTRY point.
+- Kept Waystation Traffic (live freighter lanes - the most alive of the
+  three lookalikes); menu_ambience and menu_scrapyard deleted (authoring
+  modules, catalog entries, bundle lines, generated RON).
+- Duel stall, second root cause (SetHealth(500) on the computers did
+  not cure it): the cripple is integrity DISCONNECTION - a dead hull
+  node disables the controller subtree at any health - and the hulk
+  drifted into the dressing ring, where rocks blocked the victor's line
+  of fire (the LOS gate held the trigger forever). Scene fix: the duel
+  arena has NO rocks at all now, and the leash widened 200 -> 400 so
+  the winner chases a drifting cripple down and finishes it - the kill
+  fires the defeat chain and the finale actually plays.
+
 ## Retention
 
 - `shots/gauntlet-pd-intercept.png` - tracer stream vs inbound torpedo.

@@ -35,6 +35,30 @@
   outcome-level logs (launch, detonation) would make future scene
   verification cheaper.
 
+## Rounds 3-6 addendum (2026-08-14, owner-iterated)
+
+- Live feedback drove five more passes: per-scene camera knob ->
+  scenario-posed cameras (SetCamera contract + lint), pd_range /
+  waypoint_slack / arrival_standoff / SetAmmo authoring knobs, 750-damage
+  torpedoes, and finally the Factorio-style backdrop carousel (4 scenes
+  hand off in a ring; ambience + scrapyard retired).
+- The two hardest bugs were RENDER-layer, not gameplay: (1) backdrop
+  self-reloads crashed bevy_ui (the interface resolved its render target
+  through the scenario camera being torn down) - fixed by a menu-owned
+  UI camera; (2) that overlay camera then blanked the whole 3D view -
+  CameraOutputMode's default writes UNBLENDED, replacing the target, and
+  its pooled uncleared view even ghosted the boot screen. Bisection
+  (disable the camera, diff the frame) found in minutes what log-reading
+  could not.
+- Duel stalls taught the defeat model's edge: integrity DISCONNECTION
+  can kill a ship's flight computer at full health, leaving a hulk that
+  is neither destroyed nor neutralized (weapons/thrusters live). Scenes
+  that need resolution must either avoid cripple geometry (no LOS
+  blockers near the arena, leash wide enough to finish a drifter) or
+  carry a watchdog. Both are in.
+- Full-ring proof: gauntlet act -> weave rotate -> duel finale -> way-
+  station in one unbroken 5-minute run, 0 panics, finale centered.
+
 ## Open threads (owner's call, not filed)
 
 - The duel phase averages ~3 min before resolving; tightening rival
@@ -42,3 +66,12 @@
 - Torpedoes that die to collisions vanish silently; a contact fuze
   (detonate on tangible impact once armed) would read better when a
   stray crosses the rock ring.
+- A ship whose flight computer is disabled churns the autopilot
+  engage/disengage every frame (log spam + wasted work); a passive-AI
+  guard for computer-less ships would quiet it.
+- "Crippled but not defeated" (disconnected computer, live guns) may
+  deserve first-class defeat semantics one day; today only scene design
+  and watchdogs handle it.
+- The menu UI camera pattern (IsDefaultUiCamera + alpha-blended output)
+  could serve gameplay overlays too if scenario switches ever crash the
+  HUD the same way.

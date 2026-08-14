@@ -2,7 +2,7 @@
 //! defense against scripted torpedo batteries on both flanks - a doomed
 //! stand. The racer's PDC magazines are HARD (no reload): it swats torpedoes
 //! until the guns run dry, the stream overruns it, and the blast ends the
-//! act; after a beat the scenario reloads itself and the stand begins again.
+//! act; after a beat the carousel turns to the next backdrop.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -111,9 +111,9 @@ fn battery(id: &str, park: Vec3) -> ScenarioObjectConfig {
 /// Torpedoes stream in from both sides of the frame and the racer swats
 /// them mid-shot - but its magazines are hard (SetAmmo, no reload), so the
 /// defense eventually runs dry and the stream wins. The racer's death
-/// starts a short aftermath linger, then the scenario reloads ITSELF (the
-/// duel's full-reset idiom): fresh magazines, fresh rocks, next stand. A
-/// battery whose target is already gone skips its launch (no dud ordnance).
+/// starts a short aftermath linger, then the carousel turns to the next
+/// backdrop (the menu's Factorio-style rotation). A battery whose target is
+/// already gone skips its launch (no dud ordnance).
 pub(crate) fn menu_gauntlet(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
@@ -272,10 +272,9 @@ pub(crate) fn menu_gauntlet(
             filters: vec![entity("gauntlet_ship")],
             actions: vec![timer("gauntlet_reset", 8.0)],
         },
-        // The reset is the scenario reloading ITSELF (the duel's idiom):
-        // teardown clears the wreck, debris and in-flight ordnance, the
-        // seeded scatter rebuilds the same rock field, and OnStart refills
-        // the magazines. Own handler + short delay, per the NextScenario
+        // The fall of the stand ends the act: teardown clears the wreck,
+        // debris and in-flight ordnance, and the carousel turns to the next
+        // backdrop. Own handler + short delay, per the NextScenario
         // same-flush rule.
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
@@ -283,7 +282,7 @@ pub(crate) fn menu_gauntlet(
                 key: "gauntlet_reset".to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_gauntlet".to_string(),
+                scenario_id: "menu_weave".to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],
@@ -295,7 +294,7 @@ pub(crate) fn menu_gauntlet(
                 key: "gauntlet_watchdog".to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_gauntlet".to_string(),
+                scenario_id: "menu_weave".to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],

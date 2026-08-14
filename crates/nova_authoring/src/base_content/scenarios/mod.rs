@@ -21,9 +21,7 @@ pub(crate) fn catalog(assets: &BaseContentAssets) -> Vec<ScenarioConfig> {
     vec![
         sandbox::asteroid_next(cubemap()),
         sandbox::asteroid_field(cubemap(), texture()),
-        main_menu::ambience(cubemap(), texture()),
         main_menu::waystation(cubemap(), texture()),
-        main_menu::scrapyard(cubemap(), texture()),
         main_menu::gauntlet(cubemap(), texture()),
         main_menu::weave(cubemap(), texture()),
         main_menu::duel(cubemap(), texture()),

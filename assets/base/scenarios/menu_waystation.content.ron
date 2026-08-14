@@ -513,6 +513,25 @@
                             2.5,
                         )),
                     )),
+                    TimerStart((
+                        key: "waystation_rotate",
+                        seconds: Term(Factor(Literal(Number(150.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "waystation_rotate",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_gauntlet",
+                        linger: false,
+                        delay: Some(1.0),
+                    )),
                 ],
             ),
         ],

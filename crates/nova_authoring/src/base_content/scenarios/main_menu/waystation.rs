@@ -84,18 +84,41 @@ pub(crate) fn menu_waystation(
         min_separation: None,
     });
 
-    let events = vec![ScenarioEventConfig {
-        name: EventConfig::OnStart,
-        filters: vec![],
-        actions: objects
-            .into_iter()
-            .map(EventActionConfig::SpawnScenarioObject)
-            // The scene poses its own camera: the planetoid scenes share a
-            // fixed mid-range shot (the old well-derived pose averaged ~here;
-            // the noise mesh runs to ~120 u, safely inside the frame).
-            .chain([backdrop_camera(Vec3::new(0.0, 100.0, 335.0)), lane_scatter])
-            .collect::<_>(),
-    }];
+    let events = vec![
+        ScenarioEventConfig {
+            name: EventConfig::OnStart,
+            filters: vec![],
+            actions: objects
+                .into_iter()
+                .map(EventActionConfig::SpawnScenarioObject)
+                // The scene poses its own camera: a fixed mid-range shot on
+                // the planetoid (the old well-derived pose averaged ~here;
+                // the noise mesh runs to ~120 u, safely inside the frame).
+                .chain([
+                    backdrop_camera(Vec3::new(0.0, 100.0, 335.0)),
+                    lane_scatter,
+                    // The carousel's rotation limit: the waystation's day
+                    // never ends on its own, so after a couple of freight
+                    // laps the menu turns to the next backdrop.
+                    EventActionConfig::TimerStart(TimerStartActionConfig {
+                        key: "waystation_rotate".to_string(),
+                        seconds: crate::scenario_helpers::number(150.0),
+                    }),
+                ])
+                .collect::<_>(),
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnTimerEnd,
+            filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
+                key: "waystation_rotate".to_string(),
+            })],
+            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
+                scenario_id: "menu_gauntlet".to_string(),
+                linger: false,
+                delay: Some(1.0),
+            })],
+        },
+    ];
 
     ScenarioConfig {
         description: "A freight waystation going about its day.".to_string(),

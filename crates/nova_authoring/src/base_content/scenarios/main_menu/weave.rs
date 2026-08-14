@@ -136,13 +136,33 @@ pub(crate) fn menu_weave(
                 // far rim plus its avoidance detours kept escaping the
                 // default frame. From (0, 127, 425) a 4:3 window sees
                 // ~+-245 u at origin depth; the loop's worst case is ~225.
-                .chain([backdrop_camera(Vec3::new(0.0, 127.0, 425.0)), band])
+                .chain([
+                    backdrop_camera(Vec3::new(0.0, 127.0, 425.0)),
+                    band,
+                    // The carousel's rotation limit: the weave has no natural
+                    // ending, so after a couple of laps the menu turns to
+                    // the next backdrop.
+                    EventActionConfig::TimerStart(TimerStartActionConfig {
+                        key: "weave_rotate".to_string(),
+                        seconds: crate::scenario_helpers::number(150.0),
+                    }),
+                ])
                 .collect(),
         },
+        ScenarioEventConfig {
+            name: EventConfig::OnTimerEnd,
+            filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
+                key: "weave_rotate".to_string(),
+            })],
+            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
+                scenario_id: "menu_duel".to_string(),
+                linger: false,
+                delay: Some(1.0),
+            })],
+        },
         // Failsafe: the runner ramming a rock must not leave the menu
-        // staring at a pilotless band. A short aftermath linger, then the
-        // scenario reloads itself - same full-reset idiom as the other
-        // backdrops (destroyed rocks come back too; the scatter is seeded).
+        // staring at a pilotless band - a short aftermath linger, then the
+        // carousel turns early.
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
             filters: vec![crate::scenario_helpers::entity("weave_runner")],
@@ -157,7 +177,7 @@ pub(crate) fn menu_weave(
                 key: "weave_reset".to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_weave".to_string(),
+                scenario_id: "menu_duel".to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],

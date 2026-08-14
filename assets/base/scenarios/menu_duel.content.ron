@@ -170,51 +170,6 @@
                             0.0,
                         ),
                     )),
-                    ScatterObjects((
-                        id_prefix: "duel_rock_",
-                        count: 12,
-                        seed: 433757350076153861,
-                        region: Ring(
-                            center: (
-                                0.0,
-                                0.0,
-                                0.0,
-                            ),
-                            inner: 150.0,
-                            outer: 220.0,
-                            y_min: -70.0,
-                            y_max: -35.0,
-                        ),
-                        template: (
-                            base: (
-                                id: "duel_rock_",
-                                name: "Duel Rock",
-                                position: (
-                                    0.0,
-                                    0.0,
-                                    0.0,
-                                ),
-                                rotation: (
-                                    0.0,
-                                    0.0,
-                                    0.0,
-                                    1.0,
-                                ),
-                            ),
-                            kind: Asteroid((
-                                radius: 1.0,
-                                texture: "self://textures/asteroid.png",
-                                health: 100.0,
-                                impact_sound: Some("self://sounds/impact.wav"),
-                                destroy_sound: Some("self://sounds/explosion.wav"),
-                                invulnerable: false,
-                            )),
-                        ),
-                        asteroid_radius: Some((
-                            1.0,
-                            3.0,
-                        )),
-                    )),
                     TimerStart((
                         key: "duel_respawn",
                         seconds: Term(Factor(Literal(Number(0.5)))),
@@ -268,7 +223,7 @@
                                         70.0,
                                     ),
                                 ],
-                                leash: Some(200.0),
+                                leash: Some(400.0),
                                 engage_delay: Some(6.0),
                             )),
                             allegiance: Some(Player),
@@ -377,6 +332,9 @@
                                         1.0,
                                     ),
                                     source: Prototype("racer_fuselage"),
+                                    modifications: [
+                                        SetHealth(500.0),
+                                    ],
                                 ),
                                 (
                                     id: "turret_starboard",
@@ -446,7 +404,7 @@
                                         -70.0,
                                     ),
                                 ],
-                                leash: Some(200.0),
+                                leash: Some(400.0),
                                 engage_delay: Some(6.0),
                             )),
                             sections: [
@@ -574,6 +532,7 @@
                                     source: Prototype("racer_fuselage"),
                                     modifications: [
                                         SetHealth(140.0),
+                                        SetHealth(500.0),
                                     ],
                                 ),
                                 (
@@ -673,7 +632,7 @@
                 ],
                 actions: [
                     NextScenario((
-                        scenario_id: "menu_duel",
+                        scenario_id: "menu_waystation",
                         linger: false,
                         delay: Some(1.0),
                     )),
@@ -688,7 +647,7 @@
                 ],
                 actions: [
                     NextScenario((
-                        scenario_id: "menu_duel",
+                        scenario_id: "menu_waystation",
                         linger: false,
                         delay: Some(1.0),
                     )),

@@ -60,14 +60,18 @@ tagged **(breaking)**.
 - **(breaking)** Menu backdrops pose their own camera: a `SetCamera` in
   OnStart is the contract (lint Error without one), replacing the old
   derive-from-`menu_planetoid`-well framing.
-- Three combat menu backdrops join the rotation: Torpedo Gauntlet (a
-  station-keeping racer's doomed point-defense stand against scripted
-  batteries on both flanks - hard magazines run dry and the stream wins),
-  Asteroid Weave (a ten-waypoint run threading a dense rock band), and Duel
-  Cycle (a repeating center-frame duel whose winner is erased by a siege
-  torpedo). All real simulation on an open rock-free stage, each posing its
-  own camera, and each act ends in the scenario reloading itself - a full
-  reset that clears wrecks and ordnance and rebuilds the seeded field.
+- The main menu is a backdrop CAROUSEL now: four scenes hand off to each
+  other Factorio-style (menu entry starts the ring at a random one). Three
+  combat scenes are new - Torpedo Gauntlet (a station-keeping racer's doomed
+  point-defense stand against scripted batteries on both flanks; its hard
+  magazines run dry and the stream wins), Asteroid Weave (a ten-waypoint run
+  hugging its beacons through a dense rock band), and Duel Cycle (a
+  center-frame duel whose winner is erased by a siege torpedo) - joining
+  Waystation Traffic. Menu Ambience and Scrapyard Drift retire (three
+  planetoid-and-orbiter scenes were one too many... two too many). Each
+  hand-off is a full scenario switch that clears wrecks and ordnance, the
+  endless scenes carry a rotation time limit, and stall watchdogs guarantee
+  the ring always turns.
 - Asteroids gain an optional `seed` pinning the generated silhouette (and the
   derived geometric radius) across runs; `ScatterObjects` fills it
   deterministically from the scatter seed, so authored fields keep the same

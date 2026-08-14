@@ -7,7 +7,7 @@ use nova_scenario::prelude::*;
 
 use super::shared::{backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::{
-    base_content::{scenarios::SCATTER_SEED, ships},
+    base_content::ships,
     scenario_helpers::{entity, number},
 };
 
@@ -49,15 +49,26 @@ fn duelist(
             allegiance,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: patrol.to_vec(),
-                // Tight tether: both leashes anchor on center-hugging patrol
-                // centroids, so the dogfight cannot range more than ~200 u
-                // from the middle of the frame - the fight stays in shot and
-                // each wave plays out over the same ground.
-                leash: Some(200.0),
+                // The leash anchors on center-hugging patrol centroids, so
+                // the fight gravitates to the middle of the frame - but it
+                // is wide enough (400 + ~450 gun reach) for the winner to
+                // chase down and FINISH a crippled, drifting loser: with a
+                // 200 u tether the victor broke off and a computer-dead hulk
+                // (disabled, never defeated) froze the act (observed live,
+                // twice).
+                leash: Some(400.0),
                 engage_delay: Some(6.0),
                 ..Default::default()
             }),
-            sections: ships::racer_sections(grade, vec![]),
+            // Hardened flight computers on BOTH duelists: the tight rings
+            // make the merge a nose-to-nose joust, and twice in live runs
+            // the rival's stock controller died in the opening burst -
+            // leaving a hulk that can neither fly nor count as DEFEATED
+            // (neutralize needs weapons AND thrusters dead), which froze
+            // the cycle until the watchdog. With the computer out of the
+            // kill order, fights resolve by weapon/thruster attrition and
+            // the defeat chain fires.
+            sections: ships::racer_sections(grade, vec![SectionModification::SetHealth(500.0)]),
         }),
     }
 }
@@ -69,13 +80,12 @@ fn duelist(
 /// short beat, then the off-screen siege battery is SCRIPTED to launch an
 /// armored ship-killing torpedo at the winner - point defense hammers the
 /// ordnance and loses - re-firing on a slow clock until one connects. Act
-/// three: the aftermath drifts for a beat, then the scenario reloads ITSELF
-/// (`NextScenario` to its own id) - a genuine full reset that clears wrecks,
-/// debris and in-flight ordnance and rebuilds the seeded rock field,
-/// destroyed rocks included - and the fresh OnStart flies in the next pair.
+/// three: the aftermath drifts for a beat, then the carousel turns to the
+/// next backdrop - the scenario switch is a genuine full reset that clears
+/// wrecks, debris and in-flight ordnance.
 pub(crate) fn menu_duel(
     cubemap: AssetRef<Image>,
-    asteroid_texture: AssetRef<Image>,
+    _asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
     let mut stage = Vec::new();
 
@@ -114,41 +124,6 @@ pub(crate) fn menu_duel(
                 modifications: vec![],
             }],
         }),
-    });
-
-    // Sparse dressing ring, below the fight plane.
-    let rock_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
-        id_prefix: "duel_rock_".to_string(),
-        count: 12,
-        seed: SCATTER_SEED ^ 0x5,
-        region: ScatterRegion::Ring {
-            center: Vec3::ZERO,
-            inner: 150.0,
-            outer: 220.0,
-            y_min: -70.0,
-            y_max: -35.0,
-        },
-        template: ScenarioObjectConfig {
-            base: BaseScenarioObjectConfig {
-                id: "duel_rock_".to_string(),
-                name: "Duel Rock".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-            },
-            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
-                destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
-                radius: 1.0,
-                texture: asteroid_texture,
-                health: 100.0,
-                mass: None,
-                invulnerable: false,
-                seed: None,
-                lock_signature: None,
-            }),
-        },
-        asteroid_radius: Some((1.0, 3.0)),
-        min_separation: None,
     });
 
     // The victor's routine is a TIGHT ring on the frame center: it is the
@@ -203,9 +178,12 @@ pub(crate) fn menu_duel(
                 .map(EventActionConfig::SpawnScenarioObject)
                 // The scene poses its own camera: the reference backdrop
                 // shot, dead on the arena center the duel fights over.
+                // NO rocks in this scene: dressing near the arena gave a
+                // crippled hulk something to grind against and - worse -
+                // blocked the winner's line of fire, so the kill that ends
+                // the act never landed (the LOS gate holds the trigger).
                 .chain([
                     backdrop_camera(Vec3::new(0.0, 90.0, 300.0)),
-                    rock_scatter,
                     timer("duel_respawn", 0.5),
                     // Stall watchdog: a duelist can end up crippled without
                     // ever counting as DEFEATED (observed live: a rival lost
@@ -261,7 +239,7 @@ pub(crate) fn menu_duel(
             ],
         },
         // Act three: stop the finisher clock and let the aftermath drift for
-        // a beat - the wrecks stay in shot - then a FULL scenario reset.
+        // a beat - the wrecks stay in shot - then the carousel turns.
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
             filters: vec![entity("duel_victor")],
@@ -272,21 +250,18 @@ pub(crate) fn menu_duel(
                 timer("duel_reset", 8.0),
             ],
         },
-        // The reset is the scenario reloading ITSELF: teardown despawns every
-        // scoped entity (wrecks, debris, in-flight ordnance - runtime
-        // projectiles are scenario-scoped too), the event world resets, and
-        // the seeded scatter rebuilds the SAME rock field, destroyed rocks
-        // included. In its own handler with a short delay: an instant switch
-        // consumed in the same flush would discard sibling handlers' queued
-        // commands. The menu ambience holds no scenario state, so the
-        // backdrop survives the swap (one ~2-frame camera blink).
+        // The hand-off: teardown despawns every scoped entity (wrecks,
+        // debris, in-flight ordnance - runtime projectiles are
+        // scenario-scoped too) and the next backdrop starts fresh. In its
+        // own handler with a short delay: an instant switch consumed in the
+        // same flush would discard sibling handlers' queued commands.
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "duel_reset".to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_duel".to_string(),
+                scenario_id: "menu_waystation".to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],
@@ -298,7 +273,7 @@ pub(crate) fn menu_duel(
                 key: "duel_watchdog".to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: "menu_duel".to_string(),
+                scenario_id: "menu_waystation".to_string(),
                 linger: false,
                 delay: Some(1.0),
             })],

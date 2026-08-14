@@ -629,7 +629,7 @@
                 ],
                 actions: [
                     NextScenario((
-                        scenario_id: "menu_gauntlet",
+                        scenario_id: "menu_weave",
                         linger: false,
                         delay: Some(1.0),
                     )),
@@ -644,7 +644,7 @@
                 ],
                 actions: [
                     NextScenario((
-                        scenario_id: "menu_gauntlet",
+                        scenario_id: "menu_weave",
                         linger: false,
                         delay: Some(1.0),
                     )),

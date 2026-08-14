@@ -525,6 +525,25 @@
                         )),
                         min_separation: Some(45.0),
                     )),
+                    TimerStart((
+                        key: "weave_rotate",
+                        seconds: Term(Factor(Literal(Number(150.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "weave_rotate",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_duel",
+                        linger: false,
+                        delay: Some(1.0),
+                    )),
                 ],
             ),
             (
@@ -550,7 +569,7 @@
                 ],
                 actions: [
                     NextScenario((
-                        scenario_id: "menu_weave",
+                        scenario_id: "menu_duel",
                         linger: false,
                         delay: Some(1.0),
                     )),
