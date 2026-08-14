@@ -367,13 +367,16 @@ fn catalog_loads_and_base_only_merges_by_default() {
         "with example disabled, the base section is un-overridden"
     );
 
+    // The four carousel backdrops, not the retired menu_ambience /
+    // menu_scrapyard pair the pre-carousel cut shipped.
     for built_in in [
         "asteroid_field",
         "asteroid_next",
         "broadside",
-        "menu_ambience",
+        "menu_duel",
+        "menu_gauntlet",
         "menu_waystation",
-        "menu_scrapyard",
+        "menu_weave",
         "shakedown_run",
     ] {
         assert!(
