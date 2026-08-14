@@ -95,6 +95,11 @@ tagged **(breaking)**.
   a small mount sit ON a unit-cube hull instead of standing in for one.
 - The per-craft `*_turret_*` prototypes are catalog-only now: ships and mods
   still name them, the editor offers the shared PDC instead.
+- A turret's turntable stands on the face of the section it mounts through.
+  The joint tree hardcoded the unit cube's -0.5, so a mount authored at its own
+  size planted its base below its own underside and sank the gun into the hull
+  it was bolted to. (The per-craft modules keep the old offset their ships were
+  framed with.)
 - Semantic parts are named for the craft they came off - `CargoB // Nose`
   rather than a third part called `Nose`.
 

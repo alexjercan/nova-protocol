@@ -51,19 +51,30 @@ const PDC_TURRET_SIZE: f32 = 0.3;
 /// so a deeper floor only swings the barrel back across its own ship.
 const TURRET_DEPRESSION_LIMIT: f32 = std::f32::consts::PI / 18.0;
 
+/// Half-height of the section a turret joint tree was originally authored
+/// against: the unit cube, whose bottom face is where the turntable stands.
+pub(crate) const UNIT_TURRET_MOUNT: f32 = 0.5;
+
 /// Build the shipped turret's kinematic joint tree: the exact chain the flat
-/// config used to author 1:1. base(fixed, at (0,-0.5,0)) -> yaw(Y, meshed) ->
-/// pitch(X, meshed, -10..90 deg) -> barrel(fixed, meshed) -> muzzle(fixed, fire
-/// point). `fire_rate` is per-muzzle now; every other numeric value is
+/// config used to author 1:1. base(fixed, on the mount face) -> yaw(Y, meshed)
+/// -> pitch(X, meshed, -10..90 deg) -> barrel(fixed, meshed) -> muzzle(fixed,
+/// fire point). `fire_rate` is per-muzzle now; every other numeric value is
 /// preserved from the old fields.
+///
+/// `mount` is the section's own half-height, and it is a PARAMETER because the
+/// base offset is where the turret STANDS: hardcoded at the unit cube's -0.5, a
+/// turret on a shorter mount planted its turntable below its own bottom face
+/// and sank into whatever it was bolted to. Every shipped caller passes
+/// [`UNIT_TURRET_MOUNT`] and is unchanged by this.
 pub(crate) fn turret_joint_tree(
     yaw_mesh: &AssetRef<WorldAsset>,
     pitch_mesh: &AssetRef<WorldAsset>,
     barrel_mesh: &AssetRef<WorldAsset>,
     fire_rate: f32,
+    mount: f32,
 ) -> TurretJoint {
     TurretJoint {
-        offset: Vec3::new(0.0, -0.5, 0.0),
+        offset: Vec3::new(0.0, -mount, 0.0),
         axis: None,
         speed: std::f32::consts::PI,
         min: None,
@@ -236,6 +247,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                     &meshes.turret_pitch,
                     &meshes.turret_barrel,
                     100.0,
+                    UNIT_TURRET_MOUNT,
                 ),
                 muzzle_speed: 100.0,
                 projectile_lifetime: 5.0,
@@ -310,6 +322,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                     // Scavenger grade: a quarter of the better turret's fire
                     // rate (per-muzzle now).
                     25.0,
+                    UNIT_TURRET_MOUNT,
                 ),
                 // Scavenger grade: slower rounds. Since the typed-damage pass
                 // the per-hit damage is authored below (bullet_damage) rather
@@ -367,6 +380,10 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                     &meshes.turret_pitch,
                     &meshes.turret_barrel,
                     100.0,
+                    // The turntable stands on THIS mount's face, not on a unit
+                    // cube's: without it the gun sinks into the hull it is
+                    // bolted to.
+                    PDC_TURRET_SIZE * 0.5,
                 ),
                 muzzle_speed: 100.0,
                 projectile_lifetime: 5.0,
@@ -501,6 +518,45 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A turret a builder can PLACE stands on the section it mounts through:
+    /// its turntable sits on that section's own bottom face, not on a unit
+    /// cube's.
+    ///
+    /// The joint tree hardcoded the unit cube's -0.5, so the compact PDC - a
+    /// 0.3 mount box - planted its turntable 0.35 below its own underside and
+    /// sank the gun into the hull it was bolted to. Checked over the catalog
+    /// rather than over that one section, because the next mount authored at
+    /// its own size would repeat it.
+    ///
+    /// The per-craft turret modules are a KNOWN deviation and are excluded with
+    /// the rest of the editor-hidden prototypes: their art was placed against
+    /// the unit-cube offset and the shipped craft were framed with it there, so
+    /// correcting them MOVES the turret on every shipped ship - an art call,
+    /// not a code one.
+    #[test]
+    fn every_placeable_turret_stands_on_its_own_mount_face() {
+        for section in crate::generation::build_section_catalog() {
+            let SectionKind::Turret(turret) = &section.kind else {
+                continue;
+            };
+            if section.base.hide_in_editor {
+                continue;
+            }
+            let half_height = section
+                .base
+                .collider
+                .unwrap_or_default()
+                .aabb_half_extents()
+                .y;
+            assert!(
+                (turret.root.offset.y + half_height).abs() < 1e-5,
+                "`{}` plants its turntable at {} on a mount half {half_height} deep",
+                section.base.id,
+                turret.root.offset.y,
+            );
+        }
+    }
 
     /// "Variable damage by section type" as a checked invariant: section TYPE
     /// must drive durability, not sit at a uniform value. If someone flattens

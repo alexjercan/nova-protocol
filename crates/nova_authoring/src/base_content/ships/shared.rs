@@ -8,7 +8,10 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
-use crate::base_content::{assets::BaseContentAssets, sections::turret_joint_tree};
+use crate::base_content::{
+    assets::BaseContentAssets,
+    sections::{turret_joint_tree, UNIT_TURRET_MOUNT},
+};
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum ShipGrade {
@@ -296,6 +299,10 @@ fn turret_kind(meshes: &BaseContentAssets, enemy: bool) -> SectionKind {
         &meshes.turret_pitch,
         &meshes.turret_barrel,
         fire_rate,
+        // The shipped modules keep the unit-cube mount their art was placed
+        // against, whatever their own collider: changing it would MOVE every
+        // shipped ship's turret.
+        UNIT_TURRET_MOUNT,
     );
     SectionKind::Turret(TurretSectionConfig {
         root,

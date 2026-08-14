@@ -191,3 +191,30 @@ Live: `DISPLAY=:99 NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_SHOT_DIR=target/shots
 cargo run --example editor --features debug` walks green and reshoots
 `editor-gallery.png`, `editor-gallery-focus.png` and
 `editor-placement-refused.png`.
+
+## Round 2 follow-up: the PDC's mount, measured
+
+The owner asked whether the shared PDC's 0.3 collider against a "1x1x1" render
+was intended. Measured (glTF node transforms composed, not raw accessor bounds),
+the turret art is not a unit cube at all - in section-local space the assembly
+spans about 0.68 wide, 0.77 tall and 1.39 long, most of that length being barrel
+reaching past the pivot. `better_turret_section` draws the SAME art inside a 1.0
+collider, so a collider that disagrees with the silhouette is the norm here, not
+something new: the collider is the mount FOOTPRINT (what physics hits, what
+overlap refuses, what the sockets sit on), never the gun's reach - a barrel that
+collided would refuse its own line of fire.
+
+So the size is intended. Measuring it did turn up a real defect, though:
+`turret_joint_tree` hardcoded its base joint at `(0, -0.5, 0)` - the bottom face
+of a UNIT cube - so on the 0.3 mount the turntable was planted 0.35 BELOW the
+section's own underside and the disc sat buried inside whatever the gun was
+bolted to. Only the barrel showed. `mount` is a parameter now (the section's own
+half-height); every shipped caller passes `UNIT_TURRET_MOUNT` and is byte-for-
+byte unchanged, and the generated RON diff is one line.
+
+The per-craft turret modules have the same mismatch (0.3 box, -0.5 base) and are
+NOT corrected: their art was placed against that offset and the shipped craft
+were framed with it there, so moving it moves the turret on every shipped ship.
+That is an art call. `every_placeable_turret_stands_on_its_own_mount_face`
+pins the rule for what the editor offers and names the exclusion rather than
+skipping it quietly.
