@@ -207,6 +207,14 @@ pub(crate) fn menu_duel(
                     backdrop_camera(Vec3::new(0.0, 90.0, 300.0)),
                     rock_scatter,
                     timer("duel_respawn", 0.5),
+                    // Stall watchdog: a duelist can end up crippled without
+                    // ever counting as DEFEATED (observed live: a rival lost
+                    // its flight computer, drifted out of the victor's leash
+                    // reach, and the cycle sat frozen for 11 minutes). Every
+                    // healthy cycle reloads the scenario long before this
+                    // fires - and the reload re-arms it - so the watchdog
+                    // only ever catches a wedged state.
+                    timer("duel_watchdog", 300.0),
                 ])
                 .collect(),
         },
@@ -276,6 +284,18 @@ pub(crate) fn menu_duel(
             name: EventConfig::OnTimerEnd,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "duel_reset".to_string(),
+            })],
+            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
+                scenario_id: "menu_duel".to_string(),
+                linger: false,
+                delay: Some(1.0),
+            })],
+        },
+        // The watchdog's own reset (see OnStart).
+        ScenarioEventConfig {
+            name: EventConfig::OnTimerEnd,
+            filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
+                key: "duel_watchdog".to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
                 scenario_id: "menu_duel".to_string(),

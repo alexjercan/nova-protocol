@@ -219,6 +219,10 @@
                         key: "duel_respawn",
                         seconds: Term(Factor(Literal(Number(0.5)))),
                     )),
+                    TimerStart((
+                        key: "duel_watchdog",
+                        seconds: Term(Factor(Literal(Number(300.0)))),
+                    )),
                 ],
             ),
             (
@@ -665,6 +669,21 @@
                 filters: [
                     Timer((
                         key: "duel_reset",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_duel",
+                        linger: false,
+                        delay: Some(1.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "duel_watchdog",
                     )),
                 ],
                 actions: [

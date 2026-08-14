@@ -252,6 +252,10 @@ pub(crate) fn menu_gauntlet(
                     backdrop_camera(Vec3::new(0.0, 90.0, 300.0)),
                     rock_scatter,
                     spawn_ship,
+                    // Stall watchdog (the duel's idiom): a racer crippled
+                    // without counting as DEFEATED would freeze the cycle;
+                    // healthy stands reload long before this fires.
+                    timer("gauntlet_watchdog", 360.0),
                 ])
                 .chain(
                     BATTERY_PARKS
@@ -277,6 +281,18 @@ pub(crate) fn menu_gauntlet(
             name: EventConfig::OnTimerEnd,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "gauntlet_reset".to_string(),
+            })],
+            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
+                scenario_id: "menu_gauntlet".to_string(),
+                linger: false,
+                delay: Some(1.0),
+            })],
+        },
+        // The watchdog's own reset (see OnStart).
+        ScenarioEventConfig {
+            name: EventConfig::OnTimerEnd,
+            filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
+                key: "gauntlet_watchdog".to_string(),
             })],
             actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
                 scenario_id: "menu_gauntlet".to_string(),

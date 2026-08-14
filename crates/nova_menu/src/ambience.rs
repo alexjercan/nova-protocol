@@ -34,7 +34,20 @@ pub(crate) fn spawn_menu_ui_camera(mut commands: Commands) {
         Camera2d,
         Camera {
             order: 100,
-            clear_color: ClearColorConfig::None,
+            // The overlay's OWN view clears to transparent every frame -
+            // view textures are pooled, and an uncleared overlay inherits
+            // whatever the pool last held (observed live: the boot loading
+            // screen's final frame ghosting behind the menu).
+            clear_color: ClearColorConfig::Custom(Color::NONE),
+            // COMPOSITE over the scenario camera's image. The default
+            // output mode has no blend state, and an unblended write
+            // "ignores the existing data in the final render target" - the
+            // overlay's mostly-empty view replaced the whole 3D frame
+            // (observed live: the backdrop black).
+            output_mode: bevy::camera::CameraOutputMode::Write {
+                blend_state: Some(bevy::render::render_resource::BlendState::ALPHA_BLENDING),
+                clear_color: ClearColorConfig::None,
+            },
             ..default()
         },
         bevy::ui::IsDefaultUiCamera,

@@ -585,6 +585,10 @@
                         )),
                     )),
                     TimerStart((
+                        key: "gauntlet_watchdog",
+                        seconds: Term(Factor(Literal(Number(360.0)))),
+                    )),
+                    TimerStart((
                         key: "gauntlet_battery_w1_fire",
                         seconds: Term(Factor(Literal(Number(3.0)))),
                     )),
@@ -621,6 +625,21 @@
                 filters: [
                     Timer((
                         key: "gauntlet_reset",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_gauntlet",
+                        linger: false,
+                        delay: Some(1.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "gauntlet_watchdog",
                     )),
                 ],
                 actions: [
