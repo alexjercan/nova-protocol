@@ -88,3 +88,32 @@ longer build a ship the integrity graph would reject.
 - `probe run ui --correctness-only`: editor, widget_zoo, hud_range,
   menu_newgame, menu_scenarios all OK (log_clean + invariants).
 - `content lint`: 0 errors, 0 warnings.
+
+## Decisions, resolved (2026-08-14, at close)
+
+The four review items above were parked for the owner. Three of them were
+answered by the follow-up rounds on `20260812-131852`, which shares this
+placement path:
+
+1. Source-socket default. No longer index 0: `snap::natural_source` starts the
+   cycle at the socket already facing the other way, so a part arrives in the
+   orientation it was AUTHORED in and `F` steps away from that rather than
+   toward it. The id-matching heuristic this note floated is not needed.
+2. Free sockets are painted now. `placement::draw_link_points` rings every free
+   socket with a stub along its normal while a part is armed, bright under the
+   pointer, plus the armed part's own mating socket on the ghost - so the rule
+   is visible before the pointer meets it.
+3. `R`/`F` are in the keybinds wiki, in its Editor section, alongside the
+   reversible wheel equivalents (wheel rolls, Ctrl+wheel cycles).
+4. STANDS: on a symmetric unit cube every source socket gives the same pose, so
+   `F` still looks inert on the starter hull. Honest, and now cheaper to live
+   with - the socket gizmos show there is nothing to change.
+
+## Not demonstrated at close
+
+The DoD line "NOVA OS `MATES` shows the assembled graph" has no recorded proof
+against an editor-built ship. The view exists (`nova_os_ui/src/ship`, `G: MATES`)
+and the underlying derivation is covered both ways - the editor asserts the
+FLOWN ship re-derives the same graph from the flat saved poses - but nothing
+walks the overlay itself. Closed on the owner's call with that gap named rather
+than quietly ticked.
