@@ -310,6 +310,33 @@ Design:
   the winner chases a drifting cripple down and finishes it - the kill
   fires the defeat chain and the finale actually plays.
 
+## Round 7 (owner feedback, 2026-08-14)
+
+Feedback: the rockless duel arena reads oddly; particle VFX ghost
+across the menu (suspected camera leak - correct); defeat rule should
+be "loses weapons OR the controller" with thrusters irrelevant; plus a
+gauntlet nit - the racer parks in front of the rock band and vanishes
+into the low contrast.
+
+- Defeat rule (engine, breaking): neutralize = disarmed OR brain-dead.
+  New `HadFlightComputer` history stamp mirrors `WasArmedCombatant`, so
+  computer-less emplacements (the scripted batteries) are exempt from
+  the brain-death half and only die by disarm. Thrusters left the rule
+  entirely. This structurally cures the duel stall - a crippled hulk
+  defeats itself the frame its computer (or last gun) goes - so the
+  duel got its dressing rocks BACK (LOS blocking no longer wedges
+  anything), leash back to 250, hardened controllers kept so the act is
+  a dogfight rather than a first-burst decapitation.
+- VFX ghosting: bevy_hanabi renders through the 2D pipeline too, so the
+  menu's overlay camera re-drew every world-space particle burst -
+  untonemapped, alpha-blended over the finished frame. The overlay now
+  sits on an empty render layer (23; nova_os_ui owns 20-22): its world
+  pass draws nothing, and UI is unaffected because bevy_ui routes by
+  TARGET camera, not layers.
+- Gauntlet contrast: station circuit raised ~25 u above the fight plane
+  (against black sky instead of the far rock cluster) and the camera
+  pulled in to (0, 80, 260).
+
 ## Retention
 
 - `shots/gauntlet-pd-intercept.png` - tracer stream vs inbound torpedo.

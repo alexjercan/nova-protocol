@@ -16,6 +16,15 @@ use rand::Rng as _;
 #[derive(Component, Clone, Debug)]
 pub(crate) struct MenuUiCameraMarker;
 
+/// The menu UI camera's render layer: deliberately EMPTY of world entities
+/// (nova_os_ui owns 20-22), so the overlay's 2D world pass draws nothing.
+/// Without it the overlay re-rendered every world-space effect the 2D
+/// pipeline knows (the hanabi particle bursts) a second time - untonemapped,
+/// alpha-blended over the finished frame (observed live: blast VFX ghosting
+/// across the menu). UI is unaffected: bevy_ui routes root nodes by TARGET
+/// CAMERA (`IsDefaultUiCamera`), not by render layers.
+const MENU_UI_LAYER: usize = 23;
+
 /// The menu interface's dedicated render target: a 2D overlay camera OWNED
 /// BY THE MENU, not by the loaded scenario. The UI must never resolve its
 /// layout against the scenario camera: the self-resetting backdrops reload
@@ -51,6 +60,7 @@ pub(crate) fn spawn_menu_ui_camera(mut commands: Commands) {
             ..default()
         },
         bevy::ui::IsDefaultUiCamera,
+        bevy::camera::visibility::RenderLayers::layer(MENU_UI_LAYER),
     ));
 }
 

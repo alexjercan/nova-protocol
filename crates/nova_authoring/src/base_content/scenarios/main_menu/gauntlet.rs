@@ -23,16 +23,16 @@ const RACER_ROUNDS_PER_TURRET: u32 = 400;
 /// panel owns the right half): a six-point ring with ~55 u legs and a little
 /// vertical wander - enough motion to read as a ship on watch, small enough
 /// that the guns, not the flying, stay the show. Its centroid anchors the
-/// leash. Sized to the NARROW frame: a 4:3 window sees only ~+-173 u at
-/// origin depth (16:9 sees ~+-230), so the circuit keeps its far edge at
-/// x -115.
+/// leash. RAISED ~25 u above the fight plane: at y 0 the ship parked in
+/// front of the far rock cluster and vanished into the low contrast; up
+/// here it reads against black sky, above the band's sightline.
 const HOLD_LOOP: [Vec3; 6] = [
-    Vec3::new(-5.0, 0.0, 0.0),
-    Vec3::new(-32.5, 10.0, 48.0),
-    Vec3::new(-87.5, -6.0, 48.0),
-    Vec3::new(-115.0, 0.0, 0.0),
-    Vec3::new(-87.5, 12.0, -48.0),
-    Vec3::new(-32.5, -8.0, -48.0),
+    Vec3::new(-5.0, 25.0, 0.0),
+    Vec3::new(-32.5, 33.0, 48.0),
+    Vec3::new(-87.5, 20.0, 48.0),
+    Vec3::new(-115.0, 25.0, 0.0),
+    Vec3::new(-87.5, 35.0, -48.0),
+    Vec3::new(-32.5, 18.0, -48.0),
 ];
 
 /// The racer's authored detection range. Two geometry facts hang off it: the
@@ -245,11 +245,12 @@ pub(crate) fn menu_gauntlet(
             actions: stage
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
-                // The scene poses its own camera: the reference backdrop
-                // shot, empty stage centered, station circuit on the open
-                // left half.
+                // Closer than the reference shot: the racer IS this scene,
+                // and at 300 u it was a handful of pixels. From (0, 80, 260)
+                // the 4:3 half-frame is ~150 u at origin depth - the raised
+                // circuit and its intercepts stay in shot, bigger.
                 .chain([
-                    backdrop_camera(Vec3::new(0.0, 90.0, 300.0)),
+                    backdrop_camera(Vec3::new(0.0, 80.0, 260.0)),
                     rock_scatter,
                     spawn_ship,
                     // Stall watchdog (the duel's idiom): a racer crippled

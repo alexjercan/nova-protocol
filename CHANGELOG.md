@@ -23,6 +23,11 @@ tagged **(breaking)**.
   100 -> 750, so a connecting torpedo all but decides a small-craft fight
   (Expanse-style). The counter is point defense, not armor - the ordnance
   itself stays fragile.
+- **(breaking)** Neutralization is "no weapons OR no flight computer" now
+  (was "no weapons AND no thrusters"): a brain-dead ship cannot aim or fly,
+  so it is out of the fight whatever else survives, and a disarmed runner
+  is beaten even at full burn. Ships that never had a computer (bare
+  emplacements) still only neutralize by losing their guns.
 - New `heavy_torpedo_section` prototype: a capital-grade siege bay with a
   ship-killing blast and armored ordnance, hidden from the editor gallery
   (scene dressing, not player kit).
@@ -84,6 +89,9 @@ tagged **(breaking)**.
   now, so the scenario camera being torn down and respawned can never yank
   the UI's render target mid-frame; the backdrop view itself holds its last
   scripted pose through the swap instead of blinking.
+- The menu's interface camera no longer re-renders world-space particle
+  effects over the finished frame (blast VFX ghosted across the menu): the
+  overlay draws on an empty render layer, UI only.
 
 ### Internals & Tooling
 

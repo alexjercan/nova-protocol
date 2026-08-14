@@ -7,7 +7,7 @@ use nova_scenario::prelude::*;
 
 use super::shared::{backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::{
-    base_content::ships,
+    base_content::{scenarios::SCATTER_SEED, ships},
     scenario_helpers::{entity, number},
 };
 
@@ -50,24 +50,20 @@ fn duelist(
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: patrol.to_vec(),
                 // The leash anchors on center-hugging patrol centroids, so
-                // the fight gravitates to the middle of the frame - but it
-                // is wide enough (400 + ~450 gun reach) for the winner to
-                // chase down and FINISH a crippled, drifting loser: with a
-                // 200 u tether the victor broke off and a computer-dead hulk
-                // (disabled, never defeated) froze the act (observed live,
-                // twice).
-                leash: Some(400.0),
+                // the fight gravitates to the middle of the frame. Wide
+                // enough for real chases, tight enough that the act plays
+                // over the same ground every wave.
+                leash: Some(250.0),
                 engage_delay: Some(6.0),
                 ..Default::default()
             }),
             // Hardened flight computers on BOTH duelists: the tight rings
-            // make the merge a nose-to-nose joust, and twice in live runs
-            // the rival's stock controller died in the opening burst -
-            // leaving a hulk that can neither fly nor count as DEFEATED
-            // (neutralize needs weapons AND thrusters dead), which froze
-            // the cycle until the watchdog. With the computer out of the
-            // kill order, fights resolve by weapon/thruster attrition and
-            // the defeat chain fires.
+            // make the merge a nose-to-nose joust, and a stock controller
+            // dies to the opening burst - which under the brain-death
+            // defeat rule would end the act seconds after it starts. The
+            // 500 keeps the DOGFIGHT on screen; however the loser finally
+            // cripples (guns, computer, or full destruction), the defeat
+            // chain fires and the finale plays.
             sections: ships::racer_sections(grade, vec![SectionModification::SetHealth(500.0)]),
         }),
     }
@@ -85,15 +81,15 @@ fn duelist(
 /// wrecks, debris and in-flight ordnance.
 pub(crate) fn menu_duel(
     cubemap: AssetRef<Image>,
-    _asteroid_texture: AssetRef<Image>,
+    asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
     let mut stage = Vec::new();
 
-    // An EMPTY arena on purpose. The first cut of this scene proved both
-    // failure modes of a real planetoid here: head-on chase lines cross it
-    // and pin the fight against its surface with the line-of-fire gate
-    // holding both triggers, and its SOI drags a dogfight onto the rock.
-    // No body, no gravity: the duel owns the center.
+    // An OPEN arena: no planetoid (the first cut proved chase lines pin
+    // against a central rock and its SOI drags the fight onto it), just a
+    // sparse dressing ring well below the fight plane. A crippled loser
+    // drifting into the rocks is harmless now - brain-death neutralizes it
+    // the moment its computer (or last gun) goes, rocks or no rocks.
     stage.extend(backdrop_rig("duel").objects());
     stage.push(planetoid_glow("duel_lamp"));
 
@@ -124,6 +120,42 @@ pub(crate) fn menu_duel(
                 modifications: vec![],
             }],
         }),
+    });
+
+    // Sparse dressing ring, below the fight plane - depth parallax the
+    // rockless first cut of this arena visibly missed.
+    let rock_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
+        id_prefix: "duel_rock_".to_string(),
+        count: 12,
+        seed: SCATTER_SEED ^ 0x5,
+        region: ScatterRegion::Ring {
+            center: Vec3::ZERO,
+            inner: 150.0,
+            outer: 220.0,
+            y_min: -70.0,
+            y_max: -35.0,
+        },
+        template: ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "duel_rock_".to_string(),
+                name: "Duel Rock".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+                destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
+                radius: 1.0,
+                texture: asteroid_texture,
+                health: 100.0,
+                mass: None,
+                invulnerable: false,
+                seed: None,
+                lock_signature: None,
+            }),
+        },
+        asteroid_radius: Some((1.0, 3.0)),
+        min_separation: None,
     });
 
     // The victor's routine is a TIGHT ring on the frame center: it is the
@@ -178,12 +210,9 @@ pub(crate) fn menu_duel(
                 .map(EventActionConfig::SpawnScenarioObject)
                 // The scene poses its own camera: the reference backdrop
                 // shot, dead on the arena center the duel fights over.
-                // NO rocks in this scene: dressing near the arena gave a
-                // crippled hulk something to grind against and - worse -
-                // blocked the winner's line of fire, so the kill that ends
-                // the act never landed (the LOS gate holds the trigger).
                 .chain([
                     backdrop_camera(Vec3::new(0.0, 90.0, 300.0)),
+                    rock_scatter,
                     timer("duel_respawn", 0.5),
                     // Stall watchdog: a duelist can end up crippled without
                     // ever counting as DEFEATED (observed live: a rival lost
