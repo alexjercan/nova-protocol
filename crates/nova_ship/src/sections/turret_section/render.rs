@@ -195,15 +195,16 @@ pub(super) fn insert_turret_joint_render(
         return;
     };
 
+    // Authored render-mesh transform, or identity (mesh at the joint origin)
+    // when unset. It lives on the mesh CHILD, so it moves only the art, never
+    // the joint's kinematic frame.
+    let transform = render_mesh_transform
+        .map(RenderMeshTransform::to_transform)
+        .unwrap_or_default();
+
     match &**render_mesh {
         Some(asset_ref) => {
             let scene = asset_ref.resolve(&asset_server);
-            // Authored render-mesh transform, or identity (mesh at the joint
-            // origin) when unset. It lives on the mesh CHILD, so it moves only
-            // the art, never the joint's kinematic frame.
-            let transform = render_mesh_transform
-                .map(RenderMeshTransform::to_transform)
-                .unwrap_or_default();
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Joint"),
                 transform,
@@ -216,10 +217,16 @@ pub(super) fn insert_turret_joint_render(
         // primitive so the mount is not floating meshes with a gap under it. The
         // shape matches the pre-refactor base plate (a wide flat disc slightly
         // above the joint origin) so an unmeshed base looks exactly as it did.
+        //
+        // The authored transform applies HERE too, and has to: the plate is a
+        // full unit across, so a turret assembled at any other size than the
+        // unit cube it was drawn for wore a hull-sized dinner plate under it.
+        // Composed rather than replaced, so the plate keeps its own lift and
+        // scales with the rest of the assembly.
         None if !is_muzzle => {
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Joint"),
-                Transform::from_xyz(0.0, 0.05, 0.0),
+                transform.mul_transform(Transform::from_xyz(0.0, 0.05, 0.0)),
                 SectionRenderOf(**turret),
                 Mesh3d(meshes.add(Cylinder::new(0.5, 0.1))),
                 MeshMaterial3d(materials.add(Color::srgb(0.25, 0.25, 0.25))),
@@ -589,6 +596,7 @@ mod tests {
         let authored = RenderMeshTransform {
             position: Vec3::new(0.1, 0.2, 0.3),
             rotation: Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+            scale: Vec3::splat(0.5),
         };
         let got = meshed_child_transform(Some(authored));
         assert_eq!(got.translation, authored.position);
@@ -599,13 +607,83 @@ mod tests {
             authored.rotation
         );
         assert_eq!(
-            got.scale,
-            Vec3::ONE,
-            "render transform must not touch scale"
+            got.scale, authored.scale,
+            "the authored scale sizes the art"
         );
 
         // No authored transform => identity child (unchanged pre-feature look).
         let got = meshed_child_transform(None);
         assert_eq!(got, Transform::IDENTITY);
+    }
+
+    /// The default base plate obeys the authored transform too.
+    ///
+    /// It is not authored art - an unmeshed structural joint gets a primitive a
+    /// full unit across - so before this it stayed unit-sized whatever the rest
+    /// of the assembly was scaled to, and a half-size turret wore a hull-sized
+    /// dinner plate. It keeps its own small lift, which has to SCALE with the
+    /// plate rather than survive it.
+    #[test]
+    fn the_default_base_plate_is_sized_by_the_authored_transform() {
+        let plate_transform = |xf: Option<RenderMeshTransform>| {
+            let turret = TurretSectionConfig {
+                root: TurretJoint {
+                    offset: Vec3::ZERO,
+                    axis: None,
+                    speed: default_joint_speed(),
+                    min: None,
+                    max: None,
+                    // Unmeshed and not a muzzle: the default-plate branch.
+                    render_mesh: None,
+                    render_mesh_transform: xf,
+                    muzzle: None,
+                    children: vec![TurretJoint {
+                        offset: Vec3::new(0.0, 0.0, -0.5),
+                        axis: None,
+                        speed: default_joint_speed(),
+                        min: None,
+                        max: None,
+                        render_mesh: None,
+                        render_mesh_transform: None,
+                        muzzle: Some(MuzzleConfig {
+                            fire_rate: 100.0,
+                            muzzle_effect: None,
+                        }),
+                        children: vec![],
+                    }],
+                },
+                ..Default::default()
+            };
+
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, AssetPlugin::default(), TransformPlugin));
+            app.init_asset::<Mesh>();
+            app.init_asset::<StandardMaterial>();
+            app.init_asset::<WorldAsset>();
+            app.add_observer(insert_turret_section);
+            app.add_observer(insert_turret_joint_render);
+            app.world_mut().spawn((turret_section(turret),));
+            app.world_mut().flush();
+            app.update();
+
+            let world = app.world_mut();
+            let mut q = world.query_filtered::<&Transform, (With<SectionRenderOf>, With<Mesh3d>)>();
+            let found: Vec<Transform> = q.iter(world).copied().collect();
+            assert_eq!(found.len(), 1, "exactly one default plate expected");
+            found[0]
+        };
+
+        // Unauthored: the plate sits where it always did.
+        let plain = plate_transform(None);
+        assert_eq!(plain.translation, Vec3::new(0.0, 0.05, 0.0));
+        assert_eq!(plain.scale, Vec3::ONE);
+
+        // Half size: the plate halves, and so does its lift.
+        let half = plate_transform(Some(RenderMeshTransform {
+            scale: Vec3::splat(0.5),
+            ..default()
+        }));
+        assert_eq!(half.scale, Vec3::splat(0.5));
+        assert_eq!(half.translation, Vec3::new(0.0, 0.025, 0.0));
     }
 }

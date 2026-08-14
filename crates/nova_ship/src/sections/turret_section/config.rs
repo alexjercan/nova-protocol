@@ -278,10 +278,16 @@ mod tests {
         let xf = RenderMeshTransform {
             position: Vec3::new(1.0, -2.0, 0.5),
             rotation: Quat::from_rotation_x(0.5),
+            scale: Vec3::splat(0.4),
         };
         let t = xf.to_transform();
         assert_eq!(t.translation, xf.position);
         assert!(t.rotation.angle_between(xf.rotation) < 1e-6);
+        assert_eq!(t.scale, xf.scale);
+
+        // The default SCALE is one, not zero. A derived `Default` would scale
+        // every unauthored mesh in the game to nothing.
+        assert_eq!(RenderMeshTransform::default().scale, Vec3::ONE);
     }
 
     #[cfg(feature = "serde")]
@@ -291,16 +297,30 @@ mod tests {
         let xf = RenderMeshTransform {
             position: Vec3::new(0.1, 0.2, 0.3),
             rotation: Quat::from_rotation_z(0.25),
+            scale: Vec3::splat(0.5),
         };
         let ron = ron::ser::to_string(&xf).expect("serialize");
         let back: RenderMeshTransform = ron::from_str(&ron).expect("deserialize");
         assert_eq!(back, xf);
+
+        // An unscaled mesh omits the field, and a file written before `scale`
+        // existed still reads as "as modelled" rather than as scaled away.
+        let unscaled = RenderMeshTransform {
+            position: Vec3::X,
+            ..default()
+        };
+        let ron = ron::ser::to_string(&unscaled).expect("serialize");
+        assert!(!ron.contains("scale"), "unit scale must be omitted: {ron}");
+        let legacy: RenderMeshTransform =
+            ron::from_str("(position: (1.0, 0.0, 0.0))").expect("deserialize");
+        assert_eq!(legacy, unscaled);
 
         // Rotation-only authoring: the zero position is not serialized, and a
         // string with only `rotation` still deserializes (position defaults).
         let rot_only = RenderMeshTransform {
             position: Vec3::ZERO,
             rotation: Quat::from_rotation_y(0.3),
+            scale: Vec3::ONE,
         };
         let ron = ron::ser::to_string(&rot_only).expect("serialize");
         assert!(

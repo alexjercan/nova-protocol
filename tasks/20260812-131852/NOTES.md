@@ -218,3 +218,46 @@ were framed with it there, so moving it moves the turret on every shipped ship.
 That is an art call. `every_placeable_turret_stands_on_its_own_mount_face`
 pins the rule for what the editor offers and names the exclusion rather than
 skipping it quietly.
+
+## Round 2 follow-up 2: the PDC really was unit-sized, and why
+
+The owner's next read of the figure - "it feels like it has the same size" -
+was right, and the earlier measurement had missed the reason. The GLB art is
+NOT the whole turret: an unmeshed structural joint gets a DEFAULT primitive from
+`insert_turret_joint_render`, `Cylinder::new(0.5, 0.1)`, and the turret's base
+joint is unmeshed. That plate is a full unit across - exactly one hull face -
+and it is the big dark disc under every turret. Nothing authored could resize
+it, because the default branch ignored the joint's `render_mesh_transform`
+entirely.
+
+Measured against the shipped camera pose, the hull's top face projects 141.6 px
+and the plate the same; the GLB turntable is only 96.9 px (0.683 units). So the
+"1x1x1" the owner saw was the code-level plate, not the art.
+
+Three changes, following the owner's call:
+
+1. `RenderMeshTransform` gains `scale` (default ONE - hand-written `Default`,
+   since a derived one would scale every unauthored mesh in the game to
+   nothing; serde-skipped at unit, so no shipped RON moves and a file written
+   before the field still reads as "as modelled").
+2. The default plate obeys that transform, composed with its own small lift so
+   the lift scales with it rather than surviving it.
+3. `turret_joint_tree` takes a `scale` and applies it to every joint offset AND
+   every joint's art. Both halves or neither: meshes alone leave the parts
+   spaced for the old size, offsets alone leave full-size art in a smaller
+   arrangement.
+
+`PDC_TURRET_SIZE` is now 0.5 and is ONE number - collider, sockets and art
+scale - so the mount agrees with itself. Half a section: it sits on a hull face
+and leaves room to aim at the rest of it, which is what the compact mount was
+for. The generated diff stays inside the PDC's own section (16 hunks, all
+between its first and last line); every shipped turret still passes
+`UNIT_TURRET_MOUNT` + `UNIT_TURRET_SCALE`.
+
+Checked: the shorter barrel puts the muzzle 0.6 ahead instead of 1.2, which is
+safe - `ProjectileHooks` filters contacts between a projectile and its owner, so
+a muzzle over its own hull cannot self-hit.
+
+Still not corrected, same reason as before: the per-craft turret modules pair a
+0.3 box with unit-size art at the unit-cube offset. Making them agree would move
+AND resize the turret on every shipped ship.

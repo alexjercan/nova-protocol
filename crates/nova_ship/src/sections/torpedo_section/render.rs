@@ -633,6 +633,7 @@ mod tests {
         let authored = RenderMeshTransform {
             position: Vec3::new(0.0, 0.3, -0.2),
             rotation: Quat::from_rotation_x(std::f32::consts::FRAC_PI_4),
+            ..default()
         };
         let got = child_transform(Some(authored));
         assert_eq!(got.translation, authored.position);

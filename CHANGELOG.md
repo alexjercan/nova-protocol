@@ -95,11 +95,21 @@ tagged **(breaking)**.
   a small mount sit ON a unit-cube hull instead of standing in for one.
 - The per-craft `*_turret_*` prototypes are catalog-only now: ships and mods
   still name them, the editor offers the shared PDC instead.
-- A turret's turntable stands on the face of the section it mounts through.
-  The joint tree hardcoded the unit cube's -0.5, so a mount authored at its own
-  size planted its base below its own underside and sank the gun into the hull
-  it was bolted to. (The per-craft modules keep the old offset their ships were
-  framed with.)
+- A turret's base stands on the face of the section it mounts through. The
+  joint tree hardcoded the unit cube's -0.5, so a mount authored at its own size
+  planted its base below its own underside and sank the gun into the hull it was
+  bolted to. (The per-craft modules keep the old offset their ships were framed
+  with.)
+- `render_mesh_transform` takes a `scale` alongside its position and rotation,
+  so art can be resized without touching the collider, the sockets or the mass.
+  It also sizes the DEFAULT primitive an unmeshed turret joint gets - a plate a
+  full unit across, which is why a turret on a small mount used to wear a
+  hull-sized base plate whatever else was scaled.
+- The shared PDC is assembled at HALF a section now, one number driving its
+  collider, its sockets and its art, so it reads as a gun bolted to a hull
+  rather than a full-size turret balanced on a small box. A whole assembly
+  scales by its joint offsets AND its joint art together; either alone comes
+  apart.
 - Semantic parts are named for the craft they came off - `CargoB // Nose`
   rather than a third part called `Nose`.
 

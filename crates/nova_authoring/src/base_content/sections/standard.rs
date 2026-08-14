@@ -41,10 +41,14 @@ const TORPEDO_BASE_HEALTH: f32 = 100.0;
 // the shakedown pirate still dying in a short burst (~0.15s on a 60-HP hull).
 const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
 
-/// Side of the shared PDC turret's mount box, matching the per-craft turret
-/// modules the shipped ships carry (`shared::module`, +-0.15). Small on
-/// purpose: a weapon mount SITS ON a hull face, it does not replace one.
-const PDC_TURRET_SIZE: f32 = 0.3;
+/// Side of the shared PDC turret's mount box - and the scale its art is
+/// assembled at, which is the point of having one number: the collider, the
+/// sockets and the gun agree, instead of a unit-cube turret balanced on a small
+/// box. Turret art is drawn against the unit cube, so the scale IS the size.
+///
+/// Half a section: a weapon mount SITS ON a hull face and leaves room to aim at
+/// the rest of it, where a unit-cube turret replaces the face outright.
+const PDC_TURRET_SIZE: f32 = 0.5;
 
 /// How far a shipped turret's pitch hinge may DEPRESS below level (10 deg).
 /// Every shipped mount sits ON a hull - the cargoa's nose cheeks most tightly -
@@ -52,8 +56,11 @@ const PDC_TURRET_SIZE: f32 = 0.3;
 const TURRET_DEPRESSION_LIMIT: f32 = std::f32::consts::PI / 18.0;
 
 /// Half-height of the section a turret joint tree was originally authored
-/// against: the unit cube, whose bottom face is where the turntable stands.
+/// against: the unit cube, whose bottom face is where the turret stands.
 pub(crate) const UNIT_TURRET_MOUNT: f32 = 0.5;
+
+/// The size the turret art was drawn at: one whole section cube.
+pub(crate) const UNIT_TURRET_SCALE: f32 = 1.0;
 
 /// Build the shipped turret's kinematic joint tree: the exact chain the flat
 /// config used to author 1:1. base(fixed, on the mount face) -> yaw(Y, meshed)
@@ -63,16 +70,35 @@ pub(crate) const UNIT_TURRET_MOUNT: f32 = 0.5;
 ///
 /// `mount` is the section's own half-height, and it is a PARAMETER because the
 /// base offset is where the turret STANDS: hardcoded at the unit cube's -0.5, a
-/// turret on a shorter mount planted its turntable below its own bottom face
-/// and sank into whatever it was bolted to. Every shipped caller passes
-/// [`UNIT_TURRET_MOUNT`] and is unchanged by this.
+/// turret on a shorter mount planted its base below its own bottom face and
+/// sank into whatever it was bolted to.
+///
+/// `scale` resizes the WHOLE assembly. It multiplies every joint offset AND
+/// rides on every joint's render-mesh transform, because those are two halves
+/// of one answer: scaling the meshes alone leaves the parts spaced for the size
+/// they used to be, and scaling the offsets alone leaves full-size art in a
+/// smaller arrangement. It reaches the base plate too - that plate is a default
+/// primitive a full unit across (see `insert_turret_joint_render`), so a turret
+/// mounted on anything but a unit cube wore a hull-sized dinner plate.
+///
+/// Every shipped caller passes [`UNIT_TURRET_MOUNT`] and [`UNIT_TURRET_SCALE`]
+/// and is unchanged by either.
 pub(crate) fn turret_joint_tree(
     yaw_mesh: &AssetRef<WorldAsset>,
     pitch_mesh: &AssetRef<WorldAsset>,
     barrel_mesh: &AssetRef<WorldAsset>,
     fire_rate: f32,
     mount: f32,
+    scale: f32,
 ) -> TurretJoint {
+    // Authored at unit size and multiplied through, so the numbers below stay
+    // the ones the art was drawn against and there is one place to read them.
+    let at = |offset: Vec3| offset * scale;
+    let art = (scale != UNIT_TURRET_SCALE).then(|| RenderMeshTransform {
+        scale: Vec3::splat(scale),
+        ..default()
+    });
+
     TurretJoint {
         offset: Vec3::new(0.0, -mount, 0.0),
         axis: None,
@@ -80,19 +106,21 @@ pub(crate) fn turret_joint_tree(
         min: None,
         max: None,
         render_mesh: None,
-        render_mesh_transform: None,
+        // The base plate is a default primitive, not authored art, so the
+        // transform is what sizes it.
+        render_mesh_transform: art,
         muzzle: None,
         children: vec![TurretJoint {
-            offset: Vec3::new(0.0, 0.1, 0.0),
+            offset: at(Vec3::new(0.0, 0.1, 0.0)),
             axis: Some(Vec3::Y),
             speed: std::f32::consts::PI, // 180 degrees per second
             min: None,
             max: None,
             render_mesh: Some(yaw_mesh.clone()),
-            render_mesh_transform: None,
+            render_mesh_transform: art,
             muzzle: None,
             children: vec![TurretJoint {
-                offset: Vec3::new(0.0, 0.332706, 0.303954),
+                offset: at(Vec3::new(0.0, 0.332706, 0.303954)),
                 axis: Some(Vec3::X),
                 speed: std::f32::consts::PI, // 180 degrees per second
                 // Depression floor: every shipped turret is HULL-MOUNTED, so a
@@ -104,19 +132,19 @@ pub(crate) fn turret_joint_tree(
                 min: Some(-TURRET_DEPRESSION_LIMIT),
                 max: Some(std::f32::consts::FRAC_PI_2),
                 render_mesh: Some(pitch_mesh.clone()),
-                render_mesh_transform: None,
+                render_mesh_transform: art,
                 muzzle: None,
                 children: vec![TurretJoint {
-                    offset: Vec3::new(0.0, 0.128437, -0.110729),
+                    offset: at(Vec3::new(0.0, 0.128437, -0.110729)),
                     axis: None,
                     speed: std::f32::consts::PI,
                     min: None,
                     max: None,
                     render_mesh: Some(barrel_mesh.clone()),
-                    render_mesh_transform: None,
+                    render_mesh_transform: art,
                     muzzle: None,
                     children: vec![TurretJoint {
-                        offset: Vec3::new(0.0, 0.0, -1.2),
+                        offset: at(Vec3::new(0.0, 0.0, -1.2)),
                         axis: None,
                         speed: std::f32::consts::PI,
                         min: None,
@@ -248,6 +276,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                     &meshes.turret_barrel,
                     100.0,
                     UNIT_TURRET_MOUNT,
+                    UNIT_TURRET_SCALE,
                 ),
                 muzzle_speed: 100.0,
                 projectile_lifetime: 5.0,
@@ -323,6 +352,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                     // rate (per-muzzle now).
                     25.0,
                     UNIT_TURRET_MOUNT,
+                    UNIT_TURRET_SCALE,
                 ),
                 // Scavenger grade: slower rounds. Since the typed-damage pass
                 // the per-hit damage is authored below (bullet_damage) rather
@@ -380,10 +410,10 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                     &meshes.turret_pitch,
                     &meshes.turret_barrel,
                     100.0,
-                    // The turntable stands on THIS mount's face, not on a unit
-                    // cube's: without it the gun sinks into the hull it is
-                    // bolted to.
+                    // The turret stands on THIS mount's face, not on a unit
+                    // cube's, and is assembled at THIS mount's size.
                     PDC_TURRET_SIZE * 0.5,
+                    PDC_TURRET_SIZE,
                 ),
                 muzzle_speed: 100.0,
                 projectile_lifetime: 5.0,
@@ -551,11 +581,64 @@ mod tests {
                 .y;
             assert!(
                 (turret.root.offset.y + half_height).abs() < 1e-5,
-                "`{}` plants its turntable at {} on a mount half {half_height} deep",
+                "`{}` plants its base at {} on a mount half {half_height} deep",
                 section.base.id,
                 turret.root.offset.y,
             );
         }
+    }
+
+    /// Scaling an assembly is TWO things at once: every joint's art and every
+    /// joint's offset. Scaling the meshes alone leaves the parts spaced for the
+    /// size they used to be, which reads as a turret coming apart; scaling the
+    /// offsets alone leaves full-size art in a smaller arrangement.
+    #[test]
+    fn a_scaled_turret_tree_scales_its_offsets_and_its_art_together() {
+        let mesh = |name: &str| AssetRef::<WorldAsset>::from(name.to_string());
+        let (yaw, pitch, barrel) = (mesh("yaw"), mesh("pitch"), mesh("barrel"));
+        let tree = |scale: f32| turret_joint_tree(&yaw, &pitch, &barrel, 100.0, 0.5, scale);
+
+        let unit = tree(UNIT_TURRET_SCALE);
+        let half = tree(0.5);
+
+        // Walk both trees in lockstep down the shipped chain.
+        let (mut a, mut b) = (&unit, &half);
+        let mut joints = 0;
+        loop {
+            assert!(
+                b.offset.abs_diff_eq(a.offset * 0.5, 1e-6) || joints == 0,
+                "joint {joints}: offset {:?} is not half of {:?}",
+                b.offset,
+                a.offset,
+            );
+            match (&b.render_mesh, b.render_mesh_transform) {
+                (Some(_), Some(art)) => assert_eq!(art.scale, Vec3::splat(0.5)),
+                (Some(_), None) => panic!("joint {joints}: meshed but unscaled art"),
+                _ => {}
+            }
+            assert!(
+                a.render_mesh_transform.is_none(),
+                "joint {joints}: an unscaled tree authors no art transform, so the \
+                 shipped RON is unchanged"
+            );
+            joints += 1;
+            match (a.children.first(), b.children.first()) {
+                (Some(next_a), Some(next_b)) => {
+                    a = next_a;
+                    b = next_b;
+                }
+                (None, None) => break,
+                _ => panic!("the two trees have different shapes"),
+            }
+        }
+        assert_eq!(joints, 5, "base, yaw, pitch, barrel, muzzle");
+
+        // The base plate is unmeshed, and it is exactly the part that used to
+        // stay unit-sized: it carries the scale on its own transform.
+        assert_eq!(
+            half.render_mesh_transform.map(|art| art.scale),
+            Some(Vec3::splat(0.5))
+        );
     }
 
     /// "Variable damage by section type" as a checked invariant: section TYPE

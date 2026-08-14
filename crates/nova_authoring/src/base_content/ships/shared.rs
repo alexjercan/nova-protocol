@@ -10,7 +10,7 @@ use nova_ship::prelude::*;
 
 use crate::base_content::{
     assets::BaseContentAssets,
-    sections::{turret_joint_tree, UNIT_TURRET_MOUNT},
+    sections::{turret_joint_tree, UNIT_TURRET_MOUNT, UNIT_TURRET_SCALE},
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -126,7 +126,7 @@ fn mesh_ref(file: &str) -> AssetRef<WorldAsset> {
 fn render_transform(spec: PartSpec) -> Option<RenderMeshTransform> {
     Some(RenderMeshTransform {
         position: spec.mesh_offset(),
-        rotation: Quat::IDENTITY,
+        ..default()
     })
 }
 
@@ -299,10 +299,11 @@ fn turret_kind(meshes: &BaseContentAssets, enemy: bool) -> SectionKind {
         &meshes.turret_pitch,
         &meshes.turret_barrel,
         fire_rate,
-        // The shipped modules keep the unit-cube mount their art was placed
-        // against, whatever their own collider: changing it would MOVE every
-        // shipped ship's turret.
+        // The shipped modules keep the unit-cube mount and size their art was
+        // placed against, whatever their own collider says: changing either
+        // MOVES or RESIZES the turret on every shipped ship.
         UNIT_TURRET_MOUNT,
+        UNIT_TURRET_SCALE,
     );
     SectionKind::Turret(TurretSectionConfig {
         root,

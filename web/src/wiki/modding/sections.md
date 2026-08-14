@@ -140,11 +140,20 @@ without moving the collider:
 render_mesh_transform: Some((
     position: (0.0, 0.1, 0.0),
     rotation: (0.0, 0.0, 0.0, 1.0),
+    scale: (0.5, 0.5, 0.5),
 )),
 ```
 
-Both transform fields default independently: omit `position` for zero and
-`rotation` for identity. Turrets place this transform on each joint instead.
+All three fields default independently: omit `position` for zero, `rotation`
+for identity and `scale` for the size the art was modelled at. Turrets place
+this transform on each joint instead.
+
+`scale` resizes the ART, not the section. The collider, the link points and the
+mass stay exactly as authored, so shrinking a mesh does not shrink what the part
+occupies - set the collider and its sockets to match if you want them to agree.
+Resizing a whole ASSEMBLY (a turret's joint tree) takes both halves: scale every
+joint's mesh AND every joint offset by the same factor, or the parts stay spaced
+for the size they used to be.
 
 ## Hull
 
@@ -166,8 +175,8 @@ Section((
 ```
 
 - `render_mesh` (optional) - the hull mesh; omit for a default 1x1x1 cuboid.
-- `render_mesh_transform` (optional) - visual-only position and rotation; does
-  not move the collider.
+- `render_mesh_transform` (optional) - visual-only position, rotation and
+  scale; does not move or resize the collider.
 - every section's `base` block also takes `impact_sound` + `destroy_sound`
   (optional) - the sounds a hit on / the destruction of THIS section plays,
   asset refs like the meshes (`dep://base/sounds/impact.wav` /
@@ -188,7 +197,7 @@ kind: Thruster((
   Larger values accelerate the same ship faster; compare against the base
   prototypes when balancing.
 - `render_mesh` (optional) - custom mesh; omit for the default thruster body.
-- `render_mesh_transform` (optional) - visual-only position and rotation.
+- `render_mesh_transform` (optional) - visual-only position, rotation and scale.
 - `loop_sound` (optional) - the engine hum this thruster contributes to
   (`dep://base/sounds/thruster_loop.wav` is the base drone); thrusters sharing
   a sound share one loop whose volume tracks the loudest ship burning it. An
@@ -232,7 +241,7 @@ kind: Controller((
 - `damping_ratio` - the PD damping ratio (overshoot vs settle).
 - `max_torque` - the maximum torque the controller may apply.
 - `render_mesh` (optional) - custom mesh; omit for the default body.
-- `render_mesh_transform` (optional) - visual-only position and rotation.
+- `render_mesh_transform` (optional) - visual-only position, rotation and scale.
 - `lock_on_sound`, `lock_off_sound`, `radar_deny_sound`,
   `radar_retarget_sound`, `safety_on_sound`, `rcs_loop_sound` (all optional) - the computer's
   radar/lock and weapons-safety feedback ticks, asset refs like the meshes
@@ -300,8 +309,10 @@ Per-joint fields (on every `root`/`children` node):
   for no limit.
 - `render_mesh` (optional) - this joint's mesh; omit for a plain default
   primitive. Shipped turrets author a GLB per visible joint.
-- `render_mesh_transform` (optional) - re-seats this joint's render mesh
-  visually without moving the hinge or the collider.
+- `render_mesh_transform` (optional) - re-seats or resizes this joint's render
+  mesh visually without moving the hinge or the collider. It also sizes the
+  DEFAULT primitive an unmeshed joint gets, which is a full unit across - scale
+  it with the rest, or a small turret wears a hull-sized base plate.
 - `muzzle` (optional) - marks this joint a fire point: `Some((fire_rate: N))`
   (rounds per second), plus an optional `muzzle_effect` flash asset ref. A turret
   aims and fires ALL of its muzzles: hang two off one barrel for a twin PDC, or
@@ -369,8 +380,8 @@ kind: Torpedo((
   even when a torpedo is shot down. Omit for a silent detonation.
 - `render_mesh`, `projectile_render_mesh` (both optional) - the bay mesh and the
   torpedo mesh; omit for defaults.
-- `render_mesh_transform` (optional) - visual-only bay mesh position and
-  rotation. It does not move the launch point.
+- `render_mesh_transform` (optional) - visual-only bay mesh position, rotation
+  and scale. It does not move the launch point.
 - `spawn_offset` (`Vec3`), `spawn_rotation` (`Quat`, a bare 4-tuple) - where the
   torpedo leaves the bay, relative to the section.
 - `fire_rate` - launches per second.

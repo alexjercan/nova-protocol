@@ -10,7 +10,7 @@ use super::{assets::BaseContentAssets, ships};
 
 mod standard;
 
-pub(crate) use standard::{turret_joint_tree, UNIT_TURRET_MOUNT};
+pub(crate) use standard::{turret_joint_tree, UNIT_TURRET_MOUNT, UNIT_TURRET_SCALE};
 
 /// Generic hull, controller, thruster, turret, and torpedo prototypes.
 pub(crate) fn standard_section_prototypes(assets: &BaseContentAssets) -> Vec<SectionConfig> {

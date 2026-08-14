@@ -186,6 +186,7 @@ mod test {
         let authored = RenderMeshTransform {
             position: Vec3::new(0.2, -0.1, 0.4),
             rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+            ..default()
         };
         let got = child_transform(Some(authored));
         assert_eq!(got.translation, authored.position);
@@ -210,7 +211,7 @@ mod test {
             render_mesh: None,
             render_mesh_transform: Some(RenderMeshTransform {
                 position: Vec3::new(1.0, 0.0, 0.0),
-                rotation: Quat::IDENTITY,
+                ..default()
             }),
         };
         let ron = ron::ser::to_string(&authored).expect("serialize");

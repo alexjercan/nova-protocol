@@ -727,16 +727,16 @@
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
-                    0.3,
-                    0.3,
-                    0.3,
+                    0.5,
+                    0.5,
+                    0.5,
                 ),
             )),
             link_points: [
                 (
                     id: "positive_x",
                     position: (
-                        0.15,
+                        0.25,
                         0.0,
                         0.0,
                     ),
@@ -749,7 +749,7 @@
                 (
                     id: "negative_x",
                     position: (
-                        -0.15,
+                        -0.25,
                         0.0,
                         0.0,
                     ),
@@ -763,7 +763,7 @@
                     id: "positive_y",
                     position: (
                         0.0,
-                        0.15,
+                        0.25,
                         0.0,
                     ),
                     normal: (
@@ -776,7 +776,7 @@
                     id: "negative_y",
                     position: (
                         0.0,
-                        -0.15,
+                        -0.25,
                         0.0,
                     ),
                     normal: (
@@ -790,7 +790,7 @@
                     position: (
                         0.0,
                         0.0,
-                        0.15,
+                        0.25,
                     ),
                     normal: (
                         0.0,
@@ -803,7 +803,7 @@
                     position: (
                         0.0,
                         0.0,
-                        -0.15,
+                        -0.25,
                     ),
                     normal: (
                         0.0,
@@ -817,14 +817,21 @@
             root: (
                 offset: (
                     0.0,
-                    -0.15,
+                    -0.25,
                     0.0,
                 ),
+                render_mesh_transform: Some((
+                    scale: (
+                        0.5,
+                        0.5,
+                        0.5,
+                    ),
+                )),
                 children: [
                     (
                         offset: (
                             0.0,
-                            0.1,
+                            0.05,
                             0.0,
                         ),
                         axis: Some((
@@ -833,12 +840,19 @@
                             0.0,
                         )),
                         render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
+                        render_mesh_transform: Some((
+                            scale: (
+                                0.5,
+                                0.5,
+                                0.5,
+                            ),
+                        )),
                         children: [
                             (
                                 offset: (
                                     0.0,
-                                    0.332706,
-                                    0.303954,
+                                    0.166353,
+                                    0.151977,
                                 ),
                                 axis: Some((
                                     1.0,
@@ -848,20 +862,34 @@
                                 min: Some(-0.17453294),
                                 max: Some(1.5707964),
                                 render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
+                                render_mesh_transform: Some((
+                                    scale: (
+                                        0.5,
+                                        0.5,
+                                        0.5,
+                                    ),
+                                )),
                                 children: [
                                     (
                                         offset: (
                                             0.0,
-                                            0.128437,
-                                            -0.110729,
+                                            0.0642185,
+                                            -0.0553645,
                                         ),
                                         render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
+                                        render_mesh_transform: Some((
+                                            scale: (
+                                                0.5,
+                                                0.5,
+                                                0.5,
+                                            ),
+                                        )),
                                         children: [
                                             (
                                                 offset: (
                                                     0.0,
                                                     0.0,
-                                                    -1.2,
+                                                    -0.6,
                                                 ),
                                                 muzzle: Some((
                                                     fire_rate: 100.0,

@@ -122,15 +122,34 @@ fn is_identity_rotation(q: &Quat) -> bool {
     *q == Quat::IDENTITY
 }
 
-/// An authored transform (position + rotation) applied to a section's RENDER
-/// MESH only, relative to the section's own frame. It never touches the
-/// section's physics/kinematic transform, so art can be nudged or reoriented
-/// without moving the collider or (for turrets) disturbing the joint tree.
-/// Position and rotation are authored independently (each defaults out), so a
-/// mesh that only needs a small rotation writes just `rotation`, and a nudge
-/// writes just `position`. Shared by every section kind (turret joints carry it
-/// per-joint; hull/thruster/controller/torpedo carry it per-section).
-#[derive(Clone, Copy, Debug, PartialEq, Default, Reflect)]
+/// Skip serializing an unscaled mesh - the common case, since art is normally
+/// modelled at the size it is used.
+#[cfg(feature = "serde")]
+fn is_unit_scale(v: &Vec3) -> bool {
+    *v == Vec3::ONE
+}
+
+/// A missing `scale` means "as modelled", not "scaled to nothing".
+#[cfg(feature = "serde")]
+fn unit_scale() -> Vec3 {
+    Vec3::ONE
+}
+
+/// An authored transform (position, rotation and scale) applied to a section's
+/// RENDER MESH only, relative to the section's own frame. It never touches the
+/// section's physics/kinematic transform, so art can be nudged, reoriented or
+/// resized without moving the collider or (for turrets) disturbing the joint
+/// tree. Each field is authored independently and defaults out, so a mesh that
+/// only needs a small rotation writes just `rotation`. Shared by every section
+/// kind (turret joints carry it per-joint; hull/thruster/controller/torpedo
+/// carry it per-section).
+///
+/// `scale` resizes the ART, and only the art. A whole ASSEMBLY - a turret's
+/// joint tree - is resized by scaling every joint's mesh AND every joint offset
+/// by the same factor; scaling the meshes alone leaves the parts spaced for the
+/// size they used to be. See `turret_joint_tree` in `nova_authoring` for the
+/// shipped example.
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RenderMeshTransform {
     /// Local translation of the render mesh, relative to the section origin.
@@ -145,13 +164,36 @@ pub struct RenderMeshTransform {
         serde(default, skip_serializing_if = "is_identity_rotation")
     )]
     pub rotation: Quat,
+    /// Local scale of the render mesh. `Vec3::ONE` is the modelled size.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "unit_scale", skip_serializing_if = "is_unit_scale")
+    )]
+    pub scale: Vec3,
+}
+
+impl Default for RenderMeshTransform {
+    /// The identity: art where it was modelled, at the size it was modelled.
+    /// Hand-written because a derived `Default` would scale every mesh to
+    /// nothing.
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            scale: Vec3::ONE,
+        }
+    }
 }
 
 impl RenderMeshTransform {
-    /// The bevy [`Transform`] this describes (scale left at 1). Used as the
-    /// render-mesh child entity's local transform.
+    /// The bevy [`Transform`] this describes. Used as the render-mesh child
+    /// entity's local transform.
     pub fn to_transform(self) -> Transform {
-        Transform::from_translation(self.position).with_rotation(self.rotation)
+        Transform {
+            translation: self.position,
+            rotation: self.rotation,
+            scale: self.scale,
+        }
     }
 }
 
