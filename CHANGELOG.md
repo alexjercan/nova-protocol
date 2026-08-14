@@ -120,6 +120,9 @@ tagged **(breaking)**.
 
 - `NOVA_MENU_BACKDROP=<scenario id>` pins the menu's backdrop draw for
   capture and authoring runs; unknown ids fall back to the random pick.
+- The autopilot gains a `type_text` gesture: a driven run can type into a text
+  field (the editor gallery's filter), which `press_key` cannot do - it writes
+  only the held-key state, not the text a keypress produces.
 - Built-in authoring content now has an explicit `base_content` inventory grouped into Nova Protocol chapters, private main-menu backdrops, sandboxes, standard section prototypes, and per-craft semantic parts; generated RON is unchanged.
 
 ## [0.10.0] - 2026-08-13
@@ -198,6 +201,11 @@ tagged **(breaking)**.
 
 ### Interface & HUD
 
+- The editor grows a **parts gallery**: a full-screen browser of the section
+  catalog with a live 3D preview per tile, a category row, a text filter (just
+  type) and a focus card that turntables the part beside its stats. Picking
+  from it arms the placement tool, so a part can be found by LOOKING at it
+  rather than by reading the drawer list, which stays for quick repeat picks.
 - Setting buttons commit on RELEASE over the button, not on mouse-down: press
   a wrong option, drag off and release, and nothing changes.
 - Every button variant now has its own pressed face on BOTH skins. `Ghost` (the

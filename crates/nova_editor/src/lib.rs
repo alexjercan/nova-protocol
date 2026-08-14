@@ -3,8 +3,10 @@
 //!
 //! Structure:
 //! - `config`    - the build-state resources + preview markers
+//! - `preview`   - the one place a section config becomes preview entities
 //! - `placement` - creating a ship + the pointer place/preview/delete observers
 //! - `keybind`   - section keybind chips + click-to-rebind
+//! - `gallery`   - the full-screen parts browser that arms the placement tool
 //! - `scenario`  - the player-only asteroid+planetoid scene handed off on Play
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
 #![warn(missing_docs)]
@@ -17,8 +19,10 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
 mod config;
+mod gallery;
 mod keybind;
 mod placement;
+mod preview;
 mod scenario;
 mod ui;
 
@@ -135,6 +139,8 @@ fn editor_plugin(app: &mut App) {
 
     // Button colours, selection highlight, and the component tooltip.
     ui::register(app);
+    // The parts browser: its own state, overlay and 3D stage.
+    gallery::register(app);
     // Component cards + rail tools set the placement tool via their ButtonValue.
     app.add_observer(button_on_setting::<SectionChoice>);
 
@@ -153,11 +159,15 @@ fn editor_plugin(app: &mut App) {
         OnEnter(ExampleStates::Scenario),
         |mut rebind: ResMut<EditorRebind>| *rebind = EditorRebind::default(),
     );
+    // NOTE: the rebind capture and the right-drag cursor grab are gated on the
+    // gallery being CLOSED - while the overlay is up it owns the keyboard (a
+    // filter keystroke would otherwise be captured as a section binding) and
+    // the pointer.
     app.add_systems(
         Update,
         (
             sync_section_keybind_labels,
-            apply_section_rebind,
+            apply_section_rebind.run_if(not(gallery::gallery_open)),
             position_section_keybind_labels,
         )
             .run_if(in_state(ExampleStates::Editor)),
@@ -166,7 +176,8 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(
         Update,
         lock_on_left_click
-            .run_if(in_state(ExampleStates::Editor).and_then(in_state(PauseStates::Unpaused))),
+            .run_if(in_state(ExampleStates::Editor).and_then(in_state(PauseStates::Unpaused)))
+            .run_if(not(gallery::gallery_open)),
     );
     app.add_systems(
         Update,

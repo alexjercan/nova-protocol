@@ -19,13 +19,14 @@ use nova_ui::{
 
 use crate::{
     config::SectionChoice,
+    gallery::{EditorCamera, EditorChrome, GalleryAction},
     placement::{
         continue_to_simulation, create_new_spaceship, create_new_spaceship_with_controller,
     },
     ui::{
         card::component_card,
         drawer::DrawerPanel,
-        rail::{coming_soon_category, components_category},
+        rail::{category_row, coming_soon_category, components_category},
     },
     ExampleStates,
 };
@@ -78,6 +79,9 @@ pub(crate) fn setup_editor_scene(
         Camera3d::default(),
         PostProcessingCamera,
         WASDCameraController,
+        // The gallery parks this camera on its own stage while it is open, so
+        // it needs a handle that does not assume a single Camera3d.
+        EditorCamera,
         Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
         // NOTE: direct SkyboxConfig insert (no PendingSkyboxSwap) is safe
         // because `game_assets.cubemap` already has its Cube view.
@@ -96,6 +100,8 @@ pub(crate) fn setup_editor_scene(
         .spawn((
             DespawnOnExit(ExampleStates::Editor),
             Name::new("Editor Root"),
+            // The gallery hides the whole rail + drawer while it is up.
+            EditorChrome,
             // Pass pointer events through the empty (right) area to the 3D scene,
             // so building is not blocked; the rail/drawer panels still block.
             Pickable {
@@ -142,6 +148,11 @@ pub(crate) fn setup_editor_scene(
 
                 rail.spawn(panel_header("Categories"));
                 rail.spawn(components_category());
+                rail.spawn((
+                    Name::new("Parts Gallery Category"),
+                    category_row("Parts Gallery"),
+                    GalleryAction::Open,
+                ));
                 rail.spawn(coming_soon_category("Ships", skin));
                 rail.spawn(coming_soon_category("Objects", skin));
                 rail.spawn(coming_soon_category("Events", skin));

@@ -13,6 +13,7 @@ use nova_ship::prelude::*;
 use crate::{
     config::{PlayerSpaceshipConfig, SectionChoice, SectionPreviewMarker, SpaceshipPreviewMarker},
     keybind::EditorRebind,
+    preview::insert_preview_section,
     ExampleStates,
 };
 
@@ -110,52 +111,18 @@ fn placement_rotation(kind: &SectionKind, normal: Vec3) -> Quat {
     }
 }
 
-/// Spawn one preview section under the preview ship. The single place that
-/// knows how a [`SectionConfig`] becomes preview entities, so click-placement
-/// and the on-enter rebuild cannot drift apart.
+/// Spawn one preview section under the preview ship, through the shared
+/// [`insert_preview_section`] spawner - so click-placement, the on-enter
+/// rebuild and the gallery tiles cannot drift apart.
 fn spawn_preview_section(
     parent: &mut ChildSpawnerCommands,
     section: &SectionConfig,
     transform: Transform,
     binds: Vec<Binding>,
 ) -> Entity {
-    let base = preview_section(section.base.clone());
-    match &section.kind {
-        SectionKind::Hull(hull) => parent
-            .spawn((base, transform, hull_section(hull.clone())))
-            .id(),
-        SectionKind::Controller(controller) => parent
-            .spawn((
-                base,
-                transform,
-                preview_controller_section(controller.clone()),
-            ))
-            .id(),
-        SectionKind::Thruster(thruster) => parent
-            .spawn((
-                base,
-                transform,
-                thruster_section(thruster.clone()),
-                SpaceshipThrusterInputBinding(binds),
-            ))
-            .id(),
-        SectionKind::Turret(turret) => parent
-            .spawn((
-                base,
-                transform,
-                turret_section(turret.clone()),
-                SpaceshipTurretInputBinding(binds),
-            ))
-            .id(),
-        SectionKind::Torpedo(torpedo) => parent
-            .spawn((
-                base,
-                transform,
-                torpedo_section(torpedo.clone()),
-                SpaceshipTorpedoInputBinding(binds),
-            ))
-            .id(),
-    }
+    let mut entity = parent.spawn(transform);
+    insert_preview_section(&mut entity, section, binds);
+    entity.id()
 }
 
 /// Record a freshly spawned preview section in the build state. The config id

@@ -18,7 +18,11 @@
 //!    pipeline (avian's physics-picking backend raycasts the pointer to a hit, and the editor's own
 //!    `on_click_spaceship_section` observer places the section);
 //! 5. click Select / Rebind and click the ship again - select mode must place NOTHING;
-//! 6. click Delete Section and click the ship again - the count drops back.
+//! 6. click Delete Section and click the ship again - the count drops back;
+//! 7. open the parts gallery from the rail and walk it end to end - browse (the tiles are up),
+//!    filter (typing narrows the grid to one part), focus (the card names that part), select
+//!    (Place arms the tool and closes the gallery) and place (a click on the ship builds the
+//!    part the gallery picked).
 //!
 //! Controls (interactive run): use the on-screen buttons to create ships and place sections.
 //!
@@ -84,6 +88,8 @@ struct EditorProbe {
     hull: String,
     /// Live section count, stamped by the beat before the one that checks it.
     sections: usize,
+    /// Gallery tiles on screen, stamped before the filter beat narrows them.
+    tiles: usize,
 }
 
 /// The whole driven run.
@@ -244,6 +250,160 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .until(frames(1))
         .add()
+        // The parts gallery, walked the way a player walks it: browse, filter,
+        // focus, select, place. Every beat is a real gesture on a real widget -
+        // the gallery state is crate-private, so what the run can see is what
+        // the player can see (tiles, the focus card, the section that appears).
+        .step("editor: open the parts gallery")
+        .on_enter(click_named("Parts Gallery Category"))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release the gallery category")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the gallery is browsing the catalog")
+        .on_enter(|world: &mut World| {
+            let tiles = count_named_with_prefix(world, GALLERY_TILE);
+            assert!(
+                tiles > 0,
+                "opening the gallery must list the browsable prototypes"
+            );
+            info!("editor: gallery is up with {tiles} tiles");
+            world.resource_mut::<EditorProbe>().tiles = tiles;
+        })
+        .until(frames(1))
+        .add()
+        // The two gallery figures. `shoot` writes nothing unless NOVA_CAPTURE
+        // is armed, and `shot_written` is inert in the same case, so the smoke
+        // run walks these beats without waiting on a file.
+        .step("editor: shoot the gallery grid")
+        .on_enter(|world: &mut World| shoot(world, "editor-gallery.png"))
+        .until(shot_written("editor-gallery.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        // Typing goes to the filter field: the gallery owns the keyboard while
+        // it is up.
+        .step("editor: filter the gallery")
+        .on_enter(|world: &mut World| {
+            let needle = filter_needle(world);
+            type_text(needle)(world);
+        })
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the filter narrowed the grid to the hull")
+        .on_enter(|world: &mut World| {
+            let hull = world.resource::<EditorProbe>().hull.clone();
+            let before = world.resource::<EditorProbe>().tiles;
+            let now = count_named_with_prefix(world, GALLERY_TILE);
+            assert!(
+                now < before,
+                "typing a name into the gallery must narrow it ({before} -> {now})"
+            );
+            assert!(
+                ui_node_rect(world, &format!("{GALLERY_TILE}{hull}")).is_some(),
+                "the filtered grid must still list `{hull}`"
+            );
+            info!("editor: filter narrowed the gallery ({before} -> {now} tiles)");
+        })
+        .until(frames(1))
+        .add()
+        .step("editor: focus the filtered tile")
+        .on_enter(|world: &mut World| {
+            let hull = world.resource::<EditorProbe>().hull.clone();
+            click_named(format!("{GALLERY_TILE}{hull}"))(world);
+        })
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release the tile")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the focus card names the part and reads its stats")
+        .on_enter(|world: &mut World| {
+            let hull = world.resource::<EditorProbe>().hull.clone();
+            let lines = subtree_text(world, "Gallery Focus Card");
+            assert!(
+                lines.contains(&hull),
+                "the focus card must name `{hull}`; it read {lines:?}"
+            );
+            for stat in ["hp", "size", "sockets"] {
+                assert!(
+                    lines.iter().any(|line| line == stat),
+                    "the focus card must read `{stat}`; it read {lines:?}"
+                );
+            }
+            info!("editor: focus card reads `{hull}`");
+        })
+        .until(frames(1))
+        .add()
+        .step("editor: shoot the gallery focus card")
+        .on_enter(|world: &mut World| shoot(world, "editor-gallery-focus.png"))
+        .until(shot_written("editor-gallery-focus.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("editor: place the focused part")
+        .on_enter(click_named("Gallery Place Button"))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release Place")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the gallery closed and armed the tool")
+        .on_enter(|world: &mut World| {
+            assert!(
+                ui_node_rect(world, "Parts Gallery").is_none(),
+                "placing from the gallery must close it"
+            );
+            // Only now is the section count the SHIP's again: a gallery tile is
+            // a section preview too, and it despawns with the overlay.
+            stamp_sections(world);
+        })
+        .until(frames(SETTLE))
+        .add()
+        .click_the_ship("editor: place the gallery's pick")
+        .step("editor: the gallery's pick was placed")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorProbe>().sections;
+            let now = count_sections(world);
+            assert_eq!(
+                now,
+                before + 1,
+                "the part selected in the gallery must be the one a click builds"
+            );
+            info!("editor: placed the gallery's pick ({before} -> {now})");
+        })
+        .until(frames(1))
+        .add()
+}
+
+/// Name prefix every gallery tile carries; the part's display name follows it.
+#[cfg(feature = "debug")]
+const GALLERY_TILE: &str = "Gallery Tile ";
+
+/// The text the filter beat types: the first word of the hull's display name,
+/// lowercased, so the run proves the filter is case-insensitive as well as
+/// narrowing.
+#[cfg(feature = "debug")]
+fn filter_needle(world: &World) -> String {
+    world
+        .resource::<EditorProbe>()
+        .hull
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .to_lowercase()
+}
+
+/// How many laid-out, visible UI nodes have a name starting with `prefix`.
+#[cfg(feature = "debug")]
+fn count_named_with_prefix(world: &mut World, prefix: &str) -> usize {
+    world
+        .query::<(&Name, &InheritedVisibility)>()
+        .iter(world)
+        .filter(|(name, visibility)| visibility.get() && name.as_str().starts_with(prefix))
+        .count()
 }
 
 /// The display name of any hull section in the catalog (the section the run places).
@@ -274,16 +434,22 @@ fn stamp_sections(world: &mut World) {
 /// Every line of text in the component tooltip, if one is up.
 #[cfg(feature = "debug")]
 fn tooltip_text(world: &mut World) -> Vec<String> {
-    let Some(tooltip) = world
+    subtree_text(world, "Component Tooltip")
+}
+
+/// Every line of text under the named UI node, empty when no such node is up.
+#[cfg(feature = "debug")]
+fn subtree_text(world: &mut World, name: &str) -> Vec<String> {
+    let Some(root) = world
         .query::<(Entity, &Name)>()
         .iter(world)
-        .find(|(_, name)| name.as_str() == "Component Tooltip")
+        .find(|(_, node_name)| node_name.as_str() == name)
         .map(|(entity, _)| entity)
     else {
         return Vec::new();
     };
     let mut lines = Vec::new();
-    let mut stack = vec![tooltip];
+    let mut stack = vec![root];
     while let Some(entity) = stack.pop() {
         if let Some(text) = world.get::<Text>(entity) {
             lines.push(text.0.clone());

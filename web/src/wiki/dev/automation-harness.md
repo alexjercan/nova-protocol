@@ -111,11 +111,17 @@ state, wait N seconds - is sugar for
 `step("hold:<state>").enter(state).until(elapsed(secs))` rather than a second
 mechanism. The vocabulary is in `nova_autopilot::predicate` (`elapsed`,
 `frames`, `state_is`, `resource_where`, `any_entity`, `and`, `not`), the
-gestures in `nova_autopilot::input` (`press_key`, `release_key`, `press_mouse`,
-`release_mouse`, `move_cursor`, `click_at`), and the Nova-typed predicates in
-`nova_debug::harness` (`scenario_variable_is`, `section_gone`,
+gestures in `nova_autopilot::input` (`press_key`, `release_key`, `type_text`,
+`press_mouse`, `release_mouse`, `move_cursor`, `click_at`), and the Nova-typed
+predicates in `nova_debug::harness` (`scenario_variable_is`, `section_gone`,
 `player_ship_present`). Anything the vocabulary cannot express is a plain
 closure: `Arc::new(|world: &World| ...)`.
+
+Typing is its own gesture because a key has two halves. `press_key` writes the
+HELD state (`ButtonInput<KeyCode>`), which is what flight code polls;
+`type_text` writes the keyboard MESSAGE carrying the text a keypress produced,
+which is what a text field reads. A run that drives a filter or a name field
+wants the second - pressing `KeyR` fills nothing in.
 
 **A driven run owns the pointer.** The examples run on a real display, so a
 real cursor event - the window manager's enter/motion pair, a developer nudging

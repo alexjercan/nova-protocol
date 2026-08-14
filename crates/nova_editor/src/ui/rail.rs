@@ -11,16 +11,25 @@ use nova_ui::{
 
 use crate::ui::drawer::toggle_drawer;
 
-/// The active "Components" category row: a themed button that toggles the
-/// drawer. Uses `ThemedButton` so it gets the shared hover colouring, but
-/// carries no `ButtonValue`, so pressing it never touches `SectionChoice`.
+/// The active "Components" category row: a category row that toggles the
+/// drawer.
 pub(crate) fn components_category() -> impl Bundle {
     (
         Name::new("Components Category"),
+        category_row("Components"),
+        bevy::ui_widgets::observe(toggle_drawer),
+    )
+}
+
+/// A live category row. Uses `ThemedButton` so it gets the shared hover
+/// colouring, but carries no `ButtonValue`, so pressing one never touches
+/// `SectionChoice`; the caller supplies the name and what the press does.
+pub(crate) fn category_row(label: &str) -> impl Bundle {
+    let label = label.to_string();
+    (
         ThemedButton,
         Button,
         Hovered::default(),
-        bevy::ui_widgets::observe(toggle_drawer),
         Node {
             width: percent(100),
             min_height: px(30),
@@ -34,7 +43,7 @@ pub(crate) fn components_category() -> impl Bundle {
         BorderColor::all(theme::PHOSPHOR_MUTED),
         BackgroundColor(theme::SCREEN_0),
         children![(
-            Text::new("Components"),
+            Text::new(label),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()

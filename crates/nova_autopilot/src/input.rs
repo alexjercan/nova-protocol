@@ -51,7 +51,11 @@
 //! the beat - only renaming the widget does.
 
 use bevy::{
-    input::{mouse::MouseButtonInput, ButtonState},
+    input::{
+        keyboard::{Key, KeyboardInput, NativeKeyCode},
+        mouse::MouseButtonInput,
+        ButtonState,
+    },
     picking::PickingSystems,
     prelude::*,
     window::{CursorMoved, PrimaryWindow, WindowEvent},
@@ -68,6 +72,42 @@ pub fn press_key(key: KeyCode) -> impl Fn(&mut World) + Send + Sync + 'static {
 pub fn release_key(key: KeyCode) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| {
         world.resource_mut::<ButtonInput<KeyCode>>().release(key);
+    }
+}
+
+/// Type `text`: one press [`KeyboardInput`] per character, carrying that
+/// character as the text the keypress produced.
+///
+/// [`press_key`] writes only `ButtonInput<KeyCode>`, which is where a game
+/// polls for a HELD key. A text field reads the produced TEXT off the keyboard
+/// message instead - what the key means under the player's layout - so typing
+/// is its own gesture. The physical key code is reported unidentified: a driven
+/// run knows the characters it means to type, not the keyboard that would have
+/// produced them.
+///
+/// A warn-and-continue no-op without a primary window, like the pointer
+/// gestures.
+pub fn type_text(text: impl Into<String>) -> impl Fn(&mut World) + Send + Sync + 'static {
+    let text = text.into();
+    move |world: &mut World| {
+        let Ok(window) = world
+            .query_filtered::<Entity, With<PrimaryWindow>>()
+            .single(world)
+        else {
+            warn!("autopilot: typing `{text}` has no primary window");
+            return;
+        };
+        for character in text.chars() {
+            let character = character.to_string();
+            world.write_message(KeyboardInput {
+                key_code: KeyCode::Unidentified(NativeKeyCode::Unidentified),
+                logical_key: Key::Character(character.as_str().into()),
+                state: ButtonState::Pressed,
+                text: Some(character.as_str().into()),
+                repeat: false,
+                window,
+            });
+        }
     }
 }
 

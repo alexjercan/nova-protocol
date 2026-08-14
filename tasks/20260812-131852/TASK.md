@@ -1,8 +1,8 @@
 # Editor: gallery section picker with previews, dropdowns, filters
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 90
-- TAGS: v0.11.0,editor,ui
+- TAGS: v0.11.0, editor, ui
 
 Goal: the editor's section selection becomes a parts_viewer-style gallery -
 3D preview tiles with labels, category dropdowns, text filter, focus preview
