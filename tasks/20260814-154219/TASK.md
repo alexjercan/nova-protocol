@@ -1,8 +1,8 @@
 # PDC turrets can park at full elevation and stop tracking
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
-- TAGS: v0.11.0,ship,turret
+- TAGS: v0.11.0, ship, turret
 
 # PDC turrets can park at full elevation and stop tracking
 

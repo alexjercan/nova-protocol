@@ -187,6 +187,14 @@ const AIM_CORRECTION_GAIN: f32 = 0.35;
 /// point moves with the muzzle it is aiming) would otherwise sustain forever.
 const AIM_DEADBAND_RAD: f32 = 0.004;
 
+/// How close the muzzle forward may come to a hinge's own axis before that
+/// hinge is treated as being AT ITS POLE. The value is the sine of the angle
+/// between them (~0.06 deg), which is what the in-plane muzzle component
+/// measures. Below it the component carries no usable heading - it is pure
+/// rounding noise - so the solver falls back to the joint's last measured
+/// heading instead of reading a direction out of the noise.
+const AIM_HINGE_POLE_SIN: f32 = 1e-3;
+
 /// Generic aim: a Jacobi per-frame hinge-CCD pass over each turret's muzzle
 /// chain (one step per articulated joint, from the muzzle up to the root). Each
 /// articulated joint nudges its [`SmoothLookRotationTarget`] toward the angle
@@ -198,6 +206,17 @@ const AIM_DEADBAND_RAD: f32 = 0.004;
 ///
 /// Same fresh-pose composition as [`update_turret_aim_point`]: runs BEFORE this
 /// frame's transform propagation, so poses are composed via [`TransformHelper`].
+///
+/// A hinge whose muzzle forward lines up with its OWN axis is at a pole: the
+/// joint can no longer see where it points, because rotating it does not move
+/// the muzzle direction at all. The elevation limit of a hull-mounted turret
+/// sits exactly on such a pole (barrel straight up, yaw axis vertical), and a
+/// pinned pitch hinge holds the chain there, so the pole is a trap rather than a
+/// point the solve passes through: yaw is the only joint that can fix a heading
+/// error, and it went blind. Each articulated joint therefore remembers the last
+/// heading it could measure ([`TurretJointAimHeading`]) and steers by that while
+/// at the pole, which turns it onto the target's bearing until the pitch demand
+/// drops back under the limit and the normal solve resumes.
 pub(super) fn update_turret_target_joints_system(
     q_turret: Query<
         (&TurretSectionAimPoint, &TurretSectionMuzzles),
@@ -206,6 +225,7 @@ pub(super) fn update_turret_target_joints_system(
     q_child_of: Query<&ChildOf>,
     q_joint: Query<(&TurretJointMarker, &Transform)>,
     mut q_target_mut: Query<&mut SmoothLookRotationTarget>,
+    mut q_heading: Query<&mut TurretJointAimHeading>,
     q_output: Query<&SmoothLookRotationOutput>,
     transform_helper: TransformHelper,
 ) {
@@ -260,9 +280,30 @@ pub(super) fn update_turret_target_joints_system(
                         let des = tl - ml;
                         let d_perp = dl - a * dl.dot(a);
                         let t_perp = des - a * des.dot(a);
-                        if d_perp.length() > 1e-6 && t_perp.length() > 1e-6 {
-                            let delta = signed_angle_about(d_perp, t_perp, a);
-                            let out = q_output.get(chain).map(|o| **o).unwrap_or(0.0);
+                        let out = q_output.get(chain).map(|o| **o).unwrap_or(0.0);
+
+                        // The joint's heading in its own hinge plane. Off the
+                        // pole the muzzle forward gives it, and the joint keeps
+                        // a copy in its post-rotation frame (so the copy turns
+                        // WITH the joint and stays valid at any angle). At the
+                        // pole that copy is all there is.
+                        let mut stored = q_heading.get_mut(chain).ok();
+                        let heading = if d_perp.length() > AIM_HINGE_POLE_SIN {
+                            let heading = d_perp.normalize();
+                            if let Some(stored) = stored.as_mut() {
+                                stored.0 = Some(Quat::from_axis_angle(a, -out) * heading);
+                            }
+                            Some(heading)
+                        } else {
+                            stored
+                                .as_ref()
+                                .and_then(|stored| stored.0)
+                                .map(|heading| Quat::from_axis_angle(a, out) * heading)
+                        };
+
+                        // A target ON the hinge axis has no bearing to steer to.
+                        if let Some(heading) = heading.filter(|_| t_perp.length() > 1e-6) {
+                            let delta = signed_angle_about(heading, t_perp, a);
                             if let Ok(mut target_angle) = q_target_mut.get_mut(chain) {
                                 // Damp the correction so coupled joints converge
                                 // instead of ringing; hold once aimed (deadband).
@@ -599,6 +640,126 @@ mod tests {
             "turret must swing around to a target behind, not freeze forward: \
              aim error {error} deg"
         );
+    }
+
+    /// The kinematic chain the SHIPPED turret prototypes are built from
+    /// (`nova_authoring`'s `turret_joint_tree`), rebuilt here because that crate
+    /// depends on this one. The dimensions matter to the pole: every offset is
+    /// on the yaw axis' own plane (x = 0), and the barrel hangs BEHIND the pivot,
+    /// so at full elevation the muzzle sits astern of the axis it points along -
+    /// the case where the obvious lever-arm fallback steers the wrong way.
+    fn shipped_turret_chain() -> TurretJoint {
+        let fixed = |offset: Vec3, muzzle, children| TurretJoint {
+            offset,
+            axis: None,
+            speed: std::f32::consts::PI,
+            min: None,
+            max: None,
+            render_mesh: None,
+            render_mesh_transform: None,
+            muzzle,
+            children,
+        };
+        fixed(
+            Vec3::new(0.0, -0.5, 0.0),
+            None,
+            vec![TurretJoint {
+                offset: Vec3::new(0.0, 0.1, 0.0),
+                axis: Some(Vec3::Y),
+                speed: std::f32::consts::PI,
+                min: None,
+                max: None,
+                render_mesh: None,
+                render_mesh_transform: None,
+                muzzle: None,
+                children: vec![TurretJoint {
+                    offset: Vec3::new(0.0, 0.332706, 0.303954),
+                    axis: Some(Vec3::X),
+                    speed: std::f32::consts::PI,
+                    min: Some(-std::f32::consts::PI / 18.0),
+                    max: Some(std::f32::consts::FRAC_PI_2),
+                    render_mesh: None,
+                    render_mesh_transform: None,
+                    muzzle: None,
+                    children: vec![fixed(
+                        Vec3::new(0.0, 0.128437, -0.110729),
+                        None,
+                        vec![fixed(
+                            Vec3::new(0.0, 0.0, -1.2),
+                            Some(MuzzleConfig {
+                                fire_rate: 10.0,
+                                muzzle_effect: None,
+                            }),
+                            vec![],
+                        )],
+                    )],
+                }],
+            }],
+        )
+    }
+
+    #[test]
+    fn a_turret_tracks_a_target_across_the_zenith() {
+        // POLE REGRESSION: a target that crosses overhead drives the pitch hinge
+        // into its +90 deg elevation limit, where the muzzle forward is PARALLEL
+        // to the yaw hinge axis. The yaw joint's in-plane muzzle heading collapses
+        // there, so it took no correction, and pitch - the only other joint - was
+        // already pinned at the limit. The barrel parked pointing straight up and
+        // never came back down. It must follow the target onto the new bearing.
+        //
+        // Run on the default chain AND on the shipped one, because the two put
+        // the muzzle on opposite sides of the yaw axis at full elevation.
+        for root in [TurretSectionConfig::default().root, shipped_turret_chain()] {
+            let mut app = aim_convergence_app();
+            let ship = app
+                .world_mut()
+                .spawn((SpaceshipRootMarker, Transform::IDENTITY))
+                .id();
+            let turret = app
+                .world_mut()
+                .spawn(turret_section(TurretSectionConfig {
+                    root,
+                    muzzle_speed: 1000.0,
+                    ..Default::default()
+                }))
+                .id();
+            app.world_mut()
+                .entity_mut(turret)
+                .insert((ChildOf(ship), Transform::IDENTITY));
+            app.world_mut().flush();
+
+            // Nearly overhead off the bow: the barrel sits just short of the
+            // limit, so the next target change pins it before yaw can slew
+            // anywhere.
+            let ahead = Vec3::new(0.0, 100.0, -3.0);
+            app.world_mut()
+                .entity_mut(turret)
+                .insert(TurretSectionTargetInput(Some(ahead)));
+            let muzzle = muzzle_entity(&app, turret);
+            for _ in 0..240 {
+                app.update();
+            }
+            let error = muzzle_aim_error_deg(&mut app, muzzle, ahead);
+            assert!(error < 5.0, "setup: aim error {error} deg off the bow");
+
+            // The target has crossed the zenith: opposite bearing, well down off
+            // the vertical. Pitch is driven straight into its limit while yaw
+            // still has a half-turn to go, so the hinge sits pinned at the pole.
+            let behind = Vec3::new(0.0, 30.0, 30.0);
+            app.world_mut()
+                .entity_mut(turret)
+                .insert(TurretSectionTargetInput(Some(behind)));
+            for _ in 0..480 {
+                app.update();
+            }
+
+            let error = muzzle_aim_error_deg(&mut app, muzzle, behind);
+            assert!(
+                error < 5.0,
+                "turret must come back down onto a target that crossed the \
+                 zenith, not park at full elevation: aim error {error} deg"
+            );
+        }
     }
 
     #[test]

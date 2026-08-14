@@ -51,13 +51,16 @@ fn spawn_turret_joint(
     ));
 
     if let Some(axis) = hinge_axis {
-        entity.insert(SmoothLookRotation {
-            axis,
-            initial: 0.0,
-            speed: joint.speed,
-            min: joint.min,
-            max: joint.max,
-        });
+        entity.insert((
+            SmoothLookRotation {
+                axis,
+                initial: 0.0,
+                speed: joint.speed,
+                min: joint.min,
+                max: joint.max,
+            },
+            TurretJointAimHeading::default(),
+        ));
     }
 
     if let Some(muzzle) = &joint.muzzle {

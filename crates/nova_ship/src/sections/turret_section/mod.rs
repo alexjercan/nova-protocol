@@ -120,6 +120,14 @@ struct TurretJointMarker {
     axis: Option<Vec3>,
 }
 
+/// The last in-plane heading the aim solver measured for an articulated joint,
+/// stored in the joint's own POST-rotation frame so it turns with the joint.
+/// Carried only so the solver has a heading left when the muzzle forward lines
+/// up with the hinge axis - see `update_turret_target_joints_system`. `None`
+/// until the joint's first non-degenerate frame.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+struct TurretJointAimHeading(Option<Vec3>);
+
 /// This joint's render mesh (generic; was the per-type `*RenderMesh` zoo).
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TurretJointRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
