@@ -3,12 +3,13 @@
 Everything a scenario can place in the world. An object is spawned by
 [`SpawnScenarioObject`](../actions/#spawnscenarioobject) (or in bulk by
 [`ScatterObjects`](../actions/#scatterobjects)): a shared `base` block plus a
-`kind` that picks one of the FIVE kinds below. Every object gets the base's
+`kind` that picks one of the SIX kinds below. Every object gets the base's
 id, name and pose, is scenario-scoped (teardown removes it), and carries a
 type name the `type_name` filters match:
 
 | kind | type name | body | what it is |
 |---|---|---|---|
+| [`Anchor`](#anchor) | `"anchor"` | static | invisible authored gravity well (framing/orbit target) |
 | [`Asteroid`](#asteroid) | `"asteroid"` | dynamic | destructible rock, optional gravity well |
 | [`Spaceship`](#spaceship) | `"spaceship"` | dynamic | a multi-section ship, player- or AI-flown |
 | [`Beacon`](#beacon) | `"beacon"` | static | lockable nav marker with a HUD chip |
@@ -18,6 +19,34 @@ type name the `type_name` filters match:
 (Trigger AREAS are spawned by the
 [`CreateScenarioArea`](../actions/#createscenarioarea) action rather than as
 an object kind - and beacons and crates can be their own areas, below.)
+
+## Anchor
+
+An invisible authored point that publishes a [gravity
+well](#asteroid) with an AUTHORED radius: no mesh, no collider, and no
+geometric extent for AI [obstacle avoidance](#the-controller) to steer
+around. Use it where a contract needs a position plus a radius but the scene
+does not want a rock there - a menu backdrop's `menu_planetoid` camera
+anchor, or an orbit directive's target. Because the radius is authored (an
+asteroid's is derived from its generated mesh), everything reading the well
+sees the same geometry on every load.
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `body_radius` | number | required | the well's published body radius, world units |
+| `mass` | `Option` number | `None` | the gravity parameter mu (u^3/s^2), same unit as an asteroid's `mass`. `None` = a zero-strength well: it frames and anchors but never pulls |
+
+```ron
+SpawnScenarioObject((
+    base: (id: "menu_planetoid", name: "Menu Anchor", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: Anchor((
+        body_radius: 80.0,
+    )),
+)),
+```
+
+An anchor is indestructible (there is nothing to hit) and static; it never
+fires destruction events.
 
 ## Asteroid
 

@@ -51,7 +51,9 @@ folder and bundle shape.
 | `events` | list of handlers | `[]` | Scenario script. Empty is valid but does nothing. |
 
 A menu backdrop should spawn a gravity-well object with id `menu_planetoid` so
-the menu camera can frame it.
+the menu camera can frame it - a big rock, or an invisible
+[`Anchor`](../objects/#anchor) when the scene wants the framing without the
+body.
 
 ## Handler shape
 

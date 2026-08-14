@@ -38,6 +38,9 @@ tagged **(breaking)**.
 
 ### Scenarios & Objectives
 
+- New `Anchor` scenario object: an invisible authored gravity well (radius +
+  optional mass, no mesh or collider) for camera framing and orbit targets in
+  scenes that do not want a rock at the anchor point.
 - Three combat menu backdrops join the rotation: Torpedo Gauntlet (a racer's
   point defense against an off-screen battery), Asteroid Weave (a waypoint
   run threading a dense rock band), and Duel Cycle (a repeating duel whose

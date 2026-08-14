@@ -110,6 +110,9 @@ pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ScenarioObjectKind {
+    /// An invisible authored point publishing a deterministic gravity well
+    /// (camera framing, orbit targets) with no mesh, collider, or BodyRadius.
+    Anchor(AnchorConfig),
     /// A destructible rock with a gravity well.
     Asteroid(AsteroidConfig),
     /// A ship built from sections, with a controller (None/Player/AI).
@@ -132,6 +135,9 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
             let mut entity_commands = commands.spawn(base_scenario_object(&config.base));
 
             match &config.kind {
+                ScenarioObjectKind::Anchor(config) => {
+                    entity_commands.insert(anchor_scenario_object(config.clone()));
+                }
                 ScenarioObjectKind::Asteroid(config) => {
                     entity_commands.insert(asteroid_scenario_object(config.clone()));
                 }

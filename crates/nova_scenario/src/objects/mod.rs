@@ -6,6 +6,9 @@
 //!
 //! Touch this module when adding a new kind of authored world object.
 
+/// Anchor scenario object: an invisible authored point publishing a
+/// deterministic gravity well (camera framing, orbit targets) with no body.
+pub mod anchor;
 /// Scenario trigger areas: sensor volumes that fire `OnEnter`/`OnExit` events.
 pub mod area;
 /// Asteroid scenario object: noise-generated rocks that can act as gravity wells.
@@ -23,9 +26,9 @@ pub mod spaceship;
 /// Every scenario object submodule's prelude plus `ScenarioObjectsPlugin`.
 pub mod prelude {
     pub use super::{
-        area::prelude::*, asteroid::prelude::*, beacon::prelude::*, binding_input::prelude::*,
-        light::prelude::*, modification::prelude::*, salvage::prelude::*, spaceship::prelude::*,
-        ScenarioObjectsPlugin,
+        anchor::prelude::*, area::prelude::*, asteroid::prelude::*, beacon::prelude::*,
+        binding_input::prelude::*, light::prelude::*, modification::prelude::*,
+        salvage::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
     };
 }
 
@@ -48,6 +51,7 @@ impl Plugin for ScenarioObjectsPlugin {
     fn build(&self, app: &mut App) {
         debug!("ScenarioObjectsPlugin: build");
 
+        app.add_plugins(anchor::AnchorPlugin);
         app.add_plugins(asteroid::AsteroidPlugin {
             render: self.render,
         });

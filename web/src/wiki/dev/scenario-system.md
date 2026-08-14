@@ -488,9 +488,14 @@ end to end:
 
 All share `BaseScenarioObjectConfig` (id, name, position, rotation) and spawn
 scoped entities via `base_scenario_object`, which deliberately carries no body:
-each kind declares its own `RigidBody` (three of the five are static), and the
-asteroid alone opts into `Dynamic` + `TransformInterpolation`.
+each kind declares its own `RigidBody` (only the asteroid and the spaceship
+are dynamic), and the asteroid alone opts into `Dynamic` +
+`TransformInterpolation`.
 
+- `Anchor(AnchorConfig)` - an invisible point publishing a `GravityWell` with
+  an AUTHORED `body_radius` (deterministic, unlike the asteroid's mesh-derived
+  radius) and an optional `mass`; no mesh, no collider, no `BodyRadius` - the
+  camera-contract / orbit-target anchor for scenes that do not want a rock.
 - `Asteroid(AsteroidConfig)` - radius, texture, health, `mass` (the body's
   `mu`: it alone sets both the pull `a = mu / r^2` and the sphere of influence,
   the distance where that decays to `GravitySettings::soi_cutoff_accel` - so
