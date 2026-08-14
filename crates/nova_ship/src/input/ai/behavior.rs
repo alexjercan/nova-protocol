@@ -166,6 +166,19 @@ pub struct AILeash {
 /// states keep holding on any acquired target, as before.
 const AI_ENGAGE_RANGE: f32 = 800.0;
 
+/// Per-ship override of the hostile-detection range: a passive ship leaves
+/// its routine for a hostile inside THIS range instead of the default
+/// [`AI_ENGAGE_RANGE`]. The asymmetry is the point: a long-watch emplacement
+/// (a torpedo battery parked outside everyone else's detection) authors it
+/// wide and wakes for targets the targets themselves cannot be pulled
+/// toward; a cowardly hauler could author it short and ignore a brawl the
+/// default range would drag it into. Acquisition range
+/// ([`AI_TARGET_MAX_RANGE`]) still caps what can be seen at all. Authored
+/// via `AIControllerConfig::engage_range`.
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct AIEngageRange(pub f32);
+
 /// The skeleton's transitions: combat states need a hostile to fight - with
 /// none acquired every state falls back to its passive routine (`Orbit` with
 /// an orbit directive, else `Patrol` with a route, else `Idle`) - and a
@@ -178,6 +191,7 @@ const AI_ENGAGE_RANGE: f32 = 800.0;
 fn next_behavior_state(
     current: AIBehaviorState,
     hostile_distance: Option<f32>,
+    engage_range: f32,
     has_orbit: bool,
     has_route: bool,
     beyond_leash: bool,
@@ -213,7 +227,7 @@ fn next_behavior_state(
         return passive;
     };
     match current {
-        state if state.is_passive() && (distance <= AI_ENGAGE_RANGE || threat.recently_damaged) => {
+        state if state.is_passive() && (distance <= engage_range || threat.recently_damaged) => {
             AIBehaviorState::Engage
         }
         state if state.is_passive() => passive,
@@ -270,6 +284,7 @@ pub(super) fn update_behavior_state(
             Has<AIOrbitDirective>,
             Has<AIPatrolRoute>,
             Option<&AILeash>,
+            Option<&AIEngageRange>,
             Option<&mut AIEngageGrace>,
         ),
         With<AISpaceshipMarker>,
@@ -286,6 +301,7 @@ pub(super) fn update_behavior_state(
         has_orbit,
         has_route,
         leash,
+        engage_range,
         mut grace,
     ) in &mut q_spaceship
     {
@@ -344,6 +360,7 @@ pub(super) fn update_behavior_state(
         let next = next_behavior_state(
             *state,
             hostile_distance,
+            engage_range.map_or(AI_ENGAGE_RANGE, |range| range.0),
             has_orbit,
             has_route,
             beyond_leash,
@@ -394,11 +411,29 @@ mod behavior_state_tests {
 
         // Graced, hostile in range: the routine holds.
         assert_eq!(
-            next_behavior_state(Patrol, near, false, true, false, true, calm()),
+            next_behavior_state(
+                Patrol,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                false,
+                true,
+                calm()
+            ),
             Patrol
         );
         assert_eq!(
-            next_behavior_state(Idle, near, false, false, false, true, calm()),
+            next_behavior_state(
+                Idle,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                true,
+                calm()
+            ),
             Idle
         );
         // Shot during the entrance: the grace yields NOW.
@@ -408,24 +443,60 @@ mod behavior_state_tests {
             ..default()
         };
         assert_eq!(
-            next_behavior_state(Patrol, near, false, true, false, true, shot),
+            next_behavior_state(
+                Patrol,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                false,
+                true,
+                shot
+            ),
             Engage
         );
         // Grace + beyond-leash compose: passive, no double-engage path.
         assert_eq!(
-            next_behavior_state(Patrol, near, false, true, true, true, calm()),
+            next_behavior_state(
+                Patrol,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                true,
+                true,
+                calm()
+            ),
             Patrol
         );
         // The LOAD-BEARING row: a graced ship in Engage demotes to its
         // routine - AIBehaviorState defaults to Engage, so every graced
         // scenario spawn's first tick IS this transition.
         assert_eq!(
-            next_behavior_state(Engage, near, false, true, false, true, calm()),
+            next_behavior_state(
+                Engage,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                false,
+                true,
+                calm()
+            ),
             Patrol
         );
         // Delivery guard: the same ungraced shape engages immediately.
         assert_eq!(
-            next_behavior_state(Patrol, near, false, true, false, false, calm()),
+            next_behavior_state(
+                Patrol,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                false,
+                false,
+                calm()
+            ),
             Engage
         );
     }
@@ -470,12 +541,30 @@ mod behavior_state_tests {
 
         // Engaged beyond the leash: back to the routine.
         assert_eq!(
-            next_behavior_state(Engage, near, false, true, true, false, calm()),
+            next_behavior_state(
+                Engage,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                true,
+                false,
+                calm()
+            ),
             Patrol
         );
         // Passive beyond the leash: refuses to engage a hostile in range.
         assert_eq!(
-            next_behavior_state(Patrol, near, false, true, true, false, calm()),
+            next_behavior_state(
+                Patrol,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                true,
+                false,
+                calm()
+            ),
             Patrol
         );
         // Under fire the tether yields: the ship fights back.
@@ -483,6 +572,7 @@ mod behavior_state_tests {
             next_behavior_state(
                 Engage,
                 near,
+                AI_ENGAGE_RANGE,
                 false,
                 true,
                 true,
@@ -498,7 +588,16 @@ mod behavior_state_tests {
         // Delivery guard: INSIDE the leash the same engaged ship keeps
         // engaging - the tether only acts beyond the radius.
         assert_eq!(
-            next_behavior_state(Engage, near, false, true, false, false, calm()),
+            next_behavior_state(
+                Engage,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                false,
+                false,
+                calm()
+            ),
             Engage
         );
     }
@@ -511,12 +610,30 @@ mod behavior_state_tests {
         // without a patrol assignment, Patrol with one.
         for state in [Idle, Patrol, Engage, Evade, Retreat] {
             assert_eq!(
-                next_behavior_state(state, None, false, false, false, false, calm()),
+                next_behavior_state(
+                    state,
+                    None,
+                    AI_ENGAGE_RANGE,
+                    false,
+                    false,
+                    false,
+                    false,
+                    calm()
+                ),
                 Idle,
                 "from {state:?}"
             );
             assert_eq!(
-                next_behavior_state(state, None, false, true, false, false, calm()),
+                next_behavior_state(
+                    state,
+                    None,
+                    AI_ENGAGE_RANGE,
+                    false,
+                    true,
+                    false,
+                    false,
+                    calm()
+                ),
                 Patrol,
                 "from {state:?}"
             );
@@ -525,23 +642,68 @@ mod behavior_state_tests {
         // states hold (their exit triggers belong to their own tasks).
         let near = Some(AI_ENGAGE_RANGE * 0.5);
         assert_eq!(
-            next_behavior_state(Idle, near, false, false, false, false, calm()),
+            next_behavior_state(
+                Idle,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                calm()
+            ),
             Engage
         );
         assert_eq!(
-            next_behavior_state(Patrol, near, false, true, false, false, calm()),
+            next_behavior_state(
+                Patrol,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                false,
+                false,
+                calm()
+            ),
             Engage
         );
         assert_eq!(
-            next_behavior_state(Engage, near, false, false, false, false, calm()),
+            next_behavior_state(
+                Engage,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                calm()
+            ),
             Engage
         );
         assert_eq!(
-            next_behavior_state(Evade, near, false, false, false, false, calm()),
+            next_behavior_state(
+                Evade,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                calm()
+            ),
             Evade
         );
         assert_eq!(
-            next_behavior_state(Retreat, near, false, false, false, false, calm()),
+            next_behavior_state(
+                Retreat,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                calm()
+            ),
             Retreat
         );
     }
@@ -554,18 +716,84 @@ mod behavior_state_tests {
         // range: the passive states keep their routine...
         let far = Some(AI_ENGAGE_RANGE * 1.5);
         assert_eq!(
-            next_behavior_state(Patrol, far, false, true, false, false, calm()),
+            next_behavior_state(
+                Patrol,
+                far,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                false,
+                false,
+                calm()
+            ),
             Patrol
         );
         assert_eq!(
-            next_behavior_state(Idle, far, false, false, false, false, calm()),
+            next_behavior_state(
+                Idle,
+                far,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                calm()
+            ),
             Idle
         );
         // ...while a combat state already on that target keeps fighting -
         // the detection range gates entry, not pursuit.
         assert_eq!(
-            next_behavior_state(Engage, far, false, false, false, false, calm()),
+            next_behavior_state(
+                Engage,
+                far,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                calm()
+            ),
             Engage
+        );
+    }
+
+    #[test]
+    fn an_authored_engage_range_moves_the_detection_gate() {
+        use AIBehaviorState::*;
+
+        // The same hostile distance, two authored ranges: a long-watch ship
+        // wakes for a target the default range ignores, and a short-range
+        // one ignores a target the default would engage.
+        let distance = Some(AI_ENGAGE_RANGE * 1.5);
+        assert_eq!(
+            next_behavior_state(
+                Idle,
+                distance,
+                AI_ENGAGE_RANGE * 2.0,
+                false,
+                false,
+                false,
+                false,
+                calm()
+            ),
+            Engage,
+            "a widened range pulls the passive ship in from further out"
+        );
+        let close = Some(AI_ENGAGE_RANGE * 0.5);
+        assert_eq!(
+            next_behavior_state(
+                Idle,
+                close,
+                AI_ENGAGE_RANGE * 0.25,
+                false,
+                false,
+                false,
+                false,
+                calm()
+            ),
+            Idle,
+            "a shortened range keeps the routine against a close hostile"
         );
     }
 
@@ -580,7 +808,16 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Engage, near, false, false, false, false, shot),
+            next_behavior_state(
+                Engage,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                shot
+            ),
             Evade
         );
         let aimed = ThreatSignals {
@@ -588,7 +825,16 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Engage, near, false, false, false, false, aimed),
+            next_behavior_state(
+                Engage,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                aimed
+            ),
             Evade
         );
         // ...but not during the refractory cooldown: threats between evade
@@ -600,7 +846,16 @@ mod behavior_state_tests {
             ..default()
         };
         assert_eq!(
-            next_behavior_state(Engage, near, false, false, false, false, refractory),
+            next_behavior_state(
+                Engage,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                refractory
+            ),
             Engage
         );
     }
@@ -613,7 +868,16 @@ mod behavior_state_tests {
         // Mid-cycle, even with the threat gone: the jink is timed, not
         // signal-chasing.
         assert_eq!(
-            next_behavior_state(Evade, near, false, false, false, false, calm()),
+            next_behavior_state(
+                Evade,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                calm()
+            ),
             Evade
         );
         // Expiry decays back to Engage even under an ongoing threat - the
@@ -624,7 +888,16 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Evade, near, false, false, false, false, expired_under_fire),
+            next_behavior_state(
+                Evade,
+                near,
+                AI_ENGAGE_RANGE,
+                false,
+                false,
+                false,
+                false,
+                expired_under_fire
+            ),
             Engage
         );
     }
@@ -641,11 +914,20 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Patrol, far, false, true, false, false, shot),
+            next_behavior_state(
+                Patrol,
+                far,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                false,
+                false,
+                shot
+            ),
             Engage
         );
         assert_eq!(
-            next_behavior_state(Idle, far, false, false, false, false, shot),
+            next_behavior_state(Idle, far, AI_ENGAGE_RANGE, false, false, false, false, shot),
             Engage
         );
         // Merely being aimed at from out there does not: the aim signal is
@@ -655,7 +937,16 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Patrol, far, false, true, false, false, aimed),
+            next_behavior_state(
+                Patrol,
+                far,
+                AI_ENGAGE_RANGE,
+                false,
+                true,
+                false,
+                false,
+                aimed
+            ),
             Patrol
         );
     }
@@ -668,12 +959,30 @@ mod behavior_state_tests {
         // hostile acquired.
         for state in [Idle, Patrol, Orbit, Engage, Evade, Retreat] {
             assert_eq!(
-                next_behavior_state(state, None, true, true, false, false, calm()),
+                next_behavior_state(
+                    state,
+                    None,
+                    AI_ENGAGE_RANGE,
+                    true,
+                    true,
+                    false,
+                    false,
+                    calm()
+                ),
                 Orbit,
                 "orbit beats patrol from {state:?}"
             );
             assert_eq!(
-                next_behavior_state(state, None, true, false, false, false, calm()),
+                next_behavior_state(
+                    state,
+                    None,
+                    AI_ENGAGE_RANGE,
+                    true,
+                    false,
+                    false,
+                    false,
+                    calm()
+                ),
                 Orbit,
                 "orbit without a route from {state:?}"
             );
@@ -681,14 +990,32 @@ mod behavior_state_tests {
         // A far-off acquired hostile does not abort the orbit...
         let far = Some(AI_ENGAGE_RANGE * 1.5);
         assert_eq!(
-            next_behavior_state(Orbit, far, true, false, false, false, calm()),
+            next_behavior_state(
+                Orbit,
+                far,
+                AI_ENGAGE_RANGE,
+                true,
+                false,
+                false,
+                false,
+                calm()
+            ),
             Orbit
         );
         // ...one in detection range pulls it into combat, as does taking a
         // hit from further out.
         let near = Some(AI_ENGAGE_RANGE * 0.5);
         assert_eq!(
-            next_behavior_state(Orbit, near, true, false, false, false, calm()),
+            next_behavior_state(
+                Orbit,
+                near,
+                AI_ENGAGE_RANGE,
+                true,
+                false,
+                false,
+                false,
+                calm()
+            ),
             Engage
         );
         let shot = ThreatSignals {
@@ -696,12 +1023,21 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Orbit, far, true, false, false, false, shot),
+            next_behavior_state(Orbit, far, AI_ENGAGE_RANGE, true, false, false, false, shot),
             Engage
         );
         // And calm returns the fight to the ring.
         assert_eq!(
-            next_behavior_state(Engage, None, true, false, false, false, calm()),
+            next_behavior_state(
+                Engage,
+                None,
+                AI_ENGAGE_RANGE,
+                true,
+                false,
+                false,
+                false,
+                calm()
+            ),
             Orbit
         );
     }

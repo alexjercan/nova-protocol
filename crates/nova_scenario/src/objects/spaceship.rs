@@ -125,6 +125,17 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub engage_delay: Option<f32>,
+    /// Hostile-detection range override (world units): a passive ship leaves
+    /// its routine for a hostile inside this range instead of the engine's
+    /// 800 u default. Author it wide on a long-watch emplacement that must
+    /// wake for targets parked outside everyone else's detection; short on a
+    /// ship meant to ignore a nearby brawl. None = the default. See
+    /// `AIEngageRange`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub engage_range: Option<f32>,
 }
 
 /// A ship section's scenario-local id, used to key input bindings and address
@@ -434,6 +445,14 @@ fn insert_spaceship_sections(
                     commands.entity(entity).insert(AIEngageGrace::new(delay));
                 }
             }
+            // Same guard shape: a non-positive range would make the ship
+            // blind, which no author means; the default range needs no
+            // component at all.
+            if let Some(range) = config.engage_range {
+                if range > 0.0 {
+                    commands.entity(entity).insert(AIEngageRange(range));
+                }
+            }
         }
     }
 }
@@ -503,10 +522,26 @@ mod tests {
                 orbit: Some("planetoid".to_string()),
                 leash: None,
                 engage_delay: None,
+                engage_range: None,
             },
         );
         assert!(world.entity(both).get::<AIOrbitDirective>().is_some());
         assert!(world.entity(both).get::<AIPatrolRoute>().is_some());
+
+        // The detection override maps on; the default inserts nothing (the
+        // orbiter above authored none).
+        let watcher = spawn(
+            &mut world,
+            AIControllerConfig {
+                engage_range: Some(1600.0),
+                ..default()
+            },
+        );
+        assert_eq!(
+            world.entity(watcher).get::<AIEngageRange>().map(|r| r.0),
+            Some(1600.0)
+        );
+        assert!(world.entity(orbiter).get::<AIEngageRange>().is_none());
     }
 
     /// A Player ship flagged `infinite_ammo` builds its weapon with no magazine

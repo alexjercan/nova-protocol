@@ -33,7 +33,7 @@ use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 
 pub use self::{
     acquisition::{AIPointDefenseTarget, AITarget},
-    behavior::{AIBehaviorState, AILeash, AIOrbitDirective, AIPatrolRoute},
+    behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},
     guns::AIFireCadence,
     passive::AIAvoidanceDetour,
     threat::{AIEvade, AIThreat},
@@ -43,9 +43,9 @@ pub use self::{
 /// The AI behaviour, threat, patrol and target components and `SpaceshipAIInputPlugin`.
 pub mod prelude {
     pub use super::{
-        AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEvade, AIFireCadence, AILeash,
-        AINonCombatant, AIOrbitDirective, AIPatrolRoute, AIPointDefenseTarget, AISpaceshipMarker,
-        AITarget, AIThreat, AITorpedoBay, SpaceshipAIInputPlugin,
+        AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade, AIFireCadence,
+        AILeash, AINonCombatant, AIOrbitDirective, AIPatrolRoute, AIPointDefenseTarget,
+        AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay, SpaceshipAIInputPlugin,
     };
 }
 
@@ -104,6 +104,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AITorpedoBay>();
         app.register_type::<AIEngageGrace>();
         app.register_type::<AIAvoidanceDetour>();
+        app.register_type::<AIEngageRange>();
 
         // NOTE: threat sensing is an observer, not a system: HealthApplyDamage is
         // an entity event that propagates to the ship root, and reacting at

@@ -51,10 +51,14 @@ pub struct AIAvoidanceDetour(pub Vec3);
 
 /// The first sized body blocking the leg `from -> to`: its center comes
 /// within `body_radius + margin` of the leg, measured at the closest point
-/// on the segment. Bodies whose clearance already contains `to` are
-/// ignored - a waypoint authored against a rock face can never clear, and
-/// endlessly detouring around it would orbit the author's mistake instead
-/// of flying the route. Returns (center, body_radius, closest point).
+/// on the segment. Two kinds of body are ignored: one whose clearance
+/// already contains `from` (the ship is inside its bubble; this geometry
+/// cannot steer OUT of a sphere, and calling it a blocker would spin
+/// corners around the ship's own position - the flown goal carries it out),
+/// and one whose clearance contains `to` (fly-at-goal legs are pre-adjusted
+/// outside every bubble by [`goal_outside_clearance`], so this only guards
+/// degenerate geometry from looping). Returns (center, body_radius,
+/// closest point).
 fn first_leg_blocker(
     from: Vec3,
     to: Vec3,
@@ -66,7 +70,10 @@ fn first_leg_blocker(
     let mut best: Option<(f32, (Vec3, f32, Vec3))> = None;
     for (center, radius) in obstacles {
         let clearance = radius + margin;
-        if to.distance_squared(center) < clearance * clearance {
+        let clearance_sq = clearance * clearance;
+        if to.distance_squared(center) < clearance_sq
+            || from.distance_squared(center) < clearance_sq
+        {
             continue;
         }
         let t = if len_sq > f32::EPSILON {
@@ -75,7 +82,7 @@ fn first_leg_blocker(
             0.0
         };
         let closest = from + leg * t;
-        if closest.distance_squared(center) >= clearance * clearance {
+        if closest.distance_squared(center) >= clearance_sq {
             continue;
         }
         if best.map_or(true, |(best_t, _)| t < best_t) {
@@ -83,6 +90,30 @@ fn first_leg_blocker(
         }
     }
     best.map(|(_, blocker)| blocker)
+}
+
+/// `goal`, pushed out of any sized body's clearance it sits inside - to the
+/// nearest point on the bubble's surface (plus a step of slack). A patrol
+/// waypoint scattered against a rock face is a routine hazard in a dense
+/// authored band, and skipping such rocks in the blocker scan (the old
+/// behavior) flew the leg straight through them; flying AT the adjusted
+/// goal instead keeps the pilot clear while the arrival check - which runs
+/// on the RAW waypoint - still turns the route on time. Iterative because
+/// the pushed-out point can land inside a neighboring bubble; bounded so
+/// pathological nests cannot spin the loop.
+fn goal_outside_clearance(goal: Vec3, margin: f32, obstacles: &[(Vec3, f32)]) -> Vec3 {
+    let mut adjusted = goal;
+    for _ in 0..4 {
+        let Some((center, radius)) = obstacles.iter().copied().find(|(center, radius)| {
+            let clearance = radius + margin;
+            adjusted.distance_squared(*center) < clearance * clearance
+        }) else {
+            return adjusted;
+        };
+        let out = (adjusted - center).try_normalize().unwrap_or(Vec3::Y);
+        adjusted = center + out * (radius + margin + 1.0);
+    }
+    adjusted
 }
 
 /// The corner goal that rounds `blocker`: pushed out from the body's center
@@ -173,16 +204,26 @@ pub(super) fn update_passive_flight(
                         commands.entity(ship).remove::<AIAvoidanceDetour>();
                     }
                 }
-                let Some(goal) = route.current_waypoint() else {
+                let Some(raw_goal) = route.current_waypoint() else {
                     continue;
                 };
                 // On station (a single-waypoint route, parked at it with the
                 // drift killed) there is nothing left to fly; re-engaging
                 // would churn engage/complete every frame.
-                let on_station = position.distance(goal) <= arrive_radius
+                let on_station = position.distance(raw_goal) <= arrive_radius
                     && velocity.length() <= AI_IDLE_DRIFT_SPEED;
+                // The FLOWN goal is the waypoint pushed outside any body's
+                // bubble it was scattered/authored into; arrival above keeps
+                // running on the raw waypoint, so the route still turns.
+                let goal = goal_outside_clearance(raw_goal, AI_AVOID_MARGIN, &obstacles);
                 // A held detour is flown out until the corner is reached or
-                // the direct leg is comfortably clear (the hysteresis band).
+                // the direct leg is comfortably clear (the hysteresis band) -
+                // but its OWN leg is re-validated every tick: momentum and
+                // neighbors a single corner never saw can put a body on the
+                // way to the corner, and a corner flown blind is exactly the
+                // crash the detour exists to prevent. A blocked corner leg
+                // HOPS: the corner is replaced by one rounding that blocker
+                // (a real goal change, so the churn guard below re-engages).
                 if let Some(corner) = detour {
                     let clear = first_leg_blocker(
                         position,
@@ -194,6 +235,15 @@ pub(super) fn update_passive_flight(
                     if clear || position.distance(corner) <= arrive_radius {
                         commands.entity(ship).remove::<AIAvoidanceDetour>();
                         detour = None;
+                    } else if let Some(blocker) = first_leg_blocker(
+                        position,
+                        corner,
+                        AI_AVOID_MARGIN,
+                        obstacles.iter().copied(),
+                    ) {
+                        let hop = detour_around(position, corner, blocker, arrive_radius);
+                        commands.entity(ship).insert(AIAvoidanceDetour(hop));
+                        detour = Some(hop);
                     }
                 }
                 // Fresh decision: fly the leg, unless a body blocks it - then
@@ -460,6 +510,89 @@ mod avoidance_tests {
             world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
             Some(AutopilotAction::GotoPos { position: W1 }),
             "the route leg is engaged again"
+        );
+    }
+
+    #[test]
+    fn a_waypoint_inside_a_bubble_is_flown_to_its_boundary() {
+        // A rock scattered onto the waypoint: the ship must not fly the raw
+        // point (a straight leg into the rock); it flies the waypoint pushed
+        // out of the bubble, and the arrival check still runs on the raw
+        // waypoint so the route turns on time.
+        let mut world = World::new();
+        world.init_resource::<FlightSettings>();
+        world.init_resource::<Time>();
+        let rock_center = W1 + Vec3::new(0.0, 30.0, 0.0);
+        world.spawn((Transform::from_translation(rock_center), BodyRadius(40.0)));
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AIBehaviorState::Patrol,
+                AIPatrolRoute::new(vec![W1, W2]),
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+
+        run_passive(&mut world);
+
+        let Some(AutopilotAction::GotoPos { position }) =
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action)
+        else {
+            panic!("the leg is engaged");
+        };
+        assert_ne!(position, W1, "the raw in-bubble waypoint is never flown");
+        assert!(
+            position.distance(rock_center) > 40.0 + AI_AVOID_MARGIN,
+            "the flown goal sits outside the rock's clearance"
+        );
+    }
+
+    #[test]
+    fn a_blocked_corner_leg_hops_to_a_new_corner() {
+        // Rock A blocks the route leg; the corner rounding A happens to have
+        // rock B sitting on ITS leg. The held corner must not be flown
+        // blind - the next pass replaces it with a corner rounding B.
+        let mut world = World::new();
+        world.init_resource::<FlightSettings>();
+        world.init_resource::<Time>();
+        world.spawn((
+            Transform::from_translation(Vec3::new(10.0, 0.0, -200.0)),
+            BodyRadius(50.0),
+        ));
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AIBehaviorState::Patrol,
+                AIPatrolRoute::new(vec![W1, W2]),
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        run_passive(&mut world);
+        let first = world
+            .entity(ship)
+            .get::<AIAvoidanceDetour>()
+            .expect("rock A blocks the leg")
+            .0;
+
+        // B appears on the corner leg (a body the first pick never saw).
+        world.spawn((
+            Transform::from_translation(Vec3::new(-80.0, 0.0, -100.0)),
+            BodyRadius(40.0),
+        ));
+        run_passive(&mut world);
+
+        let hopped = world
+            .entity(ship)
+            .get::<AIAvoidanceDetour>()
+            .expect("still detouring")
+            .0;
+        assert_ne!(hopped, first, "the blocked corner is replaced, not held");
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: hopped }),
+            "the autopilot re-engages onto the hop"
         );
     }
 

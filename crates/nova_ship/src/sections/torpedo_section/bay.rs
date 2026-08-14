@@ -40,6 +40,7 @@ pub(super) fn despawn_shot_down_torpedoes(
     mut commands: Commands,
 ) {
     for torpedo in &q_torpedo {
+        debug!("despawn_shot_down_torpedoes: torpedo {torpedo:?} shot down");
         commands.entity(torpedo).try_despawn();
     }
 }
