@@ -510,6 +510,22 @@ fn check_action(
         EventActionConfig::SetAllegiance(config) => {
             check_target(&config.id, "SetAllegiance", scenario, satisfiable, issues);
         }
+        EventActionConfig::ForceTorpedoLaunch(config) => {
+            check_target(
+                &config.id,
+                "ForceTorpedoLaunch",
+                scenario,
+                satisfiable,
+                issues,
+            );
+            check_target(
+                &config.target,
+                "ForceTorpedoLaunch",
+                scenario,
+                satisfiable,
+                issues,
+            );
+        }
         EventActionConfig::SetControllerVerb(config) => {
             check_target(
                 &config.id,
@@ -931,6 +947,27 @@ mod tests {
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("ghost"));
         assert!(errs[0].message.contains("SetAllegiance"));
+    }
+
+    /// ForceTorpedoLaunch references TWO ships by id (launcher and target);
+    /// both must lint as dangling targets on a typo, not no-op at runtime.
+    #[test]
+    fn dangling_force_torpedo_launch_ids_are_errors() {
+        let s = scenario(
+            vec![EventActionConfig::ForceTorpedoLaunch(
+                ForceTorpedoLaunchActionConfig {
+                    id: "ghost_battery".to_string(),
+                    target: "ghost_prey".to_string(),
+                },
+            )],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 2, "{issues:?}");
+        assert!(errs[0].message.contains("ghost_battery"));
+        assert!(errs[1].message.contains("ghost_prey"));
+        assert!(errs[0].message.contains("ForceTorpedoLaunch"));
     }
 
     #[test]

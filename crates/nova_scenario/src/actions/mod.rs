@@ -25,9 +25,9 @@ pub mod prelude {
     pub use super::{
         apply_pending_skybox_swaps, base_scenario_object, BaseScenarioObjectConfig, CurrentOutcome,
         DebugMessageActionConfig, DespawnScenarioObjectActionConfig, EventActionConfig,
-        HintEmphasisClearActionConfig, HintEmphasisSetActionConfig, HudReadoutActionConfig,
-        HudReadoutFormatConfig, NextScenarioActionConfig, ObjectiveActionConfig,
-        ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
+        ForceTorpedoLaunchActionConfig, HintEmphasisClearActionConfig, HintEmphasisSetActionConfig,
+        HudReadoutActionConfig, HudReadoutFormatConfig, NextScenarioActionConfig,
+        ObjectiveActionConfig, ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
         ObjectiveMarkerDetachActionConfig, OutcomeActionConfig, PendingSkyboxSwap,
         ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig,
         ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SetAllegianceActionConfig,
@@ -75,6 +75,9 @@ pub enum EventActionConfig {
     SetControllerVerb(SetControllerVerbActionConfig),
     /// Overwrite a scoped ship's `Allegiance` at runtime (neutral-until-provoked).
     SetAllegiance(SetAllegianceActionConfig),
+    /// Order a scoped ship's torpedo bays to launch at a named target
+    /// (scripted emplacements; no controller involved).
+    ForceTorpedoLaunch(ForceTorpedoLaunchActionConfig),
     /// Spawn a spherical sensor zone that drives `OnEnter`/`OnExit`.
     CreateScenarioArea(ScenarioAreaConfig),
     /// Queue a switch to another scenario by id.
@@ -143,6 +146,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::SetAllegiance(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::ForceTorpedoLaunch(config) => {
                 config.action(world, info);
             }
             EventActionConfig::CreateScenarioArea(config) => {

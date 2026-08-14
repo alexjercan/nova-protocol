@@ -29,20 +29,24 @@ mod projectile;
 /// Render/particle systems for the bay and the projectile (gated by the plugin's
 /// `render` flag).
 mod render;
+/// Scripted launches: an authored one-shot order that fires a bay and commits
+/// the projectile with no controller involved (scenario-timer emplacements).
+mod scripted;
 
 use bay::*;
 use projectile::*;
 use render::*;
+use scripted::*;
 
 /// The `torpedo_section` spawner, the bay, arming and steering state, the guidance and target
 /// components, the blast, and `TorpedoSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        torpedo_section, TorpedoArming, TorpedoBlast, TorpedoControllerMarker, TorpedoGuidance,
-        TorpedoSectionConfig, TorpedoSectionConfigHelper, TorpedoSectionInput,
-        TorpedoSectionPartOf, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
-        TorpedoSectionSpawnerMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
-        TorpedoTargetPosition,
+        scripted::ScriptedTorpedoOrder, torpedo_section, TorpedoArming, TorpedoBlast,
+        TorpedoControllerMarker, TorpedoGuidance, TorpedoSectionConfig, TorpedoSectionConfigHelper,
+        TorpedoSectionInput, TorpedoSectionPartOf, TorpedoSectionPlugin,
+        TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker, TorpedoSteering,
+        TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
     };
 }
 
@@ -470,9 +474,15 @@ impl Plugin for TorpedoSectionPlugin {
                 .chain()
                 .in_set(super::SpaceshipSectionSystems),
         );
+        // Scripted launches: the trigger hold feeds the FixedUpdate spawn
+        // above; the commit runs before target tracking so a scripted
+        // torpedo starts guiding the same frame it is committed.
+        app.register_type::<ScriptedTorpedoOrder>();
         app.add_systems(
             Update,
             (
+                hold_scripted_torpedo_trigger,
+                commit_scripted_torpedo,
                 despawn_shot_down_torpedoes,
                 update_target_position,
                 update_torpedo_arming,

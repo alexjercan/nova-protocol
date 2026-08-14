@@ -133,6 +133,11 @@ flowchart LR
 - `SetAllegiance` - overwrite a scoped ship's `Allegiance` (Player/Enemy/Neutral)
   by id at runtime; the neutral-until-provoked primitive (wake a Neutral ship
   by flipping it to Enemy).
+- `ForceTorpedoLaunch` - order a scoped ship's torpedo bays to launch at a
+  named target (`ScriptedTorpedoOrder`): the scripted counterpart of the AI's
+  launch decision for controller-less emplacements; bay cooldown/ammo still
+  gate the launch, the AI envelope/LOS/cadence gates do not apply, and a
+  missing target skips the launch.
 - `CreateScenarioArea(ScenarioAreaConfig)` - spawn a spherical sensor zone
   (id, name, position, rotation, radius) that drives `OnEnter`/`OnExit`.
 - `NextScenario` - queue a switch to another scenario by id; `linger: true`

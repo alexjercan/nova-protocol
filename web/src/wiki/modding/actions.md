@@ -3,14 +3,14 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 24, grouped by what they touch:
+never panics a scenario). All 25, grouped by what they touch:
 
 | group | actions |
 |---|---|
 | [Spawning & the world](#spawning-the-world) | [`SpawnScenarioObject`](#spawnscenarioobject), [`ScatterObjects`](#scatterobjects), [`DespawnScenarioObject`](#despawnscenarioobject), [`CreateScenarioArea`](#createscenarioarea) |
 | [Mission & story](#mission-story) | [`Objective`](#objective), [`ObjectiveComplete`](#objectivecomplete), [`ObjectiveMarkerAttach`](#objectivemarkerattach), [`ObjectiveMarkerDetach`](#objectivemarkerdetach), [`StoryMessage`](#storymessage), [`HudReadout`](#hudreadout), [`HintEmphasisSet`](#hintemphasisset), [`HintEmphasisClear`](#hintemphasisclear) |
 | [Flow: outcomes & transitions](#flow-outcomes-transitions) | [`Outcome`](#outcome), [`NextScenario`](#nextscenario) |
-| [Ship state](#ship-state) | [`SetSpeedCap`](#setspeedcap), [`SetControllerVerb`](#setcontrollerverb), [`SetAllegiance`](#setallegiance) |
+| [Ship state](#ship-state) | [`SetSpeedCap`](#setspeedcap), [`SetControllerVerb`](#setcontrollerverb), [`SetAllegiance`](#setallegiance), [`ForceTorpedoLaunch`](#forcetorpedolaunch) |
 | [Variables, timers & debugging](#variables-timers-debugging) | [`VariableSet`](#variableset), [`TimerStart`](#timerstart), [`TimerCancel`](#timercancel), [`DebugMessage`](#debugmessage) |
 | [Camera & photo mode](#camera-photo-mode) | [`SetCamera`](#setcamera), [`Screenshot`](#screenshot), [`SetSkybox`](#setskybox) |
 
@@ -360,6 +360,31 @@ primitive: spawn a bystander `Neutral`, flip it `Enemy` on a trigger.
 
 ```ron
 SetAllegiance((id: "magpie", allegiance: Enemy)),
+```
+
+### ForceTorpedoLaunch
+
+Order a scoped ship's torpedo bays to launch at a named target - the
+scripted counterpart of the AI's launch decision, for controller-less
+emplacements fired by timers ("the battery shoots every N seconds"). Every
+torpedo bay on the ship gets a one-shot order; each bay's own cooldown and
+ammo still time the actual launch, and the ordnance is committed to the
+target like an AI launch (so hostile point defense can engage it). The AI's
+launch gates (range envelope, hull-forward cone, line of sight, the 10 s AI
+cadence) do NOT apply - the script is the decision.
+
+A missing target skips the launch entirely (no dumb-fire duds while the
+target is mid-respawn). On an AI-controlled ship the AI rewrites the bay
+trigger every frame and wins; give scripted batteries
+`controller: None`.
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `id` | string | required | scoped ship root whose bays launch; a dangling id is a lint Error |
+| `target` | string | required | scoped ship root the ordnance homes on; a dangling id is a lint Error |
+
+```ron
+ForceTorpedoLaunch((id: "battery_west", target: "patrol_ship")),
 ```
 
 ## Variables, timers & debugging

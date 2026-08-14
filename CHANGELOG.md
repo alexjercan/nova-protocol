@@ -22,6 +22,9 @@ tagged **(breaking)**.
 - New `heavy_torpedo_section` prototype: a capital-grade siege bay with a
   ship-killing blast and armored ordnance, hidden from the editor gallery
   (scene dressing, not player kit).
+- New `ForceTorpedoLaunch` event action: script a controller-less ship's
+  torpedo bays to launch at a named target on timers - dumb emplacements
+  with authored cadence instead of full AI.
 
 ### Gameplay & Flight
 
