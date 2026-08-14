@@ -16,11 +16,13 @@
 
 use bevy::{ecs::system::EntityCommands, platform::collections::HashSet, prelude::*};
 use nova_gameplay::prelude::Health;
-use nova_ship::prelude::{FlightVerb, WithheldVerbs};
+use nova_ship::prelude::{FlightVerb, SectionAmmo, SectionReload, WithheldVerbs};
 
-/// `SectionModification` with the rename and health overrides it applies.
+/// `SectionModification` with the rename, health and ammo overrides it applies.
 pub mod prelude {
-    pub use super::{SectionHealthOverride, SectionModification, SectionRename};
+    pub use super::{
+        SectionAmmoOverride, SectionHealthOverride, SectionModification, SectionRename,
+    };
 }
 
 /// A single, closed, data-only delta applied to a ship section at spawn on top
@@ -42,6 +44,13 @@ pub enum SectionModification {
     SetHealth(f32),
     /// Rename this section entity (its `Name`).
     Rename(String),
+    /// Give this weapon section a HARD magazine of exactly this many rounds:
+    /// the magazine is overridden AND the auto-reload is stripped, so when the
+    /// rounds are gone the section is dry for good. The knob for a ship that
+    /// must eventually be overrun (a display scene's doomed defender, a
+    /// mission ship whose ammo is the clock). Inert on a section with no
+    /// magazine (an unlimited weapon, a hull).
+    SetAmmo(u32),
 }
 
 impl SectionModification {
@@ -69,6 +78,9 @@ impl SectionModification {
                 SectionModification::Rename(name) => {
                     entity.insert(SectionRename(name.clone()));
                 }
+                SectionModification::SetAmmo(rounds) => {
+                    entity.insert(SectionAmmoOverride(*rounds));
+                }
             }
         }
         if !withheld.is_empty() {
@@ -85,14 +97,21 @@ pub struct SectionHealthOverride(pub f32);
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct SectionRename(pub String);
 
+/// Marker/data component: hard-magazine override (rounds; reload stripped).
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct SectionAmmoOverride(pub u32);
+
 /// Register the modification components and their apply-on-add observers. Called
 /// from `SpaceshipPlugin::build`.
 pub(crate) fn register_section_modifications(app: &mut App) {
     app.register_type::<SectionHealthOverride>()
-        .register_type::<SectionRename>();
+        .register_type::<SectionRename>()
+        .register_type::<SectionAmmoOverride>();
 
     app.add_observer(apply_section_health_override);
     app.add_observer(apply_section_rename);
+    app.add_observer(apply_section_ammo_override);
+    app.add_observer(apply_section_ammo_override_on_ammo);
 }
 
 /// Apply [`SectionHealthOverride`]: set the section's `Health` (current and max)
@@ -111,6 +130,48 @@ fn apply_section_health_override(
         return;
     };
     *health = Health::new(over.0);
+}
+
+/// Apply [`SectionAmmoOverride`] when the override lands after the weapon's
+/// own [`SectionAmmo`]: overwrite the magazine and strip the reload. Inert
+/// when the entity has no magazine yet - the twin observer below covers the
+/// build order where the weapon's ammo arrives later (weapon components are
+/// inserted by deferred setup observers, so either order is real).
+fn apply_section_ammo_override(
+    add: On<Add, SectionAmmoOverride>,
+    mut commands: Commands,
+    q_override: Query<&SectionAmmoOverride>,
+    mut q_ammo: Query<&mut SectionAmmo>,
+) {
+    let entity = add.entity;
+    let Ok(over) = q_override.get(entity) else {
+        return;
+    };
+    let Ok(mut ammo) = q_ammo.get_mut(entity) else {
+        return;
+    };
+    *ammo = SectionAmmo::new(over.0);
+    commands.entity(entity).remove::<SectionReload>();
+}
+
+/// The twin of [`apply_section_ammo_override`], keyed on the magazine's own
+/// arrival: a weapon whose `SectionAmmo` is inserted by its deferred setup
+/// observer AFTER the modification components must still end up overridden.
+fn apply_section_ammo_override_on_ammo(
+    add: On<Add, SectionAmmo>,
+    mut commands: Commands,
+    q_override: Query<&SectionAmmoOverride>,
+    mut q_ammo: Query<&mut SectionAmmo>,
+) {
+    let entity = add.entity;
+    let Ok(over) = q_override.get(entity) else {
+        return;
+    };
+    let Ok(mut ammo) = q_ammo.get_mut(entity) else {
+        return;
+    };
+    *ammo = SectionAmmo::new(over.0);
+    commands.entity(entity).remove::<SectionReload>();
 }
 
 /// Apply [`SectionRename`]: set the section entity's `Name`.
@@ -326,6 +387,57 @@ mod tests {
         let health = app.world().get::<Health>(hull).unwrap();
         assert_eq!(health.current, 42.0);
         assert_eq!(health.max, 42.0);
+    }
+
+    /// SetAmmo is a HARD magazine: the rounds are overridden and the
+    /// auto-reload is stripped, in BOTH build orders - weapon components are
+    /// inserted by deferred setup observers, so the override can land either
+    /// before or after the magazine it modifies.
+    #[test]
+    fn set_ammo_hard_magazine_in_both_build_orders() {
+        use nova_ship::prelude::{SectionAmmo, SectionReload, SectionReloadConfig};
+
+        let reload = || {
+            SectionReload::from_config(SectionReloadConfig {
+                reload_time: 3.0,
+                rounds_per_cycle: 500,
+                only_when_empty: true,
+            })
+        };
+
+        // Override lands after the magazine (inline build).
+        let mut app = app_with_observers();
+        let weapon = app
+            .world_mut()
+            .spawn((SectionAmmo::new(500), reload()))
+            .id();
+        SectionModification::insert_all(
+            &[SectionModification::SetAmmo(1800)],
+            &mut app.world_mut().commands().entity(weapon),
+        );
+        app.world_mut().flush();
+        let ammo = app.world().get::<SectionAmmo>(weapon).unwrap();
+        assert_eq!((ammo.rounds, ammo.capacity), (1800, 1800));
+        assert!(
+            app.world().get::<SectionReload>(weapon).is_none(),
+            "a hard magazine never refills"
+        );
+
+        // Magazine lands after the override (deferred setup observer order).
+        let mut app = app_with_observers();
+        let weapon = app.world_mut().spawn_empty().id();
+        SectionModification::insert_all(
+            &[SectionModification::SetAmmo(1800)],
+            &mut app.world_mut().commands().entity(weapon),
+        );
+        app.world_mut().flush();
+        app.world_mut()
+            .entity_mut(weapon)
+            .insert((SectionAmmo::new(500), reload()));
+        app.world_mut().flush();
+        let ammo = app.world().get::<SectionAmmo>(weapon).unwrap();
+        assert_eq!((ammo.rounds, ammo.capacity), (1800, 1800));
+        assert!(app.world().get::<SectionReload>(weapon).is_none());
     }
 
     /// End-to-end through the real spawn path: a controller section authored

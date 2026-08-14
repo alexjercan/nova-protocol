@@ -523,8 +523,9 @@ are dynamic), and the asteroid alone opts into `Dynamic` +
   warning story beat so enemies ARRIVE instead of appearing: `elapsed >
   T` announce line -> spawn far with `engage_delay` covering the
   approach -> the fight starts when the player has read the warning;
-  optional `engage_range` hostile-detection override (`AIEngageRange`)
-  and `pd_range` point-defense override (`AIPointDefenseRange`)).
+  optional `engage_range` hostile-detection override (`AIEngageRange`),
+  `pd_range` point-defense override (`AIPointDefenseRange`), and
+  `waypoint_slack` patrol-arrival override (`AIWaypointSlack`)).
   Section geometry is linted: overlapping unit-cube cells and a
   turret/torpedo mount whose base (local -Y under its rotation) points at
   an empty neighbor cell are `content lint` errors (see the authoring

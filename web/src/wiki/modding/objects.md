@@ -180,6 +180,7 @@ than complete flyable ships. Copy the full player or AI section list from
 | `orbit` | `Option` string | `None` | id of a gravity-well object to orbit passively. Precedence: orbit > patrol > idle |
 | `engage_range` | `Option` number | `None` | hostile-detection override (world units): a passive ship leaves its routine for a hostile inside this range instead of the 800 u default. Wide = a long-watch emplacement that wakes for targets nothing else detects; short = a ship that ignores a nearby brawl |
 | `pd_range` | `Option` number | `None` | point-defense override (world units): the guns hold fire until an inbound hostile torpedo is inside this range instead of the 400 u default. Short = staged close-in intercepts; past the turret's ~450 u reach it just wastes the opening shots |
+| `waypoint_slack` | `Option` number | `None` | patrol arrival slack override (world units) on top of the autopilot's 50 u arrival standoff; the default is 25. Small = the ship presses in close to each waypoint before turning. Below ~2 risks stalling outside the advance gate - author small, not zero |
 | `leash` | `Option` number | `None` | territorial tether radius; combat breaks off beyond it; `None` = chases freely |
 | `engage_delay` | `Option` number | `None` | arrival grace in seconds: flies its passive routine and refuses to engage until it elapses; being SHOT ends the grace instantly and permanently. The telegraphed-arrival tool |
 
@@ -212,6 +213,7 @@ Section modifications - closed, data-only deltas applied at spawn:
 | `DisableVerb(<verb>)` | `Stop`/`Goto`/`Orbit`/`Lock`/`Rcs` | withhold a flight verb from birth (controller sections; multiple accumulate). Runtime mirror: [`SetControllerVerb`](../actions/#setcontrollerverb) |
 | `SetHealth(<number>)` | starting health | override the section's health (current and max) |
 | `Rename(<string>)` | new name | rename the section entity |
+| `SetAmmo(<number>)` | rounds | HARD magazine: override the weapon's rounds AND strip its auto-reload - when they are gone the section is dry for good. Inert on a section with no magazine |
 
 ```ron
 (id: "fuselage", position: (0.0, 0.7, 0.1), rotation: (0.0, 0.0, 0.0, 1.0),

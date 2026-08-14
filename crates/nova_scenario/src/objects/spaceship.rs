@@ -146,6 +146,17 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub pd_range: Option<f32>,
+    /// Patrol waypoint-arrival slack override (world units) on top of the
+    /// autopilot's arrival standoff; the engine default is 25. Small = the
+    /// ship presses in close to each waypoint before turning (a nav drill
+    /// hugging its beacons). Below ~2 risks stalling outside the advance
+    /// gate - author small, not zero. None = the default. See
+    /// `AIWaypointSlack`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub waypoint_slack: Option<f32>,
 }
 
 /// A ship section's scenario-local id, used to key input bindings and address
@@ -468,6 +479,11 @@ fn insert_spaceship_sections(
                     commands.entity(entity).insert(AIPointDefenseRange(range));
                 }
             }
+            if let Some(slack) = config.waypoint_slack {
+                if slack > 0.0 {
+                    commands.entity(entity).insert(AIWaypointSlack(slack));
+                }
+            }
         }
     }
 }
@@ -539,6 +555,7 @@ mod tests {
                 engage_delay: None,
                 engage_range: None,
                 pd_range: None,
+                waypoint_slack: None,
             },
         );
         assert!(world.entity(both).get::<AIOrbitDirective>().is_some());
@@ -551,6 +568,7 @@ mod tests {
             AIControllerConfig {
                 engage_range: Some(1600.0),
                 pd_range: Some(150.0),
+                waypoint_slack: Some(5.0),
                 ..default()
             },
         );
@@ -565,8 +583,13 @@ mod tests {
                 .map(|r| r.0),
             Some(150.0)
         );
+        assert_eq!(
+            world.entity(watcher).get::<AIWaypointSlack>().map(|s| s.0),
+            Some(5.0)
+        );
         assert!(world.entity(orbiter).get::<AIEngageRange>().is_none());
         assert!(world.entity(orbiter).get::<AIPointDefenseRange>().is_none());
+        assert!(world.entity(orbiter).get::<AIWaypointSlack>().is_none());
     }
 
     /// A Player ship flagged `infinite_ammo` builds its weapon with no magazine

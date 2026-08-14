@@ -135,6 +135,7 @@ The wiki search (sidebar) indexes every construct name, so typing
 [`SetAllegiance`](../actions/#setallegiance),
 [`SetCamera`](../actions/#setcamera),
 [`SetControllerVerb`](../actions/#setcontrollerverb) (actions),
+[`SetAmmo`](../objects/#the-sections-list) (section modification),
 [`SetHealth`](../objects/#the-sections-list) (section modification),
 [`SetSkybox`](../actions/#setskybox),
 [`SetSpeedCap`](../actions/#setspeedcap),

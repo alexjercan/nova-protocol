@@ -20,6 +20,18 @@ use crate::prelude::*;
 /// while the arrival curve is still braking, keeps the loop flowing instead
 /// of stop-and-go at every corner.
 const AI_WAYPOINT_SLACK: f32 = 25.0;
+
+/// Per-ship override of [`AI_WAYPOINT_SLACK`]: how much slack this ship's
+/// patrol adds on top of the autopilot's arrival standoff before calling a
+/// waypoint reached. Small = the ship presses in close to each mark and the
+/// loop reads deliberate (a nav drill hugging its beacons); the default 25
+/// keeps combat patrols flowing. The autopilot still brakes toward rest at
+/// `FlightSettings::arrival_standoff` from the mark, so slack below ~2 risks
+/// asymptoting outside the advance gate - author small, not zero. Authored
+/// via `AIControllerConfig::waypoint_slack`.
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct AIWaypointSlack(pub f32);
 /// Drift speed (u/s) above which a station-keeping ship burns to rest.
 /// Holding position "loosely" means arresting drift, not chasing crumbs:
 /// kept well above the autopilot's stop_speed_epsilon so a completed STOP
@@ -164,6 +176,7 @@ pub(super) fn update_passive_flight(
             Option<&AIOrbitDirective>,
             Option<&Autopilot>,
             Option<&AIAvoidanceDetour>,
+            Option<&AIWaypointSlack>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
@@ -177,8 +190,11 @@ pub(super) fn update_passive_flight(
         .iter()
         .map(|(transform, radius)| (transform.translation, **radius))
         .collect();
-    for (ship, transform, velocity, state, route, orbit, autopilot, detour) in &mut q_spaceship {
+    for (ship, transform, velocity, state, route, orbit, autopilot, detour, slack) in
+        &mut q_spaceship
+    {
         let has_autopilot = autopilot.is_some();
+        let waypoint_slack = slack.map_or(AI_WAYPOINT_SLACK, |slack| slack.0);
         match *state {
             AIBehaviorState::Patrol => {
                 // Patrol without a route cannot happen through the
@@ -194,7 +210,7 @@ pub(super) fn update_passive_flight(
                 // ship's position, not on autopilot completion, so a ship
                 // shoved onto its waypoint (or re-entering Patrol on top of
                 // one) advances too.
-                let arrive_radius = settings.arrival_standoff + AI_WAYPOINT_SLACK;
+                let arrive_radius = settings.arrival_standoff + waypoint_slack;
                 let position = transform.translation;
                 let mut detour = detour.map(|detour| detour.0);
                 if position.distance(waypoint) <= arrive_radius {
@@ -461,6 +477,46 @@ mod avoidance_tests {
             Some(AutopilotAction::GotoPos { position: corner }),
             "the GOTO flies the corner, not the blocked waypoint"
         );
+    }
+
+    /// An authored [`AIWaypointSlack`] moves the patrol advance gate: a ship
+    /// 60 u from its mark advances under the default slack (standoff 50 +
+    /// 25) but holds the leg under a tight authored slack (50 + 5) - the
+    /// knob a nav-drill scene uses to press in close to its marks.
+    #[test]
+    fn an_authored_waypoint_slack_moves_the_advance_gate() {
+        for (slack, expect_first_leg_held) in [(None, false), (Some(5.0), true)] {
+            let mut world = World::new();
+            world.init_resource::<FlightSettings>();
+            world.init_resource::<Time>();
+            let first = Vec3::new(0.0, 0.0, -60.0);
+            let ship = world
+                .spawn((
+                    AISpaceshipMarker,
+                    AIBehaviorState::Patrol,
+                    AIPatrolRoute::new(vec![first, Vec3::new(0.0, 0.0, 200.0)]),
+                    Transform::default(),
+                    LinearVelocity(Vec3::ZERO),
+                ))
+                .id();
+            if let Some(slack) = slack {
+                world.entity_mut(ship).insert(AIWaypointSlack(slack));
+            }
+
+            run_passive(&mut world);
+
+            let current = world
+                .entity(ship)
+                .get::<AIPatrolRoute>()
+                .unwrap()
+                .current_waypoint()
+                .unwrap();
+            assert_eq!(
+                current == first,
+                expect_first_leg_held,
+                "slack {slack:?}: expected first-leg-held {expect_first_leg_held}"
+            );
+        }
     }
 
     #[test]
