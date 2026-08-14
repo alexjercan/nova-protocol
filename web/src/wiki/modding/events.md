@@ -14,7 +14,7 @@ The whole vocabulary at a glance:
 | [`OnTimerEnd`](#ontimerend) | `key` | a keyed scenario timer ends |
 | [`OnDefeated`](#ondefeated) | `id`, `type_name` | a ship is neutralized or directly destroyed |
 | [`OnDestroyed`](#ondestroyed) | `id`, `type_name` | a scenario object is physically destroyed |
-| [`OnNeutralized`](#onneutralized) | `id`, `type_name` | an armed ship loses ALL weapons AND thrusters |
+| [`OnNeutralized`](#onneutralized) | `id`, `type_name` | an armed ship loses ALL weapons, or the flight computer it had |
 | [`OnEnter`](#onenter) | `id`, `other_id`, `other_type_name` | a body enters a trigger area |
 | [`OnExit`](#onexit) | `id`, `other_id`, `other_type_name` | a body leaves a trigger area |
 | [`OnOrbitStart`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | an ORBIT maneuver starts |
@@ -154,10 +154,13 @@ Type names are the object-kind constants: `"asteroid"`, `"spaceship"`,
 
 ## OnNeutralized
 
-Fires when a ship that was ARMED loses all working weapons AND all working
-thrusters - combat-dead, hull possibly intact, still in the world (it is NOT
-despawned, so no `OnDestroyed` fires with it). Payload: `id`, `type_name` of
-the neutralized ship; no other party.
+Fires when a ship that was ARMED loses all working weapons, or loses the
+flight computer it once had (a brain-dead ship cannot aim or fly, whatever
+else survives; thrusters play no part in the rule) - combat-dead, hull
+possibly intact, still in the world (it is NOT despawned, so no
+`OnDestroyed` fires with it). A ship that never had a computer (a bare
+emplacement) only neutralizes by losing its guns. Payload: `id`,
+`type_name` of the neutralized ship; no other party.
 
 Use `OnNeutralized` only when the persistent-wreck distinction matters. Use
 `OnDefeated` for the shared combat outcome.

@@ -58,7 +58,7 @@ a scoped entity, (4) be a self-expiring `TempEntity`, or (5) be torn down by a
 | `OnTimerEnd`   | once when a keyed scenario timer reaches its deadline |
 | `OnDefeated`   | once when a ship is neutralized or directly destroyed; precedes the detailed edge |
 | `OnDestroyed`  | an entity is physically destroyed |
-| `OnNeutralized` | a ship that was armed loses ALL working weapons AND thrusters - combat-dead (out of the fight) even with its hull intact; the ship is NOT despawned |
+| `OnNeutralized` | a ship that was armed loses ALL working weapons, or the flight computer it once had (thrusters play no part) - combat-dead even with its hull intact; the ship is NOT despawned |
 | `OnEnter`      | a body enters an area/zone |
 | `OnExit`       | a body leaves an area/zone |
 | `OnOrbitStart` / `OnOrbitStable` / `OnOrbitUnstable` / `OnOrbitEnd` | one-shot ORBIT maneuver and Hold-phase transitions; destruction does not synthesize orbit edges |
