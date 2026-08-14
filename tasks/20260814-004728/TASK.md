@@ -1,6 +1,6 @@
 # Menu backdrop battle scenes and cleanup engine work
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.11.0,scenarios,menu
 
