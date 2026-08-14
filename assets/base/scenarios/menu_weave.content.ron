@@ -434,36 +434,6 @@
                                     ),
                                     source: Prototype("racer_fuselage"),
                                 ),
-                                (
-                                    id: "turret_starboard",
-                                    position: (
-                                        1.35,
-                                        0.4,
-                                        -0.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("racer_turret_starboard"),
-                                ),
-                                (
-                                    id: "turret_port",
-                                    position: (
-                                        -1.35,
-                                        0.4,
-                                        -0.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("racer_turret_port"),
-                                ),
                             ],
                         )),
                     )),

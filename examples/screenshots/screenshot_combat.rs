@@ -2,7 +2,7 @@
 //!
 //! One flight in two acts, flown by the script the way a player would fly it.
 //!
-//! ACT 1, the leg: the racer sits in open space with a nav beacon roughly 750
+//! ACT 1, the leg: the corvette sits in open space with a nav beacon roughly 750
 //! units downrange. The weapons-lowered radar latches it (a TRAVEL lock, far
 //! enough out that its bracket sits in open sky instead of on top of the
 //! player's own hull), the travel computer engages, and the ship flies the real
@@ -15,7 +15,7 @@
 //!
 //! ACT 2, the ambush: the beacon doubles as its own trigger area, so crossing it
 //! fires `OnEnter` and spawns the whole fight - a raider dead ahead, two
-//! friendly racers on the near flanks, a hostile pair across the hollow and a
+//! friendly corvettes on the near flanks, a hostile pair across the hollow and a
 //! friendly torpedo boat off the raider's far quarter. That is scenario data,
 //! not script, so the OWNER's plain run gets the ambush too: fly to the beacon
 //! and the hollow fills up. The rest of the set is as it was - travel lock
@@ -614,14 +614,14 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             // per-section, snapshotted from this map by section id at spawn
             // (`nova_scenario/src/objects/spaceship.rs`), so an empty map is a
             // ship whose guns no button reaches.
-            input_mapping: turret_bindings(sections, "racer"),
+            input_mapping: turret_bindings(sections, "cargoa"),
             speed_cap: None,
             // The player holds fire through several beats; running dry
             // mid-capture would leave a reload where the tracers should be.
             infinite_ammo: true,
         }),
         None,
-        kit::kenney_hull(sections, "racer"),
+        kit::kenney_hull(sections, "cargoa"),
     );
 
     // The corridor: big rocks spread wide around the hollow, so the leg has
@@ -694,7 +694,7 @@ fn ordnance_chapter(game_assets: &GameAssets, sections: &GameSections) -> Scenar
             infinite_ammo: true,
         }),
         None,
-        kit::kenney_hull(sections, "racer"),
+        kit::kenney_hull(sections, "cargoa"),
     );
     let raider = ship(
         RAIDER_ID,
@@ -703,7 +703,7 @@ fn ordnance_chapter(game_assets: &GameAssets, sections: &GameSections) -> Scenar
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::kenney_hull(sections, "racer"),
+        kit::kenney_hull(sections, "cargoa"),
     );
     let lance = ship(
         LANCE_ID,
@@ -765,7 +765,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::kenney_hull(sections, "racer"),
+        kit::kenney_hull(sections, "cargoa"),
     );
 
     // The live background: two friendlies working the near flanks, two hostiles
@@ -785,7 +785,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
             Vec3::new(-86.0, -6.0, -70.0),
         ]),
         Some(Allegiance::Player),
-        kit::kenney_hull(sections, "racer"),
+        kit::kenney_hull(sections, "cargoa"),
     );
     let wingman_b = ship(
         "hollow_wing_b",
@@ -798,7 +798,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
             Vec3::new(40.0, -20.0, -110.0),
         ]),
         Some(Allegiance::Player),
-        kit::kenney_hull(sections, "racer"),
+        kit::kenney_hull(sections, "cargoa"),
     );
     let hostile_a = ship(
         "hollow_hostile_a",
@@ -811,7 +811,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
             Vec3::new(-190.0, 6.0, -300.0),
         ]),
         None,
-        kit::kenney_hull(sections, "racer"),
+        kit::kenney_hull(sections, "cargoa"),
     );
     let hostile_b = ship(
         "hollow_hostile_b",
@@ -857,21 +857,26 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
 }
 
 /// Bind every turret section of a built hull to the trigger, the way the
-/// shipped scenarios do (`shakedown_run` maps its two racer turret cubes to
+/// shipped scenarios do (`shakedown_run` maps its two corvette turret cubes to
 /// `Mouse(Left)` + `Gamepad(RightTrigger2)`).
 ///
 /// Derived from the catalog rather than typed out, for the same reason
 /// [`kit::kenney_hull`] is: the ids ARE the layout, and a hand-listed pair goes
-/// stale the moment a hull gains a gun.
+/// stale the moment a hull gains a gun. The map is keyed by INSTANCE id
+/// (`nova_scenario` snapshots bindings by section id at spawn), which for a
+/// [`kit::kenney_hull`] build is the prototype id minus the `<hull>_` prefix;
+/// the `_light` catalog variants are not part of any built hull, so they are
+/// skipped.
 fn turret_bindings(sections: &GameSections, hull: &str) -> HashMap<String, Vec<Binding>> {
-    let prefix = format!("{hull}_cube_");
+    let prefix = format!("{hull}_");
     sections
         .iter()
-        .filter(|section| section.base.id.starts_with(&prefix))
         .filter(|section| matches!(section.kind, SectionKind::Turret(_)))
-        .map(|section| {
+        .filter_map(|section| section.base.id.strip_prefix(&prefix))
+        .filter(|id| !id.ends_with("_light"))
+        .map(|id| {
             (
-                section.base.id.clone(),
+                id.to_string(),
                 vec![
                     MouseButton::Left.into(),
                     GamepadButton::RightTrigger2.into(),
@@ -1498,7 +1503,7 @@ fn ship_by_id(world: &mut World, id: &str) -> Option<Entity> {
 }
 
 /// One of the raider's section entities, by prototype id. Picked BY SHIP: the
-/// racers in the set share section ids, as every shipped multi-ship scenario
+/// corvettes in the set share section ids, as every shipped multi-ship scenario
 /// does.
 #[cfg(feature = "debug")]
 fn raider_section(world: &mut World, section: &str) -> Option<Entity> {

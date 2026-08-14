@@ -443,7 +443,7 @@
                 actions: [
                     Outcome((
                         outcome: Defeat,
-                        message: Some("Weapons and thrusters gone - you drift dead in the belt."),
+                        message: Some("Nothing left to fight with - you drift dead in the belt."),
                     )),
                     NextScenario((
                         scenario_id: "asteroid_field",

@@ -408,7 +408,8 @@ alongside the base catalog. Either way, a ship references the section by id via
 the file as a mod - [Publish a mod](../publish-a-mod/) is the release flow.
 
 Base ships a whole catalog of semantic ship-part prototypes. The mainline
-Racer and cargo haulers use `racer_*`, `cargob_*`, and `cargoa_*` parts. A mod
+corvette, gunship, and civilian hulls use `cargoa_*`, `cargob_*`, and
+`racer_*` parts. A mod
 does not have to inline a big ship or
 carry any mesh paths: build one as a compact list of
 `(id, position, rotation, source: Prototype("<base-part-id>"))` entries, and each

@@ -9,8 +9,8 @@
 //! - ship-specific adapters declare and build their graphs in their owning crates;
 //! - [`explode`] reacts to the destroy marker: slice meshes, spawn debris, fire
 //!   `OnDestroyedEvent`.
-//! - [`neutralize`] calls a ship combat-dead once its weapons and thrusters are
-//!   gone.
+//! - [`neutralize`] calls a ship combat-dead once its weapons are gone OR its
+//!   flight computer is.
 //!
 //! [`NovaIntegrityPlugin`] bundles the five generic gameplay modules.
 //!

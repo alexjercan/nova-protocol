@@ -66,10 +66,19 @@ prototype `racer_engine_port` normally becomes instance `engine_port`.
 | CargoA | `nose` | Hull | 180 |
 | CargoA | `tail` | Hull | 150 |
 | CargoA | `fuselage` | Controller | 350 |
+| CargoA | `turret_port`, `turret_starboard` | Turret | 130 |
+| CargoA | `turret_port_light`, `turret_starboard_light` | Turret | 60 |
 
 Prefix each suffix with `racer_`, `cargob_`, or `cargoa_`. Input mappings use
 the instance id, such as `"turret_port"` or `"pod_starboard"`. The old
 coordinate-named cube prototypes do not exist.
+
+The shipped assemblies cast the hulls by role: the cargoa is the campaign's
+armed corvette (turrets on the pod shoulders), the cargob its torpedo-and-PDC
+gunship, and the racer an unarmed civilian (the yacht the story protects).
+The `racer_turret_*` prototypes stay in the catalog for mods that arm the
+racer themselves (the ledger campaign does), but no shipped racer mounts
+them.
 
 ## Scenario ids
 

@@ -1,12 +1,14 @@
 //! Racer semantic parts, prototype catalog entries, and assembly.
+//!
+//! The racer flies UNARMED: a fast, expensive civilian hull (the yacht the
+//! chapters protect). Its turret prototypes stay in the catalog - the ledger
+//! and gauntlet webmods mount them - but the base assembly skips them.
 
 use nova_scenario::prelude::*;
 use nova_ship::prelude::SectionConfig;
 
 use super::shared::*;
 use crate::base_content::assets::BaseContentAssets;
-
-pub(crate) const RACER_TURRET_IDS: [&str; 2] = ["turret_port", "turret_starboard"];
 
 pub(super) const RACER_PARTS: [PartSpec; 9] = [
     part(
@@ -114,9 +116,8 @@ pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
     prototypes(&RACER_PARTS, &RACER_EDGES, assets, true)
 }
 
-pub(crate) fn sections(
-    grade: ShipGrade,
-    controller_modifications: Vec<SectionModification>,
-) -> Vec<SpaceshipSectionConfig> {
-    ship_sections(&RACER_PARTS, grade, &controller_modifications)
+pub(crate) fn sections() -> Vec<SpaceshipSectionConfig> {
+    // The meshed seven only: the turret modules (indices 7-8) are
+    // catalog-only prototypes, not part of the unarmed assembly.
+    ship_sections(&RACER_PARTS[..7], ShipGrade::Player, &[])
 }

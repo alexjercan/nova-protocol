@@ -141,7 +141,7 @@ fn player_ship() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping: ships::RACER_TURRET_IDS
+                input_mapping: ships::CARGOA_TURRET_IDS
                     .iter()
                     .map(|id| {
                         (
@@ -157,7 +157,7 @@ fn player_ship() -> ScenarioObjectConfig {
                 infinite_ammo: false,
             }),
             allegiance: None,
-            sections: ships::racer_sections(
+            sections: ships::cargoa_sections(
                 ShipGrade::Player,
                 vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
             ),
@@ -221,7 +221,7 @@ fn anchorage_wreck(
     }
 }
 
-/// A picket guard: scavenger-grade racer holding an ORBIT directive around
+/// A picket guard: scavenger-grade cargoa corvette holding an ORBIT directive around
 /// the claim - a guard on rails (combat pulls it off the orbit, calm
 /// returns it; ai.rs orbit_directive_tests). Graced like every telegraphed
 /// hostile; leashed to the well so the fight stays in the pull.
@@ -241,7 +241,7 @@ fn picket(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
                 ..Default::default()
             }),
             allegiance: None,
-            sections: ships::racer_sections(ShipGrade::Enemy, vec![]),
+            sections: ships::cargoa_sections(ShipGrade::Enemy, vec![]),
         }),
     }
 }
@@ -264,7 +264,7 @@ fn flagship() -> ScenarioObjectConfig {
     }
 }
 
-/// The flagship's escort: a scavenger-grade racer screening the capital
+/// The flagship's escort: a scavenger-grade cargoa corvette screening the capital
 /// (first-pass grade; the playtest tunable is one word).
 fn escort() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -282,7 +282,7 @@ fn escort() -> ScenarioObjectConfig {
                 ..Default::default()
             }),
             allegiance: None,
-            sections: ships::racer_sections(ShipGrade::Enemy, vec![]),
+            sections: ships::cargoa_sections(ShipGrade::Enemy, vec![]),
         }),
     }
 }
@@ -697,7 +697,7 @@ pub(crate) fn final_tally(
                 set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
-                    "Guns and thrusters gone - you drift, and the Tallyman keeps the belt.",
+                    "Nothing left to fight with - you drift, and the Tallyman keeps the belt.",
                 )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: FINAL_TALLY_SCENARIO_ID.to_string(),

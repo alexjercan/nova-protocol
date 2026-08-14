@@ -10,7 +10,7 @@ mod cargo_b;
 mod racer;
 mod shared;
 
-pub(crate) use racer::RACER_TURRET_IDS;
+pub(crate) use cargo_a::CARGOA_TURRET_IDS;
 pub(crate) use shared::ShipGrade;
 
 /// Semantic Racer, CargoB, and CargoA part prototypes in generated-content order.
@@ -21,19 +21,19 @@ pub(crate) fn semantic_part_prototypes(assets: &BaseContentAssets) -> Vec<Sectio
     sections
 }
 
-pub(crate) fn racer_sections(
-    grade: ShipGrade,
-    controller_modifications: Vec<SectionModification>,
-) -> Vec<SpaceshipSectionConfig> {
-    racer::sections(grade, controller_modifications)
+pub(crate) fn racer_sections() -> Vec<SpaceshipSectionConfig> {
+    racer::sections()
 }
 
 pub(crate) fn cargob_sections() -> Vec<SpaceshipSectionConfig> {
     cargo_b::sections()
 }
 
-pub(crate) fn cargoa_sections() -> Vec<SpaceshipSectionConfig> {
-    cargo_a::sections()
+pub(crate) fn cargoa_sections(
+    grade: ShipGrade,
+    controller_modifications: Vec<SectionModification>,
+) -> Vec<SpaceshipSectionConfig> {
+    cargo_a::sections(grade, controller_modifications)
 }
 
 #[cfg(test)]
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn part_mesh_offsets_preserve_recipe_assembly_bounds() {
-        for specs in [&RACER_PARTS[..7], &CARGOB_PARTS[..7], &CARGOA_PARTS] {
+        for specs in [&RACER_PARTS[..7], &CARGOB_PARTS[..7], &CARGOA_PARTS[..7]] {
             for spec in specs {
                 let rendered_min = spec.center() + spec.mesh_offset() + spec.bbox_min;
                 let rendered_max = spec.center() + spec.mesh_offset() + spec.bbox_max;

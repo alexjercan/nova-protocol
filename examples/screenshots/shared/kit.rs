@@ -52,8 +52,6 @@ pub fn kenney_hull(sections: &GameSections, hull: &str) -> Vec<SpaceshipSectionC
             ("nose", Vec3::new(0.0, 0.611325, -1.512835), identity),
             ("tail", Vec3::new(0.0, 0.85, 1.612835), identity),
             ("fuselage", Vec3::new(0.0, 0.7, 0.1), identity),
-            ("turret_starboard", Vec3::new(1.35, 0.4, -0.8), starboard),
-            ("turret_port", Vec3::new(-1.35, 0.4, -0.8), port),
         ],
         "cargob" => &[
             ("engine_starboard", Vec3::new(1.005, 0.7, 2.0), identity),
@@ -74,6 +72,8 @@ pub fn kenney_hull(sections: &GameSections, hull: &str) -> Vec<SpaceshipSectionC
             ("nose", Vec3::new(0.0, 0.8, -1.8), identity),
             ("tail", Vec3::new(0.0, 0.5875, 1.975), identity),
             ("fuselage", Vec3::new(0.0, 0.8, 0.175), identity),
+            ("turret_starboard", Vec3::new(0.85, 0.8, -1.8), starboard),
+            ("turret_port", Vec3::new(-0.85, 0.8, -1.8), port),
         ],
         _ => panic!("kenney_hull: unknown semantic ship '{hull}'"),
     };

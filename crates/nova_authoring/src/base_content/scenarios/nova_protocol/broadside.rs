@@ -3,12 +3,12 @@
 //!
 //! Chapter two of the base storyline: the scavenger driven off in Shakedown
 //! Run was a scout. Its gang comes back in force to strip the belt - and a
-//! neutral hauler is caught in the middle. The chapter now plays as TWO
+//! neutral yacht is caught in the middle. The chapter now plays as TWO
 //! scenarios so a death retries the current act, never the whole chapter:
 //!
-//! - `broadside` (part one): act 0 (contact) - answer the hauler's distress
+//! - `broadside` (part one): act 0 (contact) - answer the yacht's distress
 //!   call across the cover field; act 1 (escalation) - two scavenger
-//!   corvettes jump the player at the hauler. Breaking the pair is the
+//!   corvettes jump the player at the yacht. Breaking the pair is the
 //!   chapter's CHECKPOINT: a Victory beat chains (lingering) into part two.
 //! - `broadside_gunship` (part two, hidden): the gang's GUNSHIP burns in
 //!   from the dark - a capital with turrets and torpedo tubes. Screen its
@@ -17,19 +17,19 @@
 //!
 //! Win: gunship destroyed -> Victory overlay whose lingering chain enters
 //! chapter three (`lifeline`). Lose: player destroyed -> Defeat + lingering
-//! retry of the current part. The hauler is a NEUTRAL ship (the
+//! retry of the current part. The yacht is a NEUTRAL ship (the
 //! `SpaceshipConfig.allegiance` override): nobody targets it, but stray blast
 //! damage can kill it - a flavor beat reacts, the mission continues.
 //!
 //! Cover comes in two tiers since the AI line-of-fire gate (2d006707):
-//! five fixed INVULNERABLE boulders anchor the hauler fight and the gunship
+//! five fixed INVULNERABLE boulders anchor the yacht fight and the gunship
 //! lane (real pressure relief - the AI holds fire when one blocks the
 //! shot), while the seeded 24-rock scatter stays destructible chaff.
 //!
 //! Distances are authored against the measured AI constants
 //! (crates/nova_ship/src/input/ai): engage range 800u, torpedo envelope [3
 //! x blast_radius, 1000u] with a 10s per-bay cadence and the first launch
-//! immediate, standoff orbit ~250u. The gunship spawns ~720u from the hauler
+//! immediate, standoff orbit ~250u. The gunship spawns ~720u from the yacht
 //! fight so it engages on arrival and its tubes are open through the whole
 //! approach.
 
@@ -70,9 +70,18 @@ const OBJ_SCREEN: &str = "screen";
 const OBJ_BREAK: &str = "break";
 
 /// Story act. Part one: 0 contact, 1 corvettes, 2 checkpoint won. Part two
-/// (broadside_gunship): 1 the capital fight, 2 won. Every gate filter
-/// checks it, so beats fire once and in order within each part.
+/// (broadside_gunship): 1 the capital fight, 2 won. Both parts pass through
+/// 4 - the OUTRO, where the fight is decided and the win locked but the
+/// banner has not landed yet. Every gate filter checks it, so beats fire once
+/// and in order within each part.
 const VAR_ACT: &str = "act";
+
+/// The outro act: the fight is won, the overlay has not shown. It sits
+/// OUTSIDE every defeat gate (they read `act < 2` or `act == 1`), so a death
+/// during the outro beats cannot overwrite the win.
+const ACT_OUTRO: f64 = 4.0;
+const ACT_WON: f64 = 2.0;
+
 /// Per-corvette kill flags: two independent OnDestroyed handlers set them,
 /// and the act-2 escalation gates on BOTH - no arithmetic counter, so a
 /// double-fire cannot skip the gate (count-gate-use-gt-not-eq by
@@ -82,7 +91,7 @@ const VAR_CORVETTE_B_DOWN: &str = "corvette_b_down";
 /// Whether the Ceres Queen died to stray fire this part (0/1). Seeded 0 on
 /// start; the soft-fail beat raises it, and the Victory beat reads it to pick
 /// its banner variant - protecting her finally gets acknowledged (voice pass).
-/// Scenario-scoped like every variable: each part tracks its OWN hauler (state
+/// Scenario-scoped like every variable: each part tracks its OWN yacht (state
 /// does not cross the checkpoint).
 const VAR_HAULER_LOST: &str = "hauler_lost";
 
@@ -99,14 +108,14 @@ const VAR_DEFEND_POSTED: &str = "defend_posted";
 const VAR_GUN_OBJ_GATE: &str = "gun_obj_gate";
 const VAR_GUN_OBJ_POSTED: &str = "gun_obj_posted";
 
-/// The hauler drifts here; the fight happens around it.
+/// The yacht drifts here; the fight happens around it.
 const HAULER_POS: Vec3 = Vec3::new(0.0, 10.0, -450.0);
-/// Player spawn, looking down the lane toward the hauler.
+/// Player spawn, looking down the lane toward the yacht.
 const PLAYER_SPAWN: Vec3 = Vec3::new(0.0, 0.0, 40.0);
-/// Corvettes jump the player from the hauler's flanks.
+/// Corvettes jump the player from the yacht's flanks.
 const CORVETTE_A_SPAWN: Vec3 = Vec3::new(140.0, 30.0, -560.0);
 const CORVETTE_B_SPAWN: Vec3 = Vec3::new(-150.0, -20.0, -540.0);
-/// The gunship burns in from deep field: ~720u past the hauler, inside its
+/// The gunship burns in from deep field: ~720u past the yacht, inside its
 /// own engage range (800u) of the fight the moment it spawns, torpedo
 /// envelope (<= 1000u) open through the whole approach.
 const GUNSHIP_SPAWN: Vec3 = Vec3::new(80.0, 60.0, -1170.0);
@@ -126,8 +135,8 @@ fn player_ship() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                // Both racer turret cubes fire on LMB / right trigger.
-                input_mapping: ships::RACER_TURRET_IDS
+                // Both corvette turret cubes fire on LMB / right trigger.
+                input_mapping: ships::CARGOA_TURRET_IDS
                     .iter()
                     .map(|id| {
                         (
@@ -147,9 +156,9 @@ fn player_ship() -> ScenarioObjectConfig {
                 infinite_ammo: false,
             }),
             allegiance: None,
-            // The racer. RCS is off in the mainline campaign until the rework;
-            // no other verb is gated this chapter.
-            sections: ships::racer_sections(
+            // The cargoa corvette. RCS is off in the mainline campaign until
+            // the rework; no other verb is gated this chapter.
+            sections: ships::cargoa_sections(
                 ShipGrade::Player,
                 vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
             ),
@@ -157,30 +166,30 @@ fn player_ship() -> ScenarioObjectConfig {
     }
 }
 
-/// The neutral hauler: drive stripped, adrift by the derelict field. No
+/// The neutral yacht: drive stripped, adrift by the derelict field. No
 /// controller (it cannot fly), NEUTRAL allegiance (nobody's AI targets it),
 /// but real sections with real health - stray blast damage can kill it and
 /// the story notices.
-fn hauler_ship() -> ScenarioObjectConfig {
+fn yacht_ship() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ID_HAULER.to_string(),
-            name: "Hauler Ceres Queen".to_string(),
+            name: "Yacht Ceres Queen".to_string(),
             position: HAULER_POS,
             rotation: Quat::from_rotation_y(0.6),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Neutral),
-            // The Ceres Queen is the cargoa hauler - a wide, unarmed cargo hull
-            // that reads as a civilian freighter caught in the crossfire.
-            sections: ships::cargoa_sections(),
+            // The Ceres Queen is the racer hull - a sleek, unarmed pleasure
+            // yacht caught in the crossfire, the client the chapter protects.
+            sections: ships::racer_sections(),
         }),
     }
 }
 
 /// A scavenger corvette: shakedown's pirate silhouette, flown in a pair.
-/// Leashed to the hauler fight so the duel stays in the derelict field.
+/// Leashed to the yacht fight so the duel stays in the derelict field.
 fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -199,8 +208,8 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
                 ..Default::default()
             }),
             allegiance: None,
-            // A scavenger-grade racer: weaker turrets, squishier hull.
-            sections: ships::racer_sections(ShipGrade::Enemy, vec![]),
+            // A scavenger-grade corvette: weaker turrets, squishier hull.
+            sections: ships::cargoa_sections(ShipGrade::Enemy, vec![]),
         }),
     }
 }
@@ -231,7 +240,7 @@ fn gunship() -> ScenarioObjectConfig {
 /// The destructible chaff field along the approach lane. A Box region (the
 /// Ring variant is origin-centred; sample() REPLACES the template position,
 /// it does not offset it) with margins that keep the player spawn (z=40)
-/// and the hauler (z=-450) themselves clear. Shared by both parts, same
+/// and the yacht (z=-450) themselves clear. Shared by both parts, same
 /// seed, so the chapter's arena reads as one place.
 fn cover_scatter(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
     EventActionConfig::ScatterObjects(ScatterObjectsConfig {
@@ -271,7 +280,7 @@ fn cover_scatter(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
 /// them as real occluders - the pressure-relief tier above the chaff.
 /// Nominal radii are small on purpose: asteroid bodies run 3.5x-6x nominal
 /// (ASTEROID_GEOMETRIC_FACTOR_MIN/MAX), so nominal 3.5-5 is a 12-30u
-/// boulder. Three anchor the corvette fight north of the hauler
+/// boulder. Three anchor the corvette fight north of the yacht
 /// (z -520..-575), two sit on the gunship's approach lane (z -700..-750);
 /// all are outside the scatter box (z >= -430) and clear of every spawn at
 /// the 6x worst case (pinned by broadside_assault.rs).
@@ -324,14 +333,14 @@ pub(crate) fn broadside(
         // before the ambush stamps it, not an undefined var.
         set_variable(VAR_DEFEND_GATE, number(0.0)),
         spawn_object(player_ship()),
-        spawn_object(hauler_ship()),
+        spawn_object(yacht_ship()),
         cover_scatter,
     ];
     opening.extend(boulders.into_iter().map(spawn_object));
     opening.extend([
         EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
             id: ID_HAULER_AREA.to_string(),
-            name: "Hauler Approach".to_string(),
+            name: "Yacht Approach".to_string(),
             position: HAULER_POS,
             rotation: Quat::IDENTITY,
             radius: 130.0,
@@ -346,8 +355,8 @@ pub(crate) fn broadside(
             "Ceres Queen to any ship in the belt - drive's stripped, and \
              they're coming back for the hull.",
         ),
-        // Reveal-then-navigate: the distress call sets up, "find the hauler" is
-        // a soft instruction - a mid gap. The gold marker rides the hauler from
+        // Reveal-then-navigate: the distress call sets up, "find the yacht" is
+        // a soft instruction - a mid gap. The gold marker rides the yacht from
         // OnStart (NOT withheld inside the gate), so the player has a nav
         // target during the call; only the objective TEXT waits, matching
         // shakedown/final_tally.
@@ -356,14 +365,14 @@ pub(crate) fn broadside(
     ]);
     opening.extend(ThreePointRig::around("broadside", Vec3::ZERO, 10.0).actions());
 
-    let events = vec![
+    let mut events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
             actions: opening,
         },
         // The contact objective posts a beat after the distress call (pacing
-        // pass): still act 0, so a player who somehow reaches the hauler inside
+        // pass): still act 0, so a player who somehow reaches the yacht inside
         // the beat springs the ambush without a stale objective appearing after.
         pacing::gated_once(
             VAR_CONTACT_POSTED,
@@ -371,9 +380,9 @@ pub(crate) fn broadside(
             vec![number_equals(VAR_ACT, 0.0)],
             // The marker is already up (OnStart, above); only the objective
             // text posts here.
-            vec![post_objective(OBJ_CONTACT, "Find the hauler Ceres Queen.")],
+            vec![post_objective(OBJ_CONTACT, "Find the yacht Ceres Queen.")],
         ),
-        // Act 0 -> 1: reaching the hauler springs the ambush. The threats spawn
+        // Act 0 -> 1: reaching the yacht springs the ambush. The threats spawn
         // and the warning lands now; the DEFEND objective posts a beat later
         // (gated_once below) so "contact done" and "drive them off" never share
         // a frame.
@@ -464,7 +473,7 @@ pub(crate) fn broadside(
         // this ambush (spike F7). OnUpdate gated on the act makes this a
         // one-shot regardless of which kill lands last; Continue rides the
         // lingering chain into part two.
-        // Two variants of the same beat, gated on the hauler's fate
+        // Two variants of the same beat, gated on the yacht's fate
         // (mutually exclusive on VAR_HAULER_LOST), so protecting her is
         // acknowledged in the banner. The overlay's own message carries the
         // closing line per the beat-sheet convention.
@@ -476,22 +485,18 @@ pub(crate) fn broadside(
                 number_equals(VAR_CORVETTE_B_DOWN, 1.0),
                 number_equals(VAR_HAULER_LOST, 0.0),
             ],
-            actions: vec![
-                set_variable(VAR_ACT, number(2.0)),
-                complete_objective(OBJ_DEFEND),
-                EventActionConfig::Outcome(OutcomeActionConfig::new(
-                    ScenarioOutcomeKind::Victory,
-                    "The pickers break off, hulls venting - and the Ceres \
-                     Queen is still in one piece. On the deep scan: a capital \
-                     burn, closing fast. The Rust Tally is coming to finish \
-                     what its pickers started.",
-                )),
-                EventActionConfig::NextScenario(NextScenarioActionConfig {
-                    scenario_id: BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),
-                    linger: true,
-                    delay: None,
-                }),
-            ],
+            actions: pacing::open_outro(
+                VAR_ACT,
+                ACT_OUTRO,
+                vec![
+                    complete_objective(OBJ_DEFEND),
+                    story_message(
+                        BELT_RELAY,
+                        "The pickers break off, hulls venting - and the Ceres \
+                     Queen is still in one piece.",
+                    ),
+                ],
+            ),
         },
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
@@ -501,24 +506,20 @@ pub(crate) fn broadside(
                 number_equals(VAR_CORVETTE_B_DOWN, 1.0),
                 number_equals(VAR_HAULER_LOST, 1.0),
             ],
-            actions: vec![
-                set_variable(VAR_ACT, number(2.0)),
-                complete_objective(OBJ_DEFEND),
-                EventActionConfig::Outcome(OutcomeActionConfig::new(
-                    ScenarioOutcomeKind::Victory,
-                    "The pickers break off, hulls venting - too late for the \
-                     Ceres Queen. On the deep scan: a capital burn, closing \
-                     fast. The Rust Tally is coming to finish what its \
-                     pickers started.",
-                )),
-                EventActionConfig::NextScenario(NextScenarioActionConfig {
-                    scenario_id: BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),
-                    linger: true,
-                    delay: None,
-                }),
-            ],
+            actions: pacing::open_outro(
+                VAR_ACT,
+                ACT_OUTRO,
+                vec![
+                    complete_objective(OBJ_DEFEND),
+                    story_message(
+                        BELT_RELAY,
+                        "The pickers break off, hulls venting - too late for the \
+                     Ceres Queen.",
+                    ),
+                ],
+            ),
         },
-        // Flavor, not failure: the hauler dies to stray fire and the story
+        // Flavor, not failure: the yacht dies to stray fire and the story
         // notices - but only while the fight is on; after the win nothing
         // pushes fresh objectives under the Victory overlay.
         ScenarioEventConfig {
@@ -565,7 +566,7 @@ pub(crate) fn broadside(
                 set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
-                    "Guns and thrusters gone - you drift, and the scavengers close in.",
+                    "Nothing left to fight with - you drift, and the scavengers close in.",
                 )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: BROADSIDE_SCENARIO_ID.to_string(),
@@ -576,11 +577,27 @@ pub(crate) fn broadside(
         },
     ];
 
+    // The outro: both ambush-cleared variants differ only in the yacht's
+    // fate, which their own handlers said - the tease and the banner are one
+    // shared copy.
+    events.extend(pacing::outro_beats(
+        VAR_ACT,
+        ACT_OUTRO,
+        ACT_WON,
+        BELT_RELAY,
+        "Deep scan is not going quiet: a capital burn, closing fast. The \
+         Rust Tally is coming to finish what its pickers started.",
+        "The ambush at the Ceres Queen is broken - and the gang's capital \
+         is already on its way.",
+        vec![],
+        Some(BROADSIDE_GUNSHIP_SCENARIO_ID.to_string()),
+    ));
+
     ScenarioConfig {
         id: BROADSIDE_SCENARIO_ID.to_string(),
         name: "Broadside".to_string(),
-        description: "The scavengers come back in force: answer a hauler's \
-                      distress call and break the ambush at the Ceres Queen. \
+        description: "The scavengers come back in force: answer a stranded \
+                      yacht's distress call and break the ambush at the Ceres Queen. \
                       Chapter two of the base storyline, part one."
             .to_string(),
         cubemap,
@@ -600,20 +617,20 @@ pub(crate) fn broadside(
 
 /// Part two: the capital fight, entered only through part one's checkpoint
 /// (hidden from the Scenarios picker). The gunship spawns at OnStart - its
-/// ~720u burn toward the hauler IS the act's pacing, torpedo tubes open
+/// ~720u burn toward the yacht IS the act's pacing, torpedo tubes open
 /// through the whole approach - and dying here retries HERE.
 pub(crate) fn broadside_gunship(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
-    // Same arena as part one: hauler, chaff scatter (same seed), hard
+    // Same arena as part one: yacht, chaff scatter (same seed), hard
     // boulders - the chapter reads as one place across the split.
     let mut opening = vec![
         set_variable(VAR_ACT, number(1.0)),
         set_variable(VAR_HAULER_LOST, number(0.0)),
         set_variable(VAR_GUN_OBJ_POSTED, number(0.0)),
         spawn_object(player_ship()),
-        spawn_object(hauler_ship()),
+        spawn_object(yacht_ship()),
         cover_scatter(&asteroid_texture),
     ];
     opening.extend(hard_cover(&asteroid_texture).into_iter().map(spawn_object));
@@ -637,7 +654,7 @@ pub(crate) fn broadside_gunship(
     ]);
     opening.extend(ThreePointRig::around("gunship", Vec3::ZERO, 10.0).actions());
 
-    let events = vec![
+    let mut events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -657,8 +674,8 @@ pub(crate) fn broadside_gunship(
         ),
         // Win: the gunship comes apart - and the deep scan keeps the door open:
         // the lingering chain rides into chapter three (Lifeline). Two variants
-        // on the hauler's fate (mutually exclusive on VAR_HAULER_LOST) - each
-        // part tracks its OWN hauler, since variables are scenario-scoped and
+        // on the yacht's fate (mutually exclusive on VAR_HAULER_LOST) - each
+        // part tracks its OWN yacht, since variables are scenario-scoped and
         // the arena restages across the checkpoint.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
@@ -667,24 +684,20 @@ pub(crate) fn broadside_gunship(
                 number_equals(VAR_ACT, 1.0),
                 number_equals(VAR_HAULER_LOST, 0.0),
             ],
-            actions: vec![
-                set_variable(VAR_ACT, number(2.0)),
-                complete_objective(OBJ_SCREEN),
-                complete_objective(OBJ_BREAK),
-                detach_objective_marker(ID_GUNSHIP),
-                EventActionConfig::Outcome(OutcomeActionConfig::new(
-                    ScenarioOutcomeKind::Victory,
-                    "The Rust Tally breaks apart - and the Ceres Queen is \
-                     still whole to see it. But the deep scan does not go \
-                     quiet: the gang's traffic keeps moving, and all of it \
-                     is inbound to the freight lane.",
-                )),
-                EventActionConfig::NextScenario(NextScenarioActionConfig {
-                    scenario_id: super::lifeline::LIFELINE_SCENARIO_ID.to_string(),
-                    linger: true,
-                    delay: None,
-                }),
-            ],
+            actions: pacing::open_outro(
+                VAR_ACT,
+                ACT_OUTRO,
+                vec![
+                    complete_objective(OBJ_SCREEN),
+                    complete_objective(OBJ_BREAK),
+                    detach_objective_marker(ID_GUNSHIP),
+                    story_message(
+                        BELT_RELAY,
+                        "The Rust Tally breaks apart - and the Ceres Queen is \
+                     still whole to see it.",
+                    ),
+                ],
+            ),
         },
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
@@ -693,24 +706,20 @@ pub(crate) fn broadside_gunship(
                 number_equals(VAR_ACT, 1.0),
                 number_equals(VAR_HAULER_LOST, 1.0),
             ],
-            actions: vec![
-                set_variable(VAR_ACT, number(2.0)),
-                complete_objective(OBJ_SCREEN),
-                complete_objective(OBJ_BREAK),
-                detach_objective_marker(ID_GUNSHIP),
-                EventActionConfig::Outcome(OutcomeActionConfig::new(
-                    ScenarioOutcomeKind::Victory,
-                    "The Rust Tally breaks apart - too late for the Ceres \
-                     Queen. And the deep scan does not go quiet: the gang's \
-                     traffic keeps moving, and all of it is inbound to the \
-                     freight lane.",
-                )),
-                EventActionConfig::NextScenario(NextScenarioActionConfig {
-                    scenario_id: super::lifeline::LIFELINE_SCENARIO_ID.to_string(),
-                    linger: true,
-                    delay: None,
-                }),
-            ],
+            actions: pacing::open_outro(
+                VAR_ACT,
+                ACT_OUTRO,
+                vec![
+                    complete_objective(OBJ_SCREEN),
+                    complete_objective(OBJ_BREAK),
+                    detach_objective_marker(ID_GUNSHIP),
+                    story_message(
+                        BELT_RELAY,
+                        "The Rust Tally breaks apart - too late for the Ceres \
+                     Queen.",
+                    ),
+                ],
+            ),
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
@@ -719,25 +728,21 @@ pub(crate) fn broadside_gunship(
                 number_equals(VAR_ACT, 1.0),
                 number_equals(VAR_HAULER_LOST, 0.0),
             ],
-            actions: vec![
-                set_variable(VAR_ACT, number(2.0)),
-                complete_objective(OBJ_SCREEN),
-                complete_objective(OBJ_BREAK),
-                detach_objective_marker(ID_GUNSHIP),
-                EventActionConfig::Outcome(OutcomeActionConfig::new(
-                    ScenarioOutcomeKind::Victory,
-                    "The Rust Tally hangs dead in the void, guns cold and \
-                     engines dark - and the Ceres Queen is still whole to see \
-                     it. But the deep scan does not go quiet: the gang's \
-                     traffic keeps moving, and all of it is inbound to the \
-                     freight lane.",
-                )),
-                EventActionConfig::NextScenario(NextScenarioActionConfig {
-                    scenario_id: super::lifeline::LIFELINE_SCENARIO_ID.to_string(),
-                    linger: true,
-                    delay: None,
-                }),
-            ],
+            actions: pacing::open_outro(
+                VAR_ACT,
+                ACT_OUTRO,
+                vec![
+                    complete_objective(OBJ_SCREEN),
+                    complete_objective(OBJ_BREAK),
+                    detach_objective_marker(ID_GUNSHIP),
+                    story_message(
+                        BELT_RELAY,
+                        "The Rust Tally hangs dead in the void, guns cold and \
+                     engines dark - and the Ceres Queen is still whole to \
+                     see it.",
+                    ),
+                ],
+            ),
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
@@ -746,24 +751,20 @@ pub(crate) fn broadside_gunship(
                 number_equals(VAR_ACT, 1.0),
                 number_equals(VAR_HAULER_LOST, 1.0),
             ],
-            actions: vec![
-                set_variable(VAR_ACT, number(2.0)),
-                complete_objective(OBJ_SCREEN),
-                complete_objective(OBJ_BREAK),
-                detach_objective_marker(ID_GUNSHIP),
-                EventActionConfig::Outcome(OutcomeActionConfig::new(
-                    ScenarioOutcomeKind::Victory,
-                    "The Rust Tally hangs dead in the void, guns cold and \
-                     engines dark - too late for the Ceres Queen. And the deep \
-                     scan does not go quiet: the gang's traffic keeps moving, \
-                     and all of it is inbound to the freight lane.",
-                )),
-                EventActionConfig::NextScenario(NextScenarioActionConfig {
-                    scenario_id: super::lifeline::LIFELINE_SCENARIO_ID.to_string(),
-                    linger: true,
-                    delay: None,
-                }),
-            ],
+            actions: pacing::open_outro(
+                VAR_ACT,
+                ACT_OUTRO,
+                vec![
+                    complete_objective(OBJ_SCREEN),
+                    complete_objective(OBJ_BREAK),
+                    detach_objective_marker(ID_GUNSHIP),
+                    story_message(
+                        BELT_RELAY,
+                        "The Rust Tally hangs dead in the void, guns cold and \
+                     engines dark - too late for the Ceres Queen.",
+                    ),
+                ],
+            ),
         },
         // Flavor, not failure: same soft-fail beat as part one.
         ScenarioEventConfig {
@@ -807,7 +808,7 @@ pub(crate) fn broadside_gunship(
                 set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
-                    "Guns and thrusters gone - the Rust Tally finishes you at leisure.",
+                    "Nothing left to fight with - the Rust Tally finishes you at leisure.",
                 )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),
@@ -817,6 +818,22 @@ pub(crate) fn broadside_gunship(
             ],
         },
     ];
+
+    // The outro: all four win variants (destroyed / neutralized x the
+    // yacht's fate) said their own line already - one shared tail carries the
+    // tease into chapter three and the banner.
+    events.extend(pacing::outro_beats(
+        VAR_ACT,
+        ACT_OUTRO,
+        ACT_WON,
+        BELT_RELAY,
+        "The deep scan still is not quiet: the gang's traffic keeps moving, \
+         and all of it is inbound to the freight lane.",
+        "The Rust Tally is finished. The gang still holds the lane - and the \
+         belt's convoys are the next thing it reaches for.",
+        vec![],
+        Some(super::lifeline::LIFELINE_SCENARIO_ID.to_string()),
+    ));
 
     ScenarioConfig {
         id: BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),

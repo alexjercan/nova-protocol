@@ -53,14 +53,14 @@ pub(super) fn backdrop_orbiter(
     id: &str,
     name: &str,
     position: Vec3,
-    // The hauler silhouette knob: `true` flies the wide unarmed cargoa (the
-    // waystation freighters), `false` the racer (the scrapyard tug).
+    // The hauler silhouette knob: `true` flies the wide cargoa corvette (the
+    // waystation freighters), `false` the unarmed racer (the scrapyard tug).
     cargo: bool,
 ) -> ScenarioObjectConfig {
     let sections = if cargo {
-        ships::cargoa_sections()
+        ships::cargoa_sections(ships::ShipGrade::Player, vec![])
     } else {
-        ships::racer_sections(ships::ShipGrade::Player, vec![])
+        ships::racer_sections()
     };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {

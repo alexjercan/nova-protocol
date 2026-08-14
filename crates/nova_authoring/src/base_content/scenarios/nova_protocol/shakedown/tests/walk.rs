@@ -149,6 +149,27 @@ fn pulse(app: &mut App) {
     app.update();
 }
 
+/// Fire a keyed timer's end, the way `tick_scenario_timers` does once its
+/// deadline passes. The rig registers handlers by hand and does not run the
+/// loader's clock systems, so the outro's timers are driven here the same way
+/// every other event in this file is.
+fn fire_timer(app: &mut App, key: &str) {
+    use nova_events::prelude::*;
+    app.world_mut()
+        .commands()
+        .fire::<OnTimerEndEvent>(OnTimerEndEventInfo {
+            key: key.to_string(),
+        });
+    pulse(app);
+}
+
+/// Walk the outro: the tease beat, then the banner beat that posts the final
+/// objective and declares the win.
+fn walk_outro(app: &mut App) {
+    fire_timer(app, pacing::OUTRO_TEASE_TIMER);
+    fire_timer(app, pacing::OUTRO_BANNER_TIMER);
+}
+
 /// The player ship enters `area` (the physics half of this event is proven by
 /// the salvage pipeline test in).
 fn enter(app: &mut App, area: &str) {
@@ -647,8 +668,14 @@ fn the_five_beats_walk_end_to_end() {
 
     // Beat 12 -> done: the scavenger driven off.
     destroy(&mut app, ID_PIRATE);
-    assert_eq!(beat(&app), 13.0);
+    assert_eq!(beat(&app), 13.0, "the kill opens the outro, win locked");
     assert!(!has_objective(&app, OBJ_B12));
+    assert!(
+        !has_objective(&app, OBJ_DONE),
+        "the completion note waits for the outro's banner beat"
+    );
+    walk_outro(&mut app);
+    assert_eq!(beat(&app), 14.0, "the banner beat closes the run");
     assert!(has_objective(&app, OBJ_DONE), "the run completes");
     // Free flight is marker-free: the done handler's defensive detach
     // (the rig's destroy event does not despawn the wreck, so the
@@ -679,6 +706,7 @@ fn pirate_destruction_only_counts_during_the_final_beat() {
     combat_lock(&mut app, ID_DERELICT);
     destroy(&mut app, ID_DERELICT);
     destroy(&mut app, ID_PIRATE);
+    walk_outro(&mut app);
     let objectives = &app.world().resource::<GameObjectives>().objectives;
     assert!(
         objectives.iter().any(|objective| objective.id == OBJ_DONE),
@@ -735,6 +763,7 @@ fn an_early_derelict_kill_skips_to_the_fight() {
     );
     // The fight still ends the run.
     destroy(&mut app, ID_PIRATE);
+    walk_outro(&mut app);
     let objectives = &app.world().resource::<GameObjectives>().objectives;
     assert!(objectives.iter().any(|objective| objective.id == OBJ_DONE));
 }
@@ -851,7 +880,7 @@ fn the_new_game_player_has_finite_reloading_ammo() {
 /// The player's controller section carries DisableVerb modifications for
 /// GOTO, LOCK and ORBIT (STOP is left granted), so those verbs are off from
 /// the instant the section is built - no OnStart-action ordering window. The
-/// controller is the racer's inline Controller cube, and the withholding is
+/// controller is the corvette's inline Controller cube, and the withholding is
 /// expressed as modifications on it.
 #[test]
 fn the_new_game_player_starts_with_goto_withheld() {

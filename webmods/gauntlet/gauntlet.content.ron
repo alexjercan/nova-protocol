@@ -114,11 +114,12 @@
                     DebugMessage((
                         message: "Gauntlet Run 2.0 loaded from the mod portal.",
                     )),
-                    // The racer. Same section layout as the base player ship,
-                    // with all verbs enabled (no DisableVerb): the pilot can
-                    // GOTO/lock the gates from the first second. The reinforced
-                    // hull buys crash tolerance so the course is run-and-fail,
-                    // not one-touch death.
+                    // The racer: the base game's unarmed civilian hull, which is
+                    // exactly what a time trial wants. All verbs enabled (no
+                    // DisableVerb), so the pilot can GOTO/lock the gates from
+                    // the first second. The reinforced hull buys crash
+                    // tolerance so the course is run-and-fail, not one-touch
+                    // death.
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -128,16 +129,9 @@
                         ),
                         kind: Spaceship((
                             controller: Player((
-                                input_mapping: {
-                                    "turret_starboard": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "turret_port": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                },
+                                // No guns on the course: the racer flies the
+                                // gauntlet unarmed, so there is nothing to bind.
+                                input_mapping: {},
                                 speed_cap: Some(25.0),
                                 infinite_ammo: true,
                             )),
@@ -246,36 +240,6 @@
                                         1.0,
                                     ),
                                     source: Prototype("racer_fuselage"),
-                                ),
-                                (
-                                    id: "turret_starboard",
-                                    position: (
-                                        1.35,
-                                        0.4,
-                                        -0.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("racer_turret_starboard"),
-                                ),
-                                (
-                                    id: "turret_port",
-                                    position: (
-                                        -1.35,
-                                        0.4,
-                                        -0.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("racer_turret_port"),
                                 ),
                             ],
                         )),

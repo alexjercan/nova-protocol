@@ -3,6 +3,12 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.9.0
+
+- Disarms the course racer: the base game now flies the Racer as its unarmed
+  civilian hull, and the gauntlet is a time trial with no combat, so the two
+  turret sections and their fire bindings are gone.
+
 ## 1.8.0
 
 - Migrates the player ship from removed coordinate-named cube sections to the

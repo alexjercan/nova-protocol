@@ -28,6 +28,11 @@ pub(super) fn default_joint_speed() -> f32 {
     std::f32::consts::PI
 }
 
+/// How far the default pitch hinge may DEPRESS below level (10 deg). A turret
+/// stands on a hull, so a deeper floor only aims the barrel back into its own
+/// ship; elevation is unclamped to 90 deg for the point-defense arc.
+const DEFAULT_TURRET_DEPRESSION_LIMIT: f32 = std::f32::consts::PI / 18.0;
+
 /// Skip serializing a joint's `speed` when it is the default (the common case:
 /// every shipped joint traverses at 180 deg/s), so authored trees are not
 /// littered with `speed: 3.1415927` on every node - fixed nodes included, where
@@ -210,7 +215,10 @@ impl Default for TurretSectionConfig {
                         offset: Vec3::new(0.0, 0.2, 0.0),
                         axis: Some(Vec3::X),
                         speed: std::f32::consts::PI, // 180 degrees per second
-                        min: Some(-std::f32::consts::FRAC_PI_6),
+                        // Turrets mount ON a hull, so the depression floor
+                        // stops the barrel aiming back into it; elevation
+                        // stays at 90 for the point-defense arc.
+                        min: Some(-DEFAULT_TURRET_DEPRESSION_LIMIT),
                         max: Some(std::f32::consts::FRAC_PI_2),
                         render_mesh: None,
                         render_mesh_transform: None,

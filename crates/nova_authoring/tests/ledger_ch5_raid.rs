@@ -724,11 +724,11 @@ fn the_bundle_ships_the_raid_and_bumps_the_version() {
     // offered the update, so a content change never reaches a player who
     // already has the mod.
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.21.0\""),
-        "the bundle version is bumped for the semantic-parts migration"
+        LEDGER_BUNDLE_RON.contains("version: \"1.22.0\""),
+        "the bundle version is bumped for the corvette re-cast"
     );
     assert!(
-        LEDGER_CHANGELOG.contains("## 1.21.0"),
+        LEDGER_CHANGELOG.contains("## 1.22.0"),
         "the mod changelog documents the published version"
     );
 }

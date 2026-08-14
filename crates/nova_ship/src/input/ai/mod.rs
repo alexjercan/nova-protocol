@@ -196,7 +196,7 @@ pub struct AISpaceshipMarker;
 pub struct AINonCombatant;
 
 /// Take a neutralized AI ship out of the fight so it stops being engaged and
-/// chased. Its own weapons and thrusters are already gone, so it cannot act.
+/// chased. Its guns or its flight computer are already gone, so it cannot act.
 ///
 /// This is the AI HALF of neutralization, and it lives here rather than in
 /// `integrity::neutralize` on purpose: the integrity layer decides only that a

@@ -283,7 +283,7 @@ pub(crate) fn asteroid_field(
             actions: vec![
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
-                    "Weapons and thrusters gone - you drift dead in the belt.",
+                    "Nothing left to fight with - you drift dead in the belt.",
                 )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: "asteroid_field".to_string(),

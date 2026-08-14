@@ -1,4 +1,9 @@
 //! CargoA semantic parts, prototype catalog entries, and assembly.
+//!
+//! The cargoa is the campaign's light fighter - the corvette. Its wide pods
+//! carry the two PDC turrets on their forward shoulders (the cargob's mount
+//! grammar), so player and raider corvettes read as the armed-hauler lineage
+//! the gunship caps.
 
 use nova_scenario::prelude::*;
 use nova_ship::prelude::SectionConfig;
@@ -6,7 +11,9 @@ use nova_ship::prelude::SectionConfig;
 use super::shared::*;
 use crate::base_content::assets::BaseContentAssets;
 
-pub(super) const CARGOA_PARTS: [PartSpec; 7] = [
+pub(crate) const CARGOA_TURRET_IDS: [&str; 2] = ["turret_port", "turret_starboard"];
+
+pub(super) const CARGOA_PARTS: [PartSpec; 9] = [
     part(
         "engine_starboard",
         "cargoa_engine_starboard",
@@ -77,15 +84,50 @@ pub(super) const CARGOA_PARTS: [PartSpec; 7] = [
         350.0,
         PartRole::Controller,
     ),
+    // Nose cheeks: centred on the nose's port/starboard faces (the nose spans
+    // x +-0.8, y 0.2..1.4, z -2.45..-1.15) and sitting FLUSH against them -
+    // the 0.15 module half-width puts the inner face exactly on the hull at
+    // +-0.95, so the guns read bolted on with their bases clear of the
+    // bodywork. Forward of the fuselage and the pods, so the front arcs are
+    // clear; the shared joint tree's -10 degree depression floor keeps a
+    // barrel from swinging back into the nose it stands on.
+    module(
+        "turret_starboard",
+        "cargoa_turret_starboard",
+        v(0.95, 0.8, -1.8),
+        130.0,
+        PartRole::Turret,
+        PartSide::Starboard,
+    ),
+    module(
+        "turret_port",
+        "cargoa_turret_port",
+        v(-0.95, 0.8, -1.8),
+        130.0,
+        PartRole::Turret,
+        PartSide::Port,
+    ),
 ];
 
-pub(super) const CARGOA_EDGES: [(usize, usize); 6] =
-    [(6, 4), (6, 5), (6, 2), (6, 3), (2, 0), (3, 1)];
+pub(super) const CARGOA_EDGES: [(usize, usize); 8] = [
+    (6, 4),
+    (6, 5),
+    (6, 2),
+    (6, 3),
+    (2, 0),
+    (3, 1),
+    // The turrets mate to the NOSE (4), not the pods: they sit on its cheeks.
+    (4, 7),
+    (4, 8),
+];
 
 pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
-    prototypes(&CARGOA_PARTS, &CARGOA_EDGES, assets, false)
+    prototypes(&CARGOA_PARTS, &CARGOA_EDGES, assets, true)
 }
 
-pub(crate) fn sections() -> Vec<SpaceshipSectionConfig> {
-    ship_sections(&CARGOA_PARTS, ShipGrade::Player, &[])
+pub(crate) fn sections(
+    grade: ShipGrade,
+    controller_modifications: Vec<SectionModification>,
+) -> Vec<SpaceshipSectionConfig> {
+    ship_sections(&CARGOA_PARTS, grade, &controller_modifications)
 }

@@ -164,9 +164,9 @@
                                 (
                                     id: "engine_starboard",
                                     position: (
-                                        0.655,
-                                        0.570945,
-                                        1.512835,
+                                        1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -174,14 +174,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_engine_starboard"),
+                                    source: Prototype("cargoa_engine_starboard"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "engine_port",
                                     position: (
-                                        -0.655,
-                                        0.570945,
-                                        1.512835,
+                                        -1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -189,14 +190,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_engine_port"),
+                                    source: Prototype("cargoa_engine_port"),
+                                    modifications: [],
                                 ),
                                 (
-                                    id: "wing_starboard",
+                                    id: "pod_starboard",
                                     position: (
-                                        0.805,
-                                        0.5,
-                                        0.11783552,
+                                        1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -204,14 +206,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_wing_starboard"),
+                                    source: Prototype("cargoa_pod_starboard"),
+                                    modifications: [],
                                 ),
                                 (
-                                    id: "wing_port",
+                                    id: "pod_port",
                                     position: (
-                                        -0.805,
-                                        0.5,
-                                        0.11783552,
+                                        -1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -219,14 +222,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_wing_port"),
+                                    source: Prototype("cargoa_pod_port"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "nose",
                                     position: (
                                         0.0,
-                                        0.611325,
-                                        -1.512835,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -234,14 +238,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_nose"),
+                                    source: Prototype("cargoa_nose"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "tail",
                                     position: (
                                         0.0,
-                                        0.85,
-                                        1.6128349,
+                                        0.5875,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -249,14 +254,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_tail"),
+                                    source: Prototype("cargoa_tail"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "fuselage",
                                     position: (
                                         0.0,
-                                        0.7,
-                                        0.100000024,
+                                        0.8,
+                                        0.17500001,
                                     ),
                                     rotation: (
                                         0.0,
@@ -264,14 +270,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_fuselage"),
+                                    source: Prototype("cargoa_fuselage"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "turret_starboard",
                                     position: (
-                                        1.35,
-                                        0.4,
-                                        -0.8,
+                                        0.95,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -279,14 +286,15 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_turret_starboard"),
+                                    source: Prototype("cargoa_turret_starboard"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "turret_port",
                                     position: (
-                                        -1.35,
-                                        0.4,
-                                        -0.8,
+                                        -0.95,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -294,7 +302,8 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_turret_port"),
+                                    source: Prototype("cargoa_turret_port"),
+                                    modifications: [],
                                 ),
                             ],
                         )),
@@ -596,9 +605,9 @@
                                 (
                                     id: "engine_starboard",
                                     position: (
-                                        0.655,
-                                        0.570945,
-                                        1.512835,
+                                        1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -606,14 +615,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_engine_starboard"),
+                                    source: Prototype("cargoa_engine_starboard"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "engine_port",
                                     position: (
-                                        -0.655,
-                                        0.570945,
-                                        1.512835,
+                                        -1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -621,14 +631,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_engine_port"),
+                                    source: Prototype("cargoa_engine_port"),
+                                    modifications: [],
                                 ),
                                 (
-                                    id: "wing_starboard",
+                                    id: "pod_starboard",
                                     position: (
-                                        0.805,
-                                        0.5,
-                                        0.11783552,
+                                        1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -636,14 +647,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_wing_starboard"),
+                                    source: Prototype("cargoa_pod_starboard"),
+                                    modifications: [],
                                 ),
                                 (
-                                    id: "wing_port",
+                                    id: "pod_port",
                                     position: (
-                                        -0.805,
-                                        0.5,
-                                        0.11783552,
+                                        -1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -651,14 +663,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_wing_port"),
+                                    source: Prototype("cargoa_pod_port"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "nose",
                                     position: (
                                         0.0,
-                                        0.611325,
-                                        -1.512835,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -666,14 +679,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_nose"),
+                                    source: Prototype("cargoa_nose"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "tail",
                                     position: (
                                         0.0,
-                                        0.85,
-                                        1.6128349,
+                                        0.5875,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -681,14 +695,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_tail"),
+                                    source: Prototype("cargoa_tail"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "fuselage",
                                     position: (
                                         0.0,
-                                        0.7,
-                                        0.100000024,
+                                        0.8,
+                                        0.17500001,
                                     ),
                                     rotation: (
                                         0.0,
@@ -696,14 +711,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_fuselage"),
+                                    source: Prototype("cargoa_fuselage"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "turret_starboard",
                                     position: (
-                                        1.35,
-                                        0.4,
-                                        -0.8,
+                                        0.95,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -711,14 +727,15 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_turret_starboard"),
+                                    source: Prototype("cargoa_turret_starboard"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "turret_port",
                                     position: (
-                                        -1.35,
-                                        0.4,
-                                        -0.8,
+                                        -0.95,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -726,7 +743,8 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_turret_port"),
+                                    source: Prototype("cargoa_turret_port"),
+                                    modifications: [],
                                 ),
                             ],
                         )),
@@ -756,9 +774,9 @@
                                 (
                                     id: "engine_starboard",
                                     position: (
-                                        0.655,
-                                        0.570945,
-                                        1.512835,
+                                        1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -766,14 +784,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_engine_starboard"),
+                                    source: Prototype("cargoa_engine_starboard"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "engine_port",
                                     position: (
-                                        -0.655,
-                                        0.570945,
-                                        1.512835,
+                                        -1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -781,14 +800,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_engine_port"),
+                                    source: Prototype("cargoa_engine_port"),
+                                    modifications: [],
                                 ),
                                 (
-                                    id: "wing_starboard",
+                                    id: "pod_starboard",
                                     position: (
-                                        0.805,
-                                        0.5,
-                                        0.11783552,
+                                        1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -796,14 +816,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_wing_starboard"),
+                                    source: Prototype("cargoa_pod_starboard"),
+                                    modifications: [],
                                 ),
                                 (
-                                    id: "wing_port",
+                                    id: "pod_port",
                                     position: (
-                                        -0.805,
-                                        0.5,
-                                        0.11783552,
+                                        -1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -811,14 +832,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_wing_port"),
+                                    source: Prototype("cargoa_pod_port"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "nose",
                                     position: (
                                         0.0,
-                                        0.611325,
-                                        -1.512835,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -826,14 +848,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_nose"),
+                                    source: Prototype("cargoa_nose"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "tail",
                                     position: (
                                         0.0,
-                                        0.85,
-                                        1.6128349,
+                                        0.5875,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -841,14 +864,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_tail"),
+                                    source: Prototype("cargoa_tail"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "fuselage",
                                     position: (
                                         0.0,
-                                        0.7,
-                                        0.100000024,
+                                        0.8,
+                                        0.17500001,
                                     ),
                                     rotation: (
                                         0.0,
@@ -856,14 +880,15 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_fuselage"),
+                                    source: Prototype("cargoa_fuselage"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "turret_starboard",
                                     position: (
-                                        1.35,
-                                        0.4,
-                                        -0.8,
+                                        0.95,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -871,14 +896,15 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_turret_starboard"),
+                                    source: Prototype("cargoa_turret_starboard"),
+                                    modifications: [],
                                 ),
                                 (
                                     id: "turret_port",
                                     position: (
-                                        -1.35,
-                                        0.4,
-                                        -0.8,
+                                        -0.95,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -886,7 +912,8 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_turret_port"),
+                                    source: Prototype("cargoa_turret_port"),
+                                    modifications: [],
                                 ),
                             ],
                         )),

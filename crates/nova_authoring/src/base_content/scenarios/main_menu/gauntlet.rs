@@ -1,6 +1,6 @@
-//! The torpedo-gauntlet main-menu backdrop: a station-keeping racer's point
+//! The torpedo-gauntlet main-menu backdrop: a station-keeping corvette's point
 //! defense against scripted torpedo batteries on both flanks - a doomed
-//! stand. The racer's PDC magazines are HARD (no reload): it swats torpedoes
+//! stand. The corvette's PDC magazines are HARD (no reload): it swats torpedoes
 //! until the guns run dry, the stream overruns it, and the blast ends the
 //! act; after a beat the carousel turns to the next backdrop.
 
@@ -14,12 +14,12 @@ use crate::{
     scenario_helpers::{entity, number},
 };
 
-/// The racer's HARD magazine per PDC turret (SetAmmo strips the auto-reload).
+/// The corvette's HARD magazine per PDC turret (SetAmmo strips the auto-reload).
 /// Sized for roughly a TEN-torpedo defense across the pair: the first cut
 /// shipped 1800 per turret and the stand never fell inside a menu visit.
-const RACER_ROUNDS_PER_TURRET: u32 = 400;
+const CORVETTE_ROUNDS_PER_TURRET: u32 = 400;
 
-/// The racer's station-keeping circuit, just left of frame center (the menu
+/// The corvette's station-keeping circuit, just left of frame center (the menu
 /// panel owns the right half): a six-point ring with ~55 u legs and a little
 /// vertical wander - enough motion to read as a ship on watch, small enough
 /// that the guns, not the flying, stay the show. Its centroid anchors the
@@ -35,19 +35,19 @@ const HOLD_LOOP: [Vec3; 6] = [
     Vec3::new(-32.5, 18.0, -48.0),
 ];
 
-/// The racer's authored detection range. Two geometry facts hang off it: the
+/// The corvette's authored detection range. Two geometry facts hang off it: the
 /// batteries park ~720 u from the circuit's centroid, so the DEFAULT 800
-/// would pull the racer off station toward whichever battery its acquisition
+/// would pull the corvette off station toward whichever battery its acquisition
 /// found; and a leaked hit still overrides the passive gate (damage memory
 /// ignores detection range), which is why the batteries ALSO stay beyond
-/// leash + turret reach (250 + 450) of the centroid - a lunging racer can
+/// leash + turret reach (250 + 450) of the centroid - a lunging corvette can
 /// never bring its guns into range before the leash walks it home.
-const RACER_ENGAGE_RANGE: f32 = 300.0;
+const CORVETTE_ENGAGE_RANGE: f32 = 300.0;
 
 /// Battery parks: far off both flanks of the frame (~+-230 u visible at
 /// origin depth), at slightly scattered y/z so the inbound lanes fan instead
 /// of stacking. All are >700 u from the circuit centroid (see
-/// [`RACER_ENGAGE_RANGE`]); with launches SCRIPTED there is no AI launch
+/// [`CORVETTE_ENGAGE_RANGE`]); with launches SCRIPTED there is no AI launch
 /// envelope to stay inside of.
 const BATTERY_PARKS: [(&str, Vec3, f64, f64); 4] = [
     // (id, park, first launch at, relaunch every)
@@ -80,7 +80,7 @@ const BATTERY_PARKS: [(&str, Vec3, f64, f64); 4] = [
 /// One battery: a Spaceship in kind only - a single standard torpedo bay,
 /// no thrusters, no controller. `ForceTorpedoLaunch` is its whole brain;
 /// Enemy allegiance is what its torpedoes inherit, which is what makes them
-/// point-defense targets for the Player-allegiance racer. Rotation stays
+/// point-defense targets for the Player-allegiance corvette. Rotation stays
 /// identity: the bay launches along its +Y like a vertical cell and PN
 /// guidance arcs the torpedo onto the lane.
 fn battery(id: &str, park: Vec3) -> ScenarioObjectConfig {
@@ -105,12 +105,12 @@ fn battery(id: &str, park: Vec3) -> ScenarioObjectConfig {
     }
 }
 
-/// A doomed stand behind the menu: the racer (player-grade PDC turrets)
+/// A doomed stand behind the menu: the corvette (player-grade PDC turrets)
 /// holds a station circuit while four dumb batteries, parked far off BOTH
 /// flanks, launch standard torpedoes at it on staggered scenario timers.
-/// Torpedoes stream in from both sides of the frame and the racer swats
+/// Torpedoes stream in from both sides of the frame and the corvette swats
 /// them mid-shot - but its magazines are hard (SetAmmo, no reload), so the
-/// defense eventually runs dry and the stream wins. The racer's death
+/// defense eventually runs dry and the stream wins. The corvette's death
 /// starts a short aftermath linger, then the carousel turns to the next
 /// backdrop (the menu's Factorio-style rotation). A battery whose target is
 /// already gone skips its launch (no dud ordnance).
@@ -182,7 +182,7 @@ pub(crate) fn menu_gauntlet(
     let spawn_ship = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "gauntlet_ship".to_string(),
-            name: "Gauntlet Racer".to_string(),
+            name: "Gauntlet Corvette".to_string(),
             position: HOLD_LOOP[0],
             rotation: Quat::IDENTITY,
         },
@@ -198,10 +198,10 @@ pub(crate) fn menu_gauntlet(
                 // taking up station.
                 engage_delay: Some(2.0),
                 // If a torpedo leaks through, the hit overrides the passive
-                // gate and the racer lunges; the leash walks it back onto
+                // gate and the corvette lunges; the leash walks it back onto
                 // the circuit once the damage memory fades.
                 leash: Some(250.0),
-                engage_range: Some(RACER_ENGAGE_RANGE),
+                engage_range: Some(CORVETTE_ENGAGE_RANGE),
                 // Hold the intercepts for the camera: the default 400 u PD
                 // ring kills inbound torpedoes at (or past) the frame edge;
                 // 130 u waits until the ordnance is well inside even the
@@ -211,16 +211,16 @@ pub(crate) fn menu_gauntlet(
                 pd_range: Some(130.0),
                 ..Default::default()
             }),
-            // Player-grade racer with HARD magazines: the full 100-rounds/s
+            // Player-grade corvette with HARD magazines: the full 100-rounds/s
             // PDC turrets are the show, and their finite rounds are the
             // scene's clock - when they run dry the stand falls.
             sections: {
-                let mut sections = ships::racer_sections(ships::ShipGrade::Player, vec![]);
+                let mut sections = ships::cargoa_sections(ships::ShipGrade::Player, vec![]);
                 for section in &mut sections {
-                    if ships::RACER_TURRET_IDS.contains(&section.id.as_str()) {
+                    if ships::CARGOA_TURRET_IDS.contains(&section.id.as_str()) {
                         section
                             .modifications
-                            .push(SectionModification::SetAmmo(RACER_ROUNDS_PER_TURRET));
+                            .push(SectionModification::SetAmmo(CORVETTE_ROUNDS_PER_TURRET));
                     }
                 }
                 sections
@@ -245,7 +245,7 @@ pub(crate) fn menu_gauntlet(
             actions: stage
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
-                // Closer than the reference shot: the racer IS this scene,
+                // Closer than the reference shot: the corvette IS this scene,
                 // and at 300 u it was a handful of pixels. From (0, 80, 260)
                 // the 4:3 half-frame is ~150 u at origin depth - the raised
                 // circuit and its intercepts stay in shot, bigger.
@@ -253,7 +253,7 @@ pub(crate) fn menu_gauntlet(
                     backdrop_camera(Vec3::new(0.0, 80.0, 260.0)),
                     rock_scatter,
                     spawn_ship,
-                    // Stall watchdog (the duel's idiom): a racer crippled
+                    // Stall watchdog (the duel's idiom): a corvette crippled
                     // without counting as DEFEATED would freeze the cycle;
                     // healthy stands reload long before this fires.
                     timer("gauntlet_watchdog", 360.0),
@@ -265,7 +265,7 @@ pub(crate) fn menu_gauntlet(
                 )
                 .collect(),
         },
-        // The fall of the stand: the racer's death (dry guns, leaked
+        // The fall of the stand: the corvette's death (dry guns, leaked
         // torpedo) starts an aftermath linger - the wreck drifts, the
         // batteries fire into the dark and skip - then the FULL reset.
         ScenarioEventConfig {
@@ -304,7 +304,7 @@ pub(crate) fn menu_gauntlet(
 
     // Each battery fires on its own self-restarting clock; the staggered
     // periods keep the two flanks trading lanes instead of salvoing. A
-    // launch during the aftermath linger (racer gone) is skipped by the
+    // launch during the aftermath linger (corvette gone) is skipped by the
     // action itself.
     for (id, _, _, period) in BATTERY_PARKS {
         events.push(ScenarioEventConfig {
@@ -323,7 +323,7 @@ pub(crate) fn menu_gauntlet(
     }
 
     ScenarioConfig {
-        description: "A racer's doomed point-defense stand against batteries on both flanks."
+        description: "A corvette's doomed point-defense stand against batteries on both flanks."
             .to_string(),
         hidden: true,
         menu_backdrop: true,

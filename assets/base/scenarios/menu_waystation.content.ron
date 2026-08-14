@@ -162,6 +162,36 @@
                                     ),
                                     source: Prototype("cargoa_fuselage"),
                                 ),
+                                (
+                                    id: "turret_starboard",
+                                    position: (
+                                        0.95,
+                                        0.8,
+                                        -1.8,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("cargoa_turret_starboard"),
+                                ),
+                                (
+                                    id: "turret_port",
+                                    position: (
+                                        -0.95,
+                                        0.8,
+                                        -1.8,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("cargoa_turret_port"),
+                                ),
                             ],
                         )),
                     )),
@@ -290,6 +320,36 @@
                                         1.0,
                                     ),
                                     source: Prototype("cargoa_fuselage"),
+                                ),
+                                (
+                                    id: "turret_starboard",
+                                    position: (
+                                        0.95,
+                                        0.8,
+                                        -1.8,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("cargoa_turret_starboard"),
+                                ),
+                                (
+                                    id: "turret_port",
+                                    position: (
+                                        -0.95,
+                                        0.8,
+                                        -1.8,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("cargoa_turret_port"),
                                 ),
                             ],
                         )),

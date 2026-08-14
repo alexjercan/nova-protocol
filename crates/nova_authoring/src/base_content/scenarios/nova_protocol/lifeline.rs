@@ -8,8 +8,8 @@
 //! countdown on the HUD (the HudReadout surface's first campaign use).
 //!
 //! The convoy is the ch3-mechanisms discovery in shipped form: LOITERING
-//! haulers - unarmed AI ships (hull cubes, two thrusters, a controller, NO
-//! weapon) flying a slow patrol loop through the belt, tagged `AINonCombatant`
+//! couriers on the unarmed racer hull (hull cubes, two thrusters, a
+//! controller, NO weapon) flying a slow patrol loop through the belt, tagged `AINonCombatant`
 //! at spawn so they never chase or shoot. Their `allegiance: Some(Player)`
 //! keeps enemy AI targeting them over the relation model, so raiders spawning
 //! nearer to the convoy than to the player draw fire onto it (nearest-hostile
@@ -20,9 +20,9 @@
 //! Waves stage on the scenario clock AND the previous wave's kill flags, so
 //! a slow player is never buried under stacked waves (the schedule
 //! self-balances: late clears push later waves toward the relief bell). Win:
-//! the relief timer expires with at least one hauler alive (the raiders
+//! the relief timer expires with at least one convoy ship alive (the raiders
 //! scatter), or the last wave dies early. Lose: the player dies, or BOTH
-//! haulers die. Every raider spawn is telegraphed per the beat sheet - a
+//! convoy ships die. Every raider spawn is telegraphed per the beat sheet - a
 //! warning line, a far spawn (outside the light turret's threat envelope of
 //! every friendly anchor), and an `engage_delay` grace.
 //!
@@ -52,9 +52,14 @@ const OBJ_SCREEN: &str = "screen_convoy";
 
 /// Story act: 1 = the defense is live, 2 = won, 3 = lost. Terminal acts are
 /// distinct so the win gate (`act == 1`) can never fire after the
-/// both-haulers loss (which sets 3), and vice versa.
+/// both-ships loss (which sets 3), and vice versa.
 const VAR_ACT: &str = "act";
-/// Per-hauler death flags (0/1), raised by the beacon-dark beats. Both up =
+/// The outro act: the defense is decided and the win locked, but the banner
+/// has not landed. It sits OUTSIDE the defeat gates (`act == 1`), so a death
+/// during the outro beats cannot overwrite the win.
+const ACT_OUTRO: f64 = 4.0;
+const ACT_WON: f64 = 2.0;
+/// Per-ship death flags (0/1), raised by the beacon-dark beats. Both up =
 /// the loss; either up = the win banner's half-convoy variant.
 const VAR_QUEEN_DOWN: &str = "queen_down";
 const VAR_MERIDIAN_DOWN: &str = "meridian_down";
@@ -103,8 +108,8 @@ const HELLO_AT: f64 = 9.0;
 
 /// Player spawn, looking down the lane toward the stalled convoy.
 const PLAYER_SPAWN: Vec3 = Vec3::new(0.0, 0.0, 40.0);
-/// The convoy's holding stations, mid-lane at the transfer stop. The haulers
-/// LOITER around these: unarmed non-combatant AI ships flying a slow loop
+/// The convoy's holding stations, mid-lane at the transfer stop. The convoy
+/// ships LOITER around these: unarmed non-combatant AI ships flying a slow loop
 /// through the belt so they read as alive and hold their ground under fire
 /// instead of drifting off when a raider shoves them. They never shoot or chase
 /// (unarmed => AINonCombatant), but stay Player-aligned so the raiders still
@@ -112,7 +117,7 @@ const PLAYER_SPAWN: Vec3 = Vec3::new(0.0, 0.0, 40.0);
 const QUEEN_POS: Vec3 = Vec3::new(0.0, 5.0, -420.0);
 const MERIDIAN_POS: Vec3 = Vec3::new(70.0, -12.0, -520.0);
 /// Loiter loops: legs > the ~75u patrol arrival radius (arrival_standoff 50 +
-/// waypoint slack 25) so the haulers actually FLY the loop instead of parking
+/// waypoint slack 25) so the convoy ships actually FLY the loop instead of parking
 /// at the cluster, and centred on the holding stations so they stay in the belt
 /// near where the player expects to defend them.
 const QUEEN_LOITER: [Vec3; 3] = [
@@ -126,7 +131,7 @@ const MERIDIAN_LOITER: [Vec3; 3] = [
     Vec3::new(90.0, -5.0, -590.0),
 ];
 /// Raider spawn points: deep field past the convoy, all >= 700u from the
-/// player spawn AND both haulers - outside the light turret's threat
+/// player spawn AND both convoy ships - outside the light turret's threat
 /// envelope of every friendly anchor, so the balance audit stays clean by
 /// construction (the corvette envelope is the larger one; W3 spawns
 /// deepest). Pinned by `lifeline_convoy.rs`.
@@ -150,8 +155,8 @@ fn facing_the_lane() -> Quat {
     Quat::from_rotation_y(std::f32::consts::PI)
 }
 
-/// The player's chapter-three ship: unchanged from Broadside (the racer
-/// with the better turrets, finite ammo, no torpedo bay, RCS gated).
+/// The player's chapter-three ship: unchanged from Broadside (the cargoa
+/// corvette with the better turrets, finite ammo, no torpedo bay, RCS gated).
 fn player_ship() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -162,7 +167,7 @@ fn player_ship() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping: ships::RACER_TURRET_IDS
+                input_mapping: ships::CARGOA_TURRET_IDS
                     .iter()
                     .map(|id| {
                         (
@@ -178,7 +183,7 @@ fn player_ship() -> ScenarioObjectConfig {
                 infinite_ammo: false,
             }),
             allegiance: None,
-            sections: ships::racer_sections(
+            sections: ships::cargoa_sections(
                 ShipGrade::Player,
                 vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
             ),
@@ -186,13 +191,13 @@ fn player_ship() -> ScenarioObjectConfig {
     }
 }
 
-/// A loitering convoy hauler: the cargoa hull (unarmed - hull cubes, two rear
+/// A loitering convoy ship: the racer hull (unarmed - hull cubes, two rear
 /// thrusters, a controller), an AI driver flying `patrol` so it slow-loops the
 /// belt and holds its ground under fire instead of drifting off, PLAYER
 /// allegiance so raider AI genuinely hunts it. Unarmed, so nova_scenario tags
 /// it `AINonCombatant` at spawn: it never targets, chases, or shoots - it just
 /// flies its loop and gets defended.
-fn convoy_hauler(
+fn convoy_ship(
     id: &str,
     name: &str,
     position: Vec3,
@@ -212,12 +217,12 @@ fn convoy_hauler(
                 ..Default::default()
             }),
             allegiance: Some(Allegiance::Player),
-            sections: ships::cargoa_sections(),
+            sections: ships::racer_sections(),
         }),
     }
 }
 
-/// A raider: the scavenger-grade racer, leashed to the convoy fight,
+/// A raider: the scavenger-grade cargoa corvette, leashed to the convoy fight,
 /// telegraphed with an arrival grace. `grade` lifts W3's corvette to full
 /// player-grade turrets - the "real guns" the Tallyman promises.
 fn raider(id: &str, spawn_pos: Vec3, grade: ShipGrade, engage_delay: f32) -> ScenarioObjectConfig {
@@ -240,7 +245,7 @@ fn raider(id: &str, spawn_pos: Vec3, grade: ShipGrade, engage_delay: f32) -> Sce
                 ..Default::default()
             }),
             allegiance: None,
-            sections: ships::racer_sections(grade, vec![]),
+            sections: ships::cargoa_sections(grade, vec![]),
         }),
     }
 }
@@ -385,28 +390,29 @@ fn paced_line(
     }
 }
 
-/// A Victory beat: complete the objective, set the terminal act, show the
-/// banner - and chain (lingering) into the finale: the relief wing traced the
-/// raiders' burn, and Continue follows it.
+/// A Victory beat: complete the objective, lock the win, and say how THIS
+/// variant's defense ended. The shared outro tail (the trace into the finale,
+/// then the banner) follows a few seconds later.
+///
+/// Note the bell variants can fire with raiders still on the board - the
+/// relief wing's arrival is narrated, not simulated - so the outro plays over
+/// a lane that may still be live. `ACT_OUTRO` is what makes that safe: it sits
+/// outside the defeat gate, so a death during those seconds cannot overwrite
+/// the win the player already earned.
 fn victory(message: &str, extra_filters: Vec<EventFilterConfig>) -> ScenarioEventConfig {
     let mut filters = vec![number_equals(VAR_ACT, 1.0)];
     filters.extend(extra_filters);
     ScenarioEventConfig {
         name: EventConfig::OnUpdate,
         filters,
-        actions: vec![
-            set_variable(VAR_ACT, number(2.0)),
-            complete_objective(OBJ_SCREEN),
-            EventActionConfig::Outcome(OutcomeActionConfig::new(
-                ScenarioOutcomeKind::Victory,
-                message,
-            )),
-            EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: super::final_tally::FINAL_TALLY_SCENARIO_ID.to_string(),
-                linger: true,
-                delay: None,
-            }),
-        ],
+        actions: pacing::open_outro(
+            VAR_ACT,
+            ACT_OUTRO,
+            vec![
+                complete_objective(OBJ_SCREEN),
+                story_message(BELT_RELAY, message),
+            ],
+        ),
     }
 }
 
@@ -435,16 +441,16 @@ pub(crate) fn lifeline(
         set_variable(VAR_SCREEN_POSTED, number(0.0)),
         set_variable(VAR_RELIEF_REMAINING, number(RELIEF_SECS)),
         spawn_object(player_ship()),
-        spawn_object(convoy_hauler(
+        spawn_object(convoy_ship(
             ID_QUEEN,
-            "Hauler Ceres Queen",
+            "Yacht Ceres Queen",
             QUEEN_POS,
             0.5,
             QUEEN_LOITER.to_vec(),
         )),
-        spawn_object(convoy_hauler(
+        spawn_object(convoy_ship(
             ID_MERIDIAN,
-            "Hauler Long Meridian",
+            "Courier Long Meridian",
             MERIDIAN_POS,
             -0.4,
             MERIDIAN_LOITER.to_vec(),
@@ -489,7 +495,7 @@ pub(crate) fn lifeline(
     ]);
     opening.extend(ThreePointRig::around("lifeline", Vec3::ZERO, 10.0).actions());
 
-    let events = vec![
+    let mut events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -645,7 +651,7 @@ pub(crate) fn lifeline(
         },
         defeat_flag("raider_3a", VAR_R3A_DOWN),
         defeat_flag("raider_3b", VAR_R3B_DOWN),
-        // --- The convoy's fate. Each hauler death raises its flag and gets
+        // --- The convoy's fate. Each convoy-ship death raises its flag and gets
         // its beacon-dark line; BOTH down is the loss (act 3 closes the
         // win gate before the defeat shows).
         ScenarioEventConfig {
@@ -691,8 +697,7 @@ pub(crate) fn lifeline(
         // the bell/early and fate filters; the first to fire sets act=2.
         victory(
             "The relief wing drops out of the burn, guns hot - and the \
-             raiders scatter. The convoy is whole - and the wing traced \
-             the raiders' burn back to a claim deep on the shelf.",
+             raiders scatter. The convoy is whole.",
             vec![
                 number_greater_than(SCENARIO_ELAPSED_VAR, RELIEF_SECS),
                 number_equals(VAR_QUEEN_DOWN, 0.0),
@@ -701,9 +706,8 @@ pub(crate) fn lifeline(
         ),
         victory(
             "The relief wing drops out of the burn, guns hot - and the \
-             raiders scatter. Half the convoy made it - and the wing \
-             traced the raiders' burn back to a claim deep on the shelf. \
-             The Tallyman will answer for the other half.",
+             raiders scatter. Half the convoy made it. The Tallyman will \
+             answer for the other half.",
             vec![
                 number_greater_than(SCENARIO_ELAPSED_VAR, RELIEF_SECS),
                 EventFilterConfig::Conditional(ConditionalFilterConfig::Or(
@@ -714,8 +718,7 @@ pub(crate) fn lifeline(
         ),
         victory(
             "The last raider breaks apart before the relief wing even \
-             arrives. The convoy is whole - and the last burst off the \
-             raider traced back to a claim deep on the shelf.",
+             arrives. The convoy is whole.",
             vec![
                 number_equals(VAR_W3_UP, 1.0),
                 number_equals(VAR_R3A_DOWN, 1.0),
@@ -726,9 +729,8 @@ pub(crate) fn lifeline(
         ),
         victory(
             "The last raider breaks apart before the relief wing even \
-             arrives. Half the convoy made it - and the last burst off the \
-             raider traced back to a claim deep on the shelf. The Tallyman \
-             will answer for the rest.",
+             arrives. Half the convoy made it. The Tallyman will answer for \
+             the rest.",
             vec![
                 number_equals(VAR_W3_UP, 1.0),
                 number_equals(VAR_R3A_DOWN, 1.0),
@@ -770,7 +772,7 @@ pub(crate) fn lifeline(
                 set_variable(VAR_ACT, number(3.0)),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
-                    "Guns and thrusters gone - you drift down the lane the raiders now own.",
+                    "Nothing left to fight with - you drift down the lane the raiders now own.",
                 )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: LIFELINE_SCENARIO_ID.to_string(),
@@ -781,11 +783,26 @@ pub(crate) fn lifeline(
         },
     ];
 
+    // The outro: all four win variants said how the defense ended; the shared
+    // tail carries the trace into the finale and the banner.
+    events.extend(pacing::outro_beats(
+        VAR_ACT,
+        ACT_OUTRO,
+        ACT_WON,
+        BELT_RELAY,
+        "The wing traced the raiders' burn back to a claim deep on the \
+         shelf. That is where the Tallyman counts his take.",
+        "The convoy is through and the lane is open - and the raiders' burn \
+         leads somewhere worth following.",
+        vec![],
+        Some(super::final_tally::FINAL_TALLY_SCENARIO_ID.to_string()),
+    ));
+
     ScenarioConfig {
         id: LIFELINE_SCENARIO_ID.to_string(),
         name: "Lifeline".to_string(),
         description: "The Tallyman hits back where it hurts: screen a \
-                      stalled hauler convoy against raider waves until the \
+                      stalled convoy against raider waves until the \
                       relief wing arrives. Chapter three of the base \
                       storyline, part one."
             .to_string(),

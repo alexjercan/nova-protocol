@@ -130,3 +130,99 @@ pub(crate) fn gated_once(
         actions: all,
     }
 }
+
+// --- the outro ---------------------------------------------------------------
+
+/// Timer keys the outro chain runs on. Scenario-local, and a scenario has at
+/// most one outro, so fixed keys are safe.
+pub(crate) const OUTRO_TEASE_TIMER: &str = "outro_tease";
+pub(crate) const OUTRO_BANNER_TIMER: &str = "outro_banner";
+
+/// The winning blow -> the tease line.
+pub(crate) const OUTRO_TEASE_AFTER: f64 = 4.0;
+/// The tease line -> the Victory banner. Together these reproduce the finale's
+/// playtested epilogue cadence (a line at +4s, the banner at +9s).
+pub(crate) const OUTRO_BANNER_AFTER: f64 = 5.0;
+
+/// The actions a winning handler runs to CLOSE the fight and open the outro:
+/// move to the epilogue act and start the tease timer.
+///
+/// `epilogue_act` must sit outside every defeat gate (the mainline gates read
+/// `act < 2` or `act == 1`), so the win is locked the instant it lands and a
+/// death during the outro declares nothing.
+pub(crate) fn open_outro(
+    act_var: &str,
+    epilogue_act: f64,
+    mut actions: Vec<EventActionConfig>,
+) -> Vec<EventActionConfig> {
+    let mut all = vec![
+        set_variable(act_var, number(epilogue_act)),
+        start_timer(OUTRO_TEASE_TIMER, OUTRO_TEASE_AFTER),
+    ];
+    all.append(&mut actions);
+    all
+}
+
+/// The two beats between the winning blow and the Victory overlay.
+///
+/// A win used to fire its modal overlay on the same frame as the killing hit,
+/// so everything the moment had to carry - what just happened AND what it
+/// means for the next chapter - was crammed into one banner string, read
+/// against a paused world. The win handler now posts only the beat it just
+/// earned (which is why that line stays variant-specific, per handler) and
+/// opens this shared chain: the tease lands [`OUTRO_TEASE_AFTER`] later while
+/// the wreck is still on screen, then the banner and the queued next scenario
+/// [`OUTRO_BANNER_AFTER`] after that.
+///
+/// Both beats gate on `epilogue_act` alone, so variants that differ only in
+/// their kill line (destroyed vs neutralized, the yacht's fate) share one
+/// copy of the tail instead of duplicating it per handler.
+///
+/// `banner_extra` rides the LAST beat. An objective belongs there rather than
+/// on either comms beat: the mainline forbids posting one in the same frame as
+/// a conversation line, and the banner beat is the only one without a line.
+pub(crate) fn outro_beats(
+    act_var: &'static str,
+    epilogue_act: f64,
+    won_act: f64,
+    tease_speaker: &str,
+    tease: &str,
+    banner: &str,
+    banner_extra: Vec<EventActionConfig>,
+    next_scenario: Option<String>,
+) -> Vec<ScenarioEventConfig> {
+    let mut banner_actions = vec![set_variable(act_var, number(won_act))];
+    banner_actions.extend(banner_extra);
+    banner_actions.push(EventActionConfig::Outcome(OutcomeActionConfig::new(
+        ScenarioOutcomeKind::Victory,
+        banner,
+    )));
+    if let Some(scenario_id) = next_scenario {
+        banner_actions.push(EventActionConfig::NextScenario(NextScenarioActionConfig {
+            scenario_id,
+            linger: true,
+            delay: None,
+        }));
+    }
+    vec![
+        ScenarioEventConfig {
+            name: EventConfig::OnTimerEnd,
+            filters: vec![
+                timer(OUTRO_TEASE_TIMER),
+                number_equals(act_var, epilogue_act),
+            ],
+            actions: vec![
+                story_message(tease_speaker, tease),
+                start_timer(OUTRO_BANNER_TIMER, OUTRO_BANNER_AFTER),
+            ],
+        },
+        ScenarioEventConfig {
+            name: EventConfig::OnTimerEnd,
+            filters: vec![
+                timer(OUTRO_BANNER_TIMER),
+                number_equals(act_var, epilogue_act),
+            ],
+            actions: banner_actions,
+        },
+    ]
+}

@@ -323,7 +323,7 @@ fn wave_one_spawns_far_light_and_on_one_bearing() {
         assert_eq!(
             light_turret_count(ship),
             2,
-            "'{id}': a wave-one mook flies the WEAK scavenger racer - both turret \
+            "'{id}': a wave-one mook flies the WEAK scavenger corvette - both turret \
              modules are the light `_light` guns (spike F1)"
         );
         let SpaceshipController::AI(ai) = &ship.controller else {
@@ -374,18 +374,18 @@ fn the_heavies_spawn_farther_with_exactly_one_better_gun() {
             "'{id}' spawns {range:.0}u out (< {WAVE_TWO_MIN_RANGE}u): the heavies' long \
              approach is the post-checkpoint breather"
         );
-        // The heavies fly the FULL-power racer (sturdier hull + strong turrets),
-        // not the weak `racer_light_*` scavenger the wave-one mooks carry - the
-        // post-checkpoint difficulty step (spike F1).
+        // The heavies fly the FULL-power corvette (sturdier hull + strong
+        // turrets), not the weak `cargoa_turret_*_light` scavenger the wave-one
+        // mooks carry - the post-checkpoint difficulty step (spike F1).
         assert_eq!(
             light_turret_count(ship),
             0,
-            "'{id}' is a full-power racer heavy, not a weak mook"
+            "'{id}' is a full-power corvette heavy, not a weak mook"
         );
         assert_eq!(
-            prototype_prefix_count(ship, "racer_"),
+            prototype_prefix_count(ship, "cargoa_"),
             9,
-            "'{id}' flies the complete semantic-parts racer"
+            "'{id}' flies the complete semantic-parts corvette"
         );
         let SpaceshipController::AI(ai) = &ship.controller else {
             unreachable!("hostiles() filters on AI");

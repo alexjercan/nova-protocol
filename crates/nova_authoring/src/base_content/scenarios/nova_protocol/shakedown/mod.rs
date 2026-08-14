@@ -24,7 +24,7 @@ use nova_ship::prelude::*;
 
 use super::{
     cast::{CAPTAIN_HALLORAN, PLAYER},
-    pacing::{clock_past, gated_once, mark_clock, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
+    pacing::{self, clock_past, gated_once, mark_clock, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
     ships::{self, ShipGrade},
     SCENARIO_ELAPSED_VAR,
 };
@@ -278,6 +278,12 @@ const OBJ_DONE: &str = "done";
 
 // Script variables.
 const VAR_BEAT: &str = "beat";
+/// The outro beat: the scavenger is down and the win is locked, but the
+/// Victory overlay has not landed yet. The defeat handlers gate BELOW it, so
+/// clipping a rock during the outro cannot overwrite the win.
+const BEAT_OUTRO: f64 = 13.0;
+/// The won beat, set with the banner.
+const BEAT_WON: f64 = 14.0;
 const VAR_CRATES: &str = "crates_recovered";
 const VAR_TALLY_SHOWN: &str = "tally_shown";
 // Pacing pass (owner playtest). `open_step` sequences the opening conversation
@@ -460,10 +466,10 @@ fn crate_object(index: usize, position: Vec3) -> ScenarioObjectConfig {
 /// thruster, ONE turret (no torpedo bay). One of everything keeps the
 /// component-cycle lesson trivially readable.
 fn player_ship() -> ScenarioObjectConfig {
-    // The player flies the racer (moved into the base game from the craft_racer
-    // example mod). Both racer turret cubes fire on LMB / right trigger.
+    // The player flies the cargoa corvette - the armed-hauler hull whose pod
+    // shoulders carry the two PDC turrets. Both fire on LMB / right trigger.
     //
-    // GOTO/LOCK/ORBIT start WITHHELD on the racer's controller cube: the pilot
+    // GOTO/LOCK/ORBIT start WITHHELD on the corvette's controller cube: the pilot
     // has not flown a controlled leg and the targeting computer is offline. The
     // beat handlers grant them one at a time via SetControllerVerb (GOTO after
     // beat 1, LOCK at the radar beat, ORBIT when the coast objective asks).
@@ -488,8 +494,8 @@ fn player_ship() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                // Both racer turret cubes fire on LMB / right trigger.
-                input_mapping: ships::RACER_TURRET_IDS
+                // Both corvette turret cubes fire on LMB / right trigger.
+                input_mapping: ships::CARGOA_TURRET_IDS
                     .iter()
                     .map(|id| {
                         (
@@ -507,7 +513,7 @@ fn player_ship() -> ScenarioObjectConfig {
                 // reload cadence from the first scenario.
                 infinite_ammo: false,
             }),
-            sections: ships::racer_sections(ShipGrade::Player, controller_gate),
+            sections: ships::cargoa_sections(ShipGrade::Player, controller_gate),
         }),
     }
 }
@@ -538,8 +544,8 @@ fn pirate_ship() -> ScenarioObjectConfig {
                 engage_delay: Some(5.0),
                 ..Default::default()
             }),
-            // A scavenger-grade racer: weaker turrets, squishier hull.
-            sections: ships::racer_sections(ShipGrade::Enemy, vec![]),
+            // A scavenger-grade corvette: weaker turrets, squishier hull.
+            sections: ships::cargoa_sections(ShipGrade::Enemy, vec![]),
         }),
     }
 }
@@ -681,7 +687,7 @@ pub(crate) fn shakedown_run(
     // The run lights itself: there is no engine light any more.
     start_spawns.extend(ThreePointRig::around("shakedown", Vec3::ZERO, 10.0).objects());
 
-    let events = vec![
+    let mut events = vec![
         // Beat 1 setup: the world and the variables. The opening conversation
         // (below) runs on the scenario clock before objective 1 posts; beacon 1
         // and beacons 2-4 and the pirate all spawn LAZILY with their beats, so a
@@ -1226,49 +1232,32 @@ pub(crate) fn shakedown_run(
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![entity(ID_PIRATE), number_equals(VAR_BEAT, 12.0)],
-            actions: vec![
-                set_variable(VAR_BEAT, number(13.0)),
-                complete_objective(OBJ_B12),
-                post_objective(
-                    OBJ_DONE,
-                    "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
-                ),
-                detach_objective_marker(ID_PIRATE),
-                EventActionConfig::Outcome(OutcomeActionConfig::new(
-                    ScenarioOutcomeKind::Victory,
-                    "The scavenger is scrap - but it was flying scout. A \
-                     distress call is already crackling from the deep field.",
-                )),
-                EventActionConfig::NextScenario(NextScenarioActionConfig {
-                    scenario_id: super::broadside::BROADSIDE_SCENARIO_ID.to_string(),
-                    linger: true,
-                    delay: None,
-                }),
-            ],
+            actions: pacing::open_outro(
+                VAR_BEAT,
+                BEAT_OUTRO,
+                vec![
+                    complete_objective(OBJ_B12),
+                    detach_objective_marker(ID_PIRATE),
+                    story_message(CAPTAIN_HALLORAN, "The scavenger is scrap. Good shooting."),
+                ],
+            ),
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
             filters: vec![entity(ID_PIRATE), number_equals(VAR_BEAT, 12.0)],
-            actions: vec![
-                set_variable(VAR_BEAT, number(13.0)),
-                complete_objective(OBJ_B12),
-                post_objective(
-                    OBJ_DONE,
-                    "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
-                ),
-                detach_objective_marker(ID_PIRATE),
-                EventActionConfig::Outcome(OutcomeActionConfig::new(
-                    ScenarioOutcomeKind::Victory,
-                    "The scavenger drifts dead - guns cold, engines dark - \
-                     but it was flying scout. A distress call is already \
-                     crackling from the deep field.",
-                )),
-                EventActionConfig::NextScenario(NextScenarioActionConfig {
-                    scenario_id: super::broadside::BROADSIDE_SCENARIO_ID.to_string(),
-                    linger: true,
-                    delay: None,
-                }),
-            ],
+            actions: pacing::open_outro(
+                VAR_BEAT,
+                BEAT_OUTRO,
+                vec![
+                    complete_objective(OBJ_B12),
+                    detach_objective_marker(ID_PIRATE),
+                    story_message(
+                        CAPTAIN_HALLORAN,
+                        "The scavenger drifts dead - guns cold, engines dark. \
+                     Good shooting.",
+                    ),
+                ],
+            ),
         },
         // Player death: the Defeat overlay offers Retry (the lingering restart)
         // and Main Menu - the win/lose frame's first dogfood. Before it, death
@@ -1276,7 +1265,7 @@ pub(crate) fn shakedown_run(
         // Enter.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![entity(ID_PLAYER)],
+            filters: vec![entity(ID_PLAYER), number_less_than(VAR_BEAT, BEAT_OUTRO)],
             actions: vec![
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
@@ -1291,11 +1280,11 @@ pub(crate) fn shakedown_run(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
-            filters: vec![entity(ID_PLAYER)],
+            filters: vec![entity(ID_PLAYER), number_less_than(VAR_BEAT, BEAT_OUTRO)],
             actions: vec![
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Defeat,
-                    "Guns and thrusters gone - you drift derelict in the belt.",
+                    "Nothing left to fight with - you drift derelict in the belt.",
                 )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: SHAKEDOWN_SCENARIO_ID.to_string(),
@@ -1311,6 +1300,24 @@ pub(crate) fn shakedown_run(
         // stays tight by design (the fight is the exam) and announces itself
         // with the scavenger telegraph above.
     ];
+
+    // The outro: the fight's own line landed in the win handler above; the
+    // shared tail carries the hand-off to chapter two and the banner.
+    events.extend(pacing::outro_beats(
+        VAR_BEAT,
+        BEAT_OUTRO,
+        BEAT_WON,
+        CAPTAIN_HALLORAN,
+        "It was flying scout, though. A distress call is already crackling \
+         from the deep field - and it is not one of ours.",
+        "Shakedown complete. The belt is yours - and something out in the \
+         deep field is already calling for help.",
+        vec![post_objective(
+            OBJ_DONE,
+            "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
+        )],
+        Some(super::broadside::BROADSIDE_SCENARIO_ID.to_string()),
+    ));
 
     ScenarioConfig {
         description: "First flight: beacons, salvage, orbit - and one scavenger.".to_string(),

@@ -185,16 +185,20 @@ fn the_marker_rides_every_leg_and_hands_off() {
         marker_ops(handler_with_attach(ID_PIRATE)).1,
         vec![ID_DERELICT.to_string()]
     );
-    let done_handler = config
+    // The chain's last link is the KILL handler, which completes the fight
+    // objective and drops the scavenger's marker. The run's completion note
+    // is no longer part of it: it rides the outro's banner beat seconds
+    // later, so the two live in different handlers now.
+    let kill_handler = config
         .events
         .iter()
         .find(|event| {
             event.actions.iter().any(|action| {
-                matches!(action, EventActionConfig::Objective(objective) if objective.id == OBJ_DONE)
+                matches!(action, EventActionConfig::ObjectiveComplete(objective) if objective.id == OBJ_B12)
             })
         })
         .unwrap();
-    assert_eq!(marker_ops(done_handler).1, vec![ID_PIRATE.to_string()]);
+    assert_eq!(marker_ops(kill_handler).1, vec![ID_PIRATE.to_string()]);
 
     // Emphasis pairing: every emphasized verb is cleared downstream
     // (teardown covers death, but the happy path must not rely on it).
@@ -285,12 +289,12 @@ fn pirate_spawns_late_at_the_debris_cluster() {
     }
 }
 
-/// Both the player and the scavenger fly the racer (base craft-ships-into-base
-/// prototypes); the scavenger is scavenger-grade - the weak `racer_light_*`
-/// turret and a SetHealth-nerfed hull. Resolves each section's prototype ref
+/// Both the player and the scavenger fly the cargoa corvette (base
+/// craft-ships-into-base prototypes); the scavenger is scavenger-grade - the
+/// weak `cargoa_turret_*_light` and a SetHealth-nerfed hull. Resolves each section's prototype ref
 /// against the base catalog to read its kind, and honors SetHealth overrides.
 #[test]
-fn ships_are_racers_and_the_pirate_is_scavenger_grade() {
+fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
     let config = scenario();
 
     let ships: Vec<(&str, &SpaceshipConfig)> = all_actions(&config)
@@ -304,7 +308,7 @@ fn ships_are_racers_and_the_pirate_is_scavenger_grade() {
         .collect();
     assert_eq!(ships.len(), 2, "player and pirate only");
 
-    // The racer's sections reference base catalog prototypes; resolve them.
+    // The corvette's sections reference base catalog prototypes; resolve them.
     let catalog = crate::base_content::sections::section_catalog(
         &crate::base_content::assets::BaseContentAssets::from_paths(),
     );
@@ -319,7 +323,7 @@ fn ships_are_racers_and_the_pirate_is_scavenger_grade() {
         }
     };
     // Effective health = a SetHealth modification if present, else the
-    // prototype's own (an AI racer nerfs its hull this way).
+    // prototype's own (an AI corvette nerfs its hull this way).
     let effective_hp = |s: &SpaceshipSectionConfig| -> f32 {
         s.modifications
             .iter()
@@ -347,14 +351,14 @@ fn ships_are_racers_and_the_pirate_is_scavenger_grade() {
             .fold(0.0_f32, f32::max)
     };
 
-    // Every racer carries its two turret cubes and no torpedo bay.
+    // Every corvette carries its two turret cubes and no torpedo bay.
     for (id, ship) in &ships {
         let turrets = ship
             .sections
             .iter()
             .filter(|s| matches!(resolve(s).kind, SectionKind::Turret(_)))
             .count();
-        assert_eq!(turrets, 2, "'{}' is a racer with two turret modules", id);
+        assert_eq!(turrets, 2, "'{}' is a corvette with two turret modules", id);
         assert!(
             !ship
                 .sections

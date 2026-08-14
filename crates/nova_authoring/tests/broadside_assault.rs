@@ -18,7 +18,8 @@
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
     CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, OnDefeatedEvent,
-    OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnTimerEndEvent,
+    OnTimerEndEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
@@ -26,7 +27,7 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::{SectionConfig, SectionKind};
 
 /// Resolve a ship section's kind, following a `Prototype` ref into the base
-/// section catalog (the racer/cargob ships reference their cut-cube prototypes
+/// section catalog (the corvette/gunship ships reference their catalog prototypes
 /// rather than inlining them).
 fn section_kind(
     section: &SpaceshipSectionConfig,
@@ -123,6 +124,30 @@ fn destroy(app: &mut App, id: &str) {
     app.update();
 }
 
+/// The outro's timer keys (see `nova_protocol::pacing`). A win opens the
+/// chain; the engine's `tick_scenario_timers` fires these once their deadlines
+/// pass. This rig registers handlers by hand and runs no clock, so it fires
+/// them directly - the same shape as `destroy` above.
+const OUTRO_TEASE_TIMER: &str = "outro_tease";
+const OUTRO_BANNER_TIMER: &str = "outro_banner";
+
+fn fire_timer(app: &mut App, key: &str) {
+    let key = key.to_string();
+    app.world_mut()
+        .run_system_once(move |mut commands: Commands| {
+            commands.fire::<OnTimerEndEvent>(OnTimerEndEventInfo { key: key.clone() });
+        })
+        .expect("fire OnTimerEnd");
+    app.update();
+    app.update();
+}
+
+/// Walk both outro beats: the tease, then the banner that declares the win.
+fn walk_outro(app: &mut App) {
+    fire_timer(app, OUTRO_TEASE_TIMER);
+    fire_timer(app, OUTRO_BANNER_TIMER);
+}
+
 fn number_var(app: &App, key: &str) -> Option<f64> {
     match app.world().resource::<NovaEventWorld>().get_variable(key) {
         Some(VariableLiteral::Number(n)) => Some(*n),
@@ -182,9 +207,17 @@ fn breaking_both_corvettes_declares_the_chapter_checkpoint() {
     destroy(&mut app, "corvette_b");
     assert_eq!(
         number_var(&app, "act"),
-        Some(2.0),
-        "both corvettes down wins part one"
+        Some(4.0),
+        "both corvettes down opens the outro, the win locked"
     );
+    assert_eq!(
+        outcome_kind(&app),
+        None,
+        "the banner waits for the outro's last beat"
+    );
+
+    walk_outro(&mut app);
+    assert_eq!(number_var(&app, "act"), Some(2.0), "the outro banner wins");
 
     // The act-split checkpoint (spike F7): part one ends in a Victory beat
     // whose lingering chain enters the gunship scenario - the capital
@@ -231,6 +264,12 @@ fn killing_the_gunship_declares_victory_and_chains_into_lifeline() {
             destroy(&mut app, "hauler");
         }
         destroy(&mut app, "gunship");
+        assert_eq!(
+            outcome_kind(&app),
+            None,
+            "the kill opens the outro; the banner waits (hauler_dies={hauler_dies})"
+        );
+        walk_outro(&mut app);
         assert_eq!(
             outcome_kind(&app),
             Some(ScenarioOutcomeKind::Victory),
@@ -465,53 +504,59 @@ fn the_first_kill_line_is_mutually_exclusive_on_the_cross_flag() {
 /// parts, both branches, driven through the act machine - the two gated Victory
 /// handlers are mutually exclusive on the flag the soft-fail beat raises.
 #[test]
-fn victory_banner_reflects_the_haulers_fate() {
-    // (scenario RON, the kills that win it, alive phrase, lost phrase)
+fn the_win_line_reflects_the_haulers_fate() {
+    // Protecting her still gets acknowledged - it just rides the outro's
+    // OPENING comms line now (the variant-specific beat the winning handler
+    // posts), not the banner. The banner is one shared string per part, so
+    // the four win variants no longer each carry their own copy of the tease.
     let cases = [
         (
             BROADSIDE_RON,
-            vec!["corvette_a", "corvette_b"],
             "still in one piece",
             "too late for the Ceres Queen",
         ),
         (
             BROADSIDE_GUNSHIP_RON,
-            vec!["gunship"],
             "still whole",
             "too late for the Ceres Queen",
         ),
     ];
-    for (ron, kills, alive_phrase, lost_phrase) in cases {
-        for hauler_dies in [false, true] {
-            let scenario = scenario_from(ron);
-            let mut app = slice_app();
-            register_non_start_handlers(&mut app, &scenario);
-            seed_var(&mut app, "act", 1.0);
-            seed_var(&mut app, "corvette_a_down", 0.0);
-            seed_var(&mut app, "corvette_b_down", 0.0);
-            seed_var(&mut app, "hauler_lost", 0.0);
-
-            if hauler_dies {
-                destroy(&mut app, "hauler");
-            }
-            for kill in &kills {
-                destroy(&mut app, kill);
-            }
-
-            assert_eq!(
-                outcome_kind(&app),
-                Some(ScenarioOutcomeKind::Victory),
-                "the win still lands with hauler_dies={hauler_dies}"
-            );
-            let message = outcome_message(&app);
-            let expected = if hauler_dies {
-                lost_phrase
-            } else {
-                alive_phrase
-            };
+    for (ron, alive_phrase, lost_phrase) in cases {
+        let scenario = scenario_from(ron);
+        let lines: Vec<String> = scenario
+            .events
+            .iter()
+            .flat_map(|event| event.actions.iter())
+            .filter_map(|action| match action {
+                EventActionConfig::StoryMessage(message) => Some(message.text.clone()),
+                _ => None,
+            })
+            .collect();
+        for phrase in [alive_phrase, lost_phrase] {
             assert!(
-                message.contains(expected),
-                "banner variant mismatch (hauler_dies={hauler_dies}): {message}"
+                lines.iter().any(|line| line.contains(phrase)),
+                "no win line carries '{phrase}'"
+            );
+        }
+        let banners: Vec<String> = scenario
+            .events
+            .iter()
+            .flat_map(|event| event.actions.iter())
+            .filter_map(|action| match action {
+                EventActionConfig::Outcome(outcome)
+                    if outcome.outcome == ScenarioOutcomeKind::Victory =>
+                {
+                    outcome.message.clone()
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(banners.len(), 1, "one shared Victory banner per part");
+        for phrase in [alive_phrase, lost_phrase] {
+            assert!(
+                !banners[0].contains(phrase),
+                "the shared banner must not claim a fate variant: {}",
+                banners[0]
             );
         }
     }

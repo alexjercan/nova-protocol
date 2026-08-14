@@ -208,7 +208,10 @@ impl Default for TorpedoSectionConfig {
             max_speed: 35.0,
             linear_damping: 0.8,
             blast_radius: 30.0,
-            blast_damage: 100.0,
+            // Matches the shipped standard torpedo: 750 over a 30 u linear
+            // falloff, so an un-authored bay hits like the catalog's rather
+            // than the pre-rework 100.
+            blast_damage: 750.0,
             blast_effect: None,
             launch_effect: None,
             launch_sound: None,

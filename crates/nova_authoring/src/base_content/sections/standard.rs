@@ -41,9 +41,14 @@ const TORPEDO_BASE_HEALTH: f32 = 100.0;
 // the shakedown pirate still dying in a short burst (~0.15s on a 60-HP hull).
 const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
 
+/// How far a shipped turret's pitch hinge may DEPRESS below level (10 deg).
+/// Every shipped mount sits ON a hull - the cargoa's nose cheeks most tightly -
+/// so a deeper floor only swings the barrel back across its own ship.
+const TURRET_DEPRESSION_LIMIT: f32 = std::f32::consts::PI / 18.0;
+
 /// Build the shipped turret's kinematic joint tree: the exact chain the flat
 /// config used to author 1:1. base(fixed, at (0,-0.5,0)) -> yaw(Y, meshed) ->
-/// pitch(X, meshed, -30..90 deg) -> barrel(fixed, meshed) -> muzzle(fixed, fire
+/// pitch(X, meshed, -10..90 deg) -> barrel(fixed, meshed) -> muzzle(fixed, fire
 /// point). `fire_rate` is per-muzzle now; every other numeric value is
 /// preserved from the old fields.
 pub(crate) fn turret_joint_tree(
@@ -74,7 +79,13 @@ pub(crate) fn turret_joint_tree(
                 offset: Vec3::new(0.0, 0.332706, 0.303954),
                 axis: Some(Vec3::X),
                 speed: std::f32::consts::PI, // 180 degrees per second
-                min: Some(-std::f32::consts::FRAC_PI_6),
+                // Depression floor: every shipped turret is HULL-MOUNTED, so a
+                // deep depression just aims the barrel into its own ship (the
+                // cargoa's nose cheeks are the tightest case). 10 degrees is
+                // enough to reach a target slightly below the mount without
+                // the muzzle sweeping back across the bodywork. Elevation
+                // stays at 90: straight up is the point-defense arc.
+                min: Some(-TURRET_DEPRESSION_LIMIT),
                 max: Some(std::f32::consts::FRAC_PI_2),
                 render_mesh: Some(pitch_mesh.clone()),
                 render_mesh_transform: None,
@@ -351,7 +362,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 blast_radius: 30.0,
                 // A torpedo that CONNECTS should all but decide the fight
                 // (owner direction, 2026-08-14: Expanse-style near-one-hit
-                // ordnance; the old 100 took ~7 hits to kill a racer while a
+                // ordnance; the old 100 took ~7 hits to kill a corvette while a
                 // PDC sustains ~400 DPS). 750 with linear falloff over 30 u
                 // kills or guts every small-craft section on a direct hit;
                 // the counter is shooting the fragile (1 hp) torpedo down,
@@ -412,7 +423,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // 400 u point-defense envelope is what makes it hard to stop.
                 max_speed: 70.0,
                 linear_damping: 0.4,
-                // One hit destroys every section of a racer outright:
+                // One hit destroys every section of a corvette outright:
                 // 2000 at the centre with linear falloff over 45 u leaves
                 // >=1000 (before class multipliers) across a ship-sized
                 // target - past any shipped section's health, so the kill is

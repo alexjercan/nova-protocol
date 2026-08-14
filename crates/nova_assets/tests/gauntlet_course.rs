@@ -391,7 +391,8 @@ fn on_start_stages_the_course() {
         .collect();
     assert!(seeds.contains(&"gate"), "OnStart seeds the gate counter");
 
-    // The player flies the complete semantic-parts racer.
+    // The player flies the UNARMED racer: this is a time trial, not a fight,
+    // so the course craft carries the seven meshed parts and no turrets.
     let player = spawn_by_id(start, "player_spaceship");
     let ScenarioObjectKind::Spaceship(ship) = &player.kind else {
         panic!("player is a spaceship");
@@ -402,8 +403,15 @@ fn on_start_stages_the_course() {
         .filter(|s| matches!(&s.source, SectionSource::Prototype(p) if p.starts_with("racer_")))
         .count();
     assert!(
-        racer_parts == 9,
-        "the player flies the nine-section racer (got {racer_parts} parts)"
+        racer_parts == 7,
+        "the player flies the seven-section racer (got {racer_parts} parts)"
+    );
+    assert!(
+        !ship
+            .sections
+            .iter()
+            .any(|s| matches!(&s.source, SectionSource::Prototype(p) if p.contains("turret"))),
+        "the gauntlet racer carries no guns - the course has no combat"
     );
 
     // The gravity well is an authored well (mass), invulnerable so it

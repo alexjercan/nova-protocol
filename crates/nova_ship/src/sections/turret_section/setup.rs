@@ -393,7 +393,7 @@ mod tests {
         let pitch_rot = app.world().get::<SmoothLookRotation>(pitch).unwrap();
         assert_eq!(pitch_rot.axis, Vec3::X);
         assert_eq!(pitch_rot.speed, std::f32::consts::PI);
-        assert_eq!(pitch_rot.min, Some(-std::f32::consts::FRAC_PI_6));
+        assert_eq!(pitch_rot.min, Some(-std::f32::consts::PI / 18.0));
         assert_eq!(pitch_rot.max, Some(std::f32::consts::FRAC_PI_2));
 
         // The muzzle joint is a fixed leaf carrying the muzzle marker + timer.

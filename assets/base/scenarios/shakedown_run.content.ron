@@ -52,9 +52,9 @@
                                 (
                                     id: "engine_starboard",
                                     position: (
-                                        0.655,
-                                        0.570945,
-                                        1.512835,
+                                        1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -62,14 +62,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_engine_starboard"),
+                                    source: Prototype("cargoa_engine_starboard"),
                                 ),
                                 (
                                     id: "engine_port",
                                     position: (
-                                        -0.655,
-                                        0.570945,
-                                        1.512835,
+                                        -1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -77,14 +77,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_engine_port"),
+                                    source: Prototype("cargoa_engine_port"),
                                 ),
                                 (
-                                    id: "wing_starboard",
+                                    id: "pod_starboard",
                                     position: (
-                                        0.805,
-                                        0.5,
-                                        0.11783552,
+                                        1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -92,14 +92,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_wing_starboard"),
+                                    source: Prototype("cargoa_pod_starboard"),
                                 ),
                                 (
-                                    id: "wing_port",
+                                    id: "pod_port",
                                     position: (
-                                        -0.805,
-                                        0.5,
-                                        0.11783552,
+                                        -1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -107,14 +107,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_wing_port"),
+                                    source: Prototype("cargoa_pod_port"),
                                 ),
                                 (
                                     id: "nose",
                                     position: (
                                         0.0,
-                                        0.611325,
-                                        -1.512835,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -122,14 +122,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_nose"),
+                                    source: Prototype("cargoa_nose"),
                                 ),
                                 (
                                     id: "tail",
                                     position: (
                                         0.0,
-                                        0.85,
-                                        1.6128349,
+                                        0.5875,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -137,14 +137,14 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_tail"),
+                                    source: Prototype("cargoa_tail"),
                                 ),
                                 (
                                     id: "fuselage",
                                     position: (
                                         0.0,
-                                        0.7,
-                                        0.100000024,
+                                        0.8,
+                                        0.17500001,
                                     ),
                                     rotation: (
                                         0.0,
@@ -152,7 +152,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_fuselage"),
+                                    source: Prototype("cargoa_fuselage"),
                                     modifications: [
                                         DisableVerb(Goto),
                                         DisableVerb(Lock),
@@ -163,9 +163,9 @@
                                 (
                                     id: "turret_starboard",
                                     position: (
-                                        1.35,
-                                        0.4,
-                                        -0.8,
+                                        0.95,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -173,14 +173,14 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_turret_starboard"),
+                                    source: Prototype("cargoa_turret_starboard"),
                                 ),
                                 (
                                     id: "turret_port",
                                     position: (
-                                        -1.35,
-                                        0.4,
-                                        -0.8,
+                                        -0.95,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -188,7 +188,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_turret_port"),
+                                    source: Prototype("cargoa_turret_port"),
                                 ),
                             ],
                         )),
@@ -2134,9 +2134,9 @@
                                 (
                                     id: "engine_starboard",
                                     position: (
-                                        0.655,
-                                        0.570945,
-                                        1.512835,
+                                        1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2144,7 +2144,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_engine_starboard"),
+                                    source: Prototype("cargoa_engine_starboard"),
                                     modifications: [
                                         SetHealth(25.0),
                                     ],
@@ -2152,9 +2152,9 @@
                                 (
                                     id: "engine_port",
                                     position: (
-                                        -0.655,
-                                        0.570945,
-                                        1.512835,
+                                        -1.205,
+                                        0.6,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2162,17 +2162,17 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_engine_port"),
+                                    source: Prototype("cargoa_engine_port"),
                                     modifications: [
                                         SetHealth(25.0),
                                     ],
                                 ),
                                 (
-                                    id: "wing_starboard",
+                                    id: "pod_starboard",
                                     position: (
-                                        0.805,
-                                        0.5,
-                                        0.11783552,
+                                        1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2180,17 +2180,17 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_wing_starboard"),
+                                    source: Prototype("cargoa_pod_starboard"),
                                     modifications: [
-                                        SetHealth(104.399994),
+                                        SetHealth(203.0),
                                     ],
                                 ),
                                 (
-                                    id: "wing_port",
+                                    id: "pod_port",
                                     position: (
-                                        -0.805,
-                                        0.5,
-                                        0.11783552,
+                                        -1.205,
+                                        0.7,
+                                        0.47500002,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2198,17 +2198,17 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_wing_port"),
+                                    source: Prototype("cargoa_pod_port"),
                                     modifications: [
-                                        SetHealth(104.399994),
+                                        SetHealth(203.0),
                                     ],
                                 ),
                                 (
                                     id: "nose",
                                     position: (
                                         0.0,
-                                        0.611325,
-                                        -1.512835,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2216,17 +2216,17 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_nose"),
+                                    source: Prototype("cargoa_nose"),
                                     modifications: [
-                                        SetHealth(69.6),
+                                        SetHealth(104.399994),
                                     ],
                                 ),
                                 (
                                     id: "tail",
                                     position: (
                                         0.0,
-                                        0.85,
-                                        1.6128349,
+                                        0.5875,
+                                        1.975,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2234,17 +2234,17 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_tail"),
+                                    source: Prototype("cargoa_tail"),
                                     modifications: [
-                                        SetHealth(69.6),
+                                        SetHealth(87.0),
                                     ],
                                 ),
                                 (
                                     id: "fuselage",
                                     position: (
                                         0.0,
-                                        0.7,
-                                        0.100000024,
+                                        0.8,
+                                        0.17500001,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2252,7 +2252,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Prototype("racer_fuselage"),
+                                    source: Prototype("cargoa_fuselage"),
                                     modifications: [
                                         SetHealth(140.0),
                                     ],
@@ -2260,9 +2260,9 @@
                                 (
                                     id: "turret_starboard",
                                     position: (
-                                        1.35,
-                                        0.4,
-                                        -0.8,
+                                        0.95,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2270,14 +2270,14 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_turret_starboard_light"),
+                                    source: Prototype("cargoa_turret_starboard_light"),
                                 ),
                                 (
                                     id: "turret_port",
                                     position: (
-                                        -1.35,
-                                        0.4,
-                                        -0.8,
+                                        -0.95,
+                                        0.8,
+                                        -1.8,
                                     ),
                                     rotation: (
                                         0.0,
@@ -2285,7 +2285,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Prototype("racer_turret_port_light"),
+                                    source: Prototype("cargoa_turret_port_light"),
                                 ),
                             ],
                         )),
@@ -2357,23 +2357,19 @@
                         key: "beat",
                         expression: Term(Factor(Literal(Number(13.0)))),
                     )),
+                    TimerStart((
+                        key: "outro_tease",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
                     ObjectiveComplete((
                         id: "b12_contact",
-                    )),
-                    Objective((
-                        id: "done",
-                        message: "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "pirate",
                     )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The scavenger is scrap - but it was flying scout. A distress call is already crackling from the deep field."),
-                    )),
-                    NextScenario((
-                        scenario_id: "broadside",
-                        linger: true,
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "The scavenger is scrap. Good shooting.",
                     )),
                 ],
             ),
@@ -2393,23 +2389,19 @@
                         key: "beat",
                         expression: Term(Factor(Literal(Number(13.0)))),
                     )),
+                    TimerStart((
+                        key: "outro_tease",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
                     ObjectiveComplete((
                         id: "b12_contact",
-                    )),
-                    Objective((
-                        id: "done",
-                        message: "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "pirate",
                     )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The scavenger drifts dead - guns cold, engines dark - but it was flying scout. A distress call is already crackling from the deep field."),
-                    )),
-                    NextScenario((
-                        scenario_id: "broadside",
-                        linger: true,
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "The scavenger drifts dead - guns cold, engines dark. Good shooting.",
                     )),
                 ],
             ),
@@ -2419,6 +2411,10 @@
                     Entity((
                         id: Some("player_spaceship"),
                     )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(13.0)))),
+                    ))),
                 ],
                 actions: [
                     Outcome((
@@ -2437,14 +2433,70 @@
                     Entity((
                         id: Some("player_spaceship"),
                     )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(13.0)))),
+                    ))),
                 ],
                 actions: [
                     Outcome((
                         outcome: Defeat,
-                        message: Some("Guns and thrusters gone - you drift derelict in the belt."),
+                        message: Some("Nothing left to fight with - you drift derelict in the belt."),
                     )),
                     NextScenario((
                         scenario_id: "shakedown_run",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "outro_tease",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(13.0)))),
+                    ))),
+                ],
+                actions: [
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "It was flying scout, though. A distress call is already crackling from the deep field - and it is not one of ours.",
+                    )),
+                    TimerStart((
+                        key: "outro_banner",
+                        seconds: Term(Factor(Literal(Number(5.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "outro_banner",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(13.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(14.0)))),
+                    )),
+                    Objective((
+                        id: "done",
+                        message: "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("Shakedown complete. The belt is yours - and something out in the deep field is already calling for help."),
+                    )),
+                    NextScenario((
+                        scenario_id: "broadside",
                         linger: true,
                     )),
                 ],

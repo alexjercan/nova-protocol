@@ -20,14 +20,22 @@ tagged **(breaking)**.
   hardcoded fragility): armored ordnance survives point-defense fire instead
   of dying to the first hit.
 - **(breaking)** Standard torpedoes hit like torpedoes now: blast damage
-  100 -> 750, so a connecting torpedo all but decides a small-craft fight
-  (Expanse-style). The counter is point defense, not armor - the ordnance
-  itself stays fragile.
+  100 -> 750 EVERYWHERE, so a connecting torpedo all but decides a
+  small-craft fight (Expanse-style). That is the baseline for every bay -
+  the catalog section, the gunship's tubes, and an un-authored bay's
+  default - with only the capital-grade siege bay above it. The counter is
+  point defense, not armor - the ordnance itself stays fragile.
+- Turrets no longer aim into the hull they stand on: the pitch hinge's
+  depression floor tightens from 30 to 10 degrees below level (elevation
+  still reaches 90 for the point-defense arc).
 - **(breaking)** Neutralization is "no weapons OR no flight computer" now
   (was "no weapons AND no thrusters"): a brain-dead ship cannot aim or fly,
   so it is out of the fight whatever else survives, and a disarmed runner
   is beaten even at full burn. Ships that never had a computer (bare
   emplacements) still only neutralize by losing their guns.
+- Retires the "guns and thrusters gone" defeat copy that outlived the rule
+  above: every neutralized-defeat banner now reads "Nothing left to fight
+  with", which is true whichever half went.
 - New `heavy_torpedo_section` prototype: a capital-grade siege bay with a
   ship-killing blast and armored ordnance, hidden from the editor gallery
   (scene dressing, not player kit).
@@ -57,8 +65,23 @@ tagged **(breaking)**.
 - New `SetAmmo` section modification: a hard magazine (rounds overridden,
   auto-reload stripped) for ships whose ammunition is the scene's clock.
 
+### Ships & Sections
+
+- The hull cast swapped: the cargoa is the campaign's armed corvette now
+  (PDC turrets on new nose-cheek mounts, player and raider grades), and
+  the racer flies unarmed as the civilian the story protects - the Ceres
+  Queen is a yacht, the Lifeline convoy a yacht and a courier. The
+  `racer_turret_*` prototypes stay in the catalog for mods that want them.
+
 ### Scenarios & Objectives
 
+- Chapters no longer cut from the killing blow straight to the modal
+  Victory banner: a win now posts the beat it earned, then plays two
+  timer-paced outro comms beats over the live world before the overlay and
+  the queued next chapter. Built on the first-class scenario timers
+  (`TimerStart` + `OnTimerEnd`) rather than clock-mark expression trees, and
+  the win locks the instant it lands, so a death during the outro cannot
+  overwrite it.
 - New `Anchor` scenario object: an invisible authored gravity well (radius +
   optional mass, no mesh or collider) for orbit targets and bodiless gravity
   in scenes that do not want a rock at the anchor point.
@@ -67,7 +90,7 @@ tagged **(breaking)**.
   derive-from-`menu_planetoid`-well framing.
 - The main menu is a backdrop CAROUSEL now: four scenes hand off to each
   other Factorio-style (menu entry starts the ring at a random one). Three
-  combat scenes are new - Torpedo Gauntlet (a station-keeping racer's doomed
+  combat scenes are new - Torpedo Gauntlet (a station-keeping corvette's doomed
   point-defense stand against scripted batteries on both flanks; its hard
   magazines run dry and the stream wins), Asteroid Weave (a ten-waypoint run
   hugging its beacons through a dense rock band), and Duel Cycle (a

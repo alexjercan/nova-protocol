@@ -13,7 +13,8 @@
 //!    telegraphed-arrival contract;
 //! 3. waves stage on clock AND previous-wave clears (no stacking);
 //! 4. the relief bell wins with the convoy alive; the early clear wins
-//!    sooner; both banner variants track the convoy's fate;
+//!    sooner; both win variants speak the convoy's fate, and the banner
+//!    lands a couple of outro beats later;
 //! 5. losing BOTH haulers or the player is a Defeat that retries THIS
 //!    scenario (the checkpoint contract).
 //!
@@ -24,7 +25,8 @@
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
 use nova_events::prelude::{
     CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, OnDefeatedEvent,
-    OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnTimerEndEvent,
+    OnTimerEndEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
@@ -161,6 +163,25 @@ fn seed_live_defense(app: &mut App) {
     }
 }
 
+/// The outro's timer keys (see `nova_protocol::pacing`). The rig registers
+/// handlers by hand and runs no clock, so it fires the ends directly.
+const OUTRO_TEASE_TIMER: &str = "outro_tease";
+const OUTRO_BANNER_TIMER: &str = "outro_banner";
+
+/// Walk the outro: the tease beat, then the banner beat that declares the win.
+fn walk_outro(app: &mut App) {
+    for key in [OUTRO_TEASE_TIMER, OUTRO_BANNER_TIMER] {
+        let key = key.to_string();
+        app.world_mut()
+            .run_system_once(move |mut commands: Commands| {
+                commands.fire::<OnTimerEndEvent>(OnTimerEndEventInfo { key: key.clone() });
+            })
+            .expect("fire OnTimerEnd");
+        app.update();
+        app.update();
+    }
+}
+
 fn destroy(app: &mut App, id: &str) {
     let info = OnDestroyedEventInfo {
         id: id.to_string(),
@@ -249,7 +270,7 @@ fn on_start_stages_the_lane() {
             !ai.patrol.is_empty(),
             "{id} flies a loiter loop, so it holds the belt instead of drifting"
         );
-        // The cargoa hull is unarmed (hull cubes + thrusters + controller, no
+        // The racer hull is unarmed (hull cubes + thrusters + controller, no
         // turret/torpedo), so nova_scenario tags it AINonCombatant at spawn: it
         // can never chase or shoot, only get defended. The runtime tag and its
         // non-engagement are pinned in the convoy-loiter runtime test below and
@@ -398,16 +419,23 @@ fn waves_stage_on_clock_and_clears_and_the_early_clear_wins() {
     // Clear the last wave before the bell: the early win, convoy whole.
     destroy(&mut app, "raider_3a");
     destroy(&mut app, "raider_3b");
+    assert_eq!(
+        number_var(&app, "act"),
+        Some(4.0),
+        "the early clear opens the outro, the win locked"
+    );
+    assert_eq!(
+        outcome_kind(&app),
+        None,
+        "the banner waits for the outro's last beat"
+    );
+
+    walk_outro(&mut app);
     assert_eq!(number_var(&app, "act"), Some(2.0), "the early clear wins");
     assert_eq!(outcome_kind(&app), Some(ScenarioOutcomeKind::Victory));
     assert!(
-        outcome_message(&app).contains("before the relief wing"),
-        "the early-clear banner: {}",
-        outcome_message(&app)
-    );
-    assert!(
-        outcome_message(&app).contains("convoy is whole"),
-        "the whole-convoy variant: {}",
+        outcome_message(&app).contains("lane is open"),
+        "the shared win banner: {}",
         outcome_message(&app)
     );
     let world = app.world().resource::<NovaEventWorld>();
@@ -425,6 +453,15 @@ fn waves_stage_on_clock_and_clears_and_the_early_clear_wins() {
 fn the_relief_bell_wins_and_the_banner_tracks_the_convoy() {
     for (queen_dies, phrase) in [(false, "convoy is whole"), (true, "Half the convoy")] {
         let scenario = scenario_from(LIFELINE_RON);
+        let variant_lines: Vec<String> = scenario
+            .events
+            .iter()
+            .flat_map(|event| event.actions.iter())
+            .filter_map(|action| match action {
+                EventActionConfig::StoryMessage(message) => Some(message.text.clone()),
+                _ => None,
+            })
+            .collect();
         let mut app = slice_app();
         register_non_start_handlers(&mut app, &scenario);
         seed_live_defense(&mut app);
@@ -438,12 +475,19 @@ fn the_relief_bell_wins_and_the_banner_tracks_the_convoy() {
         seed_var(&mut app, "scenario_elapsed", 245.0);
         pump(&mut app);
 
+        assert_eq!(
+            number_var(&app, "act"),
+            Some(4.0),
+            "the bell opens the outro (queen_dies={queen_dies})"
+        );
+        walk_outro(&mut app);
         assert_eq!(number_var(&app, "act"), Some(2.0), "the bell wins");
         assert_eq!(outcome_kind(&app), Some(ScenarioOutcomeKind::Victory));
+        // The convoy's fate rides the variant's own comms line now; the
+        // banner is one shared string for all four win variants.
         assert!(
-            outcome_message(&app).contains(phrase),
-            "banner variant (queen_dies={queen_dies}): {}",
-            outcome_message(&app)
+            variant_lines.iter().any(|line| line.contains(phrase)),
+            "no win line carries the '{phrase}' variant"
         );
     }
 }

@@ -246,7 +246,11 @@ fn torpedo_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
         max_speed: 35.0,
         linear_damping: 0.8,
         blast_radius: 30.0,
-        blast_damage: 100.0,
+        // The standard torpedo's damage (see `sections::standard`): a
+        // connecting torpedo all but decides a small-craft fight, and the
+        // counter is point defense, not armor. The cargob's tubes are the
+        // campaign's torpedoes, so they hit like the catalog's.
+        blast_damage: 750.0,
         blast_effect: None,
         launch_effect: None,
         launch_sound: Some(meshes.torpedo_launch_sound.clone()),

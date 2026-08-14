@@ -82,7 +82,7 @@ pub(crate) fn menu_weave(
                 arrival_standoff: Some(10.0),
                 ..Default::default()
             }),
-            sections: ships::racer_sections(ships::ShipGrade::Player, vec![]),
+            sections: ships::racer_sections(),
         }),
     });
 

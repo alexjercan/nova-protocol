@@ -3,6 +3,19 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.22.0
+
+- Re-casts the armed ships onto the CargoA corvette, following the base game's
+  hull roles: the Racer is now the unarmed civilian hull and CargoA carries the
+  PDC turrets. The Kestrel, the Magpies, and Vesh's escort wing all fly the
+  corvette; grades are unchanged (the wave-one mooks and the chapter-three
+  pickets keep their `_light` guns, the heavies keep the full ones). The
+  unarmed Dray Mule and the Sixpence scout stay CargoA freighters, which also
+  settles Sixpence's hull across chapters one and two, and the Auditor and the
+  Kestrel's Due stay CargoB gunships.
+- Retires the "guns and thrusters gone" defeat copy: neutralization is
+  weapons OR flight computer now, and thrusters play no part in it.
+
 ## 1.21.0
 
 - Migrates every Racer, CargoA, and CargoB ship from removed coordinate-named

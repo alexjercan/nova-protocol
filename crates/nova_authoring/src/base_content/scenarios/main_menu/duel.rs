@@ -1,4 +1,4 @@
-//! The duel-cycle main-menu backdrop: two racers fight, the winner is
+//! The duel-cycle main-menu backdrop: two corvettes fight, the winner is
 //! erased by a siege torpedo, and after a beat two fresh ships fly in.
 
 use bevy::prelude::*;
@@ -22,7 +22,7 @@ const BATTERY_POS: Vec3 = Vec3::new(-950.0, 0.0, 0.0);
 const VICTOR_SPAWN: Vec3 = Vec3::new(-420.0, 25.0, 100.0);
 const RIVAL_SPAWN: Vec3 = Vec3::new(420.0, -15.0, -100.0);
 
-/// One duelist: a racer that flies in from off-screen onto an in-frame
+/// One duelist: a corvette that flies in from off-screen onto an in-frame
 /// patrol triangle. The arrival grace holds the entrance (ships spawn in
 /// the Engage state and hold on ANY acquired target, so an ungraced spawn
 /// would turn and burn from the spawn point instead of flying in); the
@@ -64,13 +64,13 @@ fn duelist(
             // 500 keeps the DOGFIGHT on screen; however the loser finally
             // cripples (guns, computer, or full destruction), the defeat
             // chain fires and the finale plays.
-            sections: ships::racer_sections(grade, vec![SectionModification::SetHealth(500.0)]),
+            sections: ships::cargoa_sections(grade, vec![SectionModification::SetHealth(500.0)]),
         }),
     }
 }
 
 /// A repeating three-act battle behind the menu. Act one: a player-grade
-/// racer (Player allegiance) and an enemy-grade racer fly in from opposite
+/// corvette (Player allegiance) and an enemy-grade corvette fly in from opposite
 /// sides and dogfight through the open center of the frame; the gun gap
 /// makes the outcome all but certain. Act two: the rival's defeat starts a
 /// short beat, then the off-screen siege battery is SCRIPTED to launch an
@@ -310,7 +310,7 @@ pub(crate) fn menu_duel(
     ];
 
     ScenarioConfig {
-        description: "Two racers duel; a siege torpedo erases the winner; repeat.".to_string(),
+        description: "Two corvettes duel; a siege torpedo erases the winner; repeat.".to_string(),
         hidden: true,
         menu_backdrop: true,
         events,

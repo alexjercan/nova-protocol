@@ -1,5 +1,5 @@
 //! Production-faithful scenario tests for the NEUTRALIZED (combat-dead) signal.
-//! A ship that was armed and has lost all working weapons AND thrusters fires
+//! A ship that was armed and has lost all working weapons OR its flight computer fires
 //! `OnNeutralizedEvent` instead of being destroyed; the shipped scenarios carry
 //! `OnNeutralized` sibling handlers so a beaten ship counts as beaten without
 //! its hull being ground to zero. This loads the ACTUAL shipped RON, registers
@@ -7,7 +7,7 @@
 //! firing `OnNeutralizedEvent` - the same info the gameplay neutralize system
 //! emits.
 //!
-//! The physical predicate (weapons + thrusters gone => the event) is pinned in
+//! The physical predicate (weapons gone OR flight computer gone => the event) is pinned in
 //! `nova_gameplay::integrity::neutralize`; what this file owns is the SCENARIO
 //! DATA's consumption of the event: an enemy kill-objective completes on
 //! neutralize, the player's neutralize is an immediate terminal Defeat, and the
@@ -16,7 +16,8 @@
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
     CommandsGameEventExt, EventHandler, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
-    OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    OnNeutralizedEvent, OnNeutralizedEventInfo, OnTimerEndEvent, OnTimerEndEventInfo,
+    OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::GameObjectives;
 use nova_scenario::prelude::*;
@@ -97,6 +98,26 @@ fn neutralize(app: &mut App, id: &str) {
 }
 
 /// The destroy counterpart, for the once-semantics cross-check.
+/// The outro's timer keys (see `nova_protocol::pacing`). A win opens the
+/// chain and the banner lands on its last beat; this rig runs no clock, so it
+/// fires the ends directly.
+const OUTRO_TEASE_TIMER: &str = "outro_tease";
+const OUTRO_BANNER_TIMER: &str = "outro_banner";
+
+/// Walk the outro: the tease beat, then the banner beat that declares the win.
+fn walk_outro(app: &mut App) {
+    for key in [OUTRO_TEASE_TIMER, OUTRO_BANNER_TIMER] {
+        let key = key.to_string();
+        app.world_mut()
+            .run_system_once(move |mut commands: Commands| {
+                commands.fire::<OnTimerEndEvent>(OnTimerEndEventInfo { key: key.clone() });
+            })
+            .expect("fire OnTimerEnd");
+        app.update();
+        app.update();
+    }
+}
+
 fn destroy(app: &mut App, id: &str) {
     let info = nova_events::prelude::OnDestroyedEventInfo {
         id: id.to_string(),
@@ -159,6 +180,12 @@ fn neutralizing_both_corvettes_wins_part_one() {
     neutralize(&mut app, "corvette_b");
     assert_eq!(
         number_var(&app, "act"),
+        Some(4.0),
+        "both corvettes neutralized opens the outro, the win locked"
+    );
+    walk_outro(&mut app);
+    assert_eq!(
+        number_var(&app, "act"),
         Some(2.0),
         "both corvettes neutralized wins part one"
     );
@@ -185,6 +212,7 @@ fn neutralizing_the_gunship_wins_and_does_not_double_fire() {
     assert_eq!(outcome_kind(&app), None, "no outcome before the neutralize");
 
     neutralize(&mut app, "gunship");
+    walk_outro(&mut app);
     assert_eq!(
         outcome_kind(&app),
         Some(ScenarioOutcomeKind::Victory),
@@ -248,10 +276,13 @@ fn neutralizing_the_player_is_a_terminal_defeat() {
         .clone();
     assert_eq!(next, "broadside_gunship", "the retry is the current part");
 
-    // And the simple (unguarded) case still declares Defeat.
+    // Shakedown's player neutralize is a Defeat too. Its gate is the BEAT
+    // (below the outro), so the rig seeds the live value OnStart would - that
+    // guard is what stops a death during the outro overwriting an earned win.
     let shakedown = scenario_from(SHAKEDOWN_RON);
     let mut app = slice_app();
     register_non_start_handlers(&mut app, &shakedown);
+    seed_var(&mut app, "beat", 12.0);
     neutralize(&mut app, "player_spaceship");
     assert_eq!(
         outcome_kind(&app),

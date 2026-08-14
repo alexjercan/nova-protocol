@@ -12,7 +12,8 @@ pub mod prelude {
         attach_objective_marker, clear_hint_emphasis, complete_objective, despawn_object,
         detach_objective_marker, entity, entity_pair, increment_variable, number, number_equals,
         number_greater_than, number_less_than, post_objective, scenario_elapsed_watch, set_number,
-        set_variable, show_hint_emphasis, spawn_object, story_message, variable,
+        set_variable, show_hint_emphasis, spawn_object, start_timer, story_message, timer,
+        variable,
     };
 }
 
@@ -168,6 +169,21 @@ pub fn story_message(speaker: impl Into<String>, text: impl Into<String>) -> Eve
         dwell: None,
         icon: None,
     })
+}
+
+/// Start (or restart) a keyed scenario timer. Pairs with [`timer`] on an
+/// `OnTimerEnd` handler: the readable way to space beats a few seconds apart
+/// without threading a clock mark through an expression tree.
+pub fn start_timer(key: impl Into<String>, seconds: f64) -> EventActionConfig {
+    EventActionConfig::TimerStart(TimerStartActionConfig {
+        key: key.into(),
+        seconds: number(seconds),
+    })
+}
+
+/// Match an `OnTimerEnd` event by its timer key.
+pub fn timer(key: impl Into<String>) -> EventFilterConfig {
+    EventFilterConfig::Timer(TimerFilterConfig { key: key.into() })
 }
 
 #[cfg(test)]
