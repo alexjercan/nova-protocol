@@ -42,10 +42,11 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 
 ### Semantic ship parts
 
-These prototypes are hidden from the editor until link-point snapping lands,
-but mods can reference them. Their tight primitive colliders and authored link
-points are part of each prototype. Ships use the suffix as the instance id:
-prototype `racer_engine_port` normally becomes instance `engine_port`.
+These prototypes are in the editor palette, and mods can reference them. Their
+tight primitive colliders and authored link points are part of each prototype -
+and those link points are what places one: a part attaches only where its own
+sockets meet another's. Ships use the suffix as the instance id: prototype
+`racer_engine_port` normally becomes instance `engine_port`.
 
 | family | prototype suffix | kind | health |
 |---|---|---|---|

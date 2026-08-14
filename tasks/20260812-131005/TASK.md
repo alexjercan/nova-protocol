@@ -1,6 +1,6 @@
 # Add link-point snapping to the ship editor
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 80
 - TAGS: v0.11.0, ship, editor, content
 

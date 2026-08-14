@@ -103,6 +103,25 @@ center distance never create fallback edges. `SpaceshipRootMarker` declares the
 body as `IntegrityRoot`. Asteroids declare the same root role and give their lone
 collider node an empty list, so it is a leaf.
 
+Editor placement mates the same sockets, so the editor cannot build a ship the
+graph would reject. `snap_placement` (`nova_ship::sections::link_points`) poses a
+part from one mate: the two sockets become coincident and their normals opposed,
+which leaves only the ROLL about that axis free - the builder's choice, alongside
+which of the part's own sockets does the mating. `candidate_link_point_mates` is
+the same pairing WITHOUT the ambiguity and connectivity gates, because a ship
+under assembly is legitimately disconnected; the editor uses it to see which
+sockets are taken and to refuse a placement that would leave one with two
+suitors. Collider bounds enter only as the overlap refusal, under the ship lint's
+rule: interpenetration is allowed exactly where a mate says the interface is
+intentional.
+
+`scripts/cut-obj-into-parts.py` proposes candidates for freshly cut parts: two
+parts whose bounds meet at a seam and overlap across it get one socket each at
+the centre of that shared face, written into the part manifest as `link_points`.
+A recipe part can author its own list instead (in ship space, like every other
+recipe coordinate), which replaces the generated one. They are candidates for a
+human to judge - shipped gameplay sockets stay hand-authored in `nova_authoring`.
+
 Damage flow:
 
 1. A hit triggers `HealthApplyDamage` (`nova_gameplay::integrity::health`);

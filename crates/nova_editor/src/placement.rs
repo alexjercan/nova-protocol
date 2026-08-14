@@ -1,21 +1,37 @@
 //! Building the preview ship: creating a fresh ship, rebuilding it from the
-//! surviving config on re-entry, and the pointer observers that place / preview
-//! / delete sections by raycasting the hovered section and offsetting along its
-//! surface normal. Nothing here spawns live physics - it only edits
-//! `PlayerSpaceshipConfig` and the pickable preview entities.
+//! surviving config on re-entry, and the pointer path that places, previews and
+//! deletes sections.
+//!
+//! A part is placed by MATING link points (see [`crate::snap`]), never by
+//! offsetting along a hit normal, so the editor can only build ships the
+//! runtime's own integrity graph accepts. Nothing here spawns live physics - it
+//! only edits `PlayerSpaceshipConfig` and the pickable preview entities.
 
 use bevy::{picking::pointer::PointerInteraction, prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
+use nova_ui::{
+    prelude::{ButtonValue, Selected},
+    theme,
+};
 
 use crate::{
-    config::{PlayerSpaceshipConfig, SectionChoice, SectionPreviewMarker, SpaceshipPreviewMarker},
+    config::{
+        Placement, PlacementPose, PlacementPreview, PlacementStatus, PlayerSpaceshipConfig,
+        SectionChoice, SectionGhost, SectionPreviewMarker, SpaceshipPreviewMarker,
+    },
     keybind::EditorRebind,
-    preview::insert_preview_section,
+    preview::{insert_preview_section, PreviewRole},
+    snap::{self, PlacedSection},
     ExampleStates,
 };
+
+/// Rolls the ghost a quarter turn about the mating axis.
+const PLACEMENT_ROLL_KEY: KeyCode = KeyCode::KeyR;
+/// Cycles which socket of the armed part does the mating.
+const PLACEMENT_SOCKET_KEY: KeyCode = KeyCode::KeyF;
 
 /// Keys the editor's own WASD camera drives (`wasd_controller`). Binding one to
 /// a section makes that section fire on every camera move once the ship flies,
@@ -100,17 +116,6 @@ fn default_binds_for(
     }
 }
 
-/// How a section of this kind sits against the surface it was placed on.
-fn placement_rotation(kind: &SectionKind, normal: Vec3) -> Quat {
-    match kind {
-        SectionKind::Hull(_) | SectionKind::Controller(_) => Quat::IDENTITY,
-        SectionKind::Thruster(_) => Quat::from_rotation_arc(Vec3::Z, normal.normalize()),
-        SectionKind::Turret(_) | SectionKind::Torpedo(_) => {
-            Quat::from_rotation_arc(Vec3::Y, normal.normalize())
-        }
-    }
-}
-
 /// Spawn one preview section under the preview ship, through the shared
 /// [`insert_preview_section`] spawner - so click-placement, the on-enter
 /// rebuild and the gallery tiles cannot drift apart.
@@ -121,7 +126,7 @@ fn spawn_preview_section(
     binds: Vec<Binding>,
 ) -> Entity {
     let mut entity = parent.spawn(transform);
-    insert_preview_section(&mut entity, section, binds);
+    insert_preview_section(&mut entity, section, PreviewRole::Section, binds);
     entity.id()
 }
 
@@ -281,6 +286,33 @@ pub(crate) fn rebuild_editor_preview_on_enter(
     *player_config = rebuilt;
 }
 
+/// Keep the rail and drawer selection in step with the armed tool, whoever set
+/// it.
+///
+/// A button moves its own `Selected` marker when IT is pressed, but the gallery
+/// arms a part by writing the resource - and a rail chip still lit for the
+/// previous tool shows the player a tool they are not holding.
+pub(crate) fn sync_tool_selection(
+    mut commands: Commands,
+    choice: Res<SectionChoice>,
+    buttons: Query<(Entity, &ButtonValue<SectionChoice>, Has<Selected>)>,
+) {
+    if !choice.is_changed() {
+        return;
+    }
+    for (entity, value, selected) in &buttons {
+        match (value.0 == *choice, selected) {
+            (true, false) => {
+                commands.entity(entity).insert(Selected);
+            }
+            (false, true) => {
+                commands.entity(entity).remove::<Selected>();
+            }
+            _ => {}
+        }
+    }
+}
+
 pub(crate) fn continue_to_simulation(
     _activate: On<Activate>,
     mut game_state: ResMut<NextState<ExampleStates>>,
@@ -288,20 +320,255 @@ pub(crate) fn continue_to_simulation(
     game_state.set(ExampleStates::Scenario);
 }
 
+/// Cycle the placement pose: which of the part's sockets does the mating, and
+/// how far it is rolled about the mating axis.
+///
+/// Both are the builder's choice and neither can be derived - a mate leaves the
+/// roll free by definition, and which face of a part points at the ship is a
+/// design decision, not a geometry one. Inert unless a part is armed, so the
+/// keys stay free for the select/rebind tool.
+pub(crate) fn cycle_placement_pose(
+    keys: Res<ButtonInput<KeyCode>>,
+    selection: Res<SectionChoice>,
+    mut pose: ResMut<PlacementPose>,
+) {
+    if !matches!(*selection, SectionChoice::Section(_)) {
+        return;
+    }
+    if keys.just_pressed(PLACEMENT_ROLL_KEY) {
+        pose.roll = pose.roll.wrapping_add(1) % 4;
+    }
+    if keys.just_pressed(PLACEMENT_SOCKET_KEY) {
+        pose.source = pose.source.wrapping_add(1);
+    }
+}
+
+/// Recompute what a click would build, from the section under the pointer.
+///
+/// One solve per frame feeds both the ghost and the click, so the builder
+/// cannot commit something other than what is on screen.
+pub(crate) fn update_placement_preview(
+    q_pointer: Query<&PointerInteraction>,
+    spaceship: Option<Single<&Children, With<SpaceshipPreviewMarker>>>,
+    q_section: Query<(&Transform, &SectionLinkPoints, &SectionCollider), With<SectionMarker>>,
+    selection: Res<SectionChoice>,
+    pose: Res<PlacementPose>,
+    sections: Res<GameSections>,
+    mut preview: ResMut<PlacementPreview>,
+) {
+    preview.placement = None;
+
+    let SectionChoice::Section(id) = &*selection else {
+        return;
+    };
+    let (Some(spaceship), Some(part)) = (spaceship, sections.get_section(id)) else {
+        return;
+    };
+
+    // The ship as the solver sees it, in the order its indices refer to.
+    let mut entities = Vec::new();
+    let mut ship = Vec::new();
+    for child in spaceship.iter() {
+        let Ok((transform, link_points, collider)) = q_section.get(child) else {
+            continue;
+        };
+        entities.push(child);
+        ship.push(PlacedSection {
+            position: transform.translation,
+            rotation: transform.rotation,
+            link_points: link_points.to_vec(),
+            collider: *collider,
+        });
+    }
+
+    let Some((hovered, hit)) = q_pointer
+        .iter()
+        .filter_map(|interaction| interaction.get_nearest_hit())
+        .find_map(|(entity, hit)| {
+            let index = entities.iter().position(|section| section == entity)?;
+            Some((index, hit.position?))
+        })
+    else {
+        return;
+    };
+
+    preview.placement = Some(Placement {
+        prototype: id.clone(),
+        target_section: entities[hovered],
+        solve: snap::solve(
+            &ship,
+            hovered,
+            hit,
+            &part.base.link_points,
+            part.base.collider.unwrap_or_default(),
+            pose.source,
+            pose.roll,
+        ),
+    });
+}
+
+/// Show the solved placement: the part's real mesh at the pose a click would
+/// build, a bounds box in the colour of its verdict, and the refusal in words.
+pub(crate) fn sync_placement_ghost(
+    mut commands: Commands,
+    preview: Res<PlacementPreview>,
+    sections: Res<GameSections>,
+    mut gizmos: Gizmos,
+    ghosts: Query<(Entity, &SectionGhost, &mut Transform)>,
+    q_link_points: Query<&SectionLinkPoints>,
+    status: StatusQuery,
+) {
+    let wanted = preview.placement.as_ref().map(|placement| SectionGhost {
+        prototype: placement.prototype.clone(),
+        source: placement.solve.source,
+    });
+
+    // The mesh is rebuilt only when the PART or its socket choice changes; a
+    // pose change is a transform write, so dragging the pointer across a hull
+    // does not respawn a scene every frame.
+    let mut kept = false;
+    for (entity, ghost, mut transform) in ghosts {
+        match (&wanted, preview.placement.as_ref()) {
+            (Some(wanted), Some(placement))
+                if ghost.prototype == wanted.prototype && ghost.source == wanted.source =>
+            {
+                *transform = placement.solve.transform;
+                kept = true;
+            }
+            _ => commands.entity(entity).despawn(),
+        }
+    }
+
+    let Some(placement) = preview.placement.as_ref() else {
+        set_status(status, None);
+        return;
+    };
+    set_status(
+        status,
+        Some(match placement.solve.refusal {
+            Some(refusal) => (refusal.message().to_string(), theme::RED),
+            // Naming the mate is the readout: which socket of the ship the part
+            // is about to take, with which of its own, and the two keys that
+            // change that answer.
+            None => (
+                format!(
+                    "{} <- {}   [{PLACEMENT_SOCKET_KEY:?}] socket   [{PLACEMENT_ROLL_KEY:?}] roll",
+                    socket_id(
+                        q_link_points.get(placement.target_section).ok(),
+                        placement.solve.target
+                    ),
+                    sections.get_section(&placement.prototype).map_or_else(
+                        String::new,
+                        |section| {
+                            section
+                                .base
+                                .link_points
+                                .get(placement.solve.source)
+                                .map_or_else(String::new, |point| point.id.clone())
+                        }
+                    ),
+                ),
+                theme::PHOSPHOR_MUTED,
+            ),
+        }),
+    );
+
+    if let (false, Some(section)) = (kept, sections.get_section(&placement.prototype)) {
+        let mut entity = commands.spawn((
+            DespawnOnExit(ExampleStates::Editor),
+            Name::new("Placement Ghost"),
+            SectionGhost {
+                prototype: placement.prototype.clone(),
+                source: placement.solve.source,
+            },
+            SectionPreviewMarker,
+            placement.solve.transform,
+            // The ghost sits between the pointer and the ship it is being
+            // placed on: it must never take the ray that positions it.
+            Pickable {
+                should_block_lower: false,
+                is_hoverable: false,
+            },
+        ));
+        insert_preview_section(&mut entity, section, PreviewRole::Display, vec![]);
+    }
+
+    // The bounds box is the verdict: the mesh alone cannot say "refused".
+    if let Some(section) = sections.get_section(&placement.prototype) {
+        let half = section
+            .base
+            .collider
+            .unwrap_or_default()
+            .aabb_half_extents();
+        let colour = match placement.solve.refusal {
+            None => theme::PHOSPHOR,
+            Some(_) => theme::RED,
+        };
+        gizmos.cube(placement.solve.transform.with_scale(half * 2.0), colour);
+    }
+}
+
+/// The diagnostic id of one socket on a live section, for the readout.
+fn socket_id(link_points: Option<&SectionLinkPoints>, index: usize) -> String {
+    link_points
+        .and_then(|points| points.get(index))
+        .map_or_else(String::new, |point| point.id.clone())
+}
+
+/// Write the placement readout, or hide it when nothing is being placed.
+type StatusQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static mut Text,
+        &'static mut TextColor,
+        &'static mut BorderColor,
+        &'static mut Visibility,
+    ),
+    With<PlacementStatus>,
+>;
+
+fn set_status(status: StatusQuery, line: Option<(String, Color)>) {
+    for (mut text, mut colour, mut border, mut visibility) in status {
+        match &line {
+            Some((message, tint)) => {
+                if text.0 != *message {
+                    text.0 = message.clone();
+                }
+                if colour.0 != *tint {
+                    colour.0 = *tint;
+                    *border = BorderColor::all(*tint);
+                }
+                if *visibility != Visibility::Inherited {
+                    *visibility = Visibility::Inherited;
+                }
+            }
+            None => {
+                if *visibility != Visibility::Hidden {
+                    *visibility = Visibility::Hidden;
+                }
+            }
+        }
+    }
+}
+
+/// Place, delete or arm a rebind, depending on the armed tool.
+///
+/// Placement itself commits [`PlacementPreview`] - the pose the ghost is
+/// already showing - rather than re-deriving anything from this click.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn on_click_spaceship_section(
     click: On<Pointer<Press>>,
     mut commands: Commands,
     spaceship: Single<Entity, With<SpaceshipPreviewMarker>>,
-    q_pointer: Query<&PointerInteraction>,
-    q_section: Query<&Transform, With<SectionMarker>>,
     selection: Res<SectionChoice>,
-    q_preview: Query<Entity, With<SectionPreviewMarker>>,
     keyboard: Option<Res<ButtonInput<KeyCode>>>,
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     sections: Res<GameSections>,
+    preview: Res<PlacementPreview>,
     mut player_config: ResMut<PlayerSpaceshipConfig>,
     mut rebind: ResMut<EditorRebind>,
+    q_section: Query<(), With<SectionMarker>>,
     q_bindable: Query<
         (),
         Or<(
@@ -316,21 +583,9 @@ pub(crate) fn on_click_spaceship_section(
     }
 
     let entity = click.entity;
-
-    let Some(normal) = q_pointer
-        .iter()
-        .filter_map(|interaction| interaction.get_nearest_hit())
-        .find_map(|(e, hit)| if *e == entity { hit.normal } else { None })
-    else {
+    if q_section.get(entity).is_err() {
         return;
-    };
-
-    let Ok(transform) = q_section.get(entity) else {
-        return;
-    };
-
-    let spaceship = spaceship.into_inner();
-    let position = transform.translation + normal * 1.0;
+    }
 
     match *selection {
         SectionChoice::None => {
@@ -348,19 +603,32 @@ pub(crate) fn on_click_spaceship_section(
                 rebind.awaiting_release = true;
             }
         }
-        SectionChoice::Section(ref id) => {
-            let Some(section) = required_section(&sections, id) else {
+        SectionChoice::Section(_) => {
+            let Some(placement) = preview.placement.as_ref() else {
+                return;
+            };
+            // A refused placement is shown red and stays unbuilt: the ship it
+            // would make is one the runtime graph rejects.
+            if let Some(refusal) = placement.solve.refusal {
+                debug!(
+                    "editor: placement refused ({}) for '{}'",
+                    refusal.message(),
+                    placement.prototype
+                );
+                return;
+            }
+            let Some(section) = required_section(&sections, &placement.prototype) else {
                 return;
             };
 
-            let transform = Transform::from_translation(position)
-                .with_rotation(placement_rotation(&section.kind, normal));
+            let transform = placement.solve.transform;
             let binds = default_binds_for(&section.kind, keyboard.as_deref(), gamepad.as_deref());
-
             let mut placed = Entity::PLACEHOLDER;
-            commands.entity(spaceship).with_children(|parent| {
-                placed = spawn_preview_section(parent, section, transform, binds.clone());
-            });
+            commands
+                .entity(spaceship.into_inner())
+                .with_children(|parent| {
+                    placed = spawn_preview_section(parent, section, transform, binds.clone());
+                });
             register_preview_section(&mut player_config, placed, section, transform, binds);
         }
         SectionChoice::Delete => {
@@ -369,114 +637,34 @@ pub(crate) fn on_click_spaceship_section(
             // The scenario's input_mapping is built from `inputs`; a leftover
             // entry would map a key to a section that no longer exists.
             player_config.inputs.remove(&entity);
-
-            for preview in &q_preview {
-                commands.entity(preview).despawn();
-            }
         }
     }
 }
 
-pub(crate) fn on_hover_spaceship_section(
-    hover: On<Pointer<Over>>,
-    mut commands: Commands,
+/// Outline the section a delete click would remove.
+pub(crate) fn draw_delete_target(
     q_pointer: Query<&PointerInteraction>,
-    q_section: Query<&GlobalTransform, With<SectionMarker>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    q_section: Query<(&Transform, &SectionCollider), With<SectionMarker>>,
     selection: Res<SectionChoice>,
+    mut gizmos: Gizmos,
 ) {
-    let entity = hover.entity;
-
-    let Some(normal) = q_pointer
+    if !matches!(*selection, SectionChoice::Delete) {
+        return;
+    }
+    let Some((entity, _)) = q_pointer
         .iter()
         .filter_map(|interaction| interaction.get_nearest_hit())
-        .find_map(|(e, hit)| if *e == entity { hit.normal } else { None })
+        .next()
     else {
         return;
     };
-
-    let Ok(transform) = q_section.get(entity) else {
+    let Ok((transform, collider)) = q_section.get(*entity) else {
         return;
     };
-
-    match *selection {
-        SectionChoice::None => {}
-        SectionChoice::Delete => {
-            let position = transform.translation();
-
-            commands.spawn((
-                SectionPreviewMarker,
-                Mesh3d(meshes.add(Cuboid::new(1.01, 1.01, 1.01))),
-                MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
-                Transform {
-                    translation: position,
-                    ..default()
-                },
-            ));
-        }
-        _ => {
-            let position = transform.translation() + normal * 1.0;
-            let rotation = Quat::from_rotation_arc(Vec3::Z, normal.normalize());
-
-            commands.spawn((
-                SectionPreviewMarker,
-                Mesh3d(meshes.add(Cuboid::new(1.01, 1.01, 1.01))),
-                MeshMaterial3d(materials.add(Color::srgb(0.2, 0.8, 0.2))),
-                Transform {
-                    translation: position,
-                    rotation,
-                    ..default()
-                },
-            ));
-        }
-    }
-}
-
-pub(crate) fn on_move_spaceship_section(
-    move_: On<Pointer<Move>>,
-    q_pointer: Query<&PointerInteraction>,
-    q_section: Query<&GlobalTransform, With<SectionMarker>>,
-    preview: Single<&mut Transform, With<SectionPreviewMarker>>,
-    selection: Res<SectionChoice>,
-) {
-    if matches!(*selection, SectionChoice::Delete | SectionChoice::None) {
-        return;
-    }
-
-    let entity = move_.entity;
-
-    let Some(normal) = q_pointer
-        .iter()
-        .filter_map(|interaction| interaction.get_nearest_hit())
-        .find_map(|(e, hit)| if *e == entity { hit.normal } else { None })
-    else {
-        return;
-    };
-
-    let Ok(transform) = q_section.get(entity) else {
-        return;
-    };
-
-    let position = transform.translation() + normal * 1.0;
-    let rotation = Quat::from_rotation_arc(Vec3::Z, normal.normalize());
-
-    let mut preview_transform = preview.into_inner();
-    preview_transform.translation = position;
-    preview_transform.rotation = rotation;
-}
-
-pub(crate) fn on_out_spaceship_section(
-    out: On<Pointer<Out>>,
-    q_section: Query<&Transform, With<SectionMarker>>,
-    mut commands: Commands,
-    preview: Single<Entity, With<SectionPreviewMarker>>,
-) {
-    let Ok(_) = q_section.get(out.entity) else {
-        return;
-    };
-
-    commands.entity(preview.into_inner()).despawn();
+    gizmos.cube(
+        transform.with_scale(collider.aabb_half_extents() * 2.0),
+        theme::RED,
+    );
 }
 
 #[cfg(test)]

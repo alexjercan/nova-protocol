@@ -342,11 +342,16 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
 pub fn preview_section(config: BaseSectionConfig) -> impl Bundle {
     debug!("preview_section: config {:?}", config);
 
+    let collider = config.collider.unwrap_or_default();
     (
         Name::new(config.name.clone()),
         SectionMarker,
         SectionLinkPoints(config.link_points),
-        config.collider.unwrap_or_default().to_collider(),
+        collider.to_collider(),
+        // The authored shape rides along, as it does on a live section: editor
+        // placement needs those extents for its overlap refusal, and reading
+        // them back out of an avian collider is not the same number.
+        collider,
         Visibility::Inherited,
     )
 }
@@ -437,6 +442,12 @@ mod tests {
         assert_eq!(world.get::<SectionLinkPoints>(preview).unwrap().len(), 6);
         assert!(world.get::<ConnectedTo>(live).is_some());
         assert!(world.get::<ConnectedTo>(preview).is_none());
+        // Both carry the authored shape: editor placement measures overlap
+        // against a preview section exactly as the lint measures a live one.
+        assert_eq!(
+            world.get::<SectionCollider>(preview).copied(),
+            Some(SectionCollider::default())
+        );
     }
 
     #[cfg(feature = "serde")]

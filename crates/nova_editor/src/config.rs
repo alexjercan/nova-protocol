@@ -37,6 +37,53 @@ pub(crate) enum SectionChoice {
 #[derive(Component)]
 pub(crate) struct SpaceshipPreviewMarker;
 
-/// The translucent cube that previews where a placed/deleted section will land.
+/// The ghost part that previews where a placed section will land.
 #[derive(Component)]
 pub(crate) struct SectionPreviewMarker;
+
+/// The builder's two placement choices: which of the armed part's sockets does
+/// the mating, and how far the part is rolled about the mating axis.
+///
+/// A mate fixes everything else - the two sockets are coincident and their
+/// normals opposed - so these are the only degrees of freedom left, and
+/// neither can be derived from the ship.
+#[derive(Resource, Default, Debug, Clone, Copy, Reflect)]
+pub(crate) struct PlacementPose {
+    /// Socket index on the part. Wraps, so a caller can just count up.
+    pub(crate) source: usize,
+    /// Quarter turns about the mating axis, 0..4.
+    pub(crate) roll: u32,
+}
+
+/// What a click would build right now, solved once per frame from the section
+/// under the pointer so the ghost and the click cannot disagree.
+#[derive(Resource, Default)]
+pub(crate) struct PlacementPreview {
+    /// `None` when no part is armed or nothing is under the pointer.
+    pub(crate) placement: Option<Placement>,
+}
+
+/// One solved placement: the armed prototype, the section it mates onto, and
+/// the pose plus verdict the solver returned.
+pub(crate) struct Placement {
+    /// Catalog id of the armed prototype.
+    pub(crate) prototype: String,
+    /// The preview section under the pointer.
+    pub(crate) target_section: Entity,
+    /// Pose and refusal.
+    pub(crate) solve: crate::snap::Placement,
+}
+
+/// The ghost's identity, so a pose change MOVES it and a part change rebuilds
+/// it - a respawned scene every frame would flicker.
+#[derive(Component)]
+pub(crate) struct SectionGhost {
+    /// Catalog id the ghost is showing.
+    pub(crate) prototype: String,
+    /// Socket index the ghost mates with.
+    pub(crate) source: usize,
+}
+
+/// The editor's placement status line: why the ghost is refused.
+#[derive(Component)]
+pub(crate) struct PlacementStatus;

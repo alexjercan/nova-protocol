@@ -14,7 +14,7 @@ use nova_ship::prelude::*;
 
 use crate::{
     gallery::{catalog, GalleryState},
-    preview::insert_preview_section,
+    preview::{insert_preview_section, PreviewRole},
     ExampleStates,
 };
 
@@ -95,7 +95,7 @@ pub(crate) fn spawn_tile(
             is_hoverable: false,
         },
     ));
-    insert_preview_section(&mut entity, section, vec![]);
+    insert_preview_section(&mut entity, section, PreviewRole::Display, vec![]);
 }
 
 /// Park the camera on the gallery stage while the gallery is open, and put it

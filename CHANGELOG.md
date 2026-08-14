@@ -123,6 +123,10 @@ tagged **(breaking)**.
 - The autopilot gains a `type_text` gesture: a driven run can type into a text
   field (the editor gallery's filter), which `press_key` cannot do - it writes
   only the held-key state, not the text a keypress produces.
+- `cut-obj-into-parts.py` proposes link-point candidates from recipe seams -
+  one socket per shared face, written into each part manifest - and a recipe
+  part can author its own list instead. Judgement stays with whoever promotes
+  a candidate; shipped gameplay sockets are still hand-authored in Rust.
 - Built-in authoring content now has an explicit `base_content` inventory grouped into Nova Protocol chapters, private main-menu backdrops, sandboxes, standard section prototypes, and per-craft semantic parts; generated RON is unchanged.
 
 ## [0.10.0] - 2026-08-13
@@ -198,6 +202,19 @@ tagged **(breaking)**.
   `1.14.0 -> 1.16.0`. The Mods screen offers an Update on a version-string
   mismatch, so without the bump an installed copy would keep its unlit content
   and render black, and its wells would silently lose their authored gravity.
+
+### Ships & Sections
+
+- The editor places parts by MATING link points instead of stepping one unit
+  along the surface it hit: it snaps the part's chosen socket onto the socket
+  nearest the pointer, opposes their normals, and leaves the builder the roll
+  (`R`) and which of the part's sockets does the mating (`F`). A placement
+  that would take an occupied socket, leave a socket with two suitors, or bury
+  the part inside a section it does not mate with is refused, and the status
+  line says which. The ghost is the part's real mesh.
+- The semantic Racer, CargoA and CargoB parts join the editor palette - they
+  were hidden while placement was a grid step, because a nose only fits a
+  fuselage where its authored sockets say.
 
 ### Interface & HUD
 

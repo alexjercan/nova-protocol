@@ -183,8 +183,10 @@ fn base_config(
         destroy_sound: Some(meshes.section_destroy_sound.clone()),
         collider: Some(SectionCollider::Cuboid { size: spec.size() }),
         link_points: links,
-        // Placement remains hidden until link-point snapping lands in the editor.
-        hide_in_editor: true,
+        // Placeable now that editor placement MATES link points: a semantic
+        // part only goes where its authored sockets say it does, which is what
+        // hiding it was waiting for.
+        hide_in_editor: false,
     }
 }
 

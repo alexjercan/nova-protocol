@@ -7,6 +7,7 @@
 //! - `placement` - creating a ship + the pointer place/preview/delete observers
 //! - `keybind`   - section keybind chips + click-to-rebind
 //! - `gallery`   - the full-screen parts browser that arms the placement tool
+//! - `snap`      - where the armed prototype would land, and why not
 //! - `scenario`  - the player-only asteroid+planetoid scene handed off on Play
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
 #![warn(missing_docs)]
@@ -24,17 +25,19 @@ mod keybind;
 mod placement;
 mod preview;
 mod scenario;
+mod snap;
 mod ui;
 
-use config::{PlayerSpaceshipConfig, SectionChoice};
+use config::{PlacementPose, PlacementPreview, PlayerSpaceshipConfig, SectionChoice};
 use keybind::{
     apply_section_rebind, position_section_keybind_labels, sync_section_keybind_labels,
     EditorRebind,
 };
 use nova_ui::widget::button_on_setting;
 use placement::{
-    on_click_spaceship_section, on_hover_spaceship_section, on_move_spaceship_section,
-    on_out_spaceship_section, rebuild_editor_preview_on_enter,
+    cycle_placement_pose, draw_delete_target, on_click_spaceship_section,
+    rebuild_editor_preview_on_enter, sync_placement_ghost, sync_tool_selection,
+    update_placement_preview,
 };
 use scenario::setup_scenario;
 use ui::setup_editor_scene;
@@ -144,10 +147,30 @@ fn editor_plugin(app: &mut App) {
     // Component cards + rail tools set the placement tool via their ButtonValue.
     app.add_observer(button_on_setting::<SectionChoice>);
 
-    app.add_observer(on_click_spaceship_section)
-        .add_observer(on_hover_spaceship_section)
-        .add_observer(on_move_spaceship_section)
-        .add_observer(on_out_spaceship_section);
+    app.add_observer(on_click_spaceship_section);
+
+    // The placement ghost: solve once per frame, then show it. Both are gated
+    // on the gallery being closed - it covers the build area, so nothing under
+    // it is being pointed at.
+    app.init_resource::<PlacementPose>();
+    app.init_resource::<PlacementPreview>();
+    app.add_systems(
+        Update,
+        (
+            sync_tool_selection,
+            cycle_placement_pose,
+            update_placement_preview,
+            sync_placement_ghost,
+            draw_delete_target,
+        )
+            .chain()
+            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
+    );
+    // A fresh visit starts with the part's first socket, unrolled.
+    app.add_systems(
+        OnEnter(ExampleStates::Editor),
+        |mut pose: ResMut<PlacementPose>| *pose = PlacementPose::default(),
+    );
 
     // NOTE: a stale rebind must not survive a scene change, so clear it on
     // every state entry (like SectionChoice).

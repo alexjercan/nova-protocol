@@ -637,8 +637,13 @@ pub(crate) fn on_gallery_action(
 
     match action {
         GalleryAction::Open => {
-            state.open = true;
+            // A fresh browse starts unfiltered. A filter left over from the last
+            // visit would open the gallery on a near-empty grid with no obvious
+            // cause, since the field is the only thing that says why.
+            state.filter.clear();
+            state.selected = 0;
             state.focused = false;
+            state.open = true;
         }
         GalleryAction::Close => {
             state.open = false;

@@ -18,7 +18,7 @@ use nova_ui::{
 };
 
 use crate::{
-    config::SectionChoice,
+    config::{PlacementStatus, SectionChoice},
     gallery::{EditorCamera, EditorChrome, GalleryAction},
     placement::{
         continue_to_simulation, create_new_spaceship, create_new_spaceship_with_controller,
@@ -197,6 +197,51 @@ pub(crate) fn setup_editor_scene(
                     observe(continue_to_simulation),
                 ));
             });
+
+            // The placement verdict, along the bottom rather than in the rail:
+            // it is about the part under the pointer, so it belongs where the
+            // builder is looking. Hidden until there is a placement to report.
+            // A full-width row rather than an offset chip: the chip's width
+            // follows its text, so centring is the row's job.
+            root.spawn((
+                Name::new("Placement Status Row"),
+                Node {
+                    position_type: PositionType::Absolute,
+                    bottom: px(28),
+                    left: px(0),
+                    width: percent(100),
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                GlobalZIndex(10),
+                Pickable {
+                    should_block_lower: false,
+                    is_hoverable: false,
+                },
+                children![(
+                    Name::new("Placement Status"),
+                    PlacementStatus,
+                    Visibility::Hidden,
+                    Pickable {
+                        should_block_lower: false,
+                        is_hoverable: false,
+                    },
+                    Node {
+                        padding: UiRect::axes(px(10), px(4)),
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        border_radius: BorderRadius::all(px(theme::RADIUS)),
+                        ..default()
+                    },
+                    BorderColor::all(theme::RED),
+                    BackgroundColor(theme::SPACE),
+                    Text::new(""),
+                    TextFont {
+                        font_size: FontSize::Px(13.0),
+                        ..default()
+                    },
+                    TextColor(theme::RED),
+                )],
+            ));
 
             root.spawn((
                 Name::new("Component Drawer"),

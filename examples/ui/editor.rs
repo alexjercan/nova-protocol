@@ -90,6 +90,9 @@ struct EditorProbe {
     sections: usize,
     /// Gallery tiles on screen, stamped before the filter beat narrows them.
     tiles: usize,
+    /// Mates the editor's assembled ship derives, to compare against the flown
+    /// ship's.
+    mates: usize,
 }
 
 /// The whole driven run.
@@ -373,6 +376,166 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "the part selected in the gallery must be the one a click builds"
             );
             info!("editor: placed the gallery's pick ({before} -> {now})");
+            stamp_sections(world);
+        })
+        .until(frames(1))
+        .add()
+        // Snapping: the roll is the one degree of freedom a mate leaves, so a
+        // rolled part must still mate. R turns the ghost a quarter turn about
+        // the mating axis before the click commits it.
+        .step("editor: roll the ghost a quarter turn")
+        .on_enter(press_key(KeyCode::KeyR))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release R")
+        .on_enter(release_key(KeyCode::KeyR))
+        .until(frames(SETTLE))
+        .add()
+        .click_the_ship("editor: place the rolled part")
+        .step("editor: the ship is one structure, with a rolled mate in it")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorProbe>().sections;
+            let now = count_sections(world);
+            assert_eq!(now, before + 1, "the rolled part was built");
+            assert!(
+                sections_with_a_rotation(world) > 0,
+                "R must leave a section rolled off its parent's frame"
+            );
+
+            // The claim snapping exists to make: what the editor built is a
+            // ship the RUNTIME derivation accepts - one connected structure,
+            // every mate unambiguous.
+            let mates = mate_graph(world).unwrap_or_else(|error| {
+                panic!("the assembled ship must derive one connected graph: {error}")
+            });
+            assert!(
+                mates >= now - 1,
+                "a connected ship of {now} sections needs at least {} mates, derived {mates}",
+                now - 1
+            );
+            info!("editor: {now} sections, {mates} mates, one connected structure");
+            world.resource_mut::<EditorProbe>().mates = mates;
+        })
+        .until(frames(1))
+        .add()
+        // The refusal path needs a socket that is taken but still POINTABLE, so
+        // the run mounts a small semantic module on a hull face: it fills that
+        // face's socket while covering only a corner of the face. (Those parts
+        // are in the palette at all because placement mates link points now.)
+        .arm_from_the_gallery("editor: arm a semantic turret module", "racer_turret_port")
+        .step("editor: aim at the face the camera can see")
+        .on_enter(|world: &mut World| {
+            let (centre, _) = aim_at_a_visible_face(world).expect("a section faces the camera");
+            move_cursor(centre)(world);
+            stamp_sections(world);
+        })
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: press on the free face")
+        .on_enter(press_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the module mounted on that face")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorProbe>().sections;
+            let now = count_sections(world);
+            assert_eq!(
+                now,
+                before + 1,
+                "a semantic part must be placeable - link-point snapping is what \
+                 unhid it"
+            );
+            info!("editor: mounted a semantic module ({before} -> {now})");
+        })
+        .until(frames(1))
+        .add()
+        .step("editor: aim at the same socket, now occupied")
+        .on_enter(|world: &mut World| {
+            let (_, off_centre) = aim_at_a_visible_face(world).expect("the same face is up");
+            move_cursor(off_centre)(world);
+        })
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the occupied socket says so")
+        .on_enter(|world: &mut World| {
+            let status = subtree_text(world, "Placement Status");
+            info!("editor: placement status reads {status:?}");
+            assert!(
+                status.iter().any(|line| line.contains("occupied")),
+                "an occupied socket must be refused in words; the status read {status:?}"
+            );
+            stamp_sections(world);
+        })
+        .until(frames(1))
+        .add()
+        .step("editor: press on the occupied socket")
+        .on_enter(press_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the refused click built nothing")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorProbe>().sections;
+            let now = count_sections(world);
+            assert_eq!(
+                now, before,
+                "a refused placement must not build; the same gesture built a \
+                 section a moment ago"
+            );
+            info!("editor: the occupied socket refused the click ({now} sections)");
+
+            // The graph as BUILT, semantic module included - what the flown
+            // ship has to re-derive from the flat saved poses.
+            let mates = mate_graph(world).unwrap_or_else(|error| {
+                panic!("the assembled ship must derive one connected graph: {error}")
+            });
+            info!("editor: the finished ship derives {mates} mates over {now} sections");
+            world.resource_mut::<EditorProbe>().mates = mates;
+        })
+        .until(frames(1))
+        .add()
+        // The refusal figure: the ghost at the pose a click would build, its
+        // bounds box red, and the reason under the ship.
+        .step("editor: shoot the refused placement")
+        .on_enter(|world: &mut World| {
+            let (_, off_centre) = aim_at_a_visible_face(world).expect("the same face is up");
+            move_cursor(off_centre)(world);
+            shoot(world, "editor-placement-refused.png");
+        })
+        .until(shot_written("editor-placement-refused.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        // Play: the ship the editor assembled becomes the ship that flies, and
+        // the runtime derives the SAME graph from the flat saved poses.
+        .step("editor: press Play")
+        .on_enter(click_named("Play Button"))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release Play")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(player_ship_present())
+        .deadline(60.0)
+        .add()
+        .step("editor: let the scenario settle")
+        .until(frames(SHIP_SETTLE))
+        .add()
+        .step("editor: the flown ship derives the same mate graph")
+        .on_enter(|world: &mut World| {
+            let built = world.resource::<EditorProbe>().mates;
+            let flown = mate_graph(world)
+                .unwrap_or_else(|error| panic!("the spawned ship must derive a graph: {error}"));
+            assert_eq!(
+                flown, built,
+                "the flown ship must re-derive the mate graph the editor built"
+            );
+            info!("editor: the flown ship carries the same {flown} mates");
         })
         .until(frames(1))
         .add()
@@ -381,6 +544,102 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
 /// Name prefix every gallery tile carries; the part's display name follows it.
 #[cfg(feature = "debug")]
 const GALLERY_TILE: &str = "Gallery Tile ";
+
+/// Every section on screen, as the pure link-point derivation takes them.
+///
+/// Works on the editor's preview ship and on the flown one alike: both are a
+/// root plus section children carrying local poses and authored sockets, which
+/// is all the derivation reads.
+#[cfg(feature = "debug")]
+fn placed_sections(world: &mut World) -> Vec<(Transform, SectionLinkPoints)> {
+    world
+        .query_filtered::<(&Transform, &SectionLinkPoints), With<SectionMarker>>()
+        .iter(world)
+        .map(|(transform, points)| (*transform, points.clone()))
+        .collect()
+}
+
+/// How many mates the runtime derivation finds over the sections on screen, or
+/// the errors that rejected the whole ship.
+#[cfg(feature = "debug")]
+fn mate_graph(world: &mut World) -> Result<usize, String> {
+    let sections = placed_sections(world);
+    let placed: Vec<PlacedSectionLinkPoints> = sections
+        .iter()
+        .map(|(transform, points)| PlacedSectionLinkPoints {
+            position: transform.translation,
+            rotation: transform.rotation,
+            link_points: points,
+        })
+        .collect();
+    derive_link_point_graph(&placed)
+        .map(|mates| mates.len())
+        .map_err(|errors| format!("{errors:?}"))
+}
+
+/// Sections whose pose is rolled off their parent's frame - what the R key
+/// leaves behind.
+#[cfg(feature = "debug")]
+fn sections_with_a_rotation(world: &mut World) -> usize {
+    placed_sections(world)
+        .iter()
+        .filter(|(transform, _)| transform.rotation.angle_between(Quat::IDENTITY) > 1e-3)
+        .count()
+}
+
+/// The camera-facing socket of the section nearest the camera, as two viewport
+/// aims: its centre, and a point on the same face 0.35 off centre.
+///
+/// Both land on the SAME socket - the editor mates the socket nearest the
+/// pointer's hit, and on a unit face nothing else is within 0.35 - which is
+/// what lets one beat fill that socket and the next meet the refusal, without
+/// the second aim being swallowed by the part the first one mounted.
+#[cfg(feature = "debug")]
+fn aim_at_a_visible_face(world: &mut World) -> Option<(Vec2, Vec2)> {
+    let camera_entity = world
+        .query_filtered::<Entity, With<Camera3d>>()
+        .iter(world)
+        .next()?;
+    let camera = world.get::<Camera>(camera_entity)?.clone();
+    let camera_transform = *world.get::<GlobalTransform>(camera_entity)?;
+    let eye = camera_transform.translation();
+
+    // The unit-cube hull sections are the ship's body; a mounted module is
+    // smaller than a face and must not become the target itself.
+    let sections = placed_sections(world);
+    let (transform, points) = sections
+        .iter()
+        .filter(|(_, points)| points.len() >= 6)
+        .min_by(|(a, _), (b, _)| {
+            a.translation
+                .distance_squared(eye)
+                .partial_cmp(&b.translation.distance_squared(eye))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })?;
+
+    let (position, normal) = points
+        .iter()
+        .map(|point| {
+            (
+                transform.translation + transform.rotation * point.position,
+                (transform.rotation * point.normal).normalize(),
+            )
+        })
+        .max_by(|(_, a), (_, b)| {
+            let facing = |normal: &Vec3| normal.dot((eye - transform.translation).normalize());
+            facing(a)
+                .partial_cmp(&facing(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })?;
+
+    let tangent = normal.cross(Vec3::Y).try_normalize().unwrap_or(Vec3::X);
+    Some((
+        camera.world_to_viewport(&camera_transform, position).ok()?,
+        camera
+            .world_to_viewport(&camera_transform, position + tangent * 0.35)
+            .ok()?,
+    ))
+}
 
 /// The text the filter beat types: the first word of the hull's display name,
 /// lowercased, so the run proves the filter is case-insensitive as well as
@@ -494,6 +753,59 @@ fn aim_at_a_section(world: &mut World) -> Option<Vec2> {
 #[cfg(feature = "debug")]
 trait ClickTheShip {
     fn click_the_ship(self, label: &str) -> Self;
+}
+
+/// Arm a prototype through the gallery, by keyboard: open it, type enough of
+/// the catalog id to leave one tile, Enter to focus it, Enter to place.
+///
+/// The keyboard path rather than clicking a tile by name: the semantic parts
+/// are named for their ROLE (three craft each carry a "Turret Port"), so a name
+/// is not a unique target where a catalog id is.
+#[cfg(feature = "debug")]
+trait ArmFromTheGallery {
+    fn arm_from_the_gallery(self, label: &str, prototype: &str) -> Self;
+}
+
+#[cfg(feature = "debug")]
+impl ArmFromTheGallery for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    fn arm_from_the_gallery(self, label: &str, prototype: &str) -> Self {
+        let filter = prototype.to_string();
+        let mut script = self
+            .step(format!("{label}: open the gallery"))
+            .on_enter(click_named("Parts Gallery Category"))
+            .until(frames(SETTLE))
+            .add()
+            .step(format!("{label}: release"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(frames(SETTLE))
+            .add()
+            .step(format!("{label}: filter to `{prototype}`"))
+            .on_enter(move |world: &mut World| type_text(filter.clone())(world))
+            .until(frames(SETTLE))
+            .add();
+        // Enter focuses the selected tile; Enter again places it and closes.
+        for beat in ["focus", "place"] {
+            script = script
+                .step(format!("{label}: press Enter to {beat}"))
+                .on_enter(press_key(KeyCode::Enter))
+                .until(frames(SETTLE))
+                .add()
+                .step(format!("{label}: release Enter"))
+                .on_enter(release_key(KeyCode::Enter))
+                .until(frames(SETTLE))
+                .add();
+        }
+        script
+            .step(format!("{label}: the gallery closed"))
+            .on_enter(|world: &mut World| {
+                assert!(
+                    ui_node_rect(world, "Parts Gallery").is_none(),
+                    "placing from the gallery must close it"
+                );
+            })
+            .until(frames(SETTLE))
+            .add()
+    }
 }
 
 #[cfg(feature = "debug")]

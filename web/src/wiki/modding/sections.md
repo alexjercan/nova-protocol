@@ -107,6 +107,15 @@ Rules:
 
 Error-level graph findings prevent the scenario from starting.
 
+Link points are also how a part is PLACED. The editor mates the socket nearest
+the pointer with one of the placed part's own, so a prototype with no sockets
+can be spawned by a ship but never built by hand, and a part with a single
+socket only attaches that way round. The builder chooses which of the part's
+sockets does the mating and how far it is rolled about the mating axis;
+everything else follows from the pair. A placement is refused - and says why -
+when the target socket is already mated, when it would leave a socket with two
+suitors, or when the part would sit inside a section it does not mate with.
+
 ### Assets and visual transforms
 
 Asset fields use namespaced strings:

@@ -343,6 +343,122 @@ def segment_per_object(triangles):
 
 
 # ---------------------------------------------------------------------------
+# Link-point candidates
+#
+# Structural adjacency in the game comes ONLY from authored link points, and a
+# recipe already knows where the seams are: two parts cut at the same plane
+# meet across it. So the cutter proposes the obvious sockets - one per shared
+# face, at its centre, normals opposed - and leaves the judgement to whoever
+# promotes the part. These are CANDIDATES: shipped gameplay sockets stay
+# hand-authored in Rust, and a recipe part can replace its own list outright.
+# ---------------------------------------------------------------------------
+
+# How close two part bounds must sit to count as meeting at a seam. The recipes
+# deliberately cut ~0.01 outside their natural seams (so coplanar skin stays
+# with one part), so the tolerance has to cover that offset.
+LINK_TOUCH_TOLERANCE = 0.05
+# The smallest shared face worth a socket: below this the parts touch along an
+# edge, and an edge is not a structural interface.
+LINK_MIN_FACE = 1e-3
+
+
+def link_point_candidates(boxes, tolerance=LINK_TOUCH_TOLERANCE):
+    """Propose one socket per shared face, keyed by part name.
+
+    `boxes` is `[(name, origin, lo, hi)]` with `lo`/`hi` LOCAL to each part's
+    origin, exactly as the manifest records them. Positions come back local
+    too, and each normal points out of its part toward the neighbour - the
+    frame a `LinkPoint` is authored in.
+
+    Two parts share a face when their bounds meet within `tolerance` on one
+    axis and overlap on the other two; the socket sits at the centre of that
+    overlap. Parts that only touch along an edge or at a corner get nothing.
+    """
+    sockets = {name: [] for name, _, _, _ in boxes}
+    world = [
+        (
+            name,
+            origin,
+            tuple(origin[k] + lo[k] for k in range(3)),
+            tuple(origin[k] + hi[k] for k in range(3)),
+        )
+        for name, origin, lo, hi in boxes
+    ]
+
+    for i in range(len(world)):
+        for j in range(i + 1, len(world)):
+            a_name, a_origin, a_lo, a_hi = world[i]
+            b_name, b_origin, b_lo, b_hi = world[j]
+            for axis in range(3):
+                if abs(a_hi[axis] - b_lo[axis]) <= tolerance:
+                    seam, direction = (a_hi[axis] + b_lo[axis]) * 0.5, 1.0
+                elif abs(b_hi[axis] - a_lo[axis]) <= tolerance:
+                    seam, direction = (a_lo[axis] + b_hi[axis]) * 0.5, -1.0
+                else:
+                    continue
+
+                centre = [0.0, 0.0, 0.0]
+                shared = True
+                for other in range(3):
+                    if other == axis:
+                        centre[other] = seam
+                        continue
+                    low = max(a_lo[other], b_lo[other])
+                    high = min(a_hi[other], b_hi[other])
+                    if high - low <= LINK_MIN_FACE:
+                        shared = False
+                        break
+                    centre[other] = (low + high) * 0.5
+                if not shared:
+                    continue
+
+                normal = [0.0, 0.0, 0.0]
+                normal[axis] = direction
+                sockets[a_name].append(
+                    {
+                        "id": "to_" + b_name,
+                        "position": [centre[k] - a_origin[k] for k in range(3)],
+                        "normal": list(normal),
+                    }
+                )
+                sockets[b_name].append(
+                    {
+                        "id": "to_" + a_name,
+                        "position": [centre[k] - b_origin[k] for k in range(3)],
+                        "normal": [-c for c in normal],
+                    }
+                )
+                # One seam per pair: a second axis would be an edge contact,
+                # which the overlap test above already rejects.
+                break
+
+    return sockets
+
+
+def recipe_link_points(rule, origin):
+    """A part rule's EXPLICIT sockets in part-local space, or `None`.
+
+    Authored in ship space like every other recipe coordinate, so a rule's
+    sockets and its `box` read in the same numbers. An explicit list REPLACES
+    the generated candidates for that part: the generator proposes, the recipe
+    decides.
+    """
+    if not rule or "link_points" not in rule:
+        return None
+    points = []
+    for index, point in enumerate(rule["link_points"]):
+        position = point["position"]
+        points.append(
+            {
+                "id": point.get("id", "socket_%d" % index),
+                "position": [position[k] - origin[k] for k in range(3)],
+                "normal": list(point["normal"]),
+            }
+        )
+    return points
+
+
+# ---------------------------------------------------------------------------
 # Cap the cut cross-sections
 #
 # The cutter KNOWS every plane it clipped at (the finite recipe box bounds),
@@ -1086,6 +1202,7 @@ def run(args):
     }
     cap_notes = {}
     watertight = {}
+    part_rules = {}
     for name, rule, tris in parts:
         origin = part_anchor(tris, rule)
         local = [recentre(t, origin) for t in tris]
@@ -1128,6 +1245,28 @@ def run(args):
                 # decision; the bbox is always available from here.
                 "collider_cuboid_size": [hi[k] - lo[k] for k in range(3)],
             }
+        )
+        part_rules[name] = rule
+
+    # Structural socket candidates, once every part's bounds are known: a seam
+    # is a relation between two parts, not a property of one.
+    boxes = [
+        (
+            entry["name"],
+            entry["origin"],
+            entry["bbox"]["min"],
+            entry["bbox"]["max"],
+        )
+        for entry in manifest["parts"]
+    ]
+    generated = link_point_candidates(boxes)
+    overridden = []
+    for entry in manifest["parts"]:
+        explicit = recipe_link_points(part_rules.get(entry["name"]), entry["origin"])
+        if explicit is not None:
+            overridden.append(entry["name"])
+        entry["link_points"] = (
+            explicit if explicit is not None else generated[entry["name"]]
         )
 
     manifest_path = os.path.join(args.out, "manifest.json")
@@ -1185,6 +1324,14 @@ def run(args):
         )
         for note in cap_notes.get(entry["name"], ()):
             print("       note: %s" % note)
+    total_sockets = sum(len(entry["link_points"]) for entry in manifest["parts"])
+    print(
+        "link points:    %d candidate socket(s)%s"
+        % (
+            total_sockets,
+            "" if not overridden else " (%s authored by the recipe)" % ", ".join(overridden),
+        )
+    )
     print("manifest:       %s (%d parts)" % (manifest_path, len(manifest["parts"])))
     return 0 if ok else 1
 
@@ -1252,6 +1399,60 @@ def self_test():
     # Unclaimed triangles land in the rest part.
     parts = segment(quad, {"parts": [{"name": "left", "box": [[None, None, None], [0.5, None, None]]}], "rest": "body"})
     assert [name for name, _, _ in parts] == ["left", "body"]
+
+    # --- link-point candidates ---
+
+    # Two boxes meeting at x=1: one socket each, at the centre of the shared
+    # face, normals opposed, positions LOCAL to each part's origin.
+    boxes = [
+        ("nose", (0.0, 0.0, 0.0), (0.0, -0.5, -0.5), (1.0, 0.5, 0.5)),
+        ("body", (2.0, 0.0, 0.0), (-1.0, -0.5, -0.5), (0.0, 0.5, 0.5)),
+    ]
+    sockets = link_point_candidates(boxes)
+    assert [p["id"] for p in sockets["nose"]] == ["to_body"], sockets
+    assert [p["id"] for p in sockets["body"]] == ["to_nose"], sockets
+    assert sockets["nose"][0]["position"] == [1.0, 0.0, 0.0], sockets["nose"]
+    assert sockets["nose"][0]["normal"] == [1.0, 0.0, 0.0], sockets["nose"]
+    # Same world point from the other part's origin, facing back.
+    assert sockets["body"][0]["position"] == [-1.0, 0.0, 0.0], sockets["body"]
+    assert sockets["body"][0]["normal"] == [-1.0, 0.0, 0.0], sockets["body"]
+
+    # A 0.01 recipe offset outside the natural seam still counts as touching -
+    # every shipped recipe cuts that way on purpose.
+    offset = [
+        ("nose", (0.0, 0.0, 0.0), (0.0, -0.5, -0.5), (0.99, 0.5, 0.5)),
+        ("body", (2.0, 0.0, 0.0), (-1.0, -0.5, -0.5), (0.0, 0.5, 0.5)),
+    ]
+    assert len(link_point_candidates(offset)["nose"]) == 1
+
+    # Parts that only meet along an EDGE share no face: a structural mate is a
+    # surface. (These two touch at x=1 but their y ranges only meet at y=0.5.)
+    edge = [
+        ("a", (0.0, 0.0, 0.0), (0.0, -0.5, -0.5), (1.0, 0.5, 0.5)),
+        ("b", (2.0, 1.0, 0.0), (-1.0, -0.5, -0.5), (0.0, 0.5, 0.5)),
+    ]
+    assert link_point_candidates(edge) == {"a": [], "b": []}, link_point_candidates(edge)
+
+    # Parts that are simply apart get nothing either.
+    apart = [
+        ("a", (0.0, 0.0, 0.0), (0.0, -0.5, -0.5), (1.0, 0.5, 0.5)),
+        ("b", (5.0, 0.0, 0.0), (-1.0, -0.5, -0.5), (0.0, 0.5, 0.5)),
+    ]
+    assert link_point_candidates(apart) == {"a": [], "b": []}
+
+    # An explicit recipe list is authored in SHIP space and comes back local.
+    rule = {
+        "name": "nose",
+        "link_points": [{"id": "dock", "position": [1.0, 0.25, 0.0], "normal": [1, 0, 0]}],
+    }
+    explicit = recipe_link_points(rule, (0.0, 0.0, 0.0))
+    assert explicit == [
+        {"id": "dock", "position": [1.0, 0.25, 0.0], "normal": [1, 0, 0]}
+    ], explicit
+    assert recipe_link_points(rule, (1.0, 0.0, 0.0))[0]["position"] == [0.0, 0.25, 0.0]
+    # A rule with no list defers to the generator.
+    assert recipe_link_points({"name": "nose"}, (0.0, 0.0, 0.0)) is None
+    assert recipe_link_points(None, (0.0, 0.0, 0.0)) is None
 
     # --- capping ---
 
