@@ -13,7 +13,8 @@ use super::link_points::prelude::*;
 /// Ship graph publication, disabled-section behavior, and aggregate health.
 pub mod prelude {
     pub use super::{
-        ShipIntegrityPlugin, StructuralCollapseThreshold, DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD,
+        ShipIntegrityPlugin, StructuralCollapseMarker, StructuralCollapseThreshold,
+        DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD,
     };
 }
 
@@ -51,6 +52,19 @@ impl StructuralCollapseThreshold {
     }
 }
 
+/// Marks a ship root that has fallen below its [`StructuralCollapseThreshold`]
+/// and is now tearing itself apart - see [`cascade_structural_collapse`].
+///
+/// Latched: a wreck does not recover, and latching is also what keeps the
+/// per-frame collapse test from re-marking the same root forever.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[reflect(Component)]
+pub struct StructuralCollapseMarker {
+    /// Sections still standing at the previous cascade tick, `None` before the
+    /// first one. The cascade's progress signal - see the no-progress override.
+    standing: Option<usize>,
+}
+
 /// Adapts section-based ships to the generic gameplay integrity pipeline.
 pub struct ShipIntegrityPlugin;
 
@@ -61,9 +75,17 @@ impl Plugin for ShipIntegrityPlugin {
         app.register_type::<LinkPoint>();
         app.register_type::<SectionLinkPoints>();
         app.register_type::<StructuralCollapseThreshold>();
+        app.register_type::<StructuralCollapseMarker>();
         app.add_observer(on_section_disable);
         app.add_systems(Update, build_ship_integrity_graph.before(IntegritySystems));
-        app.add_systems(Update, aggregate_ship_health.in_set(IntegritySystems));
+        // Chained: the cascade reads the collapse marker the aggregate writes,
+        // and the ordering edge is what gets the marker applied in between.
+        app.add_systems(
+            Update,
+            (aggregate_ship_health, cascade_structural_collapse)
+                .chain()
+                .in_set(IntegritySystems),
+        );
     }
 }
 
@@ -218,20 +240,23 @@ fn aggregate_ship_health(
             Option<&Health>,
             Option<&Children>,
             Has<HealthZeroMarker>,
+            Has<StructuralCollapseMarker>,
             Option<&StructuralCollapseThreshold>,
         ),
         (With<IntegrityRoot>, With<SpaceshipRootMarker>),
     >,
     q_section_health: Query<&Health, (With<SectionMarker>, Without<IntegrityRoot>)>,
 ) {
-    for (root, root_health, children, already_zero, threshold) in &q_root {
+    for (root, root_health, children, already_zero, already_collapsing, threshold) in &q_root {
         let mut current = 0.0;
         let mut living_max = 0.0;
+        let mut standing = 0usize;
         if let Some(children) = children {
             for child in children.iter() {
                 if let Ok(health) = q_section_health.get(child) {
                     current += health.current;
                     living_max += health.max;
+                    standing += 1;
                 }
             }
         }
@@ -240,27 +265,46 @@ fn aggregate_ship_health(
         let max = pinned_max.max(living_max);
 
         // Structural collapse. Below its threshold of the hull it was built
-        // with, a ship is wreckage: mark the root and let the ordinary disable
-        // -> destroy chain take it, so there is exactly one destruction path.
+        // with, a ship is wreckage - but the ROOT is not what dies of it.
+        // Collapse hands the ship to `cascade_structural_collapse`, which
+        // disables what is still standing so the ordinary disable -> destroy
+        // chain peels it apart section by section; every one of them bursts
+        // its debris on the way out instead of being despawned silently with
+        // the root. Sections leaving the sum is what then walks `current` down
+        // to zero, and zero is where the root dies - one frame at a time, but
+        // still through exactly one destruction path.
         //
-        // At threshold 0 this is the old structural-death backstop (the 0-HP
-        // ghost), whose reasoning still holds: `HealthZeroMarker` otherwise
-        // only ever comes from the damage path (nova's `on_damage`), so a ship
-        // that loses its last section WITHOUT a final bubble reaching the root
-        // (a direct destroy, a detach, any future scripted removal) would sit
-        // here forever as an unmarked 0-HP hull. The recompute is the one place
-        // that always sees how much structure is left, so it owns the rule.
+        // With nothing structural left the root is marked directly, which is
+        // both the last hop of a collapse and the old structural-death backstop
+        // (the 0-HP ghost) in its own right: `HealthZeroMarker` otherwise only
+        // ever comes from the damage path (nova's `on_damage`), so a ship that
+        // loses its last section WITHOUT a final bubble reaching the root (a
+        // direct destroy, a detach, any future scripted removal) would sit here
+        // forever as an unmarked 0-HP hull. The recompute is the one place that
+        // always sees how much structure is left, so it owns the rule.
         //
         // The `pinned_max > 0` guard means "this root has HAD sections", and it
         // reads the PREVIOUS frame's write on purpose - a mid-spawn root whose
         // sections have not landed yet is not executed at birth.
         let fraction = threshold.copied().unwrap_or_default().0;
-        if !already_zero && pinned_max > 0.0 && current <= max * fraction {
-            debug!(
-                "aggregate_ship_health: root {root:?} collapsed structurally \
-                 ({current} of {max}, threshold {fraction}); marking it destroyed"
-            );
-            commands.entity(root).try_insert(HealthZeroMarker);
+        if pinned_max > 0.0 && current <= max * fraction {
+            if standing == 0 {
+                if !already_zero {
+                    debug!(
+                        "aggregate_ship_health: root {root:?} has no structure left \
+                         ({current} of {max}, threshold {fraction}); marking it destroyed"
+                    );
+                    commands.entity(root).try_insert(HealthZeroMarker);
+                }
+            } else if !already_collapsing {
+                debug!(
+                    "aggregate_ship_health: root {root:?} collapsed structurally \
+                     ({current} of {max}, threshold {fraction}); peeling {standing} sections"
+                );
+                commands
+                    .entity(root)
+                    .try_insert(StructuralCollapseMarker::default());
+            }
         }
 
         let changed = match root_health {
@@ -276,15 +320,101 @@ fn aggregate_ship_health(
     }
 }
 
+/// Peel a collapsing ship apart from its extremities inward.
+///
+/// Every section still standing is disabled, and the generic core's existing
+/// chain does the rest: a disabled LEAF is destroyed (which bursts its debris),
+/// the prune turns its neighbours into leaves, and they follow on the next
+/// frames. The ship comes apart over several frames instead of vanishing, and
+/// each section dies through [`IntegrityDestroyMarker`] rather than being
+/// despawned silently along with its root.
+///
+/// THE NO-PROGRESS OVERRIDE, which is not optional. Disabling a section does
+/// not zero its health - only DESTRUCTION takes a section out of the root's
+/// sum - so a shape with no leaves never drains. Four hulls mated in a ring
+/// each keep two neighbours, none ever becomes a leaf, nothing is destroyed,
+/// `current` never falls and the root never dies: an immortal disabled hulk,
+/// the 0-HP ghost in a new costume. So the leaf rule is treated as what it is,
+/// a preference for the ORDER a wreck comes apart in and not a correctness
+/// requirement. A tick that disables nothing new AND does not see the standing
+/// count fall is a stall, and the most leaf-like survivor is then destroyed
+/// whatever its neighbours. Breaking one node out of a ring leaves a chain, so
+/// the ordinary cascade takes over again and the peel is kept everywhere it is
+/// possible. Do not simplify this into "destroy the leaves".
+///
+/// Progress is measured as the standing count FALLING rather than against a
+/// frame budget, because the cascade's own gaps are irregular (a prune lands
+/// one frame, the leaf derivation reads it the next) while a count that fell is
+/// direct evidence that a section died. Sections already carrying
+/// [`IntegrityDestroyMarker`] are left out of the count, so a destruction whose
+/// despawn has not landed yet still reads as progress.
+fn cascade_structural_collapse(
+    mut commands: Commands,
+    mut q_collapsing: Query<(&Children, &mut StructuralCollapseMarker)>,
+    q_standing: Query<
+        (Entity, Option<&ConnectedTo>, Has<IntegrityDisabledMarker>),
+        (With<SectionMarker>, Without<IntegrityDestroyMarker>),
+    >,
+) {
+    for (children, mut collapse) in &mut q_collapsing {
+        let mut standing: Vec<_> = children
+            .iter()
+            .filter_map(|child| q_standing.get(child).ok())
+            .collect();
+        if standing.is_empty() {
+            // Nothing left to peel; `aggregate_ship_health` takes the root.
+            continue;
+        }
+
+        // The collapse test stays true for every frame of the cascade, so only
+        // sections that are not disabled yet are touched.
+        let mut disabled_any = false;
+        for &(section, _, disabled) in &standing {
+            if !disabled {
+                commands.entity(section).try_insert(IntegrityDisabledMarker);
+                disabled_any = true;
+            }
+        }
+
+        let stalled = !disabled_any
+            && collapse
+                .standing
+                .is_some_and(|previous| standing.len() >= previous);
+        if collapse.standing != Some(standing.len()) {
+            collapse.standing = Some(standing.len());
+        }
+        if !stalled {
+            continue;
+        }
+
+        // Fewest neighbours first, so the forced kill still starts at the
+        // closest thing this shape has to an extremity. Entity order only
+        // breaks ties, and only so the peel is reproducible.
+        standing.sort_by_key(|(section, connected, _)| {
+            (
+                connected.map_or(0, |connected| connected.len()),
+                section.to_bits(),
+            )
+        });
+        let (section, ..) = standing[0];
+        debug!("cascade_structural_collapse: no leaf to peel, forcing {section:?} apart");
+        commands.entity(section).try_insert(IntegrityDestroyMarker);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// An aggregate-only app: the recompute with no destruction chain behind
-    /// it, so a collapsed root keeps its marker instead of despawning.
+    /// An aggregate-only app: the recompute and the cascade with no
+    /// destruction chain behind them, so markers land and stay put instead of
+    /// despawning anything. The end-to-end shape is in `ghost_ship_tests`.
     fn aggregate_app() -> App {
         let mut app = App::new();
-        app.add_systems(Update, aggregate_ship_health);
+        app.add_systems(
+            Update,
+            (aggregate_ship_health, cascade_structural_collapse).chain(),
+        );
         app
     }
 
@@ -318,8 +448,25 @@ mod tests {
         (root, children)
     }
 
-    fn collapsed(app: &App, root: Entity) -> bool {
+    /// The ship has begun to come apart (its sections are being peeled).
+    fn collapsing(app: &App, root: Entity) -> bool {
+        app.world().get::<StructuralCollapseMarker>(root).is_some()
+    }
+
+    /// The ROOT itself is marked for death - the last hop, once nothing
+    /// structural is left.
+    fn root_marked_dead(app: &App, root: Entity) -> bool {
         app.world().get::<HealthZeroMarker>(root).is_some()
+    }
+
+    fn disabled(app: &App, section: Entity) -> bool {
+        app.world()
+            .get::<IntegrityDisabledMarker>(section)
+            .is_some()
+    }
+
+    fn destroying(app: &App, section: Entity) -> bool {
+        app.world().get::<IntegrityDestroyMarker>(section).is_some()
     }
 
     fn root_health(app: &App, root: Entity) -> (f32, f32) {
@@ -369,19 +516,28 @@ mod tests {
     }
 
     /// Structural collapse: 100 hp of a pinned 1000 is under the authored
-    /// quarter, so the root is marked and the ordinary disable -> destroy chain
-    /// takes it.
+    /// quarter, so the ship starts coming apart - the surviving section is
+    /// disabled and handed to the ordinary disable -> destroy chain. The ROOT
+    /// outlives it and dies only once nothing structural is left.
     #[test]
-    fn a_ship_below_its_collapse_threshold_is_marked_for_destruction() {
+    fn a_ship_below_its_collapse_threshold_starts_coming_apart() {
         let mut app = aggregate_app();
         let (root, sections) = spawn_ship(&mut app, Some(0.25), &[(100.0, 100.0), (900.0, 900.0)]);
         app.update();
-        assert!(!collapsed(&app, root), "a fresh ship is not a wreck");
+        assert!(!collapsing(&app, root), "a fresh ship is not a wreck");
 
         app.world_mut().entity_mut(sections[1]).despawn();
         app.update();
 
-        assert!(collapsed(&app, root));
+        assert!(collapsing(&app, root));
+        assert!(
+            disabled(&app, sections[0]),
+            "the survivor is disabled, not despawned with the root"
+        );
+        assert!(
+            !root_marked_dead(&app, root),
+            "the root waits for its sections to go first"
+        );
         assert_eq!(root_health(&app, root), (100.0, 1000.0));
     }
 
@@ -395,7 +551,8 @@ mod tests {
         app.world_mut().entity_mut(sections[1]).despawn();
         app.update();
 
-        assert!(!collapsed(&app, root), "300 of 1000 is above a quarter");
+        assert!(!collapsing(&app, root), "300 of 1000 is above a quarter");
+        assert!(!disabled(&app, sections[0]));
     }
 
     /// A root with no threshold component collapses at the engine default, so
@@ -413,7 +570,7 @@ mod tests {
             DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD > 0.1,
             "the default must be above the 10 percent this ship is left with"
         );
-        assert!(collapsed(&app, root));
+        assert!(collapsing(&app, root));
     }
 
     /// Threshold 0 is the old structural-death backstop, unchanged: a ship
@@ -425,12 +582,101 @@ mod tests {
         let mut app = aggregate_app();
         let (root, sections) = spawn_ship(&mut app, Some(0.0), &[(40.0, 40.0)]);
         app.update();
-        assert!(!collapsed(&app, root));
+        assert!(!root_marked_dead(&app, root));
 
         app.world_mut().entity_mut(sections[0]).despawn();
         app.update();
 
-        assert!(collapsed(&app, root));
+        assert!(root_marked_dead(&app, root));
+    }
+
+    /// The collapse test is true on every frame of the cascade, so a section
+    /// that is already disabled must not be marked again - and the root must
+    /// not be re-marked either.
+    #[test]
+    fn a_collapsing_ship_is_not_re_marked_every_frame() {
+        let mut app = aggregate_app();
+        let (root, sections) = spawn_ship(&mut app, Some(0.25), &[(100.0, 100.0), (900.0, 900.0)]);
+        app.update();
+        app.world_mut().entity_mut(sections[1]).despawn();
+        app.update();
+        assert!(collapsing(&app, root));
+
+        // A detector for genuinely new inserts: `On<Add, T>` fires only for a
+        // component that was not there, so any count above zero from here is a
+        // re-mark.
+        #[derive(Resource, Default)]
+        struct Remarks(usize);
+        app.init_resource::<Remarks>();
+        app.add_observer(
+            |_: On<Add, IntegrityDisabledMarker>, mut remarks: ResMut<Remarks>| remarks.0 += 1,
+        );
+        app.add_observer(
+            |_: On<Add, StructuralCollapseMarker>, mut remarks: ResMut<Remarks>| remarks.0 += 1,
+        );
+
+        for _ in 0..5 {
+            app.update();
+        }
+
+        assert_eq!(app.world().resource::<Remarks>().0, 0);
+    }
+
+    /// THE HAZARD. A remnant with no leaves (a ring, or - as here - sections
+    /// whose graph never made any of them a leaf) would disable itself and
+    /// stop: disabling costs no health, so `current` never falls and the root
+    /// never dies. The no-progress override destroys anyway.
+    #[test]
+    fn a_collapse_with_no_leaf_to_peel_forces_a_section_apart() {
+        let mut app = aggregate_app();
+        let (root, sections) = spawn_ship(
+            &mut app,
+            Some(0.25),
+            &[(100.0, 100.0), (100.0, 100.0), (800.0, 800.0)],
+        );
+        // A triangle: every section keeps two neighbours, so nothing in it is
+        // ever a leaf and the ordinary chain has nothing to start on.
+        for (section, neighbors) in [
+            (sections[0], [sections[1], sections[2]]),
+            (sections[1], [sections[0], sections[2]]),
+            (sections[2], [sections[0], sections[1]]),
+        ] {
+            app.world_mut()
+                .entity_mut(section)
+                .insert(ConnectedTo(neighbors.to_vec()));
+        }
+        app.update();
+
+        // Under the threshold without losing a section: 200 of a pinned 1000,
+        // all three still standing and still mated to each other.
+        app.world_mut()
+            .entity_mut(sections[2])
+            .insert(Health::new(0.0));
+        app.update();
+        assert!(collapsing(&app, root));
+        assert!(
+            sections.iter().all(|section| !destroying(&app, *section)),
+            "the first tick only disables - the leaf rule gets its chance"
+        );
+
+        app.update();
+        assert_eq!(
+            sections
+                .iter()
+                .filter(|section| destroying(&app, **section))
+                .count(),
+            1,
+            "a stalled cascade forces ONE section apart, not the whole ring"
+        );
+
+        // ...and it keeps going until the ring is gone.
+        for _ in 0..6 {
+            app.update();
+        }
+        assert!(
+            sections.iter().all(|section| destroying(&app, *section)),
+            "the override drains a leafless shape completely"
+        );
     }
 
     /// The birth guard: a root whose sections have not landed yet has no
@@ -445,7 +691,10 @@ mod tests {
 
         app.update();
         app.update();
-        assert!(!collapsed(&app, root), "an unbuilt ship is not a wreck");
+        assert!(
+            !collapsing(&app, root) && !root_marked_dead(&app, root),
+            "an unbuilt ship is not a wreck"
+        );
 
         let section = app
             .world_mut()
@@ -455,7 +704,7 @@ mod tests {
         app.update();
 
         assert!(
-            !collapsed(&app, root),
+            !collapsing(&app, root) && !root_marked_dead(&app, root),
             "its sections landed late, not never"
         );
         assert_eq!(root_health(&app, root), (100.0, 100.0));
@@ -981,8 +1230,19 @@ mod ghost_ship_tests {
     use super::*;
 
     /// Records lifecycle events so unified defeat and physical destruction remain distinct.
+    ///
+    /// Only the ROOT of these rigs carries an `EntityId`/`EntityTypeName`, so
+    /// these counts are the SHIP's own events. Real scenario sections carry
+    /// ids too and fire an `ondestroyed` of their own as they come apart,
+    /// exactly as they already do when a ship is dismantled by gunfire.
     #[derive(Resource, Default)]
     struct FiredEvents(Vec<&'static str>);
+
+    /// Every entity that reached [`IntegrityDestroyMarker`], recorded at the
+    /// insert - the sections themselves are despawned in the same command
+    /// flush, so there is nothing left to inspect afterwards.
+    #[derive(Resource, Default)]
+    struct Destroyed(Vec<Entity>);
 
     fn ghost_app() -> App {
         let mut app = unfinished_integrity_physics_app();
@@ -992,25 +1252,46 @@ mod ghost_ship_tests {
         app.init_asset::<StandardMaterial>();
         app.add_plugins(EntropyPlugin::<WyRand>::default());
         app.init_resource::<FiredEvents>();
+        app.init_resource::<Destroyed>();
         app.add_observer(|event: On<GameEvent>, mut fired: ResMut<FiredEvents>| {
             fired.0.push(event.name());
         });
+        app.add_observer(
+            |add: On<Add, IntegrityDestroyMarker>, mut destroyed: ResMut<Destroyed>| {
+                destroyed.0.push(add.entity);
+            },
+        );
         app.finish();
         app
     }
 
-    fn destroy_events(app: &App) -> usize {
+    fn count_events(app: &App, name: &str) -> usize {
         app.world()
             .resource::<FiredEvents>()
             .0
             .iter()
-            .filter(|name| **name == "ondestroyed")
+            .filter(|fired| **fired == name)
             .count()
     }
 
-    fn spawn_ship(app: &mut App, section_count: usize) -> (Entity, Vec<Entity>) {
-        let root = app
-            .world_mut()
+    fn destroy_events(app: &App) -> usize {
+        count_events(app, "ondestroyed")
+    }
+
+    fn defeat_events(app: &App) -> usize {
+        count_events(app, "ondefeated")
+    }
+
+    fn was_destroyed(app: &App, entity: Entity) -> bool {
+        app.world().resource::<Destroyed>().0.contains(&entity)
+    }
+
+    fn destroyed_count(app: &App) -> usize {
+        app.world().resource::<Destroyed>().0.len()
+    }
+
+    fn spawn_root(app: &mut App) -> Entity {
+        app.world_mut()
             .spawn((
                 RigidBody::Dynamic,
                 Transform::default(),
@@ -1018,24 +1299,54 @@ mod ghost_ship_tests {
                 EntityId::new("rig_ship"),
                 EntityTypeName::new("spaceship"),
             ))
-            .id();
+            .id()
+    }
+
+    fn spawn_section_at(app: &mut App, root: Entity, at: Vec3) -> Entity {
+        app.world_mut()
+            .spawn((
+                ChildOf(root),
+                SectionMarker,
+                Transform::from_translation(at),
+                SectionLinkPoints(unit_cube_link_points()),
+                ConnectedTo::default(),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+                Health::new(100.0),
+            ))
+            .id()
+    }
+
+    fn spawn_ship(app: &mut App, section_count: usize) -> (Entity, Vec<Entity>) {
+        let root = spawn_root(app);
         let sections = (0..section_count)
-            .map(|i| {
-                app.world_mut()
-                    .spawn((
-                        ChildOf(root),
-                        SectionMarker,
-                        Transform::from_translation(Vec3::X * i as f32),
-                        SectionLinkPoints(unit_cube_link_points()),
-                        ConnectedTo::default(),
-                        Collider::cuboid(1.0, 1.0, 1.0),
-                        ColliderDensity(1.0),
-                        Health::new(100.0),
-                    ))
-                    .id()
-            })
+            .map(|i| spawn_section_at(app, root, Vec3::X * i as f32))
             .collect();
         settle(app);
+        (root, sections)
+    }
+
+    /// Four unit cubes mated in a square: every section keeps two neighbours,
+    /// so the graph has NO leaf and the ordinary disable -> destroy chain has
+    /// nothing to start on.
+    fn spawn_ring_ship(app: &mut App) -> (Entity, Vec<Entity>) {
+        let root = spawn_root(app);
+        let sections = [Vec3::ZERO, Vec3::X, Vec3::X + Vec3::Y, Vec3::Y]
+            .into_iter()
+            .map(|at| spawn_section_at(app, root, at))
+            .collect::<Vec<_>>();
+        settle(app);
+        for section in &sections {
+            assert_eq!(
+                app.world().get::<ConnectedTo>(*section).unwrap().len(),
+                2,
+                "delivery guard: the rig must really be a ring"
+            );
+            assert!(
+                app.world().get::<IntegrityLeafMarker>(*section).is_none(),
+                "delivery guard: a ring has no leaves"
+            );
+        }
         (root, sections)
     }
 
@@ -1144,6 +1455,10 @@ mod ghost_ship_tests {
     /// Structural collapse end to end: a ship down to a fifth of the hull it
     /// was built with dies with that last section still ALIVE, through the same
     /// disable -> destroy chain (one OnDestroyed, no second death path).
+    ///
+    /// The section still alive at the collapse is DESTROYED - it bursts its
+    /// debris like any other - rather than being despawned in silence with the
+    /// root, which is what it used to do.
     #[test]
     fn a_ship_below_its_collapse_threshold_dies_with_a_section_still_alive() {
         let mut app = ghost_app();
@@ -1170,7 +1485,196 @@ mod ghost_ship_tests {
             !app.world().entities().contains(sections[4]),
             "the last living section goes with the hull it hung from"
         );
+        assert!(
+            was_destroyed(&app, sections[4]),
+            "it is DESTROYED on the way out, not quietly despawned - that is \
+             what makes it burst"
+        );
         assert_eq!(destroy_events(&app), 1, "exactly one OnDestroyed");
+        assert_eq!(defeat_events(&app), 1, "exactly one OnDefeated");
+    }
+
+    /// The peel is progressive: a chain-shaped remnant comes apart from both
+    /// ends inward over several frames, not all at once in the collapse frame.
+    #[test]
+    fn a_collapsing_ship_peels_apart_over_several_frames() {
+        let mut app = ghost_app();
+        // Six sections in a line, each shot down to a quarter: 144 of a pinned
+        // 600 is under the default threshold with the whole chain still
+        // standing, so the remnant that collapses is the entire ship.
+        let (root, sections) = spawn_ship(&mut app, 6);
+        for section in &sections {
+            hit(&mut app, *section, 76.0);
+        }
+
+        let mut destroyed_per_frame = Vec::new();
+        let mut seen = destroyed_count(&app);
+        for _ in 0..12 {
+            app.update();
+            let total = destroyed_count(&app);
+            destroyed_per_frame.push(total - seen);
+            seen = total;
+        }
+
+        assert!(
+            !app.world().entities().contains(root),
+            "the peel has to finish the ship off"
+        );
+        for section in &sections {
+            assert!(was_destroyed(&app, *section), "every section bursts");
+        }
+        let peeling_frames = destroyed_per_frame
+            .iter()
+            .filter(|destroyed| **destroyed > 0)
+            .count();
+        assert!(
+            peeling_frames > 1,
+            "a chain must come apart over several frames, not vanish in one: \
+             {destroyed_per_frame:?}"
+        );
+        assert!(
+            destroyed_per_frame.iter().all(|destroyed| *destroyed < 6),
+            "no single frame may take the whole chain: {destroyed_per_frame:?}"
+        );
+    }
+
+    /// THE HAZARD, the control half. Disabling every section of a RING is not
+    /// enough on its own: nothing in it is ever a leaf, so the ordinary chain
+    /// destroys nothing, no section leaves the root's sum, and the ship would
+    /// hang there as an immortal disabled hulk. Same app, same rig as the test
+    /// below - the only difference is that this ship never crosses its
+    /// threshold, so the collapse cascade (and its no-progress override) never
+    /// runs on it.
+    #[test]
+    fn the_leaf_rule_alone_cannot_take_a_ring_apart() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ring_ship(&mut app);
+        for section in &sections {
+            app.world_mut()
+                .entity_mut(*section)
+                .insert(IntegrityDisabledMarker);
+        }
+
+        for _ in 0..20 {
+            app.update();
+        }
+
+        assert_eq!(
+            destroyed_count(&app),
+            0,
+            "with no leaf to start on, the chain reaction never starts"
+        );
+        for section in &sections {
+            assert!(
+                app.world().entities().contains(*section),
+                "every section of the ring is still standing"
+            );
+        }
+        assert!(
+            app.world().entities().contains(root),
+            "and the root outlives them all - the hulk the override exists for"
+        );
+    }
+
+    /// THE HAZARD, the real half: a ring-shaped remnant that DOES collapse is
+    /// drained completely by the no-progress override and still fires its
+    /// events exactly once.
+    #[test]
+    fn a_ring_shaped_remnant_still_collapses_completely() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ring_ship(&mut app);
+        // 96 of a pinned 400 with all four sections alive and still mated.
+        for section in &sections {
+            hit(&mut app, *section, 76.0);
+        }
+
+        assert!(
+            root_dead(&mut app, root, 20),
+            "a leafless wreck must still die"
+        );
+        for section in &sections {
+            assert!(
+                was_destroyed(&app, *section),
+                "every section of the ring is destroyed, none left behind"
+            );
+        }
+        assert_eq!(defeat_events(&app), 1, "exactly one OnDefeated");
+        assert_eq!(destroy_events(&app), 1, "exactly one OnDestroyed");
+    }
+
+    /// A ship whose sections are disabled progressively can still be a
+    /// combatant for a few frames, so the neutralize path fires the unified
+    /// defeat edge BEFORE the root dies. It must not fire a second time when
+    /// it does.
+    #[test]
+    fn an_armed_ship_that_collapses_is_defeated_exactly_once() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ship(&mut app, 4);
+        app.world_mut()
+            .entity_mut(sections[1])
+            .insert(TurretSectionMarker);
+        for _ in 0..3 {
+            app.update();
+        }
+
+        // 96 of a pinned 400, gun included: the ship collapses while it is
+        // still armed.
+        for section in &sections {
+            hit(&mut app, *section, 76.0);
+        }
+
+        assert!(root_dead(&mut app, root, 20));
+        assert_eq!(
+            defeat_events(&app),
+            1,
+            "neutralization and destruction are the same defeat, counted once"
+        );
+        assert_eq!(destroy_events(&app), 1, "exactly one OnDestroyed");
+    }
+
+    /// A ship taken apart the ordinary way, never crossing its threshold, is
+    /// untouched by any of this: healthy sections are not disabled behind its
+    /// back, and it still dies exactly once when the last one goes.
+    #[test]
+    fn a_ship_dismantled_without_collapsing_is_unaffected() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ship(&mut app, 3);
+        app.world_mut()
+            .entity_mut(root)
+            .insert(StructuralCollapseThreshold::new(0.0));
+        settle(&mut app);
+
+        hit(&mut app, sections[0], 100.0);
+        for _ in 0..5 {
+            app.update();
+        }
+
+        assert!(
+            app.world().get::<StructuralCollapseMarker>(root).is_none(),
+            "two thirds of a hull is not a collapse at threshold 0"
+        );
+        for section in &sections[1..] {
+            assert!(
+                app.world()
+                    .get::<IntegrityDisabledMarker>(*section)
+                    .is_none(),
+                "an undamaged section keeps working"
+            );
+            assert!(
+                app.world().get::<Health>(*section).unwrap().current > 99.0,
+                "and keeps its health"
+            );
+        }
+
+        hit(&mut app, sections[1], 100.0);
+        for _ in 0..5 {
+            app.update();
+        }
+        hit(&mut app, sections[2], 100.0);
+
+        assert!(root_dead(&mut app, root, 10));
+        assert_eq!(destroy_events(&app), 1, "exactly one OnDestroyed");
+        assert_eq!(defeat_events(&app), 1, "exactly one OnDefeated");
     }
 
     /// The structural hole: the last section is REMOVED without the damage

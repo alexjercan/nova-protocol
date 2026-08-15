@@ -113,6 +113,17 @@ tagged **(breaking)**.
   must be taken further apart, `Some(0.0)` for the old strip-every-section
   rule. Neutralization is untouched: a disarmed ship with a sound hull is
   still a live derelict, not a wreck.
+- A collapsing ship TEARS ITSELF APART instead of popping out of existence:
+  every section still standing is disabled at the collapse, the outermost ones
+  blow off first with their own debris burst, and the wreck peels inward over
+  the following frames until the root dies with it. A remnant with no loose end
+  to start on (sections mated in a ring) is forced apart anyway, so nothing can
+  hang there as an indestructible hulk.
+- A ship coming apart keeps fighting until the sections carrying its guns blow
+  off, and its sections now fire their own `OnDestroyed` on the way out - the
+  same events a ship dismantled by gunfire already fired. The ship's own
+  `OnDefeated` and `OnDestroyed` still fire exactly once each, a few frames
+  later than before (at the real death, not at the moment of collapse).
 - The hull cast swapped: the cargoa is the campaign's armed corvette now
   (PDC turrets on new nose-cheek mounts, player and raider grades), and
   the racer flies unarmed as the civilian the story protects - the Ceres

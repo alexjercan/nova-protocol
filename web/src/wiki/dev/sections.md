@@ -171,12 +171,41 @@ Damage flow:
    maximum rather than a set-once pin because a ship's sections can land across
    several frames.
 5. Below its `StructuralCollapseThreshold` (`collapse_threshold` on the ship,
-   default 0.25) the root is marked `HealthZeroMarker` and goes through the same
-   disable -> destroy chain: a ship with a quarter of its hull left comes apart
-   rather than being dismantled section by section. Threshold `0.0` is the old
-   backstop - only a ship with no living sections dies - and it is also what
-   catches a last section that is removed WITHOUT a damage bubble (a direct
-   destroy, a detach), which nothing else would mark.
+   default 0.25) the root gets `StructuralCollapseMarker` and the ship starts
+   TEARING ITSELF APART, rather than dying on the spot: `cascade_structural_collapse`
+   disables every section still standing and hands them to steps 2 and 3 above.
+   The extremities are leaves, so they go first and burst their debris; the
+   prune turns their neighbors into leaves, and those go on the next frames.
+   The wreck peels from the outside in instead of vanishing - how long that
+   takes is the remnant's DEPTH, so a chain peels from both ends over several
+   frames while a shallow remnant whose sections are all already leaves goes in
+   one. Every section's own debris burst fires either way.
+6. The ROOT dies last, and of the same rule. Each destroyed section leaves the
+   sum, so step 4 walks `current` down to zero on its own; with no structure
+   left the recompute marks the root `HealthZeroMarker` and the ordinary chain
+   destroys it, which is what fires `OnDefeated`/`OnDestroyed`. That is also
+   the standalone backstop for a last section removed WITHOUT a damage bubble
+   (a direct destroy, a detach), which nothing else would mark, and it is what
+   threshold `0.0` reduces the whole rule to.
+
+**The no-progress override.** Disabling a section costs it no health - only
+DESTRUCTION takes it out of the root's sum - so a remnant with no leaf never
+drains. Four hulls mated in a ring each keep two neighbors, none ever becomes a
+leaf, nothing is destroyed, `current` never falls and the root never dies: an
+immortal disabled hulk. So the leaf rule is treated as a preference for the
+ORDER a wreck comes apart in, not a correctness requirement. A cascade tick
+that disables nothing new AND does not see the standing-section count fall is a
+stall, and the most leaf-like survivor is destroyed whatever its neighbors.
+Breaking one node out of a ring leaves a chain, so the ordinary cascade
+resumes and the peel is kept everywhere it is possible. Progress is measured as
+that count FALLING rather than against a frame budget, because the cascade's own
+gaps are irregular while a count that fell is direct evidence a section died.
+
+A ship is disabled progressively, so a collapsing ship can keep shooting for a
+few frames; its weapons stop as their own sections go. That also means the
+unified defeat edge usually comes from `neutralize.rs` partway through the
+peel, and the root's later destruction fires only `OnDestroyed` - `DefeatedMarker`
+is what keeps `OnDefeated` to exactly one.
 
 Structural collapse is a MATERIAL test and stands apart from neutralization
 (`neutralize.rs`), which is a CAPABILITY test: a ship can be out of the fight
@@ -197,7 +226,13 @@ flowchart TD
     G --> H[New leaves may cascade]
     F --> I[Root current re-aggregated over a pinned max]
     I --> J{Below the collapse threshold?}
-    J -->|Yes| K[Ship dead]
+    J -->|Yes| K[Every standing section disabled]
+    K --> D
+    K --> L{Nothing destroyed this tick?}
+    L -->|Stalled| M[Destroy the most leaf-like anyway]
+    M --> G
+    I --> N{No sections left?}
+    N -->|Yes| O[Ship dead]
 ```
 
 ## Typed damage (`crates/nova_gameplay/src/damage.rs`)
