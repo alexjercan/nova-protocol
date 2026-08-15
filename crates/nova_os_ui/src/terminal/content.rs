@@ -142,7 +142,7 @@ pub(crate) struct ShipSectionStatus {
     /// `ship view` and the id the `ship <verb> <id>` commands take. Falls back to
     /// the uppercase kind label when a section has no code minted yet.
     pub(crate) code: String,
-    pub(crate) kind: SectionDamageClass,
+    pub(crate) kind: SectionClass,
     pub(crate) health: Option<Health>,
     pub(crate) inactive: bool,
     pub(crate) zero_health: bool,
@@ -228,13 +228,13 @@ pub(crate) fn terminal_ship_name(name: Option<&str>) -> String {
         .unwrap_or_else(|| "UNKNOWN".to_string())
 }
 
-pub(crate) fn section_kind_label(kind: SectionDamageClass) -> &'static str {
+pub(crate) fn section_kind_label(kind: SectionClass) -> &'static str {
     match kind {
-        SectionDamageClass::Hull => "HULL",
-        SectionDamageClass::Thruster => "THRUSTER",
-        SectionDamageClass::Controller => "CONTROLLER",
-        SectionDamageClass::Turret => "TURRET",
-        SectionDamageClass::Torpedo => "TORPEDO",
+        SectionClass::Hull => "HULL",
+        SectionClass::Thruster => "THRUSTER",
+        SectionClass::Controller => "CONTROLLER",
+        SectionClass::Turret => "TURRET",
+        SectionClass::Torpedo => "TORPEDO",
     }
 }
 
@@ -283,7 +283,7 @@ pub(crate) fn player_ship_snapshot(
         (
             &ChildOf,
             Option<&Health>,
-            Option<&SectionDamageClass>,
+            Option<&SectionClass>,
             Has<SectionInactiveMarker>,
             Has<HealthZeroMarker>,
             Has<HullSectionMarker>,
@@ -345,26 +345,26 @@ pub(crate) fn player_ship_snapshot(
 }
 
 pub(crate) fn section_kind_from_markers(
-    class: Option<&SectionDamageClass>,
+    class: Option<&SectionClass>,
     hull: bool,
     controller: bool,
     thruster: bool,
     turret: bool,
     torpedo: bool,
-) -> Option<SectionDamageClass> {
+) -> Option<SectionClass> {
     if let Some(class) = class {
         return Some(*class);
     }
     if hull {
-        Some(SectionDamageClass::Hull)
+        Some(SectionClass::Hull)
     } else if controller {
-        Some(SectionDamageClass::Controller)
+        Some(SectionClass::Controller)
     } else if thruster {
-        Some(SectionDamageClass::Thruster)
+        Some(SectionClass::Thruster)
     } else if turret {
-        Some(SectionDamageClass::Turret)
+        Some(SectionClass::Turret)
     } else if torpedo {
-        Some(SectionDamageClass::Torpedo)
+        Some(SectionClass::Torpedo)
     } else {
         None
     }

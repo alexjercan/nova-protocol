@@ -77,7 +77,7 @@ fn spawn_scripted_ship(world: &mut World) -> (Entity, Entity, Entity, Entity) {
         .spawn((
             section_base("Block Hull", "cube_a", Vec3::ZERO),
             HullSectionMarker,
-            SectionDamageClass::Hull,
+            SectionClass::Hull,
             Health {
                 current: 80.0,
                 max: 100.0,
@@ -88,7 +88,7 @@ fn spawn_scripted_ship(world: &mut World) -> (Entity, Entity, Entity, Entity) {
         .spawn((
             section_base("Bow gun", "cube_b", Vec3::new(2.0, 0.0, 0.0)),
             TurretSectionMarker,
-            SectionDamageClass::Turret,
+            SectionClass::Turret,
             Health {
                 current: 12.0,
                 max: 60.0,
@@ -103,7 +103,7 @@ fn spawn_scripted_ship(world: &mut World) -> (Entity, Entity, Entity, Entity) {
         .spawn((
             section_base("Main drive", "cube_c", Vec3::new(-2.0, 0.0, 0.0)),
             ThrusterSectionMarker,
-            SectionDamageClass::Thruster,
+            SectionClass::Thruster,
             Health {
                 current: 100.0,
                 max: 100.0,
@@ -327,7 +327,7 @@ fn scene_blocks_use_local_space_when_ship_off_origin() {
             SectionCollider::Cuboid { size: Vec3::ONE },
             ChildOf(ship),
             TurretSectionMarker,
-            SectionDamageClass::Turret,
+            SectionClass::Turret,
             Health {
                 current: 60.0,
                 max: 60.0,
@@ -554,7 +554,7 @@ fn spawn_offset_ship(world: &mut World) -> (Entity, Entity, Entity) {
         .spawn((
             section("Block Hull", "cube_a", Vec3::new(3.0, 2.0, -1.0)),
             HullSectionMarker,
-            SectionDamageClass::Hull,
+            SectionClass::Hull,
             Health {
                 current: 80.0,
                 max: 100.0,
@@ -565,7 +565,7 @@ fn spawn_offset_ship(world: &mut World) -> (Entity, Entity, Entity) {
         .spawn((
             section("Bow gun", "cube_b", Vec3::new(9.0, 2.0, -1.0)),
             TurretSectionMarker,
-            SectionDamageClass::Turret,
+            SectionClass::Turret,
             Health {
                 current: 12.0,
                 max: 60.0,
@@ -580,7 +580,7 @@ fn spawn_offset_ship(world: &mut World) -> (Entity, Entity, Entity) {
         .spawn((
             section("Main drive", "cube_c", Vec3::new(-3.0, 2.0, -1.0)),
             ThrusterSectionMarker,
-            SectionDamageClass::Thruster,
+            SectionClass::Thruster,
             Health {
                 current: 100.0,
                 max: 100.0,
@@ -772,7 +772,7 @@ fn ship_reset_reframes_whole_ship_and_sticks() {
 
 /// A bare [`ShipSectionView`] for the pure-helper tests.
 fn view_fixture(
-    kind: SectionDamageClass,
+    kind: SectionClass,
     health: Option<Health>,
     ammo: Option<SectionAmmo>,
 ) -> ShipSectionView {
@@ -793,9 +793,9 @@ fn view_fixture(
 
 #[test]
 fn mate_overlay_is_derived_from_live_section_link_points() {
-    let mut left = view_fixture(SectionDamageClass::Hull, None, None);
+    let mut left = view_fixture(SectionClass::Hull, None, None);
     left.link_points = unit_cube_link_points();
-    let mut right = view_fixture(SectionDamageClass::Hull, None, None);
+    let mut right = view_fixture(SectionClass::Hull, None, None);
     right.local.translation = Vec3::X;
     right.link_points = unit_cube_link_points();
 
@@ -809,11 +809,11 @@ fn mate_overlay_is_derived_from_live_section_link_points() {
 fn kind_glyph_distinct_per_kind() {
     use bevy::platform::collections::HashSet;
     let kinds = [
-        SectionDamageClass::Hull,
-        SectionDamageClass::Thruster,
-        SectionDamageClass::Controller,
-        SectionDamageClass::Turret,
-        SectionDamageClass::Torpedo,
+        SectionClass::Hull,
+        SectionClass::Thruster,
+        SectionClass::Controller,
+        SectionClass::Turret,
+        SectionClass::Torpedo,
     ];
     let glyphs: Vec<&str> = kinds.iter().map(|&k| kind_glyph(k)).collect();
     assert!(
@@ -872,7 +872,7 @@ fn blocks_stay_uniform_green_regardless_of_status() {
         .spawn((
             section("Block Hull", "cube_a", Vec3::ZERO),
             HullSectionMarker,
-            SectionDamageClass::Hull,
+            SectionClass::Hull,
             Health {
                 current: 100.0,
                 max: 100.0,
@@ -884,7 +884,7 @@ fn blocks_stay_uniform_green_regardless_of_status() {
         .spawn((
             section("Bow gun", "cube_b", Vec3::new(3.0, 0.0, 0.0)),
             TurretSectionMarker,
-            SectionDamageClass::Turret,
+            SectionClass::Turret,
             // 12/60 = critical.
             Health {
                 current: 12.0,
@@ -929,7 +929,7 @@ fn blip_is_status_dot_with_labelled_marker() {
     let viewport = app.world_mut().spawn_empty().id();
     // 12/60 = 20% -> critical -> amber dot.
     let view = view_fixture(
-        SectionDamageClass::Turret,
+        SectionClass::Turret,
         Some(Health {
             current: 12.0,
             max: 60.0,
@@ -959,7 +959,7 @@ fn blip_is_status_dot_with_labelled_marker() {
 
     // Some descendant label carries the kind glyph + code, and no ammo pips
     // survive anywhere on the blip.
-    let label = format!("{} {}", kind_glyph(SectionDamageClass::Turret), "PDC-1");
+    let label = format!("{} {}", kind_glyph(SectionClass::Turret), "PDC-1");
     let texts: Vec<String> = app
         .world_mut()
         .query::<&Text>()
@@ -981,7 +981,7 @@ fn unknown_health_reads_nominal() {
     // A section with no `Health` reads nominal (green), never a misleading
     // damaged state - the edge the deleted bar/pips test used to pin, kept
     // because `status`/`status_color` now drive the blip dot and the panel.
-    let unknown = view_fixture(SectionDamageClass::Thruster, None, None);
+    let unknown = view_fixture(SectionClass::Thruster, None, None);
     assert_eq!(unknown.status(), "nominal");
     assert_eq!(unknown.status_color(), NOVA_OS_PHOSPHOR);
 }
@@ -990,7 +990,7 @@ fn unknown_health_reads_nominal() {
 fn panel_action_state_gates_repair_and_reload() {
     // Hull: repairable, no ammo feed -> reload disabled with the handler's text.
     let hull = view_fixture(
-        SectionDamageClass::Hull,
+        SectionClass::Hull,
         Some(Health {
             current: 80.0,
             max: 100.0,
@@ -1008,7 +1008,7 @@ fn panel_action_state_gates_repair_and_reload() {
 
     // Armed turret with ammo + HP: both enabled, no reason.
     let turret = view_fixture(
-        SectionDamageClass::Turret,
+        SectionClass::Turret,
         Some(Health {
             current: 12.0,
             max: 60.0,
@@ -1024,7 +1024,7 @@ fn panel_action_state_gates_repair_and_reload() {
 
     // Weapon with ammo but NO health: reload enabled, repair disabled w/ reason.
     let ghost = view_fixture(
-        SectionDamageClass::Turret,
+        SectionClass::Turret,
         None,
         Some(SectionAmmo {
             rounds: 0,
@@ -1046,7 +1046,7 @@ fn panel_action_state_gates_repair_and_reload() {
 #[test]
 fn panel_detail_text_covers_live_fields() {
     let turret = view_fixture(
-        SectionDamageClass::Turret,
+        SectionClass::Turret,
         Some(Health {
             current: 12.0,
             max: 60.0,
@@ -1059,7 +1059,7 @@ fn panel_detail_text_covers_live_fields() {
     let text = panel_detail_text(&turret);
     assert!(text.contains("kind: turret"), "{text}");
     assert!(
-        text.contains(kind_description(SectionDamageClass::Turret)),
+        text.contains(kind_description(SectionClass::Turret)),
         "{text}"
     );
     assert!(text.contains("20%"), "12/60 -> 20%: {text}");
@@ -1247,7 +1247,7 @@ fn rig_section_view(entity: Entity, code: &str) -> ShipSectionView {
     ShipSectionView {
         entity,
         code: code.to_string(),
-        kind: SectionDamageClass::Hull,
+        kind: SectionClass::Hull,
         name: code.to_string(),
         local: Transform::IDENTITY,
         half_extents: Vec3::splat(0.5),

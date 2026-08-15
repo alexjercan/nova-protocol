@@ -718,9 +718,9 @@
     )),
     Section((
         base: (
-            id: "pdc_turret_section",
-            name: "PDC Turret",
-            description: "A compact point-defense mount that fits any hull face.",
+            id: "pdc_kinetic_turret_section",
+            name: "PDC Turret (Kinetic)",
+            description: "A compact point-defense mount that fits any hull face. Slugs: the hardest single hit, harder still on a charge, and they stop at anything they cannot destroy.",
             mass: 1.0,
             health: 130.0,
             impact_sound: Some("self://sounds/impact.wav"),
@@ -907,6 +907,207 @@
             projectile_lifetime: 5.0,
             bullet_damage: 4.0,
             bullet_kind: Kinetic,
+            fire_sound: Some("self://sounds/turret_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                reload_time: 3.0,
+                rounds_per_cycle: 500,
+                only_when_empty: true,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "pdc_pierce_turret_section",
+            name: "PDC Turret (Pierce)",
+            description: "The same mount firing penetrators. Half the damage per hit, dealt to EVERY section the round rakes through - closing fast buys depth, not damage. Worse against one thin target, better against a deep one.",
+            mass: 1.0,
+            health: 130.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.5,
+                    0.5,
+                    0.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.25,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.25,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.25,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.25,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.25,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.25,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.25,
+                    0.0,
+                ),
+                render_mesh_transform: Some((
+                    scale: (
+                        0.5,
+                        0.5,
+                        0.5,
+                    ),
+                )),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.05,
+                            0.0,
+                        ),
+                        axis: Some((
+                            0.0,
+                            1.0,
+                            0.0,
+                        )),
+                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
+                        render_mesh_transform: Some((
+                            scale: (
+                                0.5,
+                                0.5,
+                                0.5,
+                            ),
+                        )),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.166353,
+                                    0.151977,
+                                ),
+                                axis: Some((
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                )),
+                                min: Some(-0.17453294),
+                                max: Some(1.5707964),
+                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
+                                render_mesh_transform: Some((
+                                    scale: (
+                                        0.5,
+                                        0.5,
+                                        0.5,
+                                    ),
+                                )),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.0642185,
+                                            -0.0553645,
+                                        ),
+                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
+                                        render_mesh_transform: Some((
+                                            scale: (
+                                                0.5,
+                                                0.5,
+                                                0.5,
+                                            ),
+                                        )),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.0,
+                                                    -0.6,
+                                                ),
+                                                muzzle: Some((
+                                                    fire_rate: 100.0,
+                                                )),
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 100.0,
+            projectile_lifetime: 5.0,
+            bullet_damage: 2.0,
+            bullet_kind: Pierce,
             fire_sound: Some("self://sounds/turret_fire.wav"),
             dry_fire_sound: Some("self://sounds/dry_fire.wav"),
             ammo_capacity: Some(500),

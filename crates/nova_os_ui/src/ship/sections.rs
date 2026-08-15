@@ -27,48 +27,48 @@ pub struct SectionCode(pub String);
 
 /// The code prefix for a section kind (`HULL`, `THR`, `CTL`, `PDC` for turrets,
 /// `TRB` for torpedo bays).
-pub(crate) fn code_prefix(kind: SectionDamageClass) -> &'static str {
+pub(crate) fn code_prefix(kind: SectionClass) -> &'static str {
     match kind {
-        SectionDamageClass::Hull => "HULL",
-        SectionDamageClass::Thruster => "THR",
-        SectionDamageClass::Controller => "CTL",
-        SectionDamageClass::Turret => "PDC",
-        SectionDamageClass::Torpedo => "TRB",
+        SectionClass::Hull => "HULL",
+        SectionClass::Thruster => "THR",
+        SectionClass::Controller => "CTL",
+        SectionClass::Turret => "PDC",
+        SectionClass::Torpedo => "TRB",
     }
 }
 
 /// A small schematic glyph for a section kind, prepended to the blip label to
 /// reinforce the code prefix. Kept ASCII so the CRT font always renders it, and
 /// distinct per kind so the sections read apart at a glance without new hues.
-pub(crate) fn kind_glyph(kind: SectionDamageClass) -> &'static str {
+pub(crate) fn kind_glyph(kind: SectionClass) -> &'static str {
     match kind {
-        SectionDamageClass::Hull => "#",
-        SectionDamageClass::Thruster => ">",
-        SectionDamageClass::Controller => "@",
-        SectionDamageClass::Turret => "T",
-        SectionDamageClass::Torpedo => "^",
+        SectionClass::Hull => "#",
+        SectionClass::Thruster => ">",
+        SectionClass::Controller => "@",
+        SectionClass::Turret => "T",
+        SectionClass::Torpedo => "^",
     }
 }
 
 /// A one-line "what it does" for a section kind, shown in the inspector panel.
-pub(crate) fn kind_description(kind: SectionDamageClass) -> &'static str {
+pub(crate) fn kind_description(kind: SectionClass) -> &'static str {
     match kind {
-        SectionDamageClass::Hull => "Structural armour plating.",
-        SectionDamageClass::Thruster => "Main drive; provides thrust.",
-        SectionDamageClass::Controller => "Command core; runs the ship.",
-        SectionDamageClass::Turret => "Point-defence gun.",
-        SectionDamageClass::Torpedo => "Torpedo launch tube.",
+        SectionClass::Hull => "Structural armour plating.",
+        SectionClass::Thruster => "Main drive; provides thrust.",
+        SectionClass::Controller => "Command core; runs the ship.",
+        SectionClass::Turret => "Point-defence gun.",
+        SectionClass::Torpedo => "Torpedo launch tube.",
     }
 }
 
 /// A dense index for a section kind, for the per-kind next-index counters.
-pub(crate) fn kind_index(kind: SectionDamageClass) -> usize {
+pub(crate) fn kind_index(kind: SectionClass) -> usize {
     match kind {
-        SectionDamageClass::Hull => 0,
-        SectionDamageClass::Thruster => 1,
-        SectionDamageClass::Controller => 2,
-        SectionDamageClass::Turret => 3,
-        SectionDamageClass::Torpedo => 4,
+        SectionClass::Hull => 0,
+        SectionClass::Thruster => 1,
+        SectionClass::Controller => 2,
+        SectionClass::Turret => 3,
+        SectionClass::Torpedo => 4,
     }
 }
 
@@ -90,7 +90,7 @@ pub(crate) fn assign_section_codes(
             &ChildOf,
             Option<&SectionCode>,
             Option<&EntityId>,
-            Option<&SectionDamageClass>,
+            Option<&SectionClass>,
             Has<HullSectionMarker>,
             Has<ControllerSectionMarker>,
             Has<ThrusterSectionMarker>,
@@ -106,7 +106,7 @@ pub(crate) fn assign_section_codes(
     // The highest index already handed out per kind, so new sections continue the
     // sequence rather than colliding.
     let mut next: [u32; 5] = [0; 5];
-    let mut unassigned: Vec<(Entity, SectionDamageClass, String)> = Vec::new();
+    let mut unassigned: Vec<(Entity, SectionClass, String)> = Vec::new();
     for (entity, child, code, id, class, hull, controller, thruster, turret, torpedo) in &q_sections
     {
         if child.0 != ship {
@@ -161,7 +161,7 @@ pub(crate) fn assign_section_codes(
 pub(crate) struct ShipSectionView {
     pub(crate) entity: Entity,
     pub(crate) code: String,
-    pub(crate) kind: SectionDamageClass,
+    pub(crate) kind: SectionClass,
     pub(crate) name: String,
     pub(crate) local: Transform,
     pub(crate) half_extents: Vec3,
@@ -263,7 +263,7 @@ pub struct ShipSections<'w, 's> {
 /// The class + kind-marker columns needed to classify a section, grouped so the
 /// enclosing section query stays within the query-tuple size limit.
 pub(crate) type SectionKindQuery = (
-    Option<&'static SectionDamageClass>,
+    Option<&'static SectionClass>,
     Has<HullSectionMarker>,
     Has<ControllerSectionMarker>,
     Has<ThrusterSectionMarker>,
@@ -431,10 +431,7 @@ impl PanelActions {
 }
 
 pub(crate) fn panel_action_state(view: &ShipSectionView) -> PanelActions {
-    let is_weapon = matches!(
-        view.kind,
-        SectionDamageClass::Turret | SectionDamageClass::Torpedo
-    );
+    let is_weapon = matches!(view.kind, SectionClass::Turret | SectionClass::Torpedo);
     let repair_enabled = view.health.as_ref().map(|h| h.max > 0.0).unwrap_or(false);
     let reload_enabled = is_weapon && view.ammo.is_some();
 
@@ -505,7 +502,7 @@ pub struct ShipSectionCommand {
 pub(crate) fn apply_action_to_section(
     action: ShipAction,
     code: &str,
-    kind: SectionDamageClass,
+    kind: SectionClass,
     is_weapon: bool,
     health: Option<&mut Health>,
     ammo: Option<&mut SectionAmmo>,

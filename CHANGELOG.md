@@ -16,15 +16,54 @@ tagged **(breaking)**.
 
 ### Combat & Weapons
 
-- Torpedo bays gain an authorable `projectile_health` (default 1.0, the old
-  hardcoded fragility): armored ordnance survives point-defense fire instead
-  of dying to the first hit.
+- **(breaking)** The per-section damage-resistance table is GONE. Damage is one
+  number: a round deals the same amount to a hull, a thruster or a turret, and
+  a blast deals the same to everything in its radius. A damage type's identity
+  is now how the round TRAVELS, which is something a player can watch happen,
+  rather than an invisible multiplier.
+- **(breaking)** The damage roster is cut to `Kinetic`, `Pierce` and
+  `Explosive`. `Emp` is removed (no shipped content authored it) and
+  `ArmorPiercing` is renamed `Pierce`. No compatibility aliases: a mod naming
+  `Emp` or `ArmorPiercing` must be re-authored.
+- **(breaking)** The two bullet types are a punch and a rake. Kinetic keeps the
+  hardest single hit and carries on only through what it DESTROYS, spending its
+  damage as the budget, so its total can never exceed what it was fired with.
+  Pierce deals lower damage but deals it IN FULL to every section it crosses,
+  alive or dead and undiminished by depth, so its total legitimately exceeds one
+  round's worth. Nothing of either type gets through an indestructible obstacle.
+- **(breaking)** Both bullet types read the round's CLOSING SPEED against what
+  it hits, anchored so closing at 100 u/s (a stock PDC's muzzle speed)
+  multiplies by exactly 1.0: Kinetic turns speed into damage per hit (clamped
+  0.25x..2.0x), Pierce into POWER - how much thickness it rakes through
+  (clamped 0.5x..3.0x) - and never into damage. Charging hits harder, fleeing
+  hits less.
+- **(breaking)** A Pierce round pays for travel out of a separate power budget,
+  spent on each layer's FULL health rating rather than its remaining health, so
+  light plating is nearly free to cross while a heavy block is expensive and
+  softening a section first cannot open a cheaper hole through it. A hard
+  six-layer cap bounds the chain.
+- **(breaking)** `SectionDamageClass` is renamed `SectionClass`: with the table
+  gone it is the ship computer's section LABEL, not a damage key.
+- **(breaking)** `pdc_turret_section` splits into `pdc_kinetic_turret_section`
+  ("PDC Turret (Kinetic)", 4.0/hit) and `pdc_pierce_turret_section` ("PDC Turret
+  (Pierce)", 2.0/hit): the same mount, fire rate and magazine, so mounting one
+  of each is a straight punch-versus-rake comparison.
+- **(breaking)** Fixes a live double-damage bug: avian raises one
+  `CollisionStart` per event-enabled collider, so a production round hitting a
+  health-bearing section reported the contact twice with the sides swapped and
+  paid out on both - 20 authored dealt 40. Real turret damage therefore halves
+  at unchanged authored values, which is the number those values always meant.
+- **(breaking)** Torpedo ordnance stops dying to one bullet: the default
+  `projectile_health` goes 1.0 -> 10.0, above the hardest single round a stock
+  PDC can land (4.0 authored x the 2.0 kinetic speed ceiling), so an intercept
+  costs two or three rounds instead of one lucky tap. Bays gain the authorable
+  field; the siege bay's armoured ordnance is unchanged at 5000.
 - **(breaking)** Standard torpedoes hit like torpedoes now: blast damage
   100 -> 750 EVERYWHERE, so a connecting torpedo all but decides a
   small-craft fight (Expanse-style). That is the baseline for every bay -
   the catalog section, the gunship's tubes, and an un-authored bay's
   default - with only the capital-grade siege bay above it. The counter is
-  point defense, not armor - the ordnance itself stays fragile.
+  point defense, not armor - the ordnance is still shot down in a burst.
 - Turrets no longer aim into the hull they stand on: the pitch hinge's
   depression floor tightens from 30 to 10 degrees below level (elevation
   still reaches 90 for the point-defense arc).
@@ -188,6 +227,12 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- **(breaking)** Turret rounds deal their authored damage once, not twice.
+  Avian raises a collision event per event-enabled collider, so a round (which
+  carries its own) hitting a health-bearing section (which the integrity hook
+  enables) reported the same contact twice with the sides swapped, and the hit
+  observer paid out on both. Every turret has been hitting for 2x its authored
+  number against ships; the authored values may want re-tuning.
 - The editor sandbox no longer spawns you on top of the planetoid. An
   asteroid's drawn surface is 3.5-6x its authored radius, so the old 55u
   planetoid was a ~250u ball of rock parked 314u away, with a well reaching

@@ -1,7 +1,7 @@
 //! Module for defining hull sections in a 3D environment using Bevy and Avian3D.
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{AssetRef, SectionDamageClass};
+use nova_gameplay::prelude::{AssetRef, SectionClass};
 
 use crate::prelude::{RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf};
 
@@ -36,7 +36,7 @@ pub fn hull_section(config: HullSectionConfig) -> impl Bundle {
 
     (
         HullSectionMarker,
-        SectionDamageClass::Hull,
+        SectionClass::Hull,
         HullSectionRenderMesh(config.render_mesh),
         SectionRenderMeshTransform(config.render_mesh_transform),
     )

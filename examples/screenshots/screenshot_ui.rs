@@ -236,7 +236,7 @@ fn ui_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         .place("hull ahead of that", Vec3::new(1.0, 0.0, 0.0), Vec3::X)
         .arm("arm the thruster", "basic_thruster_section")
         .place("thruster on the tail", Vec3::new(2.0, 0.0, 0.0), Vec3::X)
-        .arm("arm the turret", "pdc_turret_section")
+        .arm("arm the turret", "pdc_kinetic_turret_section")
         .place("turret on the spine", Vec3::new(1.0, 0.0, 0.0), Vec3::Y)
         .step("the ship was built")
         .on_enter(|world: &mut World| {

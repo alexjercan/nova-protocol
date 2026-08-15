@@ -14,7 +14,7 @@ pub use aim::{update_turret_aim_point, TurretSectionAimSystems};
 use bevy::prelude::*;
 use bevy_hanabi::prelude::EffectAsset;
 pub use config::{MuzzleConfig, TurretJoint, TurretSectionConfig};
-use firing::{despawn_bullet_on_hit, shoot_spawn_projectile};
+use firing::{resolve_bullet_hit, shoot_spawn_projectile};
 use nova_gameplay::prelude::*;
 use render::{
     insert_projectile_render, insert_turret_barrel_muzzle_effect, insert_turret_joint_render,
@@ -48,7 +48,7 @@ pub fn turret_section(config: TurretSectionConfig) -> impl Bundle {
 
     (
         TurretSectionMarker,
-        SectionDamageClass::Turret,
+        SectionClass::Turret,
         loaded,
         TurretSectionTargetInput(None),
         TurretSectionTargetVelocity::default(),
@@ -212,7 +212,7 @@ impl Plugin for TurretSectionPlugin {
         debug!("TurretSectionPlugin: build");
 
         app.add_observer(insert_turret_section);
-        app.add_observer(despawn_bullet_on_hit);
+        app.add_observer(resolve_bullet_hit);
 
         if self.render {
             app.add_observer(insert_turret_joint_render);

@@ -155,7 +155,7 @@ pub(crate) fn handle_terminal_keyboard(
         (
             &ChildOf,
             Option<&Health>,
-            Option<&SectionDamageClass>,
+            Option<&SectionClass>,
             Has<SectionInactiveMarker>,
             Has<HealthZeroMarker>,
             Has<HullSectionMarker>,

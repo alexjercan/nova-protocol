@@ -13,18 +13,16 @@
 //! - destroying a node prunes it from its neighbours' [`ConnectedTo`] lists,
 //!   re-deriving leaf markers and cascading through the structure.
 //!
-//! Impact damage goes through [`apply_typed_damage`] as [`DamageType::Kinetic`],
-//! so ramming respects the same per-section resistance table every weapon does.
-//! Blast damage is the [`NovaBlast`](crate::damage::NovaBlast) volume's job and
-//! lives in [`crate::damage`] beside the table.
+//! Impact damage goes through [`apply_damage`], the one point at which any
+//! weapon enters the health store. Blast damage is the
+//! [`NovaBlast`](crate::damage::NovaBlast) volume's job and lives in
+//! [`crate::damage`].
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use super::{components::prelude::*, health::prelude::*};
-use crate::damage::prelude::{
-    apply_typed_damage, DamageType, ProjectileDamage, SectionDamageClass,
-};
+use crate::damage::prelude::apply_damage;
 
 /// `IntegrityCorePlugin` and `IntegritySystems`.
 pub mod prelude {
@@ -102,8 +100,9 @@ fn on_collider_of_spawn_insert_collision_events(
 /// Damage a body from the impulse and energy lost in a fast impact against
 /// another body.
 ///
-/// Routed through the typed layer as [`DamageType::Kinetic`]: a ram is a kinetic
-/// hit, so it scales by the struck section's resistance exactly as a slug does.
+/// A ram carries its own velocity in the amount (the formula is
+/// mass x relative speed), so it needs no damage type and no speed curve of its
+/// own - it goes straight to [`apply_damage`].
 fn on_impact_collision_deal_damage(
     collision: On<CollisionStart>,
     mut commands: Commands,
@@ -115,7 +114,6 @@ fn on_impact_collision_deal_damage(
         (&LinearVelocity, &ComputedMass),
         (With<RigidBody>, Without<crate::damage::NovaBlast>),
     >,
-    q_class: Query<&SectionDamageClass>,
 ) {
     let collider1 = collision.collider1;
     let collider2 = collision.collider2;
@@ -143,16 +141,7 @@ fn on_impact_collision_deal_damage(
         "on_impact_collision: collider {:?} (body {:?}) rammed by {:?} (body {:?}) for {amount:.2}",
         collider1, body, collider2, other
     );
-    apply_typed_damage(
-        &mut commands,
-        collider1,
-        Some(collider2),
-        q_class.get(collider1).ok().copied(),
-        ProjectileDamage {
-            amount,
-            kind: DamageType::Kinetic,
-        },
-    );
+    apply_damage(&mut commands, collider1, Some(collider2), amount);
 }
 
 /// Hit points a ram deals: the impulse term plus the energy the collision

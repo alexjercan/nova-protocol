@@ -13,11 +13,11 @@ use nova_ship::prelude::*;
 
 // Per-section-type durability baselines.
 //
-// Section TYPE governs how much damage a section effectively takes. With the
-// single (kinetic) damage model in play today, "takes more damage" is simply
-// "has less health", so the variation lives here in the health numbers rather
-// than in a damage-interception system (a real per-damage-type resistance -
-// AP/EMP - is the next pass, and lands nova-side).
+// Section TYPE governs how much damage a section effectively takes. These are
+// the HEALTH half of that: the per-damage-type half is nova's resistance table
+// (`nova_gameplay::damage`), which scales a hit by `(section class, damage
+// type)`. Kinetic is 1.0 against every class there, so these numbers are what
+// a generalist round meets.
 //
 // Thrusters are exposed propulsion and go down fast (take MORE); turrets are
 // armored weapon mounts and shrug off MORE (take LESS); the controller core and
@@ -40,6 +40,16 @@ const TORPEDO_BASE_HEALTH: f32 = 100.0;
 // per-hit); the drop also slows ship TTK ~5x, consistent with a PDC and with
 // the shakedown pirate still dying in a short burst (~0.15s on a 60-HP hull).
 const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
+
+/// Authored per-hit damage of the Pierce PDC: HALF the Kinetic one.
+///
+/// The trade the two guns exist to show. A penetrator deals this to every layer
+/// it rakes through and its damage never depletes, so against one thin target it
+/// is strictly worse (2 vs 4, and it cannot ride the Kinetic speed curve to 8),
+/// while a rake through three sections puts 6 into a ship the slug could only
+/// put 4 into. Half is a round number, not a measured one - the first knob to
+/// turn once the two are flown side by side.
+const PIERCE_PDC_BULLET_DAMAGE: f32 = BETTER_TURRET_BULLET_DAMAGE * 0.5;
 
 /// Side of the shared PDC turret's mount box - and the scale its art is
 /// assembled at, which is the point of having one number: the collider, the
@@ -164,6 +174,77 @@ pub(crate) fn turret_joint_tree(
 }
 
 use crate::base_content::assets::BaseContentAssets;
+
+/// One compact PDC prototype, parameterised on the ROUND it loads.
+///
+/// The two shipped PDCs share the mount, the joint tree, the fire rate and the
+/// magazine, and differ in the only two things a round's identity needs: its
+/// type and its per-hit damage. Sharing one builder is what keeps the
+/// side-by-side comparison honest - a mount or cadence retune cannot drift one
+/// copy against the other, so what the player feels is the punch-versus-rake
+/// difference and nothing else.
+fn pdc_turret_prototype(
+    meshes: &BaseContentAssets,
+    id: &str,
+    name: &str,
+    description: &str,
+    bullet_kind: DamageType,
+    bullet_damage: f32,
+) -> SectionConfig {
+    SectionConfig {
+        base: BaseSectionConfig {
+            id: id.to_string(),
+            name: name.to_string(),
+            description: description.to_string(),
+            mass: 1.0,
+            health: TURRET_BASE_HEALTH,
+            impact_sound: Some(meshes.section_impact_sound.clone()),
+            destroy_sound: Some(meshes.section_destroy_sound.clone()),
+            // The mount the shipped craft carry: a small box that sits ON a
+            // hull face instead of standing in for one. Sockets follow the
+            // authored size (`box_link_points`), so it mates against a part
+            // of any size at all - which is what lets ONE turret serve every
+            // craft. The per-craft copies (`cargob_turret_port` and its nine
+            // siblings) are the same gun on the same joint tree, and are
+            // catalog-only now that this exists.
+            collider: Some(SectionCollider::Cuboid {
+                size: Vec3::splat(PDC_TURRET_SIZE),
+            }),
+            link_points: box_link_points(Vec3::splat(PDC_TURRET_SIZE)),
+            hide_in_editor: false,
+        },
+        kind: SectionKind::Turret(TurretSectionConfig {
+            // The player-grade PDC, numbers for numbers with
+            // `better_turret_section`: what differs is the mount, not the gun.
+            root: turret_joint_tree(
+                &meshes.turret_yaw,
+                &meshes.turret_pitch,
+                &meshes.turret_barrel,
+                100.0,
+                // The turret stands on THIS mount's face, not on a unit cube's,
+                // and is assembled at THIS mount's size.
+                PDC_TURRET_SIZE * 0.5,
+                PDC_TURRET_SIZE,
+            ),
+            // Also the closing speed both curves read 1.0 at
+            // (REFERENCE_CLOSING_SPEED), so a station-keeping duel with either
+            // PDC lands exactly the authored per-hit below.
+            muzzle_speed: 100.0,
+            projectile_lifetime: 5.0,
+            bullet_damage,
+            bullet_kind,
+            projectile_render_mesh: None,
+            fire_sound: Some(meshes.turret_fire_sound.clone()),
+            dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
+            ammo_capacity: Some(500),
+            reload: Some(SectionReloadConfig {
+                reload_time: 3.0,
+                rounds_per_cycle: 500,
+                only_when_empty: true,
+            }),
+        }),
+    }
+}
 
 /// The section catalog, built against `meshes` for its render-mesh refs. The
 /// single source of truth for the built-in sections; both the production
@@ -379,57 +460,27 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 }),
             }),
         },
-        SectionConfig {
-            base: BaseSectionConfig {
-                id: "pdc_turret_section".to_string(),
-                name: "PDC Turret".to_string(),
-                description: "A compact point-defense mount that fits any hull face.".to_string(),
-                mass: 1.0,
-                health: TURRET_BASE_HEALTH,
-                impact_sound: Some(meshes.section_impact_sound.clone()),
-                destroy_sound: Some(meshes.section_destroy_sound.clone()),
-                // The mount the shipped craft carry: a small box that sits ON a
-                // hull face instead of standing in for one. Sockets follow the
-                // authored size (`box_link_points`), so it mates against a part
-                // of any size at all - which is what lets ONE turret serve every
-                // craft. The per-craft copies (`cargob_turret_port` and its nine
-                // siblings) are the same gun on the same joint tree, and are
-                // catalog-only now that this exists.
-                collider: Some(SectionCollider::Cuboid {
-                    size: Vec3::splat(PDC_TURRET_SIZE),
-                }),
-                link_points: box_link_points(Vec3::splat(PDC_TURRET_SIZE)),
-                hide_in_editor: false,
-            },
-            kind: SectionKind::Turret(TurretSectionConfig {
-                // The player-grade PDC, numbers for numbers with
-                // `better_turret_section`: what differs is the mount, not the
-                // gun.
-                root: turret_joint_tree(
-                    &meshes.turret_yaw,
-                    &meshes.turret_pitch,
-                    &meshes.turret_barrel,
-                    100.0,
-                    // The turret stands on THIS mount's face, not on a unit
-                    // cube's, and is assembled at THIS mount's size.
-                    PDC_TURRET_SIZE * 0.5,
-                    PDC_TURRET_SIZE,
-                ),
-                muzzle_speed: 100.0,
-                projectile_lifetime: 5.0,
-                bullet_damage: BETTER_TURRET_BULLET_DAMAGE,
-                bullet_kind: DamageType::Kinetic,
-                projectile_render_mesh: None,
-                fire_sound: Some(meshes.turret_fire_sound.clone()),
-                dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
-                ammo_capacity: Some(500),
-                reload: Some(SectionReloadConfig {
-                    reload_time: 3.0,
-                    rounds_per_cycle: 500,
-                    only_when_empty: true,
-                }),
-            }),
-        },
+        pdc_turret_prototype(
+            meshes,
+            "pdc_kinetic_turret_section",
+            "PDC Turret (Kinetic)",
+            "A compact point-defense mount that fits any hull face. Slugs: the \
+             hardest single hit, harder still on a charge, and they stop at \
+             anything they cannot destroy.",
+            DamageType::Kinetic,
+            BETTER_TURRET_BULLET_DAMAGE,
+        ),
+        pdc_turret_prototype(
+            meshes,
+            "pdc_pierce_turret_section",
+            "PDC Turret (Pierce)",
+            "The same mount firing penetrators. Half the damage per hit, dealt \
+             to EVERY section the round rakes through - closing fast buys depth, \
+             not damage. Worse against one thin target, better against a deep \
+             one.",
+            DamageType::Pierce,
+            PIERCE_PDC_BULLET_DAMAGE,
+        ),
         SectionConfig {
             base: BaseSectionConfig {
                 id: "torpedo_section".to_string(),
@@ -473,7 +524,10 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // The blast IS the destruction voice: same wav as section
                 // destruction (per-target authoring; playtest can diverge it).
                 detonation_sound: Some(meshes.section_destroy_sound.clone()),
-                projectile_health: 1.0,
+                // Above the hardest single PDC round (4.0 authored x the 2.0
+                // Kinetic speed ceiling), so an intercept costs two or three
+                // rounds instead of one lucky tap.
+                projectile_health: 10.0,
                 // A small salvo of torpedoes before the bay is spent. Playtest
                 // knob.
                 ammo_capacity: Some(6),
@@ -667,6 +721,48 @@ mod tests {
         }
         // The controller core and the torpedo bay share the mid baseline.
         assert_eq!(CONTROLLER_BASE_HEALTH, TORPEDO_BASE_HEALTH);
+    }
+
+    /// The two shipped PDCs exist to be COMPARED: mount one of each and the only
+    /// difference the player can feel is the ROUND - its type and its per-hit
+    /// damage. Mount, joint tree, fire rate and magazine must be identical, or
+    /// the comparison measures something else. Debug strings stand in for
+    /// structural equality (`TurretSectionConfig` has no `PartialEq`), which is
+    /// enough to catch any other field drifting between them.
+    #[test]
+    fn the_two_pdcs_differ_only_in_the_round_they_load() {
+        let turret = |id: &str| {
+            crate::generation::build_section_catalog()
+                .into_iter()
+                .find(|section| section.base.id == id)
+                .map(|section| match section.kind {
+                    SectionKind::Turret(turret) => turret,
+                    other => panic!("`{id}` is not a turret: {other:?}"),
+                })
+                .unwrap_or_else(|| panic!("the catalog ships `{id}`"))
+        };
+        let kinetic = turret("pdc_kinetic_turret_section");
+        let mut pierce = turret("pdc_pierce_turret_section");
+
+        assert_eq!(kinetic.bullet_kind, DamageType::Kinetic);
+        assert_eq!(pierce.bullet_kind, DamageType::Pierce);
+        // The trade: a rake gives up per-hit damage for depth, so the slug must
+        // stay the harder single hit. Without this the two guns would be a
+        // strict upgrade rather than a choice.
+        assert!(
+            pierce.bullet_damage < kinetic.bullet_damage,
+            "the pierce PDC must hit softer per contact ({} vs {})",
+            pierce.bullet_damage,
+            kinetic.bullet_damage
+        );
+
+        pierce.bullet_kind = kinetic.bullet_kind;
+        pierce.bullet_damage = kinetic.bullet_damage;
+        assert_eq!(
+            format!("{kinetic:?}"),
+            format!("{pierce:?}"),
+            "the two PDCs must be the same gun apart from the round they load"
+        );
     }
 
     /// Anti-regression guard for the PDC one-shot fix: the player PDC's per-hit

@@ -244,13 +244,15 @@ export const WIKI_PAGES: WikiPage[] = [
         category: "Combat",
         tags: ["combat"],
         summary:
-            "Turrets and torpedoes, typed damage (Kinetic / AP / EMP / Explosive) against per-section resistances, and point-defense fire.",
+            "Turrets and torpedoes, speed-driven damage types (Kinetic punches, Pierce rakes, Explosive blasts), how far a round travels, and point-defense fire.",
         related: ["targeting-radar", "sections", "factions"],
         headings: [
             "Turrets",
             "Torpedoes",
             "Damage types",
-            "Resistances",
+            "Closing speed",
+            "How far a round travels",
+            "Blast and armour",
             "Point defense",
         ],
     },
@@ -685,7 +687,7 @@ export const WIKI_PAGES: WikiPage[] = [
         category: "Architecture",
         tags: ["dev", "architecture", "combat"],
         summary:
-            "The section components and how a ship is built from them, the integrity pipeline (damage -> disable -> destroy), typed damage against resistances, and ammo slots.",
+            "The section components and how a ship is built from them, the integrity pipeline (damage -> disable -> destroy), typed damage and the travel rule, and ammo slots.",
         related: ["sections", "dev/architecture", "combat-weapons"],
         headings: [
             "Sections",
@@ -738,14 +740,14 @@ export const WIKI_PAGES: WikiPage[] = [
         category: "Extending",
         tags: ["dev", "guide", "ships"],
         summary:
-            "The ordered checklist to add a new ship-section kind - section module, the SectionKind enum, damage class and resistances, the section plugin, spawn and editor wiring, an asset prototype, and a runnable example.",
+            "The ordered checklist to add a new ship-section kind - section module, the SectionKind enum, the section class label, the section plugin, spawn and editor wiring, an asset prototype, and a runnable example.",
         related: ["dev/sections", "dev/architecture", "dev/project-tour"],
         headings: [
             "Closed by design",
             "The checklist",
             "The config module",
             "Wiring the plugin",
-            "Damage and resistances",
+            "Section class",
             "Editor and prototype",
         ],
     },

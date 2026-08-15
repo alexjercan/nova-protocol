@@ -12,20 +12,20 @@ ending at a runnable example.
 
 Section kinds are first-class engine concepts, not content. Each kind carries
 its own typed config, its own spawn bundle, its own behavior systems, and its
-own row in the damage-resistance table -- none of which a RON author could
-supply. What IS data-extensible is the section CATALOG: a `SectionConfig`
+own arm in every exhaustive match over section kinds -- none of which a RON
+author could supply. What IS data-extensible is the section CATALOG: a `SectionConfig`
 (base stats + one `SectionKind` instance) is authored in RON and loaded at
 runtime (see the [Ship sections](../sections/) reference and
 [modding](../../modding/sections/)). New KINDS are code; new INSTANCES of an existing
 kind are data. This guide is about the former.
 
-The closed enum is a feature: it means "did I wire the new kind into damage /
-the editor / spawning?" is a compile error, not a silent gap.
+The closed enum is a feature: it means "did I wire the new kind into the ship
+computer / the editor / spawning?" is a compile error, not a silent gap.
 
 ```mermaid
 flowchart LR
     A[config module] --> B[SectionKind enum]
-    B --> C[damage table]
+    B --> C[SectionClass label]
     C --> D[section plugin]
     D --> E[spawn arm]
     E --> F[editor place + gallery]
@@ -47,13 +47,13 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    behavior + FixedUpdate systems). It defines: a `<Kind>SectionConfig` struct, a `<kind>_section`
    bundle fn, a `<Kind>SectionMarker` component, a `<Kind>SectionPlugin`, and a
    `prelude` re-exporting them. The bundle MUST insert the marker and the
-   `SectionDamageClass` for the kind:
+   `SectionClass` for the kind:
 
    ```rust
    pub fn shield_section(config: ShieldSectionConfig) -> impl Bundle {
        (
            ShieldSectionMarker,
-           SectionDamageClass::Shield,
+           SectionClass::Shield,
            // ... kind-specific render/behavior components
        )
    }
@@ -78,29 +78,15 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    }
    ```
 
-3. **Damage class + resistance rows.**
-   In `crates/nova_gameplay/src/damage.rs`:
-   - Add the variant to `SectionDamageClass` (grep for `enum SectionDamageClass`).
-   - Add one resistance row to EACH non-Kinetic group in `resistance()`
-     (grep for `fn resistance`): the `ArmorPiercing`, `Emp`, and `Explosive`
-     blocks. Kinetic
-     needs nothing -- the `(_, Kinetic) => 1.0` wildcard already covers every
-     class.
+3. **Section class.**
+   Add the variant to `SectionClass` in
+   `crates/nova_gameplay/src/damage.rs` (grep for `enum SectionClass`). It is a
+   LABEL, not a damage key -- there is no resistance table, so there is nothing
+   else to fill in on the damage side. How much a section takes is its `health`;
+   how far a round gets through it is the travel rule, which reads
+   `Health.max` and never the class.
 
-   ```rust
-   (Shield, ArmorPiercing) => 1.0,
-   // ...
-   (Shield, Emp)           => 2.0,
-   // ...
-   (Shield, Explosive)     => 0.75,
-   ```
-
-   Because `resistance()` matches on `(class, kind)` exhaustively, a missing
-   cell is a compile error -- you cannot forget one. Also add the new class to
-   the `SectionDamageClass` array in this file's tests
-   (`kinetic_resistance_is_one_on_every_section` iterates it).
-
-   The NOVA OS ship app labels sections by the same enum: add an arm to the
+   The NOVA OS ship app labels sections by this enum: add an arm to the
    exhaustive matches `code_prefix`, `kind_glyph`, `kind_description` and
    `kind_index` in `crates/nova_os_ui/src/ship/sections.rs`, and to
    `section_kind_label` in `crates/nova_os_ui/src/terminal/content.rs`.

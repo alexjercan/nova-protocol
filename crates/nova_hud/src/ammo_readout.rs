@@ -860,15 +860,15 @@ mod tests {
     #[test]
     fn driver_colors_pips_by_loaded_ammo_type() {
         // The readout hue tracks the loaded round's DamageType: a turret loaded
-        // with EMP reads EMP-colored (differs from Kinetic amber), and a torpedo
-        // reads Explosive.
+        // with Pierce reads in the penetrator blue (differs from the Kinetic
+        // amber), and a torpedo reads Explosive.
         let mut world = World::new();
         world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
         world.entity_mut(turret).insert(LoadedBullet {
-            kind: DamageType::Emp,
+            kind: DamageType::Pierce,
             damage: 5.0,
         });
         let torpedo = spawn_torpedo(&mut world, player, Some(SectionAmmo::new(4)));
@@ -878,13 +878,13 @@ mod tests {
         let turret_lit = first_lit_pip_color(&mut world, turret);
         assert_eq!(
             turret_lit,
-            damage_type_color(DamageType::Emp).with_alpha(LIT_ALPHA),
-            "an EMP-loaded turret reads in the EMP hue"
+            damage_type_color(DamageType::Pierce).with_alpha(LIT_ALPHA),
+            "a Pierce-loaded turret reads in the penetrator hue"
         );
         assert_ne!(
             turret_lit,
             damage_type_color(DamageType::Kinetic).with_alpha(LIT_ALPHA),
-            "EMP must read differently from the Kinetic amber (the point of color-coding)"
+            "Pierce must read differently from the Kinetic amber (the point of color-coding)"
         );
 
         // Torpedoes always detonate an Explosive blast, so their readout is

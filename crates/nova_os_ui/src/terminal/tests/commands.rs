@@ -118,7 +118,7 @@ fn ship_view_rows_format_section_status() {
     let sections = vec![
         ShipSectionStatus {
             code: "THR-1".to_string(),
-            kind: SectionDamageClass::Thruster,
+            kind: SectionClass::Thruster,
             health: Some(Health {
                 current: 18.0,
                 max: 100.0,
@@ -129,7 +129,7 @@ fn ship_view_rows_format_section_status() {
         },
         ShipSectionStatus {
             code: "PDC-1".to_string(),
-            kind: SectionDamageClass::Turret,
+            kind: SectionClass::Turret,
             health: Some(Health {
                 current: 0.0,
                 max: 60.0,
@@ -203,7 +203,7 @@ fn terminal_ship_command_reads_live_player_sections() {
         .spawn((
             SectionMarker,
             ThrusterSectionMarker,
-            SectionDamageClass::Thruster,
+            SectionClass::Thruster,
             // The minted code is the LABEL the table must show - proving it is
             // threaded from the ECS `SectionCode` component to the scrollback.
             SectionCode("THR-1".to_string()),

@@ -8,7 +8,7 @@ use bevy::{
     shader::ShaderRef,
 };
 use nova_gameplay::prelude::{
-    AssetRef, SectionDamageClass, SectionInactiveMarker, ThrusterSectionMarker, TriangleMeshBuilder,
+    AssetRef, SectionClass, SectionInactiveMarker, ThrusterSectionMarker, TriangleMeshBuilder,
 };
 
 use crate::prelude::{RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf};
@@ -99,7 +99,7 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
 
     (
         ThrusterSectionMarker,
-        SectionDamageClass::Thruster,
+        SectionClass::Thruster,
         ThrusterSectionMagnitude(config.magnitude),
         ThrusterSectionInput(0.0),
         ThrusterSectionLoopSound(config.loop_sound.clone()),

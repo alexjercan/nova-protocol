@@ -160,10 +160,10 @@ pub struct TorpedoSectionConfig {
     pub detonation_sound: Option<AssetRef<AudioSource>>,
     /// Hit points on EACH of the projectile's two collider sections
     /// (controller and thruster); either one reaching zero shoots the
-    /// torpedo down (silently - no blast). The 1.0 default keeps ordnance
-    /// one-bullet fragile, the balance point defense is tuned around; an
-    /// armored siege torpedo authors more and PDC fire has to chew through
-    /// it in the closing window instead of swatting it with the first hit.
+    /// torpedo down (silently - no blast). The default is set so no SINGLE
+    /// PDC round can one-shot a warhead (see [`default_projectile_health`]);
+    /// an armored siege torpedo authors far more and PDC fire has to chew
+    /// through it across the whole closing window.
     #[cfg_attr(
         feature = "serde",
         serde(
@@ -223,10 +223,18 @@ impl Default for TorpedoSectionConfig {
     }
 }
 
-/// Serde default for [`TorpedoSectionConfig::projectile_health`]: the
-/// one-bullet-fragile baseline every pre-field torpedo authored implicitly.
+/// Serde default for [`TorpedoSectionConfig::projectile_health`]: enough that
+/// no ONE PDC round can swat a warhead out of the air.
+///
+/// Derived, not picked: the shipped PDC authors 4.0 per round, and the Kinetic
+/// closing-speed curve tops out at 2x, so the hardest single round any stock
+/// gun can land is 8.0. 10 sits above that ceiling, which makes an intercept
+/// cost two rounds head-on and three in a station-keeping engagement. That is
+/// still ~30 ms of fire from a 100 rounds/s mount, so point defense loses
+/// nothing against a salvo - what it loses is the free one-tap that made
+/// ordnance feel like paper.
 fn default_projectile_health() -> f32 {
-    1.0
+    10.0
 }
 
 /// Serde skip for [`TorpedoSectionConfig::projectile_health`], so content
@@ -244,7 +252,7 @@ pub fn torpedo_section(config: TorpedoSectionConfig) -> impl Bundle {
 
     (
         TorpedoSectionMarker,
-        SectionDamageClass::Torpedo,
+        SectionClass::Torpedo,
         TorpedoSectionConfigHelper(config),
         TorpedoSectionInput(false),
     )

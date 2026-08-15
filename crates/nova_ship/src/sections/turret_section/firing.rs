@@ -1,5 +1,6 @@
 //! Turret firing: the fixed-clock muzzle loop that spawns bullets and the
-//! bullet's own damage-and-die contact rule.
+//! bullet's own contact rule - deal the round's bite, then let its type decide
+//! whether it travels on.
 
 use std::time::Duration;
 
@@ -11,17 +12,28 @@ use nova_gameplay::lifetime::TempEntity;
 use super::*;
 use crate::{physics::prelude::rigid_body_point_velocity, sections::local_pose_in_root};
 
-/// A bullet deals its typed damage and dies on its first contact with something
-/// TANGIBLE.
+/// A bullet deals its bite to the first TANGIBLE thing it meets, and its type
+/// decides whether it travels on.
 ///
 /// Nova OWNS the damage here: the bullet is a near-zero-mass Sensor (see the
 /// spawn bundle), so the emergent kinetic term is negligible; instead this
-/// scales the bullet's authored [`ProjectileDamage`] by the hit section's
-/// resistance and triggers `HealthApplyDamage` itself, which sidesteps Bevy
-/// 0.19's arbitrary observer order - the health store just subtracts what the
-/// weapon already decided. The despawn keeps a sensor round from
-/// crossing the target and dealing damage again against every event-enabled
-/// collider along its line.
+/// deals the bullet's authored [`ProjectileDamage`], scaled only by the CLOSING
+/// SPEED curve of its type, and triggers `HealthApplyDamage` itself.
+///
+/// The closing speed is the round's own arrival energy, so it is computed here
+/// rather than at the muzzle: the same relative-velocity term
+/// `on_impact_collision_deal_damage` uses for a ram, projected onto the round's
+/// line of flight. A charging shooter's rounds arrive faster; a fleeing
+/// target's slower.
+///
+/// [`spend_piercing_damage`] then decides the round's own fate. A Kinetic round
+/// that merely dents its target is expended on it, as it always was - that
+/// despawn is what stops a sensor round crossing the target and damaging every
+/// event-enabled collider along its line - and one that DESTROYS its target
+/// flies on with what its budget had left. A Pierce round is not stopped by
+/// being alive: it pays that layer's thickness out of its power and rakes on
+/// through. `amount` is zeroed when a round stops because the despawn is
+/// deferred: a second contact in the same flush must find nothing left.
 ///
 /// The OTHER side must not itself be a pure volume: scenario trigger
 /// areas, beacon spheres and blast shells are Sensor colliders with
@@ -29,39 +41,89 @@ use crate::{physics::prelude::rigid_body_point_velocity, sections::local_pose_in
 /// trigger boundary made the pirate un-hittable while it patrolled near
 /// one. A sensor-vs-sensor pair is two intangibles crossing - nothing to
 /// expend on.
-pub(super) fn despawn_bullet_on_hit(
+pub(super) fn resolve_bullet_hit(
     collision: On<CollisionStart>,
     mut commands: Commands,
-    q_bullets: Query<Option<&ProjectileDamage>, With<TurretBulletProjectileMarker>>,
+    mut q_bullets: Query<Option<&mut ProjectileDamage>, With<TurretBulletProjectileMarker>>,
     q_sensors: Query<(), With<Sensor>>,
-    q_class: Query<&SectionDamageClass>,
+    q_health: Query<&Health>,
+    q_events: Query<(), With<CollisionEventsEnabled>>,
+    q_velocity: Query<&LinearVelocity>,
 ) {
-    let pairs = [
-        (collision.body1, collision.collider2),
-        (collision.body2, collision.collider1),
-    ];
-    for (body, other_collider) in pairs {
+    // Avian raises one CollisionStart per EVENT-ENABLED collider, so a contact
+    // with events on both sides - a production round, which carries its own,
+    // against any health-bearing collider, which the integrity hook enables -
+    // arrives TWICE with the orderings swapped. Only the ordering that names the
+    // round first may act, or one contact is charged twice. The mirrored event
+    // does not always exist (a round with no events of its own is reported only
+    // as the target's `collider2`), so the second ordering stays for that case.
+    let mirrored = q_events.contains(collision.collider1) && q_events.contains(collision.collider2);
+    let pairs: &[(Option<Entity>, Option<Entity>, Entity)] = if mirrored {
+        &[(collision.body1, collision.body2, collision.collider2)]
+    } else {
+        &[
+            (collision.body1, collision.body2, collision.collider2),
+            (collision.body2, collision.body1, collision.collider1),
+        ]
+    };
+    for &(body, other_body, other_collider) in pairs {
         let Some(body) = body else {
             continue;
         };
         // Membership gate: is this body a turret bullet? (`damage` is None only
         // for bare test rigs; production bullets always carry it.)
-        let Ok(damage) = q_bullets.get(body) else {
+        let Ok(damage) = q_bullets.get_mut(body) else {
             continue;
         };
         if q_sensors.contains(other_collider) {
             // A trigger/blast volume: the round flies on through.
             continue;
         }
-        if let Some(&damage) = damage {
-            // Own the trigger: scale by the hit section's resistance (unknown
-            // targets - asteroids - take the raw amount). The bullet is the
-            // source, carrying ProjectileOwner for threat attribution.
-            let class = q_class.get(other_collider).ok().copied();
-            apply_typed_damage(&mut commands, other_collider, Some(body), class, damage);
+        let Some(mut damage) = damage else {
+            trace!("resolve_bullet_hit: bullet {:?} expended", body);
+            commands.entity(body).try_despawn();
+            continue;
+        };
+        if damage.amount <= 0.0 {
+            // Already spent earlier in this flush; its despawn is still queued.
+            continue;
         }
-        trace!("despawn_bullet_on_hit: bullet {:?} expended", body);
-        commands.entity(body).try_despawn();
+        // Velocities live on the BODIES, not the colliders. A target with no
+        // body of its own (or no velocity: a Static planetoid) counts as at
+        // rest, which is what it is.
+        let velocity = |entity: Option<Entity>| {
+            entity
+                .and_then(|entity| q_velocity.get(entity).ok())
+                .map_or(Vec3::ZERO, |velocity| **velocity)
+        };
+        let closing = closing_speed(velocity(Some(body)), velocity(other_body));
+        // The bullet is the source, carrying ProjectileOwner for threat
+        // attribution. A collider with no Health is a wall to either type.
+        let health = q_health.get(other_collider).ok();
+        match spend_piercing_damage(
+            &mut commands,
+            other_collider,
+            Some(body),
+            health,
+            *damage,
+            closing,
+        ) {
+            Some(remaining) => {
+                trace!(
+                    "resolve_bullet_hit: bullet {:?} travels on ({:?}, {} power, {} layers)",
+                    body,
+                    remaining.kind,
+                    remaining.power,
+                    remaining.layers
+                );
+                *damage = remaining;
+            }
+            None => {
+                trace!("resolve_bullet_hit: bullet {:?} expended", body);
+                damage.amount = 0.0;
+                commands.entity(body).try_despawn();
+            }
+        }
     }
 }
 
@@ -242,9 +304,11 @@ pub(super) fn shoot_spawn_projectile(
                     // so a bullet needs NO physical contact response, and a
                     // solid one was the knockback bug (mass 0.1 at 100 u/s
                     // plus restitution shoved a ~4-mass ship ~3 u/s per hit;
-                    // playtest round 2 finding 2). despawn_bullet_on_hit
+                    // playtest round 2 finding 2). resolve_bullet_hit
                     // keeps a sensor round from crossing on through every
-                    // collider behind the first. CollisionEventsEnabled is
+                    // collider behind the first - it flies on only through
+                    // what it destroyed, and only while its damage budget
+                    // lasts. CollisionEventsEnabled is
                     // carried by the BULLET because the other side may not
                     // have it: an invulnerable planetoid's collider has no
                     // Health, so collision events are never enabled on it, and an
@@ -273,11 +337,9 @@ pub(super) fn shoot_spawn_projectile(
                         ),
                         // The fired round comes from the turret's loaded-ammo slot,
                         // not a hardcoded type, so a future ammo switch changes
-                        // what this stamps.
-                        ProjectileDamage {
-                            amount: bullet_damage,
-                            kind: bullet_kind,
-                        },
+                        // what this stamps. The closing-speed scaling is applied
+                        // at the HIT, not here - the target is not known yet.
+                        ProjectileDamage::new(bullet_damage, bullet_kind),
                     ),
                     TurretSectionPartOf(turret),
                     TurretSectionMuzzleEntity(muzzle),
@@ -656,18 +718,18 @@ mod tests {
         // The ammo slot is authored from config: bullet_kind/bullet_damage seed
         // LoadedBullet, and a default turret loads Kinetic.
         let mut world = World::new();
-        let emp = world
+        let pierce = world
             .spawn(turret_section(TurretSectionConfig {
-                bullet_kind: DamageType::Emp,
+                bullet_kind: DamageType::Pierce,
                 bullet_damage: 7.0,
                 ..default()
             }))
             .id();
         let loaded = world
-            .entity(emp)
+            .entity(pierce)
             .get::<LoadedBullet>()
             .expect("turret_section inserts a LoadedBullet slot");
-        assert_eq!(loaded.kind, DamageType::Emp);
+        assert_eq!(loaded.kind, DamageType::Pierce);
         assert_eq!(loaded.damage, 7.0);
 
         let default_turret = world
@@ -749,7 +811,7 @@ mod tests {
         let mut app = firing_app(1.0);
         let turret = spawn_firing_turret(&mut app, None);
         app.world_mut().entity_mut(turret).insert(LoadedBullet {
-            kind: DamageType::Emp,
+            kind: DamageType::Pierce,
             damage: 5.0,
         });
 
@@ -765,10 +827,15 @@ mod tests {
             .expect("the turret fired at least one bullet");
         assert_eq!(
             dmg.kind,
-            DamageType::Emp,
+            DamageType::Pierce,
             "the fired round must take the loaded slot's type, not a hardcoded Kinetic"
         );
         assert_eq!(dmg.amount, 5.0, "and the slot's authored damage");
+        assert_eq!(
+            (dmg.power, dmg.layers),
+            (PIERCE_BASE_POWER, MAX_PIERCE_LAYERS),
+            "a fresh round leaves the muzzle with full pierce power and layers"
+        );
     }
 
     /// A ready-to-fire ship + turret + muzzle rig for `shoot_spawn_projectile`,
@@ -935,7 +1002,7 @@ mod tests {
         let mut app = unfinished_integrity_physics_app_with(
             PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
         );
-        app.add_observer(despawn_bullet_on_hit);
+        app.add_observer(resolve_bullet_hit);
         app.finish();
 
         // A free-floating target with health: one body, one collider.
@@ -1003,23 +1070,26 @@ mod tests {
 
     /// Production-faithful typed damage: a bullet as the turret now spawns it -
     /// near-zero mass (so the emergent kinetic is negligible) plus an authored
-    /// [`ProjectileDamage`] - hits a section and `despawn_bullet_on_hit` applies
-    /// `amount x resistance(class, kind)` through the owned trigger. Proven
-    /// across the table: Kinetic is unscaled everywhere (1.0), AP is amplified on
-    /// the armored Turret (1.75) and penalised on the exposed Thruster (0.75).
-    /// The drop is the nova-authored amount, NOT the old mass x velocity emergent
-    /// (which the neutralized mass reduces to ~0), and lands exactly once.
+    /// [`ProjectileDamage`] - hits a section and deals the number the weapon
+    /// authored. Damage is ONE number now: what a round deals does not depend on
+    /// which section it lands on, for either type. The drop is the nova-authored
+    /// amount, NOT the old mass x velocity emergent (which the neutralized mass
+    /// reduces to ~0), and it lands exactly once.
+    ///
+    /// The round flies at exactly [`REFERENCE_CLOSING_SPEED`] into a target at
+    /// rest, so the Kinetic curve reads 1.0 and the authored number is the
+    /// expected one.
     #[test]
-    fn typed_bullet_applies_resistance_scaled_damage() {
+    fn a_bullet_deals_its_authored_damage_whatever_section_it_hits() {
         use nova_gameplay::{
             projectile_hooks::ProjectileHooks,
             test_support::{settle, unfinished_integrity_physics_app_with},
         };
-        fn hit_drop(class: SectionDamageClass, damage: ProjectileDamage) -> f32 {
+        fn hit_drop(class: SectionClass, damage: ProjectileDamage) -> f32 {
             let mut app = unfinished_integrity_physics_app_with(
                 PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
             );
-            app.add_observer(despawn_bullet_on_hit);
+            app.add_observer(resolve_bullet_hit);
             app.finish();
 
             let start_hp = 1000.0;
@@ -1046,7 +1116,7 @@ mod tests {
                 Collider::sphere(0.05),
                 Mass(NEUTRALIZED_BULLET_MASS),
                 damage,
-                LinearVelocity(Vec3::NEG_Z * 100.0),
+                LinearVelocity(Vec3::NEG_Z * REFERENCE_CLOSING_SPEED),
             ));
             for _ in 0..15 {
                 app.update();
@@ -1060,30 +1130,24 @@ mod tests {
         }
 
         let amount = 20.0;
-        let kinetic = ProjectileDamage {
-            amount,
-            kind: DamageType::Kinetic,
-        };
-        let ap = ProjectileDamage {
-            amount,
-            kind: DamageType::ArmorPiercing,
-        };
-
-        // Kinetic: 1.0 on every section (feel-preserving). Tolerance covers the
-        // ~2e-4 emergent residual from the neutralized mass.
-        assert!(
-            (hit_drop(SectionDamageClass::Turret, kinetic) - amount).abs() < 0.05,
-            "Kinetic must be unscaled on the Turret"
-        );
-        // AP: 1.75 on the armored Turret, 0.75 on the exposed Thruster.
-        assert!(
-            (hit_drop(SectionDamageClass::Turret, ap) - amount * 1.75).abs() < 0.05,
-            "AP must be amplified 1.75x on the Turret"
-        );
-        assert!(
-            (hit_drop(SectionDamageClass::Thruster, ap) - amount * 0.75).abs() < 0.05,
-            "AP must be penalised 0.75x on the Thruster"
-        );
+        // Every section class, both bullet types, one expected number. Tolerance
+        // covers the ~2e-4 emergent residual from the neutralized mass. This
+        // fails the moment anything reintroduces a per-section multiplier.
+        for class in [
+            SectionClass::Hull,
+            SectionClass::Thruster,
+            SectionClass::Controller,
+            SectionClass::Turret,
+            SectionClass::Torpedo,
+        ] {
+            for kind in [DamageType::Kinetic, DamageType::Pierce] {
+                let dealt = hit_drop(class, ProjectileDamage::new(amount, kind));
+                assert!(
+                    (dealt - amount).abs() < 0.05,
+                    "{kind:?} into {class:?} must deal its authored {amount}, dealt {dealt}"
+                );
+            }
+        }
     }
 
     /// The two collision-event blind spots review R1.1/R1.2 caught in the
@@ -1103,7 +1167,7 @@ mod tests {
         let mut app = unfinished_integrity_physics_app_with(
             PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
         );
-        app.add_observer(despawn_bullet_on_hit);
+        app.add_observer(resolve_bullet_hit);
         app.finish();
 
         // A beacon-style trigger volume in the flight path...
@@ -1158,6 +1222,422 @@ mod tests {
             app.world().get_entity(bullet).is_err(),
             "a round must stop at an event-less solid instead of tunneling \
              (review R1.2)"
+        );
+    }
+
+    /// The pierce harness flies at the anchor, where both speed curves read 1.0,
+    /// so every budget assertion is the pure pierce arithmetic. Tests that are
+    /// ABOUT speed pass their own.
+    const PIERCE_TEST_SPEED: f32 = REFERENCE_CLOSING_SPEED;
+
+    /// Plate thickness and spacing along the line of flight. A round at the
+    /// anchor speed covers 1.67 u per 1/60 s step, so a 4-unit plate is sampled
+    /// twice over and a 6-unit pitch leaves a real gap between plates: nothing
+    /// under test can tunnel, and nothing lands two plates in one step.
+    const PIERCE_PLATE_THICKNESS: f32 = 4.0;
+    const PIERCE_PLATE_PITCH: f32 = 6.0;
+
+    /// The pierce harness: a real avian world plus the hit observer, wired as
+    /// the neighbouring typed-damage tests wire it.
+    fn pierce_app() -> App {
+        use nova_gameplay::{
+            projectile_hooks::ProjectileHooks, test_support::unfinished_integrity_physics_app_with,
+        };
+        let mut app = unfinished_integrity_physics_app_with(
+            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+        );
+        app.add_observer(resolve_bullet_hit);
+        app.finish();
+        app
+    }
+
+    /// A free-floating slab of `hp` centred at `z`, [`PIERCE_PLATE_THICKNESS`]
+    /// deep along the round's line of flight.
+    ///
+    /// Deliberately NO `ConnectedTo`: a slab that reaches zero health is
+    /// disabled rather than destroyed, which keeps the render-facing explode
+    /// observers (they cannot run headless) out of these tests. The pierce rule
+    /// keys on the health pool, not on the destroy marker, so what is under test
+    /// is unaffected.
+    fn spawn_plate(app: &mut App, z: f32, hp: f32) -> Entity {
+        app.world_mut()
+            .spawn((
+                Name::new("plate"),
+                RigidBody::Dynamic,
+                Transform::from_translation(Vec3::Z * z),
+                Collider::cuboid(8.0, 8.0, PIERCE_PLATE_THICKNESS),
+                ColliderDensity(1.0),
+                Health::new(hp),
+            ))
+            .id()
+    }
+
+    /// A production-shaped round flying -Z from `z` at `speed`: neutralized
+    /// mass, sensor collider carrying its own collision events, and `amount` of
+    /// authored budget. The plates carry no `SectionClass`, so resistance
+    /// is 1.0 everywhere and the arithmetic reads directly.
+    fn spawn_round_at(app: &mut App, z: f32, amount: f32, kind: DamageType, speed: f32) -> Entity {
+        app.world_mut()
+            .spawn((
+                Name::new("bullet"),
+                TurretBulletProjectileMarker,
+                RigidBody::Dynamic,
+                Transform::from_translation(Vec3::Z * z),
+                (Collider::sphere(0.05), Sensor, CollisionEventsEnabled),
+                Mass(NEUTRALIZED_BULLET_MASS),
+                ProjectileDamage::new(amount, kind),
+                LinearVelocity(Vec3::NEG_Z * speed),
+            ))
+            .id()
+    }
+
+    /// A Kinetic round at the anchor closing speed: the pre-speed round.
+    fn spawn_round(app: &mut App, z: f32, amount: f32) -> Entity {
+        spawn_round_at(app, z, amount, DamageType::Kinetic, PIERCE_TEST_SPEED)
+    }
+
+    fn plate_health(app: &App, plate: Entity) -> f32 {
+        app.world()
+            .get::<Health>(plate)
+            .expect("plate still exists")
+            .current
+    }
+
+    /// A Kinetic round that only dents its target is expended on it whatever
+    /// budget arithmetic says - the pre-pierce behaviour, and the reason armour
+    /// that HOLDS is still a wall. The Pierce contrast is
+    /// `a_fast_pierce_round_crosses_a_living_section_and_hits_what_is_behind`.
+    #[test]
+    fn a_kinetic_round_stops_on_a_target_it_fails_to_destroy() {
+        use nova_gameplay::test_support::settle;
+        let mut app = pierce_app();
+        let plate = spawn_plate(&mut app, 0.0, 100.0);
+        settle(&mut app);
+        let round = spawn_round(&mut app, 8.0, 20.0);
+
+        for _ in 0..20 {
+            app.update();
+        }
+
+        assert!(
+            (plate_health(&app, plate) - 80.0).abs() < 0.05,
+            "the whole 20-damage budget lands on the plate, got {}",
+            plate_health(&app, plate)
+        );
+        assert!(
+            app.world().get_entity(round).is_err(),
+            "a round that fails to destroy its target must be expended on it"
+        );
+    }
+
+    /// One contact is charged ONCE. Avian raises a `CollisionStart` per
+    /// event-enabled collider, and a production round (its own
+    /// `CollisionEventsEnabled`) hitting a health-bearing collider (events
+    /// enabled by the integrity hook) is event-enabled on both sides - so the
+    /// hit arrives twice with the orderings swapped and the round used to pay
+    /// its authored damage out twice (20 authored, 40 dealt). The budget makes
+    /// that fatal rather than merely wrong: a mirrored contact would also debit
+    /// the budget twice.
+    #[test]
+    fn a_round_deals_its_authored_damage_once_per_contact() {
+        use nova_gameplay::test_support::settle;
+        let mut app = pierce_app();
+        let plate = spawn_plate(&mut app, 0.0, 1000.0);
+        settle(&mut app);
+        spawn_round(&mut app, 8.0, 20.0);
+
+        for _ in 0..20 {
+            app.update();
+        }
+
+        let dealt = 1000.0 - plate_health(&app, plate);
+        assert!(
+            (dealt - 20.0).abs() < 0.05,
+            "a round authored at 20 must deal 20, not the mirrored 40: dealt {dealt}"
+        );
+    }
+
+    /// The point of the pierce rule: thin destructible cover costs a round part
+    /// of its budget instead of stopping it, so the round reaches what the cover
+    /// was protecting.
+    #[test]
+    fn a_round_that_destroys_a_thin_plate_damages_the_hull_behind_it() {
+        use nova_gameplay::test_support::settle;
+        let mut app = pierce_app();
+        let plate = spawn_plate(&mut app, PIERCE_PLATE_PITCH, 20.0);
+        let hull = spawn_plate(&mut app, 0.0, 500.0);
+        settle(&mut app);
+        let round = spawn_round(&mut app, 2.0 * PIERCE_PLATE_PITCH, 100.0);
+
+        for _ in 0..40 {
+            app.update();
+        }
+
+        assert_eq!(plate_health(&app, plate), 0.0, "the plate is destroyed");
+        assert!(
+            (plate_health(&app, hull) - 420.0).abs() < 0.05,
+            "the surviving 80 of the budget must land on the hull behind, got a \
+             drop of {}",
+            500.0 - plate_health(&app, hull)
+        );
+        assert!(
+            app.world().get_entity(round).is_err(),
+            "the round is expended on the hull it could not destroy"
+        );
+    }
+
+    /// The KINETIC budget is a hard cap: a slug crossing a stack of destructible
+    /// plates deals its authored damage in total and no more, then stops - it
+    /// does not re-deal its full amount to every plate on the line. That
+    /// conservation belongs to Kinetic alone now; the Pierce contrast is
+    /// `a_pierce_round_deals_more_in_total_than_it_was_fired_with`.
+    #[test]
+    fn a_kinetic_round_never_deals_more_than_the_budget_it_carries() {
+        use nova_gameplay::test_support::settle;
+        let mut app = pierce_app();
+        let budget = 20.0;
+        let plate_hp = 5.0;
+        // Six 5 hp plates in a row: the 20-point budget is worth exactly four of
+        // them.
+        let plates: Vec<Entity> = (0..6)
+            .map(|index| spawn_plate(&mut app, index as f32 * PIERCE_PLATE_PITCH, plate_hp))
+            .collect();
+        settle(&mut app);
+        let round = spawn_round(&mut app, 6.0 * PIERCE_PLATE_PITCH, budget);
+
+        for _ in 0..60 {
+            app.update();
+        }
+
+        let total_dealt: f32 = plates
+            .iter()
+            .map(|&plate| plate_hp - plate_health(&app, plate))
+            .sum();
+        assert!(
+            (total_dealt - budget).abs() < 0.05,
+            "a round may deal at most the {budget} it carries, dealt {total_dealt}"
+        );
+        // Direction guard: the damage really was spent nearest-first, on the
+        // four plates the round reached, and the last two never saw it.
+        for &plate in &plates[2..] {
+            assert_eq!(
+                plate_health(&app, plate),
+                0.0,
+                "the four plates nearest the muzzle are destroyed"
+            );
+        }
+        for &plate in &plates[..2] {
+            assert_eq!(
+                plate_health(&app, plate),
+                plate_hp,
+                "a spent round must not reach the plates behind it"
+            );
+        }
+        assert!(
+            app.world().get_entity(round).is_err(),
+            "the round dies when its budget runs out"
+        );
+    }
+
+    /// Kinetic's identity under real physics: closing speed is DAMAGE. The same
+    /// authored 20-point round hits for 30 on a charge, 20 at the anchor and 10
+    /// in a stern chase, and the stern chase is driven by the TARGET's velocity
+    /// - the half of the relative-velocity term a muzzle-speed-only reading
+    /// would miss.
+    #[test]
+    fn a_kinetic_round_closing_faster_deals_more_damage_per_hit() {
+        use nova_gameplay::test_support::settle;
+        /// One hit on a plate far too tough to destroy, so the whole drop is the
+        /// round's bite. `plate_speed` runs the plate away down the same line.
+        fn hit_drop(round_speed: f32, plate_speed: f32) -> f32 {
+            let mut app = pierce_app();
+            let start_hp = 10_000.0;
+            let plate = spawn_plate(&mut app, 0.0, start_hp);
+            settle(&mut app);
+            app.world_mut()
+                .entity_mut(plate)
+                .insert(LinearVelocity(Vec3::NEG_Z * plate_speed));
+            spawn_round_at(&mut app, 40.0, 20.0, DamageType::Kinetic, round_speed);
+            for _ in 0..80 {
+                app.update();
+            }
+            start_hp - plate_health(&app, plate)
+        }
+
+        let anchored = hit_drop(REFERENCE_CLOSING_SPEED, 0.0);
+        let charging = hit_drop(1.5 * REFERENCE_CLOSING_SPEED, 0.0);
+        let fleeing = hit_drop(REFERENCE_CLOSING_SPEED, 0.5 * REFERENCE_CLOSING_SPEED);
+
+        assert!(
+            (anchored - 20.0).abs() < 0.05,
+            "at the reference closing speed the round deals exactly its authored \
+             20, got {anchored}"
+        );
+        assert!(
+            (charging - 30.0).abs() < 0.05,
+            "closing 1.5x faster must deal 1.5x, got {charging}"
+        );
+        assert!(
+            (fleeing - 10.0).abs() < 0.05,
+            "a target running away at half the round's speed halves the hit, got \
+             {fleeing}"
+        );
+    }
+
+    /// The rake, end to end: a Pierce round is not stopped by a section being
+    /// ALIVE. It pays that section's thickness out of its power and carries on
+    /// into what the section was shielding, dealing its full bite there too.
+    /// The A/B is a Kinetic round on the same rig, which stops dead on the front
+    /// plate - the difference is the TYPE, not the speed.
+    #[test]
+    fn a_pierce_round_rakes_through_a_living_section_and_hits_what_is_behind() {
+        use nova_gameplay::test_support::settle;
+        /// `(front drop, back drop)` for a round of `kind` into two 100 hp
+        /// plates, neither of which a 20-point bite can destroy.
+        fn run(kind: DamageType) -> (f32, f32) {
+            let mut app = pierce_app();
+            let armour = 100.0;
+            let front = spawn_plate(&mut app, 0.0, armour);
+            let back = spawn_plate(&mut app, -2.0 * PIERCE_PLATE_PITCH, armour);
+            settle(&mut app);
+            spawn_round_at(
+                &mut app,
+                2.0 * PIERCE_PLATE_PITCH,
+                20.0,
+                kind,
+                PIERCE_TEST_SPEED,
+            );
+            for _ in 0..40 {
+                app.update();
+            }
+            (
+                armour - plate_health(&app, front),
+                armour - plate_health(&app, back),
+            )
+        }
+
+        let (front, back) = run(DamageType::Pierce);
+        assert!(
+            (front - 20.0).abs() < 0.05,
+            "the front section takes the round's authored bite, got {front}"
+        );
+        assert!(
+            (back - 20.0).abs() < 0.05,
+            "and so does what was behind it, UNDIMINISHED - the rake does not \
+             decay with depth, got {back}"
+        );
+
+        let (front, back) = run(DamageType::Kinetic);
+        assert!(
+            (front - 20.0).abs() < 0.05,
+            "the slug bites the same 20 on arrival, got {front}"
+        );
+        assert_eq!(
+            back, 0.0,
+            "but it is spent there: a slug travels only through what it destroys"
+        );
+    }
+
+    /// The invariant the rake deliberately breaks: a Pierce round's TOTAL damage
+    /// exceeds what it was fired with, because it pays for travel out of power
+    /// and its damage never depletes. Six 30 hp plates take 20 each from a round
+    /// authored at 20 - 120 in total - and `MAX_PIERCE_LAYERS` is what ends it.
+    #[test]
+    fn a_pierce_round_deals_more_in_total_than_it_was_fired_with() {
+        use nova_gameplay::test_support::settle;
+        let mut app = pierce_app();
+        let amount = 20.0;
+        // 30 hp each: every plate SURVIVES its 20-point bite, so nothing here is
+        // the old kill-to-continue rule wearing a different hat.
+        let plate_hp = 30.0;
+        let count = 8;
+        let plates: Vec<Entity> = (0..count)
+            .map(|index| spawn_plate(&mut app, index as f32 * PIERCE_PLATE_PITCH, plate_hp))
+            .collect();
+        settle(&mut app);
+        spawn_round_at(
+            &mut app,
+            count as f32 * PIERCE_PLATE_PITCH,
+            amount,
+            DamageType::Pierce,
+            PIERCE_TEST_SPEED,
+        );
+
+        for _ in 0..80 {
+            app.update();
+        }
+
+        let raked = plates
+            .iter()
+            .filter(|&&plate| plate_health(&app, plate) < plate_hp)
+            .count();
+        let dealt: f32 = plates
+            .iter()
+            .map(|&plate| plate_hp - plate_health(&app, plate))
+            .sum();
+        assert_eq!(
+            raked, MAX_PIERCE_LAYERS as usize,
+            "the layer cap is what ends a rake through cheap plates"
+        );
+        assert!(
+            dealt > amount,
+            "a rake's total must EXCEED the amount it was fired with, got {dealt}"
+        );
+        assert!(
+            (dealt - amount * MAX_PIERCE_LAYERS as f32).abs() < 0.05,
+            "six layers x the authored 20, undiminished by depth, got {dealt}"
+        );
+    }
+
+    /// Speed is POWER for a penetrator: the same round closing at 2x pays half
+    /// as much per layer and rakes deeper, while its per-hit damage does not
+    /// move at all. 100 hp plates cost 100 power each at the anchor (three of a
+    /// 300 power budget) and 50 each at 2x (the layer cap binds first).
+    #[test]
+    fn a_fast_pierce_round_rakes_deeper_without_biting_harder() {
+        use nova_gameplay::test_support::settle;
+        /// `(layers raked, damage on the first layer)` for a Pierce round at
+        /// `speed` down a stack of 100 hp plates.
+        fn run(speed: f32) -> (usize, f32) {
+            let mut app = pierce_app();
+            let plate_hp = 100.0;
+            let count = 8;
+            let plates: Vec<Entity> = (0..count)
+                .map(|index| spawn_plate(&mut app, index as f32 * PIERCE_PLATE_PITCH, plate_hp))
+                .collect();
+            settle(&mut app);
+            spawn_round_at(
+                &mut app,
+                count as f32 * PIERCE_PLATE_PITCH,
+                20.0,
+                DamageType::Pierce,
+                speed,
+            );
+            for _ in 0..120 {
+                app.update();
+            }
+            let raked = plates
+                .iter()
+                .filter(|&&plate| plate_health(&app, plate) < plate_hp)
+                .count();
+            // The round enters from +Z, so the LAST plate is the first one hit.
+            let first_hit = plate_hp - plate_health(&app, plates[count - 1]);
+            (raked, first_hit)
+        }
+
+        let (anchored, anchored_bite) = run(PIERCE_TEST_SPEED);
+        let (fast, fast_bite) = run(2.0 * PIERCE_TEST_SPEED);
+        assert_eq!(
+            anchored, 3,
+            "300 power buys three 100 hp layers at the anchor"
+        );
+        assert!(
+            fast > anchored,
+            "closing at 2x must rake deeper: {fast} vs {anchored}"
+        );
+        assert!(
+            (fast_bite - anchored_bite).abs() < 0.05,
+            "and must NOT bite harder for it: {fast_bite} vs {anchored_bite}"
         );
     }
 

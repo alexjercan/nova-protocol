@@ -1,12 +1,11 @@
 //! Nova's hit-point store: the [`Health`] pool, the [`HealthApplyDamage`] event
 //! that spends it, and the observer that applies a hit and marks a depleted node.
 //!
-//! Nova owns this rather than importing it because the typed-damage layer needs
-//! it to. [`crate::damage`] scales a hit by a per-section resistance table before
-//! triggering, and that contract - the amount reaching this observer is ALREADY
-//! resistance-scaled - only holds if the subtractor is nova's. Bevy 0.19 gives no
-//! ordering between two observers of one event, so a nova observer that tried to
-//! scale a third party's event would race its subtractor and lose half the time.
+//! Nova owns this rather than importing it because the damage layer needs it to:
+//! [`crate::damage`] decides a hit's final magnitude at the weapon and this
+//! observer subtracts exactly that. Bevy 0.19 gives no ordering between two
+//! observers of one event, so a nova observer that tried to adjust a third
+//! party's event would race its subtractor and lose half the time.
 //!
 //! The overkill rule is the other reason. Damage bubbles up `ChildOf` so an
 //! aggregate hull reacts to a hit on a section, and only the amount that
@@ -48,11 +47,10 @@ pub struct HealthZeroMarker;
 
 /// Spend `amount` hit points on `entity`.
 ///
-/// `amount` is the FINAL number: nova's typed-damage layer
-/// ([`apply_typed_damage`](crate::damage::apply_typed_damage)) has already
-/// applied the section resistance for the weapon's [`DamageType`](crate::damage::DamageType).
-/// Trigger this directly only where there is no weapon behind the hit (a test
-/// rig, a scripted scenario beat).
+/// `amount` is the FINAL number: the weapon decided it (see
+/// [`apply_damage`](crate::damage::apply_damage), the one path in) and nothing
+/// between there and here reinterprets it. Trigger this directly only where
+/// there is no weapon behind the hit (a test rig, a scripted scenario beat).
 ///
 /// Propagates up `ChildOf` carrying only what landed - see the module docs.
 #[derive(EntityEvent, Clone, Debug)]
@@ -63,7 +61,7 @@ pub struct HealthApplyDamage {
     /// The collider that dealt it (a bullet, a blast, a rammed hull), for threat
     /// attribution. `None` for unattributed damage.
     pub source: Option<Entity>,
-    /// Hit points to spend, already resistance-scaled.
+    /// Hit points to spend: the final number, as the weapon computed it.
     pub amount: f32,
 }
 

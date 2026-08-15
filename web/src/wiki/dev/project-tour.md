@@ -61,7 +61,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | I want to change... | Start in | Read |
 | --- | --- | --- |
 | A ship section behavior | `crates/nova_ship/src/sections/` | [Ship sections](../sections/), [Add a ship section](../guide-add-section/) |
-| Damage / resistances | `crates/nova_gameplay/src/damage.rs` | [Ship sections](../sections/) |
+| Damage types / how a round travels | `crates/nova_gameplay/src/damage.rs` | [Ship sections](../sections/) |
 | Integrity (disable/destroy) | `crates/nova_gameplay/src/integrity/` | [Ship sections](../sections/) |
 | Flight / autopilot verbs | `crates/nova_ship/src/flight/` | -- |
 | Player input / AI | `crates/nova_ship/src/input/{player,ai}/` | -- |

@@ -334,9 +334,28 @@ Section-wide fields (once, alongside `root`):
 - `muzzle_speed` - projectile launch speed in units per second (shared by all
   muzzles; `fire_rate` is per-muzzle, see the joint fields above).
 - `projectile_lifetime` - projectile lifetime in seconds.
-- `bullet_damage` - authored per-hit damage (pre-resistance).
-- `bullet_kind` - the damage type of the loaded round (`Kinetic`, `ArmorPiercing`,
-  `Emp`, or `Explosive`).
+- `bullet_damage` - authored damage per hit, before the closing-speed curve. It
+  is the SAME number against every section: there is no resistance table, so a
+  damage type never multiplies what a round deals.
+- `bullet_kind` - the damage type of the loaded round (`Kinetic`, `Pierce`, or
+  `Explosive`). A type decides how the round TRAVELS, not how much it deals:
+  - `Kinetic` is the punch. `bullet_damage` doubles as its budget: it continues
+    only through what it DESTROYS, spending the target's health out of that
+    budget, and stops at anything it fails to kill. Closing speed scales its
+    damage (clamped 0.25x..2.0x).
+  - `Pierce` is the rake. It deals `bullet_damage` in full to EVERY section it
+    crosses, alive or dead, undiminished by depth, so its total legitimately
+    exceeds one round's worth. It pays for travel out of a separate power
+    budget: crossing a section costs that section's `health` RATING (not its
+    remaining health), and closing speed divides that cost (clamped
+    0.5x..3.0x). A rake is bounded by its power and by a hard six-layer cap.
+  - `Explosive` on a bullet has no travel rule and is spent on its first hit;
+    it is the torpedo blast's type.
+
+  Both curves read exactly 1.0 when the round closes at 100 u/s (a stock PDC's
+  `muzzle_speed`), so author `bullet_damage` for a station-keeping engagement
+  and speed does the rest. Nothing of any type gets through a collider with no
+  health of its own - an asteroid or a planetoid is a wall.
 - `projectile_render_mesh` (optional) - custom bullet mesh; omit for the
   built-in projectile.
 - `ammo_capacity` (optional) - magazine size; `None` fires without a limit,
@@ -396,13 +415,17 @@ kind: Torpedo((
 - `linear_damping` - drag on the torpedo body (gives a real terminal velocity so
   the flight path follows guidance).
 - `blast_radius`, `blast_damage` - detonation radius and peak centre damage
-  (falls off to zero at the radius).
+  (falls off to zero at the radius). A blast damages every collider inside the
+  radius at once, with no occlusion and no per-section multiplier, so cover
+  gives nothing against it: radius and magnitude ARE a torpedo's identity.
 - `blast_effect`, `launch_effect` (both optional) - custom particle effects;
   omit for the built-in bursts.
-- `projectile_health` (optional, default `1.0`) - hit points on each of the
+- `projectile_health` (optional, default `10.0`) - hit points on each of the
   torpedo's two collider sections; either reaching zero shoots it down
-  (silently, no blast). The default keeps ordnance one-bullet fragile; author
-  more for armored ordnance point defense has to chew through.
+  (silently, no blast). The default sits above the hardest single round a stock
+  PDC can land (4.0 authored x the 2.0 kinetic speed ceiling), so an intercept
+  costs a short burst rather than one lucky tap; author far more for armored
+  ordnance point defense has to chew through across the closing window.
 - `ammo_capacity` (optional) - magazine size in torpedoes; `None` for unlimited.
 - `reload` (optional) - auto-reload for the bay (needs `ammo_capacity`); same
   `Some((reload_time, rounds_per_cycle, only_when_empty))` shape as the turret.

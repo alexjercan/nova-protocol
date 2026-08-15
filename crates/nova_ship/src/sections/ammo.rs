@@ -16,7 +16,7 @@
 //! its own - discrete auto-reload-on-empty or continuous per-round regen, both
 //! from one timer ([`tick_section_reload`]). Reload rides on the magazine, so a
 //! weapon with no [`SectionAmmo`] never reloads and stays unlimited. Multiple
-//! ammo/bullet types (armor-piercing, EMP) landed as the `LoadedBullet` slot; a
+//! ammo/bullet types (Kinetic, Pierce) landed as the `LoadedBullet` slot; a
 //! future per-type magazine would replace the scalar pool while keeping the
 //! same consume-one-to-fire contract the weapon systems rely on.
 //!

@@ -3,7 +3,7 @@
 use avian3d::prelude::*;
 use bevy::{platform::collections::HashSet, prelude::*};
 use nova_gameplay::prelude::{
-    AssetRef, ControllerSectionMarker, SectionDamageClass, SectionInactiveMarker,
+    AssetRef, ControllerSectionMarker, SectionClass, SectionInactiveMarker,
 };
 
 use crate::prelude::{
@@ -164,7 +164,7 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
 
     (
         ControllerSectionMarker,
-        SectionDamageClass::Controller,
+        SectionClass::Controller,
         PDController {
             frequency: config.frequency,
             damping_ratio: config.damping_ratio,

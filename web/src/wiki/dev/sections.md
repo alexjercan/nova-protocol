@@ -131,9 +131,10 @@ they only fit the craft they were cut from.
 `box_link_points(size)` is the general face-socket helper
 (`unit_cube_link_points` is `box_link_points(Vec3::ONE)`). A part authored at its
 own size mates against a part of any other size, because the sockets meet face to
-face and the roll comes from the axis alone; `pdc_turret_section` is the shipped
-example - one compact mount that fits every hull, replacing ten per-craft copies
-of the same gun.
+face and the roll comes from the axis alone; `pdc_kinetic_turret_section` (and
+its `pdc_pierce_turret_section` twin, the same gun with a different round) is the
+shipped example - one compact mount that fits every hull, replacing ten per-craft
+copies of the same gun.
 
 `candidate_link_point_mates` is
 the same pairing WITHOUT the ambiguity and connectivity gates, because a ship
@@ -182,17 +183,82 @@ flowchart TD
 
 ## Typed damage (`crates/nova_gameplay/src/damage.rs`)
 
-Weapon damage is authored, not emergent from bullet physics. A projectile
-carries `ProjectileDamage { amount, kind }` with a `DamageType`: `Kinetic`,
-`ArmorPiercing`, `Emp`, or `Explosive`. On hit, the amount is scaled by a
-`resistance(section class, damage type)` table (for example EMP is 3.0 vs the
-Controller but 0.1 vs Hull; Kinetic is always 1.0) and only then applied via
-`HealthApplyDamage`. Targets without a `SectionDamageClass` (asteroids) take
-the raw amount. Turret bullets are given a near-zero physical mass so the
-impact path's mass-times-velocity damage
-(`on_impact_collision_deal_damage`, `integrity/core.rs`) is negligible;
-torpedoes detonate a typed `NovaBlast` (Explosive, linear falloff,
-`damage.rs`) instead of an untyped blast.
+Weapon damage is authored, not emergent from bullet physics, and it is ONE
+number: there is no resistance table and no per-section multiplier anywhere in
+the damage path. A projectile carries
+`ProjectileDamage { amount, power, layers, kind }` with a `DamageType`:
+`Kinetic`, `Pierce`, or `Explosive`. `apply_damage` is the single point at which
+any weapon enters the health store, and it is a plain `HealthApplyDamage`
+trigger - nothing between the weapon and `on_damage` reinterprets the number.
+
+A type is a way of TRAVELLING, not a multiplier. That was the point of dropping
+the table: a round visibly crossing three sections is legible from the cockpit,
+a 1.5x is not. `SectionClass` survives the table as the ship computer's section
+LABEL (`nova_os_ui` reads it for codes, glyphs and descriptions); nothing in the
+damage path branches on it.
+
+Turret bullets are given a near-zero physical mass (`NEUTRALIZED_BULLET_MASS`)
+so the impact path's mass-times-velocity damage
+(`on_impact_collision_deal_damage`, `integrity/core.rs`) is negligible and the
+authored amount is the only weapon damage. Torpedoes detonate a `NovaBlast`
+(linear falloff, `damage.rs`) which damages every overlapping collider - no
+occlusion, no layering: nothing gives cover against a blast, which is what
+makes torpedoes the counter to armour a bullet cannot rake through.
+
+### Closing speed
+
+Both BULLET types are speed-driven, and the term is computed at the hit, not at
+the muzzle: `closing_speed(round_velocity, target_velocity)` projects the same
+relative velocity `on_impact_collision_deal_damage` uses onto the round's own
+line of flight (projecting onto the line BETWEEN the bodies is unusable - at
+contact they are touching, so that direction is noise). Both curves are the
+speed ratio against `REFERENCE_CLOSING_SPEED` (100 u/s, the shipped PDC's
+`muzzle_speed`), clamped:
+
+- `kinetic_damage_multiplier` scales what a hit DEALS, clamped to `[0.25, 2.0]`;
+- `pierce_power_multiplier` scales how far the round GETS - it divides what a
+  layer costs - clamped to `[0.5, 3.0]`.
+
+Linear, not the ram model's own curve: `impact_damage` is impulse plus absorbed
+energy, and at bullet speeds the quadratic energy half reads ~3.9x at twice the
+reference, which would turn a ~400 DPS PDC into ~1600. Both read exactly 1.0 at
+the reference, so authored `bullet_damage` values keep the feel they were tuned
+for. Speed scaling is deliberately NOT in `apply_damage`: a ram already carries
+its velocity in the amount, and a blast has no line of flight.
+
+### The travel rule
+
+`pierce_remainder` (`damage.rs`) is the whole rule, one branch per type;
+`spend_piercing_damage` deals `hit_bite` through `apply_damage` and then calls
+it.
+
+- KINETIC spends its DAMAGE. `amount` doubles as the budget: a hit that fails to
+  destroy the target has by definition put the whole bite into it, so the round
+  dies; a hit that destroys it costs only the health that was there, priced back
+  through the speed curve that scaled the bite, and the rest flies on. A slug
+  can never deal more in total than it was fired with.
+- PIERCE spends POWER, never damage. `amount` is flat - the same bite into every
+  layer, no speed term and no decay with depth. Crossing a layer costs that
+  layer's `Health.max` divided by `pierce_power_multiplier`. MAX, not remaining,
+  for two reasons: light plating stays nearly free while a heavy block is
+  expensive (the spaced-armour intuition), and softening a section with other
+  fire cannot open a cheaper hole through it. A rake's TOTAL damage therefore
+  exceeds what it was fired with, which is intended. `PIERCE_BASE_POWER` (300 hp
+  of thickness) is the budget and `MAX_PIERCE_LAYERS` (6) the backstop under it,
+  because cheap plating alone would not bound the chain.
+
+A target with no `Health` on the hit collider (an asteroid, a planetoid, a pool
+that lives on an ancestor) has no thickness to price and nothing provably
+destroyed, so it is a wall to both types at any speed. Nothing in the rule knows
+what it hit, so destructible cover needs no special case. Torpedoes do not use
+it - they detonate on a proximity fuze.
+
+One avian trap the hit callsite has to handle: `CollisionStart` is raised once
+per EVENT-ENABLED collider, so a contact with events on both sides arrives
+twice with `collider1`/`collider2` swapped. An asymmetric rule must act on one
+ordering only (`resolve_bullet_hit` keys on the round being named first;
+`on_nova_blast_collision` on the blast being `body1`), or it pays out twice
+per contact. A symmetric rule - ram damage - wants both.
 
 ## Ammo
 

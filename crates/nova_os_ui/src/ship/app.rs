@@ -228,7 +228,7 @@ pub(crate) fn apply_ship_cli_commands(
     // the not-found listing.
     let wanted = code.to_ascii_uppercase();
     let mut codes: Vec<String> = Vec::new();
-    let mut target: Option<(Entity, String, String, SectionDamageClass, bool, bool)> = None;
+    let mut target: Option<(Entity, String, String, SectionClass, bool, bool)> = None;
     for (
         entity,
         child,
@@ -263,10 +263,7 @@ pub(crate) fn apply_ship_cli_commands(
         terminal.extend_scrollback(unknown_code_rows(code, &codes));
         return;
     };
-    let is_weapon = matches!(
-        kind,
-        SectionDamageClass::Turret | SectionDamageClass::Torpedo
-    );
+    let is_weapon = matches!(kind, SectionClass::Turret | SectionClass::Torpedo);
 
     let rows = match invocation.name {
         "ship section" => {
@@ -318,7 +315,7 @@ pub(crate) fn apply_ship_section_commands(
     mut runtime: ResMut<ShipRuntime>,
     q_view: Query<(
         &SectionCode,
-        Option<&SectionDamageClass>,
+        Option<&SectionClass>,
         Has<HullSectionMarker>,
         Has<ControllerSectionMarker>,
         Has<ThrusterSectionMarker>,
@@ -339,10 +336,7 @@ pub(crate) fn apply_ship_section_commands(
         else {
             continue;
         };
-        let is_weapon = matches!(
-            kind,
-            SectionDamageClass::Turret | SectionDamageClass::Torpedo
-        );
+        let is_weapon = matches!(kind, SectionClass::Turret | SectionClass::Torpedo);
         let mut health = q_health.get_mut(command.target).ok();
         let mut ammo = q_ammo.get_mut(command.target).ok();
         let row = apply_action_to_section(

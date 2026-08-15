@@ -462,7 +462,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // socket while covering only a corner of the face. It is also the part
         // that proves a mount authored at its own size mates against a unit
         // cube at all - which is what `box_link_points` is for.
-        .arm_from_the_gallery("editor: arm the shared PDC turret", "pdc_turret_section")
+        .arm_from_the_gallery(
+            "editor: arm the shared PDC turret",
+            "pdc_kinetic_turret_section",
+        )
         .step("editor: aim at the face the camera can see")
         .on_enter(|world: &mut World| {
             let (centre, _) = aim_at_a_visible_face(world).expect("a section faces the camera");

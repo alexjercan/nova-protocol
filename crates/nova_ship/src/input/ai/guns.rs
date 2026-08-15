@@ -129,7 +129,7 @@ pub(super) fn update_fire_cadence(
 /// A hit that resolves to the TARGET's own body (a slow or near target whose
 /// collider straddles the line before the lead point) is not occlusion.
 /// Sensor colliders are transparent to the ray for the same reason they are
-/// transparent to rounds (`despawn_bullet_on_hit` skips sensors): a beacon's
+/// transparent to rounds (`resolve_bullet_hit` skips sensors): a beacon's
 /// trigger sphere or a blast shell must not read as cover. The shooter's own
 /// colliders are transparent too - the muzzle sits on its hull.
 ///
@@ -526,7 +526,7 @@ mod line_of_fire_tests {
     #[test]
     fn sensor_volumes_are_not_cover() {
         // A scenario trigger area / blast shell: rounds fly through
-        // sensors (despawn_bullet_on_hit skips them), so the gate must
+        // sensors (resolve_bullet_hit skips them), so the gate must
         // not read one as cover - the R1.1 beacon lesson, ray edition.
         let (mut app, _, turret, _) = los_app(Vec3::new(0.0, 0.0, -100.0), 1.0);
         app.world_mut().spawn((
