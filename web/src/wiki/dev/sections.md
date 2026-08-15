@@ -383,7 +383,9 @@ per contact. A symmetric rule - ram damage - wants both.
 
 - `SectionAmmo` (`sections/ammo.rs`): optional magazine on a weapon section.
   Absent = unlimited fire; `ammo_capacity` in the turret/torpedo config opts in.
-  The player `infinite_ammo` flag builds that ship's weapons without magazines.
+  The player `infinite_ammo` flag builds that ship's weapons without magazines,
+  but only under the `debug` feature: a shipped build logs a warning and keeps
+  the authored magazines, so unlimited fire is a dev cheat, never a player state.
 - `SectionReload` (`sections/ammo.rs`): optional auto-reload/regen on a magazine,
   from the turret/torpedo config `reload`. `tick_section_reload` (FixedUpdate)
   refills a spent magazine on a timer - discrete reload-to-full on empty

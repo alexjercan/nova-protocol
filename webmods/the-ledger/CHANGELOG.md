@@ -3,6 +3,16 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.23.0
+
+- The whole campaign is flown on real ammunition. Every chapter dropped the
+  `infinite_ammo` grant, so the Kestrel's PDCs hold 500 rounds and take 3 s to
+  reload, and the raid gunship's torpedo bays hold six and regrow one every
+  4 s. Required: unlimited fire is a debug-only cheat the shipped game ignores,
+  so a chapter authoring it was already lying about how it played. Expect to
+  pick targets between reloads rather than hold the trigger; sustained turret
+  output is ~62% of the burst rate.
+
 ## 1.22.0
 
 - Re-casts the armed ships onto the CargoA corvette, following the base game's

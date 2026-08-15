@@ -86,6 +86,12 @@ tagged **(breaking)**.
 - New `ForceTorpedoLaunch` event action: script a controller-less ship's
   torpedo bays to launch at a named target on timers - dumb emplacements
   with authored cadence instead of full AI.
+- **(breaking)** Unlimited player ammunition is a DEBUG-ONLY cheat. The
+  `infinite_ammo` player flag is honored only by a build carrying the `debug`
+  feature (examples, the probe harness); the shipped game logs a warning and
+  keeps the authored magazines. Every scenario, base or mod, is played with
+  real ammunition now, so holding the trigger costs a reload and point defense
+  is a decision instead of a reflex.
 
 ### Gameplay & Flight
 

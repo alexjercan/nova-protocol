@@ -323,8 +323,7 @@ fn the_player_flies_a_torpedo_gunship() {
         "the gunship also carries guns"
     );
 
-    // It is Player-driven, with the torpedo bays bound to a fire input and
-    // infinite ammo so the hero moment is not magazine-gated.
+    // It is Player-driven, with the torpedo bays bound to a fire input.
     let SpaceshipController::Player(cfg) = &player.controller else {
         panic!("the gunship is player-controlled");
     };
@@ -343,7 +342,13 @@ fn the_player_flies_a_torpedo_gunship() {
             "torpedo bay '{tube}' fires on the R key"
         );
     }
-    assert!(cfg.infinite_ammo, "infinite ammo for the victory lap");
+    // The victory lap is flown on real magazines. `infinite_ammo` is a
+    // debug-only cheat the shipped game ignores anyway, so a chapter still
+    // authoring it would be lying about how it plays.
+    assert!(
+        !cfg.infinite_ammo,
+        "the raid is flown on the gunship's authored magazines"
+    );
 }
 
 // --- allegiances: two friends, four foes, one hostile base ------------------
@@ -724,11 +729,11 @@ fn the_bundle_ships_the_raid_and_bumps_the_version() {
     // offered the update, so a content change never reaches a player who
     // already has the mod.
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.22.0\""),
-        "the bundle version is bumped for the corvette re-cast"
+        LEDGER_BUNDLE_RON.contains("version: \"1.23.0\""),
+        "the bundle version is bumped for the finite-ammunition pass"
     );
     assert!(
-        LEDGER_CHANGELOG.contains("## 1.22.0"),
+        LEDGER_CHANGELOG.contains("## 1.23.0"),
         "the mod changelog documents the published version"
     );
 }

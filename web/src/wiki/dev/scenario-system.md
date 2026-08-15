@@ -514,7 +514,8 @@ are dynamic), and the asteroid alone opts into `Dynamic` +
   section's `base` block exposes. Spawned ship sections take the same two
   fields; see [Ship sections for mods](../../modding/sections/).
 - `Spaceship(SpaceshipConfig)` - sections plus a `SpaceshipController`:
-  `None`, `Player` (input mapping, optional `speed_cap`, `infinite_ammo`), or
+  `None`, `Player` (input mapping, optional `speed_cap`, and `infinite_ammo` -
+  a debug-only cheat a shipped build ignores), or
   `AI` (patrol route, orbit directive,
   optional `leash` break-off radius, optional
   `engage_delay: Some(secs)` arrival grace - the ship flies its passive

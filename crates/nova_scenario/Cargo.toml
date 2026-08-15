@@ -40,6 +40,10 @@ nova_scenario = { path = ".", features = ["serde"] }
 workspace = true
 
 [features]
+# Gates the debug-only cheats the scenario loader honors - today the player
+# `infinite_ammo` grant, which a shipped build must never apply. Fans out
+# through nova_gameplay so the whole tree resolves ONE bevy variant.
+debug = ["bevy/track_location", "nova_gameplay/debug"]
 serde = ["dep:serde", "bevy/serialize", "nova_gameplay/serde"]
 
 # Baseline + regression benchmark for the scenario dispatch hot path (task

@@ -3,6 +3,13 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.10.0
+
+- Drops the leftover `infinite_ammo` grant from the course racer. The racer was
+  disarmed in 1.9.0, so the flag bought nothing; it is a debug-only cheat the
+  shipped game ignores now, and a time trial should not claim a combat
+  allowance. No change to how the course flies.
+
 ## 1.9.0
 
 - Disarms the course racer: the base game now flies the Racer as its unarmed

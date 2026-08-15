@@ -13,8 +13,11 @@
 // Cast:
 //   - player_spaceship: a cargoB-class gunship (the Auditor's own hull-class),
 //     Player-driven. Guns on LMB (the two turret cubes), torpedoes on a
-//     dedicated RMB / left-trigger (the two torpedo bays). infinite_ammo so the
-//     hero moment is not magazine-gated.
+//     dedicated RMB / left-trigger (the two torpedo bays). Real magazines: the
+//     hero moment is the CAPITAL HULL and the tubes, not a trigger held down.
+//     500 PDC rounds per turret (3 s reload) and a 6-torpedo bay that regrows
+//     one every 4 s, so the salvo is spent deliberately and the guns hold the
+//     line between reloads.
 //   - wing_1 / wing_2: two AI escorts on the player's side (allegiance Player),
 //     cargoa corvettes; they fly in and engage the defenders.
 //   - raider_1..4: four AI Magpie fighters (default Enemy), cargoa corvettes,
@@ -186,7 +189,7 @@
                                     ],
                                 },
                                 speed_cap: Some(35.0),
-                                infinite_ammo: true,
+                                infinite_ammo: false,
                             )),
                             sections: [
                                 (

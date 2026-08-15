@@ -39,4 +39,4 @@ bevy = { version = "0.19.0", features = ["webgpu"] }
 workspace = true
 
 [features]
-debug = ["nova_debug", "bevy/track_location", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_os_ui/debug", "nova_menu/debug"]
+debug = ["nova_debug", "bevy/track_location", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_os_ui/debug", "nova_menu/debug", "nova_scenario/debug"]

@@ -133,7 +133,11 @@
                                 // gauntlet unarmed, so there is nothing to bind.
                                 input_mapping: {},
                                 speed_cap: Some(25.0),
-                                infinite_ammo: true,
+                                // No weapons, so no magazine to grant. The flag
+                                // is a debug-only cheat the shipped game
+                                // ignores; authoring it here claimed a combat
+                                // allowance a time trial never uses.
+                                infinite_ammo: false,
                             )),
                             sections: [
                                 (

@@ -74,10 +74,12 @@ pub struct PlayerControllerConfig {
     pub speed_cap: Option<f32>,
     /// Give this player ship unlimited ammunition: its weapon sections are
     /// built with `ammo_capacity = None`, so no [`SectionAmmo`] is attached and
-    /// the guns never run dry. The first/New Game scenario turns this on so the
-    /// intro is not gated on ammo before a reload mechanic exists; `false` (the
-    /// default) keeps the authored per-weapon magazines. Player-scoped: enemies
-    /// are unaffected.
+    /// the guns never run dry. Player-scoped: enemies are unaffected.
+    ///
+    /// A DEBUG-ONLY CHEAT. Only a build carrying the `debug` feature honors it -
+    /// examples and the probe harness, which want guns that never gate on a
+    /// reload. A shipped build logs a warning and keeps the authored magazines,
+    /// so no released scenario can hand the player free point defense.
     pub infinite_ammo: bool,
 }
 
@@ -365,8 +367,26 @@ fn insert_spaceship_sections(
     // magazine: overriding `ammo_capacity` to None means `insert_turret_section`
     // / `insert_torpedo_section` attach no `SectionAmmo`, which is exactly the
     // unlimited-ammo default. Enemy ships are never flagged, so they keep theirs.
-    let infinite_ammo =
+    //
+    // The grant is a DEBUG-ONLY cheat. A shipped build ignores the flag and
+    // every player ship fights on its authored magazines, so point defense
+    // costs something; examples and harness runs, which build `--features
+    // debug`, keep guns that never gate on a reload.
+    let flagged =
         matches!(controller_config, SpaceshipController::Player(config) if config.infinite_ammo);
+    #[cfg(feature = "debug")]
+    let infinite_ammo = flagged;
+    #[cfg(not(feature = "debug"))]
+    let infinite_ammo = {
+        if flagged {
+            warn!(
+                "insert_spaceship_sections: entity {:?} authors infinite_ammo, a debug-only \
+                 cheat; this build ignores it and keeps the authored magazines",
+                entity
+            );
+        }
+        false
+    };
 
     // An AI ship with no turret or torpedo section cannot fight; it becomes a
     // non-combatant below so it flies its routine and never chases. Tracked
@@ -657,11 +677,13 @@ mod tests {
         assert!(world.entity(orbiter).get::<AIWaypointSlack>().is_none());
     }
 
-    /// A Player ship flagged `infinite_ammo` builds its weapon with no magazine
-    /// (`ammo_capacity` None, so `insert_turret_section` attaches no
-    /// `SectionAmmo` - that half is covered by the ammo tests); unflagged it
-    /// keeps the authored `Some(10)`. Asserting on the section's config helper
-    /// is the right boundary for this scenario-side override.
+    /// `infinite_ammo` is a debug-only cheat. Under the `debug` feature a
+    /// flagged Player ship builds its weapon with no magazine (`ammo_capacity`
+    /// None, so `insert_turret_section` attaches no `SectionAmmo` - that half is
+    /// covered by the ammo tests); without it the flag is ignored and the
+    /// authored `Some(10)` survives, which is the shipped-build guarantee.
+    /// Unflagged keeps the magazine either way. Asserting on the section's
+    /// config helper is the right boundary for this scenario-side override.
     #[test]
     fn player_infinite_ammo_strips_the_weapon_magazine() {
         fn turret_ammo_capacity(infinite_ammo: bool) -> Option<u32> {
@@ -704,10 +726,17 @@ mod tests {
                 .ammo_capacity
         }
 
+        #[cfg(feature = "debug")]
         assert_eq!(
             turret_ammo_capacity(true),
             None,
-            "infinite_ammo must strip the weapon magazine"
+            "under `debug` infinite_ammo must strip the weapon magazine"
+        );
+        #[cfg(not(feature = "debug"))]
+        assert_eq!(
+            turret_ammo_capacity(true),
+            Some(10),
+            "outside `debug` the cheat is ignored and the magazine is kept"
         );
         assert_eq!(
             turret_ammo_capacity(false),
