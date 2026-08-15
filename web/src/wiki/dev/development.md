@@ -477,6 +477,36 @@ the file no longer matches a fresh render. A new scenario adds one row to
 `SCENARIOS` in the script and one entry to its bundle's `resources`; a scenario
 with no art of its own is what the coverage report lists.
 
+### Greeble meshes
+
+The decorative fixtures a hull skin bolts onto its plates - vents, ribbing,
+blisters, masts - are GENERATED, not modelled. `scripts/gen-greebles.py` builds
+one `.glb` per JSON recipe in `scripts/greeble-recipes/` into
+`assets/base/gltf/greebles/`, all committed:
+
+```sh
+python3 scripts/gen-greebles.py             # write every .glb
+python3 scripts/gen-greebles.py --check     # verify, write nothing
+python3 scripts/gen-greebles.py --self-test # internal checks, no I/O
+```
+
+A recipe is a palette plus a list of primitives - `box`, `cylinder`, `taper`,
+`ribs`, `disc` - each with a size, an `at` offset and an optional `rotate`.
+Solids compose by overlap, not by CSG. Adding a piece is a new recipe file plus
+one entry in `assets/base/base.bundle.ron`'s `resources`; no code changes.
+
+Pieces are authored in the PLATE's frame (the unit cell, out along `+Y`, `y = 0`
+the mounting face) and the generator refuses anything behind that plane, wider
+than half a cell, taller than its declared budget, or over 200 triangles. The
+build is byte-deterministic, which is what `--check` gates: generated art that
+churns turns every unrelated diff into a binary one.
+
+The three mesh scripts (`gen-greebles.py`, `cut-obj-into-hulls.py`,
+`cut-obj-into-parts.py`) share ONE hand-rolled, stdlib-only glTF writer,
+`scripts/nova_glb.py`. Prove a change to it kept the committed art intact by
+re-cutting a ship and diffing against `assets/base/gltf/parts/<ship>/`, which
+is byte-reproducible from its recipe.
+
 ### Eyeballing the site
 
 `npm run ci` proves the bundle compiles and the theme tokens are in sync; it

@@ -1,0 +1,26 @@
+{
+  "_comment": "PLACEHOLDER, not art: a low blister - a disc base under a truncated taper. The flat case, for a piece that has to stay under a hull's silhouette rather than break it.",
+  "materials": {
+    "placeholder": { "color": [0.85, 0.1, 0.65] },
+    "placeholder_dark": { "color": [0.12, 0.12, 0.14], "roughness": 0.9 }
+  },
+  "material": "placeholder",
+  "parts": [
+    {
+      "primitive": "disc",
+      "radius": 0.09,
+      "thickness": 0.02,
+      "sides": 12,
+      "at": [0.0, 0.01, 0.0],
+      "material": "placeholder_dark"
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.07,
+      "radius_top": 0.03,
+      "height": 0.05,
+      "sides": 12,
+      "at": [0.0, 0.045, 0.0]
+    }
+  ]
+}

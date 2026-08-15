@@ -53,6 +53,16 @@
         "gltf/parts/racer/tail.glb",
         "gltf/parts/racer/wing_port.glb",
         "gltf/parts/racer/wing_starboard.glb",
+        // Decoration fixtures for the derived skin, generated from the recipes
+        // in `scripts/greeble-recipes/` by `scripts/gen-greebles.py`. Declared
+        // here so a style can name one with `self://gltf/greebles/<id>.glb` and
+        // a mod can reuse one with `dep://base/gltf/greebles/<id>.glb`. These
+        // four are PLACEHOLDERS that prove the pipeline; the shipped kit
+        // replaces them.
+        "gltf/greebles/placeholder_blister.glb",
+        "gltf/greebles/placeholder_block.glb",
+        "gltf/greebles/placeholder_mast.glb",
+        "gltf/greebles/placeholder_vent.glb",
         // NOTE: the cladding shells ship no meshes. Every one of the 954
         // shapes is built at load from the eight boundary samples its id
         // spells - see `nova_ship`'s `shell_shape`. Art shipped here under a

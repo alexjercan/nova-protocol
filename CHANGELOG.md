@@ -339,6 +339,13 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- The base mod generates its own decoration art: `scripts/gen-greebles.py`
+  builds one `.glb` per JSON recipe in `scripts/greeble-recipes/` out of five
+  primitives (box, cylinder, taper, ribs, disc), byte-deterministically and
+  gated by `--check`. Four magenta placeholders ship to prove the pipeline.
+- The three mesh scripts share one stdlib-only glTF writer,
+  `scripts/nova_glb.py`, instead of a copy each; the 21 shipped ship-part
+  meshes re-cut byte-identical from their recipes.
 - New `wfc_ships` screenshot producer: wave function collapse over the section
   catalog, where the adjacency rules ARE the link points - a socket must meet a
   socket, so mounts land on the skin and bays keep their muzzles clear without

@@ -18,8 +18,8 @@ Modes:
 - neither: the whole mesh becomes one part named after the file (plain
   obj -> glb part conversion).
 
-The clipping and glb writer mirror `cut-obj-into-hulls.py` (kept
-self-contained: repo asset scripts are stdlib-only and standalone). Cut cross
+The clipping mirrors `cut-obj-into-hulls.py`; the glb container is the shared
+stdlib-only writer in `nova_glb.py`. Cut cross
 sections are capped SOLID with a flat `_cap` bulkhead material: the cutter
 knows every plane it clipped at, so each part's cut outline is chained per
 plane and ear-clipped in that plane with outward winding (see
@@ -42,6 +42,10 @@ import os
 import struct
 import sys
 from collections import defaultdict
+
+from nova_glb import flat_normal, pbr_material, read_glb, write_glb
+
+GENERATOR = "cut-obj-into-parts"
 
 # ---------------------------------------------------------------------------
 # Parsing (mirrors cut-obj-into-hulls.py, plus per-triangle object names)
@@ -905,231 +909,39 @@ def cap_boundary(triangles, min_area=2e-3):
 
 
 # ---------------------------------------------------------------------------
-# glTF 2.0 binary writer (mirrors cut-obj-into-hulls.py)
+# Materials (the .glb container itself lives in nova_glb)
 # ---------------------------------------------------------------------------
-
-_GLB_MAGIC = 0x46546C67
-_CHUNK_JSON = 0x4E4F534A
-_CHUNK_BIN = 0x004E4942
-_FLOAT = 5126
-_UINT = 5125
-_ARRAY_BUFFER = 34962
-_ELEMENT_ARRAY_BUFFER = 34963
-
-
-def _flat_normal(tri):
-    ax, ay, az = tri.a
-    bx, by, bz = tri.b
-    cx, cy, cz = tri.c
-    ux, uy, uz = bx - ax, by - ay, bz - az
-    vx, vy, vz = cx - ax, cy - ay, cz - az
-    nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
-    length = math.sqrt(nx * nx + ny * ny + nz * nz)
-    if length == 0.0:
-        return (0.0, 0.0, 0.0)
-    return (nx / length, ny / length, nz / length)
 
 
 def build_materials(colours):
     """(glTF material list, {name: index}); `_default` catches unknown
     materials, `_cap` is the flat cut-face fill."""
     materials = [
-        {
-            "name": "_default",
-            "pbrMetallicRoughness": {
-                "baseColorFactor": [0.6, 0.6, 0.6, 1.0],
-                "metallicFactor": 0.1,
-                "roughnessFactor": 0.8,
-            },
-            "doubleSided": True,
-        },
-        {
-            # Cut faces read as INTENTIONAL bulkheads, not glitches: one dark
-            # neutral across every part of a ship (a per-part darkened hull
-            # colour would make sibling caps disagree). Sits just below the
-            # Kenney "dark" trim (Kd 0.27/0.30/0.34) so it reads as interior.
-            "name": _CAP_MATERIAL,
-            "pbrMetallicRoughness": {
-                "baseColorFactor": [0.16, 0.17, 0.20, 1.0],
-                "metallicFactor": 0.1,
-                "roughnessFactor": 0.9,
-            },
-            "doubleSided": True,
-        },
+        pbr_material("_default", (0.6, 0.6, 0.6)),
+        # Cut faces read as INTENTIONAL bulkheads, not glitches: one dark
+        # neutral across every part of a ship (a per-part darkened hull colour
+        # would make sibling caps disagree). Sits just below the Kenney "dark"
+        # trim (Kd 0.27/0.30/0.34) so it reads as interior.
+        pbr_material(_CAP_MATERIAL, (0.16, 0.17, 0.20), roughness=0.9),
     ]
     index = {None: 0, _CAP_MATERIAL: 1}
     for name in sorted(colours):
-        r, g, b = colours[name]
+        metal = "metal" in name.lower()
         index[name] = len(materials)
         materials.append(
-            {
-                "name": name,
-                "pbrMetallicRoughness": {
-                    "baseColorFactor": [r, g, b, 1.0],
-                    "metallicFactor": 0.6 if "metal" in name.lower() else 0.1,
-                    "roughnessFactor": 0.4 if "metal" in name.lower() else 0.8,
-                },
-                "doubleSided": True,
-            }
+            pbr_material(
+                name,
+                colours[name],
+                metallic=0.6 if metal else 0.1,
+                roughness=0.4 if metal else 0.8,
+            )
         )
     return materials, index
-
-
-def write_glb(triangles, materials, material_index):
-    """Serialize a triangle soup to a glb blob: one primitive per material,
-    flat-shaded normals, explicit index buffer."""
-    by_material = defaultdict(list)
-    for tri in triangles:
-        by_material[tri.material].append(tri)
-
-    bin_blob = bytearray()
-    buffer_views = []
-    accessors = []
-
-    def add_view(data, target):
-        while len(bin_blob) % 4 != 0:
-            bin_blob.append(0)
-        offset = len(bin_blob)
-        bin_blob.extend(data)
-        buffer_views.append(
-            {
-                "buffer": 0,
-                "byteOffset": offset,
-                "byteLength": len(data),
-                "target": target,
-            }
-        )
-        return len(buffer_views) - 1
-
-    primitives = []
-    for material_name in sorted(by_material, key=lambda m: (m is None, m)):
-        tris = by_material[material_name]
-        positions = []
-        normals = []
-        for tri in tris:
-            n = _flat_normal(tri)
-            for v in tri.verts():
-                positions.append(v)
-                normals.append(n)
-        indices = list(range(len(positions)))
-
-        pos_bytes = b"".join(struct.pack("<3f", *v) for v in positions)
-        pos_view = add_view(pos_bytes, _ARRAY_BUFFER)
-        lo = [min(v[k] for v in positions) for k in range(3)]
-        hi = [max(v[k] for v in positions) for k in range(3)]
-        pos_acc = len(accessors)
-        accessors.append(
-            {
-                "bufferView": pos_view,
-                "componentType": _FLOAT,
-                "count": len(positions),
-                "type": "VEC3",
-                "min": lo,
-                "max": hi,
-            }
-        )
-
-        nrm_bytes = b"".join(struct.pack("<3f", *v) for v in normals)
-        nrm_view = add_view(nrm_bytes, _ARRAY_BUFFER)
-        nrm_acc = len(accessors)
-        accessors.append(
-            {
-                "bufferView": nrm_view,
-                "componentType": _FLOAT,
-                "count": len(normals),
-                "type": "VEC3",
-            }
-        )
-
-        idx_bytes = b"".join(struct.pack("<I", i) for i in indices)
-        idx_view = add_view(idx_bytes, _ELEMENT_ARRAY_BUFFER)
-        idx_acc = len(accessors)
-        accessors.append(
-            {
-                "bufferView": idx_view,
-                "componentType": _UINT,
-                "count": len(indices),
-                "type": "SCALAR",
-            }
-        )
-
-        primitives.append(
-            {
-                "attributes": {"POSITION": pos_acc, "NORMAL": nrm_acc},
-                "indices": idx_acc,
-                "material": material_index.get(material_name, 0),
-            }
-        )
-
-    while len(bin_blob) % 4 != 0:
-        bin_blob.append(0)
-
-    gltf = {
-        "asset": {"version": "2.0", "generator": "cut-obj-into-parts"},
-        "scene": 0,
-        "scenes": [{"nodes": [0]}],
-        "nodes": [{"mesh": 0}],
-        "meshes": [{"primitives": primitives}],
-        "materials": materials,
-        "accessors": accessors,
-        "bufferViews": buffer_views,
-        "buffers": [{"byteLength": len(bin_blob)}],
-    }
-
-    json_bytes = json.dumps(gltf, separators=(",", ":"), sort_keys=True).encode(
-        "utf-8"
-    )
-    while len(json_bytes) % 4 != 0:
-        json_bytes += b" "
-
-    total = 12 + 8 + len(json_bytes) + 8 + len(bin_blob)
-    out = bytearray()
-    out += struct.pack("<III", _GLB_MAGIC, 2, total)
-    out += struct.pack("<II", len(json_bytes), _CHUNK_JSON)
-    out += json_bytes
-    out += struct.pack("<II", len(bin_blob), _CHUNK_BIN)
-    out += bin_blob
-    return bytes(out)
 
 
 # ---------------------------------------------------------------------------
 # Output verification: re-open the emitted glb and decode it
 # ---------------------------------------------------------------------------
-
-
-def read_glb(path):
-    """Parse a .glb from disk. Returns (gltf_json, positions) where positions
-    is every decoded POSITION vertex. Raises on any structural mismatch, so a
-    truncated or mis-sized file cannot pass verification."""
-    blob = open(path, "rb").read()
-    magic, version, total = struct.unpack("<III", blob[:12])
-    if magic != _GLB_MAGIC or version != 2:
-        raise ValueError("%s: not a glb v2" % path)
-    if total != len(blob):
-        raise ValueError("%s: header length %d != file size %d" % (path, total, len(blob)))
-    json_len, json_tag = struct.unpack("<II", blob[12:20])
-    if json_tag != _CHUNK_JSON:
-        raise ValueError("%s: first chunk is not JSON" % path)
-    doc = json.loads(blob[20 : 20 + json_len].decode("utf-8"))
-    bin_off = 20 + json_len
-    bin_len, bin_tag = struct.unpack("<II", blob[bin_off : bin_off + 8])
-    if bin_tag != _CHUNK_BIN:
-        raise ValueError("%s: second chunk is not BIN" % path)
-    if doc["buffers"][0]["byteLength"] != bin_len:
-        raise ValueError("%s: buffer byteLength != BIN chunk length" % path)
-    binary = blob[bin_off + 8 : bin_off + 8 + bin_len]
-
-    positions = []
-    for mesh in doc["meshes"]:
-        for prim in mesh["primitives"]:
-            acc = doc["accessors"][prim["attributes"]["POSITION"]]
-            view = doc["bufferViews"][acc["bufferView"]]
-            off = view.get("byteOffset", 0)
-            for i in range(acc["count"]):
-                positions.append(
-                    struct.unpack_from("<3f", binary, off + 12 * i)
-                )
-    return doc, positions
 
 
 def verify_part(path, expected_tris, expected_bbox, eps=1e-4):
@@ -1218,7 +1030,7 @@ def run(args):
         on_cut, off_cut = boundary_edge_counts(local, local_planes)
         watertight[name] = (open_before, on_cut, off_cut, len(local) - len(tris))
         lo, hi = bounds(local)
-        blob = write_glb(local, materials, material_index)
+        blob = write_glb(local, materials, material_index, GENERATOR)
         path = os.path.join(args.out, name + ".glb")
         with open(path, "wb") as handle:
             handle.write(blob)
@@ -1492,7 +1304,7 @@ def self_test():
         assert count_boundary_edges(half + caps) == 0
         assert abs(sum(triangle_area(t) for t in caps) - 1.0) < 1e-9
         for t in caps:
-            normal = _flat_normal(t)
+            normal = flat_normal(t)
             assert normal[0] * out_sign > 0.999, (normal, out_sign)
 
     # Corner part (two orthogonal planes): the openings meet along an
@@ -1508,7 +1320,7 @@ def self_test():
         # Each opening is a 0.5 x 1 rectangle: total cap area 1.0.
         assert abs(sum(triangle_area(t) for t in caps) - 1.0) < 1e-9
         for t in caps:
-            normal = _flat_normal(t)
+            normal = flat_normal(t)
             axis = max(range(3), key=lambda k: abs(normal[k]))
             assert normal[axis] * signs[axis] > 0.999, normal
     # The remainder (an L-shaped solid) must also close from plane caps.
@@ -1610,7 +1422,7 @@ def self_test():
     import tempfile
 
     mats, index = build_materials({"a": (1.0, 0.0, 0.0)})
-    blob = write_glb(quad, mats, index)
+    blob = write_glb(quad, mats, index, GENERATOR)
     with tempfile.NamedTemporaryFile(suffix=".glb", delete=False) as handle:
         handle.write(blob)
         path = handle.name

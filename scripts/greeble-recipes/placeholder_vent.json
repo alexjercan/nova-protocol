@@ -1,0 +1,18 @@
+{
+  "_comment": "PLACEHOLDER, not art: a ribbed panel, the one primitive that repeats geometry from a count instead of from repeated recipe entries. Ribs run along Z and repeat across X; each sits at the centre of one of `count` equal lanes, so the run keeps half a lane of margin at both ends of the panel.",
+  "materials": {
+    "placeholder": { "color": [0.85, 0.1, 0.65] }
+  },
+  "material": "placeholder",
+  "parts": [
+    {
+      "primitive": "ribs",
+      "size": [0.3, 0.02, 0.18],
+      "count": 4,
+      "rib_height": 0.02,
+      "rib_width": 0.03,
+      "across": "x",
+      "at": [0.0, 0.01, 0.0]
+    }
+  ]
+}

@@ -16,8 +16,9 @@ Design (see tasks/20260717-220919/SPIKE.md, option A2 + B1):
 - Grid clipping is a true partition: total fragment area equals the original,
   so placing every cube back at its grid position reproduces the ship exactly.
   The split mirrors `crates/nova_gameplay/src/mesh/slice.rs` `triangle_slice`.
-- A hand-rolled glTF 2.0 binary writer, standard library only (no trimesh, no
-  Blender), matching the repo's stdlib-only asset-script convention.
+- Meshes are written through `nova_glb`, the repo's shared hand-rolled glTF 2.0
+  binary writer - standard library only (no trimesh, no Blender), matching the
+  stdlib-only asset-script convention.
 """
 
 from __future__ import annotations
@@ -29,6 +30,10 @@ import os
 import struct
 import sys
 from collections import defaultdict
+
+from nova_glb import GLB_MAGIC, pbr_material, write_glb
+
+GENERATOR = "cut-obj-into-hulls"
 
 # ---------------------------------------------------------------------------
 # Parsing
@@ -339,150 +344,8 @@ def recentre(tri, origin):
 
 
 # ---------------------------------------------------------------------------
-# glTF 2.0 binary (.glb) writer
+# Materials (the .glb container itself lives in nova_glb)
 # ---------------------------------------------------------------------------
-
-_GLB_MAGIC = 0x46546C67  # "glTF"
-_CHUNK_JSON = 0x4E4F534A  # "JSON"
-_CHUNK_BIN = 0x004E4942  # "BIN\0"
-_FLOAT = 5126
-_UINT = 5125
-_ARRAY_BUFFER = 34962
-_ELEMENT_ARRAY_BUFFER = 34963
-
-
-def _flat_normal(tri):
-    """Unit face normal from the triangle winding (flat shading)."""
-    ax, ay, az = tri.a
-    bx, by, bz = tri.b
-    cx, cy, cz = tri.c
-    ux, uy, uz = bx - ax, by - ay, bz - az
-    vx, vy, vz = cx - ax, cy - ay, cz - az
-    nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
-    length = math.sqrt(nx * nx + ny * ny + nz * nz)
-    if length == 0.0:
-        return (0.0, 0.0, 0.0)
-    return (nx / length, ny / length, nz / length)
-
-
-def write_glb(triangles, materials, material_index):
-    """Serialize a triangle soup to a glTF-binary blob (bytes).
-
-    - `materials`: ordered list of glTF material dicts, embedded whole in every
-      glb (there are only a handful, so global indices stay stable and simple).
-    - `material_index`: {material_name: index into `materials`}.
-
-    Triangles are grouped into one primitive per material. Each primitive gets a
-    flat-shaded NORMAL and an explicit index buffer.
-    """
-    by_material = defaultdict(list)
-    for tri in triangles:
-        by_material[tri.material].append(tri)
-
-    bin_blob = bytearray()
-    buffer_views = []
-    accessors = []
-
-    def add_view(data, target):
-        while len(bin_blob) % 4 != 0:  # 4-byte align each view
-            bin_blob.append(0)
-        offset = len(bin_blob)
-        bin_blob.extend(data)
-        buffer_views.append(
-            {"buffer": 0, "byteOffset": offset, "byteLength": len(data), "target": target}
-        )
-        return len(buffer_views) - 1
-
-    primitives = []
-    for material_name in sorted(by_material, key=lambda m: (m is None, m)):
-        tris = by_material[material_name]
-        positions = []
-        normals = []
-        for tri in tris:
-            n = _flat_normal(tri)
-            for v in tri.verts():
-                positions.append(v)
-                normals.append(n)
-        indices = list(range(len(positions)))
-
-        pos_bytes = b"".join(struct.pack("<3f", *v) for v in positions)
-        pos_view = add_view(pos_bytes, _ARRAY_BUFFER)
-        lo = [min(v[k] for v in positions) for k in range(3)]
-        hi = [max(v[k] for v in positions) for k in range(3)]
-        pos_acc = len(accessors)
-        accessors.append(
-            {
-                "bufferView": pos_view,
-                "componentType": _FLOAT,
-                "count": len(positions),
-                "type": "VEC3",
-                "min": lo,
-                "max": hi,
-            }
-        )
-
-        nrm_bytes = b"".join(struct.pack("<3f", *v) for v in normals)
-        nrm_view = add_view(nrm_bytes, _ARRAY_BUFFER)
-        nrm_acc = len(accessors)
-        accessors.append(
-            {
-                "bufferView": nrm_view,
-                "componentType": _FLOAT,
-                "count": len(normals),
-                "type": "VEC3",
-            }
-        )
-
-        idx_bytes = b"".join(struct.pack("<I", i) for i in indices)
-        idx_view = add_view(idx_bytes, _ELEMENT_ARRAY_BUFFER)
-        idx_acc = len(accessors)
-        accessors.append(
-            {
-                "bufferView": idx_view,
-                "componentType": _UINT,
-                "count": len(indices),
-                "type": "SCALAR",
-            }
-        )
-
-        primitives.append(
-            {
-                "attributes": {"POSITION": pos_acc, "NORMAL": nrm_acc},
-                "indices": idx_acc,
-                "material": material_index.get(material_name, 0),
-            }
-        )
-
-    # Pad the BIN chunk to a 4-byte boundary BEFORE reporting its length, so
-    # buffers[0].byteLength always equals the emitted chunk length regardless of
-    # which attribute happens to be the last view.
-    while len(bin_blob) % 4 != 0:  # pad BIN chunk with zeros
-        bin_blob.append(0)
-
-    gltf = {
-        "asset": {"version": "2.0", "generator": "cut-obj-into-hulls"},
-        "scene": 0,
-        "scenes": [{"nodes": [0]}],
-        "nodes": [{"mesh": 0}],
-        "meshes": [{"primitives": primitives}],
-        "materials": materials,
-        "accessors": accessors,
-        "bufferViews": buffer_views,
-        "buffers": [{"byteLength": len(bin_blob)}],
-    }
-
-    json_bytes = json.dumps(gltf, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    while len(json_bytes) % 4 != 0:  # pad JSON chunk with spaces
-        json_bytes += b" "
-
-    total = 12 + 8 + len(json_bytes) + 8 + len(bin_blob)
-    out = bytearray()
-    out += struct.pack("<III", _GLB_MAGIC, 2, total)
-    out += struct.pack("<II", len(json_bytes), _CHUNK_JSON)
-    out += json_bytes
-    out += struct.pack("<II", len(bin_blob), _CHUNK_BIN)
-    out += bin_blob
-    return bytes(out)
 
 
 def build_materials(colours):
@@ -492,41 +355,22 @@ def build_materials(colours):
     `Kd` (or no material at all). Order is sorted for deterministic output.
     """
     materials = [
-        {
-            "name": "_default",
-            "pbrMetallicRoughness": {
-                "baseColorFactor": [0.6, 0.6, 0.6, 1.0],
-                "metallicFactor": 0.1,
-                "roughnessFactor": 0.8,
-            },
-            "doubleSided": True,
-        },
-        {
-            # Interior wall caps added by --walls, so a destroyed neighbour
-            # reveals a solid white face instead of a see-through hole.
-            "name": "_wall",
-            "pbrMetallicRoughness": {
-                "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
-                "metallicFactor": 0.0,
-                "roughnessFactor": 1.0,
-            },
-            "doubleSided": True,
-        },
+        pbr_material("_default", (0.6, 0.6, 0.6)),
+        # Interior wall caps added by --walls, so a destroyed neighbour reveals
+        # a solid white face instead of a see-through hole.
+        pbr_material("_wall", (1.0, 1.0, 1.0), metallic=0.0, roughness=1.0),
     ]
     index = {None: 0, "_wall": 1}
     for name in sorted(colours):
-        r, g, b = colours[name]
+        metal = "metal" in name.lower()
         index[name] = len(materials)
         materials.append(
-            {
-                "name": name,
-                "pbrMetallicRoughness": {
-                    "baseColorFactor": [r, g, b, 1.0],
-                    "metallicFactor": 0.6 if "metal" in name.lower() else 0.1,
-                    "roughnessFactor": 0.4 if "metal" in name.lower() else 0.8,
-                },
-                "doubleSided": True,
-            }
+            pbr_material(
+                name,
+                colours[name],
+                metallic=0.6 if metal else 0.1,
+                roughness=0.4 if metal else 0.8,
+            )
         )
     return materials, index
 
@@ -577,7 +421,7 @@ def write_cells(cells, materials, material_index, out_dir):
     written = []
     for cell in sorted(cells):
         name = piece_name(cell)
-        blob = write_glb(cells[cell], materials, material_index)
+        blob = write_glb(cells[cell], materials, material_index, GENERATOR)
         path = os.path.join(out_dir, name + ".glb")
         with open(path, "wb") as handle:
             handle.write(blob)
@@ -759,8 +603,8 @@ def self_test():
     assert cell_of((-1.5, 0.0, 0.0), 1.0) == (-1, 0, 0)
 
     mats, index = build_materials({"a": (1.0, 0.0, 0.0), "b": (0.0, 1.0, 0.0)})
-    blob = write_glb([straddler], mats, index)
-    assert blob[:4] == struct.pack("<I", _GLB_MAGIC)
+    blob = write_glb([straddler], mats, index, GENERATOR)
+    assert blob[:4] == struct.pack("<I", GLB_MAGIC)
     assert struct.unpack("<I", blob[8:12])[0] == len(blob)
     json_len = struct.unpack("<I", blob[12:16])[0]
     doc = json.loads(blob[20 : 20 + json_len].decode("utf-8"))
