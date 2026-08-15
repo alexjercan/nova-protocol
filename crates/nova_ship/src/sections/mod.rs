@@ -80,9 +80,76 @@ pub(crate) fn local_pose_in_root(
     Some((position, rotation))
 }
 
+/// A nose-forward projectile body: a cylinder capped by a cone, centered on its
+/// own midpoint, nose along +Y.
+///
+/// +Y because that is the axis bevy's primitives are built on; every caller
+/// rotates it onto the axis its own frame travels along, and there is no axis
+/// this crate can call "forward" for both a bullet (whose transform IS the
+/// flight direction) and a torpedo body (mounted on a section with an authored
+/// rotation of its own).
+///
+/// ONE merged mesh, not two child entities: the turret path builds up to 100
+/// rounds/s per muzzle and one render child per round is already the budget.
+pub(crate) fn nose_cone_mesh(radius: f32, body_length: f32, nose_length: f32) -> Mesh {
+    // Body and nose sit either side of the midpoint of the whole shape, so it
+    // spins about its centre like the cuboid primitives it replaces.
+    let mut mesh = Mesh::from(Cylinder::new(radius, body_length))
+        .translated_by(Vec3::Y * (-nose_length / 2.0));
+    let nose =
+        Mesh::from(Cone::new(radius, nose_length)).translated_by(Vec3::Y * (body_length / 2.0));
+    mesh.merge(&nose)
+        .expect("cylinder and cone primitives share a vertex layout");
+    mesh
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The shared body is a nose-forward solid of revolution on +Y, and it is
+    /// exactly as long as its two parts - both things every caller's own
+    /// orientation math is derived from.
+    #[test]
+    fn nose_cone_mesh_points_up_and_spans_body_plus_nose() {
+        use bevy::mesh::VertexAttributeValues;
+
+        let (radius, body, nose) = (0.02, 0.1, 0.06);
+        let mesh = nose_cone_mesh(radius, body, nose);
+        let positions: Vec<Vec3> = match mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+            Some(VertexAttributeValues::Float32x3(p)) => {
+                p.iter().copied().map(Vec3::from_array).collect()
+            }
+            other => panic!("unexpected positions: {other:?}"),
+        };
+        let min = positions
+            .iter()
+            .copied()
+            .reduce(Vec3::min)
+            .expect("vertices");
+        let max = positions
+            .iter()
+            .copied()
+            .reduce(Vec3::max)
+            .expect("vertices");
+
+        assert!(
+            (max.y - min.y - (body + nose)).abs() < 1e-5,
+            "{min:?} {max:?}"
+        );
+        assert!((max.x - radius).abs() < 2e-3, "{max:?}");
+
+        // The single leading vertex is the cone tip, on the axis.
+        let tip = positions
+            .iter()
+            .copied()
+            .max_by(|a, b| a.y.total_cmp(&b.y))
+            .expect("a vertex");
+        assert!(
+            tip.x.abs() < 1e-5 && tip.z.abs() < 1e-5,
+            "the leading vertex is the cone tip on the axis, not a body rim: {tip:?}"
+        );
+    }
 
     #[test]
     fn live_structure_anchor_lifts_the_local_com() {

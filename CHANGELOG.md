@@ -281,6 +281,17 @@ tagged **(breaking)**.
   fitted to what it DRAWS rather than to its collider - a turret used to spill
   its barrel four cells wide.
 
+### Audio & Visuals
+
+- Turret rounds are modelled per DAMAGE TYPE instead of one shared box: a
+  Kinetic slug is a stubby 1.2 m tracer, a Pierce round a 2.2 m needle a third
+  the thickness, an Explosive shell squat and wide. All three are shorter than
+  the 3 m box they replace, and they burn in the damage type's own HUD colour,
+  so a round in flight matches the ammo pip that loaded it. A turret's authored
+  `projectile_render_mesh` still overrides all of it.
+- Torpedoes fly nose-first: the warhead is a coned body instead of a
+  flat-ended pipe, and one shared mesh serves every launch.
+
 ### Fixes
 
 - **(breaking)** A ship's HP bar no longer FILLS UP as the ship is shot apart.

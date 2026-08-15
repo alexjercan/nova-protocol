@@ -396,3 +396,13 @@ per contact. A symmetric rule - ram damage - wants both.
 - `LoadedBullet` (`sections/turret_section/mod.rs`): the turret's loaded-round slot
   (damage type + amount), seeded from the config. Fired bullets and the HUD ammo
   readout colors read this slot, so swapping ammo types is one component write.
+- `DefaultProjectileRender` (`sections/turret_section/render.rs`): the built-in
+  round art, ONE mesh + material per `DamageType`, built in `FromWorld`. The
+  render observer reads the round's own `ProjectileDamage.kind` and hands out
+  clones, because a turret's authored `projectile_render_mesh` is per-TURRET
+  while the fired type comes from `LoadedBullet` at runtime. Every shipped
+  turret leaves that field `None`, so this IS the shipped path at 100 rounds/s
+  per muzzle: it must never allocate per shot, and
+  `default_projectile_render_allocates_no_assets_per_shot` pins that. Its meshes
+  come from `sections::nose_cone_mesh` (a cylinder and a cone, merged), which
+  the torpedo warhead's `DefaultTorpedoRender` shares.

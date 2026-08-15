@@ -1,7 +1,10 @@
 //! Render and particle systems for the torpedo bay and its in-flight
 //! projectile, gated behind the section plugin's `render` flag.
 
+use std::f32::consts::PI;
+
 use super::*;
+use crate::sections::nose_cone_mesh;
 
 pub(super) fn insert_torpedo_section_render(
     add: On<Add, TorpedoSectionBodyMarker>,
@@ -86,10 +89,39 @@ pub(super) fn insert_torpedo_render(
     }
 }
 
+/// The built-in torpedo body, built once.
+///
+/// A launched torpedo authors no `projectile_render_mesh` (both shipped bays
+/// leave it `None`), so this IS the warhead the player shoots at. It replaces a
+/// flat-ended cylinder that was rebuilt - mesh AND material - on every launch
+/// and never freed.
+///
+/// The mesh is built nose down -Y: the body rides the torpedo's CONTROLLER
+/// section, whose authored `Transform` turns the section a quarter turn about X
+/// (`shoot_spawn_projectile`), which lands -Y on the torpedo's own -Z, the way
+/// it flies. Only the mesh is shared - `SectionDamageTint` clones the material
+/// per section anyway, so a hit torpedo still grades on its own.
+#[derive(Resource, Debug)]
+pub(crate) struct DefaultTorpedoRender {
+    mesh: Handle<Mesh>,
+}
+
+impl FromWorld for DefaultTorpedoRender {
+    fn from_world(world: &mut World) -> Self {
+        // 10 m long over a 3.2 m body, the same envelope as the cylinder it
+        // replaces: a third of the length is nose, so the warhead reads as
+        // ordnance rather than as pipe.
+        let mesh = nose_cone_mesh(0.16, 0.65, 0.35).rotated_by(Quat::from_rotation_x(PI));
+        Self {
+            mesh: world.resource_mut::<Assets<Mesh>>().add(mesh),
+        }
+    }
+}
+
 pub(super) fn insert_torpedo_controller_render(
     add: On<Add, TorpedoControllerMarker>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
+    default_render: Res<DefaultTorpedoRender>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     q_controller: Query<&ChildOf, With<TorpedoControllerMarker>>,
     q_torpedo: Query<&TorpedoProjectileRenderMesh, With<TorpedoProjectileMarker>>,
@@ -119,7 +151,7 @@ pub(super) fn insert_torpedo_controller_render(
     }
 
     commands.entity(entity).insert((
-        Mesh3d(meshes.add(Cylinder::new(0.2, 1.0))),
+        Mesh3d(default_render.mesh.clone()),
         MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
     ));
 }
@@ -587,6 +619,87 @@ mod tests {
         assert_eq!(
             blast_visual_step(radius, 2.0),
             blast_visual_step(radius, 1.0)
+        );
+    }
+
+    /// The warhead must point the way the torpedo flies. The body mesh is built
+    /// in the CONTROLLER's frame, which `shoot_spawn_projectile` mounts a
+    /// quarter turn about X - so the mesh axis and the flight axis are only
+    /// related through that rotation, and a sign error here flies the torpedo
+    /// tail-first or sideways with nothing else to catch it.
+    #[test]
+    fn the_torpedo_body_points_along_the_torpedo_forward() {
+        use bevy::mesh::VertexAttributeValues;
+
+        // The authored controller mount, verbatim from `shoot_spawn_projectile`.
+        let controller = Quat::from_euler(EulerRot::XYZ, std::f32::consts::FRAC_PI_2, 0.0, 0.0);
+        let mesh = nose_cone_mesh(0.16, 0.65, 0.35).rotated_by(Quat::from_rotation_x(PI));
+        let positions: Vec<Vec3> = match mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+            Some(VertexAttributeValues::Float32x3(p)) => {
+                p.iter().copied().map(Vec3::from_array).collect()
+            }
+            other => panic!("unexpected positions: {other:?}"),
+        };
+
+        // The tip, in the torpedo root's frame.
+        let tip = positions
+            .iter()
+            .map(|&p| controller * p)
+            .min_by(|a, b| a.z.total_cmp(&b.z))
+            .expect("a vertex");
+
+        // A torpedo flies down its own -Z (its thruster child sits at +Z), and
+        // the leading point is the nose on the axis.
+        assert!(tip.z < 0.0, "the nose leads: {tip:?}");
+        assert!(
+            tip.x.abs() < 1e-5 && tip.y.abs() < 1e-5,
+            "the leading vertex is the cone tip on the flight axis: {tip:?}"
+        );
+    }
+
+    /// Every launch reuses one body mesh. A torpedo is not fired at a bullet's
+    /// rate, but the old path built a mesh per launch and never freed it.
+    #[test]
+    fn the_torpedo_body_mesh_is_built_once() {
+        use bevy::asset::AssetPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.init_resource::<DefaultTorpedoRender>();
+        app.add_observer(insert_torpedo_controller_render);
+        app.update();
+
+        let meshes_before = app.world().resource::<Assets<Mesh>>().len();
+        assert_eq!(meshes_before, 1, "one shared body mesh is built");
+
+        let mut launched = Vec::new();
+        for _ in 0..8 {
+            let torpedo = app
+                .world_mut()
+                .spawn((TorpedoProjectileMarker, TorpedoProjectileRenderMesh(None)))
+                .id();
+            let controller = app
+                .world_mut()
+                .spawn((TorpedoControllerMarker, ChildOf(torpedo)))
+                .id();
+            app.update();
+            launched.push(controller);
+        }
+
+        assert_eq!(
+            app.world().resource::<Assets<Mesh>>().len(),
+            meshes_before,
+            "launching must not add mesh assets"
+        );
+        let handles: Vec<_> = launched
+            .iter()
+            .map(|&e| app.world().get::<Mesh3d>(e).expect("body mesh").0.clone())
+            .collect();
+        assert!(
+            handles.iter().all(|h| *h == handles[0]),
+            "every torpedo shares one body mesh handle"
         );
     }
 

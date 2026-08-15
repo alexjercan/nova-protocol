@@ -449,6 +449,10 @@ impl Plugin for TorpedoSectionPlugin {
             app.add_observer(insert_torpedo_section_render);
 
             app.add_observer(insert_torpedo_render);
+            // FromWorld, not a `Startup` system: the observer takes the shared
+            // body as a plain `Res`, and a scripted emplacement can launch
+            // before a startup command flush.
+            app.init_resource::<DefaultTorpedoRender>();
             app.add_observer(insert_torpedo_controller_render);
 
             // Expanding-sphere blast-radius visual: a plain mesh + material, so unlike

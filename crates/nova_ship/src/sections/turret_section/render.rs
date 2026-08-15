@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
 
 use super::*;
+use crate::sections::nose_cone_mesh;
 
 pub(super) fn on_projectile_marker_effect(
     add: On<Add, TurretBulletProjectileMarker>,
@@ -96,12 +97,30 @@ pub(super) fn on_projectile_marker_effect(
     effect_spawner.reset();
 }
 
-/// The default bullet's mesh and material, built once.
+/// How hard a round's own colour burns past white, so a metre-long body still
+/// reads as a tracer at engagement range and picks up the camera's bloom. In
+/// the same family as the thruster plume (10/5/0) and the blast shell (4/1.6/0.3).
+const ROUND_EMISSIVE_GAIN: f32 = 6.0;
+
+/// One damage type's built-in round art. Handed out as clones - never rebuilt.
+#[derive(Debug, Clone)]
+struct ProjectileArt {
+    mesh: Handle<Mesh>,
+    material: Handle<StandardMaterial>,
+}
+
+/// The built-in bullet art, one mesh and one material per [`DamageType`], built
+/// once.
 ///
 /// The `None` arm of [`insert_projectile_render`] is the shipped path - every
 /// stock turret authors no projectile mesh - and the default turret fires 100
 /// rounds/s per muzzle, so allocating there allocated a mesh and a material per
 /// shot.
+///
+/// Keyed by damage type rather than by turret because the fired type comes from
+/// the runtime `LoadedBullet` slot, not from the authored config: a turret that
+/// swaps ammo swaps what its rounds look like. The per-turret
+/// `projectile_render_mesh` GLB stays the escape hatch for a bespoke round.
 ///
 /// Built through [`FromWorld`] rather than a `Startup` system on purpose: the
 /// observer below takes it as a plain `Res`, so a turret that spawns before a
@@ -109,19 +128,81 @@ pub(super) fn on_projectile_marker_effect(
 /// `FallbackErrorHandler(panic)` the autopilot and probe runs install.
 #[derive(Resource, Debug)]
 pub(crate) struct DefaultProjectileRender {
-    mesh: Handle<Mesh>,
-    material: Handle<StandardMaterial>,
+    kinetic: ProjectileArt,
+    pierce: ProjectileArt,
+    explosive: ProjectileArt,
+}
+
+impl DefaultProjectileRender {
+    /// The art a round of `kind` flies with. Exhaustive on purpose: a new
+    /// damage type must choose a silhouette rather than inherit one.
+    fn art(&self, kind: DamageType) -> &ProjectileArt {
+        match kind {
+            DamageType::Kinetic => &self.kinetic,
+            DamageType::Pierce => &self.pierce,
+            DamageType::Explosive => &self.explosive,
+        }
+    }
+}
+
+/// A round, nose down -Z: a projectile's transform IS its direction of travel
+/// (`muzzle_direction = rotation * NEG_Z` in `shoot_spawn_projectile`), so the
+/// shared +Y body is turned onto that axis once, at build time.
+fn round_mesh(radius: f32, body_length: f32, nose_length: f32) -> Mesh {
+    nose_cone_mesh(radius, body_length, nose_length)
+        .rotated_by(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+}
+
+/// A round's material: the damage type's HUD colour ([`damage_type_color`]), so
+/// a round in flight matches the ammo pip that loaded it, burned bright enough
+/// to read as a tracer.
+fn round_material(kind: DamageType) -> StandardMaterial {
+    let color = damage_type_color(kind);
+    let linear = color.to_linear();
+    StandardMaterial {
+        base_color: color,
+        emissive: LinearRgba::rgb(
+            linear.red * ROUND_EMISSIVE_GAIN,
+            linear.green * ROUND_EMISSIVE_GAIN,
+            linear.blue * ROUND_EMISSIVE_GAIN,
+        ),
+        ..default()
+    }
 }
 
 impl FromWorld for DefaultProjectileRender {
     fn from_world(world: &mut World) -> Self {
-        let mesh = world
-            .resource_mut::<Assets<Mesh>>()
-            .add(Cuboid::new(0.05, 0.05, 0.3));
-        let material = world
-            .resource_mut::<Assets<StandardMaterial>>()
-            .add(Color::srgb(1.0, 0.9, 0.2));
-        Self { mesh, material }
+        // Silhouette carries the read: at 2 km a round is a couple of pixels
+        // wide, so only length, thickness and colour survive. All three are
+        // shorter than the 3 m box they replace.
+        //
+        // Kinetic is a blunt slug: thick, stubby, barely tapered.
+        // Pierce is a long fine dart: a third the thickness, twice the length,
+        // and most of that length is the point.
+        // Explosive is a squat shell - the widest body, the least travel.
+        let (kinetic_mesh, pierce_mesh, explosive_mesh) = {
+            let mut meshes = world.resource_mut::<Assets<Mesh>>();
+            (
+                meshes.add(round_mesh(0.025, 0.09, 0.03)),
+                meshes.add(round_mesh(0.015, 0.13, 0.09)),
+                meshes.add(round_mesh(0.035, 0.05, 0.03)),
+            )
+        };
+        let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
+        Self {
+            kinetic: ProjectileArt {
+                mesh: kinetic_mesh,
+                material: materials.add(round_material(DamageType::Kinetic)),
+            },
+            pierce: ProjectileArt {
+                mesh: pierce_mesh,
+                material: materials.add(round_material(DamageType::Pierce)),
+            },
+            explosive: ProjectileArt {
+                mesh: explosive_mesh,
+                material: materials.add(round_material(DamageType::Explosive)),
+            },
+        }
     }
 }
 
@@ -130,12 +211,12 @@ pub(super) fn insert_projectile_render(
     mut commands: Commands,
     default_render: Res<DefaultProjectileRender>,
     asset_server: Res<AssetServer>,
-    q_render_mesh: Query<&BulletProjectileRenderMesh>,
+    q_render_mesh: Query<(&BulletProjectileRenderMesh, Option<&ProjectileDamage>)>,
 ) {
     let entity = add.entity;
     trace!("insert_projectile_render: entity {:?}", entity);
 
-    let Ok(render_mesh) = q_render_mesh.get(entity) else {
+    let Ok((render_mesh, damage)) = q_render_mesh.get(entity) else {
         error!(
             "insert_projectile_render: entity {:?} not found in q_render_mesh",
             entity
@@ -152,10 +233,13 @@ pub(super) fn insert_projectile_render(
             ),],));
         }
         None => {
+            // The round carries the type it was fired as; a projectile with no
+            // authored damage at all is a bare test spawn, not a shot.
+            let art = default_render.art(damage.map_or(DamageType::Kinetic, |d| d.kind));
             commands.entity(entity).insert((children![(
                 Name::new("Bullet Projectile Render"),
-                Mesh3d(default_render.mesh.clone()),
-                MeshMaterial3d(default_render.material.clone()),
+                Mesh3d(art.mesh.clone()),
+                MeshMaterial3d(art.material.clone()),
             ),],));
         }
     }
@@ -347,15 +431,8 @@ mod tests {
         *,
     };
 
-    /// The `None` arm is the shipped path and the default turret fires 100
-    /// rounds/s per muzzle. Every bullet must reuse the one shared mesh and
-    /// material instead of adding two assets per shot.
-    ///
-    /// The first bullet is spawned BEFORE any update, which is what a `Startup`
-    /// system could not serve: the resource has to exist the moment the
-    /// observer runs.
-    #[test]
-    fn default_projectile_render_allocates_no_assets_per_shot() {
+    /// A bullet app with only the round-render observer and its resource.
+    fn round_render_app() -> App {
         use bevy::asset::AssetPlugin;
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
@@ -363,6 +440,20 @@ mod tests {
         app.init_asset::<StandardMaterial>();
         app.init_resource::<DefaultProjectileRender>();
         app.add_observer(insert_projectile_render);
+        app
+    }
+
+    /// The `None` arm is the shipped path and the default turret fires 100
+    /// rounds/s per muzzle. Every bullet must reuse its damage type's shared
+    /// mesh and material instead of adding two assets per shot - the whole
+    /// point of keying the art by TYPE rather than building it per round.
+    ///
+    /// The first bullet is spawned BEFORE any update, which is what a `Startup`
+    /// system could not serve: the resource has to exist the moment the
+    /// observer runs.
+    #[test]
+    fn default_projectile_render_allocates_no_assets_per_shot() {
+        let mut app = round_render_app();
         app.update();
 
         let assets_now = |app: &App| {
@@ -374,16 +465,28 @@ mod tests {
         let before = assets_now(&app);
         assert_eq!(
             before,
-            (1, 1),
-            "exactly one shared mesh + material is built"
+            (3, 3),
+            "one shared mesh + material per damage type, and no more"
         );
+
+        // Alternate the fired type: an ammo swap mid-burst must not allocate
+        // either.
+        let kinds = [
+            DamageType::Kinetic,
+            DamageType::Pierce,
+            DamageType::Explosive,
+        ];
+        let fire = |app: &mut App, i: usize| {
+            app.world_mut().spawn((
+                TurretBulletProjectileMarker,
+                BulletProjectileRenderMesh(None),
+                ProjectileDamage::new(4.0, kinds[i % kinds.len()]),
+            ));
+        };
 
         // No update has flushed yet on this entity's behalf beyond the one
         // above; the observer must already find the resource.
-        app.world_mut().spawn((
-            TurretBulletProjectileMarker,
-            BulletProjectileRenderMesh(None),
-        ));
+        fire(&mut app, 0);
         app.update();
         assert_eq!(
             assets_now(&app),
@@ -391,11 +494,8 @@ mod tests {
             "a bullet spawned with no startup flush reuses the shared assets"
         );
 
-        for _ in 0..64 {
-            app.world_mut().spawn((
-                TurretBulletProjectileMarker,
-                BulletProjectileRenderMesh(None),
-            ));
+        for i in 1..65 {
+            fire(&mut app, i);
             app.update();
         }
 
@@ -405,7 +505,7 @@ mod tests {
             "firing must not add mesh/material assets"
         );
 
-        // ... and every bullet actually got the shared handles.
+        // ... and every bullet actually got its type's shared handles.
         let world = app.world_mut();
         let mut q =
             world.query_filtered::<(&Mesh3d, &MeshMaterial3d<StandardMaterial>), With<Name>>();
@@ -415,9 +515,98 @@ mod tests {
             .collect();
         // 64 in the loop plus the pre-flush bullet above.
         assert_eq!(children.len(), 65, "one render child per bullet");
+        let distinct: std::collections::HashSet<_> = children.iter().cloned().collect();
+        assert_eq!(
+            distinct.len(),
+            kinds.len(),
+            "bullets share exactly one handle pair per damage type"
+        );
+    }
+
+    /// A kinetic slug and a penetrator must not look alike: that is the change.
+    #[test]
+    fn each_damage_type_flies_a_distinct_round() {
+        let mut app = round_render_app();
+        app.update();
+
+        let render_of = |app: &mut App, kind: DamageType| {
+            let bullet = app
+                .world_mut()
+                .spawn((
+                    TurretBulletProjectileMarker,
+                    BulletProjectileRenderMesh(None),
+                    ProjectileDamage::new(4.0, kind),
+                ))
+                .id();
+            app.update();
+            let child = app.world().get::<Children>(bullet).expect("render child")[0];
+            let mesh = app.world().get::<Mesh3d>(child).expect("mesh").0.clone();
+            let material = app
+                .world()
+                .get::<MeshMaterial3d<StandardMaterial>>(child)
+                .expect("material")
+                .0
+                .clone();
+            (mesh, material)
+        };
+
+        let kinetic = render_of(&mut app, DamageType::Kinetic);
+        let pierce = render_of(&mut app, DamageType::Pierce);
+        assert_ne!(kinetic.0, pierce.0, "the slug and the dart differ in shape");
+        assert_ne!(kinetic.1, pierce.1, "and in colour");
+
+        // The colour is the HUD's, so a round in flight matches the ammo pip
+        // that loaded it.
+        let materials = app.world().resource::<Assets<StandardMaterial>>();
+        assert_eq!(
+            materials.get(&pierce.1).expect("material").base_color,
+            damage_type_color(DamageType::Pierce)
+        );
+    }
+
+    /// The round is built nose-forward: a projectile flies down its own -Z
+    /// (`muzzle_direction = rotation * NEG_Z`), so a mesh pointing any other way
+    /// flies backwards or sideways.
+    #[test]
+    fn round_mesh_points_its_nose_down_negative_z() {
+        use bevy::mesh::VertexAttributeValues;
+
+        let (radius, body, nose) = (0.015, 0.13, 0.09);
+        let mesh = round_mesh(radius, body, nose);
+        let positions: Vec<Vec3> = match mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+            Some(VertexAttributeValues::Float32x3(p)) => {
+                p.iter().copied().map(Vec3::from_array).collect()
+            }
+            other => panic!("unexpected positions: {other:?}"),
+        };
+        let min = positions
+            .iter()
+            .copied()
+            .reduce(Vec3::min)
+            .expect("vertices");
+        let max = positions
+            .iter()
+            .copied()
+            .reduce(Vec3::max)
+            .expect("vertices");
+        let extent = max - min;
+
+        // Long axis is Z, the round spans exactly body + nose, and it is a dart
+        // rather than a box.
+        assert!((extent.z - (body + nose)).abs() < 1e-5, "{extent:?}");
+        assert!((extent.x - radius * 2.0).abs() < 2e-3, "{extent:?}");
+        assert!(extent.z > extent.x * 4.0, "a dart, not a box: {extent:?}");
+
+        // The leading vertex - the cone tip - is on the axis, so the nose points
+        // the way the round travels.
+        let tip = positions
+            .iter()
+            .copied()
+            .min_by(|a, b| a.z.total_cmp(&b.z))
+            .expect("a vertex");
         assert!(
-            children.iter().all(|h| *h == children[0]),
-            "every bullet shares the same mesh and material handle"
+            tip.x.abs() < 1e-5 && tip.y.abs() < 1e-5,
+            "the leading vertex is the cone tip on the axis, not a body corner: {tip:?}"
         );
     }
 

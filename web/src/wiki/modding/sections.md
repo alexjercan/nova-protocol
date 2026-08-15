@@ -369,8 +369,12 @@ Section-wide fields (once, alongside `root`):
   `muzzle_speed`), so author `bullet_damage` for a station-keeping engagement
   and speed does the rest. Nothing of any type gets through a collider with no
   health of its own - an asteroid or a planetoid is a wall.
-- `projectile_render_mesh` (optional) - custom bullet mesh; omit for the
-  built-in projectile.
+- `projectile_render_mesh` (optional) - custom bullet mesh. Omit it and the
+  round is drawn from the built-in set, which is keyed by the FIRED round's
+  damage type rather than by the turret: a Kinetic slug is stubby, a Pierce
+  round a long thin dart, an Explosive shell squat and wide, each in that
+  type's HUD colour. Setting this field overrides all three - one mesh,
+  whatever the turret has loaded.
 - `ammo_capacity` (optional) - magazine size; `None` fires without a limit,
   `Some(n)` gives an ammo slot of `n` rounds.
 - `reload` (optional) - auto-reload for the magazine (needs `ammo_capacity`).
@@ -411,7 +415,8 @@ kind: Torpedo((
   (proximity or on impact); rides the torpedo's own destroy event, so it fires
   even when a torpedo is shot down. Omit for a silent detonation.
 - `render_mesh`, `projectile_render_mesh` (both optional) - the bay mesh and the
-  torpedo mesh; omit for defaults.
+  torpedo mesh. Omit `projectile_render_mesh` and the warhead flies as the
+  built-in coned body, nose along its direction of travel.
 - `render_mesh_transform` (optional) - visual-only bay mesh position, rotation
   and scale. It does not move the launch point.
 - `spawn_offset` (`Vec3`), `spawn_rotation` (`Quat`, a bare 4-tuple) - where the
