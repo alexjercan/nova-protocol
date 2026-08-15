@@ -54,10 +54,11 @@ pub mod prelude {
     };
 }
 
-/// Mirrors the AI's own shot-worth-taking margin (AI_FIRE_RANGE_FACTOR in
-/// nova_ship/src/input/ai/guns.rs): effective range = margin x muzzle_speed
-/// x projectile_lifetime.
-pub const EFFECTIVE_RANGE_MARGIN: f32 = 0.9;
+/// The AI's own shot-worth-taking margin: effective range = margin x
+/// muzzle_speed x projectile_lifetime. Aliased to the engine constant rather
+/// than copied, so the audit's threat envelopes cannot drift from the gate
+/// the AI actually fires on.
+pub const EFFECTIVE_RANGE_MARGIN: f32 = nova_ship::prelude::AI_FIRE_RANGE_FACTOR;
 
 /// Mirrors AI_TORPEDO_MAX_RANGE (nova_ship/src/input/ai/torpedo.rs): the
 /// outer edge of the AI launch envelope, whose per-bay cooldown starts ELAPSED

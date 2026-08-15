@@ -293,7 +293,7 @@ kind: Turret((
         )],
     ),
     muzzle_speed: 100.0,
-    projectile_lifetime: 5.0,
+    projectile_lifetime: 2.0,
     bullet_damage: 4.0,
     bullet_kind: Kinetic,
     fire_sound: Some("dep://base/sounds/turret_fire.wav"),
@@ -341,7 +341,12 @@ Section-wide fields (once, alongside `root`):
   base click), omit for a silent dry pull.
 - `muzzle_speed` - projectile launch speed in units per second (shared by all
   muzzles; `fire_rate` is per-muzzle, see the joint fields above).
-- `projectile_lifetime` - projectile lifetime in seconds.
+- `projectile_lifetime` - projectile lifetime in seconds. A turret has no
+  range field: `muzzle_speed * projectile_lifetime` IS its reach (the stock PDC
+  reaches 200 units, 2 km). An AI ship holds fire past 90% of that and settles
+  into a fight at ~100 units, so a gun authored with much less reach than that
+  belongs on a player ship - an AI carrying it orbits outside its own range and
+  never fires.
 - `bullet_damage` - authored damage per hit, before the closing-speed curve. It
   is the SAME number against every section: there is no resistance table, so a
   damage type never multiplies what a round deals.

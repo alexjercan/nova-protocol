@@ -127,7 +127,7 @@ pub struct AIControllerConfig {
     pub engage_delay: Option<f32>,
     /// Hostile-detection range override (world units): a passive ship leaves
     /// its routine for a hostile inside this range instead of the engine's
-    /// 800 u default. Author it wide on a long-watch emplacement that must
+    /// 400 u default. Author it wide on a long-watch emplacement that must
     /// wake for targets parked outside everyone else's detection; short on a
     /// ship meant to ignore a nearby brawl. None = the default. See
     /// `AIEngageRange`.
@@ -138,8 +138,8 @@ pub struct AIControllerConfig {
     pub engage_range: Option<f32>,
     /// Point-defense range override (world units): the guns hold fire until
     /// an inbound hostile torpedo is inside this range instead of the
-    /// engine's 400 u default. Author it short to stage intercepts close-in;
-    /// past the turret's ~450 u reach it just wastes the opening shots.
+    /// engine's 150 u default. Author it short to stage intercepts close-in;
+    /// past the turret's ~180 u reach it just wastes the opening shots.
     /// None = the default. See `AIPointDefenseRange`.
     #[cfg_attr(
         feature = "serde",

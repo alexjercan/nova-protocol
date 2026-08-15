@@ -16,6 +16,11 @@ tagged **(breaking)**.
 
 ### Combat & Weapons
 
+- Gunfights happen at 1-2 km instead of 4-5. A PDC round lives 2.0 s (reach
+  200 u) and the scavenger turret 3.0 s (180 u), and the AI ranges moved with
+  them: ships settle at a 100 u standoff (+-25 u), open fire inside 180 u,
+  answer inbound torpedoes at 150 u, and commit to a fight at 400 u. Muzzle
+  speed is unchanged, so no weapon's damage moved.
 - **(breaking)** The per-section damage-resistance table is GONE. Damage is one
   number: a round deals the same amount to a hull, a thruster or a turret, and
   a blast deals the same to everything in its radius. A damage type's identity

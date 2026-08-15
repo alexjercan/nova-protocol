@@ -36,12 +36,14 @@ const HOLD_LOOP: [Vec3; 6] = [
 ];
 
 /// The corvette's authored detection range. Two geometry facts hang off it: the
-/// batteries park ~720 u from the circuit's centroid, so the DEFAULT 800
-/// would pull the corvette off station toward whichever battery its acquisition
-/// found; and a leaked hit still overrides the passive gate (damage memory
-/// ignores detection range), which is why the batteries ALSO stay beyond
-/// leash + turret reach (250 + 450) of the centroid - a lunging corvette can
-/// never bring its guns into range before the leash walks it home.
+/// batteries park ~720 u from the circuit's centroid, so a detection range that
+/// reached them would pull the corvette off station toward whichever battery its
+/// acquisition found; and a leaked hit still overrides the passive gate (damage
+/// memory ignores detection range), which is why the batteries ALSO stay beyond
+/// leash + turret reach (250 + 200) of the centroid - a lunging corvette can
+/// never bring its guns into range before the leash walks it home. Authored
+/// rather than left to the 400 u default so the framing survives a retune of
+/// the engine constants.
 const CORVETTE_ENGAGE_RANGE: f32 = 300.0;
 
 /// Battery parks: far off both flanks of the frame (~+-230 u visible at
@@ -206,12 +208,12 @@ pub(crate) fn menu_gauntlet(
                 // the circuit once the damage memory fades.
                 leash: Some(250.0),
                 engage_range: Some(CORVETTE_ENGAGE_RANGE),
-                // Hold the intercepts for the camera: the default 400 u PD
-                // ring kills inbound torpedoes at (or past) the frame edge;
-                // 130 u waits until the ordnance is well inside even the
-                // narrow 4:3 shot before the tracer stream opens up. The
-                // shorter window means more leaks - which is drama, and the
-                // fall of the stand is the scene's ending anyway.
+                // Hold the intercepts for the camera: the default 150 u PD
+                // ring kills inbound torpedoes at the frame edge; 130 u waits
+                // until the ordnance is well inside even the narrow 4:3 shot
+                // before the tracer stream opens up. The shorter window means
+                // more leaks - which is drama, and the fall of the stand is
+                // the scene's ending anyway.
                 pd_range: Some(130.0),
                 ..Default::default()
             }),

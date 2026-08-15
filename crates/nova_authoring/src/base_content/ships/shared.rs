@@ -310,7 +310,13 @@ fn turret_kind(meshes: &BaseContentAssets, enemy: bool) -> SectionKind {
     SectionKind::Turret(TurretSectionConfig {
         root,
         muzzle_speed: if enemy { 60.0 } else { 100.0 },
-        projectile_lifetime: 5.0,
+        // Reach is muzzle_speed x lifetime: 200 u (2.0 km) player-grade,
+        // 180 u (1.8 km) scavenger-grade. The enemy grade authors a LONGER
+        // lifetime to buy back its slower rounds - at 2.0 s a 60 u/s gun
+        // reaches 120 u, inside the standoff band its own AI orbits at, and
+        // would never fire. See AI_FIRE_RANGE_FACTOR
+        // (nova_ship/src/input/ai/guns.rs).
+        projectile_lifetime: if enemy { 3.0 } else { 2.0 },
         bullet_damage: if enemy {
             representative_kinetic_damage(0.05, 60.0)
         } else {

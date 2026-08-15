@@ -226,11 +226,19 @@ pub(super) fn update_ai_target(
 #[reflect(Component)]
 pub struct AIPointDefenseTarget(pub Option<Entity>);
 
-/// Range (m) inside which an inbound hostile torpedo pulls the guns off the
-/// primary target. Kept inside the default turret's effective range
-/// (muzzle_speed * lifetime * margin = 450 m) so a defending turret can
-/// actually reach what it defends against.
-const AI_POINT_DEFENSE_RANGE: f32 = 400.0;
+/// Range (u) inside which an inbound hostile torpedo pulls the guns off the
+/// primary target. Kept inside the default turret's fire gate
+/// (muzzle_speed * lifetime * margin = 180 u) so a defending turret can
+/// actually reach what it defends against, and moves with any lifetime change
+/// - see AI_FIRE_RANGE_FACTOR in `guns.rs`.
+///
+/// It is also the ammunition knob. Point defense bypasses the burst cadence
+/// and holds the trigger for one full time of flight before the first rounds
+/// arrive, so rounds spent per intercept are
+/// `fire_rate * pd_range / (muzzle_speed + torpedo_speed)`: ~111 at 150 u
+/// against a standard torpedo, where the shipped 400 u burned ~296 for the
+/// same 2-round kill.
+const AI_POINT_DEFENSE_RANGE: f32 = 150.0;
 
 /// Per-ship override of the point-defense range: this ship's guns hold their
 /// fire until an inbound hostile torpedo is inside THIS range instead of the
@@ -864,11 +872,22 @@ mod point_defense_tests {
     fn a_torpedo_hunting_me_outranks_a_nearer_one_hunting_someone_else() {
         let mine = entity(1);
         let other = entity(2);
+        // Both inside the ring, as fractions of it: the ring moves with
+        // turret reach, and an absolute distance silently stops testing the
+        // tier once it does.
         let picked = pick_point_defense_target(
             Vec3::ZERO,
             [
-                (other, Vec3::new(0.0, 0.0, -50.0), false),
-                (mine, Vec3::new(0.0, 0.0, -300.0), true),
+                (
+                    other,
+                    Vec3::new(0.0, 0.0, -AI_POINT_DEFENSE_RANGE * 0.2),
+                    false,
+                ),
+                (
+                    mine,
+                    Vec3::new(0.0, 0.0, -AI_POINT_DEFENSE_RANGE * 0.8),
+                    true,
+                ),
             ]
             .into_iter(),
             AI_POINT_DEFENSE_RANGE,
@@ -884,8 +903,16 @@ mod point_defense_tests {
             pick_point_defense_target(
                 Vec3::ZERO,
                 [
-                    (far, Vec3::new(0.0, 0.0, -350.0), true),
-                    (near, Vec3::new(0.0, 0.0, -100.0), true),
+                    (
+                        far,
+                        Vec3::new(0.0, 0.0, -AI_POINT_DEFENSE_RANGE * 0.9),
+                        true
+                    ),
+                    (
+                        near,
+                        Vec3::new(0.0, 0.0, -AI_POINT_DEFENSE_RANGE * 0.3),
+                        true
+                    ),
                 ]
                 .into_iter(),
                 AI_POINT_DEFENSE_RANGE,
@@ -895,7 +922,12 @@ mod point_defense_tests {
         assert_eq!(
             pick_point_defense_target(
                 Vec3::ZERO,
-                [(near, Vec3::new(0.0, 0.0, -500.0), true)].into_iter(),
+                [(
+                    near,
+                    Vec3::new(0.0, 0.0, -AI_POINT_DEFENSE_RANGE * 1.2),
+                    true
+                )]
+                .into_iter(),
                 AI_POINT_DEFENSE_RANGE,
             ),
             None,
@@ -910,16 +942,17 @@ mod point_defense_tests {
     #[test]
     fn an_authored_pd_range_moves_the_gate() {
         let torpedo = entity(1);
-        let candidates = || [(torpedo, Vec3::new(0.0, 0.0, -250.0), true)].into_iter();
+        let range = AI_POINT_DEFENSE_RANGE * 0.8;
+        let candidates = || [(torpedo, Vec3::new(0.0, 0.0, -range), true)].into_iter();
         assert_eq!(
             pick_point_defense_target(Vec3::ZERO, candidates(), AI_POINT_DEFENSE_RANGE),
             Some(torpedo),
-            "the default range engages at 250"
+            "the default range engages at {range}"
         );
         assert_eq!(
-            pick_point_defense_target(Vec3::ZERO, candidates(), 150.0),
+            pick_point_defense_target(Vec3::ZERO, candidates(), range * 0.5),
             None,
-            "an authored 150 holds fire until the torpedo is closer"
+            "a shorter authored ring holds fire until the torpedo is closer"
         );
     }
 

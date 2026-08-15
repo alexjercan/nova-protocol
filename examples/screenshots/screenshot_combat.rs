@@ -45,14 +45,18 @@
 //! flight spawned `allegiance: Some(Player)` acquires the default-Enemy flight
 //! within a second and both sides run their guns continuously. Nothing in
 //! acquisition is player-specific (`crates/nova_gameplay/src/input/ai/
-//! acquisition.rs`), and now it has been run. What they will NOT do is brawl:
-//! the engage maneuver flies to `AI_STANDOFF_RANGE` (250 units) and EXTENDS
-//! AWAY once inside the band, so a fight is a wide slow ring, and turret bullets
-//! (100 u/s, 5 s life) never connect at that range - 45 seconds of continuous
-//! fire took zero sections off. So the AI pairs are the set's live background -
-//! tracer streams and moving hulls - while every close beat is authored: the
-//! lock subject is not AI-flown (it drifts on a nudged velocity), and the
-//! destruction is scripted through the real damage path.
+//! acquisition.rs`), and now it has been run. The engage maneuver flies to
+//! `AI_STANDOFF_RANGE` and EXTENDS AWAY once inside the band, so a fight is a
+//! ring rather than a brawl. That ring used to be 250 units against rounds
+//! that died at 500, and 45 seconds of continuous fire took zero sections
+//! off; since the v0.11.0 range pass it is 100 units against rounds that
+//! reach 200. Re-measured here 2026-08-15: the pairs open fire between 69 and
+//! 180 units, i.e. inside their own gate rather than at the edge of it. They
+//! are still only the set's live background - tracer streams and moving hulls
+//! - and every close beat stays authored: the lock subject is not AI-flown (it
+//! drifts on a nudged velocity), and the destruction is scripted through the
+//! real damage path, so the capture is deterministic instead of hostage to a
+//! fight.
 //!
 //! The player's guns are REAL input: its turret sections carry `Mouse(Left)`
 //! bindings from [`turret_bindings`], the script holds the trigger, and the
@@ -163,7 +167,7 @@ const EXPECTED_TORPEDO_COUNT: usize = 2;
 /// they are.
 const ENGAGE_DELAY: f32 = 3.0;
 /// How far an AI ship may stray from its post before it breaks off and comes
-/// back. Wider than the standoff range the engage maneuver flies to (250), so
+/// back. Wider than the standoff range the engage maneuver flies to (100), so
 /// the fight is not permanently interrupted, tight enough that the hollow keeps
 /// its ships instead of watching them leave.
 const AI_LEASH: f32 = 320.0;
@@ -377,8 +381,8 @@ fn main() -> bevy::app::AppExit {
                 // The wide beats: the HUD goes cinematic and the camera leaves
                 // the player, so the chrome would be reading a ship the frame
                 // is no longer with. They are framed on the PLAYER's tracer
-                // stream, not on the AI pairs: the AI holds a 250-unit standoff
-                // where its ships are specks, while the player's fire crosses
+                // stream, not on the AI pairs: the AI holds a 100-unit standoff
+                // well outside this framing, while the player's fire crosses
                 // 34 units of open hollow into a hull.
                 .step("frame the exchange")
                 .on_enter(|world| {
@@ -751,7 +755,7 @@ fn ordnance_chapter(game_assets: &GameAssets, sections: &GameSections) -> Scenar
 /// `OnEnter` ambush pattern, and it means the owner's plain run gets the fight
 /// by flying to the beacon, not only the scripted capture run.
 fn ambush(sections: &GameSections) -> ScenarioEventConfig {
-    // The lock subject: not AI, because an AI hostile flies to a 250-unit
+    // The lock subject: not AI, because an AI hostile flies to a 100-unit
     // standoff and no close framing survives that (see the module docs). It is
     // not dead still either - [`nudge_raider`] gives it a slow drift, so the
     // lock's DST and CLS readouts are of a moving target.

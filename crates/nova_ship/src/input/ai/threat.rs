@@ -19,10 +19,12 @@ use crate::prelude::*;
 /// this window the ship counts as under fire and the attacker biases target
 /// selection.
 const AI_THREAT_DAMAGE_MEMORY_SECS: f32 = 3.0;
-/// Range (m) inside which a hostile holding its nose on me counts as a
-/// threat even before a shot lands. Kept near the guns' effective range
-/// (450 m): a nose on me further out cannot hurt me yet.
-pub(super) const AI_THREAT_AIM_RANGE: f32 = 500.0;
+/// Range (u) inside which a hostile holding its nose on me counts as a
+/// threat even before a shot lands. Kept just past the guns' fire gate
+/// (180 u): a nose on me further out cannot hurt me yet. Tracks the gate, so
+/// it moves with any `projectile_lifetime` change - see AI_FIRE_RANGE_FACTOR
+/// in `guns.rs`.
+pub(super) const AI_THREAT_AIM_RANGE: f32 = 200.0;
 /// Aim cone (cos) for the aiming-at-me signal: the hostile's hull forward
 /// against the bearing to my anchor. A cheap proxy - turrets can aim off
 /// the hull axis - accepted per the spike; true incoming-projectile
@@ -448,7 +450,10 @@ mod evade_tests {
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
-            Transform::from_translation(Vec3::new(300.0, 0.0, 0.0)).looking_at(Vec3::ZERO, Vec3::Y),
+            // Well inside the aim range, expressed against the constant: the
+            // range moves whenever turret reach does.
+            Transform::from_translation(Vec3::new(AI_THREAT_AIM_RANGE * 0.5, 0.0, 0.0))
+                .looking_at(Vec3::ZERO, Vec3::Y),
         ));
 
         world.run_system_once(update_ai_target).unwrap();

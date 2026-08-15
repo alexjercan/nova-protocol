@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// The finisher battery's park: far outside the ~+-230 u camera frame AND
-/// beyond the winner's leash + turret reach (300 + 450) of the arena center,
+/// beyond the winner's leash + turret reach (250 + 200) of the arena center,
 /// so a victor lunging off a blast hit can never bring its guns onto the
 /// battery before the leash walks it home. With the launch SCRIPTED there is
 /// no AI envelope to stay inside of.

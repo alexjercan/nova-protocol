@@ -116,9 +116,20 @@ pub struct TurretSectionConfig {
     /// The turret's kinematic joint tree (base -> ... -> muzzle). Replaces the
     /// old flat yaw/pitch/offset/render-mesh fields.
     pub root: TurretJoint,
-    /// The muzzle speed of the turret in units per second.
+    /// The muzzle speed of the turret in units per second. NOT a range knob:
+    /// [`REFERENCE_CLOSING_SPEED`](nova_gameplay::prelude::REFERENCE_CLOSING_SPEED)
+    /// is anchored at the stock 100 u/s, so moving this rescales every
+    /// speed-driven damage curve. Buy reach with `projectile_lifetime`.
     pub muzzle_speed: f32,
-    /// The projectile lifetime
+    /// How long (s) a round lives before it expires. A turret has no `range`
+    /// field: `muzzle_speed * projectile_lifetime` IS its reach, and this is
+    /// the only knob that moves reach without touching damage. It is read
+    /// back by the AI fire gate (`AI_FIRE_RANGE_FACTOR`,
+    /// `nova_ship/src/input/ai/guns.rs`) and by the balance audit's threat
+    /// envelope (`nova_authoring::balance`); the AI standoff, point-defense
+    /// and engage ranges are all tuned against the gate, so authoring a short
+    /// lifetime on an AI ship's gun can put its whole orbit band outside its
+    /// own reach, silently.
     pub projectile_lifetime: f32,
     /// Authored Kinetic damage per hit (pre-resistance). Weapon damage is
     /// AUTHORED here, not emergent from bullet mass x velocity: the bullet is
@@ -251,7 +262,9 @@ impl Default for TurretSectionConfig {
                 }],
             },
             muzzle_speed: 100.0,
-            projectile_lifetime: 5.0,
+            // 200 u (2.0 km) of reach, matching the shipped PDCs so a bare
+            // example turret behaves like a catalog one.
+            projectile_lifetime: 2.0,
             // Matches the old emergent kinetic (mass 0.1 @ muzzle 100 u/s).
             bullet_damage: representative_kinetic_damage(0.1, 100.0),
             bullet_kind: DamageType::Kinetic,

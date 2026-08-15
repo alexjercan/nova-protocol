@@ -34,7 +34,8 @@ use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 pub use self::{
     acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AITarget},
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},
-    guns::AIFireCadence,
+    guns::{AIFireCadence, AI_FIRE_RANGE_FACTOR},
+    maneuver::AI_STANDOFF_OUTER_EDGE,
     passive::{AIAvoidanceDetour, AIWaypointSlack},
     threat::{AIEvade, AIThreat},
     torpedo::AITorpedoBay,
@@ -46,7 +47,7 @@ pub mod prelude {
         AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade, AIFireCadence,
         AILeash, AINonCombatant, AIOrbitDirective, AIPatrolRoute, AIPointDefenseRange,
         AIPointDefenseTarget, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay, AIWaypointSlack,
-        SpaceshipAIInputPlugin,
+        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE,
     };
 }
 

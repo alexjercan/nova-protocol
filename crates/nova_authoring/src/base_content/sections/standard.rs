@@ -251,9 +251,17 @@ fn pdc_turret_prototype(
             ),
             // Also the closing speed both curves read 1.0 at
             // (REFERENCE_CLOSING_SPEED), so a station-keeping duel with either
-            // PDC lands exactly the authored per-hit below.
+            // PDC lands exactly the authored per-hit below. Muzzle speed is
+            // therefore NOT a range knob - moving it rebalances every weapon's
+            // damage. Reach is bought with lifetime alone.
             muzzle_speed: 100.0,
-            projectile_lifetime: 5.0,
+            // 100 u/s x 2.0 s = 200 u (2.0 km) of reach, the top of the
+            // intended 1-2 km PDC band. Lifetime is the ONLY reach knob a
+            // turret has, and it is read back by the AI fire gate and by the
+            // balance audit's threat envelope: see AI_FIRE_RANGE_FACTOR
+            // (nova_ship/src/input/ai/guns.rs) for the constants that move
+            // with it.
+            projectile_lifetime: 2.0,
             bullet_damage,
             bullet_kind,
             projectile_render_mesh: None,
@@ -395,7 +403,8 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                     UNIT_TURRET_SCALE,
                 ),
                 muzzle_speed: 100.0,
-                projectile_lifetime: 5.0,
+                // 200 u (2.0 km) of reach, same gun as the PDC mounts.
+                projectile_lifetime: 2.0,
                 // Point-defense per-hit: low damage, high rate. See
                 // BETTER_TURRET_BULLET_DAMAGE. (Was the old emergent per-hit
                 // representative_kinetic_damage(0.1, 100.0) ~= 20.25, which
@@ -474,7 +483,14 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // the per-hit damage is authored below (bullet_damage) rather
                 // than emergent from mass x velocity.
                 muzzle_speed: 60.0,
-                projectile_lifetime: 5.0,
+                // LONGER than the PDC's 2.0 s on purpose: reach is
+                // muzzle_speed x lifetime, so at 60 u/s the same 2.0 s would
+                // buy only 120 u - inside AI_STANDOFF_RANGE + AI_STANDOFF_BAND
+                // (125 u), where the ship orbits. Most shipped hostiles carry
+                // THIS gun, and a gun that cannot reach the band its own AI
+                // flies is not "weaker", it is silent. 3.0 s = 180 u (1.8 km),
+                // still short of the PDC's 200 u.
+                projectile_lifetime: 3.0,
                 // Authored Kinetic damage reproducing the old emergent per-hit
                 // (mass 0.05 @ 60 u/s) - roughly a fifth of the better turret's,
                 // matching the previous gentleness.

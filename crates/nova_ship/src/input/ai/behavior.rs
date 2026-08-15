@@ -159,12 +159,19 @@ pub struct AILeash {
     pub radius: f32,
 }
 
-/// Hostile-detection range (m): a passive ship (Idle/Patrol/Orbit) leaves
+/// Hostile-detection range (u): a passive ship (Idle/Patrol/Orbit) leaves
 /// its routine and engages only when the acquired target is inside this range.
 /// Acquisition itself scans out to [`AI_TARGET_MAX_RANGE`], so a patrolling
 /// ship knows what is out there without aborting the patrol for it; combat
 /// states keep holding on any acquired target, as before.
-const AI_ENGAGE_RANGE: f32 = 800.0;
+///
+/// This is the APPROACH-LENGTH knob, not a reach knob: the gap between it and
+/// the fire gate is how long a committed ship flies before it can shoot -
+/// `(400 - 180) / AI_MAX_CHASE_SPEED` = 11 s of silent closing. It has to
+/// come down with `projectile_lifetime` or the approach stretches instead of
+/// the fight tightening (at the old 800 u against a 180 u gate it would be
+/// 31 s). See AI_FIRE_RANGE_FACTOR in `guns.rs` for the chain.
+const AI_ENGAGE_RANGE: f32 = 400.0;
 
 /// Per-ship override of the hostile-detection range: a passive ship leaves
 /// its routine for a hostile inside THIS range instead of the default

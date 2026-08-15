@@ -16,7 +16,48 @@ const AI_FIRE_ALIGNMENT: f32 = 0.95;
 /// inside which the AI considers a shot worth taking: a margin below 1.0 so
 /// bullets arrive with the target still catchable, not at their despawn
 /// range.
-const AI_FIRE_RANGE_FACTOR: f32 = 0.9;
+///
+/// # The engagement-range chain - every constant below moves TOGETHER
+///
+/// A turret has no `range` field. Its reach is
+/// `muzzle_speed * projectile_lifetime`, and this factor turns that reach
+/// into the gate below. Muzzle speed is pinned by
+/// [`REFERENCE_CLOSING_SPEED`](nova_gameplay::prelude::REFERENCE_CLOSING_SPEED)
+/// (both damage curves read 1.0 at 100 u/s), so LIFETIME is the only knob
+/// that moves reach, and everything here is tuned against the gate it
+/// produces. Shipped values, at 1 unit = 10 m:
+///
+/// | reach source | reach | fire gate (x0.9) |
+/// |---|---|---|
+/// | PDC / better turret, 100 u/s x 2.0 s | 200 u (2.0 km) | 180 u (1.8 km) |
+/// | light / enemy turret, 60 u/s x 3.0 s | 180 u (1.8 km) | 162 u (1.6 km) |
+///
+/// Change a lifetime and these must be re-derived in the SAME commit:
+///
+/// - `AI_STANDOFF_RANGE` + `AI_STANDOFF_BAND` (`maneuver.rs`) - where a fight
+///   actually settles. `standoff + band` (125 u) must sit well inside the
+///   WEAKEST shipped gun's gate, or AI ships orbit outside their own reach
+///   and never fire. There is no error when that happens; the guns simply
+///   stay quiet.
+/// - `AI_POINT_DEFENSE_RANGE` (`acquisition.rs`) - at or under the gate, or
+///   the opening rounds of every intercept are wasted.
+/// - `AI_ENGAGE_RANGE` (`behavior.rs`) - above the gate; the difference is
+///   how long a committed ship flies before it can shoot.
+/// - `AI_THREAT_AIM_RANGE` (`threat.rs`) - tracks the gate: a nose held on
+///   me from beyond weapon reach is not a threat yet.
+/// - `EFFECTIVE_RANGE_MARGIN` (`nova_authoring::balance`) - mirrors THIS
+///   constant to derive each ship's audited threat envelope. A lifetime
+///   change is a balance-audit change; re-run `balance_audit_gate`.
+///
+/// The factor stays at 0.9 rather than tightening to the ~0.75 that would be
+/// strictly safe against a target fleeing at the player's 25 u/s speed cap.
+/// The gate is computed in the SHOOTER's frame while true reach is
+/// `closing_speed * lifetime`, so it over-reads against a runner and
+/// under-reads against a charger. That error scales with reach, and the
+/// lifetime cut shrank it 2.5x on its own (75 u of overshoot at the old
+/// 5.0 s, 30 u now); buying the rest would cost a quarter of the envelope in
+/// the head-on case a fight is actually decided in.
+pub const AI_FIRE_RANGE_FACTOR: f32 = 0.9;
 /// Burst cadence (s): guns fire for the window, then hold, cyclically.
 pub(super) const AI_BURST_FIRE_SECS: f32 = 1.5;
 const AI_BURST_HOLD_SECS: f32 = 0.8;
@@ -365,9 +406,9 @@ mod fire_discipline_tests {
     #[test]
     fn no_fire_beyond_the_effective_range() {
         // Dead ahead and perfectly aligned, but past muzzle_speed *
-        // lifetime * margin (default 100 * 5 * 0.9 = 450 m): the bullet
+        // lifetime * margin (default 100 * 2 * 0.9 = 180 u): the bullet
         // dies in flight, so discipline holds.
-        let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -500.0), Vec3::ZERO);
+        let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -200.0), Vec3::ZERO);
 
         world.run_system_once(on_projectile_input).unwrap();
 
@@ -377,11 +418,29 @@ mod fire_discipline_tests {
         );
 
         // The same shot inside the envelope fires.
-        let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -400.0), Vec3::ZERO);
+        let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -160.0), Vec3::ZERO);
         world.run_system_once(on_projectile_input).unwrap();
         assert!(
             **world.entity(turret).get::<TurretSectionInput>().unwrap(),
             "inside effective range and aligned: fire"
+        );
+    }
+
+    #[test]
+    fn the_default_turret_reaches_past_the_standoff_band() {
+        // The silent failure this range pass exists to prevent: a ship
+        // orbiting where its own rounds expire holds fire forever, with no
+        // error to notice. Graded at the band's OUTER edge, where the orbit
+        // takes a ship furthest from its target. The AUTHORED catalog is
+        // graded the same way, one grade at a time, in nova_authoring's
+        // base_content tests - this pins the engine default.
+        let config = TurretSectionConfig::default();
+        let gate = config.muzzle_speed * config.projectile_lifetime * AI_FIRE_RANGE_FACTOR;
+        assert!(
+            gate > AI_STANDOFF_OUTER_EDGE,
+            "default turret fire gate {gate:.0}u must cover the standoff \
+             band edge at {:.0}u, or a ship flying the envelope never shoots",
+            AI_STANDOFF_OUTER_EDGE
         );
     }
 

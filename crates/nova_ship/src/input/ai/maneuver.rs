@@ -23,12 +23,29 @@ const AI_CHASE_SPEED_GAIN: f32 = 0.2;
 /// fast, so it stays a moving target instead of a parked one.
 const AI_ORBIT_SPEED: f32 = 8.0;
 const AI_MAX_CHASE_SPEED: f32 = 20.0;
-/// Preferred engagement range (m): inside the turrets' effective range
-/// (default 450 m, see AI_FIRE_RANGE_FACTOR) with room to spare.
-const AI_STANDOFF_RANGE: f32 = 250.0;
-/// Half-width (m) of the band around the preferred range where the orbit
-/// term dominates the radial term.
-const AI_STANDOFF_BAND: f32 = 60.0;
+/// Preferred engagement range (u): where a fight SETTLES, so this - not the
+/// fire gate - is the distance a player sees combat happen at. 100 u = 1.0 km
+/// at 1 unit = 10 m.
+///
+/// Bounded from above by the fire gate: `AI_STANDOFF_RANGE +
+/// AI_STANDOFF_BAND` (125 u) must sit inside the WEAKEST shipped gun's
+/// `muzzle_speed * projectile_lifetime * AI_FIRE_RANGE_FACTOR` (162 u for the
+/// 60 u/s scavenger turret, 180 u for a PDC), or a ship orbits outside its
+/// own reach and never fires - silently. Moves with every lifetime change:
+/// see AI_FIRE_RANGE_FACTOR in `guns.rs` for the whole chain.
+const AI_STANDOFF_RANGE: f32 = 100.0;
+/// Half-width (u) of the band around the preferred range where the orbit
+/// term dominates the radial term. Kept at ~a quarter of the standoff: the
+/// RATIO is the fight's shape (a band as wide as the standoff is a charge,
+/// not an orbit), and the sum is what the fire gate has to cover.
+const AI_STANDOFF_BAND: f32 = 25.0;
+/// The far edge (u) of the orbit band a fight settles into, and therefore the
+/// distance EVERY gun an AI ship carries must be able to reach. Authoring a
+/// turret whose `muzzle_speed * projectile_lifetime * AI_FIRE_RANGE_FACTOR`
+/// falls short of this gives a ship that flies its fight correctly and never
+/// pulls the trigger, with nothing logged. Exported so the content audit can
+/// grade authored prototypes against it.
+pub const AI_STANDOFF_OUTER_EDGE: f32 = AI_STANDOFF_RANGE + AI_STANDOFF_BAND;
 /// The ship brakes once its speed exceeds the target chase speed by this margin.
 const AI_BRAKE_SPEED_MARGIN: f32 = 1.0;
 /// Only thrust when the ship's forward vector aligns with the desired direction at least
@@ -758,7 +775,7 @@ mod standoff_physics_tests {
         ));
 
         settle(&mut app);
-        // Fly for 45 simulated seconds: approach (~350 m at up to ~20 u/s)
+        // Fly for 45 simulated seconds: approach (~500 u at up to ~20 u/s)
         // plus braking and orbit capture.
         let mut min_distance = f32::INFINITY;
         for _ in 0..2700 {
@@ -778,12 +795,16 @@ mod standoff_physics_tests {
         }
         assert!(
             worst_error < AI_STANDOFF_BAND * 2.0,
-            "the ship must hold the standoff band (worst error {worst_error} m)"
+            "the ship must hold the standoff band (worst error {worst_error} u)"
         );
+        // Relative to the envelope, not a literal: the standoff is retuned
+        // whenever turret reach is, and a hardcoded floor silently becomes
+        // either unfalsifiable or impossible.
+        let floor = AI_STANDOFF_RANGE - AI_STANDOFF_BAND * 2.0;
         assert!(
-            min_distance > 100.0,
+            min_distance > floor,
             "the ship must never dive far inside the envelope \
-             (closest approach {min_distance} m)"
+             (closest approach {min_distance} u, floor {floor} u)"
         );
     }
 }
