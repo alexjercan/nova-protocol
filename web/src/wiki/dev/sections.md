@@ -131,9 +131,10 @@ neighbours. The same structure always gives the same skin.
 - Each plate is a CHILD of the section it clads, so a destroyed section takes
   its own cladding down with it and nothing has to hunt the plates of a part
   that no longer exists.
-- Derivation runs at spawn and nowhere else. The skin is a pure function of the
-  structure, so re-running it would grow back whatever combat blew off;
-  `despawn_dead_fixtures` takes a dead plate away and nothing puts it back.
+- On a LIVE ship, derivation runs at spawn and nowhere else. The skin is a pure
+  function of the structure, so re-running it would grow back whatever combat
+  blew off; `despawn_dead_fixtures` takes a dead plate away and nothing puts it
+  back.
 - `ShipSkinPlugin { render }` is split at the render line, not at the look line:
   the derivation and the sweep are gameplay and run headless, and `render` gates
   only the meshes hung on each plate by the `dress_skin_plate` observer.
@@ -141,6 +142,35 @@ neighbours. The same structure always gives the same skin.
 Cladding is OPT IN. The derivation reads a hull as unit cells, which the
 catalog's cube sections are and the modelled semantic parts (the racer, the
 haulers) are not.
+
+#### The editor's live preview
+
+The build view clads the ship being ASSEMBLED, and it re-derives rather than
+spawning once: `sync_editor_skin` (`nova_editor/src/skin.rs`) runs after
+`sync_placement_ghost`, hashes the structure it is about to read, and respawns
+the whole skin when that hash moves. Nothing is patched and nothing is
+diffed - the derivation is a pure function, so throwing the plates away and
+asking again is both the simplest answer and the one that cannot drift. On a
+384-plate ship a reflow costs about 2 ms and an unchanged frame about 0.1 ms;
+a real build is an order of magnitude smaller than that, and the ghost only
+travels in whole cells (placement mates sockets), so dragging a part does not
+re-derive per frame.
+
+Two things it does differently from the spawner:
+
+- The part UNDER THE POINTER is structure, while its placement is legal. That
+  is the feature: a hull is dragged about under the skin and the cladding
+  closes around it before the click. A REFUSED ghost contributes nothing - it
+  will not be built, so cladding it would draw a ship that cannot exist.
+- A preview plate is DISPLAY ONLY: `ShipSkinMarker` and a pose, so the shared
+  `dress_skin_plate` observer still draws it, but no `SectionMarker`, no
+  `Collider` and no health. The placement solver never counts one as a part,
+  the pointer never hits one, and the `Q` pipette cannot arm one.
+
+Both readings go through `read_structure` (`shell_skin.rs`), so the lattice the
+editor clads on and the lattice the flown ship clads on cannot drift - and the
+build state carries the toggle into the `SpaceshipConfig` the scenario spawns,
+so what you see in the editor is what you fly.
 
 ## Integrity: damage -> disable -> destroy
 

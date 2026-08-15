@@ -10,21 +10,27 @@
 
 pub(crate) mod rail;
 
-use bevy::{prelude::*, ui_widgets::observe};
+use bevy::{
+    prelude::*,
+    ui_widgets::{observe, Activate},
+};
 use nova_assets::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{panel, panel_header, separator, themed_button, ButtonValue, UiSkin},
     theme,
+    widget::{checkbox_colors, checkbox_glyph},
 };
 
 use crate::{
-    config::{EditorKeyLegend, PlacementStatus, SectionChoice},
+    config::{
+        EditorKeyLegend, PlacementStatus, PlayerSpaceshipConfig, SectionChoice, SkinToggleCheckbox,
+    },
     gallery::{EditorCamera, EditorChrome, GalleryAction},
     placement::{
         continue_to_simulation, create_new_spaceship, create_new_spaceship_with_controller,
     },
-    ui::rail::{category_row, coming_soon_category},
+    ui::rail::{category_row, coming_soon_category, skin_toggle_row},
     ExampleStates,
 };
 
@@ -48,8 +54,10 @@ pub(crate) fn setup_editor_scene(
     mut commands: Commands,
     skin: Res<UiSkin>,
     game_assets: Res<GameAssets>,
+    player_config: Res<PlayerSpaceshipConfig>,
 ) {
     let skin = *skin;
+    let clad = player_config.skin;
     // Key + rim, the same bearings the parts viewer lights its turntable with.
     // The editor used to carry one light shining straight down, which put every
     // vertical face of every part in flat shadow - fine for a ship seen from
@@ -195,6 +203,14 @@ pub(crate) fn setup_editor_scene(
                     themed_button("Delete Section"),
                     ButtonValue(SectionChoice::Delete),
                 ));
+                // A SETTING among the modes: it arms nothing, it changes what
+                // the ship on the stage looks like - and what it looks like
+                // when it flies.
+                rail.spawn((
+                    Name::new("Ship Skin Toggle"),
+                    skin_toggle_row(clad, skin),
+                    observe(on_skin_toggle),
+                ));
 
                 rail.spawn(separator());
                 rail.spawn((
@@ -276,6 +292,55 @@ pub(crate) fn setup_editor_scene(
         });
 }
 
+/// Flip the cladding on or off.
+///
+/// One bool on the build state and nothing else: the build view watches it (see
+/// [`crate::skin`]) and Play reads it, so the ship on the stage and the ship
+/// that flies cannot disagree about whether it is clad.
+pub(crate) fn on_skin_toggle(
+    _activate: On<Activate>,
+    mut player_config: ResMut<PlayerSpaceshipConfig>,
+) {
+    player_config.skin = !player_config.skin;
+}
+
+/// Repaint the cladding checkbox for the state it reports, IN PLACE.
+///
+/// Painted from nova_ui's `checkbox_colors`/`checkbox_glyph` rather than by
+/// respawning the widget, so it cannot drift from the `checkbox()` factory the
+/// rail built it with - and so the row's hover state survives a toggle.
+///
+/// Compared before writing rather than gated on a change, for the same reason
+/// as [`sync_key_legend`]: the row is spawned on entering the editor, which
+/// need not be a frame the toggle changed on.
+pub(crate) fn sync_skin_toggle(
+    player_config: Res<PlayerSpaceshipConfig>,
+    skin: Res<UiSkin>,
+    boxes: Query<(&Children, &mut BackgroundColor, &mut BorderColor), With<SkinToggleCheckbox>>,
+    mut glyphs: Query<(&mut Text, &mut TextColor)>,
+) {
+    let on = player_config.skin;
+    let (fill, edge, glyph_colour) = checkbox_colors(on, *skin);
+    let mark = checkbox_glyph(on);
+    for (children, mut background, mut border) in boxes {
+        if background.0 != fill {
+            *background = fill.into();
+            border.set_all(edge);
+        }
+        for &child in children {
+            let Ok((mut text, mut colour)) = glyphs.get_mut(child) else {
+                continue;
+            };
+            if text.0 != mark {
+                text.0 = mark.to_string();
+            }
+            if colour.0 != glyph_colour {
+                colour.0 = glyph_colour;
+            }
+        }
+    }
+}
+
 /// Keep the key legend in step with the armed tool.
 ///
 /// Compared before writing rather than gated on `SectionChoice` changing: the
@@ -289,11 +354,11 @@ pub(crate) fn sync_key_legend(
     let line = match *selection {
         SectionChoice::None => {
             "Tab parts   LMB rebind a section   Q pick its part   RMB+drag look   \
-             WASD/Space/Shift fly   Esc pause"
+             WASD/Space/Shift fly   Ship Skin clads the build   Esc pause"
         }
         SectionChoice::Section(_) => {
             "LMB place   wheel roll   Ctrl+wheel socket   R roll   F socket   Q pick   \
-             Tab parts   Esc put down"
+             Tab parts   Ship Skin reflows as you aim   Esc put down"
         }
         SectionChoice::Delete => "LMB delete   Q pick a part   Tab parts   Esc put down",
     };

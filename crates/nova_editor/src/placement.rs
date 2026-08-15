@@ -167,11 +167,16 @@ fn register_preview_section(
 
 /// Replace the preview ship with a fresh one seeded from a single catalog
 /// section, and reset the build state to match.
+///
+/// `skin` is carried over rather than reset: the cladding toggle is how the
+/// builder chose to LOOK at ships, and starting a new one is not a request to
+/// change that.
 fn reset_preview_to_seed(
     commands: &mut Commands,
     q_spaceship: &Query<Entity, With<SpaceshipPreviewMarker>>,
     section: &SectionConfig,
     name: &'static str,
+    skin: bool,
 ) {
     for entity in q_spaceship {
         commands.entity(entity).despawn();
@@ -193,7 +198,7 @@ fn reset_preview_to_seed(
         seed = spawn_preview_section(parent, section, transform, vec![]);
     });
 
-    let mut config = PlayerSpaceshipConfig::default();
+    let mut config = PlayerSpaceshipConfig { skin, ..default() };
     register_preview_section(&mut config, seed, section, transform, vec![]);
     commands.insert_resource(config);
 }
@@ -203,6 +208,7 @@ pub(crate) fn create_new_spaceship(
     mut commands: Commands,
     q_spaceship: Query<Entity, With<SpaceshipPreviewMarker>>,
     sections: Res<GameSections>,
+    player_config: Res<PlayerSpaceshipConfig>,
 ) {
     let Some(section) = required_section(&sections, "reinforced_hull_section") else {
         return;
@@ -211,7 +217,13 @@ pub(crate) fn create_new_spaceship(
         warn!("editor: 'reinforced_hull_section' is not a hull section - skipping");
         return;
     }
-    reset_preview_to_seed(&mut commands, &q_spaceship, section, "Spaceship Preview");
+    reset_preview_to_seed(
+        &mut commands,
+        &q_spaceship,
+        section,
+        "Spaceship Preview",
+        player_config.skin,
+    );
 }
 
 pub(crate) fn create_new_spaceship_with_controller(
@@ -219,6 +231,7 @@ pub(crate) fn create_new_spaceship_with_controller(
     mut commands: Commands,
     q_spaceship: Query<Entity, With<SpaceshipPreviewMarker>>,
     sections: Res<GameSections>,
+    player_config: Res<PlayerSpaceshipConfig>,
 ) {
     let Some(section) = required_section(&sections, "basic_controller_section") else {
         return;
@@ -232,6 +245,7 @@ pub(crate) fn create_new_spaceship_with_controller(
         &q_spaceship,
         section,
         "Spaceship Preview with Controller",
+        player_config.skin,
     );
 }
 
@@ -274,7 +288,12 @@ pub(crate) fn rebuild_editor_preview_on_enter(
         ))
         .id();
 
-    let mut rebuilt = PlayerSpaceshipConfig::default();
+    let mut rebuilt = PlayerSpaceshipConfig {
+        // Re-keyed onto the entities spawned here, but the same SHIP - the
+        // cladding toggle is part of it and must survive the round trip.
+        skin: player_config.skin,
+        ..default()
+    };
     commands.entity(root).with_children(|parent| {
         for (section, binds) in &previous {
             // A prototype source would need the catalog, which a mod overlay may
@@ -1129,6 +1148,7 @@ mod tests {
                 },
             )]),
             inputs: HashMap::from([(stale, binds.clone())]),
+            skin: true,
         });
 
         world
@@ -1173,6 +1193,10 @@ mod tests {
                 .0,
             binds,
             "and so does the live component"
+        );
+        assert!(
+            config.skin,
+            "the cladding toggle is part of the ship, so it survives the rebuild"
         );
     }
 

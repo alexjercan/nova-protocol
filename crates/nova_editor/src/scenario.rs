@@ -424,7 +424,10 @@ fn player_ship(player_config: &PlayerSpaceshipConfig) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
-            skin: false,
+            // What the builder saw is what they fly. The editor shows the same
+            // derived skin over the same structure, so the flown ship must not
+            // come up bare (or clad) against it.
+            skin: player_config.skin,
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: player_config
@@ -1072,5 +1075,25 @@ mod tests {
             !registered.menu_backdrop,
             "and out of the menu's backdrop rotation"
         );
+    }
+
+    /// What you see in the editor is what you fly: the cladding toggle rides
+    /// the hand-off, so a ship built clad does not come up bare.
+    #[test]
+    fn the_cladding_toggle_reaches_the_flown_ship() {
+        for clad in [false, true] {
+            let config = PlayerSpaceshipConfig {
+                skin: clad,
+                ..default()
+            };
+            let player = find(&sandbox_objects(&config, Handle::default()), PLAYER_ID);
+            let ScenarioObjectKind::Spaceship(ship) = player.kind else {
+                panic!("the player object is a spaceship");
+            };
+            assert_eq!(
+                ship.skin, clad,
+                "the editor's toggle decides whether the flown ship is clad"
+            );
+        }
     }
 }

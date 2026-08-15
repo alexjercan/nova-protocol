@@ -8,6 +8,7 @@
 //! - `keybind`   - section keybind chips + click-to-rebind
 //! - `gallery`   - the full-screen parts browser that arms the placement tool
 //! - `snap`      - where the armed prototype would land, and why not
+//! - `skin`      - the derived cladding, re-derived live while a part is dragged
 //! - `scenario`  - the player-only asteroid+planetoid scene handed off on Play
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
 #![warn(missing_docs)]
@@ -26,6 +27,7 @@ mod keybind;
 mod placement;
 mod preview;
 mod scenario;
+mod skin;
 mod snap;
 mod ui;
 
@@ -41,7 +43,8 @@ use placement::{
     sync_placement_ghost, sync_tool_selection, update_placement_preview, wheel_placement_pose,
 };
 use scenario::setup_scenario;
-use ui::{setup_editor_scene, sync_key_legend};
+use skin::sync_editor_skin;
+use ui::{setup_editor_scene, sync_key_legend, sync_skin_toggle};
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`]
 /// into scope.
@@ -177,10 +180,15 @@ fn editor_plugin(app: &mut App) {
         (
             sync_tool_selection,
             sync_key_legend,
+            sync_skin_toggle,
             pick_section_under_pointer,
             cycle_placement_pose,
             update_placement_preview,
             sync_placement_ghost,
+            // AFTER the ghost: the cladding counts the part under the pointer
+            // as structure, so it has to be derived from the same solve the
+            // ghost on screen is showing.
+            sync_editor_skin,
             draw_link_points,
             draw_ship_heading,
             draw_delete_target,

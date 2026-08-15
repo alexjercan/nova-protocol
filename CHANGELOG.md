@@ -249,6 +249,13 @@ tagged **(breaking)**.
 
 ### Interface & HUD
 
+- The editor SHOWS the ship's derived skin while you build it. **Ship Skin** in
+  the Tools block clads the build from its own structure, and the cladding
+  re-derives whenever that structure moves - including around the part still
+  under your pointer, so a hull is dragged about UNDER the skin and the plating
+  closes over it before the click that commits it. A refused placement stays
+  bare, since it will not be built. The toggle rides Play: a ship built clad is
+  a ship flown clad.
 - The editor grows a **parts gallery**: a full-screen browser of the section
   catalog with a live 3D preview per tile, a category row, a text filter (just
   type) and a focus card that turntables the part beside its stats. Picking

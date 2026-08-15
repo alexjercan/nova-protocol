@@ -45,16 +45,17 @@ use nova_gameplay::prelude::{
 use crate::sections::{
     fixture::prelude::SectionFixture,
     integrity::build_ship_integrity_graph,
-    link_points::prelude::SectionLinkPoints,
+    link_points::prelude::{LinkPoint, SectionLinkPoints},
     shell_shape::{ShellShape, ShellSurface, FULL, HALF, REACH},
 };
 
-/// The prelude: `SkinStructure`, `SkinPlate`, `derive_skin`, `plate_body`,
-/// `SkinAssets`, `ShipSkin`, `ShipSkinMarker` and `ShipSkinPlugin`.
+/// The prelude: `SkinStructure`, `SkinPlate`, `derive_skin`, `read_structure`,
+/// `plate_body`, `SkinAssets`, `ShipSkin`, `ShipSkinMarker` and
+/// `ShipSkinPlugin`.
 pub mod prelude {
     pub use super::{
-        derive_skin, plate_body, ShipSkin, ShipSkinMarker, ShipSkinPlugin, SkinAssets, SkinPlate,
-        SkinStructure,
+        derive_skin, plate_body, read_structure, ShipSkin, ShipSkinMarker, ShipSkinPlugin,
+        SkinAssets, SkinPlate, SkinStructure,
     };
 }
 
@@ -602,30 +603,25 @@ fn spawn_ship_skin(
         let Ok(children) = q_children.get(root) else {
             continue;
         };
-        let placed: Vec<(Entity, &Transform, &SectionLinkPoints)> = children
-            .iter()
-            .filter_map(|section| {
-                let (transform, link_points) = q_sections.get(section).ok()?;
-                Some((section, transform, link_points))
-            })
-            .collect();
-        let phase = lattice_phase(placed.iter().map(|(_, transform, _)| transform.translation));
-
-        let mut structure = SkinStructure::default();
-        let mut sections: HashMap<IVec3, (Entity, Transform)> = HashMap::new();
-        for (section, transform, link_points) in placed {
-            let cell = section_cell(transform.translation, phase);
-            structure.insert_section(
-                cell,
-                link_points
-                    .iter()
-                    .map(|point| transform.rotation * point.normal),
-            );
-            sections.insert(cell, (section, *transform));
+        let mut entities: Vec<Entity> = Vec::new();
+        let mut placed: Vec<(Transform, &[LinkPoint])> = Vec::new();
+        for section in children.iter() {
+            let Ok((transform, link_points)) = q_sections.get(section) else {
+                continue;
+            };
+            entities.push(section);
+            placed.push((*transform, link_points.as_slice()));
         }
+        let (structure, phase, cells) = read_structure(&placed);
         if structure.is_empty() {
             continue;
         }
+        let sections: HashMap<IVec3, (Entity, Transform)> = cells
+            .into_iter()
+            .zip(entities)
+            .zip(placed)
+            .map(|((cell, entity), (transform, _))| (cell, (entity, transform)))
+            .collect();
 
         let mut shapes: HashSet<ShellShape> = HashSet::new();
         let mut laid = 0;
@@ -650,6 +646,31 @@ fn spawn_ship_skin(
             shapes.len(),
         );
     }
+}
+
+/// Read a set of placed sections as the structure the skin sees: the lattice
+/// they stand on, and the cell each one fills, in the order they were given.
+///
+/// ONE reading, shared by everything that clads: the spawner reads a live ship's
+/// sections, the editor reads the build state plus the part under the pointer.
+/// Two readings would put the lattice in two places and clad the same ship two
+/// ways - and the editor's whole claim is that what it shows is what flies.
+///
+/// `placed` pairs a section's pose in the ship's frame with the sockets it
+/// carries in its OWN frame; the turn into the ship's frame happens here.
+pub fn read_structure(placed: &[(Transform, &[LinkPoint])]) -> (SkinStructure, Vec3, Vec<IVec3>) {
+    let phase = lattice_phase(placed.iter().map(|(pose, _)| pose.translation));
+    let mut structure = SkinStructure::default();
+    let mut cells = Vec::with_capacity(placed.len());
+    for (pose, link_points) in placed {
+        let cell = section_cell(pose.translation, phase);
+        structure.insert_section(
+            cell,
+            link_points.iter().map(|point| pose.rotation * point.normal),
+        );
+        cells.push(cell);
+    }
+    (structure, phase, cells)
 }
 
 /// Where the cell lattice a ship's sections stand on has its origin, per axis.

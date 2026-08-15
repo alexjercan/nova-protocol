@@ -639,3 +639,83 @@ is where the illegal ships come from:
 DISPLAY=:99 NOVA_AUTOPILOT=1 nix develop --command \
   cargo run --example wfc_ships --features dev -- --ships 12
 ```
+
+## The editor half, after the fact
+
+Landed separately, on `editor-skin`. The spawn half was step 7's first row; this
+is the rest of it - the build view showing the skin while the ship is still
+being built.
+
+`sync_editor_skin` (`crates/nova_editor/src/skin.rs`), in the placement chain
+after `sync_placement_ghost`. After, not before, because the PART UNDER THE
+POINTER counts as structure: the skin has to be derived from the same solve the
+ghost on screen is showing, or the cladding is a frame behind the part.
+
+Five decisions worth keeping:
+
+- The GATE is a hash of the structure, not `player_config.is_changed()`. The
+  ghost is not in the build state, so a change gate would show the reflow only
+  after the click - and the reflow before the click IS the feature. Hashing
+  ~150 sections every frame is 0.1 ms at the size a ship gets to; deriving is
+  what has to be avoided, not reading.
+- Nothing diffs and nothing is patched. Despawn every plate, derive, respawn.
+  The derivation is a pure function, so the cheap answer and the correct answer
+  are the same one.
+- A REFUSED ghost contributes nothing. The bounds box already says the click
+  will build nothing, and cladding it would draw a ship that cannot exist.
+- A preview plate is `ShipSkinMarker` + a pose + `Visibility` and NOTHING else:
+  no `SectionMarker`, no `Collider`, no health. `dress_skin_plate` still draws
+  it (the observer only reads the marker), and the placement validator, the
+  pointer and the Q pipette cannot see it. `PreviewRole::Display` was the
+  obvious vehicle and is the wrong one - it takes a `SectionConfig`, and a
+  plate has no prototype.
+- The toggle lives on `PlayerSpaceshipConfig`, not in a view resource: it is a
+  property of the SHIP, `scenario.rs` already flattens that resource into the
+  `SpaceshipConfig` Play spawns, and one resource to watch is one resource to
+  watch. It survives New Ship and the on-enter rebuild for the same reason.
+
+`read_structure` in `shell_skin.rs` is now the one reading of poses + sockets
+into a `SkinStructure`, shared by the spawner and the editor. The lattice phase
+is what would have drifted otherwise, and a ship clad on two phases is clad two
+ways.
+
+### Measured
+
+`--lib` test profile (optimized), synthetic 8x8x8 block: 512 sections, 384
+plates.
+
+| | cost |
+| --- | --- |
+| first derive + spawn | 2.92 ms |
+| reflow (despawn 384, derive, respawn 384) | 2.29 ms |
+| unchanged frame (hash + count) | 0.15 ms |
+
+Live, in the editor example (5-9 sections, 19-27 plates): 0.11-0.23 ms per
+reflow, logged by `sync_editor_skin` at debug. No stutter: the ghost only moves
+in whole cells, because placement mates sockets, so dragging the pointer across
+a face does not re-derive at all. The render half is not in the 2.29 ms - each
+plate hangs 1-3 mesh children, and their meshes are cached per shape - but at a
+real build's size it is invisible.
+
+Nothing was pre-optimised. If a 400-plate editor ship ever stutters, the lever
+is deriving on a settled placement rather than on every ghost move.
+
+### Rendered
+
+`editor-skin-off.png`, `editor-skin.png`, `editor-skin-drag.png`, from the
+`editor` example. Honest reading: on a 5-section build the cladding is a
+faceted crystal - most of the skin is one cell wide, so it is nearly all tents
+and studs, and the boxes underneath stop being readable. That is the resolution
+limit the row render already showed, not a regression. The drag figure works:
+the plating closes over the ghost's cell and the green bounds box is what says
+where the part is, since the part itself is now UNDER the skin - which is the
+words the owner used.
+
+### Pre-existing flake, not caused by this
+
+`examples/ui/editor.rs`'s `raise a tower, first course` beat fails about half
+the time on this box: the click at world `(0, 1.5, 1)` builds nothing. Verified
+on the BASE commit with this branch's work stashed, so it predates the editor
+skin. It is a grazing aim - the ray from the editor camera clears the front-top
+edge of the target section by ~0.19 cells - and it is worth re-aiming next time
+somebody is in that file.

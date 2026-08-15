@@ -14,6 +14,14 @@ use nova_scenario::prelude::*;
 pub(crate) struct PlayerSpaceshipConfig {
     pub(crate) sections: HashMap<Entity, SpaceshipSectionConfig>,
     pub(crate) inputs: HashMap<Entity, Vec<Binding>>,
+    /// Whether the ship wears its derived cladding - shown live in the build
+    /// view (see `crate::skin`) and carried through to the flown ship, so what
+    /// the builder sees is what they fly.
+    ///
+    /// Part of the BUILD STATE rather than a view setting of its own: it is a
+    /// property of the ship, it has to survive a trip out to the scenario and
+    /// back, and one resource changing is one thing for the preview to watch.
+    pub(crate) skin: bool,
 }
 
 /// The active placement tool, driven by the rail tools and the component cards
@@ -93,3 +101,8 @@ pub(crate) struct PlacementStatus;
 /// stays short enough to read rather than long enough to ignore.
 #[derive(Component)]
 pub(crate) struct EditorKeyLegend;
+
+/// The box of the cladding toggle in the Tools block, repainted in place when
+/// [`PlayerSpaceshipConfig::skin`] changes.
+#[derive(Component)]
+pub(crate) struct SkinToggleCheckbox;

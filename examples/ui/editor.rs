@@ -23,7 +23,10 @@
 //!    gallery) and place (a click on the ship builds the part the gallery picked);
 //! 8. meet both placement REFUSALS in words and in pixels - an occupied socket, and a drive
 //!    aimed up a lane the hull already stands beside, which is `nova_ship`'s clearance rule and
-//!    the same one the ship generator collapses under.
+//!    the same one the ship generator collapses under;
+//! 9. turn the SKIN on and watch it follow the build - the bare ship, the same ship clad from
+//!    its own structure, and the cladding reflowing around a hull that is still in the
+//!    builder's hand. Play then proves the toggle rode the hand-off: the flown ship wears it.
 //!
 //! Controls (interactive run): use the on-screen buttons to create ships and place sections.
 //!
@@ -84,6 +87,12 @@ const SHIP_SETTLE: u32 = 40;
 #[cfg(feature = "debug")]
 const HULL_PROTOTYPE: &str = "reinforced_hull_section";
 
+/// A viewport point (logical px) with neither the ship nor a rail panel under
+/// it, on the 1024x768 window the app opens. Pointing here is how a beat puts
+/// the ghost away without disarming the part it is holding.
+#[cfg(feature = "debug")]
+const EMPTY_SPACE: Vec2 = Vec2::new(760.0, 640.0);
+
 /// What a beat measured, so a later beat can say whether the gesture changed
 /// anything.
 #[cfg(feature = "debug")]
@@ -99,6 +108,9 @@ struct EditorProbe {
     /// Mates the editor's assembled ship derives, to compare against the flown
     /// ship's.
     mates: usize,
+    /// Skin plates on the build, stamped before the beat that drags a part
+    /// through them.
+    plates: usize,
 }
 
 /// The whole driven run.
@@ -460,6 +472,88 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .until(frames(1))
         .add()
+        // The SKIN, which is the one part of the build view nobody builds:
+        // cladding derived from the structure under it. Three figures - the
+        // bare ship, the same ship clad, and the cladding closing around a hull
+        // that is still in the builder's hand.
+        //
+        // The hull the pipette took stays armed throughout. Pointing AWAY from
+        // the ship is what puts the ghost away for the first two figures: with
+        // nothing under the pointer there is no placement to solve, so no ghost
+        // and no status line.
+        .step("editor: look away from the ship")
+        .on_enter(move_cursor(EMPTY_SPACE))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: shoot the bare build")
+        .on_enter(|world: &mut World| {
+            assert_eq!(
+                count_plates(world),
+                0,
+                "nothing is clad until the toggle asks for it"
+            );
+            shoot(world, "editor-skin-off.png");
+        })
+        .until(shot_written("editor-skin-off.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("editor: click Ship Skin")
+        .on_enter(click_named("Ship Skin Toggle"))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release Ship Skin")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the build came up clad")
+        .on_enter(|world: &mut World| {
+            let plates = count_plates(world);
+            assert!(
+                plates > 0,
+                "the toggle must clad the ship on the stage, derived from the \
+                 structure the builder assembled"
+            );
+            info!("editor: the skin laid {plates} plates over the build");
+            world.resource_mut::<EditorProbe>().plates = plates;
+            stamp_sections(world);
+            shoot(world, "editor-skin.png");
+        })
+        .until(shot_written("editor-skin.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        // The feature itself: a hull held against the ship is structure the
+        // skin can already see, so the cladding closes around it BEFORE the
+        // click that would commit it. The pointer goes to the same face the PDC
+        // mounts on two beats later, which is this run's own evidence that the
+        // aim lands on a socket a part can take.
+        .step("editor: hold the hull against the ship")
+        .on_enter(|world: &mut World| {
+            let (centre, _) = aim_at_a_visible_face(world).expect("a section faces the camera");
+            move_cursor(centre)(world);
+        })
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the skin reflowed around the part in hand")
+        .on_enter(|world: &mut World| {
+            let settled = world.resource::<EditorProbe>().plates;
+            let now = count_plates(world);
+            assert_ne!(
+                now, settled,
+                "the part under the pointer must reflow the skin around it \
+                 ({settled} plates with it out of the way)"
+            );
+            assert_eq!(
+                count_sections(world),
+                world.resource::<EditorProbe>().sections,
+                "and it must reflow without anything being BUILT - the click \
+                 has not happened yet"
+            );
+            info!("editor: the ghost reflowed the skin ({settled} -> {now} plates)");
+            shoot(world, "editor-skin-drag.png");
+        })
+        .until(shot_written("editor-skin-drag.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
         // The refusal path needs a socket that is taken but still POINTABLE, so
         // the run mounts the compact PDC on a hull face: it fills that face's
         // socket while covering only a corner of the face. It is also the part
@@ -654,6 +748,15 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "the flown ship must re-derive the mate graph the editor built"
             );
             info!("editor: the flown ship carries the same {flown} mates");
+
+            // What you see is what you fly: the toggle rides the hand-off, so
+            // a ship built clad is spawned clad.
+            let plates = count_plates(world);
+            assert!(
+                plates > 0,
+                "the ship was built with its skin on, so the flown one wears it"
+            );
+            info!("editor: the flown ship came up in {plates} plates");
         })
         .until(frames(1))
         .add()
@@ -830,6 +933,15 @@ fn hull_section_name(world: &World) -> Option<String> {
 #[cfg(feature = "debug")]
 fn count_sections(world: &mut World) -> usize {
     let mut q = world.query_filtered::<(), With<SectionMarker>>();
+    q.iter(world).count()
+}
+
+/// Count the skin plates on screen - the editor's preview cladding, and after
+/// Play the flown ship's real one. Both wear the same marker, which is the
+/// point: one derivation, two places.
+#[cfg(feature = "debug")]
+fn count_plates(world: &mut World) -> usize {
+    let mut q = world.query_filtered::<(), With<ShipSkinMarker>>();
     q.iter(world).count()
 }
 

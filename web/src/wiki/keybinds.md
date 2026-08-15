@@ -312,4 +312,12 @@ bottom-left legend shows the ones that apply to whatever you are holding.
     </tr>
 </table>
 
+**Ship Skin**, in the rail's Tools block, dresses the build in the cladding the
+ship would fly with. Nothing places a plate: the skin is derived from the
+structure you have assembled, and it is re-derived as you build - including
+around the part you are still holding, so a hull is dragged about UNDER the skin
+and the plating closes over it before you click. A placement the editor refuses
+stays bare. The toggle carries through to Play, so the ship you built clad is
+the ship you fly clad.
+
 Button glyphs from [PromptFont](https://shinmera.com/promptfont/) by Yukari "Shinmera" Hafner (SIL Open Font License).
