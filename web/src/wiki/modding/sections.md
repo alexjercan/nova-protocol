@@ -444,10 +444,26 @@ kind: Torpedo((
   PDC can land (4.0 authored x the 2.0 kinetic speed ceiling), so an intercept
   costs a short burst rather than one lucky tap; author far more for armored
   ordnance point defense has to chew through across the closing window.
+- `weave_angle` (optional, default `0.44` rad, ~25 degrees) - the terminal
+  weave: how far off the guidance solution an armed torpedo corkscrews. It
+  PERTURBS the solution rather than replacing it and fades to nothing between
+  three blast radii and the proximity fuze, so a weaving torpedo still arrives on
+  the aim point. `0.0` flies the bare intercept. Widening it costs the torpedo
+  exposure time - a corkscrew is a longer path - which is what keeps the knob
+  self-balancing.
+- `weave_rate` (optional, default `2.2` rad/s) - how fast the weave spins about
+  the guidance command. The lateral acceleration a defender's lead solution fails
+  to predict scales with `max_speed * sin(weave_angle) * weave_rate`, while the
+  helix radius (`max_speed * sin(weave_angle) / weave_rate`) shrinks with it -
+  keep that radius comfortably inside the proximity fuze.
 - `ammo_capacity` (optional) - magazine size in torpedoes; `None` for unlimited.
 - `reload` (optional) - auto-reload for the bay (needs `ammo_capacity`); same
   `Some((reload_time, rounds_per_cycle, only_when_empty))` shape as the turret.
-  The shipped bay uses continuous regen (one torpedo every few seconds).
+  The shipped bays author **no reload at all**: a bay's torpedoes are a hard
+  magazine for the whole engagement. That is deliberate, and it is what makes
+  the torpedo-versus-point-defense exchange an attrition fight rather than a
+  waiting game - a regenerating bay is unlimited ordnance given time. Author a
+  reload only for a bay that is meant to be a rate limit rather than a budget.
 
 ## A section in a mod
 

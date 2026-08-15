@@ -141,6 +141,13 @@ pub(super) fn insert_turret_section(
         ))
         .add_child(root);
 
+    // What this mount can BEAR ON, solved once from the tree it was just built
+    // from. A tree the solver does not recognise gets no component and is
+    // treated as able to bear anywhere (see [`TurretSectionArc`]).
+    if let Some(arc) = TurretSectionArc::from_tree(&config.root) {
+        commands.entity(turret).insert(arc);
+    }
+
     // Opt-in finite ammo: a magazine on the turret SECTION entity (the one
     // `shoot_spawn_projectile` queries), so the fire loop spends and gates on it
     // with the query it already runs. `None` leaves the turret unlimited.

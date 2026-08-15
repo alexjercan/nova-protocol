@@ -23,7 +23,7 @@ A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 | `Thruster`   | Forward thrust (`magnitude`); drives the exhaust visual. |
 | `Controller` | PD attitude controller (`frequency`, `damping_ratio`, `max_torque`). Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop (see below). |
 | `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
-| `Torpedo`    | Torpedo bay. Fires guided torpedoes that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. |
+| `Torpedo`    | Torpedo bay. Fires guided torpedoes that run in on a terminal weave (`weave_angle`, `weave_rate`) and detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. |
 
 `GameSections(Vec<SectionConfig>)` is the resource of section blueprints.
 Generic prototypes are authored in

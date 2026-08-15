@@ -16,6 +16,25 @@ tagged **(breaking)**.
 
 ### Combat & Weapons
 
+- Point defense is assigned PER TURRET instead of per ship. Each mount picks the
+  most imminent inbound torpedo it can actually bear on given its own hinge
+  limits, preferring one no other mount has claimed, and HOLDS it until that
+  torpedo dies, leaves the arc, or something twice as imminent arrives. A turret
+  with nothing reachable goes back to the primary target rather than parking on
+  a torpedo under its own hull, so a battery no longer dogpiles one torpedo
+  while the rest of the salvo flies in unopposed.
+- **(breaking)** Torpedo bays no longer reload. A bay's six torpedoes are a HARD
+  magazine for the whole engagement; the old +1 every 4 s regen was unlimited
+  ordnance given time, which is a waiting game rather than an attrition fight.
+  A mod bay that wants the old behavior authors its own `reload`.
+- Torpedoes fly a TERMINAL WEAVE: an armed torpedo corkscrews ~25 degrees off
+  its guidance solution until the final approach, breaking the lead solution
+  point defense fires on. Measured against one stock PDC across the 150 u
+  point-defense envelope, a weaving torpedo costs ~3x the rounds to stop
+  (116 -> 369) and dies 39 u from its target instead of 114 u out. The weave
+  fades to nothing at the proximity fuze, so a torpedo still hits what it aims
+  at. Authorable per bay (`weave_angle`, `weave_rate`; `0.0` flies the bare
+  intercept).
 - Gunfights happen at 1-2 km instead of 4-5. A PDC round lives 2.0 s (reach
   200 u) and the scavenger turret 3.0 s (180 u), and the AI ranges moved with
   them: ships settle at a 100 u standoff (+-25 u), open fire inside 180 u,

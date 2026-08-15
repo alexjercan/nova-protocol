@@ -581,17 +581,27 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // Kinetic speed ceiling), so an intercept costs two or three
                 // rounds instead of one lucky tap.
                 projectile_health: 10.0,
-                // A small salvo of torpedoes before the bay is spent. Playtest
-                // knob.
+                // Terminal weave: ~25 degrees of corkscrew off the intercept,
+                // spun at 1.4 rad/s. Measured against one shipped PDC across
+                // the shipped 150 u point-defense envelope
+                // (`point_defense_cost_tests`), that is ~3x the rounds to
+                // stop - 116 -> 369 - and a torpedo that dies 39 u out instead
+                // of 114 u out. Those two numbers are what turn a salvo into an
+                // ammunition cost rather than a coin flip. The angle sets that
+                // price; the rate only sets how wide the flight path visibly
+                // swings (~11 u, measured in-engine).
+                weave_angle: 0.44,
+                weave_rate: 1.4,
+                // A small salvo of torpedoes, and then the bay is spent for
+                // good. Playtest knob.
                 ammo_capacity: Some(6),
-                // Continuous rearm: the bay regrows one torpedo every ~4s up to
-                // capacity, so a spent bay slowly comes back rather than
-                // dumping-and-refilling all at once.
-                reload: Some(SectionReloadConfig {
-                    reload_time: 4.0,
-                    rounds_per_cycle: 1,
-                    only_when_empty: false,
-                }),
+                // NO reload. The bay used to regrow one torpedo every ~4 s,
+                // which is unlimited ordnance given time - and unlimited
+                // ordnance is not an attrition fight, it is a waiting game the
+                // defender always loses. A hard magazine is what makes the
+                // exchange real: the attacker spends torpedoes, the defender
+                // spends rounds, and whoever runs dry first loses.
+                reload: None,
             }),
         },
         SectionConfig {
@@ -645,6 +655,13 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // through this inside the ~6 s closing window, so point
                 // defense visibly hammers it and still loses.
                 projectile_health: 5000.0,
+                // Half the standard amplitude at twice the cruise, so the
+                // flight path swings about as wide as a standard torpedo's
+                // (the swing scales with both) and a capital round still reads
+                // as a committed run rather than a dance. It needs the evasion
+                // least - the armor already beats point defense outright.
+                weave_angle: 0.22,
+                weave_rate: 1.4,
                 ammo_capacity: None,
                 reload: None,
             }),

@@ -238,7 +238,7 @@ pub struct AIPointDefenseTarget(pub Option<Entity>);
 /// `fire_rate * pd_range / (muzzle_speed + torpedo_speed)`: ~111 at 150 u
 /// against a standard torpedo, where the shipped 400 u burned ~296 for the
 /// same 2-round kill.
-const AI_POINT_DEFENSE_RANGE: f32 = 150.0;
+pub(super) const AI_POINT_DEFENSE_RANGE: f32 = 150.0;
 
 /// Per-ship override of the point-defense range: this ship's guns hold their
 /// fire until an inbound hostile torpedo is inside THIS range instead of the

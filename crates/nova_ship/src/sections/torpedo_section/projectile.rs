@@ -229,6 +229,90 @@ pub(super) fn torpedo_pn_guidance(
     }
 }
 
+/// Weave amplitude scale by range to the target: full weave while the torpedo
+/// is still running in, fading to none on final approach.
+///
+/// The fade is what separates evasive ordnance from a drunk one. Only the MEAN
+/// course of the corkscrew is the intercept, so a torpedo still weaving at fuze
+/// range flies its helix past a target that never moved. Full amplitude beyond
+/// three blast radii, linearly to zero at the proximity-fuze radius (half a
+/// blast radius): the run-in is evasive and the last stretch is a straight
+/// sprint - which is also the defender's cleanest shot, and deliberately so.
+pub(super) fn weave_fade(distance_to_target: f32, blast_radius: f32) -> f32 {
+    let fuze = blast_radius * 0.5;
+    let full = blast_radius * 3.0;
+    ((distance_to_target - fuze) / (full - fuze).max(f32::EPSILON)).clamp(0.0, 1.0)
+}
+
+/// Tilt `steer` by `angle` toward `offset`, after spinning `offset` by `spin`
+/// radians about `steer`. Returns the perturbed command and the advanced
+/// offset.
+///
+/// The command is PERTURBED, never replaced: the result sits exactly `angle`
+/// off the guidance solution and reduces to the solution itself at zero angle,
+/// so every property the guidance law has (leading a crosser, pursuing a
+/// stationary target) survives the weave.
+///
+/// The offset is carried as state and advanced incrementally rather than being
+/// rebuilt from `steer` each step. A basis built from the command
+/// (`any_orthonormal_pair`) flips branch as the command crosses an axis, which
+/// would snap the corkscrew a half turn mid-flight; spinning and
+/// re-orthogonalising an existing offset is continuous by construction.
+pub(super) fn weave_steer_direction(
+    steer: Vec3,
+    offset: Vec3,
+    angle: f32,
+    spin: f32,
+) -> (Vec3, Vec3) {
+    let Some(steer) = steer.try_normalize() else {
+        return (steer, offset);
+    };
+    let spun = Quat::from_axis_angle(steer, spin) * offset;
+    let offset = (spun - steer * spun.dot(steer))
+        .try_normalize()
+        .unwrap_or_else(|| steer.any_orthonormal_vector());
+    (
+        (steer * angle.cos() + offset * angle.sin()).normalize(),
+        offset,
+    )
+}
+
+/// Lay the terminal weave over each torpedo's guidance command (see
+/// [`TorpedoWeave`]).
+///
+/// Requiring `&TorpedoTargetPosition` is what keeps a dumb-fired torpedo
+/// straight: with nothing to run in on there is no defender to evade, and a
+/// corkscrewing unguided round is just noise. Unarmed torpedoes are still
+/// clearing the muzzle, where the guidance is busy turning the body onto course
+/// from a slow sideways launch and has no authority to spare.
+pub(super) fn torpedo_terminal_weave(
+    time: Res<Time>,
+    mut q_torpedo: Query<
+        (
+            &Transform,
+            &TorpedoTargetPosition,
+            &TorpedoArming,
+            &TorpedoBlast,
+            &mut TorpedoWeave,
+            &mut TorpedoSteering,
+        ),
+        With<TorpedoProjectileMarker>,
+    >,
+) {
+    let dt = time.delta_secs();
+    for (transform, target_position, arming, blast, mut weave, mut steering) in &mut q_torpedo {
+        if weave.angle <= 0.0 || !arming.is_armed() {
+            continue;
+        }
+        let distance = transform.translation.distance(**target_position);
+        let angle = weave.angle * weave_fade(distance, blast.radius);
+        let (command, offset) =
+            weave_steer_direction(**steering, weave.offset, angle, weave.rate * dt);
+        weave.offset = offset;
+        **steering = command;
+    }
+}
+
 /// Orient the torpedo's PD controller toward the PN steering direction.
 pub(super) fn torpedo_sync_system(
     q_torpedo: Query<&TorpedoSteering, With<TorpedoProjectileMarker>>,
@@ -725,6 +809,141 @@ mod tests {
         }
     }
 
+    /// The launch rig again, with the terminal weave laid over the guidance
+    /// command exactly as `torpedo_terminal_weave` lays it over the real one.
+    fn weaving_launch_closest_approach(target: Vec3, target_vel: Vec3, angle: f32) -> f32 {
+        use std::cell::Cell;
+
+        // The weave offset is per-torpedo state; a Cell keeps the steer closure
+        // `Fn` while still carrying it between steps, as the component does.
+        let offset = Cell::new(Vec3::Y);
+        let dt = 0.02;
+        simulate_thrust_intercept(
+            Vec3::ZERO,
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::NEG_Z,
+            target,
+            target_vel,
+            3.0,
+            25.0,
+            35.0,
+            0.8,
+            dt,
+            500,
+            |rel_pos, tv, v| {
+                let steer = pn_steer_direction(rel_pos, tv, v, 3.0);
+                let faded = angle * weave_fade(rel_pos.length(), 30.0);
+                let (command, next) =
+                    weave_steer_direction(steer, offset.get(), faded, default_weave_rate() * dt);
+                offset.set(next);
+                command
+            },
+        )
+    }
+
+    #[test]
+    fn the_weave_perturbs_the_guidance_command_instead_of_replacing_it() {
+        // The whole design rests on this: the weaved command sits EXACTLY
+        // `angle` off the guidance solution, so every property the guidance law
+        // has survives, and a zero angle is the solution untouched.
+        let steer = Vec3::new(0.0, 0.0, -1.0);
+        let (unweaved, _) = weave_steer_direction(steer, Vec3::Y, 0.0, 0.0);
+        assert!(
+            (unweaved - steer).length() < 1e-5,
+            "zero amplitude must leave the guidance command alone, got {unweaved:?}"
+        );
+
+        let (weaved, _) = weave_steer_direction(steer, Vec3::Y, 0.44, 0.0);
+        assert!(weaved.is_normalized());
+        assert!(
+            (weaved.angle_between(steer) - 0.44).abs() < 1e-4,
+            "the command must be tilted by exactly the amplitude, got {} rad",
+            weaved.angle_between(steer)
+        );
+        assert!(
+            weaved.dot(steer) > 0.9,
+            "and still point down the intercept, got {weaved:?}"
+        );
+    }
+
+    #[test]
+    fn the_weave_spins_around_the_command_and_stays_perpendicular() {
+        // A corkscrew, not a wobble: the tilt direction sweeps a full turn
+        // about the command, and stays a unit vector perpendicular to it even
+        // as the command itself turns.
+        let mut offset = Vec3::Y;
+        let mut tilts = Vec::new();
+        for step in 0..64 {
+            // Swing the command around as a closing torpedo's would.
+            let steer = Quat::from_rotation_y(step as f32 * 0.02) * Vec3::NEG_Z;
+            let (command, next) =
+                weave_steer_direction(steer, offset, 0.44, default_weave_rate() / 30.0);
+            offset = next;
+            assert!(offset.is_normalized(), "the tilt direction stays unit");
+            assert!(
+                offset.dot(steer.normalize()).abs() < 1e-3,
+                "and perpendicular to the command it tilts off: {}",
+                offset.dot(steer.normalize())
+            );
+            tilts.push((command - steer.normalize() * command.dot(steer.normalize())).normalize());
+        }
+        // A full turn: some sampled tilt points the opposite way to the first.
+        assert!(
+            tilts.iter().any(|tilt| tilt.dot(tilts[0]) < -0.9),
+            "the tilt must sweep all the way around the command"
+        );
+    }
+
+    #[test]
+    fn the_weave_fades_out_on_final_approach() {
+        // Full weave on the run-in, nothing left at the fuze - the difference
+        // between evasive ordnance and one that corkscrews past a target that
+        // never moved.
+        assert_eq!(weave_fade(400.0, 30.0), 1.0, "full weave at range");
+        assert_eq!(weave_fade(90.0, 30.0), 1.0, "full weave at three radii");
+        assert_eq!(weave_fade(15.0, 30.0), 0.0, "none at the fuze radius");
+        assert_eq!(weave_fade(0.0, 30.0), 0.0, "and none on top of the target");
+        let mid = weave_fade(52.5, 30.0);
+        assert!(
+            (mid - 0.5).abs() < 1e-5,
+            "linear across the band, got {mid}"
+        );
+        assert!(
+            weave_fade(10.0, 0.0).is_finite(),
+            "a degenerate blast radius must not divide by zero"
+        );
+    }
+
+    #[test]
+    fn a_weaving_torpedo_still_hits_a_non_manoeuvring_target() {
+        // THE trap the design calls out: a weave that survives into the endgame
+        // flies its own helix past a stationary target. Same rig as
+        // `pn_turns_a_sideways_launch_onto_a_stationary_target`, weave on.
+        for angle in [0.44f32, 0.7] {
+            let miss =
+                weaving_launch_closest_approach(Vec3::new(0.0, 0.0, -160.0), Vec3::ZERO, angle);
+            assert!(
+                miss < 15.0,
+                "a weaving torpedo must still reach the proximity fuze of a \
+                 stationary target at amplitude {angle}, closest was {miss}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_weaving_torpedo_still_intercepts_a_crossing_target() {
+        // And the weave must not cost the lead solution either.
+        let miss = weaving_launch_closest_approach(
+            Vec3::new(-30.0, 0.0, -120.0),
+            Vec3::new(15.0, 0.0, 0.0),
+            0.44,
+        );
+        assert!(
+            miss < 15.0,
+            "a weaving torpedo must still intercept a crossing target, closest was {miss}"
+        );
+    }
+
     #[test]
     fn untargeted_torpedo_flies_straight_not_toward_origin() {
         // Regression: a torpedo fired with no lock (no TorpedoTargetPosition) must
@@ -753,6 +972,287 @@ mod tests {
         assert!(
             (steering - Vec3::NEG_Z).length() < 1e-3,
             "untargeted torpedo should fly straight ahead (-Z), got {steering:?}"
+        );
+    }
+}
+
+/// What the terminal weave is FOR: the price in point-defense rounds.
+///
+/// The weave's value is not that it looks evasive, it is that a salvo costs the
+/// defender ammunition whether or not it connects. That is a NUMBER, and this
+/// module measures it: rounds a mount spends on one straight torpedo versus one
+/// weaving torpedo, over the same closing geometry.
+///
+/// The model is small but it is wired from the production pieces on both sides.
+/// The torpedo flies `pn_steer_direction` perturbed by `weave_steer_direction` /
+/// `weave_fade` - the same three functions the real projectile systems call -
+/// through the turn/thrust/drag model the guidance tests already use. The mount
+/// fires on `lead_intercept_point`, the exact solve `update_turret_aim_point`
+/// hands every AI turret, under the real [`AI_FIRE_ALIGNMENT`] gate, at the
+/// shipped PDC's rate, speed and damage, inside the shipped point-defense
+/// envelope. What it does NOT model is avian, the body's attitude controller,
+/// or more than one mount; the absolute round counts are therefore indicative,
+/// and the RATIO between the two arms is the result. The amplitude the real
+/// body achieves is measured separately and in-engine, by
+/// `the_weave_puts_a_visible_bend_in_the_real_flight_path`.
+#[cfg(test)]
+mod point_defense_cost_tests {
+    use super::*;
+    use crate::{input::ai::AI_FIRE_ALIGNMENT, sections::turret_section::lead_intercept_point};
+
+    /// Default turret `muzzle_speed`.
+    const BULLET_SPEED: f32 = 100.0;
+    /// Default muzzle `fire_rate`, rounds per second.
+    const FIRE_RATE: f32 = 100.0;
+    /// The shipped player PDC's authored `bullet_damage`.
+    const BULLET_DAMAGE: f32 = 4.0;
+    /// Default joint traverse speed (`default_joint_speed`), rad/s.
+    const SLEW_RATE: f32 = std::f32::consts::PI;
+    /// `AI_POINT_DEFENSE_RANGE`: outside it the guns are on something else.
+    const ENGAGE_RANGE: f32 = 150.0;
+    /// Half-width of the torpedo's two unit-cube section colliders: a round
+    /// passing further than this from the axis is a miss.
+    const HIT_RADIUS: f32 = 0.5;
+    /// `default_projectile_health` on each of the torpedo's two sections;
+    /// either reaching zero kills it.
+    const TORPEDO_HEALTH: f32 = 10.0;
+
+    /// The outcome of one closing run.
+    #[derive(Debug)]
+    struct DefenseRun {
+        /// Rounds the mount put in the air before the run ended. Includes the
+        /// rounds still in flight at that moment, which is the honest count: a
+        /// defender cannot un-fire what it has already committed, and both arms
+        /// pay the same pipeline.
+        rounds: usize,
+        /// Rounds that landed on the torpedo.
+        hits: usize,
+        /// Seconds the torpedo survived inside the envelope.
+        seconds: f32,
+        /// Widest the torpedo swung off the straight run-in while the weave was
+        /// at full amplitude - the helix radius the flight path actually
+        /// achieves once the body's drag and turn rate have had their say. The
+        /// VISIBLE amplitude: a weave the player cannot see is not evasion, it
+        /// is a rounding error with a good test.
+        swing: f32,
+        /// Range left to the defender when the run ended.
+        range: f32,
+        /// Whether the torpedo died before reaching its fuze.
+        killed: bool,
+    }
+
+    /// One torpedo runs in from [`ENGAGE_RANGE`] at cruise against one mount at
+    /// the origin. `weave_angle` of zero flies the bare intercept.
+    fn defend(weave_angle: f32, weave_rate: f32) -> DefenseRun {
+        let dt = 1.0 / 120.0;
+        let interval = 1.0 / FIRE_RATE;
+        let blast_radius = 30.0;
+        let fuze = blast_radius * 0.5;
+        let needed = (TORPEDO_HEALTH / BULLET_DAMAGE).ceil() as usize;
+
+        // The torpedo enters the envelope already at cruise and pointed in -
+        // the run-in, not the launch (the launch turn is covered by the
+        // guidance tests, and it happens outside any defender's reach).
+        let mut pos = Vec3::new(0.0, 0.0, -ENGAGE_RANGE);
+        let mut vel = Vec3::Z * 35.0;
+        let mut nose = Vec3::Z;
+        let mut offset = Vec3::Y;
+
+        // The mount starts on the bearing: this measures the lead solution, not
+        // a cold-start slew race.
+        let mut barrel = Vec3::NEG_Z;
+        let mut fire_timer = 0.0f32;
+        // (position, velocity, age)
+        let mut bullets: Vec<(Vec3, Vec3, f32)> = Vec::new();
+
+        let mut rounds = 0usize;
+        let mut hits = 0usize;
+        // The run-in is along +Z to the origin, so the lateral offset off the
+        // straight course is simply the distance from the Z axis.
+        let mut swing = 0.0f32;
+
+        let mut elapsed = 0.0f32;
+        while elapsed < 30.0 {
+            elapsed += dt;
+            let previous = pos;
+
+            // --- the torpedo, on the production guidance chain ---
+            let rel = Vec3::ZERO - pos;
+            let mut steer = pn_steer_direction(rel, Vec3::ZERO, vel, 3.0);
+            if weave_angle > 0.0 {
+                let angle = weave_angle * weave_fade(rel.length(), blast_radius);
+                let (command, next) = weave_steer_direction(steer, offset, angle, weave_rate * dt);
+                steer = command;
+                offset = next;
+            }
+            let turn = nose.angle_between(steer);
+            let axis = nose.cross(steer);
+            if axis.length() > 1e-6 && turn > 1e-6 {
+                nose = (Quat::from_axis_angle(axis.normalize(), (3.0 * dt).min(turn)) * nose)
+                    .normalize();
+            }
+            let thrust = nose.dot(steer).clamp(0.0, 1.0) * thrust_headroom(vel.dot(nose), 35.0);
+            vel += nose * 25.0 * thrust * dt;
+            vel -= vel * 0.8 * dt;
+            pos += vel * dt;
+            let torpedo_step_velocity = (pos - previous) / dt;
+            if weave_fade(rel.length(), blast_radius) >= 1.0 {
+                swing = swing.max(pos.xy().length());
+            }
+
+            if pos.length() <= fuze {
+                break; // leaked through: the warhead is on the defender
+            }
+
+            // --- the mount: slew onto the lead solution, fire when aligned ---
+            let aim = lead_intercept_point(Vec3::ZERO, pos, torpedo_step_velocity, BULLET_SPEED);
+            let desired = aim.normalize();
+            let error = barrel.angle_between(desired);
+            let slew_axis = barrel.cross(desired);
+            if slew_axis.length() > 1e-6 && error > 1e-6 {
+                barrel =
+                    (Quat::from_axis_angle(slew_axis.normalize(), (SLEW_RATE * dt).min(error))
+                        * barrel)
+                        .normalize();
+            }
+            fire_timer += dt;
+            let in_envelope = pos.length() <= ENGAGE_RANGE;
+            while fire_timer >= interval {
+                fire_timer -= interval;
+                if !in_envelope || barrel.dot(desired) <= AI_FIRE_ALIGNMENT {
+                    continue;
+                }
+                // Sub-tick lead, as `shoot_spawn_projectile` gives the stream:
+                // a round due mid-step starts where it would already be.
+                let velocity = barrel * BULLET_SPEED;
+                bullets.push((velocity * fire_timer, velocity, fire_timer));
+                rounds += 1;
+            }
+
+            // --- rounds in flight, against the torpedo's swept step ---
+            bullets.retain_mut(|(bullet, velocity, age)| {
+                let relative_position = *bullet - previous;
+                let relative_velocity = *velocity - torpedo_step_velocity;
+                let closest = (-relative_position.dot(relative_velocity)
+                    / relative_velocity.length_squared().max(f32::EPSILON))
+                .clamp(0.0, dt);
+                let miss = (relative_position + relative_velocity * closest).length();
+                *bullet += *velocity * dt;
+                *age += dt;
+                if miss < HIT_RADIUS {
+                    hits += 1;
+                    return false;
+                }
+                // The shipped PDC's `projectile_lifetime`.
+                *age < 2.0
+            });
+
+            if hits >= needed {
+                return DefenseRun {
+                    rounds,
+                    hits,
+                    seconds: elapsed,
+                    swing,
+                    range: pos.length(),
+                    killed: true,
+                };
+            }
+        }
+
+        DefenseRun {
+            rounds,
+            hits,
+            seconds: elapsed,
+            swing,
+            range: pos.length(),
+            killed: false,
+        }
+    }
+
+    #[test]
+    fn a_weaving_torpedo_costs_the_defender_more_rounds_than_a_straight_one() {
+        let straight = defend(0.0, 0.0);
+        let weaving = defend(default_weave_angle(), default_weave_rate());
+        println!("point-defense cost: straight {straight:?}, weaving {weaving:?}");
+
+        // Control first: a straight torpedo IS stopped, cheaply. Without this
+        // the comparison could be measuring a broken mount on both arms.
+        assert!(
+            straight.killed,
+            "a straight torpedo must still be intercepted: {straight:?}"
+        );
+
+        // The result. A weaving torpedo either survives the envelope outright
+        // or costs several times the ammunition to stop.
+        let ratio = weaving.rounds as f32 / straight.rounds.max(1) as f32;
+        assert!(
+            ratio >= 2.0,
+            "the weave must make an intercept meaningfully more expensive: \
+             straight {straight:?} vs weaving {weaving:?} (ratio {ratio:.1})"
+        );
+        // Both arms stop at the same hit count by construction, so the share of
+        // FIRED rounds that had landed by then is the accuracy statement.
+        let straight_share = straight.hits as f32 / straight.rounds.max(1) as f32;
+        let weaving_share = weaving.hits as f32 / weaving.rounds.max(1) as f32;
+        assert!(
+            weaving_share < straight_share,
+            "and the mount must land a smaller share of what it fires: \
+             {straight_share:.4} straight vs {weaving_share:.4} weaving"
+        );
+        // The self-balancing half of the design, measured rather than asserted
+        // in prose: the corkscrew is a LONGER path, so the same closing run
+        // takes more seconds - the torpedo buys its survivability with exposure
+        // time, at no tuning cost.
+        assert!(
+            weaving.seconds > straight.seconds,
+            "a weaving torpedo must spend longer inside the envelope: \
+             {:.1}s straight vs {:.1}s weaving",
+            straight.seconds,
+            weaving.seconds
+        );
+        // And the consequence a player can watch: the weaving round gets much
+        // further in before the guns finally connect.
+        assert!(
+            weaving.range < straight.range,
+            "a weaving torpedo must survive deeper into the envelope: \
+             died at {:.0} u straight vs {:.0} u weaving",
+            straight.range,
+            weaving.range
+        );
+
+        // The two ends of "evasive, not drunk", as a number. The floor: a weave
+        // the player cannot see is not evasion, it is a rounding error with a
+        // passing test - so the path has to swing wider than the torpedo is
+        // long. The ceiling: the helix has to fit inside the proximity fuze
+        // (half a blast radius), or a torpedo would corkscrew past a target
+        // that never moved even before the terminal fade helped it.
+        assert!(
+            (2.0..15.0).contains(&weaving.swing),
+            "the weave must be visible but stay inside the fuze: swing {:.1} u",
+            weaving.swing
+        );
+    }
+
+    #[test]
+    fn a_wider_weave_costs_the_defender_more_still() {
+        // Monotone in amplitude, which is what makes the knob a tuning dial
+        // rather than a coin flip.
+        let narrow = defend(0.15, default_weave_rate());
+        let wide = defend(default_weave_angle(), default_weave_rate());
+        println!("amplitude sweep: narrow {narrow:?}, wide {wide:?}");
+        let narrow_cost = if narrow.killed {
+            narrow.rounds as f32
+        } else {
+            f32::INFINITY
+        };
+        let wide_cost = if wide.killed {
+            wide.rounds as f32
+        } else {
+            f32::INFINITY
+        };
+        assert!(
+            wide_cost >= narrow_cost,
+            "a wider weave must not be CHEAPER to stop: {narrow:?} vs {wide:?}"
         );
     }
 }

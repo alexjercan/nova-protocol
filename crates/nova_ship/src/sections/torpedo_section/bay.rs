@@ -378,6 +378,17 @@ pub(super) fn shoot_spawn_projectile(
             projectile.insert(allegiance);
         }
 
+        // The weave rides on the projectile, phased off its own entity index so
+        // the torpedoes of one salvo are each somewhere different on their
+        // helix. Inserted after the spawn because the phase needs the id.
+        let torpedo = projectile.id();
+        projectile.insert(TorpedoWeave::new(
+            config.weave_angle,
+            config.weave_rate,
+            projectile_transform.forward().into(),
+            TorpedoWeave::phase_for(torpedo),
+        ));
+
         // A torpedo left the bay: spend one round. The empty-bay gate above
         // already refused to reach here on a spent magazine, so this only ever
         // fires on a launch that actually happened. Unlimited bays carry no
@@ -995,6 +1006,168 @@ mod tests {
             max_render_cross < 0.05,
             "the first rendered frame must sit ON the rendered bay's launch \
              line: max cross-offset {max_render_cross}"
+        );
+    }
+
+    /// THE weave test that matters, and the one the pure-guidance sims cannot
+    /// stand in for.
+    ///
+    /// The weave is a command; what a player sees is a FLIGHT PATH, and between
+    /// the two sit the torpedo's PD attitude controller (its torque limit and
+    /// damping), its thrust law and its linear drag. Each of those attenuates
+    /// the commanded cone, and the pure-math rigs in `projectile` model none of
+    /// them - they scored a weave that the real body flies at a fraction of the
+    /// amplitude. This runs the REAL stack (avian, the PD controller, the
+    /// thruster, the whole `TorpedoSectionPlugin` chain) against a stationary
+    /// target and measures the path itself.
+    ///
+    /// Two arms off one rig: the same launch with the weave off is the control,
+    /// so the swing measured here is the weave and not the guidance settling.
+    #[test]
+    fn the_weave_puts_a_visible_bend_in_the_real_flight_path() {
+        /// How far downrange the target sits. Past the terminal fade band
+        /// (three blast radii, 90 u) with room to spare, so most of the flight
+        /// is flown at full weave - which is exactly the part of a real
+        /// engagement the weave exists for.
+        const TARGET_RANGE: f32 = 300.0;
+
+        /// Lateral swing off the launch-to-target line that counts as visible,
+        /// in units. The torpedo is ~2 u long, so anything under this is inside
+        /// its own drive plume and reads as a straight run.
+        const VISIBLE_SWING: f32 = 3.0;
+
+        // (max lateral swing off the direct line, closest approach)
+        fn fly(weave_angle: f32) -> (f32, f32) {
+            use nova_gameplay::{
+                projectile_hooks::ProjectileHooks,
+                test_support::{settle, unfinished_integrity_physics_app_with},
+            };
+
+            let mut app = unfinished_integrity_physics_app_with(
+                PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+            );
+            app.add_plugins(crate::physics::prelude::PDControllerPlugin);
+            app.add_plugins(crate::sections::SpaceshipSectionPlugin { render: false });
+            app.finish();
+
+            let ship = app
+                .world_mut()
+                .spawn((
+                    SpaceshipRootMarker,
+                    RigidBody::Static,
+                    Transform::default(),
+                    Collider::cuboid(1.0, 1.0, 1.0),
+                    ColliderDensity(1.0),
+                ))
+                .id();
+            let section = app
+                .world_mut()
+                .spawn((
+                    TorpedoSectionMarker,
+                    ChildOf(ship),
+                    Transform::default(),
+                    TorpedoSectionConfigHelper(TorpedoSectionConfig {
+                        // Launch straight downrange rather than out of the
+                        // bay's side, so the run-in starts on the line the
+                        // swing is measured against.
+                        spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+                        spawner_speed: 10.0,
+                        weave_angle,
+                        ..default()
+                    }),
+                    TorpedoSectionInput(true),
+                ))
+                .id();
+            settle(&mut app);
+
+            let target = Vec3::new(0.0, 0.0, -TARGET_RANGE);
+            let mut swing = 0.0f32;
+            let mut closest = f32::INFINITY;
+            let mut torpedo = None;
+            for _ in 0..1400 {
+                app.update();
+
+                // Take the first torpedo out of the bay and hold the trigger
+                // closed, so the measurement follows ONE flight.
+                if torpedo.is_none() {
+                    torpedo = app
+                        .world_mut()
+                        .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+                        .iter(app.world())
+                        .next();
+                    if let Some(torpedo) = torpedo {
+                        // The guidance target: normally written by the player
+                        // or AI targeting, supplied directly here so the rig
+                        // needs no second ship.
+                        //
+                        // The pose and velocity are overwritten to put the
+                        // torpedo ON the line at cruise. A bay fires along its
+                        // +Y while the torpedo's nose is its -Z, so every real
+                        // launch starts with the nose across the velocity and
+                        // costs ~10 u of lateral excursion turning onto course
+                        // - on BOTH arms, monotone, and an order of magnitude
+                        // wider than the weave under test. This measures the
+                        // midcourse, so it starts at the midcourse.
+                        app.world_mut().entity_mut(torpedo).insert((
+                            TorpedoTargetPosition(target),
+                            Position(Vec3::ZERO),
+                            Rotation::default(),
+                            LinearVelocity(Vec3::NEG_Z * 35.0),
+                        ));
+                        app.world_mut()
+                            .get_mut::<TorpedoSectionInput>(section)
+                            .unwrap()
+                            .0 = false;
+                    }
+                }
+                let Some(id) = torpedo else { continue };
+                let Some(position) = app.world().get::<Position>(id).map(|p| p.0) else {
+                    break; // fuzed or expired
+                };
+                let range = position.distance(target);
+                closest = closest.min(range);
+                // The direct line runs down -Z from the origin, so the lateral
+                // offset off it is the distance from the Z axis.
+                //
+                // Measured over the MIDCOURSE only. The near end is the
+                // terminal fade band, where the weave is deliberately winding
+                // down. The far end cuts the launch: a torpedo leaves its bay
+                // SIDEWAYS with its nose across its own velocity (the bay fires
+                // along +Y, the nose is -Z), so the first ~50 u are a turn onto
+                // course worth ~10 u of lateral offset on either arm - which
+                // would swamp the thing being measured.
+                if (90.0..TARGET_RANGE - 50.0).contains(&range) {
+                    swing = swing.max(position.xy().length());
+                }
+            }
+            (swing, closest)
+        }
+
+        let (straight_swing, straight_miss) = fly(0.0);
+        let (weave_swing, weave_miss) = fly(default_weave_angle());
+        println!(
+            "real flight: straight swing {straight_swing:.1} miss {straight_miss:.1}, \
+             weaving swing {weave_swing:.1} miss {weave_miss:.1}"
+        );
+
+        // The control: with the weave off the torpedo runs straight down the
+        // line, so the rig itself contributes no swing worth measuring.
+        assert!(
+            straight_swing < VISIBLE_SWING,
+            "an unweaved torpedo must fly the direct line: swung {straight_swing:.1} u"
+        );
+        assert!(
+            weave_swing > VISIBLE_SWING,
+            "the weave must put a VISIBLE bend in the real flight path, not just \
+             in the steering command: swung {weave_swing:.1} u (straight arm: \
+             {straight_swing:.1} u)"
+        );
+        // And it still arrives: inside the proximity fuze of a target that
+        // never moved, which is the trap the terminal fade exists to avoid.
+        assert!(
+            weave_miss < 15.0,
+            "a weaving torpedo must still reach the fuze of a stationary target, \
+             closest was {weave_miss:.1} u"
         );
     }
 }

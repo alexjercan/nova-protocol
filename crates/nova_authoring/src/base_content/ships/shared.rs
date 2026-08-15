@@ -285,12 +285,14 @@ fn torpedo_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
         // Matches the catalog bay: above the hardest single PDC round, so an
         // intercept costs two or three rounds rather than one.
         projectile_health: 10.0,
+        // The catalog bay's terminal weave (see `sections::standard`).
+        weave_angle: 0.44,
+        weave_rate: 1.4,
+        // A hard magazine, like the catalog bay (see `sections::standard`): a
+        // craft's torpedoes are a finite budget for the whole engagement, not a
+        // rate limit that refills. The cargo-B carries two pods, so twelve.
         ammo_capacity: Some(6),
-        reload: Some(SectionReloadConfig {
-            reload_time: 4.0,
-            rounds_per_cycle: 1,
-            only_when_empty: false,
-        }),
+        reload: None,
     })
 }
 

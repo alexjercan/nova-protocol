@@ -2,6 +2,7 @@
 //! behavior.
 
 mod aim;
+mod arc;
 mod config;
 mod firing;
 mod render;
@@ -9,8 +10,11 @@ mod setup;
 #[cfg(test)]
 mod test_support;
 
+#[cfg(test)]
+pub(crate) use aim::lead_intercept_point;
 use aim::{sync_turret_joint_rotation, update_turret_target_joints_system};
 pub use aim::{update_turret_aim_point, TurretSectionAimSystems};
+pub use arc::TurretSectionArc;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::EffectAsset;
 pub use config::{MuzzleConfig, TurretJoint, TurretSectionConfig};
@@ -29,9 +33,10 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         turret_section, LoadedBullet, MuzzleConfig, TurretJoint, TurretSectionAimPoint,
-        TurretSectionAimSystems, TurretSectionBarrelMuzzleMarker, TurretSectionConfig,
-        TurretSectionConfigHelper, TurretSectionInput, TurretSectionMuzzleEntity,
-        TurretSectionPlugin, TurretSectionTargetInput, TurretSectionTargetVelocity,
+        TurretSectionAimSystems, TurretSectionArc, TurretSectionBarrelMuzzleMarker,
+        TurretSectionConfig, TurretSectionConfigHelper, TurretSectionInput,
+        TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionTargetInput,
+        TurretSectionTargetVelocity,
     };
 }
 
@@ -211,6 +216,7 @@ impl Plugin for TurretSectionPlugin {
     fn build(&self, app: &mut App) {
         debug!("TurretSectionPlugin: build");
 
+        app.register_type::<TurretSectionArc>();
         app.add_observer(insert_turret_section);
         app.add_observer(resolve_bullet_hit);
 

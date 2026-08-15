@@ -28,7 +28,12 @@ pub struct TurretSectionAimSystems;
 /// a target with no relative motion resolves to the target itself, and a target
 /// too fast to catch (or receding faster than the bullet) has no positive solution,
 /// so the turret simply aims where the target is now.
-fn lead_intercept_point(
+///
+/// `pub(crate)` because it is the solution the torpedo's terminal weave exists
+/// to break: the weave measurement in `torpedo_section` scores itself against
+/// THIS solve rather than a copy of it that could drift away from what turrets
+/// actually fire on.
+pub(crate) fn lead_intercept_point(
     shooter: Vec3,
     target: Vec3,
     target_vel: Vec3,

@@ -13,9 +13,11 @@
 //!
 //! What it shows:
 //! - Guidance gizmos: each torpedo draws a red line to the point it is steering
-//!   toward, a red sphere at that target point, and a sphere on the torpedo that
-//!   is yellow while un-armed and green once armed (so you can see the arming
-//!   delay from `20260707-100003` directly).
+//!   toward, a red sphere at that target point, a sphere on the torpedo that is
+//!   yellow while un-armed and green once armed (so you can see the arming
+//!   delay from `20260707-100003` directly), and a blue TRAIL of the path it
+//!   has flown - the only way to see the terminal weave, a corkscrew being
+//!   invisible in any single frame.
 //! - Lifecycle logging: `range: torpedo fired`, `range: torpedo ... armed`, and
 //!   `range: torpedo detonated` trace one shot from launch to blast.
 //! - `guidance: lead angle N.N deg` - how far ahead of the line of sight the
@@ -156,8 +158,12 @@ fn custom_plugin(app: &mut App) {
             track_lead_angle,
             report_torpedo_speed,
             log_torpedo_armed,
+            // Chained: the trail must be sampled before it is drawn, or the
+            // gizmo lags a frame behind the torpedo it belongs to.
+            record_flight_paths,
             draw_guidance_gizmos,
-        ),
+        )
+            .chain(),
     );
     app.add_observer(tag_gate);
     app.add_observer(log_torpedo_fired);
@@ -547,15 +553,72 @@ fn report_torpedo_speed(
     }
 }
 
-/// Draw the torpedo -> target line-of-sight and an armed/un-armed status sphere.
-fn draw_guidance_gizmos(
-    mut gizmos: Gizmos,
-    q_torpedo: Query<
-        (&GlobalTransform, &TorpedoTargetPosition, &TorpedoArming),
+/// The path one torpedo has flown, sampled for the range's trail gizmo.
+///
+/// It exists because the terminal weave is a CORKSCREW, and a corkscrew is
+/// invisible in a single frame: the nose sits a couple of degrees off the
+/// bearing and nothing else about the picture says "evading". Only the flown
+/// path separates evasive ordnance from a drunk one, so the range draws it.
+#[derive(Component, Default)]
+struct RangeFlightPath(Vec<Vec3>);
+
+/// How far a torpedo must move before the trail takes another sample.
+const PATH_SAMPLE_SPACING: f32 = 0.5;
+
+/// Samples one torpedo's trail holds, at [`PATH_SAMPLE_SPACING`] apart: enough
+/// for the whole flight of the longest shot on either range.
+const PATH_SAMPLE_LIMIT: usize = 600;
+
+/// Trail length the weave frame waits for, in samples - about 50 units of
+/// flight, which at the standard bay's corkscrew rate is more than one full
+/// turn of the helix.
+#[cfg(feature = "debug")]
+const WEAVE_TRAIL_SAMPLES: usize = 100;
+
+/// Append each live torpedo's position to its trail.
+fn record_flight_paths(
+    mut commands: Commands,
+    mut q_torpedo: Query<
+        (Entity, &GlobalTransform, Option<&mut RangeFlightPath>),
         With<TorpedoProjectileMarker>,
     >,
 ) {
-    for (torpedo_transform, target, arming) in &q_torpedo {
+    for (torpedo, transform, path) in &mut q_torpedo {
+        let position = transform.translation();
+        let Some(mut path) = path else {
+            commands
+                .entity(torpedo)
+                .insert(RangeFlightPath(vec![position]));
+            continue;
+        };
+        if path
+            .0
+            .last()
+            .is_none_or(|last| last.distance(position) >= PATH_SAMPLE_SPACING)
+        {
+            path.0.push(position);
+            if path.0.len() > PATH_SAMPLE_LIMIT {
+                path.0.remove(0);
+            }
+        }
+    }
+}
+
+/// Draw the torpedo -> target line-of-sight, an armed/un-armed status sphere,
+/// and the flown path behind it.
+fn draw_guidance_gizmos(
+    mut gizmos: Gizmos,
+    q_torpedo: Query<
+        (
+            &GlobalTransform,
+            &TorpedoTargetPosition,
+            &TorpedoArming,
+            Option<&RangeFlightPath>,
+        ),
+        With<TorpedoProjectileMarker>,
+    >,
+) {
+    for (torpedo_transform, target, arming, path) in &q_torpedo {
         let pos = torpedo_transform.translation();
         let status = if arming.is_armed() {
             tailwind::GREEN_400
@@ -569,6 +632,9 @@ fn draw_guidance_gizmos(
             1.0,
             tailwind::RED_400,
         );
+        if let Some(path) = path {
+            gizmos.linestrip(path.0.iter().copied(), tailwind::SKY_400);
+        }
     }
 }
 
@@ -754,9 +820,9 @@ type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
 /// No beat reads a quantity an assertion decides; the two settles state their
 /// reasons on [`LAUNCH_SETTLE_SECS`] and [`LEAD_SETTLE_SECS`]. The
 /// per-step deadlines NAME the beat that stalled; their
-/// runtime sum (20 + 28 + 15 + 28 + 20 = 111s, counting `fire_round`'s beats
-/// once per CALL) stays under `DEFAULT_DEADLINE_SECS` (120s) so a named stall
-/// wins the race against the generic collector deadline.
+/// runtime sum (20 + 28 + 15 + 28 + 20 + 5 = 116s, counting `fire_round`'s
+/// beats once per CALL) stays under `DEFAULT_DEADLINE_SECS` (120s) so a named
+/// stall wins the race against the generic collector deadline.
 #[cfg(feature = "debug")]
 fn torpedo_script() -> Script {
     let script = Script::new()
@@ -800,6 +866,66 @@ fn torpedo_script() -> Script {
         .step("assert the guidance led the crosser")
         .on_enter(assert_leads_the_crosser)
         .add()
+        // The weave frame, taken LAST and on the CROSSING range: the crosser
+        // walks the corridor sideways, so by now a torpedo's leg is several
+        // times the gate range's and long enough to draw a turn of the helix.
+        // The gate scene cannot show the weave at all - every gate sits inside
+        // the terminal fade band, where the weave is deliberately off.
+        .step("let a torpedo fly a trail worth framing")
+        .until(weave_trail_flown())
+        .deadline(8.0)
+        .add()
+        .step("frame the terminal weave")
+        .on_enter(frame_the_weave)
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("capture the terminal weave")
+        .on_enter(|world: &mut World| shoot(world, "variant-torpedo-weave.png"))
+        .until(shot_written("variant-torpedo-weave.png"))
+        .deadline(5.0)
+        .add()
+}
+
+/// Put the camera over ONE torpedo's flown trail for the weave frame: a
+/// near-PLAN view, framed to the trail's own extent.
+///
+/// The framing is the whole point of the shot. Down the chase camera's axis a
+/// corkscrew is foreshortened into a smear and reads as nothing; from above,
+/// the helix projects onto the flight plane as a wave and the trail says
+/// plainly whether the ordnance is evading or staggering.
+///
+/// It frames the LONGEST trail in the air rather than the whole salvo, and
+/// sizes the camera off that trail. Framed to fit every torpedo at once, the
+/// corridor is several hundred units wide and an ~11 u swing is a couple of
+/// pixels, which is a picture of nothing.
+#[cfg(feature = "debug")]
+fn frame_the_weave(world: &mut World) {
+    // The HUD chrome sits over the corridor at this framing.
+    nova_protocol::nova_debug::harness::hide_hud(world);
+    let mut q_path = world.query_filtered::<&RangeFlightPath, With<TorpedoProjectileMarker>>();
+    let trail = q_path
+        .iter(world)
+        .max_by_key(|path| path.0.len())
+        .map(|path| path.0.clone())
+        .unwrap_or_default();
+    // Nothing in the air: frame the corridor the crossing scene uses, so the
+    // shot is still a picture of the range rather than of the origin.
+    let (centre, extent) = if trail.is_empty() {
+        (Vec3::new(0.0, 0.0, -60.0), 120.0)
+    } else {
+        let first = trail[0];
+        let last = trail[trail.len() - 1];
+        ((first + last) * 0.5, first.distance(last).max(40.0))
+    };
+    // Height set off the trail so it fills the frame; tilted ~15 degrees off
+    // vertical because looking straight down -Y is a `look_at` singularity
+    // against the default up vector.
+    let height = extent * 0.8;
+    nova_protocol::nova_debug::harness::pose_camera(
+        world,
+        centre + Vec3::new(0.0, height, height * 0.27),
+        centre,
+    );
 }
 
 /// One full launch chain - fired, armed, detonated, target damaged - appended to
@@ -891,6 +1017,23 @@ fn crosser_present() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 #[cfg(feature = "debug")]
 fn torpedo_armed() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     resource_where::<RangeOutcome>(|outcome| outcome.fired && outcome.armed)
+}
+
+/// Some torpedo in the air has flown far enough for its trail to SHOW the
+/// weave.
+///
+/// The weave frame needs a torpedo mid-flight with a path behind it, and the
+/// launch beat can perfectly well end on a frame between a detonation and the
+/// next launch - which framed an empty corridor. Sized at
+/// [`WEAVE_TRAIL_SAMPLES`] samples of [`PATH_SAMPLE_SPACING`] each.
+#[cfg(feature = "debug")]
+fn weave_trail_flown() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .iter_entities()
+            .filter_map(|entity| entity.get::<RangeFlightPath>())
+            .any(|path| path.0.len() >= WEAVE_TRAIL_SAMPLES)
+    })
 }
 
 /// A torpedo has flown the midcourse leg [`track_lead_angle`] samples over.

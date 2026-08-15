@@ -29,6 +29,8 @@ A gun is a **short-range** weapon. A round is not tracked forever: it expires af
 
 A torpedo homes on the combat lock with **proportional-navigation** guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It detonates on a proximity fuze and deals **blast (area) damage** that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.
 
+Once armed, a torpedo runs in on a **terminal weave**: a slow corkscrew laid over the guidance solution rather than instead of it. Point defense fires on a lead solution - where the torpedo will be when the round gets there - and a weaving torpedo is never quite there, so the defender spends several times the ammunition on the same intercept. Evasion is not free: a corkscrew is a longer path, so a weaving torpedo also spends longer inside the guns' reach. The weave fades out on the final approach, and the torpedo arrives dead on the aim point - which is also the defender's cleanest shot at it.
+
 <figure class="figure">
     <!-- Capture: assets/wiki-combat-torpedo.png -->
     <div class="figure__placeholder">
@@ -59,9 +61,35 @@ only cover until it gets shot away, and intangible volumes (beacon rings,
 trigger zones) stop nothing. Point-defense is the exception - a turret
 swatting an inbound torpedo keeps firing no matter what is in the way.
 
+## Point defense
+
+Every gun on a hostile hull runs its own point defense, and each mount picks its
+OWN inbound torpedo rather than the whole battery swinging onto one. That is not
+a fairness rule, it is geometry: a turret is bolted to a hull and cannot depress
+its barrel back through its own ship, so a mount handed a torpedo coming in
+under the keel would sit there contributing nothing while a torpedo it could
+have hit flew past. A mount is only ever given something it can actually bear
+on; the fire splitting across a salvo falls out of that.
+
+Mounts also **hold** what they are tracking. Slewing takes real time, so a gun
+stays on its torpedo until that torpedo dies, drifts out of its arc, or
+something far more urgent arrives - a battery that re-decided every moment would
+spend the whole engagement swinging and hit nothing.
+
+The practical consequence for you: **saturate a facing**. Torpedoes arriving
+from one side, or from below a hull, meet only the mounts that can actually
+train on them.
+
 ## Ammo & reloading
 
-Weapons carry a finite magazine, shown by a small diegetic gauge riding on the weapon: a **ring** on each turret that drains as it fires, and a **row of pips** on the torpedo bay, one per loaded torpedo. Running dry is not the end of the fight - a spent weapon **auto-reloads**. Turrets dump their magazine then reload it to full after a few seconds; the torpedo bay slowly rearms one torpedo at a time. While a weapon is reloading the gauge fills back up as a **reload sweep** in a dimmer shade of the same color, so you can read at a glance how close it is to firing again. Because ammo always comes back, magazine size is a firing-rhythm limit, not a way to be permanently disarmed. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)
+Weapons carry a finite magazine, shown by a small diegetic gauge riding on the weapon: a **ring** on each turret that drains as it fires, and a **row of pips** on the torpedo bay, one per loaded torpedo. While a weapon is reloading the gauge fills back up as a **reload sweep** in a dimmer shade of the same color, so you can read at a glance how close it is to firing again. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)
+
+The two weapons treat running dry very differently, and the difference is the point:
+
+- **Turrets reload.** A turret dumps its magazine, then reloads it to full after a few seconds. Magazine size is a firing-rhythm limit, not a way to be permanently disarmed - though sustained point-defense work will still outrun the reload, and a ship that spends its rounds swatting torpedoes has nothing left for the ship that fired them.
+- **Torpedo bays do not.** A bay's torpedoes are a **hard magazine**: six per pod for the whole engagement, and when they are gone that bay is gone. Ordnance is the scarce thing you spend, and spending it is a decision.
+
+That asymmetry is what makes a torpedo fight an attrition fight. A salvo costs the defender rounds whether or not it connects, and the defender's rounds are as finite as your torpedoes. Whoever runs out first loses the exchange.
 
 ## Damage types
 

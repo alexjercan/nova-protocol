@@ -20,14 +20,20 @@ mod behavior;
 mod guns;
 pub mod maneuver;
 pub mod passive;
+mod point_defense;
 mod threat;
 mod torpedo;
 
 use acquisition::{mirror_ai_combat_state, update_ai_target, update_point_defense_target};
 use behavior::update_behavior_state;
+/// The alignment gate AI point defense fires under, re-exported crate-wide so
+/// the torpedo weave measurement scores against the real number.
+#[cfg(test)]
+pub(crate) use guns::AI_FIRE_ALIGNMENT;
 use guns::{on_projectile_input, update_fire_cadence, update_turret_target_input};
 use maneuver::{on_thruster_input, update_controller_target_rotation_torque};
 use passive::update_passive_flight;
+use point_defense::{insert_turret_defense_target, update_turret_point_defense};
 use threat::on_damage_track_threat;
 use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 
@@ -37,6 +43,7 @@ pub use self::{
     guns::{AIFireCadence, AI_FIRE_RANGE_FACTOR},
     maneuver::AI_STANDOFF_OUTER_EDGE,
     passive::{AIAvoidanceDetour, AIWaypointSlack},
+    point_defense::AITurretDefenseTarget,
     threat::{AIEvade, AIThreat},
     torpedo::AITorpedoBay,
 };
@@ -46,8 +53,9 @@ pub mod prelude {
     pub use super::{
         AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade, AIFireCadence,
         AILeash, AINonCombatant, AIOrbitDirective, AIPatrolRoute, AIPointDefenseRange,
-        AIPointDefenseTarget, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay, AIWaypointSlack,
-        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE,
+        AIPointDefenseTarget, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay,
+        AITurretDefenseTarget, AIWaypointSlack, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR,
+        AI_STANDOFF_OUTER_EDGE,
     };
 }
 
@@ -108,6 +116,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIAvoidanceDetour>();
         app.register_type::<AIEngageRange>();
         app.register_type::<AIPointDefenseRange>();
+        app.register_type::<AITurretDefenseTarget>();
         app.register_type::<AIWaypointSlack>();
 
         // NOTE: threat sensing is an observer, not a system: HealthApplyDamage is
@@ -142,6 +151,12 @@ impl Plugin for SpaceshipAIInputPlugin {
             (
                 update_ai_target,
                 update_point_defense_target,
+                // Per-turret assignment sits between the ship-wide pick and
+                // the gun systems that consume it: the ship-level target is
+                // still what the AI's engagement mirror publishes, and each
+                // mount then decides which inbound IT can actually work.
+                insert_turret_defense_target,
+                update_turret_point_defense,
                 update_behavior_state,
                 update_passive_flight,
                 update_controller_target_rotation_torque,

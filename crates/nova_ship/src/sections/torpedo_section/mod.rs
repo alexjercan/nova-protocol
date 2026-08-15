@@ -46,7 +46,7 @@ pub mod prelude {
         TorpedoControllerMarker, TorpedoGuidance, TorpedoSectionConfig, TorpedoSectionConfigHelper,
         TorpedoSectionInput, TorpedoSectionPartOf, TorpedoSectionPlugin,
         TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker, TorpedoSteering,
-        TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
+        TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoWeave,
     };
 }
 
@@ -172,6 +172,35 @@ pub struct TorpedoSectionConfig {
         )
     )]
     pub projectile_health: f32,
+    /// Peak half-angle (radians) of the terminal weave: how far off the
+    /// guidance solution the corkscrew tilts the steering command. `0.0`
+    /// disables the weave and the torpedo flies the bare intercept.
+    ///
+    /// This is the knob that decides whether the ordnance reads as evasive or
+    /// as drunk. It PERTURBS the guidance command rather than replacing it, and
+    /// fades out on final approach (`weave_fade`), so a weaving torpedo still
+    /// arrives on the aim point.
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            default = "default_weave_angle",
+            skip_serializing_if = "is_default_weave_angle"
+        )
+    )]
+    pub weave_angle: f32,
+    /// How fast (rad/s) the weave tilt direction rotates about the guidance
+    /// command - the corkscrew's spin rate. Higher spins a tighter, faster
+    /// helix: the lateral acceleration a lead solution fails to predict scales
+    /// with `speed * sin(weave_angle) * weave_rate`, while the helix RADIUS
+    /// shrinks with it.
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            default = "default_weave_rate",
+            skip_serializing_if = "is_default_weave_rate"
+        )
+    )]
+    pub weave_rate: f32,
     /// Magazine size in torpedoes. `None` launches without limit (the pre-ammo
     /// behavior); `Some(n)` gives the bay a [`SectionAmmo`] of `n` torpedoes
     /// that depletes one per launch and blocks firing once empty.
@@ -217,6 +246,8 @@ impl Default for TorpedoSectionConfig {
             launch_sound: None,
             detonation_sound: None,
             projectile_health: default_projectile_health(),
+            weave_angle: default_weave_angle(),
+            weave_rate: default_weave_rate(),
             ammo_capacity: None,
             reload: None,
         }
@@ -242,6 +273,58 @@ fn default_projectile_health() -> f32 {
 #[cfg_attr(not(feature = "serde"), allow(dead_code))]
 fn is_default_projectile_health(health: &f32) -> bool {
     *health == default_projectile_health()
+}
+
+/// Serde default for [`TorpedoSectionConfig::weave_angle`]: ~25 degrees.
+///
+/// **This is the balance knob.** Measured against one stock PDC over a 400 u
+/// run-in (`point_defense_cost_tests`), the rounds an intercept costs track the
+/// ANGLE and are all but blind to [`default_weave_rate`]: 308 straight, ~1180
+/// at 0.30, ~1245 at 0.44, ~1440 at 0.70. Retune the exchange here.
+///
+/// 0.44 is where the two prices cross. Below ~0.30 the lead solution is good
+/// enough again as the flight time shortens; above ~0.55 the torpedo is paying
+/// real closing speed (the path is longer by `1 / cos(angle)`, so 0.70 spends
+/// 14.4 s in the envelope against 12.5 s) for an intercept the defender was
+/// losing anyway.
+fn default_weave_angle() -> f32 {
+    0.44
+}
+
+/// Serde skip for [`TorpedoSectionConfig::weave_angle`].
+#[cfg_attr(not(feature = "serde"), allow(dead_code))]
+fn is_default_weave_angle(angle: &f32) -> bool {
+    *angle == default_weave_angle()
+}
+
+/// Serde default for [`TorpedoSectionConfig::weave_rate`]: 1.4 rad/s, one turn
+/// of the corkscrew every ~4.5 s.
+///
+/// **This is the LOOK knob, not the balance knob.** The measurement is blunt
+/// about it: at a fixed `weave_angle` of 0.44 the intercept costs ~1245 rounds
+/// at every rate from 0.7 to 2.2 rad/s, because breaking a straight-line lead
+/// extrapolation does not need a fast turn - it needs a sustained one. What the
+/// rate DOES decide is how far the torpedo visibly swings off the direct line:
+/// 23.6 u at 0.7, 11.1 u at 1.4, 6.1 u at 2.2.
+///
+/// So the value is chosen for the picture. At 2.2 the swing is inside the
+/// torpedo's own drive plume and the flight path reads as straight - a weave
+/// nobody can see is not evasion. At 0.7 a whole engagement is barely half a
+/// turn, which reads as a torpedo wandering, not weaving. 1.4 gives a couple of
+/// visible turns across a full-envelope run-in at an amplitude comfortably
+/// inside the proximity fuze.
+///
+/// The swing is much smaller than the naive `speed * sin(angle) / rate` because
+/// the body's linear damping is a first-order lag on the velocity: the nose
+/// holds the commanded cone, but the velocity only partly follows it.
+fn default_weave_rate() -> f32 {
+    1.4
+}
+
+/// Serde skip for [`TorpedoSectionConfig::weave_rate`].
+#[cfg_attr(not(feature = "serde"), allow(dead_code))]
+fn is_default_weave_rate(rate: &f32) -> bool {
+    *rate == default_weave_rate()
 }
 
 /// Bundle factory for a torpedo launch bay from its [`TorpedoSectionConfig`],
@@ -369,10 +452,67 @@ pub struct TorpedoGuidance {
 }
 
 /// The unit direction the torpedo currently wants its nose pointed, produced by
-/// `torpedo_pn_guidance` and consumed by the sync (orientation) and thrust
-/// systems. Kept as one source of truth so both read the same command.
+/// `torpedo_pn_guidance`, perturbed by `torpedo_terminal_weave`, and consumed by
+/// the sync (orientation) and thrust systems. Kept as one source of truth so
+/// both read the same command.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoSteering(pub Vec3);
+
+/// Terminal-weave state on a torpedo projectile: the open-loop corkscrew laid
+/// over the guidance command so a point-defense lead solution fires at where
+/// the torpedo was GOING to be.
+///
+/// No awareness of individual incoming rounds is needed, and none is used - the
+/// perturbation is open loop. It works because the defender's solution is real:
+/// `lead_intercept_point` extrapolates the torpedo's current velocity over the
+/// round's flight time, and a torpedo that is turning breaks that extrapolation.
+///
+/// It also prices itself with no tuning. A corkscrew of half-angle `angle`
+/// lengthens the flown path by `1 / cos(angle)`, so an evading torpedo spends
+/// proportionally MORE seconds inside the point-defense envelope than a straight
+/// one: evade harder, survive each burst better, eat more bursts. The longer
+/// path IS the price, so straightening it out is not an optimisation - it is
+/// deleting the balance.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TorpedoWeave {
+    /// Peak half-angle (radians) the guidance command is tilted by. Zero flies
+    /// the bare intercept.
+    pub angle: f32,
+    /// Rate (rad/s) the tilt direction spins about the guidance command.
+    pub rate: f32,
+    /// The current tilt direction: a unit vector held perpendicular to the
+    /// guidance command. Runtime state, seeded per torpedo.
+    pub offset: Vec3,
+}
+
+/// Phase stride between consecutive launches from one bay (radians), the golden
+/// angle. A salvo whose torpedoes all start their corkscrew at the same roll
+/// flies in lockstep and presents ONE weaving target that a defender's turrets
+/// can all lead the same way; strided, each torpedo of a salvo is somewhere else
+/// on its helix.
+const WEAVE_PHASE_STRIDE: f32 = 2.399_963_2;
+
+impl TorpedoWeave {
+    /// Weave state for a torpedo launched pointing `forward` (a unit vector),
+    /// with the tilt direction seeded `phase` radians around it.
+    pub fn new(angle: f32, rate: f32, forward: Vec3, phase: f32) -> Self {
+        let seed = forward.any_orthonormal_vector();
+        Self {
+            angle,
+            rate,
+            offset: Quat::from_axis_angle(forward, phase) * seed,
+        }
+    }
+
+    /// The seed phase for a torpedo, strided by [`WEAVE_PHASE_STRIDE`]. Keyed
+    /// off the projectile's own entity at launch, so it is deterministic for a
+    /// given run rather than random.
+    pub fn phase_for(torpedo: Entity) -> f32 {
+        // Low bits only: the generation is irrelevant, and the phase wraps
+        // anyway - all this has to do is differ between siblings of a salvo.
+        (torpedo.to_bits() & 0xffff) as f32 * WEAVE_PHASE_STRIDE
+    }
+}
 
 /// Blast parameters carried by a torpedo projectile (copied from its
 /// `TorpedoSectionConfig` at spawn): the proximity-fuze / damage `radius` and the
@@ -474,6 +614,7 @@ impl Plugin for TorpedoSectionPlugin {
         // without this the collider-less root keeps flying, armed, and still
         // detonates.
         app.register_type::<TorpedoShotDownMarker>();
+        app.register_type::<TorpedoWeave>();
         app.add_observer(on_torpedo_body_destroyed);
 
         // NOTE: the launch chain runs on the FIXED clock - the spawn writes
@@ -503,6 +644,11 @@ impl Plugin for TorpedoSectionPlugin {
                 update_torpedo_arming,
                 torpedo_detonate_system,
                 torpedo_pn_guidance,
+                // Strictly AFTER guidance and BEFORE the sync: the weave is a
+                // perturbation of the guidance solution, so it needs the
+                // solution to exist, and the nose must be pointed at the
+                // perturbed command, not the bare one.
+                torpedo_terminal_weave,
                 torpedo_sync_system,
                 torpedo_thrust_system,
             )
