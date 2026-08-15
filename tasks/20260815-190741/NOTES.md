@@ -156,10 +156,27 @@ makes it reachable later, and confluence means the preview is stable.
 
 ## Rendering constraints found the hard way
 
-- Bevy's PBR fragment ASSIGNS `base_color` from vertex colour; it does not
-  multiply. `damage_tint` grades by writing that same field and clones a
-  material per section. So vertex colours would have silently broken damage
-  reads. One mesh per surface role instead.
+- CORRECTED. This entry used to claim that bevy's PBR fragment ASSIGNS
+  `base_color` from vertex colour and therefore vertex colours would clobber
+  `damage_tint`. That is WRONG, and one mesh per surface role was chosen partly
+  on the strength of it. `pbr_fragment.wgsl` does both:
+
+  ```wgsl
+  pbr_input.material.base_color = in.color;      // line 55  - assign
+  pbr_input.material.base_color *= base_color;   // line 101 - multiply by the uniform
+  ```
+
+  They COMPOSE. `damage_tint` writes the uniform, so a vertex-coloured mesh
+  still grades. Two consequences worth acting on: a plate's surface roles could
+  collapse into ONE mesh with vertex colours and a single shared material
+  (roughly 1200 mesh entities per clad ship down to 400), and it is safe
+  regardless because fixtures are exempt from tinting anyway. It cannot go
+  further than per-plate - plates are individually destructible, so each needs
+  its own entity.
+
+  Related, from the market-research survey: WebGL2 has no `BASE_VERTEX`, so
+  distinct meshes NEVER share a batch set. Fewer, larger meshes matter more on
+  web than native.
 - A child carrying meshes needs its parent to carry `Visibility`, or bevy warns
   and drops them.
 - `unwrap_or` evaluates eagerly. Using it in the surface accumulator pushed a
