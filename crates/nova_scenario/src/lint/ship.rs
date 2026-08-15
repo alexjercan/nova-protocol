@@ -529,6 +529,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                    collapse_threshold: None,
                     controller: SpaceshipController::None,
                     allegiance: None,
                     sections: vec![
@@ -606,6 +607,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                    collapse_threshold: None,
                     controller: SpaceshipController::None,
                     allegiance: None,
                     sections: vec![a, b],
@@ -703,6 +705,7 @@ mod tests {
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                collapse_threshold: None,
                 controller: SpaceshipController::None,
                 allegiance: None,
                 sections: vec![

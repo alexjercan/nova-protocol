@@ -460,6 +460,7 @@ mod tests {
             .spawn((
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
+                    collapse_threshold: None,
                     controller: SpaceshipController::None,
                     allegiance: None,
                     sections: vec![SpaceshipSectionConfig {

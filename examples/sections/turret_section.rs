@@ -299,6 +299,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
     };
 
     let ship = SpaceshipConfig {
+        collapse_threshold: None,
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::from([(

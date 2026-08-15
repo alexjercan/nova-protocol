@@ -546,6 +546,7 @@ mod tests {
         input_mapping.insert("thruster".to_string(), bindings.clone());
 
         let ship = SpaceshipConfig {
+            collapse_threshold: None,
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping,

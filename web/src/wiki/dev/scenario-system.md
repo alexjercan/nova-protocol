@@ -526,7 +526,10 @@ are dynamic), and the asteroid alone opts into `Dynamic` +
   optional `engage_range` hostile-detection override (`AIEngageRange`),
   `pd_range` point-defense override (`AIPointDefenseRange`),
   `waypoint_slack` patrol-arrival override (`AIWaypointSlack`), and
-  `arrival_standoff` GOTO-rest override (`FlightArrivalStandoff`)).
+  `arrival_standoff` GOTO-rest override (`FlightArrivalStandoff`)). The
+  ship-level `collapse_threshold: Some(0.1)` overrides the structural-collapse
+  fraction (`StructuralCollapseThreshold`, default 0.25): the share of the hull
+  a ship was BUILT with below which it comes apart on its own.
   Section geometry is linted: overlapping unit-cube cells and a
   turret/torpedo mount whose base (local -Y under its rotation) points at
   an empty neighbor cell are `content lint` errors (see the authoring

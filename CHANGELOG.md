@@ -106,6 +106,13 @@ tagged **(breaking)**.
 
 ### Ships & Sections
 
+- **(breaking)** Ships collapse structurally: a hull carrying less than a
+  fraction of the health it was BUILT with (0.25 by default) comes apart and
+  is destroyed, instead of having to be dismantled section by section.
+  Authorable per ship as `collapse_threshold` - `Some(0.1)` for a capital that
+  must be taken further apart, `Some(0.0)` for the old strip-every-section
+  rule. Neutralization is untouched: a disarmed ship with a sound hull is
+  still a live derelict, not a wreck.
 - The hull cast swapped: the cargoa is the campaign's armed corvette now
   (PDC turrets on new nose-cheek mounts, player and raider grades), and
   the racer flies unarmed as the civilian the story protects - the Ceres
@@ -227,6 +234,11 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- **(breaking)** A ship's HP bar no longer FILLS UP as the ship is shot apart.
+  A root's maximum health is pinned to the hull it was built with (a running
+  maximum) instead of being re-summed from the surviving sections, so
+  destroying a 1000-hp section no longer takes that 1000 out of the
+  denominator as well: 150/1100 used to read 100/100.
 - **(breaking)** Turret rounds deal their authored damage once, not twice.
   Avian raises a collision event per event-enabled collider, so a round (which
   carries its own) hitting a health-bearing section (which the integrity hook

@@ -70,6 +70,7 @@ pub(super) fn backdrop_orbiter(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            collapse_threshold: None,
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 orbit: Some("menu_planetoid".to_string()),

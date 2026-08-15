@@ -24,6 +24,14 @@ A ship in Nova Protocol is not a monolithic model - it is a root entity with a h
     </figcaption>
 </figure>
 
+## Taking a ship apart
+
+You do not have to shoot every last section off a ship. A hull carrying less than a quarter of the structure it was built with **collapses**: it comes apart and the ship is destroyed, whatever is still bolted to it. A scenario can author a tougher ship to hold together further down, so a capital takes more dismantling than a fighter.
+
+That is a different thing from being **out of the fight**. A ship that has lost every weapon, or the flight computer that aims and flies it, stops fighting but keeps its hull - it drifts as a derelict until someone finishes it, or does not.
+
+The health bar on your combat lock's readout measures a target against the hull it was BUILT with, so it only ever falls as you work through the sections.
+
 ## The sections
 
 Pick a section for the details - what it does, why it matters, and how it ties into the rest of the ship.

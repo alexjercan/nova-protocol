@@ -46,6 +46,7 @@ fn duelist(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            collapse_threshold: None,
             allegiance,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: patrol.to_vec(),
@@ -110,6 +111,7 @@ pub(crate) fn menu_duel(
             rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            collapse_threshold: None,
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::None,
             sections: vec![SpaceshipSectionConfig {

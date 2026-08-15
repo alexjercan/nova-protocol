@@ -55,7 +55,8 @@ the unit-cube defaults:
 ## Building a ship
 
 A `SpaceshipConfig` (`crates/nova_scenario/src/objects/spaceship.rs`) has a
-`controller` (`None`, `Player`, or `AI`), an `allegiance`, and a list of
+`controller` (`None`, `Player`, or `AI`), an `allegiance`, an optional
+`collapse_threshold` (below), and a list of
 `SpaceshipSectionConfig`, each placing one section at a `position` + `rotation`
 relative to the ship root (world units), with a `source` (`Inline` /
 `Prototype`) and optional `modifications`. The player
@@ -88,7 +89,8 @@ generic pieces:
 - `core.rs` (`IntegrityCorePlugin`) - the generic disable/destroy core, plus
   the mass-times-velocity impact damage.
 - Ship-owned `ShipIntegrityPlugin` - derives the section graph, handles disabled
-  sections, and rolls section health up to the ship root.
+  sections, rolls section health up to the ship root, and collapses a root that
+  falls below its `StructuralCollapseThreshold`.
 - `explode.rs` - reacts to destruction: debris, mesh fragments, `OnDestroyedEvent`.
 - `neutralize.rs` - combat-death: fires `OnNeutralized` when a ship stops
   being a threat.
@@ -161,8 +163,25 @@ Damage flow:
    deactivated (`SectionInactiveMarker`); a disabled **leaf** is destroyed.
 3. Destruction prunes the node from its neighbors' lists, which can create new
    leaves and cascade: shooting off the structure collapses what hung from it.
-4. `aggregate_ship_health` keeps the root's health equal to the sum of its
-   living sections; when the last section dies, the root dies with it.
+4. `aggregate_ship_health` keeps the root's `current` equal to the sum of its
+   living sections, over a `max` that is PINNED - a running maximum, never
+   re-derived from the survivors. A destroyed section despawns, so a live
+   denominator would make the HP bar fill up as a ship is shot apart (150/1100
+   reading 100/100) and would make any fraction of it rebound. It is a running
+   maximum rather than a set-once pin because a ship's sections can land across
+   several frames.
+5. Below its `StructuralCollapseThreshold` (`collapse_threshold` on the ship,
+   default 0.25) the root is marked `HealthZeroMarker` and goes through the same
+   disable -> destroy chain: a ship with a quarter of its hull left comes apart
+   rather than being dismantled section by section. Threshold `0.0` is the old
+   backstop - only a ship with no living sections dies - and it is also what
+   catches a last section that is removed WITHOUT a damage bubble (a direct
+   destroy, a detach), which nothing else would mark.
+
+Structural collapse is a MATERIAL test and stands apart from neutralization
+(`neutralize.rs`), which is a CAPABILITY test: a ship can be out of the fight
+with a sound hull (a derelict to board, salvage or let limp away), and a ship
+can collapse while its guns still work.
 
 The cascade a single section walks through:
 
@@ -176,8 +195,8 @@ flowchart TD
     D -->|Yes| F[Destroyed]
     F --> G[Pruned from neighbors]
     G --> H[New leaves may cascade]
-    F --> I[Root health re-aggregated]
-    I --> J{Last section dead?}
+    F --> I[Root current re-aggregated over a pinned max]
+    I --> J{Below the collapse threshold?}
     J -->|Yes| K[Ship dead]
 ```
 

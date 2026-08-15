@@ -93,6 +93,7 @@ lines, so copy a shipped block or build from
 |---|---|---|---|
 | `controller` | controller | required | who flies it (below) |
 | `allegiance` | `Option` side | `None` | side override, strict RON `Some(Neutral)`. Omitted = the controller default: Player ships fight for the player, AI ships are hostile |
+| `collapse_threshold` | `Option` number | `None` | structural collapse: the fraction of the health the ship was BUILT with below which whatever is left comes apart and the ship is destroyed. Strict RON `Some(0.1)`; omitted = the engine default `0.25`. Lower = the ship must be dismantled further (a capital), `Some(0.0)` = strip every last section. Clamped to `0..=1` |
 | `sections` | list | `[]` | the hull/thruster/gun/controller layout (below) |
 
 An abbreviated player ship:

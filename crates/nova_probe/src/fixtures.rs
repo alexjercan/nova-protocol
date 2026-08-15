@@ -61,6 +61,7 @@ pub fn ship(
     specs: &[SectionSpec],
 ) -> SpaceshipConfig {
     SpaceshipConfig {
+        collapse_threshold: None,
         allegiance: None,
         controller,
         sections: specs

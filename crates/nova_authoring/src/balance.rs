@@ -634,6 +634,7 @@ mod tests {
 
     fn ship(controller: SpaceshipController, prototypes: &[&str]) -> SpaceshipConfig {
         SpaceshipConfig {
+            collapse_threshold: None,
             controller,
             allegiance: None,
             sections: prototypes

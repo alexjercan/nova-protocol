@@ -166,6 +166,7 @@ fn player_ship() -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            collapse_threshold: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: ships::CARGOA_TURRET_IDS
                     .iter()
@@ -212,6 +213,7 @@ fn convoy_ship(
             rotation: Quat::from_rotation_y(yaw),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            collapse_threshold: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol,
                 ..Default::default()
@@ -237,6 +239,7 @@ fn raider(id: &str, spawn_pos: Vec3, grade: ShipGrade, engage_delay: f32) -> Sce
             rotation: facing_the_lane(),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            collapse_threshold: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 // The run-in: patrol from the spawn to the convoy's lane.
                 patrol: vec![spawn_pos, QUEEN_POS + Vec3::new(0.0, 30.0, 80.0)],

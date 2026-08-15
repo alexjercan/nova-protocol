@@ -939,6 +939,7 @@ fn ship(
             rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            collapse_threshold: None,
             controller,
             allegiance,
             sections,

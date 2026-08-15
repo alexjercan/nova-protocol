@@ -492,6 +492,7 @@ fn player_ship() -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            collapse_threshold: None,
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 // Both corvette turret cubes fire on LMB / right trigger.
@@ -530,6 +531,7 @@ fn pirate_ship() -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            collapse_threshold: None,
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: PIRATE_PATROL.to_vec(),

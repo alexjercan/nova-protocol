@@ -227,8 +227,9 @@ pub struct SpaceshipSectionConfig {
 pub struct SpaceshipSectionsConfig(pub Vec<SpaceshipSectionConfig>);
 
 /// The scenario/modding RON surface for a spaceship object: its
-/// [`SpaceshipController`], optional [`Allegiance`] override, and section list.
-/// Passed to `spaceship_scenario_object` to build the ship-root bundle.
+/// [`SpaceshipController`], optional [`Allegiance`] override, structural
+/// collapse threshold, and section list. Passed to `spaceship_scenario_object`
+/// to build the ship-root bundle.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipConfig {
@@ -246,6 +247,19 @@ pub struct SpaceshipConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub allegiance: Option<Allegiance>,
+    /// Structural collapse: the fraction of the hull the ship was BUILT with
+    /// (its pinned maximum health) below which what is left comes apart and
+    /// the whole ship is destroyed. `None` (the authored default - omit the
+    /// field) uses [`DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD`]. Lower means the
+    /// ship must be dismantled further before it goes, which is how a capital
+    /// takes more killing than a fighter; `Some(0.0)` is "strip every last
+    /// section". In strict RON the `Option` keeps its variant:
+    /// `collapse_threshold: Some(0.1)`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub collapse_threshold: Option<f32>,
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Vec::is_empty")
@@ -256,16 +270,22 @@ pub struct SpaceshipConfig {
 }
 
 /// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type name,
-/// controller, and section list the `insert_spaceship_sections` observer reads to
-/// spawn the section children and wire the driver at spawn.
+/// controller, collapse threshold, and section list the `insert_spaceship_sections`
+/// observer reads to spawn the section children and wire the driver at spawn.
 pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
     debug!("spaceship_scenario_object: config {:?}", config);
+
+    let collapse_threshold = match config.collapse_threshold {
+        Some(fraction) => StructuralCollapseThreshold::new(fraction),
+        None => StructuralCollapseThreshold::default(),
+    };
 
     (
         SpaceshipRootMarker,
         EntityTypeName::new(SPACESHIP_TYPE_NAME),
         config.controller,
         SpaceshipSectionsConfig(config.sections),
+        collapse_threshold,
         RigidBody::Dynamic,
         // Physics advances Transform only on fixed ticks (64 Hz by default);
         // everything watched by the render-rate camera must interpolate between
@@ -528,6 +548,7 @@ mod tests {
                     // scenario bundle.
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
+                        collapse_threshold: None,
                         allegiance: None,
                         controller: SpaceshipController::AI(config),
                         sections: vec![],
@@ -632,6 +653,7 @@ mod tests {
             world.spawn((
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
+                    collapse_threshold: None,
                     allegiance: None,
                     controller: SpaceshipController::Player(PlayerControllerConfig {
                         infinite_ammo,
@@ -702,6 +724,7 @@ mod tests {
                 .spawn((
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
+                        collapse_threshold: None,
                         allegiance: None,
                         controller,
                         sections,
@@ -753,6 +776,7 @@ mod tests {
                 .spawn((
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
+                        collapse_threshold: None,
                         controller: SpaceshipController::AI(config),
                         allegiance: None,
                         sections: vec![],
@@ -787,6 +811,74 @@ mod tests {
 
         let none = spawn(&mut world, AIControllerConfig::default());
         assert!(world.entity(none).get::<AIEngageGrace>().is_none());
+    }
+
+    /// The collapse threshold reaches the ship root: authored as given,
+    /// unauthored as the engine default, out of range clamped.
+    #[test]
+    fn the_collapse_threshold_is_authored_per_ship() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.add_observer(insert_spaceship_sections);
+        let spawn = |world: &mut World, collapse_threshold| {
+            let entity = world
+                .spawn((
+                    Transform::default(),
+                    spaceship_scenario_object(SpaceshipConfig {
+                        collapse_threshold,
+                        allegiance: None,
+                        controller: SpaceshipController::None,
+                        sections: vec![],
+                    }),
+                ))
+                .id();
+            world.flush();
+            world
+                .entity(entity)
+                .get::<StructuralCollapseThreshold>()
+                .copied()
+        };
+
+        assert_eq!(
+            spawn(&mut world, None),
+            Some(StructuralCollapseThreshold(
+                DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD
+            )),
+            "an unauthored ship collapses at the engine default"
+        );
+        assert_eq!(
+            spawn(&mut world, Some(0.1)),
+            Some(StructuralCollapseThreshold(0.1)),
+            "a capital authored to be taken apart further keeps its number"
+        );
+        // A threshold below zero is unreachable even at zero health, which
+        // would restore the 0-HP ghost; the clamp is what makes it safe to
+        // author.
+        assert_eq!(
+            spawn(&mut world, Some(-1.0)),
+            Some(StructuralCollapseThreshold(0.0))
+        );
+    }
+
+    /// The documented strict-RON syntax parses, omitted defaults to None, and
+    /// an unauthored ship does not serialize the field at all.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn collapse_threshold_ron_parses_defaults_and_stays_unserialized() {
+        let authored: SpaceshipConfig =
+            ron::from_str(r#"(controller: None, collapse_threshold: Some(0.1))"#)
+                .expect("the documented syntax parses");
+        assert_eq!(authored.collapse_threshold, Some(0.1));
+
+        let omitted: SpaceshipConfig =
+            ron::from_str(r#"(controller: None)"#).expect("omitted field parses");
+        assert_eq!(omitted.collapse_threshold, None);
+
+        let written = ron::to_string(&omitted).expect("a config serializes");
+        assert!(
+            !written.contains("collapse_threshold"),
+            "an unauthored ship must not gain the field on a round trip: {written}"
+        );
     }
 
     /// The documented strict-RON syntax parses, omitted defaults to None.

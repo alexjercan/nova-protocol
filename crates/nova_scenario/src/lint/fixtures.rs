@@ -62,6 +62,7 @@ pub(crate) fn spawn_ship(id: &str, proto: &str) -> EventActionConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            collapse_threshold: None,
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             sections: vec![SpaceshipSectionConfig {

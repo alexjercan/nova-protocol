@@ -12,7 +12,43 @@ use super::link_points::prelude::*;
 
 /// Ship graph publication, disabled-section behavior, and aggregate health.
 pub mod prelude {
-    pub use super::ShipIntegrityPlugin;
+    pub use super::{
+        ShipIntegrityPlugin, StructuralCollapseThreshold, DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD,
+    };
+}
+
+/// The structural-collapse fraction a ship gets when nothing is authored.
+///
+/// A quarter of the hull left is a wreck, not a fighting ship: finishing one
+/// stops being a chore of hunting the last cladding panel. Ships that must be
+/// taken apart plate by plate (a capital) author a lower fraction.
+pub const DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD: f32 = 0.25;
+
+/// The fraction of a ship's PINNED maximum health below which the hull comes
+/// apart and the whole ship is destroyed - see [`aggregate_ship_health`].
+///
+/// `0.0` means "only a ship with no living sections at all dies", which is the
+/// degenerate case the rule grew out of. Values are clamped to `0..=1` by
+/// [`StructuralCollapseThreshold::new`]; a ship with no threshold component
+/// collapses at [`DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD`].
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(Component)]
+pub struct StructuralCollapseThreshold(pub f32);
+
+impl Default for StructuralCollapseThreshold {
+    fn default() -> Self {
+        Self(DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD)
+    }
+}
+
+impl StructuralCollapseThreshold {
+    /// The threshold for `fraction` of the pinned hull, clamped to `0..=1`.
+    /// The floor is load-bearing: a negative threshold is unreachable even at
+    /// zero health, which would bring back the 0-HP ghost the rule exists to
+    /// kill. `0.0` is how an author says "dismantle it completely".
+    pub fn new(fraction: f32) -> Self {
+        Self(fraction.clamp(0.0, 1.0))
+    }
 }
 
 /// Adapts section-based ships to the generic gameplay integrity pipeline.
@@ -24,6 +60,7 @@ impl Plugin for ShipIntegrityPlugin {
 
         app.register_type::<LinkPoint>();
         app.register_type::<SectionLinkPoints>();
+        app.register_type::<StructuralCollapseThreshold>();
         app.add_observer(on_section_disable);
         app.add_systems(Update, build_ship_integrity_graph.before(IntegritySystems));
         app.add_systems(Update, aggregate_ship_health.in_set(IntegritySystems));
@@ -143,8 +180,9 @@ fn build_ship_integrity_graph(
     }
 }
 
-/// Keep each ship's aggregate health equal to the sum of its section children, so the health
-/// HUD tracks real damage and the ship dies once every section is gone.
+/// Keep each ship's aggregate health equal to the sum of its living section children over a
+/// PINNED maximum, so the health HUD tracks real damage, and destroy a ship that has fallen
+/// below its [`StructuralCollapseThreshold`].
 ///
 /// Scoped to spaceship roots ([`SpaceshipRootMarker`]) on purpose: other [`IntegrityRoot`]s,
 /// such as a lone asteroid, hold their [`Health`] on the collider body itself and have no
@@ -153,20 +191,25 @@ fn build_ship_integrity_graph(
 /// makes sense for ships, so only ships are matched.
 ///
 /// Sections are direct children of the ship root (which carries [`IntegrityRoot`]). This
-/// recomputes the root's health every frame as the sum of its living sections. When the sum
-/// hits zero, the fatal damage that removed the last section also bubbles up to the root
-/// (`HealthApplyDamage` auto-propagates through `ChildOf`), marking it with `HealthZeroMarker`
-/// which flows through the generic disable and root-destruction path. Roots carry no
-/// `ConnectedTo` and are never leaves, so root destruction is a separate integrity-core hop;
-/// the meshless root is then
-/// despawned and the ship dies (its `PlayerSpaceshipMarker` is removed, reverting the camera
-/// and clearing the HUDs).
+/// recomputes the root's `current` every frame as the sum of its living sections. `max` is a
+/// RUNNING MAXIMUM instead, because a destroyed section despawns and takes its share of the
+/// sum with it: a live denominator makes the HP bar FILL UP as a ship is shot apart (150/1100
+/// becomes 100/100 when a 1000-hp section dies) and makes any fraction of it rebound, so a
+/// percentage threshold could never trip. A running maximum is also why this is not a
+/// set-once pin: a ship's sections can land across several frames, and a first reading would
+/// pin a half-assembled hull; taking the maximum every frame instead cannot rebound, and still
+/// grows if a ship is ever repaired or extended.
 ///
-/// The bubbled amount is clamped to what actually landed on the section by the health layer,
-/// propagates `min(amount, section.current)`, not the raw hit. That is why overkill on one
-/// section cannot kill the ship (a 1000-damage hit on a 100 hp section costs the root 100, not
-/// 1000), while the last-section case still works - there the aggregate
-/// equals that lone section, so the clamped amount is exactly enough to zero the root.
+/// Damage on a section also bubbles up to the root (`HealthApplyDamage` auto-propagates
+/// through `ChildOf`) and the health layer clamps the bubbled amount to what actually landed,
+/// `min(amount, section.current)` rather than the raw hit. That is why overkill on one section
+/// cannot kill a ship (a 1000-damage hit on a 100 hp section costs the root 100, not 1000).
+/// The recompute overwrites whatever that bubble left on the root, so the collapse rule below
+/// - not the bubble - is what actually kills ships.
+///
+/// Roots carry no `ConnectedTo` and are never leaves, so root destruction is a separate
+/// integrity-core hop; the meshless root is then despawned and the ship dies (its
+/// `PlayerSpaceshipMarker` is removed, reverting the camera and clearing the HUDs).
 fn aggregate_ship_health(
     mut commands: Commands,
     q_root: Query<
@@ -175,39 +218,47 @@ fn aggregate_ship_health(
             Option<&Health>,
             Option<&Children>,
             Has<HealthZeroMarker>,
+            Option<&StructuralCollapseThreshold>,
         ),
         (With<IntegrityRoot>, With<SpaceshipRootMarker>),
     >,
     q_section_health: Query<&Health, (With<SectionMarker>, Without<IntegrityRoot>)>,
 ) {
-    for (root, root_health, children, already_zero) in &q_root {
+    for (root, root_health, children, already_zero, threshold) in &q_root {
         let mut current = 0.0;
-        let mut max = 0.0;
+        let mut living_max = 0.0;
         if let Some(children) = children {
             for child in children.iter() {
                 if let Ok(health) = q_section_health.get(child) {
                     current += health.current;
-                    max += health.max;
+                    living_max += health.max;
                 }
             }
         }
 
-        // NOTE: structural death backstop (the 0-HP ghost).
-        // `HealthZeroMarker` only ever comes from the damage path (nova's
-        // `on_damage`), so a ship that loses its last section WITHOUT a
-        // final bubble reaching the root (a direct destroy, a detach, any
-        // future scripted removal) would sit here forever as an unmarked
-        // 0-HP hull. The recompute is the one place that always sees "no
-        // living sections", so it owns the backstop: mark the root and let
-        // the ordinary disable -> destroy chain take it. The previous-frame
-        // `max > 0` guard means "this root has HAD living sections" - a
-        // mid-spawn root whose sections have not landed yet is not executed
-        // at birth.
-        let had_sections = root_health.is_some_and(|health| health.max > 0.0);
-        if !already_zero && had_sections && current <= 0.0 {
+        let pinned_max = root_health.map_or(0.0, |health| health.max);
+        let max = pinned_max.max(living_max);
+
+        // Structural collapse. Below its threshold of the hull it was built
+        // with, a ship is wreckage: mark the root and let the ordinary disable
+        // -> destroy chain take it, so there is exactly one destruction path.
+        //
+        // At threshold 0 this is the old structural-death backstop (the 0-HP
+        // ghost), whose reasoning still holds: `HealthZeroMarker` otherwise
+        // only ever comes from the damage path (nova's `on_damage`), so a ship
+        // that loses its last section WITHOUT a final bubble reaching the root
+        // (a direct destroy, a detach, any future scripted removal) would sit
+        // here forever as an unmarked 0-HP hull. The recompute is the one place
+        // that always sees how much structure is left, so it owns the rule.
+        //
+        // The `pinned_max > 0` guard means "this root has HAD sections", and it
+        // reads the PREVIOUS frame's write on purpose - a mid-spawn root whose
+        // sections have not landed yet is not executed at birth.
+        let fraction = threshold.copied().unwrap_or_default().0;
+        if !already_zero && pinned_max > 0.0 && current <= max * fraction {
             debug!(
-                "aggregate_ship_health: root {root:?} has no living sections \
-                 and no zero marker; inserting the structural death backstop"
+                "aggregate_ship_health: root {root:?} collapsed structurally \
+                 ({current} of {max}, threshold {fraction}); marking it destroyed"
             );
             commands.entity(root).try_insert(HealthZeroMarker);
         }
@@ -228,6 +279,187 @@ fn aggregate_ship_health(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An aggregate-only app: the recompute with no destruction chain behind
+    /// it, so a collapsed root keeps its marker instead of despawning.
+    fn aggregate_app() -> App {
+        let mut app = App::new();
+        app.add_systems(Update, aggregate_ship_health);
+        app
+    }
+
+    /// A ship root carrying `threshold` (`None` = no component at all, so the
+    /// engine default applies) with one section per `(current, max)` pair.
+    fn spawn_ship(
+        app: &mut App,
+        threshold: Option<f32>,
+        sections: &[(f32, f32)],
+    ) -> (Entity, Vec<Entity>) {
+        let children: Vec<_> = sections
+            .iter()
+            .map(|(current, max)| {
+                app.world_mut()
+                    .spawn((
+                        SectionMarker,
+                        Health {
+                            current: *current,
+                            max: *max,
+                        },
+                    ))
+                    .id()
+            })
+            .collect();
+        let mut root = app.world_mut().spawn((IntegrityRoot, SpaceshipRootMarker));
+        if let Some(fraction) = threshold {
+            root.insert(StructuralCollapseThreshold::new(fraction));
+        }
+        let root = root.id();
+        app.world_mut().entity_mut(root).add_children(&children);
+        (root, children)
+    }
+
+    fn collapsed(app: &App, root: Entity) -> bool {
+        app.world().get::<HealthZeroMarker>(root).is_some()
+    }
+
+    fn root_health(app: &App, root: Entity) -> (f32, f32) {
+        let health = app.world().get::<Health>(root).unwrap();
+        (health.current, health.max)
+    }
+
+    /// The reported bug: a destroyed section took its `max` out of the
+    /// DENOMINATOR as well as the numerator, so a ship at 150/1100 read
+    /// 100/100 and the HP bar appeared to FILL UP as it was shot apart.
+    #[test]
+    fn destroying_a_section_does_not_refill_the_hp_bar() {
+        let mut app = aggregate_app();
+        let (root, sections) = spawn_ship(&mut app, None, &[(50.0, 1000.0), (100.0, 100.0)]);
+
+        app.update();
+        assert_eq!(root_health(&app, root), (150.0, 1100.0));
+
+        app.world_mut().entity_mut(sections[0]).despawn();
+        app.update();
+
+        assert_eq!(
+            root_health(&app, root),
+            (100.0, 1100.0),
+            "the denominator is the hull the ship was BUILT with; only the numerator falls"
+        );
+    }
+
+    /// The maximum is a RUNNING one, not a set-once pin: a ship whose sections
+    /// land across several frames must end up with its whole hull in the
+    /// denominator, not the part that happened to land first.
+    #[test]
+    fn a_section_landing_a_frame_late_raises_the_pinned_maximum() {
+        let mut app = aggregate_app();
+        let (root, _) = spawn_ship(&mut app, None, &[(100.0, 100.0)]);
+        app.update();
+        assert_eq!(root_health(&app, root), (100.0, 100.0));
+
+        let late = app
+            .world_mut()
+            .spawn((SectionMarker, Health::new(1000.0)))
+            .id();
+        app.world_mut().entity_mut(root).add_children(&[late]);
+        app.update();
+
+        assert_eq!(root_health(&app, root), (1100.0, 1100.0));
+    }
+
+    /// Structural collapse: 100 hp of a pinned 1000 is under the authored
+    /// quarter, so the root is marked and the ordinary disable -> destroy chain
+    /// takes it.
+    #[test]
+    fn a_ship_below_its_collapse_threshold_is_marked_for_destruction() {
+        let mut app = aggregate_app();
+        let (root, sections) = spawn_ship(&mut app, Some(0.25), &[(100.0, 100.0), (900.0, 900.0)]);
+        app.update();
+        assert!(!collapsed(&app, root), "a fresh ship is not a wreck");
+
+        app.world_mut().entity_mut(sections[1]).despawn();
+        app.update();
+
+        assert!(collapsed(&app, root));
+        assert_eq!(root_health(&app, root), (100.0, 1000.0));
+    }
+
+    /// ...and a ship still carrying 30 percent of its hull keeps fighting.
+    #[test]
+    fn a_ship_just_above_its_collapse_threshold_survives() {
+        let mut app = aggregate_app();
+        let (root, sections) = spawn_ship(&mut app, Some(0.25), &[(300.0, 300.0), (700.0, 700.0)]);
+        app.update();
+
+        app.world_mut().entity_mut(sections[1]).despawn();
+        app.update();
+
+        assert!(!collapsed(&app, root), "300 of 1000 is above a quarter");
+    }
+
+    /// A root with no threshold component collapses at the engine default, so
+    /// a ship spawned outside the scenario layer is not immortal.
+    #[test]
+    fn a_ship_with_no_authored_threshold_collapses_at_the_default() {
+        let mut app = aggregate_app();
+        let (root, sections) = spawn_ship(&mut app, None, &[(100.0, 100.0), (900.0, 900.0)]);
+        app.update();
+
+        app.world_mut().entity_mut(sections[1]).despawn();
+        app.update();
+
+        assert!(
+            DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD > 0.1,
+            "the default must be above the 10 percent this ship is left with"
+        );
+        assert!(collapsed(&app, root));
+    }
+
+    /// Threshold 0 is the old structural-death backstop, unchanged: a ship
+    /// whose last section is REMOVED without a damage bubble (a direct destroy,
+    /// a detach, a scripted removal) dies instead of lingering as an unmarked
+    /// 0-HP hull.
+    #[test]
+    fn a_ship_that_loses_its_last_section_dies_even_at_a_zero_threshold() {
+        let mut app = aggregate_app();
+        let (root, sections) = spawn_ship(&mut app, Some(0.0), &[(40.0, 40.0)]);
+        app.update();
+        assert!(!collapsed(&app, root));
+
+        app.world_mut().entity_mut(sections[0]).despawn();
+        app.update();
+
+        assert!(collapsed(&app, root));
+    }
+
+    /// The birth guard: a root whose sections have not landed yet has no
+    /// pinned maximum, so an empty hull is not executed for being empty.
+    #[test]
+    fn a_mid_spawn_root_with_no_sections_is_not_collapsed_at_birth() {
+        let mut app = aggregate_app();
+        let root = app
+            .world_mut()
+            .spawn((IntegrityRoot, SpaceshipRootMarker))
+            .id();
+
+        app.update();
+        app.update();
+        assert!(!collapsed(&app, root), "an unbuilt ship is not a wreck");
+
+        let section = app
+            .world_mut()
+            .spawn((SectionMarker, Health::new(100.0)))
+            .id();
+        app.world_mut().entity_mut(root).add_children(&[section]);
+        app.update();
+
+        assert!(
+            !collapsed(&app, root),
+            "its sections landed late, not never"
+        );
+        assert_eq!(root_health(&app, root), (100.0, 100.0));
+    }
 
     #[test]
     fn ship_health_is_the_sum_of_its_sections() {
@@ -907,6 +1139,38 @@ mod ghost_ship_tests {
             root_dead(&mut app, root, 20),
             "sustained fractional fire must kill the ship, not leave a ghost"
         );
+    }
+
+    /// Structural collapse end to end: a ship down to a fifth of the hull it
+    /// was built with dies with that last section still ALIVE, through the same
+    /// disable -> destroy chain (one OnDestroyed, no second death path).
+    #[test]
+    fn a_ship_below_its_collapse_threshold_dies_with_a_section_still_alive() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ship(&mut app, 5);
+
+        for section in &sections[..3] {
+            hit(&mut app, *section, 100.0);
+            for _ in 0..5 {
+                app.update();
+            }
+        }
+        assert!(
+            app.world().entities().contains(root),
+            "two fifths of a hull still flies"
+        );
+
+        hit(&mut app, sections[3], 100.0);
+
+        assert!(
+            root_dead(&mut app, root, 10),
+            "one fifth of a hull is wreckage, not a ship"
+        );
+        assert!(
+            !app.world().entities().contains(sections[4]),
+            "the last living section goes with the hull it hung from"
+        );
+        assert_eq!(destroy_events(&app), 1, "exactly one OnDestroyed");
     }
 
     /// The structural hole: the last section is REMOVED without the damage
