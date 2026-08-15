@@ -10,6 +10,7 @@ mod goto;
 mod manual;
 mod orbit;
 mod rcs;
+mod stacking;
 mod stop;
 mod support;
 mod telemetry;

@@ -318,25 +318,25 @@ pub(crate) fn hull_turn_rate(max_torque: f32, inertia: f32, settings: &FlightSet
     (optimum * settings.turn_rate_scale).clamp(lo, hi)
 }
 
-/// The ship-level turn rate: the strongest live computer's torque against
-/// the hull's largest principal inertia, through [`hull_turn_rate`]. `None`
-/// with no live computer - every caller's "adrift" case. (PD outputs stack
-/// additively across computers, so max under-reports a multi-computer hull -
-/// a deliberately conservative simplification.) Shared by the player command
-/// slew, the autopilot and the AI brain so the derivation cannot drift
-/// apart.
+/// The ship-level turn rate: the live computers' torque budget against the
+/// hull's largest principal inertia, through [`hull_turn_rate`]. `None` with
+/// no live computer - every caller's "adrift" case. Shared by the player
+/// command slew, the autopilot and the AI brain so the derivation cannot
+/// drift apart.
+///
+/// The budget is the SUM of what the computers carry, because each one
+/// torques the hull in parallel. It is not the sum of what they were
+/// AUTHORED with: `update_controller_stack_tuning` has already split a
+/// diminishing ship-level budget across them, so summing here reads that
+/// budget back rather than paying a stack linearly.
 pub(crate) fn ship_turn_rate(
     torques: impl Iterator<Item = f32>,
     inertia: &ComputedAngularInertia,
     settings: &FlightSettings,
 ) -> Option<f32> {
-    let max_torque = torques.reduce(f32::max)?;
+    let budget = torques.reduce(|budget, torque| budget + torque)?;
     let (principal, _) = inertia.principal_angular_inertia_with_local_frame();
-    Some(hull_turn_rate(
-        max_torque,
-        principal.max_element(),
-        settings,
-    ))
+    Some(hull_turn_rate(budget, principal.max_element(), settings))
 }
 
 #[cfg(test)]

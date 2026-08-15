@@ -84,6 +84,20 @@ tagged **(breaking)**.
 
 ### Gameplay & Flight
 
+- **(breaking)** A hull may carry several flight computers and steers better
+  for it, on a curve with a real ceiling: the stack's torque budget tops out
+  at twice its strongest computer (so no ship snaps around, whatever it bolts
+  on) while its precision - how early it starts arresting a turn - keeps
+  improving. Half the gain arrives with the second computer; the tenth is
+  worth under a percent. Measured on a 15-section barge: overshoot falls
+  9.3 -> 1.4 degrees and the flip finishes 23% sooner while peak turn rate
+  moves under 4%. Single-computer ships fly exactly as before; multi-computer
+  builds no longer stack torque linearly (two computers were worth 2.0x, they
+  are worth 1.5x now) and no longer risk the damping instability linear
+  stacking walked into.
+- Losing one computer on a stacked hull degrades its handling to the smaller
+  stack instead of casting the ship adrift. The last one is still the ship's
+  brain: autopilot and neutralization both key on "no computer LEFT".
 - Sliced mesh fragments (asteroid debris) now despawn after 30 seconds instead
   of persisting until scenario teardown, so long-lived scenes no longer
   accumulate physics bodies.

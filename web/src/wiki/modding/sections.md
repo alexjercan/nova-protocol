@@ -241,6 +241,14 @@ kind: Controller((
 - `damping_ratio` - the PD damping ratio (overshoot vs settle).
 - `max_torque` - the maximum torque the controller may apply.
 - `render_mesh` (optional) - custom mesh; omit for the default body.
+
+A hull may mount several controllers, but they do NOT each steer it: the ship
+derives one attitude loop and shares it out, so the three numbers above are
+what this section is worth to a hull carrying it alone. Stacking grows the
+ship's torque budget on a curve capped at **twice** the strongest controller's
+`max_torque` (1.5x at two, 1.9x at ten) and spends the rest of the gain on
+precision. Authoring a bigger `max_torque` is the only way to make a heavy hull
+genuinely fast; bolting on copies is not.
 - `render_mesh_transform` (optional) - visual-only position, rotation and scale.
 - `lock_on_sound`, `lock_off_sound`, `radar_deny_sound`,
   `radar_retarget_sound`, `safety_on_sound`, `rcs_loop_sound` (all optional) - the computer's

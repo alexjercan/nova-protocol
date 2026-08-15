@@ -4,7 +4,10 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 /// Component that defines a PD controller for rotational control.
-#[derive(Component, Clone, Copy, Debug, Reflect)]
+///
+/// `PartialEq` so a writer that re-derives this every tick can leave it alone
+/// when nothing moved, instead of waking every reader through change detection.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
 #[require(PDControllerInput, PDControllerOutput)]
 pub struct PDController {
     /// The frequency of the PD controller in Hz.

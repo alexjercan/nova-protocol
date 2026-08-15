@@ -122,6 +122,11 @@ impl Plugin for NovaFlightPlugin {
         app.configure_sets(
             FixedUpdate,
             NovaFlightSystems
+                // ...and a rotation-authority READER of the controller stack:
+                // the turn-rate budget it plans with is the sum of the shares
+                // the stack pass writes, so it must not run on last tick's
+                // split after a controller dies.
+                .after(ControllerSectionSystems::SyncStack)
                 .before(ControllerSectionSystems::SyncRotationInput)
                 .before(SpaceshipSectionSystems),
         );

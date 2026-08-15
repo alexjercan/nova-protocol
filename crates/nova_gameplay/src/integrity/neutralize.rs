@@ -379,6 +379,35 @@ mod tests {
         );
     }
 
+    /// The rule is "no working computer LEFT", not "a computer died": a hull
+    /// that stacks flight computers for the handling (see the controller
+    /// section's stack curve) trades one for redundancy, so killing one of
+    /// two degrades its steering and leaves it in the fight. Only the last
+    /// one is brain death.
+    #[test]
+    fn an_armed_ship_with_a_spare_computer_survives_losing_one() {
+        let mut app = neutralize_app();
+        let (root, _weapons, _thrusters, controllers, _hull) = spawn_ship(&mut app, 1, 1, 2);
+        app.update();
+
+        disable(&mut app, controllers[0]);
+        for _ in 0..3 {
+            app.update();
+        }
+        assert!(
+            !is_neutralized(&app, root),
+            "a spare computer keeps the ship in the fight"
+        );
+        assert!(fired(&app).is_empty(), "and fires no defeat edge");
+
+        disable(&mut app, controllers[1]);
+        app.update();
+        assert!(
+            is_neutralized(&app, root),
+            "the LAST computer dying is what is brain death"
+        );
+    }
+
     /// A ship that NEVER had a computer (a scripted battery emplacement) is
     /// not brain-dead - only the disarm half can neutralize it.
     #[test]

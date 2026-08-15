@@ -31,6 +31,8 @@ Because thrusters sit wherever you bolted them, an off-center burn would spin th
 
 Turn rate is derived from the ship's torque budget and its live rotational inertia, then clamped into a sane band (roughly 10 to 240 degrees per second). A stripped-down hull snaps around; a heavy, fully-built ship lumbers. Lose sections and the handling changes with the mass - so how a ship flies is legible from how it is built.
 
+That torque budget comes from the [controller](../sections/controller/) sections. A hull can mount several and steers better for it, but on a curve that tops out at twice one controller's worth - a bigger ship is always a slower ship. What stacking really buys a heavy hull is precision: it stops on the heading you pointed at instead of sailing past and swinging back.
+
 ## The autopilot flies the hull
 
 The autopilot verbs are the assist. Each writes to the _same_ actuators you use - the controller's rotation command and the thrusters' throttle - so you watch the hull physically swing and the plume light up; there are no invisible forces. Any manual input (a thruster key, a burn, a rotation, or CANCEL) disengages it instantly and hands you back a ship that is already moving.
