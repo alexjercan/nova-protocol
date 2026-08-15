@@ -172,6 +172,56 @@ editor clads on and the lattice the flown ship clads on cannot drift - and the
 build state carries the toggle into the `SpaceshipConfig` the scenario spawns,
 so what you see in the editor is what you fly.
 
+#### The plate vocabulary and skin styles
+
+The derivation works out far more than it keeps. `read_plates`
+(`sections/skin_reading.rs`) is a SECOND PASS over the finished plates that reads
+it back out as a `PlateReading` each: which way the plate faces, what its top is
+shaped like (`Flat` / `Step` / `Ridge` / `Peak` / `Rim`), how enclosed its cell
+is, how long the run of like plate through it is and which way that run points,
+how far it is from the end of that run, how much of its cell it fills, how deep
+the structure under it goes, and how close the mouth of a fitting is. The plates
+are the whole input - their cells are the clad set, `cell - anchor` is the face
+each shows - so a reading cannot drift from the skin it describes. It costs about
+0.6 ms on a 384-plate ship, against 1.6 ms to derive the skin itself.
+
+A `ShipStyleConfig` (`sections/skin_style.rs`) is CONTENT resolved by id out of
+`GameStyles`, exactly as a section prototype resolves out of `GameSections`. It
+carries a material per surface role and a list of decoration fixtures, each with
+a model `AssetRef` and a `ScatterRule` written in the vocabulary above. The mod
+merge routes `Content::Style` into `GameStyles` with the same last-wins overlay
+every other kind gets, so a mod restyles a base look by declaring its id.
+
+`scatter_decor` (`sections/skin_decor.rs`) turns plates plus readings plus a
+style into placements. It takes the READINGS, not the structure, so the scatter
+cannot reach past the vocabulary into the derivation. Two properties are
+load-bearing:
+
+- DETERMINISM. There is no RNG. A plate's claim is a hand-written FNV-1a hash of
+  its cell, its out face and the fixture's id - hand-written because
+  `DefaultHasher` is not promised to be stable across releases of the standard
+  library, and a ship that comes back wearing different antennae after a
+  toolchain bump would break the same promise the derived skin exists to keep.
+  The editor re-derives and re-scatters on every structure change, so anything
+  less would flicker while a hull is dragged.
+- GRID CLAIMING, not blue noise. A rule claims cells on its own `stride` and a
+  piece is yawed to `PlateReading::along`. Poisson sampling deliberately destroys
+  alignment, and alignment is the difference between decoration that reads as
+  bolted on and decoration that reads as confetti.
+
+A decoration is a `SectionFixture` like a plate, and a child of the PLATE, one
+level further out - so a plate shot off takes its greebles and the `damage_tint`
+ancestor walk stops at the first fixture it meets whichever of the two it started
+under. The base game generates its greeble models from committed JSON recipes
+(`scripts/gen-greebles.py`), and the mod-facing format is documented in
+[Ship skin styles](../../modding/styles/).
+
+What a hull actually OFFERS is worth knowing before writing a rule. Measured on
+the `wfc_ships` row, per ship: 100-120 of 132-162 plates are `Rim`, 18-22 are
+`Step`, 6-22 are `Flat`, 0-4 are `Ridge`, and none are `Peak`. `spawn_ship_skin`
+logs that histogram and the per-fixture tally at debug, so a style is tuned
+against a measurement rather than against a screenshot.
+
 ## Integrity: damage -> disable -> destroy
 
 The destruction stack is nova's own, in

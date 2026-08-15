@@ -621,6 +621,61 @@ mod tests {
         );
     }
 
+    /// A DECORATION's meshes are exempt too, and they hang one level further
+    /// out than a plate's: mesh, greeble, plate, section.
+    ///
+    /// The plate was the first fixture kind and this is the second, so the walk
+    /// is checked at the depth the new one actually stands at. A greeble's model
+    /// is a loaded glTF scene, so its meshes are spawned by the scene loader
+    /// under the fixture rather than authored beside it, and every one of them
+    /// arrives through this system.
+    #[test]
+    fn a_decoration_mesh_under_a_plate_is_never_captured_either() {
+        let mut app = tint_app();
+
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+
+        let root = app.world_mut().spawn(Allegiance::Player).id();
+        let section = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                Health {
+                    current: 100.0,
+                    max: 100.0,
+                },
+                ChildOf(root),
+            ))
+            .id();
+        let plate = app
+            .world_mut()
+            .spawn((SectionFixture, ChildOf(section)))
+            .id();
+        let greeble = app.world_mut().spawn((SectionFixture, ChildOf(plate))).id();
+        // What the scene loader hangs under a greeble: a mesh two fixtures deep.
+        let greeble_mesh = app
+            .world_mut()
+            .spawn((MeshMaterial3d(shared.clone()), ChildOf(greeble)))
+            .id();
+
+        app.update();
+        app.update();
+
+        assert!(
+            app.world().get::<SectionDamageTint>(greeble_mesh).is_none(),
+            "a greeble must not redden with the hull it is bolted to",
+        );
+        assert!(
+            app.world()
+                .get::<PendingSectionTint>(greeble_mesh)
+                .is_none(),
+            "a greeble mesh must not sit pending, retried every frame",
+        );
+    }
+
     /// R1.1: a section mesh whose material asset is not yet loaded (async gltf)
     /// must stay pending and be captured once the asset arrives, not dropped.
     #[test]

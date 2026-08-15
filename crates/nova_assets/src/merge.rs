@@ -1,6 +1,7 @@
 //! The content MERGE: flatten every enabled bundle's `Content` in dependency
 //! order and overlay it by id into the game's registries (`GameSections`,
-//! `GameScenarios`, `GameCampaigns`), linting the result as it goes.
+//! `GameScenarios`, `GameCampaigns`, `GameStyles`), linting the result as it
+//! goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
 /// public API of this module.
@@ -225,6 +226,7 @@ pub fn register_bundles(
                         Content::Section(cfg) => cfg.base.id.clone(),
                         Content::Scenario(cfg) => cfg.id.clone(),
                         Content::Campaign(cfg) => cfg.id.clone(),
+                        Content::Style(cfg) => cfg.id.clone(),
                     };
                     undeclared_ref_issues.push((id, message));
                 }
@@ -337,6 +339,7 @@ pub fn register_bundles(
     commands.insert_resource(GameSections(outcome.sections));
     commands.insert_resource(outcome.scenarios);
     commands.insert_resource(outcome.campaigns);
+    commands.insert_resource(GameStyles(outcome.styles));
 }
 
 /// The result of merging an ordered list of bundles: the id-keyed registries plus
@@ -349,6 +352,9 @@ pub struct MergeOutcome {
     /// Campaigns keyed by id, overlaid last-wins (a later bundle may replace an
     /// earlier campaign's membership by declaring the same id).
     pub campaigns: GameCampaigns,
+    /// Skin styles in registration order, overlaid last-wins by id - so a mod
+    /// restyles a base look by declaring the same id.
+    pub styles: Vec<ShipStyleConfig>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -376,6 +382,7 @@ where
     let mut sections: Vec<SectionConfig> = Vec::new();
     let mut scenarios = GameScenarios::default();
     let mut campaigns = GameCampaigns::default();
+    let mut styles: Vec<ShipStyleConfig> = Vec::new();
     let mut conflicts: Vec<String> = Vec::new();
 
     for bundle in bundles {
@@ -384,6 +391,7 @@ where
         let mut seen_sections: HashSet<&str> = HashSet::new();
         let mut seen_scenarios: HashSet<&str> = HashSet::new();
         let mut seen_campaigns: HashSet<&str> = HashSet::new();
+        let mut seen_styles: HashSet<&str> = HashSet::new();
 
         for item in bundle {
             match item {
@@ -396,7 +404,13 @@ where
                         ));
                         continue;
                     }
-                    merge_content_item(item, &mut sections, &mut scenarios, &mut campaigns);
+                    merge_content_item(
+                        item,
+                        &mut sections,
+                        &mut scenarios,
+                        &mut campaigns,
+                        &mut styles,
+                    );
                 }
                 Content::Scenario(cfg) => {
                     if !seen_scenarios.insert(cfg.id.as_str()) {
@@ -407,7 +421,13 @@ where
                         ));
                         continue;
                     }
-                    merge_content_item(item, &mut sections, &mut scenarios, &mut campaigns);
+                    merge_content_item(
+                        item,
+                        &mut sections,
+                        &mut scenarios,
+                        &mut campaigns,
+                        &mut styles,
+                    );
                 }
                 Content::Campaign(cfg) => {
                     if !seen_campaigns.insert(cfg.id.as_str()) {
@@ -418,7 +438,30 @@ where
                         ));
                         continue;
                     }
-                    merge_content_item(item, &mut sections, &mut scenarios, &mut campaigns);
+                    merge_content_item(
+                        item,
+                        &mut sections,
+                        &mut scenarios,
+                        &mut campaigns,
+                        &mut styles,
+                    );
+                }
+                Content::Style(cfg) => {
+                    if !seen_styles.insert(cfg.id.as_str()) {
+                        conflicts.push(format!(
+                            "style id '{}' appears more than once in one bundle; \
+                             keeping the first, skipping the duplicate",
+                            cfg.id
+                        ));
+                        continue;
+                    }
+                    merge_content_item(
+                        item,
+                        &mut sections,
+                        &mut scenarios,
+                        &mut campaigns,
+                        &mut styles,
+                    );
                 }
             }
         }
@@ -428,6 +471,7 @@ where
         sections,
         scenarios,
         campaigns,
+        styles,
         conflicts,
     }
 }
@@ -444,6 +488,7 @@ fn merge_content_item(
     sections: &mut Vec<SectionConfig>,
     scenarios: &mut GameScenarios,
     campaigns: &mut GameCampaigns,
+    styles: &mut Vec<ShipStyleConfig>,
 ) {
     match item {
         Content::Section(cfg) => match sections.iter_mut().find(|s| s.base.id == cfg.base.id) {
@@ -456,6 +501,13 @@ fn merge_content_item(
         Content::Campaign(cfg) => {
             campaigns.insert(cfg.id.clone(), cfg.clone());
         }
+        // A Vec like the sections, for the same reason: a style catalog has an
+        // order, and overlaying in place keeps a mod's restyle where the base
+        // one stood.
+        Content::Style(cfg) => match styles.iter_mut().find(|s| s.id == cfg.id) {
+            Some(existing) => *existing = cfg.clone(),
+            None => styles.push(cfg.clone()),
+        },
     }
 }
 
@@ -487,6 +539,7 @@ mod tests {
         let mut sections: Vec<SectionConfig> = Vec::new();
         let mut scenarios = GameScenarios::default();
         let mut campaigns = GameCampaigns::default();
+        let mut styles: Vec<ShipStyleConfig> = Vec::new();
 
         // Base bundle: two sections in palette order.
         merge_content_item(
@@ -494,12 +547,14 @@ mod tests {
             &mut sections,
             &mut scenarios,
             &mut campaigns,
+            &mut styles,
         );
         merge_content_item(
             &Content::Section(Box::new(section("thruster", 50.0))),
             &mut sections,
             &mut scenarios,
             &mut campaigns,
+            &mut styles,
         );
 
         // Mod bundle: overlays "hull" with a new health, leaves "thruster".
@@ -508,6 +563,7 @@ mod tests {
             &mut sections,
             &mut scenarios,
             &mut campaigns,
+            &mut styles,
         );
 
         // No duplicate appended: still two sections, original order kept.
@@ -525,6 +581,7 @@ mod tests {
         let mut sections: Vec<SectionConfig> = Vec::new();
         let mut scenarios = GameScenarios::default();
         let mut campaigns = GameCampaigns::default();
+        let mut styles: Vec<ShipStyleConfig> = Vec::new();
 
         let id = "shakedown_run".to_string();
         let base = ScenarioConfig::new(
@@ -540,12 +597,14 @@ mod tests {
             &mut sections,
             &mut scenarios,
             &mut campaigns,
+            &mut styles,
         );
         merge_content_item(
             &Content::Scenario(modded),
             &mut sections,
             &mut scenarios,
             &mut campaigns,
+            &mut styles,
         );
 
         assert_eq!(scenarios.len(), 1, "overlay must replace, not add");
@@ -553,6 +612,38 @@ mod tests {
             scenarios.get(&id).unwrap().name,
             "modded",
             "later scenario must win"
+        );
+    }
+
+    /// A mod restyles a base look by declaring a style with the same id, and
+    /// adds a look of its own by declaring a new one.
+    ///
+    /// The overlay is what makes a style CONTENT rather than a constant: the
+    /// base ships one, a mod replaces it or adds beside it, and every ship that
+    /// names it by id wears whatever won.
+    #[test]
+    fn a_mod_overlays_a_base_style_by_id_and_adds_its_own() {
+        let style = |id: &str, name: &str| {
+            Content::Style(ShipStyleConfig {
+                id: id.to_string(),
+                name: name.to_string(),
+                ..Default::default()
+            })
+        };
+        let base = [style("industrial", "Industrial")];
+        let modded = [style("industrial", "Rusted"), style("raider", "Raider")];
+
+        let outcome = merge_bundles([base.iter(), modded.iter()]);
+
+        assert!(outcome.conflicts.is_empty(), "{:?}", outcome.conflicts);
+        assert_eq!(
+            outcome
+                .styles
+                .iter()
+                .map(|style| (style.id.as_str(), style.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("industrial", "Rusted"), ("raider", "Raider")],
+            "the mod's style must win in place, and its new one must be added",
         );
     }
 

@@ -292,6 +292,7 @@ pub(crate) fn rebuild_editor_preview_on_enter(
         // Re-keyed onto the entities spawned here, but the same SHIP - the
         // cladding toggle is part of it and must survive the round trip.
         skin: player_config.skin,
+        style: player_config.style.clone(),
         ..default()
     };
     commands.entity(root).with_children(|parent| {
@@ -1149,6 +1150,7 @@ mod tests {
             )]),
             inputs: HashMap::from([(stale, binds.clone())]),
             skin: true,
+            style: None,
         });
 
         world

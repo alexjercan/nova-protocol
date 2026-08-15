@@ -56,6 +56,7 @@ impl WalkedBundle {
                 Content::Scenario(cfg) => cfg.id.as_str(),
                 Content::Section(cfg) => cfg.base.id.as_str(),
                 Content::Campaign(cfg) => cfg.id.as_str(),
+                Content::Style(cfg) => cfg.id.as_str(),
             };
             (id == element_id).then_some(file.as_str())
         })
@@ -104,6 +105,10 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Section(section) => sections.push(section.as_ref().clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
+            // Styles have no cross-content references of their own - a style
+            // names asset paths and nothing else - so they are walked for their
+            // resource refs (below) and need no bucket here.
+            Content::Style(_) => {}
         }
     }
     WalkedBundle {
@@ -251,6 +256,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             Content::Scenario(cfg) => (cfg.id.clone(), "scenario"),
             Content::Section(cfg) => (cfg.base.id.clone(), "section"),
             Content::Campaign(cfg) => (cfg.id.clone(), "campaign"),
+            Content::Style(cfg) => (cfg.id.clone(), "style"),
         };
         for message in nova_assets::mod_refs::resource_ref_violations(item, &scope) {
             issues.push((

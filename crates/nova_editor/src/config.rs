@@ -22,6 +22,14 @@ pub(crate) struct PlayerSpaceshipConfig {
     /// property of the ship, it has to survive a trip out to the scenario and
     /// back, and one resource changing is one thing for the preview to watch.
     pub(crate) skin: bool,
+    /// The style id the ship's cladding wears, or `None` for the first style
+    /// the content merge loaded.
+    ///
+    /// Part of the build state for the same reason `skin` is: it travels out to
+    /// the scenario with the ship. There is no picker for it yet, so the build
+    /// view falls back to the first AUTHORED style rather than to a hard-coded
+    /// id - a mod that ships one look is then what the editor shows.
+    pub(crate) style: Option<String>,
 }
 
 /// The active placement tool, driven by the rail tools and the component cards

@@ -13,7 +13,7 @@
 
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
-use nova_ship::prelude::SectionConfig;
+use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 
 use crate::base_content;
 
@@ -23,8 +23,8 @@ use crate::base_content;
 pub mod prelude {
     pub use super::{
         build_campaign_contents, build_campaigns, build_scenario_contents, build_scenarios,
-        build_section_catalog, build_section_content, content_files, pretty_config,
-        serialize_content,
+        build_section_catalog, build_section_content, build_style_content, build_styles,
+        content_files, pretty_config, serialize_content,
     };
 }
 
@@ -55,6 +55,12 @@ pub fn build_campaigns() -> Vec<CampaignConfig> {
     base_content::build().campaigns
 }
 
+/// The base game's skin styles, in a stable order - the look a ship's derived
+/// cladding wears, named by id from its config.
+pub fn build_styles() -> Vec<ShipStyleConfig> {
+    base_content::build().styles
+}
+
 /// The section catalog wrapped as one `Vec<Content>` of `Content::Section`
 /// items - the shape the committed `assets/base/sections/base.content.ron` file
 /// carries. The parity test serializes this.
@@ -63,6 +69,15 @@ pub fn build_section_content() -> Vec<Content> {
         .into_iter()
         .map(|section| Content::Section(Box::new(section)))
         .collect()
+}
+
+/// The style catalog wrapped as one `Vec<Content>` of `Content::Style` items -
+/// the shape the committed `assets/base/styles/base.content.ron` file carries.
+///
+/// ONE file for every style rather than one file each, like the sections: a
+/// style is small, the set is short, and a look is read against the others.
+pub fn build_style_content() -> Vec<Content> {
+    build_styles().into_iter().map(Content::Style).collect()
 }
 
 /// The built-in scenarios, each wrapped as its own single-item
@@ -112,10 +127,16 @@ pub fn serialize_content(content: &[Content]) -> String {
 /// (asserts) walk, so the two can never disagree about what exists or
 /// what it contains.
 pub fn content_files() -> Vec<(String, String)> {
-    let mut files = vec![(
-        "base/sections/base.content.ron".to_string(),
-        serialize_content(&build_section_content()),
-    )];
+    let mut files = vec![
+        (
+            "base/sections/base.content.ron".to_string(),
+            serialize_content(&build_section_content()),
+        ),
+        (
+            "base/styles/base.content.ron".to_string(),
+            serialize_content(&build_style_content()),
+        ),
+    ];
     files.extend(build_scenario_contents().into_iter().map(|(id, content)| {
         (
             format!("base/scenarios/{id}.content.ron"),

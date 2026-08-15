@@ -136,6 +136,7 @@ fn player_ship() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 // Both corvette turret cubes fire on LMB / right trigger.
                 input_mapping: ships::CARGOA_TURRET_IDS
@@ -183,6 +184,7 @@ fn yacht_ship() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Neutral),
             // The Ceres Queen is the racer hull - a sleek, unarmed pleasure
@@ -205,6 +207,7 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: vec![spawn_pos, HAULER_POS + Vec3::new(0.0, 40.0, 60.0)],
                 leash: Some(420.0),
@@ -238,6 +241,7 @@ fn gunship() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             allegiance: None,
             sections: ships::cargob_sections(),

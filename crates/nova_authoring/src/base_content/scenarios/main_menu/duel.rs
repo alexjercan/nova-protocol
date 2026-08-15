@@ -48,6 +48,7 @@ fn duelist(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             allegiance,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: patrol.to_vec(),
@@ -114,6 +115,7 @@ pub(crate) fn menu_duel(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::None,
             sections: vec![SpaceshipSectionConfig {

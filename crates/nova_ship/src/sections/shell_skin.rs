@@ -47,6 +47,9 @@ use crate::sections::{
     integrity::build_ship_integrity_graph,
     link_points::prelude::{LinkPoint, SectionLinkPoints},
     shell_shape::{ShellShape, ShellSurface, FULL, HALF, REACH},
+    skin_decor::{decor_body, decor_pose, dress_skin_decor, scatter_decor, ShipDecorMarker},
+    skin_reading::{read_plates, PlateReading, PlateRelief},
+    skin_style::{GameStyles, ShipStyle, ShipStyleConfig},
 };
 
 /// The prelude: `SkinStructure`, `SkinPlate`, `derive_skin`, `read_structure`,
@@ -256,7 +259,7 @@ pub fn cladding_cells(structure: &SkinStructure) -> HashSet<IVec3> {
 /// refuse the cell, and by [`boundary_heights`] to tell a pocket like this from
 /// open space - the skin ends against a pocket, and tapers away into open
 /// space.
-fn blind_pocket(structure: &SkinStructure, cell: IVec3) -> bool {
+pub(super) fn blind_pocket(structure: &SkinStructure, cell: IVec3) -> bool {
     (0..FACES.len()).any(|face| structure.offers(cell + FACES[face], face ^ 1) == Some(false))
 }
 
@@ -275,7 +278,7 @@ fn stands(structure: &SkinStructure, skin: &HashSet<IVec3>, cell: IVec3, out: us
 }
 
 /// The two axes a face lies in, lowest first.
-fn face_plane(out: usize) -> (usize, usize) {
+pub(super) fn face_plane(out: usize) -> (usize, usize) {
     match out / 2 {
         0 => (1, 2),
         1 => (0, 2),
@@ -284,7 +287,7 @@ fn face_plane(out: usize) -> (usize, usize) {
 }
 
 /// A step of `sign` along `axis`.
-fn along(axis: usize, sign: i32) -> IVec3 {
+pub(super) fn step(axis: usize, sign: i32) -> IVec3 {
     IVec3::AXES[axis] * sign
 }
 
@@ -339,7 +342,7 @@ pub fn boundary_heights(
 
     let corners = std::array::from_fn(|slot| {
         let (su, sv) = FACE_CORNERS[slot];
-        let (step_u, step_v) = (along(u, su), along(v, sv));
+        let (step_u, step_v) = (step(u, su), step(v, sv));
         height(&[cell, cell + step_u, cell + step_v, cell + step_u + step_v])
     });
     let midpoints = std::array::from_fn(|slot| {
@@ -349,7 +352,7 @@ pub fn boundary_heights(
         }
         let (au, av) = FACE_CORNERS[slot];
         let (bu, bv) = FACE_CORNERS[(slot + 1) % 4];
-        let across = along(u, (au + bu) / 2) + along(v, (av + bv) / 2);
+        let across = step(u, (au + bu) / 2) + step(v, (av + bv) / 2);
         height(&[cell, cell + across])
     });
 
@@ -365,7 +368,7 @@ pub fn boundary_heights(
 /// way it is not vacuum. Or it is a POCKET a blind face keeps the cladding out
 /// of, which is a gun well or the mouth of a drive bay - a hole in the skin
 /// rather than the end of it.
-fn ends_against(structure: &SkinStructure, skin: &HashSet<IVec3>, cell: IVec3) -> bool {
+pub(super) fn ends_against(structure: &SkinStructure, skin: &HashSet<IVec3>, cell: IVec3) -> bool {
     skin.contains(&cell) || structure.filled(cell) || blind_pocket(structure, cell)
 }
 
@@ -443,7 +446,7 @@ pub fn plate_for(
 
 /// How deep the structure under a plate runs, looking straight down from its
 /// bolt face.
-fn support_depth(structure: &SkinStructure, cell: IVec3, out: usize) -> usize {
+pub(super) fn support_depth(structure: &SkinStructure, cell: IVec3, out: usize) -> usize {
     let mut depth = 0;
     let mut under = cell + FACES[out ^ 1];
     while structure.filled(under) && depth < SUPPORT_REACH {
@@ -487,7 +490,7 @@ fn edge_slot(out: usize, direction: Vec3) -> Option<usize> {
     (0..4).find(|edge| {
         let (au, av) = FACE_CORNERS[*edge];
         let (bu, bv) = FACE_CORNERS[(edge + 1) % 4];
-        let wanted = along(u, (au + bu) / 2) + along(v, (av + bv) / 2);
+        let wanted = step(u, (au + bu) / 2) + step(v, (av + bv) / 2);
         Vec3::new(wanted.x as f32, wanted.y as f32, wanted.z as f32).dot(direction) > 0.5
     })
 }
@@ -586,17 +589,23 @@ pub fn plate_body(plate: &SkinPlate, pose: Transform) -> impl Bundle {
 /// That is what buys a destroyed section taking its own cladding down with it,
 /// for free, and it is why the pose has to be turned into the section's frame
 /// here: the derivation works in cells of the ship.
+///
+/// Decoration is scattered in the same pass, from the ship's [`ShipStyle`]. It
+/// hangs off the PLATE rather than the section, one level further out for the
+/// same reason: a plate shot off takes its greebles with it, which is what makes
+/// stripping a patch of skin read as stripping a patch of skin.
 fn spawn_ship_skin(
     mut commands: Commands,
     q_added: Query<&ChildOf, (With<SectionMarker>, Added<SectionLinkPoints>)>,
-    q_clad: Query<&ShipSkin, With<SpaceshipRootMarker>>,
+    q_clad: Query<(&ShipSkin, Option<&ShipStyle>), With<SpaceshipRootMarker>>,
     q_children: Query<&Children>,
     q_sections: Query<(&Transform, &SectionLinkPoints), With<SectionMarker>>,
+    styles: Option<Res<GameStyles>>,
 ) {
     let roots: BTreeSet<Entity> = q_added
         .iter()
         .map(|ChildOf(root)| *root)
-        .filter(|root| q_clad.get(*root).is_ok_and(|skin| skin.0))
+        .filter(|root| q_clad.get(*root).is_ok_and(|(skin, _)| skin.0))
         .collect();
 
     for root in roots {
@@ -624,26 +633,64 @@ fn spawn_ship_skin(
             .collect();
 
         let mut shapes: HashSet<ShellShape> = HashSet::new();
-        let mut laid = 0;
-        for plate in derive_skin(&structure) {
+        let plates = derive_skin(&structure);
+        // Index-aligned with `plates`, so the scatter's answers can be looked
+        // up by the index it gives them back. `None` where a plate was skipped.
+        let mut laid: Vec<Option<Entity>> = Vec::with_capacity(plates.len());
+        for plate in &plates {
             // The anchor is filled by construction, so a miss means two
             // sections shared a cell and only one of them is on record.
             let Some((section, pose)) = sections.get(&plate.anchor) else {
+                laid.push(None);
                 continue;
             };
             let turn = pose.rotation.inverse();
             let centre = plate.cell.as_vec3() + phase;
             let local = Transform::from_translation(turn * (centre - pose.translation))
                 .with_rotation(turn * plate.rotation);
-            commands.spawn((plate_body(&plate, local), ChildOf(*section)));
+            let entity = commands
+                .spawn((plate_body(plate, local), ChildOf(*section)))
+                .id();
             shapes.insert(plate.shape);
-            laid += 1;
+            laid.push(Some(entity));
         }
-        // The shape count is the interesting half: it is how many meshes the
-        // ship costs, and the shape space it is drawn from is unbounded.
+
+        let style = q_clad
+            .get(root)
+            .ok()
+            .and_then(|(_, style)| style)
+            .zip(styles.as_ref())
+            .and_then(|(worn, styles)| worn.resolve(styles));
+        let readings = read_plates(&structure, &plates);
+        let mut taken: Vec<usize> = vec![0; style.map_or(0, |style| style.fixtures.len())];
+        if let Some(style) = style {
+            for placement in scatter_decor(&plates, &readings, style) {
+                let Some(plate) = laid[placement.plate] else {
+                    continue;
+                };
+                let fixture = &style.fixtures[placement.fixture];
+                let pose = decor_pose(&plates[placement.plate], placement.turns);
+                commands.spawn((decor_body(fixture, pose), ChildOf(plate)));
+                taken[placement.fixture] += 1;
+            }
+        }
+
+        // The shape count is the interesting half of the skin: it is how many
+        // meshes the ship costs, and the shape space it is drawn from is
+        // unbounded. The RELIEF histogram and the per-fixture tally are the
+        // interesting half of the look - a style author tuning a rule needs to
+        // know what a real hull actually offers, and guessing at it from a
+        // screenshot is how a rule ends up firing everywhere or nowhere.
         debug!(
-            "spawn_ship_skin: ship {root} clad in {laid} plate(s) over {} shape(s)",
+            "spawn_ship_skin: ship {root} clad in {} plate(s) over {} shape(s); \
+             relief {}; decoration {}",
+            laid.iter().flatten().count(),
             shapes.len(),
+            relief_tally(&readings),
+            style.map_or_else(
+                || "none (no style)".to_string(),
+                |style| tally(style.fixtures.iter().map(|f| f.id.as_str()).zip(taken)),
+            ),
         );
     }
 }
@@ -712,24 +759,37 @@ pub(crate) fn section_cell(position: Vec3, phase: Vec3) -> IVec3 {
         .as_ivec3()
 }
 
+/// How rough a plate is where no style says otherwise.
+const SKIN_ROUGHNESS: f32 = 0.65;
+
+/// How metallic a plate is where no style says otherwise.
+const SKIN_METALLIC: f32 = 0.15;
+
 /// The meshes and materials every derived plate shares.
 ///
-/// Keyed by SHAPE, so a hundred plates wearing one shape hold one mesh between
-/// them and a shape nothing on screen wears is never built. Lazily filled, which
-/// is what makes the size of the shape space irrelevant: a whole ship touches a
-/// couple of dozen of them.
+/// The MESHES are keyed by SHAPE, so a hundred plates wearing one shape hold one
+/// mesh between them and a shape nothing on screen wears is never built. Lazily
+/// filled, which is what makes the size of the shape space irrelevant: a whole
+/// ship touches a couple of dozen of them.
+///
+/// The MATERIALS are keyed by style and then by role. A style can only change
+/// what a plate is made OF - the mesh is a function of the hull and cannot be
+/// authored - so two ships wearing the same style share their materials whatever
+/// shapes they came out as, and the undressed derivation is just the style keyed
+/// by the empty id.
 #[derive(Resource, Default)]
 pub struct SkinAssets {
     meshes: HashMap<ShellShape, Vec<(ShellSurface, Handle<Mesh>)>>,
-    materials: HashMap<ShellSurface, Handle<StandardMaterial>>,
+    materials: HashMap<String, HashMap<ShellSurface, Handle<StandardMaterial>>>,
 }
 
 impl SkinAssets {
-    /// The mesh and material of every surface role `shape` is cut into,
-    /// building whatever this shape is the first to need.
+    /// The mesh and material of every surface role `shape` is cut into, dressed
+    /// by `style`, building whatever this pair is the first to need.
     pub fn surfaces(
         &mut self,
         shape: ShellShape,
+        style: Option<&ShipStyleConfig>,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
     ) -> Vec<(Handle<Mesh>, Handle<StandardMaterial>)> {
@@ -744,17 +804,23 @@ impl SkinAssets {
                     .collect()
             })
             .clone();
+        let key = style.map(|style| style.id.as_str()).unwrap_or_default();
+        let dressed = match self.materials.get_mut(key) {
+            Some(dressed) => dressed,
+            None => self.materials.entry(key.to_string()).or_default(),
+        };
         surfaces
             .into_iter()
             .map(|(role, mesh)| {
-                let material = self
-                    .materials
+                let material = dressed
                     .entry(role)
                     .or_insert_with(|| {
+                        let dress = style.and_then(|style| style.surface(role));
                         materials.add(StandardMaterial {
-                            base_color: role.colour(),
-                            perceptual_roughness: 0.65,
-                            metallic: 0.15,
+                            base_color: dress.map_or_else(|| role.colour(), |dress| dress.color),
+                            perceptual_roughness: dress
+                                .map_or(SKIN_ROUGHNESS, |dress| dress.roughness),
+                            metallic: dress.map_or(SKIN_METALLIC, |dress| dress.metallic),
                             ..default()
                         })
                     })
@@ -770,10 +836,18 @@ impl SkinAssets {
 /// The RENDER half, and the whole of it: everything a plate does to the
 /// simulation is already on it before this runs. One child per surface role,
 /// because one mesh carries one material.
+///
+/// The style is found by walking UP from the plate, the same way `damage_tint`
+/// finds a mesh's owning section. A plate hangs two levels under a live ship's
+/// root and one level under the editor's preview root, and neither is the
+/// plate's business to know about.
 fn dress_skin_plate(
     add: On<Add, ShipSkinMarker>,
     mut commands: Commands,
     q_plate: Query<&ShipSkinMarker>,
+    q_child_of: Query<&ChildOf>,
+    q_style: Query<&ShipStyle>,
+    styles: Option<Res<GameStyles>>,
     mut assets: ResMut<SkinAssets>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -782,13 +856,68 @@ fn dress_skin_plate(
     let Ok(ShipSkinMarker(shape)) = q_plate.get(plate) else {
         return;
     };
-    for (mesh, material) in assets.surfaces(*shape, &mut meshes, &mut materials) {
+    let style = styles
+        .as_ref()
+        .zip(worn_style(plate, &q_child_of, &q_style))
+        .and_then(|(styles, worn)| worn.resolve(styles));
+    for (mesh, material) in assets.surfaces(*shape, style, &mut meshes, &mut materials) {
         commands.spawn((
             Name::new("Skin Surface"),
             ChildOf(plate),
             Mesh3d(mesh),
             MeshMaterial3d(material),
         ));
+    }
+}
+
+/// How many plates of each relief a skin came out as, for the spawn log.
+///
+/// What a hull OFFERS is what a style can use, and it is not obvious from
+/// looking at one: a small build is nearly all rims and studs, and a rule
+/// written for flat panels lands nowhere on it.
+fn relief_tally(readings: &[PlateReading]) -> String {
+    let count = |wanted: PlateRelief| {
+        readings
+            .iter()
+            .filter(|reading| reading.relief == wanted)
+            .count()
+    };
+    tally(
+        [
+            ("flat", count(PlateRelief::Flat)),
+            ("step", count(PlateRelief::Step)),
+            ("ridge", count(PlateRelief::Ridge)),
+            ("peak", count(PlateRelief::Peak)),
+            ("rim", count(PlateRelief::Rim)),
+        ]
+        .into_iter(),
+    )
+}
+
+/// `name xN` pairs, comma separated, skipping the zeroes.
+fn tally<'a>(counts: impl Iterator<Item = (&'a str, usize)>) -> String {
+    let listed: Vec<String> = counts
+        .filter(|(_, count)| *count > 0)
+        .map(|(name, count)| format!("{name} x{count}"))
+        .collect();
+    match listed.is_empty() {
+        true => "none".to_string(),
+        false => listed.join(", "),
+    }
+}
+
+/// The style the ship a plate hangs on wears, found by walking its ancestors.
+fn worn_style<'a>(
+    plate: Entity,
+    q_child_of: &Query<&ChildOf>,
+    q_style: &'a Query<&ShipStyle>,
+) -> Option<&'a ShipStyle> {
+    let mut current = plate;
+    loop {
+        if let Ok(style) = q_style.get(current) {
+            return Some(style);
+        }
+        current = q_child_of.get(current).ok()?.0;
     }
 }
 
@@ -848,7 +977,13 @@ impl Plugin for ShipSkinPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<ShipSkin>();
         app.register_type::<ShipSkinMarker>();
+        app.register_type::<ShipStyle>();
+        app.register_type::<ShipDecorMarker>();
         app.register_type::<SectionFixture>();
+        // Empty until the mod merge fills it, so a headless test or a scenario
+        // with no styles authored still resolves (to nothing) rather than
+        // panicking on a missing resource.
+        app.init_resource::<GameStyles>();
         app.add_systems(
             Update,
             (
@@ -865,6 +1000,7 @@ impl Plugin for ShipSkinPlugin {
         if self.render {
             app.init_resource::<SkinAssets>();
             app.add_observer(dress_skin_plate);
+            app.add_observer(dress_skin_decor);
         }
     }
 }
@@ -1149,7 +1285,7 @@ mod tests {
                 let mine = boundary_heights(&structure, &skin, cell, out);
                 let (u, v) = face_plane(out);
                 for (axis, sign) in [(u, 1), (u, -1), (v, 1), (v, -1)] {
-                    let next = cell + along(axis, sign);
+                    let next = cell + step(axis, sign);
                     if !skin.contains(&next) || !stands(&structure, &skin, next, out) {
                         continue;
                     }
@@ -1161,14 +1297,14 @@ mod tests {
                             .find(|slot| {
                                 let (au, av) = FACE_CORNERS[*slot];
                                 let (bu, bv) = FACE_CORNERS[(slot + 1) % 4];
-                                along(u, (au + bu) / 2) + along(v, (av + bv) / 2) == towards
+                                step(u, (au + bu) / 2) + step(v, (av + bv) / 2) == towards
                             })
                             .expect("an edge faces every neighbour in the plane");
                         shape.midpoints[slot]
                     };
                     assert_eq!(
-                        mid_of(&mine, along(axis, sign)),
-                        mid_of(&theirs, along(axis, -sign)),
+                        mid_of(&mine, step(axis, sign)),
+                        mid_of(&theirs, step(axis, -sign)),
                         "{cell:?} and {next:?} disagree about the midpoint between them",
                     );
                 }
@@ -1402,9 +1538,23 @@ mod tests {
 
     /// A ship root of cube sections, as the scenario spawner builds one.
     fn spawn_ship(app: &mut App, clad: bool, sections: &[(Vec3, Quat)]) -> Entity {
+        spawn_styled_ship(app, clad, None, sections)
+    }
+
+    /// The same, wearing a style by id.
+    fn spawn_styled_ship(
+        app: &mut App,
+        clad: bool,
+        style: Option<&str>,
+        sections: &[(Vec3, Quat)],
+    ) -> Entity {
         let root = app
             .world_mut()
-            .spawn((SpaceshipRootMarker, ShipSkin(clad)))
+            .spawn((
+                SpaceshipRootMarker,
+                ShipSkin(clad),
+                ShipStyle(style.map(str::to_string)),
+            ))
             .id();
         for (position, rotation) in sections {
             app.world_mut().spawn((
@@ -1552,6 +1702,115 @@ mod tests {
                 cell.x.abs() > 0.4,
                 "a plate stands at {cell}, inside the seam the two halves share",
             );
+        }
+    }
+
+    /// A ship wearing a style grows its decoration with its skin, and every
+    /// piece hangs off the PLATE it stands on.
+    ///
+    /// The parenting is the claim worth pinning: it is what makes stripping a
+    /// patch of cladding take the greebles on it, and it is one level further
+    /// out than the plates' own.
+    #[test]
+    fn a_styled_ship_grows_decoration_bolted_to_its_plates() {
+        let mut app = skin_app();
+        app.insert_resource(GameStyles(vec![test_style()]));
+        let ship = spawn_styled_ship(
+            &mut app,
+            true,
+            Some("test"),
+            &[(Vec3::ZERO, Quat::IDENTITY)],
+        );
+        app.update();
+
+        let plates = plates_of(&app, ship);
+        assert_eq!(plates.len(), 6);
+        let world = app.world();
+        let decor: Vec<Entity> = plates
+            .iter()
+            .flat_map(|(plate, _)| {
+                world
+                    .get::<Children>(*plate)
+                    .map(|children| children.iter().collect::<Vec<_>>())
+                    .unwrap_or_default()
+            })
+            .filter(|child| world.get::<ShipDecorMarker>(*child).is_some())
+            .collect();
+        assert_eq!(
+            decor.len(),
+            6,
+            "a rule with nothing filtered takes every plate",
+        );
+        for piece in &decor {
+            assert!(
+                world.get::<SectionFixture>(*piece).is_some(),
+                "a greeble read as structure by everything downstream",
+            );
+            assert!(
+                world.get::<SectionMarker>(*piece).is_none(),
+                "a greeble claiming to be a section joins the integrity graph",
+            );
+            assert!(
+                world.get::<Collider>(*piece).is_some(),
+                "a greeble a round passes through is art, not a fixture",
+            );
+        }
+
+        // The parenting claim: taking a plate off takes its greeble with it.
+        let (plate, _) = plates[0];
+        app.world_mut().entity_mut(plate).despawn();
+        app.update();
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<(), With<ShipDecorMarker>>()
+                .iter(app.world())
+                .count(),
+            5,
+            "a greeble outlived the plate it was bolted to",
+        );
+    }
+
+    /// A ship naming a style nothing authored is clad and BARE, rather than
+    /// wearing whatever style happened to load first.
+    #[test]
+    fn an_unknown_style_leaves_a_ship_undecorated() {
+        let mut app = skin_app();
+        app.insert_resource(GameStyles(vec![test_style()]));
+        let ship = spawn_styled_ship(
+            &mut app,
+            true,
+            Some("nothing_authored_this"),
+            &[(Vec3::ZERO, Quat::IDENTITY)],
+        );
+        app.update();
+
+        assert_eq!(plates_of(&app, ship).len(), 6, "the skin is still derived");
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<(), With<ShipDecorMarker>>()
+                .iter(app.world())
+                .count(),
+            0,
+            "an unknown style must not fall back to another look",
+        );
+    }
+
+    /// A style whose fixtures cover every plate, for the spawn-path tests.
+    fn test_style() -> ShipStyleConfig {
+        ShipStyleConfig {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            surfaces: Vec::new(),
+            fixtures: vec![crate::sections::skin_style::StyleFixtureConfig {
+                id: "block".to_string(),
+                model: nova_gameplay::prelude::AssetRef::from(
+                    "self://gltf/greebles/placeholder_block.glb#Scene0".to_string(),
+                ),
+                health: 10.0,
+                density: 0.1,
+                collider: Vec3::new(0.2, 0.1, 0.2),
+                scatter: default(),
+            }],
         }
     }
 

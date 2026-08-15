@@ -64,6 +64,7 @@ pub(crate) fn sync_editor_skin(
     player_config: Res<PlayerSpaceshipConfig>,
     preview: Res<PlacementPreview>,
     sections: Res<GameSections>,
+    styles: Res<GameStyles>,
     root: Option<Single<Entity, With<SpaceshipPreviewMarker>>>,
     q_plates: Query<Entity, With<EditorSkinPlate>>,
     mut shown: Local<ShownSkin>,
@@ -114,33 +115,85 @@ pub(crate) fn sync_editor_skin(
 
     let started = std::time::Instant::now();
     strip(&mut commands, &q_plates);
+    // The style goes on the preview ROOT, which is where `dress_skin_plate`'s
+    // ancestor walk looks for it - the same walk that finds a flown ship's on
+    // its own root two levels up.
+    let style = editor_style(&player_config, &styles);
+    commands
+        .entity(root)
+        .insert(ShipStyle(style.map(|style| style.id.clone())));
+
     let (structure, phase, _) = read_structure(&placed);
     let plates = derive_skin(&structure);
+    let mut laid: Vec<Entity> = Vec::with_capacity(plates.len());
     for plate in &plates {
-        commands.spawn((
-            Name::new("Editor Skin Plate"),
-            EditorSkinPlate,
-            // What `dress_skin_plate` (nova_ship) hangs the meshes off. The
-            // gameplay half of a plate - health, mass, collider - is
-            // deliberately absent: this one is a picture of a plate.
-            ShipSkinMarker(plate.shape),
-            Transform::from_translation(plate.cell.as_vec3() + phase).with_rotation(plate.rotation),
-            // A meshed child needs a parent that carries visibility, or bevy
-            // drops the mesh and says so.
-            Visibility::Inherited,
-            ChildOf(root),
-        ));
+        laid.push(
+            commands
+                .spawn((
+                    Name::new("Editor Skin Plate"),
+                    EditorSkinPlate,
+                    // What `dress_skin_plate` (nova_ship) hangs the meshes off.
+                    // The gameplay half of a plate - health, mass, collider -
+                    // is deliberately absent: this one is a picture of a plate.
+                    ShipSkinMarker(plate.shape),
+                    Transform::from_translation(plate.cell.as_vec3() + phase)
+                        .with_rotation(plate.rotation),
+                    // A meshed child needs a parent that carries visibility, or
+                    // bevy drops the mesh and says so.
+                    Visibility::Inherited,
+                    ChildOf(root),
+                ))
+                .id(),
+        );
     }
+
+    // Decoration, from the SAME scatter the flown ship runs - it is a pure
+    // function of the structure, so the build view can show it without a
+    // gameplay half. A preview greeble is a marker, a pose and a visibility and
+    // nothing else: no collider for the pointer to hit, no health, and no
+    // `EditorSkinPlate` of its own, since it goes when its plate does.
+    let mut decorated = 0;
+    if let Some(style) = style {
+        let readings = read_plates(&structure, &plates);
+        for placement in scatter_decor(&plates, &readings, style) {
+            commands.spawn((
+                Name::new("Editor Skin Decor"),
+                ShipDecorMarker(style.fixtures[placement.fixture].model.clone()),
+                decor_pose(&plates[placement.plate], placement.turns),
+                Visibility::Inherited,
+                ChildOf(laid[placement.plate]),
+            ));
+            decorated += 1;
+        }
+    }
+
     *shown = ShownSkin {
         signature: Some(signature),
         plates: plates.len(),
     };
     debug!(
-        "sync_editor_skin: {} plate(s) over {} section(s) in {:.2} ms",
+        "sync_editor_skin: {} plate(s) and {decorated} decoration(s) over {} section(s) \
+         in {:.2} ms",
         plates.len(),
         placed.len(),
         started.elapsed().as_secs_f32() * 1000.0,
     );
+}
+
+/// The style the build view dresses its cladding in.
+///
+/// The ship's own choice when it has made one. There is no picker yet, so a
+/// ship that has not falls back to the FIRST authored style rather than to a
+/// hard-coded id - which is what makes a mod that ships one look show up in the
+/// editor without the editor knowing its name.
+fn editor_style<'a>(
+    player_config: &PlayerSpaceshipConfig,
+    styles: &'a GameStyles,
+) -> Option<&'a ShipStyleConfig> {
+    match &player_config.style {
+        Some(id) => styles.get_style(id),
+        None => styles.first(),
+    }
 }
 
 /// Take every plate off the ship.
@@ -201,7 +254,7 @@ fn signature(root: Entity, placed: &[(Transform, &[LinkPoint])]) -> u64 {
 #[cfg(test)]
 mod tests {
     use avian3d::prelude::Collider;
-    use nova_gameplay::markers::prelude::SectionMarker;
+    use nova_gameplay::{markers::prelude::SectionMarker, prelude::AssetRef};
     use nova_scenario::prelude::SpaceshipSectionConfig;
 
     use super::*;
@@ -227,9 +280,15 @@ mod tests {
     /// The editor as this system sees it: a build state, a preview root, and
     /// nothing else it reads.
     fn app(skin: bool) -> App {
+        styled_app(skin, GameStyles::default())
+    }
+
+    /// The same, with a style catalog the build view can dress the skin in.
+    fn styled_app(skin: bool, styles: GameStyles) -> App {
         let mut app = App::new();
         app.insert_resource(GameSections(vec![hull("hull")]));
         app.insert_resource(PlayerSpaceshipConfig { skin, ..default() });
+        app.insert_resource(styles);
         app.init_resource::<PlacementPreview>();
         app.world_mut().spawn((
             SpaceshipPreviewMarker,
@@ -408,6 +467,90 @@ mod tests {
             alone,
             "a placement that cannot be built must not be clad"
         );
+    }
+
+    /// The build view wears a style: its plates carry the decoration the flown
+    /// ship will, bolted to the plates so a reflow takes them with it.
+    ///
+    /// The determinism is what makes this safe, and it is checked here as well
+    /// as in `nova_ship`: an idle frame must leave the same greebles on the same
+    /// entities, or a hull dragged about would twinkle.
+    #[test]
+    fn the_build_view_wears_its_ship_style() {
+        let mut app = styled_app(true, GameStyles(vec![test_style()]));
+        build(&mut app, Vec3::ZERO);
+        app.update();
+
+        assert_eq!(plates(&mut app), 6);
+        let before: Vec<Entity> = decor(&mut app);
+        assert_eq!(before.len(), 6, "an unfiltered rule dresses every plate");
+
+        // Display only: a greeble the pointer could hit would be a part on a
+        // ship nobody built, exactly as a plate would be.
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<(), (With<Collider>, With<ShipDecorMarker>)>()
+                .iter(app.world())
+                .count(),
+            0,
+            "a preview greeble stands in the pointer's way",
+        );
+
+        app.update();
+        app.update();
+        assert_eq!(
+            before,
+            decor(&mut app),
+            "an idle frame respawned the greebles"
+        );
+
+        // A reflow takes the old decoration with the old plates.
+        build(&mut app, Vec3::X);
+        app.update();
+        assert_eq!(
+            decor(&mut app).len(),
+            plates(&mut app),
+            "the decoration did not reflow with the skin",
+        );
+    }
+
+    /// No style authored anywhere is a bare skin, not a panic and not a
+    /// half-dressed one.
+    #[test]
+    fn a_build_with_no_style_authored_is_clad_and_bare() {
+        let mut app = app(true);
+        build(&mut app, Vec3::ZERO);
+        app.update();
+
+        assert_eq!(plates(&mut app), 6);
+        assert!(decor(&mut app).is_empty());
+    }
+
+    /// Every preview greeble on screen.
+    fn decor(app: &mut App) -> Vec<Entity> {
+        app.world_mut()
+            .query_filtered::<Entity, With<ShipDecorMarker>>()
+            .iter(app.world())
+            .collect()
+    }
+
+    /// A style whose one fixture takes every plate.
+    fn test_style() -> ShipStyleConfig {
+        ShipStyleConfig {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            surfaces: Vec::new(),
+            fixtures: vec![StyleFixtureConfig {
+                id: "block".to_string(),
+                model: AssetRef::from(
+                    "self://gltf/greebles/placeholder_block.glb#Scene0".to_string(),
+                ),
+                health: 10.0,
+                density: 0.1,
+                collider: Vec3::new(0.2, 0.1, 0.2),
+                scatter: default(),
+            }],
+        }
     }
 
     /// The toggle takes the skin off, and the plates go with it.

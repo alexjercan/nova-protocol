@@ -9,7 +9,9 @@
 //! - [`Content::Section`] - a [`SectionConfig`] prototype,
 //! - [`Content::Scenario`] - a [`ScenarioConfig`], and
 //! - [`Content::Campaign`] - a [`CampaignConfig`], the ordered scenario-id
-//!   mapping the Scenarios picker groups and launches by.
+//!   mapping the Scenarios picker groups and launches by, and
+//! - [`Content::Style`] - a [`ShipStyleConfig`], the look a ship's derived skin
+//!   wears: materials per surface role plus the decoration it scatters.
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
 //! loader reads any content file and a downstream router (`nova_assets`'s
@@ -44,7 +46,7 @@ use bevy::{
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta};
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
-use nova_ship::prelude::SectionConfig;
+use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use serde::{Deserialize, Serialize};
 
 /// Glob-import surface: `use nova_modding::prelude::*` brings the content/bundle
@@ -77,6 +79,10 @@ pub enum Content {
     /// Carries the campaign's ordered member scenario ids (hidden ones
     /// included) so the picker can group and launch them as a unit.
     Campaign(CampaignConfig),
+    /// A [`ShipStyleConfig`] - registers into `GameStyles` keyed by its id. A
+    /// ship names one and its derived skin wears it, so a mod can ship a look
+    /// and a scenario can put it on the enemies without any code changing.
+    Style(ShipStyleConfig),
 }
 
 /// The content of one `*.content.ron` file: a thin [`Asset`] wrapper around a

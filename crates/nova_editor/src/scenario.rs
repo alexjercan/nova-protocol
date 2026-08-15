@@ -309,6 +309,7 @@ fn target_hulk(index: usize, position: Vec3) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             allegiance: None,
             controller: SpaceshipController::None,
             sections: vec![
@@ -348,6 +349,7 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::AI(AIControllerConfig {
                 // Territorial: a woken picket fights over its own patch and
@@ -428,6 +430,7 @@ fn player_ship(player_config: &PlayerSpaceshipConfig) -> ScenarioObjectConfig {
             // derived skin over the same structure, so the flown ship must not
             // come up bare (or clad) against it.
             skin: player_config.skin,
+            style: player_config.style.clone(),
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: player_config
@@ -1084,6 +1087,7 @@ mod tests {
         for clad in [false, true] {
             let config = PlayerSpaceshipConfig {
                 skin: clad,
+                style: None,
                 ..default()
             };
             let player = find(&sandbox_objects(&config, Handle::default()), PLAYER_ID);

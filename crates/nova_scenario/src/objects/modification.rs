@@ -462,6 +462,7 @@ mod tests {
                 spaceship_scenario_object(SpaceshipConfig {
                     collapse_threshold: None,
                     skin: false,
+                    style: None,
                     controller: SpaceshipController::None,
                     allegiance: None,
                     sections: vec![SpaceshipSectionConfig {

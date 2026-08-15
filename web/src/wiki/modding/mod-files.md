@@ -2,7 +2,8 @@
 
 A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-three kinds of reusable item: campaigns, scenarios, and ship sections.
+four kinds of reusable item: campaigns, scenarios, ship sections, and ship skin
+styles.
 
 Use this page to choose the right file. Then open the detailed reference for the
 item you want to author.
@@ -81,7 +82,7 @@ The full packaging, catalog, local installation, and publishing flow is in
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-three item kinds:
+four item kinds:
 
 ```ron
 [
@@ -109,6 +110,11 @@ three item kinds:
             render_mesh: Some("dep://base/gltf/hull-01.glb#Scene0"),
         )),
     )),
+    Style((
+        id: "my_look",
+        name: "My Look",
+        fixtures: [],
+    )),
 ]
 ```
 
@@ -116,7 +122,7 @@ Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in `content`.
 
-## The three content chapters
+## The four content chapters
 
 <div id="wiki-children"></div>
 
@@ -125,6 +131,8 @@ Large mods can use one scenario per file and list all of them in `content`.
   filters, actions, objects, and expressions belong to scenario scripting.
 - A [section](../sections/) defines a reusable hull, thruster, controller,
   turret, or torpedo bay.
+- A [style](../styles/) defines the look a ship's derived cladding wears: plate
+  materials, and the destructible decoration scattered over them.
 
 ## Paths and dependencies
 

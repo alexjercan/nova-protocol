@@ -52,6 +52,7 @@ it if the change made it wrong - not every change touches every listed page.
 | --- | --- | --- | --- |
 | **The crate layout itself**: a split, merge, rename, or move (`crates/*`) | | `dev/architecture.md` (crate map + dependency graph + assembly), `dev/project-tour.md` (crate map + change-X table), and THIS page's own row keys | CHANGELOG (Internals) |
 | Ship sections, integrity, typed damage, ammo (`nova_ship/sections`, `nova_gameplay/integrity`) | `sections.md` (+ section children), `hud.md` | `dev/sections.md`, `dev/guide-add-section.md`, `modding/sections.md` | CHANGELOG |
+| The derived skin, its plate vocabulary and skin styles (`nova_ship/sections/shell_*`, `skin_*`, `scripts/gen-greebles.py`) | `sections.md` | `dev/sections.md` (the derived skin), `modding/styles.md`, `modding/base-content.md` (style ids, greeble assets), `modding/objects.md` (the ship's `skin` / `style` fields) | CHANGELOG |
 | Flight, controller, camera (`nova_ship/input`, `camera`) | `flight-autopilot.md`, `keybinds.md` | `dev/architecture.md` | CHANGELOG |
 | Targeting, radar, weapons, turrets, torpedoes (`nova_ship` targeting/sections, `nova_hud`) | `targeting-radar.md`, `combat-weapons.md`, `hud.md` | `dev/architecture.md` | CHANGELOG |
 | Gravity wells, factions, world (`nova_gameplay`) | `gravity-wells.md`, `factions.md` | | CHANGELOG |

@@ -105,6 +105,7 @@ const SOCKET_EPSILON: f32 = 1e-4;
 /// buy anything: `damage_tint` hands every section a private clone of its
 /// material, so sections do not batch with each other whatever the mesh does.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ShellSurface {
     /// The cell floor the tile bolts down through. Never seen - it is against
     /// the section it clads.

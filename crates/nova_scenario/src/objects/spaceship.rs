@@ -278,6 +278,19 @@ pub struct SpaceshipConfig {
     /// modelled semantic parts are not.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
     pub skin: bool,
+    /// The LOOK the derived skin wears, by style id: the material of each
+    /// surface role plus the decoration scattered over it. See
+    /// [`ShipStyleConfig`].
+    ///
+    /// `None` (omit the field) is the undressed derivation - built-in plate
+    /// colours and no greebles. A style named here but authored by nobody leaves
+    /// the ship bare rather than falling back to another look, so a missing mod
+    /// is visible instead of silently substituted.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub style: Option<String>,
 }
 
 /// `skip_serializing_if` predicate for a `bool` that defaults to false, so an
@@ -305,6 +318,7 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
         SpaceshipSectionsConfig(config.sections),
         collapse_threshold,
         ShipSkin(config.skin),
+        ShipStyle(config.style),
         RigidBody::Dynamic,
         // Physics advances Transform only on fixed ticks (64 Hz by default);
         // everything watched by the render-rate camera must interpolate between
@@ -587,6 +601,7 @@ mod tests {
                     spaceship_scenario_object(SpaceshipConfig {
                         collapse_threshold: None,
                         skin: false,
+                        style: None,
                         allegiance: None,
                         controller: SpaceshipController::AI(config),
                         sections: vec![],
@@ -695,6 +710,7 @@ mod tests {
                 spaceship_scenario_object(SpaceshipConfig {
                     collapse_threshold: None,
                     skin: false,
+                    style: None,
                     allegiance: None,
                     controller: SpaceshipController::Player(PlayerControllerConfig {
                         infinite_ammo,
@@ -774,6 +790,7 @@ mod tests {
                     spaceship_scenario_object(SpaceshipConfig {
                         collapse_threshold: None,
                         skin: false,
+                        style: None,
                         allegiance: None,
                         controller,
                         sections,
@@ -827,6 +844,7 @@ mod tests {
                     spaceship_scenario_object(SpaceshipConfig {
                         collapse_threshold: None,
                         skin: false,
+                        style: None,
                         controller: SpaceshipController::AI(config),
                         allegiance: None,
                         sections: vec![],
@@ -877,6 +895,7 @@ mod tests {
                     spaceship_scenario_object(SpaceshipConfig {
                         collapse_threshold,
                         skin: false,
+                        style: None,
                         allegiance: None,
                         controller: SpaceshipController::None,
                         sections: vec![],

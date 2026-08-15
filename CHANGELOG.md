@@ -226,6 +226,22 @@ tagged **(breaking)**.
   apart.
 - Semantic parts are named for the craft they came off - `CargoB // Nose`
   rather than a third part called `Nose`.
+- A clad ship can wear a STYLE: `style: Some("<id>")` beside `skin: true`, and
+  its cladding gets authored plate materials plus destructible decoration -
+  vents, ribbing, blisters, masts - scattered over it. A greeble is a fixture
+  like a plate: health, mass, a collider, shot off and gone, and it hangs off the
+  plate it stands on, so stripping a patch of skin strips its greebles too.
+- Decoration is placed from what the derivation ALREADY works out about each
+  plate: whether it is a flat panel, a step, a ridge, a stud or a rim, which way
+  it faces, how long the run through it is and which way that run points, how
+  far it is from the end of that run, how much of its cell it fills, how deep
+  the ship under it goes, and how close the mouth of a fitting is. A rule filters
+  on those and claims cells on a lattice, so a row of vents lines up with itself
+  and with the hull.
+- The scatter is DETERMINISTIC: no RNG anywhere, just a hash of the cell. The
+  same ship always wears the same greebles, the build view shows them live while
+  a hull is dragged without anything flickering, and a reloaded ship comes back
+  identical.
 
 ### Scenarios & Objectives
 
@@ -265,6 +281,17 @@ tagged **(breaking)**.
   the skybox as you pass through. It still has no ending - the standing
   objective just names F1 as the way back to the editor - but dying now offers
   a Retry of the same range instead of a silent restart.
+
+### Modding & Mod Portal
+
+- A new content kind: `Style`. A mod can author the look a ship's derived
+  cladding wears - a material per plate surface, plus decoration fixtures with
+  their own models, health, colliders and placement rules - and a scenario picks
+  one per ship by id. Declaring a base style's id replaces that look everywhere,
+  exactly as a section id does. Documented in the modding wiki.
+- A mod can ship its own greeble `.glb` files and reference them with `self://`,
+  the same contract every other mod asset has. The base game's four placeholders
+  are reachable as `dep://base/gltf/greebles/<id>.glb`.
 
 ### Interface & HUD
 

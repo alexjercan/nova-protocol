@@ -186,11 +186,23 @@ fn load_row(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    styles: Res<GameStyles>,
     roster: Res<Roster>,
 ) {
-    commands.trigger(LoadScenario(wfc_row(&game_assets, &sections, *roster)));
+    // The FIRST authored style, whatever the merged content called it. This
+    // example is a producer, not content: it must not know a style's id.
+    let style = styles.first().map(|style| style.id.as_str());
+    commands.trigger(LoadScenario(wfc_row(
+        &game_assets,
+        &sections,
+        *roster,
+        style,
+    )));
     spawn_readout(&mut commands);
 }
+
+/// The id of the style the row's clad ships wear, read off the merged content.
+type StyleId<'a> = Option<&'a str>;
 
 /// `R` re-rolls the whole row: a fresh scenario off the next seed block,
 /// through the same `LoadScenario` path the first row took (which tears the
@@ -200,6 +212,7 @@ fn reroll_on_key(
     keyboard: Res<ButtonInput<KeyCode>>,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    styles: Res<GameStyles>,
     mut roster: ResMut<Roster>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyR) {
@@ -209,7 +222,13 @@ fn reroll_on_key(
     } else {
         return;
     }
-    commands.trigger(LoadScenario(wfc_row(&game_assets, &sections, *roster)));
+    let style = styles.first().map(|style| style.id.as_str());
+    commands.trigger(LoadScenario(wfc_row(
+        &game_assets,
+        &sections,
+        *roster,
+        style,
+    )));
 }
 
 // ---------------------------------------------------------------------------
@@ -1239,7 +1258,7 @@ fn refuse_blocked_exits(cells: &[ShipCell], seed: u64) {
 
 /// One collapsed ship: structure mirrored into a whole hull, and a flag asking
 /// the game to clad it.
-fn wfc_ship(tiles: &[Tile], seed: u64, roster: Roster) -> SpaceshipConfig {
+fn wfc_ship(tiles: &[Tile], seed: u64, roster: Roster, style: StyleId) -> SpaceshipConfig {
     let mut domains = hull_domains(tiles);
     seed_keel(tiles, &mut domains);
     let chosen = collapse(
@@ -1301,6 +1320,11 @@ fn wfc_ship(tiles: &[Tile], seed: u64, roster: Roster) -> SpaceshipConfig {
         // above at spawn - which is what makes the clad frame evidence rather
         // than a picture of what this file already decided.
         skin: roster.clad,
+        // The look, by id, out of the MERGED content - never a literal. A clad
+        // ship wears whatever style the content shipped, so nothing in this
+        // file names a greeble, a rule or a cell, and a mod that overlays the
+        // style changes the shot without changing the example.
+        style: roster.clad.then_some(style).flatten().map(str::to_string),
         collapse_threshold: None,
         allegiance: None,
         // Scenery: these are subjects, not craft. Nothing flies them and
@@ -1327,7 +1351,12 @@ fn stand_position(index: usize, ships: usize) -> Vec3 {
 /// The stage: a row of collapsed ships under the game's own sky and the
 /// repo's standard three-point rig, so the subjects render the way the game
 /// would draw them.
-fn wfc_row(game_assets: &GameAssets, sections: &GameSections, roster: Roster) -> ScenarioConfig {
+fn wfc_row(
+    game_assets: &GameAssets,
+    sections: &GameSections,
+    roster: Roster,
+    style: StyleId,
+) -> ScenarioConfig {
     let tiles = tile_set(sections);
     let ships = (0..roster.ships).map(|index| {
         let seed = roster.seed.wrapping_add(index as u64);
@@ -1338,7 +1367,7 @@ fn wfc_row(game_assets: &GameAssets, sections: &GameSections, roster: Roster) ->
                 position: stand_position(index, roster.ships),
                 rotation: Quat::from_rotation_y(SHIP_YAW),
             },
-            kind: ScenarioObjectKind::Spaceship(wfc_ship(&tiles, seed, roster)),
+            kind: ScenarioObjectKind::Spaceship(wfc_ship(&tiles, seed, roster, style)),
         })
     });
 
@@ -1723,12 +1752,14 @@ fn wfc_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
         .on_enter(|world: &mut World| {
             let assets = world.resource::<GameAssets>().clone();
             let sections = world.resource::<GameSections>().clone();
+            let styles = world.resource::<GameStyles>().clone();
             let next = Roster {
                 clad: false,
                 ..*world.resource::<Roster>()
             };
             *world.resource_mut::<Roster>() = next;
-            world.trigger(LoadScenario(wfc_row(&assets, &sections, next)));
+            let style = styles.first().map(|style| style.id.as_str());
+            world.trigger(LoadScenario(wfc_row(&assets, &sections, next, style)));
         })
         .until(and(scenario_camera_present(), frames(SETTLE_FRAMES)))
         .deadline(STEP_DEADLINE_SECS)

@@ -96,6 +96,7 @@ fn battery(id: &str, park: Vec3) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             allegiance: Some(Allegiance::Enemy),
             controller: SpaceshipController::None,
             sections: vec![SpaceshipSectionConfig {
@@ -193,6 +194,7 @@ pub(crate) fn menu_gauntlet(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             // Player allegiance is what makes the Enemy batteries' torpedoes
             // hostile - AI-vs-AI combat needs one side on the player's team.
             allegiance: Some(Allegiance::Player),

@@ -5,13 +5,14 @@
 //! Generic authoring helpers, lint, and serialization tooling stay outside it.
 
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
-use nova_ship::prelude::SectionConfig;
+use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 
 pub(crate) mod assets;
 pub(crate) mod campaigns;
 pub(crate) mod scenarios;
 pub(crate) mod sections;
 pub(crate) mod ships;
+pub(crate) mod styles;
 
 use assets::BaseContentAssets;
 
@@ -20,6 +21,7 @@ pub(crate) struct BaseContent {
     pub(crate) sections: Vec<SectionConfig>,
     pub(crate) scenarios: Vec<ScenarioConfig>,
     pub(crate) campaigns: Vec<CampaignConfig>,
+    pub(crate) styles: Vec<ShipStyleConfig>,
 }
 
 /// Build every built-in content family from one explicit asset inventory.
@@ -29,5 +31,6 @@ pub(crate) fn build() -> BaseContent {
         sections: sections::section_catalog(&assets),
         scenarios: scenarios::catalog(&assets),
         campaigns: campaigns::catalog(),
+        styles: styles::style_catalog(&assets),
     }
 }

@@ -55,6 +55,19 @@ hull behind it bare. Build the hull out of the unit-cell sections above; the
 semantic ship parts are modelled shapes of their own sizes and are not on the
 lattice the derivation reads.
 
+What the cladding LOOKS like is a [style](../styles/), which IS content and does
+have an id.
+
+### Skin styles
+
+| id | what it is |
+|---|---|
+| `placeholder` | scaffolding, in deliberately garish magenta: four placeholder greebles wired to four rules that exercise the whole plate vocabulary. It makes no art decision and the authored kits replace it |
+
+A ship names one with `style: Some("<id>")` beside `skin: true`. A mod declaring
+a `Style` with the same id replaces that look everywhere; a new id is a new look.
+See [Ship skin styles](../styles/).
+
 ### Semantic ship parts
 
 These prototypes are in the editor palette, and mods can reference them. Their
@@ -160,6 +173,15 @@ Semantic ship meshes use `#Scene0` and live under `gltf/parts/`:
 
 Cladding ships no meshes and never will: a ship's skin is derived from its
 structure and built at run time - see [Cladding](#cladding-not-a-prototype).
+
+### Greebles (4 glb)
+
+The decoration models the base [styles](../styles/) scatter, under
+`dep://base/gltf/greebles/`: `placeholder_blister.glb`, `placeholder_block.glb`,
+`placeholder_mast.glb`, `placeholder_vent.glb`. PLACEHOLDERS in garish magenta,
+shipped to prove the pipeline; the authored kits replace them. They are
+generated from committed JSON recipes (`scripts/gen-greebles.py`), and a mod can
+ship its own the same way.
 
 ### Sounds (13 wav)
 

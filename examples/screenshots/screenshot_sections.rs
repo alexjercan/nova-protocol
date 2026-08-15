@@ -117,6 +117,7 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     let ship = SpaceshipConfig {
         collapse_threshold: None,
         skin: false,
+        style: None,
         allegiance: None,
         controller: SpaceshipController::None,
         sections: vec![

@@ -637,6 +637,7 @@ mod tests {
         SpaceshipConfig {
             collapse_threshold: None,
             skin: false,
+            style: None,
             controller,
             allegiance: None,
             sections: prototypes

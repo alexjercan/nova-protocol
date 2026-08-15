@@ -1,0 +1,109 @@
+[
+    Style((
+        id: "placeholder",
+        name: "Placeholder",
+        surfaces: [
+            (
+                surface: Top,
+                color: LinearRgba((
+                    red: 0.125,
+                    green: 0.135,
+                    blue: 0.16,
+                    alpha: 1.0,
+                )),
+                roughness: 0.6,
+                metallic: 0.2,
+            ),
+            (
+                surface: Wall,
+                color: LinearRgba((
+                    red: 0.07,
+                    green: 0.082,
+                    blue: 0.11,
+                    alpha: 1.0,
+                )),
+                roughness: 0.7,
+                metallic: 0.15,
+            ),
+        ],
+        fixtures: [
+            (
+                id: "placeholder_mast",
+                model: "self://gltf/greebles/placeholder_mast.glb#Scene0",
+                health: 8.0,
+                density: 0.05,
+                collider: (
+                    0.12,
+                    0.38,
+                    0.12,
+                ),
+                scatter: (
+                    relief: [
+                        Ridge,
+                        Peak,
+                        Step,
+                    ],
+                    facing: Up,
+                    min_height: 2,
+                    min_depth: 2,
+                    stride: 1,
+                    chance: 0.3,
+                ),
+            ),
+            (
+                id: "placeholder_vent",
+                model: "self://gltf/greebles/placeholder_vent.glb#Scene0",
+                health: 12.0,
+                density: 0.15,
+                collider: (
+                    0.32,
+                    0.04,
+                    0.2,
+                ),
+                scatter: (
+                    relief: [
+                        Flat,
+                    ],
+                    min_run: 2,
+                    stride: 2,
+                    chance: 0.8,
+                    align: true,
+                ),
+            ),
+            (
+                id: "placeholder_block",
+                model: "self://gltf/greebles/placeholder_block.glb#Scene0",
+                health: 20.0,
+                density: 0.2,
+                collider: (
+                    0.22,
+                    0.1,
+                    0.22,
+                ),
+                scatter: (
+                    min_height: 2,
+                    max_border: Some(0),
+                    stride: 1,
+                    chance: 0.6,
+                    align: true,
+                ),
+            ),
+            (
+                id: "placeholder_blister",
+                model: "self://gltf/greebles/placeholder_blister.glb#Scene0",
+                health: 16.0,
+                density: 0.2,
+                collider: (
+                    0.18,
+                    0.07,
+                    0.18,
+                ),
+                scatter: (
+                    near_fitting: Some(1),
+                    stride: 2,
+                    chance: 0.5,
+                ),
+            ),
+        ],
+    )),
+]

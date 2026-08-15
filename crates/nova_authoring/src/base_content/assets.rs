@@ -49,6 +49,12 @@ pub struct BaseContentAssets {
     pub section_destroy_sound: AssetRef<AudioSource>,
     /// The thruster engine hum.
     pub thruster_loop_sound: AssetRef<AudioSource>,
+    /// The decoration models a skin style scatters, generated from the recipes
+    /// in `scripts/greeble-recipes/`. Placeholders until Phase B's kits land.
+    pub greeble_blister: AssetRef<WorldAsset>,
+    pub greeble_block: AssetRef<WorldAsset>,
+    pub greeble_mast: AssetRef<WorldAsset>,
+    pub greeble_vent: AssetRef<WorldAsset>,
 }
 
 impl BaseContentAssets {
@@ -78,6 +84,18 @@ impl BaseContentAssets {
             section_impact_sound: AssetRef::from("self://sounds/impact.wav".to_string()),
             section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),
             thruster_loop_sound: AssetRef::from("self://sounds/thruster_loop.wav".to_string()),
+            greeble_blister: AssetRef::from(
+                "self://gltf/greebles/placeholder_blister.glb#Scene0".to_string(),
+            ),
+            greeble_block: AssetRef::from(
+                "self://gltf/greebles/placeholder_block.glb#Scene0".to_string(),
+            ),
+            greeble_mast: AssetRef::from(
+                "self://gltf/greebles/placeholder_mast.glb#Scene0".to_string(),
+            ),
+            greeble_vent: AssetRef::from(
+                "self://gltf/greebles/placeholder_vent.glb#Scene0".to_string(),
+            ),
         }
     }
 }

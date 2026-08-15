@@ -280,6 +280,7 @@ fn attitude_rig(
     let ship = SpaceshipConfig {
         collapse_threshold: None,
         skin: false,
+        style: None,
         allegiance: None,
         controller: SpaceshipController::None,
         sections: ship_sections,

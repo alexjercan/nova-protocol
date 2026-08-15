@@ -63,6 +63,7 @@ pub fn ship(
     SpaceshipConfig {
         collapse_threshold: None,
         skin: false,
+        style: None,
         allegiance: None,
         controller,
         sections: specs

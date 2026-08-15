@@ -223,6 +223,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
     let ship = SpaceshipConfig {
         collapse_threshold: None,
         skin: false,
+        style: None,
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig::default()),
         sections: vec![

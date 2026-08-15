@@ -77,6 +77,7 @@ pub(crate) fn asteroid_field(
     let spaceship = SpaceshipConfig {
         collapse_threshold: None,
         skin: false,
+        style: None,
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             // Translation is no longer a per-section binding: the flight
@@ -147,6 +148,7 @@ pub(crate) fn asteroid_field(
     let spaceship = SpaceshipConfig {
         collapse_threshold: None,
         skin: false,
+        style: None,
         controller: SpaceshipController::None,
         allegiance: None,
         sections: vec![

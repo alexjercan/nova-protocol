@@ -9,7 +9,8 @@ vocabulary; anything it does, your content can do.
 **Learning rather than looking up?** Follow
 [Create your first scenario](../author-a-scenario/) and
 [Publish a mod](../publish-a-mod/) first. Return here when you want the complete
-format for campaigns, scenarios, sections, or more advanced mission logic.
+format for campaigns, scenarios, sections, styles, or more advanced mission
+logic.
 
 ## How RON content is written
 
@@ -38,13 +39,13 @@ The five spelling rules behind every snippet in these pages:
 
 | family | constructs |
 |---|---|
-| Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Scenario`](../scenarios/), [`Section`](../sections/) |
+| Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Scenario`](../scenarios/), [`Section`](../sections/), [`Style`](../styles/) |
 | Events (16) | [`OnStart`](../events/#onstart), [`OnUpdate`](../events/#onupdate), [`OnTimerEnd`](../events/#ontimerend), [`OnDefeated`](../events/#ondefeated), [`OnDestroyed`](../events/#ondestroyed), [`OnNeutralized`](../events/#onneutralized), [`OnEnter`](../events/#onenter), [`OnExit`](../events/#onexit), [`OnOrbitStart`](../events/#orbit-lifecycle), [`OnOrbitStable`](../events/#orbit-lifecycle), [`OnOrbitUnstable`](../events/#orbit-lifecycle), [`OnOrbitEnd`](../events/#orbit-lifecycle), [`OnTravelLockStart`](../events/#lock-lifecycle), [`OnTravelLockEnd`](../events/#lock-lifecycle), [`OnCombatLockStart`](../events/#lock-lifecycle), [`OnCombatLockEnd`](../events/#lock-lifecycle) |
 | Filters (4) | [`Entity`](../filters/#entity), [`Timer`](../filters/#timer), [`Expression`](../filters/#expression), [`Conditional`](../filters/#conditional) (`Not` / `And` / `Or`) |
 | Actions (25) | spawning: [`SpawnScenarioObject`](../actions/#spawnscenarioobject), [`ScatterObjects`](../actions/#scatterobjects), [`DespawnScenarioObject`](../actions/#despawnscenarioobject), [`CreateScenarioArea`](../actions/#createscenarioarea) - mission: [`Objective`](../actions/#objective), [`ObjectiveComplete`](../actions/#objectivecomplete), [`ObjectiveMarkerAttach`](../actions/#objectivemarkerattach), [`ObjectiveMarkerDetach`](../actions/#objectivemarkerdetach), [`StoryMessage`](../actions/#storymessage), [`HudReadout`](../actions/#hudreadout), [`HintEmphasisSet`](../actions/#hintemphasisset), [`HintEmphasisClear`](../actions/#hintemphasisclear) - flow: [`Outcome`](../actions/#outcome), [`NextScenario`](../actions/#nextscenario) - ships: [`SetSpeedCap`](../actions/#setspeedcap), [`SetControllerVerb`](../actions/#setcontrollerverb), [`SetAllegiance`](../actions/#setallegiance), [`ForceTorpedoLaunch`](../actions/#forcetorpedolaunch) - state: [`VariableSet`](../actions/#variableset), [`TimerStart`](../actions/#timerstart), [`TimerCancel`](../actions/#timercancel), [`DebugMessage`](../actions/#debugmessage) - view: [`SetCamera`](../actions/#setcamera), [`Screenshot`](../actions/#screenshot), [`SetSkybox`](../actions/#setskybox) |
 | Objects (6) | [`Anchor`](../objects/#anchor), [`Asteroid`](../objects/#asteroid), [`Spaceship`](../objects/#spaceship), [`Beacon`](../objects/#beacon), [`SalvageCrate`](../objects/#salvagecrate), [`Light`](../objects/#light) (`Directional` / `Point`) |
 | Expression nodes (16) | values: [`Number`, `String`, `Boolean`](../expressions/#values-the-literal-types) - atoms: [`Literal`, `Name`, `Query`, `Parens`](../expressions/#factors-the-atoms) - terms: [`Factor`, `Multiply`, `Divide`](../expressions/#terms-multiply-divide) - expressions: [`Term`, `Add`, `Subtract`](../expressions/#expressions-add-subtract-the-value-root) - conditions: [`LessThan`, `GreaterThan`, `Equal`](../expressions/#conditions-the-boolean-root) |
-| Base ids & assets | [section prototypes](../base-content/#section-prototypes), [scenario ids](../base-content/#scenario-ids), [`dep://base/` assets](../base-content/#assets-what-depbase-can-reach) |
+| Base ids & assets | [section prototypes](../base-content/#section-prototypes), [scenario ids](../base-content/#scenario-ids), [style ids](../base-content/#skin-styles), [`dep://base/` assets](../base-content/#assets-what-depbase-can-reach) |
 
 The wiki search (sidebar) indexes every construct name, so typing
 `ScatterObjects` or `OnEnter` up there jumps straight to the right page.
