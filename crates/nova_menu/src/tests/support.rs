@@ -12,7 +12,6 @@ use nova_assets::{
         ModCatalog, ModInfo, ModMeta, RemoteCatalog, RemoteCatalogState, UninstallPortalMod,
     },
 };
-use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 

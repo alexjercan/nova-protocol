@@ -145,7 +145,7 @@ readable as a channel gap.
 | --- | --- |
 | `crates/nova_scenario/src/objects/spaceship.rs:364` | the spawn arm (`insert_spaceship_sections`) a new kind must join; with `lint/mod.rs:60`, `loader/mod.rs` and `objects/modification.rs` it is the rest of the `SectionKind` reach in nova_scenario |
 | `crates/nova_authoring/src/balance.rs:166` | the balance audit's `SectionKind` match - the only production match left of the old nova_assets trio (`merge.rs` and `mod_refs.rs` now touch it in tests only) |
-| `crates/nova_gameplay/src/damage.rs:74` | `SectionDamageClass` / `resistance`, if the bubble joins the damage pipeline |
+| `crates/nova_gameplay/src/damage.rs:116` | `SectionClass` - the ship computer's per-kind label, a discriminant-only mirror of `SectionKind`. Not a damage hook: nothing in the damage path branches on it (the `SectionDamageClass`/`resistance` table it grew out of is gone), but a new kind still needs a variant here plus the `nova_os_ui` glyph and description arms that match on it (`crates/nova_os_ui/src/ship/sections.rs:44,55`) |
 | `crates/nova_probe/src/fixtures.rs` | still the catalog_drift workaround t1-013 probes; its `SectionKind` use is test-only now |
 | `examples/sections/` | the per-section example convention |
 | the affected player wiki + tutorial | required by the Documentation table only if first-flight changes |

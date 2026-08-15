@@ -14,7 +14,7 @@
 //!   trips none of the marker-filtered `Single<Camera>` queries.
 //! - A corner [`ImageNode`] panel showing that texture, spawned with the player
 //!   HUD (hud/mod.rs observers) and shown whenever a COMBAT LOCK exists.
-//! - An in-scene emissive overlay on the fine-locked section, so the selection
+//! - An in-scene tinted overlay on the fine-locked section, so the selection
 //!   reads in BOTH the main view and the inset with no projection code.
 //!
 //! INSET-ON-LOCK: the camera spawns/despawns and
@@ -138,9 +138,9 @@ const INSET_MIN_DISTANCE: f32 = 6.0;
 /// the hull reads instead of an edge-on silhouette. A feel knob.
 const INSET_ELEVATION: f32 = 0.3;
 
-/// Scale of the emissive highlight shell around the selected section's unit
-/// box: slightly larger so it reads as an outline glow rather than replacing
-/// the section. A feel knob.
+/// Scale of the highlight shell around the selected section's unit box:
+/// slightly larger so it reads as an outline around the section rather than
+/// replacing it. A feel knob.
 const HIGHLIGHT_SCALE: f32 = 1.14;
 
 /// Marker for the inset panel root (the `ImageNode`).
@@ -216,7 +216,7 @@ const KILL_CAM_SECS: f32 = 2.0;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetCameraMarker;
 
-/// Marker for the emissive overlay spawned as a child of the fine-locked
+/// Marker for the highlight overlay spawned as a child of the fine-locked
 /// section.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetHighlightMarker;
@@ -238,17 +238,24 @@ pub struct TargetInsetRenderTarget(pub Option<Handle<Image>>);
 pub struct TargetInsetHighlightAssets {
     /// The shared shell mesh reused for every section highlight.
     pub mesh: Handle<Mesh>,
-    /// The shared emissive shell material.
+    /// The shared shell material.
     pub material: Handle<StandardMaterial>,
 }
 
-/// The emissive shell material: an unlit, additive-looking translucent red that
-/// blooms in both the main view and the inset. Double-sided with no culling so
-/// the shell reads as a glow around the section rather than a solid block.
+/// The shell material: a flat translucent red wash that reads the same in the
+/// main view and the inset. Double-sided with no culling so the shell tints the
+/// whole section rather than showing as a one-sided plate.
+///
+/// UNLIT, which is the crate's convention for a world-space HUD mesh (see the
+/// lib doc): a selection overlay must read identically on the lit and the
+/// shadowed face of a hull, so it must not sample scene lighting. That rules
+/// out `emissive` as well - it is applied inside `apply_pbr_lighting`, which
+/// the unlit path skips, so an emissive here would be dead. The shell does NOT
+/// bloom; dropping `unlit` to make it bloom instead makes it a per-face shaded
+/// solid, which is what the flat wash exists to avoid.
 pub fn highlight_material() -> StandardMaterial {
     StandardMaterial {
         base_color: Color::srgba(1.0, 0.35, 0.25, 0.22),
-        emissive: LinearRgba::rgb(3.0, 0.7, 0.4),
         unlit: true,
         alpha_mode: AlphaMode::Blend,
         double_sided: true,
@@ -970,7 +977,7 @@ fn pulse_no_signal(
     }
 }
 
-/// Keep exactly one emissive highlight overlay on the fine-locked section, and
+/// Keep exactly one highlight overlay on the fine-locked section, and
 /// none otherwise. The selection is already focus-gated by the targeting layer
 /// (`ComponentLock.section` is only `Some` while focused), so
 /// this reconcile just mirrors it; a detached/despawned section drops its
@@ -1013,7 +1020,7 @@ fn sync_section_highlight(
     }
 }
 
-/// One emissive shell child, scaled just past the section's unit box.
+/// One shell child, scaled just past the section's unit box.
 fn highlight_bundle(assets: &TargetInsetHighlightAssets, section: Entity) -> impl Bundle {
     (
         Name::new("TargetInsetHighlight"),

@@ -158,8 +158,11 @@ fn main() -> bevy::app::AppExit {
         // within a frame of the range loading - long before any round could
         // cross the ~55 u to the nearest gate. Requiring the source to be a
         // turret round is what makes "a target took hits" a claim about the
-        // turret. `apply_typed_damage` passes the bullet's body as `source`
-        // (nova_gameplay/src/damage.rs:162-183).
+        // turret. `resolve_bullet_hit` (nova_ship turret_section/firing.rs)
+        // passes the bullet's body as `source` through `spend_piercing_damage`
+        // -> `apply_damage`; the contact path names the other COLLIDER
+        // instead (nova_gameplay integrity/core.rs), which is the drift this
+        // clause rejects.
         app.add_observer(
             |damage: On<HealthApplyDamage>,
              q_target: Query<(), Or<(With<RangeGateMarker>, With<RangeBackstopMarker>)>>,

@@ -102,6 +102,8 @@ struct Cli;
 const PLAYER_ID: &str = "hollow_player";
 /// Private scenario ids divide the capture into deterministic chapters.
 const APPROACH_CHAPTER_ID: &str = "rock_hollow";
+/// Only the script loads the second chapter, so it exists with the script.
+#[cfg(feature = "debug")]
 const ORDNANCE_CHAPTER_ID: &str = "rock_hollow_ordnance";
 /// Where the leg starts: up, out and roughly 750 units short of the hollow, so
 /// the GOTO has room for a full align-burn-coast-flip-brake profile.
@@ -686,6 +688,10 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
 /// Private ordnance chapter: the same hollow, but no unrelated combatants or
 /// live guns. Loading it replaces every scenario-scoped transient from the gun
 /// exchange instead of trying to enumerate and clean them in the script.
+///
+/// Only `load_ordnance_chapter` builds it, and only the script calls that, so
+/// it is script-only like every other beat helper here.
+#[cfg(feature = "debug")]
 fn ordnance_chapter(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let player = ship(
         PLAYER_ID,
