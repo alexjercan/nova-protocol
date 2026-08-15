@@ -58,6 +58,21 @@ Turret projectiles render as cubes. They want a smaller, better-looking model,
 and a distinct one per damage type so a kinetic slug and a penetrator read
 differently in flight.
 
+## Owner decisions
+
+- **Range comes down via projectile LIFETIME, not muzzle speed.**
+  `REFERENCE_CLOSING_SPEED = 100.0` is the shipped muzzle speed and both damage
+  curves read exactly 1.0 there, so slowing the round would silently rebalance
+  every weapon in the game. The spike confirms lifetime moves nothing else.
+- **Infinite ammo goes false EVERYWHERE, including the ledger campaign.** The
+  seven hand-written webmod RONs that ship `infinite_ammo: true` (ledger ch1,
+  ch2, ch2b, ch3, ch4, ch5, and gauntlet) all become false. The owner is aware
+  this means each of those scenarios is played with finite ammunition for the
+  first time.
+- **Gauntlet flies the RACER, unarmed.** With no weapons the ammo question does
+  not arise there at all, and the scenario becomes a survival run rather than a
+  shooting one.
+
 ## Approach
 
 Spike first, implement second. The spike must produce actual numbers, not
