@@ -1,6 +1,6 @@
 # Ship skin: derive cladding from structure with quarter-cell shells
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 78
 - TAGS: v0.11.0, ship, editor, render, destruction
 
