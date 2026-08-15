@@ -31,7 +31,10 @@ Generic prototypes are authored in
 parts live under `base_content/ships/`. Their explicit `section_catalog()` is
 generated into `assets/base/sections/base.content.ron` by `content -- gen` and
 merged into the resource by
-`crates/nova_assets/src/merge.rs`. Look one up with
+`crates/nova_assets/src/merge.rs`. The outer-skin cladding is not a prototype at
+all: a ship's skin is DERIVED from the structure it wraps by `nova_ship`'s
+`shell_skin` ([below](#the-derived-skin)), so no id names a plate. Look a
+section up with
 `sections.get_section("basic_thruster_section")`.
 
 ### Stacked controllers share one loop
@@ -88,7 +91,8 @@ the unit-cube defaults:
 
 A `SpaceshipConfig` (`crates/nova_scenario/src/objects/spaceship.rs`) has a
 `controller` (`None`, `Player`, or `AI`), an `allegiance`, an optional
-`collapse_threshold` (below), and a list of
+`collapse_threshold` (below), a `skin` flag (the
+[derived cladding](#the-derived-skin)), and a list of
 `SpaceshipSectionConfig`, each placing one section at a `position` + `rotation`
 relative to the ship root (world units), with a `source` (`Inline` /
 `Prototype`) and optional `modifications`. The player
@@ -108,6 +112,35 @@ See the semantic Racer, CargoA, and CargoB builders under
 The editor (`crates/nova_editor`) assembles ships interactively using
 `preview_section`, which has no health or rigid body and never enters the
 damage pipeline.
+
+### The derived skin
+
+`skin: true` asks the game to CLAD the ship. Nothing authors a plate:
+`spawn_ship_skin` (`sections/shell_skin.rs`) reads the finished section batch on
+the same `Added<SectionLinkPoints>` edge the integrity graph is built off,
+buckets the sections into cells (the lattice is read off the sections, so a hull
+mirrored about its centreline is not cut in two), and derives one plate per cell
+of outer surface from the eight boundary samples that cell shares with its
+neighbours. The same structure always gives the same skin.
+
+- A plate is a `SectionFixture` (`sections/fixture.rs`): `Collider`, `Health`,
+  density and `HealthIsolated`, but no `SectionMarker`. So it never joins the
+  integrity graph, never counts toward the ship's health, never takes a damage
+  tint, and never reaches the palette. Losing one costs the ship nothing it can
+  DO - which is the line between a fixture and a section.
+- Each plate is a CHILD of the section it clads, so a destroyed section takes
+  its own cladding down with it and nothing has to hunt the plates of a part
+  that no longer exists.
+- Derivation runs at spawn and nowhere else. The skin is a pure function of the
+  structure, so re-running it would grow back whatever combat blew off;
+  `despawn_dead_fixtures` takes a dead plate away and nothing puts it back.
+- `ShipSkinPlugin { render }` is split at the render line, not at the look line:
+  the derivation and the sweep are gameplay and run headless, and `render` gates
+  only the meshes hung on each plate by the `dress_skin_plate` observer.
+
+Cladding is OPT IN. The derivation reads a hull as unit cells, which the
+catalog's cube sections are and the modelled semantic parts (the racer, the
+haulers) are not.
 
 ## Integrity: damage -> disable -> destroy
 

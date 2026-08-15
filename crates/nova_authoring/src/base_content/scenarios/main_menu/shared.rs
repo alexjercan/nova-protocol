@@ -71,6 +71,7 @@ pub(super) fn backdrop_orbiter(
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
+            skin: false,
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 orbit: Some("menu_planetoid".to_string()),

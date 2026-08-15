@@ -175,6 +175,20 @@ pub(crate) fn turret_joint_tree(
 
 use crate::base_content::assets::BaseContentAssets;
 
+/// The unit cube's six sockets minus the one facing `open`.
+///
+/// A hole in the art is not a mating surface. The face a bay fires through
+/// carries no structure to bolt to, and leaving it socketed let a builder
+/// plate over the muzzle - the section mated, the salvo then launched inside
+/// its own ship. Dropping the socket is what makes that placement impossible
+/// rather than merely unwise.
+fn unit_cube_link_points_without(open: Vec3) -> Vec<LinkPoint> {
+    unit_cube_link_points()
+        .into_iter()
+        .filter(|point| point.normal.dot(open) < 0.5)
+        .collect()
+}
+
 /// One compact PDC prototype, parameterised on the ROUND it loads.
 ///
 /// The two shipped PDCs share the mount, the joint tree, the fire rate and the
@@ -201,16 +215,25 @@ fn pdc_turret_prototype(
             impact_sound: Some(meshes.section_impact_sound.clone()),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // The mount the shipped craft carry: a small box that sits ON a
-            // hull face instead of standing in for one. Sockets follow the
-            // authored size (`box_link_points`), so it mates against a part
-            // of any size at all - which is what lets ONE turret serve every
-            // craft. The per-craft copies (`cargob_turret_port` and its nine
-            // siblings) are the same gun on the same joint tree, and are
-            // catalog-only now that this exists.
+            // hull face instead of standing in for one, which is what lets ONE
+            // turret serve every craft. The per-craft copies
+            // (`cargob_turret_port` and its nine siblings) are the same gun on
+            // the same joint tree, and are catalog-only now that this exists.
             collider: Some(SectionCollider::Cuboid {
                 size: Vec3::splat(PDC_TURRET_SIZE),
             }),
-            link_points: box_link_points(Vec3::splat(PDC_TURRET_SIZE)),
+            // ONE socket, on the base plate. A turret is bolted down, not
+            // stacked: the other five faces of the mount box are gun, and a
+            // full `box_link_points` set offered them all as mating surfaces -
+            // so the editor would stand a second turret on the first one's
+            // barrel, or bolt a hull slab across its traverse. The base is
+            // where `turret_joint_tree` plants the assembly (`-mount` on Y), so
+            // it is the one face that is structure.
+            link_points: vec![LinkPoint {
+                id: "base".to_string(),
+                position: Vec3::NEG_Y * (PDC_TURRET_SIZE * 0.5),
+                normal: Vec3::NEG_Y,
+            }],
             hide_in_editor: false,
         },
         kind: SectionKind::Turret(TurretSectionConfig {
@@ -281,7 +304,19 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
-                link_points: unit_cube_link_points(),
+                // ONE socket, on the mounting face. The default thruster has no
+                // authored mesh: the runtime builds a barrel and a nozzle bell
+                // on the Z axis (`insert_thruster_section_render`), the bell
+                // opens toward +Z and the plume fires out of it. So the flat
+                // forward end is the only structure on the part - the other
+                // five faces are drive and exhaust. Six sockets offered them
+                // all as mating surfaces, and a builder would bolt a hull slab
+                // onto the barrel or plate one across the nozzle.
+                link_points: vec![LinkPoint {
+                    id: "base".to_string(),
+                    position: Vec3::NEG_Z * 0.5,
+                    normal: Vec3::NEG_Z,
+                }],
                 hide_in_editor: false,
             },
             kind: SectionKind::Thruster(ThrusterSectionConfig {
@@ -492,7 +527,9 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
-                link_points: unit_cube_link_points(),
+                // Sides and backblast only: the tube fires out of -Z
+                // (`spawn_offset`), so the bow face is the open muzzle.
+                link_points: unit_cube_link_points_without(Vec3::NEG_Z),
                 hide_in_editor: false,
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
@@ -553,7 +590,8 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
-                link_points: unit_cube_link_points(),
+                // The same bay art at siege grade, so the same open muzzle.
+                link_points: unit_cube_link_points_without(Vec3::NEG_Z),
                 // Scene dressing, not player kit: one hit deletes a ship, so
                 // the editor gallery does not offer it.
                 hide_in_editor: true,
@@ -618,6 +656,93 @@ mod tests {
     /// the unit-cube offset and the shipped craft were framed with it there, so
     /// correcting them MOVES the turret on every shipped ship - an art call,
     /// not a code one.
+    /// No bay offers a mating surface across the face it fires through.
+    ///
+    /// A torpedo section used to carry the plain hull block's full six-socket
+    /// cube, so the editor would bolt a section over the muzzle: the placement
+    /// mated, and the salvo then launched inside its own ship. The rule is the
+    /// SOCKET SET, so it is checked over every torpedo section in the catalog
+    /// rather than over the one that prompted it - and the firing direction is
+    /// read off each section's own `spawn_offset` rather than assumed, so a bay
+    /// authored to fire some other way is held to the same rule.
+    #[test]
+    fn no_bay_sockets_the_face_it_fires_through() {
+        for section in crate::generation::build_section_catalog() {
+            let SectionKind::Torpedo(bay) = &section.kind else {
+                continue;
+            };
+            let firing = bay.spawn_offset.normalize();
+            for point in &section.base.link_points {
+                assert!(
+                    point.normal.dot(firing) < 0.5,
+                    "`{}` sockets its own muzzle: `{}` faces {:?}, the bay fires {firing:?}",
+                    section.base.id,
+                    point.id,
+                    point.normal,
+                );
+            }
+        }
+    }
+
+    /// The placeable mounts bolt down by their base plate and by nothing else.
+    ///
+    /// Six sockets made every face of the mount BOX a mating surface, but five
+    /// of them are gun: the editor would stand a second turret on the first
+    /// one's barrel, or plate a hull slab across its traverse. One socket, on
+    /// the face `turret_joint_tree` plants the assembly against, is what makes
+    /// those placements impossible instead of merely unwise. Both shipped PDCs
+    /// share the builder, so both are held to it.
+    #[test]
+    fn the_shared_mount_sockets_only_its_base_plate() {
+        for id in ["pdc_kinetic_turret_section", "pdc_pierce_turret_section"] {
+            let mount = crate::generation::build_section_catalog()
+                .into_iter()
+                .find(|section| section.base.id == id)
+                .expect("the shared PDC mounts are in the catalog");
+            let SectionKind::Turret(turret) = &mount.kind else {
+                panic!("`{id}` is a turret");
+            };
+            let [base] = mount.base.link_points.as_slice() else {
+                panic!(
+                    "`{id}` carries {} sockets, not one",
+                    mount.base.link_points.len()
+                );
+            };
+            assert_eq!(base.normal, Vec3::NEG_Y, "`{id}`'s base plate faces down");
+            assert_eq!(
+                base.position.y, turret.root.offset.y,
+                "`{id}`'s socket sits where the assembly is planted"
+            );
+        }
+    }
+
+    /// The drive bolts on by its forward end and by nothing else.
+    ///
+    /// The default thruster is built from primitives, not from authored art:
+    /// the barrel and the nozzle bell lie on the Z axis and the bell opens
+    /// toward +Z, so the mounting end is -Z - NOT the -Y a turret stands on.
+    /// Six sockets made the barrel and the open nozzle mating surfaces too, and
+    /// a generator would plate a hull slab across the exhaust.
+    #[test]
+    fn the_thruster_sockets_only_the_face_it_bolts_on_by() {
+        let drive = crate::generation::build_section_catalog()
+            .into_iter()
+            .find(|section| section.base.id == "basic_thruster_section")
+            .expect("the basic thruster is in the catalog");
+        let [base] = drive.base.link_points.as_slice() else {
+            panic!(
+                "the thruster carries {} sockets, not one",
+                drive.base.link_points.len()
+            );
+        };
+        assert_eq!(base.normal, Vec3::NEG_Z, "the mounting face points forward");
+        assert_eq!(
+            base.position,
+            Vec3::NEG_Z * 0.5,
+            "the socket sits on that face, not inside the part"
+        );
+    }
+
     #[test]
     fn every_placeable_turret_stands_on_its_own_mount_face() {
         for section in crate::generation::build_section_catalog() {

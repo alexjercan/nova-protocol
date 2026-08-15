@@ -169,6 +169,13 @@ path = "examples/screenshots/render_scale_shot.rs"
 name = "parts_viewer"
 path = "examples/screenshots/parts_viewer.rs"
 
+# Frames the catalog's link points as a GENERATOR rather than a lineup: the
+# sockets are read as wave-function-collapse adjacency rules and a row of
+# random hulls is grown from them, lint-checked before it is posed.
+[[example]]
+name = "wfc_ships"
+path = "examples/screenshots/wfc_ships.rs"
+
 # The compare_* producers frame art candidates for human judgment (task
 # 20260812-100256) - the category's promise verbatim, with the owner's eyes on
 # the frames instead of the website's. Interactive when hand-run (number keys
@@ -217,6 +224,9 @@ nova_probe = { path = "crates/nova_probe" }
 nova_debug = { path = "crates/nova_debug" }
 # widget_zoo example renders the nova_ui skin-aware widget set directly.
 nova_ui = { path = "crates/nova_ui" }
+# wfc_ships seeds its collapse from a pinned StdRng, the same generator the
+# scenario engine's scatter uses - same crate, same version, same rolls.
+rand = { version = "0.10.2" }
 serde_json = { version = "1" }
 bevy_enhanced_input = { version = "0.26.0" }
 

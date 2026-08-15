@@ -468,6 +468,10 @@ pub(crate) fn update_placement_preview(
     selection: Res<SectionChoice>,
     pose: Res<PlacementPose>,
     sections: Res<GameSections>,
+    // What each preview section IS, which its entity does not say: the solver
+    // needs the kind to know which way a part fires, and the build state is
+    // where the editor already keeps that.
+    player_config: Res<PlayerSpaceshipConfig>,
     mut preview: ResMut<PlacementPreview>,
 ) {
     preview.placement = None;
@@ -492,6 +496,7 @@ pub(crate) fn update_placement_preview(
             rotation: transform.rotation,
             link_points: link_points.to_vec(),
             collider: *collider,
+            exit: section_exit(&player_config, &sections, child),
         });
     }
 
@@ -515,10 +520,29 @@ pub(crate) fn update_placement_preview(
             hit,
             &part.base.link_points,
             part.base.collider.unwrap_or_default(),
+            exit_normal(&part.kind),
             pose.source,
             pose.roll,
         ),
     });
+}
+
+/// Which way the section on `entity` fires, launches or exhausts, in its own
+/// frame.
+///
+/// Read back out of the BUILD STATE rather than off the entity: a preview
+/// section carries its sockets and its collider as components, but nothing on it
+/// says what kind of part it is, and the config is where the editor already
+/// records that.
+fn section_exit(
+    config: &PlayerSpaceshipConfig,
+    sections: &GameSections,
+    entity: Entity,
+) -> Option<Vec3> {
+    match &config.sections.get(&entity)?.source {
+        SectionSource::Inline(section) => exit_normal(&section.kind),
+        SectionSource::Prototype(id) => exit_normal(&sections.get_section(id)?.kind),
+    }
 }
 
 /// Show the solved placement: the part's real mesh at the pose a click would

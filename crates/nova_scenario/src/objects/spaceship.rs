@@ -267,6 +267,22 @@ pub struct SpaceshipConfig {
     /// The ship's sections (hull, thrusters, weapons, controller) and their
     /// placement. Empty by default; each is spawned as a child at load.
     pub sections: Vec<SpaceshipSectionConfig>,
+    /// Whether the ship wears a DERIVED skin: cladding computed from the
+    /// structure above at spawn, with nothing authored and nothing saved. See
+    /// [`ShipSkin`].
+    ///
+    /// `false` by default, and off for every shipped ship: the derivation reads
+    /// a hull as unit cells, which the catalog's cube sections are and the
+    /// modelled semantic parts are not.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
+    pub skin: bool,
+}
+
+/// `skip_serializing_if` predicate for a `bool` that defaults to false, so an
+/// unclad ship keeps the field out of its RON entirely.
+#[cfg(feature = "serde")]
+fn is_false(flag: &bool) -> bool {
+    !*flag
 }
 
 /// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type name,
@@ -286,6 +302,7 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
         config.controller,
         SpaceshipSectionsConfig(config.sections),
         collapse_threshold,
+        ShipSkin(config.skin),
         RigidBody::Dynamic,
         // Physics advances Transform only on fixed ticks (64 Hz by default);
         // everything watched by the render-rate camera must interpolate between
@@ -549,6 +566,7 @@ mod tests {
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
                         collapse_threshold: None,
+                        skin: false,
                         allegiance: None,
                         controller: SpaceshipController::AI(config),
                         sections: vec![],
@@ -654,6 +672,7 @@ mod tests {
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
                     collapse_threshold: None,
+                    skin: false,
                     allegiance: None,
                     controller: SpaceshipController::Player(PlayerControllerConfig {
                         infinite_ammo,
@@ -725,6 +744,7 @@ mod tests {
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
                         collapse_threshold: None,
+                        skin: false,
                         allegiance: None,
                         controller,
                         sections,
@@ -777,6 +797,7 @@ mod tests {
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
                         collapse_threshold: None,
+                        skin: false,
                         controller: SpaceshipController::AI(config),
                         allegiance: None,
                         sections: vec![],
@@ -826,6 +847,7 @@ mod tests {
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
                         collapse_threshold,
+                        skin: false,
                         allegiance: None,
                         controller: SpaceshipController::None,
                         sections: vec![],

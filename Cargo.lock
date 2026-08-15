@@ -4515,6 +4515,7 @@ dependencies = [
  "nova_probe",
  "nova_probe_cli",
  "nova_ui",
+ "rand 0.10.2",
  "serde_json",
 ]
 

@@ -459,6 +459,7 @@ mod tests {
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                     collapse_threshold: None,
+                    skin: false,
                     controller: SpaceshipController::AI(AIControllerConfig::default()),
                     allegiance,
                     sections: vec![],

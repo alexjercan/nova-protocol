@@ -6,11 +6,15 @@ use nova_gameplay::gravity::prelude::NovaGravitySystems;
 
 pub mod ammo;
 pub mod base_section;
+pub mod clearance;
 pub mod controller_section;
 pub mod damage_tint;
+pub mod fixture;
 pub mod hull_section;
 pub mod integrity;
 pub mod link_points;
+pub mod shell_shape;
+pub mod shell_skin;
 pub mod thruster_section;
 pub mod torpedo_section;
 pub mod turret_section;
@@ -19,11 +23,12 @@ pub mod turret_section;
 /// `SpaceshipSectionPlugin` with `SpaceshipSectionSystems`.
 pub mod prelude {
     pub use super::{
-        ammo::prelude::*, base_section::prelude::*, controller_section::prelude::*,
-        damage_tint::prelude::*, hull_section::prelude::*, integrity::prelude::*,
-        link_points::prelude::*, live_structure_anchor, thruster_section::prelude::*,
-        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
-        SpaceshipSectionSystems,
+        ammo::prelude::*, base_section::prelude::*, clearance::prelude::*,
+        controller_section::prelude::*, damage_tint::prelude::*, fixture::prelude::*,
+        hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
+        live_structure_anchor, shell_shape::prelude::*, shell_skin::prelude::*,
+        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
+        SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -152,6 +157,12 @@ impl Plugin for SpaceshipSectionPlugin {
                 render: self.render,
             },
             torpedo_section::TorpedoSectionPlugin {
+                render: self.render,
+            },
+            // Not one of the kinds above: cladding is a FIXTURE derived from
+            // whatever those five build, so it has no prototype and no palette
+            // entry to sit next to them in.
+            shell_skin::ShipSkinPlugin {
                 render: self.render,
             },
         ));

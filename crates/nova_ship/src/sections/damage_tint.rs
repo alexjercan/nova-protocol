@@ -15,7 +15,8 @@
 //!   This gives the player a quick "which of their components have I knocked
 //!   out" read without turning the enemy into a full health gauge.
 //!
-//! Neutral / unmarked bodies are never tinted.
+//! Neutral / unmarked bodies are never tinted, and neither is anything hanging
+//! off a [`SectionFixture`] - see `owning_section`.
 //!
 //! ## Why per-section material clones
 //!
@@ -44,6 +45,8 @@ use nova_gameplay::{
     integrity::health::prelude::Health,
     prelude::{Allegiance, SectionInactiveMarker, SectionMarker},
 };
+
+use crate::sections::fixture::prelude::SectionFixture;
 
 /// `SectionDamageTint`, `TintMode` and `SectionDamageTintPlugin`.
 pub mod prelude {
@@ -132,15 +135,24 @@ struct PendingSectionTint {
 }
 
 /// Walk up the `ChildOf` chain from `entity` to the nearest ancestor that is a
-/// section, returning that section entity. Returns `None` if the walk leaves the
-/// tree without passing through a `SectionMarker`.
+/// section, returning that section entity. Returns `None` if the walk reaches a
+/// [`SectionFixture`], or leaves the tree without passing through a
+/// `SectionMarker`.
 fn owning_section(
     entity: Entity,
     q_child_of: &Query<&ChildOf>,
     q_is_section: &Query<(), With<SectionMarker>>,
+    q_is_fixture: &Query<(), With<SectionFixture>>,
 ) -> Option<Entity> {
     let mut current = entity;
     loop {
+        // A fixture ENDS the walk, and is not graded by what it hangs on. Its
+        // damage read is that it comes off, so it must not redden on the way
+        // there - and grading it by the section behind it would be worse than
+        // nothing: fresh cladding over a dying hull would read burnt.
+        if q_is_fixture.get(current).is_ok() {
+            return None;
+        }
         if q_is_section.get(current).is_ok() {
             return Some(current);
         }
@@ -169,10 +181,12 @@ fn mark_section_meshes(
     >,
     q_child_of: Query<&ChildOf>,
     q_is_section: Query<(), With<SectionMarker>>,
+    q_is_fixture: Query<(), With<SectionFixture>>,
     q_allegiance: Query<&Allegiance>,
 ) {
     for entity in &q_new {
-        let Some(section) = owning_section(entity, &q_child_of, &q_is_section) else {
+        let Some(section) = owning_section(entity, &q_child_of, &q_is_section, &q_is_fixture)
+        else {
             continue;
         };
 
@@ -525,6 +539,85 @@ mod tests {
             base_of(&app),
             DEAD_COLOR,
             "disabled enemy section blacks out even with residual HP"
+        );
+    }
+
+    /// A fixture's meshes are left out of grading entirely, while a real
+    /// section mesh in the same world is still captured.
+    ///
+    /// Both hang under the same section, so the ChildOf walk reaches it from
+    /// either one - being a non-section is not what exempts a plate, stopping
+    /// the walk at [`SectionFixture`] is. The cost of getting this wrong is
+    /// paid per MESH: a clad ship carries hundreds of plates of one to three
+    /// meshes each, and every one of them would clone a `StandardMaterial` to
+    /// grade off the health of the hull behind it.
+    #[test]
+    fn a_fixture_mesh_is_never_captured_for_tinting() {
+        let mut app = tint_app();
+
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+
+        let root = app.world_mut().spawn(Allegiance::Player).id();
+        let section = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                Health {
+                    current: 100.0,
+                    max: 100.0,
+                },
+                ChildOf(root),
+            ))
+            .id();
+        let section_mesh = app
+            .world_mut()
+            .spawn((MeshMaterial3d(shared.clone()), ChildOf(section)))
+            .id();
+        // A plate clad to that section, with its own surface mesh under it.
+        let fixture = app
+            .world_mut()
+            .spawn((
+                SectionFixture,
+                Health {
+                    current: 40.0,
+                    max: 40.0,
+                },
+                ChildOf(section),
+            ))
+            .id();
+        let fixture_mesh = app
+            .world_mut()
+            .spawn((MeshMaterial3d(shared.clone()), ChildOf(fixture)))
+            .id();
+
+        app.update();
+        app.update();
+
+        assert!(
+            app.world().get::<SectionDamageTint>(section_mesh).is_some(),
+            "a real section mesh is still graded",
+        );
+        assert!(
+            app.world().get::<SectionDamageTint>(fixture_mesh).is_none(),
+            "a plate must not redden - it comes OFF instead",
+        );
+        assert!(
+            app.world()
+                .get::<PendingSectionTint>(fixture_mesh)
+                .is_none(),
+            "a fixture mesh must not sit pending either, retried every frame",
+        );
+        assert_eq!(
+            app.world()
+                .get::<MeshMaterial3d<StandardMaterial>>(fixture_mesh)
+                .expect("the fixture mesh keeps its material")
+                .0
+                .id(),
+            shared.id(),
+            "a fixture mesh keeps the shared material rather than cloning one",
         );
     }
 

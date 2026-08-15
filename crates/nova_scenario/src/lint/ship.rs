@@ -530,6 +530,7 @@ mod tests {
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                     collapse_threshold: None,
+                    skin: false,
                     controller: SpaceshipController::None,
                     allegiance: None,
                     sections: vec![
@@ -608,6 +609,7 @@ mod tests {
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                     collapse_threshold: None,
+                    skin: false,
                     controller: SpaceshipController::None,
                     allegiance: None,
                     sections: vec![a, b],
@@ -706,6 +708,7 @@ mod tests {
             },
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                 collapse_threshold: None,
+                skin: false,
                 controller: SpaceshipController::None,
                 allegiance: None,
                 sections: vec![

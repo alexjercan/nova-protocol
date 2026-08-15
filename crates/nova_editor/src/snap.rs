@@ -25,6 +25,10 @@ pub(crate) struct PlacedSection {
     pub(crate) link_points: Vec<LinkPoint>,
     /// Authored collider, for the overlap refusal only.
     pub(crate) collider: SectionCollider,
+    /// The direction the section fires, launches or exhausts, in its own frame,
+    /// for the clearance refusal only. `None` for a part that does none of
+    /// those. See `nova_ship`'s `exit_normal`.
+    pub(crate) exit: Option<Vec3>,
 }
 
 /// Why a placement cannot be committed.
@@ -41,6 +45,9 @@ pub(crate) enum Refusal {
     Ambiguous,
     /// The part would interpenetrate a section it does not mate with.
     Overlap,
+    /// The part would stand in the space something has to fire, launch or
+    /// exhaust through - its own, or one already on the ship.
+    BlockedExit,
 }
 
 impl Refusal {
@@ -52,6 +59,7 @@ impl Refusal {
             Self::Occupied => "socket occupied",
             Self::Ambiguous => "socket is ambiguous",
             Self::Overlap => "parts would overlap",
+            Self::BlockedExit => "nothing may block an exit",
         }
     }
 }
@@ -81,6 +89,7 @@ pub(crate) fn solve(
     hit: Vec3,
     part_link_points: &[LinkPoint],
     part_collider: SectionCollider,
+    part_exit: Option<Vec3>,
     source: usize,
     roll: u32,
 ) -> Placement {
@@ -127,6 +136,7 @@ pub(crate) fn solve(
             target,
             part_link_points,
             part_collider,
+            part_exit,
             transform,
         ),
     }
@@ -181,6 +191,7 @@ fn refuse(
     target: usize,
     part_link_points: &[LinkPoint],
     part_collider: SectionCollider,
+    part_exit: Option<Vec3>,
     transform: Transform,
 ) -> Option<Refusal> {
     // A socket already mated to a neighbour cannot take a second part.
@@ -204,6 +215,7 @@ fn refuse(
         rotation: transform.rotation,
         link_points: part_link_points.to_vec(),
         collider: part_collider,
+        exit: part_exit,
     };
     let mut assembled = existing;
     assembled.push(placed(&ghost));
@@ -239,7 +251,28 @@ fn refuse(
         .iter()
         .enumerate()
         .any(|(index, section)| !mated.contains(&index) && overlaps(section, &ghost));
-    overlapping.then_some(Refusal::Overlap)
+    if overlapping {
+        return Some(Refusal::Overlap);
+    }
+
+    // And the rule the GENERATOR is held to, from the other side. A muzzle, a
+    // nozzle and a bay's mouth all need the space in front of them, and a part
+    // takes that space two ways: by standing in the lane, or by standing beside
+    // it and demanding the cladding that would close it over. The rule itself is
+    // `nova_ship`'s, so a hull the collapse may not draw is one a builder may
+    // not build either.
+    let firing: Vec<PlacedExit<'_>> = ship.iter().map(clearing).collect();
+    placement_blocks_an_exit(&firing, &clearing(&ghost)).then_some(Refusal::BlockedExit)
+}
+
+/// One placed section as the shared clearance rule reads it.
+fn clearing(section: &PlacedSection) -> PlacedExit<'_> {
+    PlacedExit {
+        position: section.position,
+        rotation: section.rotation,
+        link_points: &section.link_points,
+        exit: section.exit,
+    }
 }
 
 fn placed(section: &PlacedSection) -> PlacedSectionLinkPoints<'_> {
@@ -270,7 +303,43 @@ mod tests {
             rotation: Quat::IDENTITY,
             link_points: unit_cube_link_points(),
             collider: SectionCollider::default(),
+            exit: None,
         }
+    }
+
+    /// The one socket a bay or a gun mount carries: the base it bolts down
+    /// through, opposite the face it fires out of.
+    fn base_socket() -> Vec<LinkPoint> {
+        vec![LinkPoint {
+            id: "base".to_string(),
+            position: Vec3::NEG_Y * 0.5,
+            normal: Vec3::NEG_Y,
+        }]
+    }
+
+    /// A part that fires along its own `+Y`, like a bay or a gun mount.
+    fn firing(position: Vec3) -> PlacedSection {
+        PlacedSection {
+            position,
+            rotation: Quat::IDENTITY,
+            link_points: base_socket(),
+            collider: SectionCollider::default(),
+            exit: Some(Vec3::Y),
+        }
+    }
+
+    /// Solve for a part that FIRES, which the ordinary helper's cube does not.
+    fn solve_firing(ship: &[PlacedSection], hovered: usize, hit: Vec3) -> Placement {
+        solve(
+            ship,
+            hovered,
+            hit,
+            &base_socket(),
+            SectionCollider::default(),
+            Some(Vec3::Y),
+            0,
+            0,
+        )
     }
 
     fn solve_on(ship: &[PlacedSection], hovered: usize, hit: Vec3, roll: u32) -> Placement {
@@ -280,6 +349,7 @@ mod tests {
             hit,
             &unit_cube_link_points(),
             SectionCollider::default(),
+            None,
             1,
             roll,
         )
@@ -316,6 +386,61 @@ mod tests {
         // A free face of the same section still takes the part - the refusal is
         // about the socket, not the section.
         let placement = solve_on(&ship, 0, Vec3::new(0.0, 0.5, 0.0), 0);
+        assert_eq!(placement.refusal, None);
+    }
+
+    /// A part may not be built where something has to fire.
+    ///
+    /// The rule the generator collapses under, held from the other side: the
+    /// editor may not build a hull the collapse would refuse to draw. Both
+    /// clauses are checked, and the second is the subtle half - a part
+    /// DIAGONALLY off a muzzle is not in the lane at all, it demands the
+    /// cladding that would close the lane over.
+    #[test]
+    fn a_part_in_front_of_a_muzzle_is_refused() {
+        // A cube with a bay bolted to its roof, firing +Y, and a tower of hull
+        // up the next column.
+        let ship = [
+            cube(Vec3::ZERO),
+            firing(Vec3::Y),
+            cube(Vec3::X),
+            cube(Vec3::X + Vec3::Y),
+        ];
+
+        // A slab one cell OFF the lane: nothing stands in front of the muzzle,
+        // and the skin would still close the lane over, because that slab's own
+        // face would otherwise look at vacuum.
+        let placement = solve_on(&ship, 3, Vec3::new(1.0, 1.5, 0.0), 0);
+        assert_eq!(placement.refusal, Some(Refusal::BlockedExit));
+
+        // The same slab on the far flank of the same tower is fine, so the
+        // refusal is about the lane rather than about the ship carrying a bay.
+        let placement = solve_on(&ship, 3, Vec3::new(1.5, 1.0, 0.0), 0);
+        assert_eq!(placement.refusal, None);
+    }
+
+    /// A part may not be ARMED where it cannot fire either.
+    ///
+    /// The same rule from the part's own side: the ghost is the thing with the
+    /// lane, and the hull it would fire into is already standing.
+    #[test]
+    fn a_muzzle_pointed_into_the_ship_is_refused() {
+        // A well: hull up the +X column and a lid across the top of it, so the
+        // roof of the first cube looks straight at that lid two cells up.
+        let ship = [
+            cube(Vec3::ZERO),
+            cube(Vec3::X),
+            cube(Vec3::X + Vec3::Y),
+            cube(Vec3::X + Vec3::Y * 2.0),
+            cube(Vec3::Y * 2.0),
+        ];
+
+        let placement = solve_firing(&ship, 0, Vec3::new(0.0, 0.5, 0.0));
+        assert_eq!(placement.refusal, Some(Refusal::BlockedExit));
+
+        // Bolted to the OUTSIDE of the same well, the identical part fires into
+        // vacuum and is allowed.
+        let placement = solve_firing(&ship, 4, Vec3::new(0.0, 2.5, 0.0));
         assert_eq!(placement.refusal, None);
     }
 
@@ -356,6 +481,7 @@ mod tests {
             Vec3::new(0.5, 0.0, 0.0),
             &doubled,
             SectionCollider::default(),
+            None,
             0,
             0,
         );
@@ -377,7 +503,16 @@ mod tests {
             normal: Vec3::NEG_X,
         }];
         let ship = [cube(Vec3::ZERO), cube(Vec3::X * 3.0)];
-        let placement = solve(&ship, 0, Vec3::new(0.5, 0.0, 0.0), &socket, long, 0, 0);
+        let placement = solve(
+            &ship,
+            0,
+            Vec3::new(0.5, 0.0, 0.0),
+            &socket,
+            long,
+            None,
+            0,
+            0,
+        );
         assert_eq!(placement.refusal, Some(Refusal::Overlap));
 
         // The ordinary neighbour case - boxes meeting exactly at the seam - is
@@ -400,6 +535,7 @@ mod tests {
             Vec3::new(0.5, 0.0, 0.0),
             &[],
             SectionCollider::default(),
+            None,
             0,
             0,
         );
@@ -454,7 +590,16 @@ mod tests {
             (Vec3::new(0.0, 0.5, 0.0), Vec3::Y),
             (Vec3::new(0.0, 0.0, -0.5), Vec3::NEG_Z),
         ] {
-            let placement = solve(&ship, 0, hit, &points, SectionCollider::default(), 0, 0);
+            let placement = solve(
+                &ship,
+                0,
+                hit,
+                &points,
+                SectionCollider::default(),
+                None,
+                0,
+                0,
+            );
             assert_eq!(placement.refusal, None);
             assert!(
                 placement
@@ -477,6 +622,7 @@ mod tests {
             Vec3::new(0.5, 0.0, 0.0),
             &points,
             SectionCollider::default(),
+            None,
             1,
             0,
         );
@@ -498,6 +644,7 @@ mod tests {
             Vec3::new(0.5, 0.0, 0.0),
             &points,
             SectionCollider::default(),
+            None,
             1,
             0,
         );
@@ -507,6 +654,7 @@ mod tests {
             Vec3::new(0.5, 0.0, 0.0),
             &points,
             SectionCollider::default(),
+            None,
             1 + points.len(),
             0,
         );

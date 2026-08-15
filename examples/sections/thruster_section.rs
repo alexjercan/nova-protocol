@@ -175,6 +175,7 @@ fn burn_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
 
     let ship = SpaceshipConfig {
         collapse_threshold: None,
+        skin: false,
         allegiance: None,
         controller: SpaceshipController::None,
         sections: vec![

@@ -208,6 +208,7 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
     });
     let player = SpaceshipConfig {
         collapse_threshold: None,
+        skin: false,
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),
@@ -219,6 +220,7 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
     };
     let target = SpaceshipConfig {
         collapse_threshold: None,
+        skin: false,
         allegiance: None,
         controller: SpaceshipController::None,
         sections: sections_line("target"),

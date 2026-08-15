@@ -20,7 +20,10 @@
 //! 6. click Delete Section and click the ship again - the count drops back;
 //! 7. walk the gallery end to end - browse (the tiles are up), filter (typing narrows the grid to
 //!    one part), focus (the card names that part), select (Place arms the tool and closes the
-//!    gallery) and place (a click on the ship builds the part the gallery picked).
+//!    gallery) and place (a click on the ship builds the part the gallery picked);
+//! 8. meet both placement REFUSALS in words and in pixels - an occupied socket, and a drive
+//!    aimed up a lane the hull already stands beside, which is `nova_ship`'s clearance rule and
+//!    the same one the ship generator collapses under.
 //!
 //! Controls (interactive run): use the on-screen buttons to create ships and place sections.
 //!
@@ -555,6 +558,77 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(shot_written("editor-placement-refused.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
+        // The OTHER refusal a builder can meet, and the one the GENERATOR is
+        // held to as well: a part that fires may not be built where it cannot.
+        //
+        // The seeded hull has nowhere like that yet, so the run builds one: a
+        // two-cell tower beside the upper arm. Anything mounted on the arm's
+        // roof then fires up a lane that tower stands beside, and the skin would
+        // close the lane over rather than leave the tower's own face bare.
+        .arm_from_the_gallery("editor: arm the hull again", HULL_PROTOTYPE)
+        .place_on_the_face(
+            "editor: raise a tower, first course",
+            Vec3::new(0.0, 1.5, 1.0),
+        )
+        .place_on_the_face(
+            "editor: raise a tower, second course",
+            Vec3::new(0.0, 2.5, 1.0),
+        )
+        // A DRIVE rather than a hull slab: this is the case where the ghost is
+        // the thing that fires, and a slab has no lane of its own.
+        .arm_from_the_gallery("editor: arm a drive", "basic_thruster_section")
+        .step("editor: aim the drive up the tower's lane")
+        .on_enter(|world: &mut World| {
+            let at = aim_at_world(world, Vec3::new(0.0, 1.5, 2.0))
+                .expect("the roof of the upper arm is on screen");
+            move_cursor(at)(world);
+            stamp_sections(world);
+        })
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: a drive that cannot fire says so")
+        .on_enter(|world: &mut World| {
+            let status = subtree_text(world, "Placement Status");
+            info!("editor: placement status reads {status:?}");
+            assert!(
+                status.iter().any(|line| line.contains("block")),
+                "a drive whose plume would fire into the ship's own plating must \
+                 be refused in words; the status read {status:?}"
+            );
+            shoot(world, "editor-placement-blocked-exit.png");
+        })
+        .until(shot_written("editor-placement-blocked-exit.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("editor: press on the blocked lane")
+        .on_enter(press_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: release")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(frames(SETTLE))
+        .add()
+        .step("editor: the blocked exit built nothing either")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorProbe>().sections;
+            let now = count_sections(world);
+            assert_eq!(
+                now, before,
+                "a drive with nowhere to fire must not be built; the editor and \
+                 the generator hold one rule between them"
+            );
+            info!("editor: the blocked exit refused the click ({now} sections)");
+
+            // The tower moved the graph on, so the figure the flown ship is
+            // compared against is re-taken here.
+            let mates = mate_graph(world, None).unwrap_or_else(|error| {
+                panic!("the assembled ship must derive one connected graph: {error}")
+            });
+            world.resource_mut::<EditorProbe>().mates = mates;
+            info!("editor: the finished ship derives {mates} mates over {now} sections");
+        })
+        .until(frames(1))
+        .add()
         // Play: the ship the editor assembled becomes the ship that flies, and
         // the runtime derives the SAME graph from the flat saved poses.
         .step("editor: press Play")
@@ -646,6 +720,22 @@ fn sections_with_a_rotation(world: &mut World) -> usize {
         .iter()
         .filter(|(transform, _)| transform.rotation.angle_between(Quat::IDENTITY) > 1e-3)
         .count()
+}
+
+/// The viewport aim for a point in ship space, so a beat can point at a
+/// NAMED face rather than at whatever the camera happens to like.
+#[cfg(feature = "debug")]
+fn aim_at_world(world: &mut World, point: Vec3) -> Option<Vec2> {
+    let camera_entity = world
+        .query_filtered::<Entity, With<Camera3d>>()
+        .iter(world)
+        .next()?;
+    let camera = world.get::<Camera>(camera_entity)?.clone();
+    let camera_transform = *world.get::<GlobalTransform>(camera_entity)?;
+    camera
+        .world_to_viewport(&camera_transform, point)
+        .ok()
+        .filter(|aim: &Vec2| aim.x.is_finite() && aim.y.is_finite())
 }
 
 /// The camera-facing socket of the section nearest the camera, as two viewport
@@ -808,6 +898,51 @@ fn aim_at_a_section(world: &mut World) -> Option<Vec2> {
 #[cfg(feature = "debug")]
 trait ClickTheShip {
     fn click_the_ship(self, label: &str) -> Self;
+}
+
+/// The same gesture aimed at a NAMED face, plus the verdict that it built.
+///
+/// [`ClickTheShip`] takes whatever face the camera likes, which is what most of
+/// the run wants. Building a particular SHAPE needs a particular face, and the
+/// verdict is what says the shape is really there rather than assumed.
+#[cfg(feature = "debug")]
+trait PlaceOnTheFace {
+    fn place_on_the_face(self, label: &str, socket: Vec3) -> Self;
+}
+
+#[cfg(feature = "debug")]
+impl PlaceOnTheFace for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    fn place_on_the_face(self, label: &str, socket: Vec3) -> Self {
+        self.step(format!("{label}: aim"))
+            .on_enter(move |world: &mut World| {
+                let at = aim_at_world(world, socket).expect("that face is on screen");
+                move_cursor(at)(world);
+                stamp_sections(world);
+            })
+            .until(frames(SETTLE))
+            .add()
+            .step(format!("{label}: press"))
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(frames(SETTLE))
+            .add()
+            .step(format!("{label}: release"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(frames(SETTLE))
+            .add()
+            .step(format!("{label}: it built"))
+            .on_enter(move |world: &mut World| {
+                let before = world.resource::<EditorProbe>().sections;
+                let now = count_sections(world);
+                assert_eq!(
+                    now,
+                    before + 1,
+                    "the beat aimed at {socket:?} built nothing, so the shape \
+                     the next beat needs is not there"
+                );
+            })
+            .until(frames(1))
+            .add()
+    }
 }
 
 /// Arm a prototype through the gallery, by keyboard: open it, type enough of

@@ -20,6 +20,9 @@ assets" below:
   `scripts/gen-placeholder-sounds.py`; see the README in each directory.
 - **3D models** (`assets/gltf/*.glb`) - exported from the project's own Blender
   sources in `art/blender/`.
+- **Hull cladding** - no files. A ship's skin is derived from the structure it
+  wraps, and every plate's mesh is built at run time from its eight boundary
+  samples; see `crates/nova_ship/src/sections/shell_shape.rs`.
 - **Textures** (`assets/textures/*.png`, except the skybox cubemaps
   `cubemap.png` and `cubemap_alt.png` listed under "Third-party assets")
   and **UI icons**

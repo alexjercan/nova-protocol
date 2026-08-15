@@ -641,6 +641,7 @@ fn ship(
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
+            skin: false,
             controller,
             allegiance,
             sections,

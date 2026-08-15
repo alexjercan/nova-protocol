@@ -141,6 +141,7 @@ fn player_ship() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
+            skin: false,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: ships::CARGOA_TURRET_IDS
                     .iter()
@@ -236,6 +237,7 @@ fn picket(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
+            skin: false,
             controller: SpaceshipController::AI(AIControllerConfig {
                 orbit: Some(ID_ANCHOR.to_string()),
                 leash: Some(600.0),
@@ -260,6 +262,7 @@ fn flagship() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
+            skin: false,
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             allegiance: None,
             sections: ships::cargob_sections(),
@@ -279,6 +282,7 @@ fn escort() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
+            skin: false,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: vec![ESCORT_SPAWN, FLAGSHIP_SPAWN + Vec3::new(0.0, 40.0, 80.0)],
                 leash: Some(700.0),

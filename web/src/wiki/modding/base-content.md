@@ -32,7 +32,7 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 | id | kind | display name | health | notes |
 |---|---|---|---|---|
 | `reinforced_hull_section` | Hull | Reinforced Hull Section | 200 | the armor workhorse |
-| `basic_thruster_section` | Thruster | Basic Thruster Section | 70 | magnitude 1.0 |
+| `basic_thruster_section` | Thruster | Basic Thruster Section | 70 | magnitude 1.0; one socket, on the `-Z` face it bolts by - the rest of the part is barrel, nozzle and plume |
 | `basic_controller_section` | Controller | Basic Controller Section | 100 | freq 4.0, damping 4.0, max torque 40 |
 | `better_turret_section` | Turret | Better Turret Section | 130 | Kinetic 4.0/hit at 100 rps, ammo 500 |
 | `light_hull_section` | Hull | Light Hull Section | 60 | scavenger-grade hull |
@@ -41,6 +41,19 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 | `pdc_pierce_turret_section` | Turret | PDC Turret (Pierce) | 130 | the same gun loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through |
 | `torpedo_section` | Torpedo | Torpedo Bay Section | 100 | blast 750 dmg / 30 u, ordnance 10 hp, ammo 6 |
 | `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; scene dressing, hidden in the editor |
+
+### Cladding (not a prototype)
+
+A ship's outer SKIN is DERIVED from the structure it wraps, as a pure function
+of it: nothing places a plate, no id names one, and none is saved. Build the
+structure and the skin follows. There is nothing here for a mod to reference.
+
+A ship asks for it with one field - `skin: true` on the
+[Spaceship](../objects/#spaceship) - and gets destructible cladding: each plate
+carries its own health and mass, comes off when it is shot out, and leaves the
+hull behind it bare. Build the hull out of the unit-cell sections above; the
+semantic ship parts are modelled shapes of their own sizes and are not on the
+lattice the derivation reads.
 
 ### Semantic ship parts
 
@@ -144,6 +157,9 @@ Semantic ship meshes use `#Scene0` and live under `gltf/parts/`:
 - `gltf/parts/cargob/` - `engine_port`, `engine_starboard`, `pod_port`,
   `pod_starboard`, `nose`, `tail`, and `fuselage`.
 - `gltf/parts/cargoa/` - the same seven CargoB mesh names.
+
+Cladding ships no meshes and never will: a ship's skin is derived from its
+structure and built at run time - see [Cladding](#cladding-not-a-prototype).
 
 ### Sounds (13 wav)
 

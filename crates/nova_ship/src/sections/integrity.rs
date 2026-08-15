@@ -123,7 +123,10 @@ fn on_section_disable(
 /// emits false errors. `Added<SectionLinkPoints>` is evaluated once per update, after all
 /// section commands from the spawn observer have landed, so each affected root is derived once
 /// from its complete authored batch.
-fn build_ship_integrity_graph(
+///
+/// `pub(crate)` because the derived skin hangs off the same edge and orders
+/// itself after this: structure settles, then it is dressed.
+pub(crate) fn build_ship_integrity_graph(
     mut commands: Commands,
     q_added_sections: Query<&ChildOf, (With<SectionMarker>, Added<SectionLinkPoints>)>,
     q_root: Query<(), With<SpaceshipRootMarker>>,

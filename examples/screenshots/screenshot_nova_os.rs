@@ -170,6 +170,7 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
 
     let player = SpaceshipConfig {
         collapse_threshold: None,
+        skin: false,
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),

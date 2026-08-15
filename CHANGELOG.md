@@ -127,6 +127,19 @@ tagged **(breaking)**.
   must be taken further apart, `Some(0.0)` for the old strip-every-section
   rule. Neutralization is untouched: a disarmed ship with a sound hull is
   still a live derelict, not a wreck.
+- Ships can wear a DERIVED skin: `skin: true` on a spaceship and the game clads
+  the whole hull at spawn from the structure alone. Nothing places a plate,
+  nothing authors one and no id names one - every plate's shape follows from the
+  eight boundary samples its cell shares with its neighbours, so neighbours meet
+  exactly and a run of plates is one continuous hull. Cladding is
+  DESTRUCTIBLE: a plate carries its own health and mass, comes off when it is
+  shot out and leaves a hole a piercing round carries on through, and it never
+  counts toward the ship's own health or holds a severed hull together. A
+  destroyed section takes its own cladding with it. Off by default, and only for
+  hulls built out of the unit-cell sections.
+- `basic_thruster_section` carries ONE socket now, on the forward face it
+  bolts by - the rest of the part is barrel, nozzle and plume, so nothing
+  mounts on the drive or plates over its exhaust.
 - A collapsing ship TEARS ITSELF APART instead of popping out of existence:
   every section still standing is disabled at the collapse, the outermost ones
   blow off first with their own debris burst, and the wreck peels inward over
@@ -264,6 +277,12 @@ tagged **(breaking)**.
   maximum) instead of being re-summed from the surviving sections, so
   destroying a 1000-hp section no longer takes that 1000 out of the
   denominator as well: 150/1100 used to read 100/100.
+- Weapons no longer offer a mating surface where their business end is. The
+  shared PDC mount carried the full six-socket cube, so a builder could stand
+  a second turret on the first one's barrel or plate a slab across its
+  traverse; it now sockets its base plate and nothing else. Both torpedo bays
+  drop the socket on the face they fire through, so a section can no longer be
+  bolted over a muzzle.
 - **(breaking)** Turret rounds deal their authored damage once, not twice.
   Avian raises a collision event per event-enabled collider, so a round (which
   carries its own) hitting a health-bearing section (which the integrity hook
@@ -298,6 +317,30 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- New `wfc_ships` screenshot producer: wave function collapse over the section
+  catalog, where the adjacency rules ARE the link points - a socket must meet a
+  socket, so mounts land on the skin and bays keep their muzzles clear without
+  anything in the generator knowing what either part is. Every generated hull
+  goes through the real `lint_scenario` before it is posed.
+- `wfc_ships` collapses STRUCTURE and nothing else. It builds no skin, names no
+  plate and knows nothing about cladding: a ship asks for a skin with one flag
+  and the game derives the whole of it at spawn, so a clad row is evidence that
+  the derivation reads structure rather than a picture of what the generator
+  already decided. `--bare`, and `C` in a hand-run, turn the flag off on the
+  same seeds, which is what makes the pair a before and after.
+- `wfc_ships` states its rule as: a socket may never press into a face that has
+  none. Two sockets meeting is a mate; a socket against a blank face is what must
+  never be built. Where NEITHER face has a socket the two may touch: a drive's
+  flank is the side of a cylinder and a mount's is its housing, so two of those
+  resting against each other is an engine cluster and not a fault. What this
+  does NOT model is CLEARANCE - a muzzle or a nozzle wants the cell in front of
+  it empty - because a socket set cannot tell the mouth of a barrel from its
+  side; the content already knows where a plume and a muzzle point and
+  clearance should be read off that.
+- `wfc_ships` no longer masks a face off the drive. It carried one assertion
+  over the catalog, because a six-socket thruster called its own nozzle a mating
+  surface. The drive says that itself now, so the generator only reads link
+  points.
 - `NOVA_MENU_BACKDROP=<scenario id>` pins the menu's backdrop draw for
   capture and authoring runs; unknown ids fall back to the random pick.
 - The autopilot gains a `type_text` gesture: a driven run can type into a text

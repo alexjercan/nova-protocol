@@ -547,6 +547,7 @@ mod tests {
 
         let ship = SpaceshipConfig {
             collapse_threshold: None,
+            skin: false,
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping,

@@ -308,6 +308,7 @@ fn target_hulk(index: usize, position: Vec3) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
+            skin: false,
             allegiance: None,
             controller: SpaceshipController::None,
             sections: vec![
@@ -346,6 +347,7 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
+            skin: false,
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::AI(AIControllerConfig {
                 // Territorial: a woken picket fights over its own patch and
@@ -422,6 +424,7 @@ fn player_ship(player_config: &PlayerSpaceshipConfig) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             collapse_threshold: None,
+            skin: false,
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: player_config

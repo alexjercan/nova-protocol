@@ -104,72 +104,7 @@
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "negative_z",
+                    id: "base",
                     position: (
                         0.0,
                         0.0,
@@ -734,46 +669,7 @@
             )),
             link_points: [
                 (
-                    id: "positive_x",
-                    position: (
-                        0.25,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.25,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.25,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
+                    id: "base",
                     position: (
                         0.0,
                         -0.25,
@@ -783,32 +679,6 @@
                         0.0,
                         -1.0,
                         0.0,
-                    ),
-                ),
-                (
-                    id: "positive_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        0.25,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "negative_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        -0.25,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        -1.0,
                     ),
                 ),
             ],
@@ -935,46 +805,7 @@
             )),
             link_points: [
                 (
-                    id: "positive_x",
-                    position: (
-                        0.25,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.25,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.25,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
+                    id: "base",
                     position: (
                         0.0,
                         -0.25,
@@ -984,32 +815,6 @@
                         0.0,
                         -1.0,
                         0.0,
-                    ),
-                ),
-                (
-                    id: "positive_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        0.25,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "negative_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        -0.25,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        -1.0,
                     ),
                 ),
             ],
@@ -1193,19 +998,6 @@
                         1.0,
                     ),
                 ),
-                (
-                    id: "negative_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        -0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        -1.0,
-                    ),
-                ),
             ],
         ),
         kind: Torpedo((
@@ -1314,19 +1106,6 @@
                         0.0,
                         0.0,
                         1.0,
-                    ),
-                ),
-                (
-                    id: "negative_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        -0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        -1.0,
                     ),
                 ),
             ],

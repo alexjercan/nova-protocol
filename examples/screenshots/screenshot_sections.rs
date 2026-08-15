@@ -116,6 +116,7 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     // left/right flanks rather than stacked in front.
     let ship = SpaceshipConfig {
         collapse_threshold: None,
+        skin: false,
         allegiance: None,
         controller: SpaceshipController::None,
         sections: vec![
