@@ -37,9 +37,15 @@ faired comms radome (`dish`), an advert panel (`livery`), a registry mark
 are hull-coloured, machinery never shows, and the whole kit spends two accent
 colours and nothing else - cobalt for paint, amber for anything lit.
 
-`industrial_*.glb` - seven pieces a fitter would have a part number for: a
+`industrial_*.glb` - fourteen pieces a fitter would have a part number for: a
 radiator bank, a conduit run, a corrugated panel, a louvred grille, an access
-hatch, a heat stack and a painted hazard band.
+hatch, a heat stack, a painted hazard band, and - the builders batch - an open
+battery rack (`cells`), a stencilled placard (`stencil`), a deck winch with a
+cog flank (`winch`), a pedestal crane (`crane`), lashed plate stock
+(`plate_rack`), a twin work-light (`floodlight`) and a row of capped sockets
+(`umbilical`). Yellow keeps its three-use discipline: edges (the band),
+collars (the stack collar, the cell rack's bus bar) and handles (the hatch
+handle, the winch crank).
 
 `salvage_*.glb` - mismatched patches in three materials, a hand-run weld bead, a
 lashed drum, a kinked whip antenna and a tow cleat. Seven pieces, and the cap is

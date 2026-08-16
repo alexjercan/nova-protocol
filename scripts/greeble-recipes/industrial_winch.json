@@ -1,0 +1,52 @@
+{
+  "_comment": "INDUSTRIAL: a deck winch - a bed plate, two cradle cheeks, a cable drum lying along +Z and an eight-sided cog proud of one flank. The cog is the kit's exclusive wheels-and-cogs class: exposed gearing is machinery a warship would armour over and a sold ship would fair over, so only the builders show it. Eight sides on the cog is deliberate - at hull distance a faceted disc reads as a gear where a rounder one reads as a wheel. The crank knob on the cog face is the kit's yellow in its HANDLE use, the hatch handle's paint - the accent stays a system. Drum axis is +Z so `align: Run` lays the machinery with the deck grain beside its fitting.",
+  "materials": {
+    "industrial_steel": { "color": [0.105, 0.1, 0.092], "metallic": 0.45, "roughness": 0.72 },
+    "industrial_shadow": { "color": [0.018, 0.019, 0.022], "metallic": 0.1, "roughness": 0.9 },
+    "industrial_hazard": { "color": [0.95, 0.52, 0.02], "metallic": 0.0, "roughness": 0.55 }
+  },
+  "material": "industrial_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.2, 0.024, 0.32],
+      "at": [0.0, 0.012, 0.0],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.18, 0.12, 0.035],
+      "at": [0.0, 0.084, -0.125],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.18, 0.12, 0.035],
+      "at": [0.0, 0.084, 0.125],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.082,
+      "height": 0.22,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.13, 0.0]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.115,
+      "thickness": 0.03,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.13, 0.15],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.03, 0.03, 0.075],
+      "at": [0.06, 0.19, 0.185],
+      "material": "industrial_hazard"
+    }
+  ]
+}

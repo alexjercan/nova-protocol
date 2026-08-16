@@ -103,16 +103,29 @@ pub(crate) fn style_catalog(assets: &BaseContentAssets) -> Vec<ShipStyleConfig> 
 ///    plate boundary reads as a black gap between bolted panels rather than as
 ///    shading. That is the cheapest "exposed panelling" there is, and it costs
 ///    no geometry at all.
-/// 3. THE KIT. Radiators, conduit, corrugation, louvres, hatches and stacks.
-///    Seven pieces, no ornament among them - every one is something that would
-///    have a part number.
+/// 3. THE KIT. Radiators, conduit, corrugation, louvres, hatches, stacks -
+///    and, since the builders batch (task 20260816-222639), a crane, battery
+///    racks, plate stock, a winch, floodlights, umbilical points and
+///    stencilled part numbers. Fourteen pieces, no ornament among them -
+///    every one is something a fitter would unbolt. The batch sharpened the
+///    fiction to THE BUILDERS: a working shipyard that never left the ship.
 ///
 /// The rules below are a ZONE ALLOCATION rather than a set of overlapping
 /// filters: each piece owns a part of the hull that the vocabulary can name, so
 /// priority mostly resolves ties rather than starving anything. Reading down:
-/// the high ground, the straight edges, the flat panel, the long runs, the
-/// fittings, and then two fillers on one lattice for everything left.
+/// the high ground, the long straight edges, the short edge stubs the band
+/// refuses, the laydown decks (plate stock, then cells), the flanks, the flat
+/// panel, the long runs, the fittings (grille, machinery, lighting), the
+/// thick body, the markings that lie on anything, and one filler for whatever
+/// is left.
 fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
+    // The builders-batch pieces name their art BY ID rather than through a
+    // `BaseContentAssets` field: four vocabulary batches land in parallel and
+    // the assets struct is the one file every lane would collide in. The
+    // namespacing test below pins the id-to-path equality either way.
+    let greeble = |id: &str| {
+        nova_gameplay::prelude::AssetRef::from(format!("self://gltf/greebles/{id}.glb#Scene0"))
+    };
     ShipStyleConfig {
         id: INDUSTRIAL_STYLE_ID.to_string(),
         name: "Industrial".to_string(),
@@ -202,6 +215,127 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 },
             },
             StyleFixtureConfig {
+                id: "industrial_crane".to_string(),
+                model: greeble("industrial_crane"),
+                health: 12.0,
+                density: 0.12,
+                collider: Vec3::new(0.16, 0.45, 0.32),
+                // THE SHORT EDGE STUBS - deliberately AFTER the band, and the
+                // order is the design: the band paints every straight edge of
+                // three cells or more first, because a crane sampled out of
+                // those runs would punch holes in the painted line and dash
+                // it. What the band refuses - the one- and two-cell Brink
+                // stubs at deck corners and steps - is exactly where a hoist
+                // parks on a real hull, swung out over the side it loads
+                // from. `align: Outward` leans the jib overboard; `min_depth:
+                // 2` keeps the kit's second-tallest piece off one-cell spars
+                // it would dwarf. No stride, unlike the other chunky rules: a
+                // zone measured in single cells has nothing for a lattice to
+                // thin but its existence. The patch floor still guarantees a
+                // big builder hull a hoist where the share misses.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Brink],
+                    min_depth: 2,
+                    chance: 0.3,
+                    patch: 6,
+                    align: ScatterAlign::Outward,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "industrial_plate_rack".to_string(),
+                model: greeble("industrial_plate_rack"),
+                health: 20.0,
+                density: 0.2,
+                collider: Vec3::new(0.34, 0.1, 0.43),
+                // THE LAYDOWN YARD: the builders carry their materials, so
+                // spare plate stock lies lashed to the decks. ABOVE the
+                // radiator and the duct, and that ordering was MEASURED, not
+                // reasoned: drafted below them, the radiator's half share
+                // plus the conduit's full-share lines left this rule ZERO
+                // pieces on six of the eight bench blocks - the starved-
+                // signature defect the vocabulary spike names. A sparse
+                // chunky accent samples before the broad claimants, the same
+                // law the hatch already pins against the corrugation. The
+                // cost runs the other way and is cheap: at stride 2 and a
+                // quarter share, a conduit run loses at most the odd cell,
+                // and a stack of plate parked mid-run reads as a thing the
+                // pipe was routed around, where a hole in a painted line
+                // reads as a mistake. `min_depth: 2` keeps a solid stack of
+                // hull plate off the skin over a spar; the low share keeps
+                // the yard from tipping into scrapyard (the salvage drum's
+                // measured lesson); the patch floor still guarantees a big
+                // deck its stock pile.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    min_depth: 2,
+                    stride: 2,
+                    chance: 0.25,
+                    patch: 5,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "industrial_cells".to_string(),
+                model: greeble("industrial_cells"),
+                health: 16.0,
+                density: 0.14,
+                collider: Vec3::new(0.3, 0.21, 0.46),
+                // THE POWER CELLS, racked in the open where a fitter can swap
+                // one - the shared matrix's power-cell class in its
+                // industrial voice. Above the radiator and the duct for the
+                // plate rack's measured reason, and behind the rack because
+                // of the two the rack is the bigger silhouette. Chunky
+                // detail wants thick body under it (`min_depth: 2`) and a
+                // LOW share: per plate this is the rarest deck piece in the
+                // kit, and the patch floor is what turns that into "one rack
+                // per block of hull" instead of a battery farm. Same
+                // stride-2 lattice as the other deck accents, so racks and
+                // hatches read as one bolt grid. The yellow bus bar across
+                // the terminals is the accent's COLLAR use - the discipline
+                // (edges, collars, handles) is why this piece may carry
+                // paint at all.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    min_depth: 2,
+                    stride: 2,
+                    chance: 0.15,
+                    patch: 6,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "industrial_umbilical".to_string(),
+                model: greeble("industrial_umbilical"),
+                health: 10.0,
+                density: 0.1,
+                collider: Vec3::new(0.16, 0.13, 0.44),
+                // THE FLANKS: ships get built plugged in, and the capped
+                // shore connections stay where the gantry stood - down the
+                // SIDES, the zone civilian spends on windows, which is the
+                // tone split doing its job. `facing: Side` is this kit's
+                // first, but the radiator and the duct face ANY, so drafted
+                // below them the flank cells were already spent (measured
+                // zero on five of six subjects with a side to offer) - hence
+                // this rule rides with the deck accents above both.
+                // `min_depth: 2` keeps sockets on hull body where trunking
+                // plausibly runs behind them; `align: Run` rows them along
+                // the flank; the stride and the share keep the row
+                // punctuation rather than cladding.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    facing: PlateFacing::Side,
+                    min_depth: 2,
+                    stride: 2,
+                    chance: 0.4,
+                    patch: 4,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
                 id: "industrial_radiator".to_string(),
                 model: assets.greeble_industrial_radiator.clone(),
                 health: 14.0,
@@ -281,6 +415,57 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 },
             },
             StyleFixtureConfig {
+                id: "industrial_winch".to_string(),
+                model: greeble("industrial_winch"),
+                health: 14.0,
+                density: 0.16,
+                collider: Vec3::new(0.23, 0.25, 0.38),
+                // DECK MACHINERY AT THE FITTINGS - the wheels-and-cogs class,
+                // which the shared matrix gives ONLY to the working styles: a
+                // warship armours its gearing over and a sold ship fairs it
+                // in, so an exposed cog is half the builders' voice on its
+                // own. Behind the louvre on purpose: the grille had the
+                // pocket slot first and keeps first pick of that lattice; the
+                // winch takes a 0.3 share of what remains, so machinery
+                // clusters where the fittings are - the EXPOSURE doctrine -
+                // without carpeting the pocket. `min_depth: 2` because a
+                // winch bolts to deck, never to the skin over a spar. The
+                // crank knob is the accent's HANDLE use, the hatch handle's
+                // paint.
+                scatter: ScatterRule {
+                    near_fitting: Some(1),
+                    min_depth: 2,
+                    stride: 2,
+                    chance: 0.3,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "industrial_floodlight".to_string(),
+                model: greeble("industrial_floodlight"),
+                health: 8.0,
+                density: 0.06,
+                collider: Vec3::new(0.17, 0.25, 0.12),
+                // WORK LIGHTING OVER THE WORK: the third and LAST pocket
+                // rule, thinned hardest, because three pieces crowding every
+                // fitting is confetti with a theme. The scatter cannot aim a
+                // piece AT its fitting, so the recipe tilts the lamp heads
+                // down and `align: Outward` turns the pair off the hull -
+                // rigged yard lighting over the work face rather than lamps
+                // combed with the panel grain. No `min_depth`, unlike the
+                // winch: a light bolts to anything, including the thin
+                // structure a boom-mounted gun rides on, and the pocket
+                // filter plus two senior pocket rules already ration it.
+                scatter: ScatterRule {
+                    near_fitting: Some(1),
+                    stride: 2,
+                    chance: 0.25,
+                    align: ScatterAlign::Outward,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
                 id: "industrial_hatch".to_string(),
                 model: assets.greeble_industrial_hatch.clone(),
                 health: 18.0,
@@ -301,6 +486,36 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                     stride: 2,
                     chance: 0.3,
                     patch: 5,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "industrial_stencil".to_string(),
+                model: greeble("industrial_stencil"),
+                health: 4.0,
+                density: 0.03,
+                collider: Vec3::new(0.22, 0.02, 0.34),
+                // THE MARKINGS, and the kit's second THIN-SHAPE CARRIER
+                // (finding 1.5.3 of the vocabulary spike): `seat: Any` and NO
+                // `min_depth`, `min_height` or relief, because a hand-built
+                // hull one cell thick derives as cones end to end and a flat
+                // two-centimetre placard is the one piece that genuinely lies
+                // on any of them - which is why the marking class carries the
+                // carrier duty (flat detail may sit anywhere, PG 3.6). This
+                // far down the list every zone rule has picked first, so on a
+                // thick hull it numbers the gaps; on a thin frame it is most
+                // of what fires, and a bare frame stencilled with part
+                // numbers IS the builders' read. Share low - a serial is
+                // punctuation - with a patch floor so no block of hull goes
+                // entirely unnumbered. Above the ribbing because even a
+                // decal is an accent, and accents are never sampled from a
+                // filler's leavings.
+                scatter: ScatterRule {
+                    seat: ScatterSeat::Any,
+                    stride: 2,
+                    chance: 0.22,
+                    patch: 7,
+                    align: ScatterAlign::Run,
                     ..Default::default()
                 },
             },
@@ -1675,6 +1890,10 @@ mod tests {
             opted,
             vec![
                 "industrial_stack",
+                // The builders batch's marking placard: the kit's second
+                // carrier, because a flat decal is the piece that lies on a
+                // cone honestly.
+                "industrial_stencil",
                 "armoured_mast",
                 "armoured_cap",
                 "armoured_applique",
@@ -1783,7 +2002,14 @@ mod tests {
     #[test]
     fn the_industrial_kit_namespaces_everything_it_ships() {
         let style = industrial_style(&BaseContentAssets::from_paths());
-        assert_eq!(style.fixtures.len(), 7, "the kit is capped at 6-8 pieces");
+        assert_eq!(
+            style.fixtures.len(),
+            14,
+            "the industrial cap was raised 7 -> 14 by the builders batch \
+             (task 20260816-222639) DELIBERATELY: seven new classes with one \
+             piece each, not variants, so the doctrine - mismatch comes from \
+             placement and material, never from count - still holds"
+        );
         for fixture in &style.fixtures {
             let prefix = format!("{INDUSTRIAL_STYLE_ID}_");
             assert!(

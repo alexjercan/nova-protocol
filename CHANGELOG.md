@@ -245,6 +245,9 @@ tagged **(breaking)**.
 - Every skin style now dresses hand-built hulls: the windows, sensor and
   radiator signature pieces reach real builds, and each kit carries one
   cone-friendly piece for one-cell-thick shapes.
+- The industrial skin doubles its kit to 14: crane, plate stock, battery
+  rack, umbilical row, winch, floodlight and a stencil placard that reaches
+  one-cell-thick builds.
 - A second skin bench at ship scale: `block_bench` stands eight hand-placed
   building block ships - destroyer wedge, spine freighter, carrier deck -
   clad, labelled and reported like `shape_bench`.

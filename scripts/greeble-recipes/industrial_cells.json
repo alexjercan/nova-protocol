@@ -1,0 +1,63 @@
+{
+  "_comment": "INDUSTRIAL: an open battery rack - a dark tray, two end cheeks, four cells standing in a row and one yellow bus bar bolted across their terminals. The rack is OPEN because exposure is the kit's thesis: a sold ship would fair this over, a working ship wants the cells where a fitter can swap one. The bus bar is the kit's yellow in its COLLAR use, same paint as the stack's collar - the accent stays a system (edges, collars, handles) rather than a colour. Long axis is +Z so `align: Run` lies the rack down the deck grain with the ducts and the radiator fins.",
+  "materials": {
+    "industrial_steel": { "color": [0.105, 0.1, 0.092], "metallic": 0.45, "roughness": 0.72 },
+    "industrial_shadow": { "color": [0.018, 0.019, 0.022], "metallic": 0.1, "roughness": 0.9 },
+    "industrial_hazard": { "color": [0.95, 0.52, 0.02], "metallic": 0.0, "roughness": 0.55 }
+  },
+  "material": "industrial_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.3, 0.03, 0.46],
+      "at": [0.0, 0.015, 0.0],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.3, 0.13, 0.024],
+      "at": [0.0, 0.095, -0.219],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.3, 0.13, 0.024],
+      "at": [0.0, 0.095, 0.219],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.052,
+      "height": 0.16,
+      "sides": 6,
+      "at": [0.0, 0.11, -0.165]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.052,
+      "height": 0.16,
+      "sides": 6,
+      "at": [0.0, 0.11, -0.055]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.052,
+      "height": 0.16,
+      "sides": 6,
+      "at": [0.0, 0.11, 0.055]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.052,
+      "height": 0.16,
+      "sides": 6,
+      "at": [0.0, 0.11, 0.165]
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.028, 0.42],
+      "at": [0.0, 0.196, 0.0],
+      "material": "industrial_hazard"
+    }
+  ]
+}

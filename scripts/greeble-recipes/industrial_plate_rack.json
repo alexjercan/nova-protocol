@@ -1,0 +1,40 @@
+{
+  "_comment": "INDUSTRIAL: three spare hull plates stacked flat and lashed down with two dark straps - the builders carry their materials, and a laydown yard on deck says the next repair is already planned. The plates are ALMOST square to each other, two to four degrees out: a working yard stacks straight and a scrapyard does not, so the jitter stays a fraction of what the salvage kit authors. The straps run past the plate edges so they read as wrapped over the stack, not painted on it. NO yellow - lashings are shadow, and the accent stays on edges, collars and handles. Long axis is +Z so `align: Run` lies the stock with the deck grain.",
+  "materials": {
+    "industrial_steel": { "color": [0.105, 0.1, 0.092], "metallic": 0.45, "roughness": 0.72 },
+    "industrial_shadow": { "color": [0.018, 0.019, 0.022], "metallic": 0.1, "roughness": 0.9 }
+  },
+  "material": "industrial_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.3, 0.024, 0.4],
+      "rotate": [0.0, 3.0, 0.0],
+      "at": [0.006, 0.012, -0.008]
+    },
+    {
+      "primitive": "box",
+      "size": [0.29, 0.024, 0.39],
+      "rotate": [0.0, -4.0, 0.0],
+      "at": [-0.01, 0.036, 0.01]
+    },
+    {
+      "primitive": "box",
+      "size": [0.3, 0.024, 0.38],
+      "rotate": [0.0, 2.0, 0.0],
+      "at": [0.004, 0.06, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.32, 0.1, 0.03],
+      "at": [0.0, 0.05, -0.11],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.32, 0.1, 0.03],
+      "at": [0.0, 0.05, 0.13],
+      "material": "industrial_shadow"
+    }
+  ]
+}

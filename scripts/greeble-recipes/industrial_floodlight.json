@@ -1,0 +1,60 @@
+{
+  "_comment": "INDUSTRIAL: a twin work-light on a short mast - a base puck, a post, a crossbar and two lamp heads tilted thirty-five degrees down at the deck ahead. The lenses are the one bright material in the kit: flat warm white at low roughness, because the pipeline has no emissive and a pale low-rough face is what reads as a lit lamp against the dark steel. Not yellow and not a fourth accent - it is the lamp itself, the same move as the civilian kit's amber. The heads aim down +Z and the rule turns the piece OUTWARD, so a pair by a fitting reads as yard lighting rigged over the work face.",
+  "materials": {
+    "industrial_steel": { "color": [0.105, 0.1, 0.092], "metallic": 0.45, "roughness": 0.72 },
+    "industrial_shadow": { "color": [0.018, 0.019, 0.022], "metallic": 0.1, "roughness": 0.9 },
+    "industrial_lamp": { "color": [0.95, 0.88, 0.7], "metallic": 0.0, "roughness": 0.3 }
+  },
+  "material": "industrial_steel",
+  "parts": [
+    {
+      "primitive": "disc",
+      "radius": 0.06,
+      "thickness": 0.02,
+      "sides": 8,
+      "at": [0.0, 0.01, 0.0],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.02,
+      "height": 0.15,
+      "sides": 6,
+      "at": [0.0, 0.095, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.17, 0.028, 0.03],
+      "at": [0.0, 0.175, 0.0],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 0.06, 0.05],
+      "rotate": [35.0, 0.0, 0.0],
+      "at": [-0.055, 0.21, 0.005],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 0.06, 0.05],
+      "rotate": [35.0, 0.0, 0.0],
+      "at": [0.055, 0.21, 0.005],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.05, 0.014],
+      "rotate": [35.0, 0.0, 0.0],
+      "at": [-0.055, 0.194, 0.028],
+      "material": "industrial_lamp"
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.05, 0.014],
+      "rotate": [35.0, 0.0, 0.0],
+      "at": [0.055, 0.194, 0.028],
+      "material": "industrial_lamp"
+    }
+  ]
+}
