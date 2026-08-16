@@ -101,7 +101,7 @@ An empty rule matches every plate.
 | `max_border` | `Some(int)` | none | how far in it may be at most. `Some(0)` is TRIM: only ever at the end of a run |
 | `min_depth` | int | 0 | how many cells of ship must stand under the plate |
 | `min_enclosure` | int | 0 | how many of the eight surrounding cells the surface carries on into (0-8) |
-| `near_fitting` | `Some(int)` | none | how many steps across the surface the mouth of a fitting - a drive bay, a gun well - may be at most |
+| `near_fitting` | `Some(int)` | none | how many steps across the surface the nearest fitting - a drive, a bay, a gun mount - may be at most |
 | `stride` | int | 1 | the LATTICE the piece claims cells on. `2` is every other cell on both in-plane axes |
 | `chance` | float | 1.0 | the share of the plates that pass everything above which take the piece |
 | `patch` | int | 0 | at least one piece per block of this many cells - see [Density](#density-one-piece-per-block-of-hull) |

@@ -43,6 +43,7 @@ use nova_gameplay::prelude::{
 };
 
 use crate::sections::{
+    clearance::prelude::SectionExit,
     fixture::prelude::SectionFixture,
     integrity::build_ship_integrity_graph,
     link_points::prelude::{LinkPoint, SectionLinkPoints},
@@ -55,13 +56,13 @@ use crate::sections::{
     skin_style::{GameStyles, ShipStyle, ShipStyleConfig},
 };
 
-/// The prelude: `SkinStructure`, `SkinPlate`, `derive_skin`, `read_structure`,
-/// `plate_body`, `SkinAssets`, `ShipSkin`, `ShipSkinMarker` and
-/// `ShipSkinPlugin`.
+/// The prelude: `SkinStructure`, `SkinPlate`, `PlacedPart`, `derive_skin`,
+/// `read_structure`, `plate_body`, `SkinAssets`, `ShipSkin`, `ShipSkinMarker`
+/// and `ShipSkinPlugin`.
 pub mod prelude {
     pub use super::{
-        derive_skin, plate_body, read_structure, ShipSkin, ShipSkinMarker, ShipSkinPlugin,
-        SkinAssets, SkinPlate, SkinStructure,
+        derive_skin, plate_body, read_structure, PlacedPart, ShipSkin, ShipSkinMarker,
+        ShipSkinPlugin, SkinAssets, SkinPlate, SkinStructure,
     };
 }
 
@@ -122,37 +123,73 @@ const SUPPORT_REACH: usize = 4;
 /// often enough to matter, and the skin would then clad the wrong neighbourhood.
 const PLACEMENT_SNAP: f32 = 4096.0;
 
+/// What one filled cell turns outward: the faces carrying a link-point socket,
+/// and the faces something fires, launches or exhausts through.
+///
+/// Both are SETS rather than single answers because a cell is a bucket, not a
+/// section: two half-size parts standing either side of a boundary land in one.
+#[derive(Default, Clone, Copy, Debug)]
+struct CellFaces {
+    /// Faces offering a socket, indexed as [`FACES`].
+    sockets: [bool; 6],
+    /// Faces something fires through, indexed as [`FACES`].
+    exits: [bool; 6],
+}
+
 /// A ship's structure, as the skin needs to see it.
 ///
-/// Only two facts per filled cell: that it is filled, and which of its six
-/// faces carry a link-point socket once the section is rotated. That is enough,
-/// and deliberately less than a section - the skin has no business knowing what
-/// a cell holds, only what it presents.
+/// Three facts per filled cell: that it is filled, which of its six faces carry
+/// a link-point socket once the section is rotated, and which of them something
+/// FIRES through. That is enough, and deliberately less than a section - the
+/// skin has no business knowing what a cell holds, only what it presents.
+///
+/// The exits are here because the skin and the clearance rule need the same
+/// fact and must never disagree about it: [`crate::sections::clearance`] reads
+/// this type to decide which lanes have to stay void, and [`exit_pocket`] reads
+/// it to decide which cells may not be clad.
 #[derive(Default, Clone, Debug)]
 pub struct SkinStructure {
-    cells: HashMap<IVec3, [bool; 6]>,
+    cells: HashMap<IVec3, CellFaces>,
 }
 
 impl SkinStructure {
-    /// A cell filled by a section presenting `faces`, indexed as [`FACES`].
+    /// A cell filled by a section presenting `faces`, indexed as [`FACES`], and
+    /// firing through none of them.
     pub fn insert(&mut self, cell: IVec3, faces: [bool; 6]) {
-        self.cells.insert(cell, faces);
+        self.cells.entry(cell).or_default().sockets = faces;
     }
 
-    /// A cell filled by a section whose sockets point along `normals`, already
-    /// turned into the ship's frame.
+    /// A cell something fires, launches or exhausts through `out`.
+    ///
+    /// Separate from the sockets because it is a separate fact: a face with
+    /// nothing to mate is usually just a flank, and only the ONE face a part's
+    /// business points through needs the space in front of it.
+    pub fn insert_exit(&mut self, cell: IVec3, out: usize) {
+        self.cells.entry(cell).or_default().exits[out] = true;
+    }
+
+    /// A cell filled by a section whose sockets point along `normals` and which
+    /// fires along `exit`, both already turned into the ship's frame.
     ///
     /// Sockets are ADDED to whatever the cell already presents, and a normal
     /// that points between two faces is dropped. Both cases are the same one: a
     /// cell is a bucket, not a section, and two half-size parts standing either
     /// side of a boundary land in one. What the skin needs to know is what the
     /// cell as a whole turns outward.
-    pub fn insert_section(&mut self, cell: IVec3, normals: impl IntoIterator<Item = Vec3>) {
-        let faces = self.cells.entry(cell).or_insert([false; 6]);
+    pub fn insert_section(
+        &mut self,
+        cell: IVec3,
+        normals: impl IntoIterator<Item = Vec3>,
+        exit: Option<Vec3>,
+    ) {
+        let faces = self.cells.entry(cell).or_default();
         for normal in normals {
             if let Some(face) = face_index(normal) {
-                faces[face] = true;
+                faces.sockets[face] = true;
             }
+        }
+        if let Some(out) = exit.and_then(face_index) {
+            faces.exits[out] = true;
         }
     }
 
@@ -164,7 +201,21 @@ impl SkinStructure {
     /// Whether the section in `cell` offers a socket on its `face`, or `None`
     /// if the cell is empty.
     pub(crate) fn offers(&self, cell: IVec3, face: usize) -> Option<bool> {
-        self.cells.get(&cell).map(|faces| faces[face])
+        self.cells.get(&cell).map(|faces| faces.sockets[face])
+    }
+
+    /// Whether the section in `cell` fires, launches or exhausts through its
+    /// `face`.
+    pub(crate) fn fires(&self, cell: IVec3, face: usize) -> bool {
+        self.cells.get(&cell).is_some_and(|faces| faces.exits[face])
+    }
+
+    /// Whether the section in `cell` fires through any face at all, which is
+    /// what makes it a FITTING rather than a piece of hull.
+    pub(crate) fn fires_at_all(&self, cell: IVec3) -> bool {
+        self.cells
+            .get(&cell)
+            .is_some_and(|faces| faces.exits.iter().any(|exit| *exit))
     }
 
     /// Every cell that holds structure.
@@ -217,14 +268,20 @@ pub fn derive_skin(structure: &SkinStructure) -> Vec<SkinPlate> {
 /// allowed to be the last thing before space, so every empty cell that touches
 /// the hull is claimed unless something makes it impossible.
 ///
-/// Two things do. A neighbouring section may turn a BLIND face to the cell - a
-/// mount's barrel, a bay's muzzle - and nothing may be built against one of
-/// those, which is what leaves the gun wells and the muzzle mouths open without
-/// either being named here. And a plate has to bolt down to structure on one
-/// face while showing vacuum on the opposite one, so a cell wedged between
-/// sections on every axis has nowhere to stand; those are dropped repeatedly
-/// until none are left, since dropping a cell only ever frees its neighbours to
-/// be the vacuum they needed.
+/// Two things do. A neighbouring section may FIRE into the cell - a mount's
+/// muzzle, a bay's mouth, a drive's bell - and nothing may be built in the
+/// space a part's business points through, which is what leaves those mouths
+/// open without any of the three being named here. And a plate has to bolt down
+/// to structure on one face while showing vacuum on the opposite one, so a cell
+/// wedged between sections on every axis has nowhere to stand; those are dropped
+/// repeatedly until none are left, since dropping a cell only ever frees its
+/// neighbours to be the vacuum they needed.
+///
+/// The EXIT face and not every blind one. A fitting turns five faces with
+/// nothing to mate to the world and fires through exactly one of them, so
+/// refusing all five opened a cross-shaped well of bare hull round every drive
+/// and every gun: five cells of structure facing vacuum to keep one cell clear.
+/// A flank is not a muzzle.
 pub fn cladding_cells(structure: &SkinStructure) -> HashSet<IVec3> {
     let mut skin: HashSet<IVec3> = HashSet::new();
     for cell in structure.filled_cells() {
@@ -235,7 +292,7 @@ pub fn cladding_cells(structure: &SkinStructure) -> HashSet<IVec3> {
             }
             let touches_socket = (0..FACES.len())
                 .any(|f| structure.offers(candidate + FACES[f], f ^ 1) == Some(true));
-            if touches_socket && !blind_pocket(structure, candidate) {
+            if touches_socket && !exit_pocket(structure, candidate) {
                 skin.insert(candidate);
             }
         }
@@ -257,17 +314,22 @@ pub fn cladding_cells(structure: &SkinStructure) -> HashSet<IVec3> {
     skin
 }
 
-/// Whether some section turns a BLIND face into this cell, which is what keeps
-/// the cladding out of it.
+/// Whether some section FIRES into this cell, which is what keeps the cladding
+/// out of it.
 ///
-/// A gun well and the mouth of a drive bay are both this and nothing else: a
-/// mount presents five faces with nothing to mate and a drive presents five,
-/// and no plate may be laid against one of them. Read by [`cladding_cells`] to
-/// refuse the cell, and by [`boundary_heights`] to tell a pocket like this from
-/// open space - the skin ends against a pocket, and tapers away into open
-/// space.
-pub(super) fn blind_pocket(structure: &SkinStructure, cell: IVec3) -> bool {
-    (0..FACES.len()).any(|face| structure.offers(cell + FACES[face], face ^ 1) == Some(false))
+/// The mouth of a drive bell and the muzzle of a gun are both this and nothing
+/// else: the one face a part's business points through needs the space in front
+/// of it, and a plate laid there is a ship firing into its own plating. Read by
+/// [`cladding_cells`] to refuse the cell, and by [`boundary_heights`] to tell a
+/// pocket like this from open space - the skin ends against a pocket, and tapers
+/// away into open space.
+///
+/// Read off the EXIT and never off an absent socket. A fitting's flanks carry
+/// nothing to mate either and nothing comes out of them, which is the same fact
+/// [`crate::sections::clearance::exit_normal`] exists for; reading blind faces
+/// instead refused five cells round every fitting to protect one.
+pub(super) fn exit_pocket(structure: &SkinStructure, cell: IVec3) -> bool {
+    (0..FACES.len()).any(|face| structure.fires(cell + FACES[face], face ^ 1))
 }
 
 /// Whether a plate in `cell` may show `out` to space.
@@ -372,11 +434,11 @@ pub fn boundary_heights(
 /// Three ways, and they are one claim: the surface cannot carry on past here.
 /// The cell is CLAD, so the surface simply continues into it. It holds
 /// STRUCTURE, which the skin either climbs ([`walls`]) or stops at, and either
-/// way it is not vacuum. Or it is a POCKET a blind face keeps the cladding out
-/// of, which is a gun well or the mouth of a drive bay - a hole in the skin
+/// way it is not vacuum. Or it is a POCKET an exit keeps the cladding out of,
+/// which is a muzzle mouth or the mouth of a drive bell - a hole in the skin
 /// rather than the end of it.
 pub(super) fn ends_against(structure: &SkinStructure, skin: &HashSet<IVec3>, cell: IVec3) -> bool {
-    skin.contains(&cell) || structure.filled(cell) || blind_pocket(structure, cell)
+    skin.contains(&cell) || structure.filled(cell) || exit_pocket(structure, cell)
 }
 
 /// Whether the structure in `cell` is a WALL to a skin running in the plane of
@@ -606,7 +668,7 @@ fn spawn_ship_skin(
     q_added: Query<&ChildOf, (With<SectionMarker>, Added<SectionLinkPoints>)>,
     q_clad: Query<(&ShipSkin, Option<&ShipStyle>), With<SpaceshipRootMarker>>,
     q_children: Query<&Children>,
-    q_sections: Query<(&Transform, &SectionLinkPoints), With<SectionMarker>>,
+    q_sections: Query<(&Transform, &SectionLinkPoints, Option<&SectionExit>), With<SectionMarker>>,
     styles: Option<Res<GameStyles>>,
 ) {
     let roots: BTreeSet<Entity> = q_added
@@ -620,13 +682,18 @@ fn spawn_ship_skin(
             continue;
         };
         let mut entities: Vec<Entity> = Vec::new();
-        let mut placed: Vec<(Transform, &[LinkPoint])> = Vec::new();
+        let mut placed: Vec<PlacedPart> = Vec::new();
         for section in children.iter() {
-            let Ok((transform, link_points)) = q_sections.get(section) else {
+            let Ok((transform, link_points, exit)) = q_sections.get(section) else {
                 continue;
             };
             entities.push(section);
-            placed.push((*transform, link_points.as_slice()));
+            placed.push(PlacedPart {
+                position: transform.translation,
+                rotation: transform.rotation,
+                link_points: link_points.as_slice(),
+                exit: exit.map(|exit| exit.0),
+            });
         }
         let (structure, phase, cells) = read_structure(&placed);
         if structure.is_empty() {
@@ -635,8 +702,16 @@ fn spawn_ship_skin(
         let sections: HashMap<IVec3, (Entity, Transform)> = cells
             .into_iter()
             .zip(entities)
-            .zip(placed)
-            .map(|((cell, entity), (transform, _))| (cell, (entity, transform)))
+            .zip(&placed)
+            .map(|((cell, entity), part)| {
+                (
+                    cell,
+                    (
+                        entity,
+                        Transform::from_translation(part.position).with_rotation(part.rotation),
+                    ),
+                )
+            })
             .collect();
 
         let mut shapes: HashSet<ShellShape> = HashSet::new();
@@ -707,29 +782,62 @@ fn spawn_ship_skin(
     }
 }
 
-/// Read a set of placed sections as the structure the skin sees: the lattice
-/// they stand on, and the cell each one fills, in the order they were given.
+/// One placed part, as everything that reads a ship into cells sees it: where it
+/// stands, which way it is turned, the sockets it presents and the face it fires
+/// through.
+///
+/// Deliberately not a `SectionConfig`. The skin spawner holds live entities, the
+/// editor holds a build state, and the generator holds tiles; none of the three
+/// has a catalog entry to hand at the point it asks, and the skin has no
+/// business knowing what a cell holds anyway - only what it presents.
+#[derive(Clone, Debug)]
+pub struct PlacedPart<'a> {
+    /// Where the part stands, in the ship's frame.
+    pub position: Vec3,
+    /// How it is turned, in the ship's frame.
+    pub rotation: Quat,
+    /// The sockets it carries, in its OWN frame.
+    pub link_points: &'a [LinkPoint],
+    /// The direction it fires, launches or exhausts, in its OWN frame, or
+    /// `None` for a part whose whole surface is structure. See
+    /// [`crate::sections::clearance::exit_normal`], which is where a kind is
+    /// turned into this.
+    pub exit: Option<Vec3>,
+}
+
+/// Read a set of placed parts as the structure the skin sees: the lattice they
+/// stand on, and the cell each one fills, in the order they were given.
 ///
 /// ONE reading, shared by everything that clads: the spawner reads a live ship's
 /// sections, the editor reads the build state plus the part under the pointer.
 /// Two readings would put the lattice in two places and clad the same ship two
 /// ways - and the editor's whole claim is that what it shows is what flies.
+pub fn read_structure(placed: &[PlacedPart]) -> (SkinStructure, Vec3, Vec<IVec3>) {
+    let phase = lattice_phase(placed.iter().map(|part| part.position));
+    let (structure, cells) = read_cells(placed, phase);
+    (structure, phase, cells)
+}
+
+/// The same reading, on a lattice somebody else already took.
 ///
-/// `placed` pairs a section's pose in the ship's frame with the sockets it
-/// carries in its OWN frame; the turn into the ship's frame happens here.
-pub fn read_structure(placed: &[(Transform, &[LinkPoint])]) -> (SkinStructure, Vec3, Vec<IVec3>) {
-    let phase = lattice_phase(placed.iter().map(|(pose, _)| pose.translation));
+/// The clearance rule asks TWICE about one ship - with a part and without it -
+/// and both readings have to land in the same cells, or the difference it
+/// measures is about the bucketing rather than about the placement.
+pub(crate) fn read_cells(placed: &[PlacedPart], phase: Vec3) -> (SkinStructure, Vec<IVec3>) {
     let mut structure = SkinStructure::default();
     let mut cells = Vec::with_capacity(placed.len());
-    for (pose, link_points) in placed {
-        let cell = section_cell(pose.translation, phase);
+    for part in placed {
+        let cell = section_cell(part.position, phase);
         structure.insert_section(
             cell,
-            link_points.iter().map(|point| pose.rotation * point.normal),
+            part.link_points
+                .iter()
+                .map(|point| part.rotation * point.normal),
+            part.exit.map(|exit| part.rotation * exit),
         );
         cells.push(cell);
     }
-    (structure, phase, cells)
+    (structure, cells)
 }
 
 /// Where the cell lattice a ship's sections stand on has its origin, per axis.
@@ -953,6 +1061,7 @@ impl Plugin for ShipSkinPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<ShipSkin>();
         app.register_type::<ShipSkinMarker>();
+        app.register_type::<SectionExit>();
         app.register_type::<ShipStyle>();
         app.register_type::<ShipDecorMarker>();
         app.register_type::<SectionFixture>();
@@ -1211,27 +1320,44 @@ mod tests {
         }
     }
 
-    /// The skin never claims a cell a blind face points into.
+    /// The skin never claims the cell a part FIRES into, and claims every other
+    /// cell around it.
     ///
-    /// This is what leaves a gun well open without anything naming guns: a
-    /// mount presents five faces with no socket, and nothing may be built
-    /// against one of those.
+    /// The owner's case, in the words it was reported in: a 3x3 of hull with a
+    /// mount standing on the middle of it. The muzzle cell has to stay open, or
+    /// the gun shoots its own plating - and the eight cells around the mount
+    /// have to be clad, or the deck it stands on shows bare hull art in a cross
+    /// through the middle of the plating.
     #[test]
-    fn a_blind_face_keeps_the_skin_off_it() {
-        let mut structure = hull(&[IVec3::ZERO]);
-        // A mount above the cube, bolted down by its base (-Y) and blind on
-        // everything else.
+    fn only_the_cell_a_part_fires_into_is_kept_bare() {
+        let deck: Vec<IVec3> = (-1..=1)
+            .flat_map(|x| (-1..=1).map(move |z| IVec3::new(x, 0, z)))
+            .collect();
+        let mut structure = hull(&deck);
+        // A mount on the middle of the deck, bolted down by its base (-Y),
+        // blind on everything else and firing straight up.
         let mut mount = [false; 6];
         mount[3] = true;
         structure.insert(IVec3::Y, mount);
+        structure.insert_exit(IVec3::Y, 2);
 
         let plates = derive_skin(&structure);
         let clad: Vec<IVec3> = plates.iter().map(|plate| plate.cell).collect();
-        for face in [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z, IVec3::Y * 2] {
-            assert!(
-                !clad.contains(&(IVec3::Y + face)),
-                "the skin closed over the mount's blind {face:?} face",
-            );
+        assert!(
+            !clad.contains(&(IVec3::Y * 2)),
+            "the skin closed over the muzzle",
+        );
+        for x in -1..=1 {
+            for z in -1..=1 {
+                let cell = IVec3::new(x, 1, z);
+                if cell == IVec3::Y {
+                    continue;
+                }
+                assert!(
+                    clad.contains(&cell),
+                    "{cell:?} is deck beside a mount and came back bare hull",
+                );
+            }
         }
     }
 
@@ -1438,6 +1564,7 @@ mod tests {
         let mut drive = [false; 6];
         drive[3] = true;
         proud.insert(IVec3::Y, drive);
+        proud.insert_exit(IVec3::Y, 2);
         let skin = cladding_cells(&proud);
         let shape = boundary_heights(&proud, &skin, corner, 2);
         assert!(
@@ -1450,9 +1577,9 @@ mod tests {
     /// A bank of drives leaves the skin between them WHOLE.
     ///
     /// The configuration the owner photographed, in miniature: a stern block
-    /// with drives bolted across it. Each drive is blind on five faces, so the
-    /// cells around it are refused cladding and the skin that survives between
-    /// them is in narrow strips and lone cells, walled in by those pockets.
+    /// with drives bolted across it. Each drive is blind on five faces and fires
+    /// through one of them, so the transom around them is plated and only the
+    /// five cells the nozzles fire into stay bare.
     ///
     /// Two shapes must not appear anywhere on this hull, and both did:
     ///
@@ -1470,18 +1597,20 @@ mod tests {
                 }
             }
         }
-        // Bolted by -Z, blind everywhere else, in the staggered bank the
-        // generator draws on a transom.
+        // Bolted by -Z and exhausting out of +Z, blind on the other four, in
+        // the staggered bank the generator draws on a transom.
         let mut drive = [false; 6];
         drive[5] = true;
-        for cell in [
+        let bank = [
             IVec3::new(1, 4, 3),
             IVec3::new(0, 3, 3),
             IVec3::new(1, 3, 3),
             IVec3::new(1, 2, 3),
             IVec3::new(0, 1, 3),
-        ] {
+        ];
+        for cell in bank {
             structure.insert(cell, drive);
+            structure.insert_exit(cell, 4);
         }
 
         let plates = derive_skin(&structure);
@@ -1497,9 +1626,9 @@ mod tests {
             bad.join("\n  "),
         );
 
-        // The cell the bank walls in on every side: pockets beside it, drives
-        // across its corners. It carries the running height right out to the
-        // boundary and drops vertically there, which is the ridge.
+        // The cell in the gap of the bank: plate beside it and drives across
+        // its corners. It carries the running height right out to the boundary
+        // and drops vertically there, which is the ridge.
         let walled_in = plates
             .iter()
             .find(|plate| plate.cell == IVec3::new(2, 1, 3))

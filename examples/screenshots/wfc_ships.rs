@@ -58,8 +58,20 @@
 //!
 //! What is still NOT a link-point rule, and is marked as such where it appears:
 //! the draw weights, the vacuum taper that gives the silhouette a nose, the keel
-//! the collapse starts from, the mirror across the centreline, and the smoothing
-//! passes.
+//! the collapse starts from, the drive deck seeded at the far end of it, the one
+//! part that may only point one way, the mirror across the centreline, and the
+//! smoothing passes.
+//!
+//! The last two of those are what give a ship a BACK, and neither could be a
+//! link-point rule. Mating is BINARY - one cell and its neighbour - so it cannot
+//! hold a fact about the whole hull, and a drive carries its single socket on
+//! its forward end, which means the face it is bolted to IS the direction it
+//! exhausts. So the mating rule was as happy to bolt a nozzle to the roof as to
+//! the transom, and a ship came out with its engines pointing six ways.
+//! `Part::aim` says a drive fires AFT and nothing else, as a unary constraint on
+//! the opening domains; `seed_stern` lays the aft-facing surface for it to stand
+//! on, because a rule that says where a part may not go cannot conjure the place
+//! where it may.
 //!
 //! Every ship is checked by the REAL content lint (`lint_scenario`) before it
 //! is posed. A generated ship that the game's own gate would reject is a
@@ -273,7 +285,19 @@ struct Part {
     /// legal in a given cell (see [`draw`]). Taste, not a rule - it decides how
     /// OFTEN a part is offered, never WHERE it may go.
     weight: f32,
+    /// The only face this part may fire through, in [`FACES`] order, or `None`
+    /// for a part that may point any way the mating rule allows.
+    ///
+    /// The one place this file says a part belongs somewhere ON A SHIP rather
+    /// than beside something, and the only such claim the mating rule can never
+    /// make for itself: it reads one cell and its neighbour, so it cannot tell
+    /// a main drive from a manoeuvring thruster. See [`aim_allowed`].
+    aim: Option<usize>,
 }
+
+/// The face a ship's business end points down. The bow is `z = 0`, which is
+/// where [`hull_vacuum_weight`] tapers the hull away to a nose, so aft is `+Z`.
+const AFT: usize = 4;
 
 /// The draw: the shipped prototypes a camera can see.
 ///
@@ -297,6 +321,7 @@ const PARTS: [Part; 5] = [
     Part {
         prototype: "reinforced_hull_section",
         weight: 6.0,
+        aim: None,
     },
     Part {
         // A ship needs one, and the keel already lays one down (see
@@ -306,26 +331,47 @@ const PARTS: [Part; 5] = [
         // two.
         prototype: "basic_controller_section",
         weight: 0.15,
+        aim: None,
     },
     Part {
         // One socket, so its other five faces carry nothing to mate. The
-        // nozzle and its plume fire aft, out of +Z.
+        // nozzle and its plume fire aft, out of +Z - and aft is the only way
+        // it may point. A drive bolts by its FORWARD end, so which way it
+        // fires is decided entirely by which hull face it found, and the
+        // mating rule is as happy to bolt one to the roof as to the transom.
+        //
+        // Priced at twice what it was, because the aim is a rule and rules are
+        // paid for in weight: an aft-only drive competes for a small set of
+        // cells (an aft-facing surface with its lane clear) instead of for
+        // every exposed face on the ship. Measured over 12 seeds, aim alone
+        // took drives 258 -> 74; at 6.4 they come back to 102, which is 8 a
+        // ship in one stern bank instead of 21 scattered over six faces.
         prototype: "basic_thruster_section",
-        weight: 3.2,
+        weight: 6.4,
+        aim: Some(AFT),
     },
     Part {
         // A bay is the fitting clearance costs most: a torpedo is BORN two
         // cells out, so its whole lane has to be void and nothing beside the
         // lane may want cladding in it. Most of the ones drawn are eroded.
+        //
+        // Left free to point anywhere, unlike the drive: a broadside tube is a
+        // real warship, and nothing about a bay's direction contradicts the
+        // ship's own.
         prototype: "torpedo_section",
         weight: 1.4,
+        aim: None,
     },
     Part {
         // A mount punches a gun well through the skin around it, and its lane
         // is the traverse it needs to shoot along. The dearest of the three per
         // cell it occupies, which is why it is priced above the bay.
+        //
+        // Free for the bay's reason and one better: a turret TRAVERSES, so the
+        // face it fires through is only the direction it rests at.
         prototype: "pdc_kinetic_turret_section",
         weight: 1.6,
+        aim: None,
     },
 ];
 
@@ -335,7 +381,7 @@ const VACUUM: usize = 0;
 /// What one cell may hold.
 struct Tile {
     /// The prototype placed in the cell, or `None` for vacuum.
-    part: Option<PlacedPart>,
+    part: Option<TileBody>,
     /// Which entry of [`PARTS`] this tile is an orientation of, or `None` for
     /// vacuum. Draw weights are authored per PART, so the draw needs to know
     /// which tiles are the same part wearing different rotations.
@@ -357,7 +403,7 @@ impl Tile {
 
 /// A prototype at one of the rotations the grid can use it at.
 #[derive(Clone)]
-struct PlacedPart {
+struct TileBody {
     prototype: String,
     rotation: Quat,
     /// Where inside its cell the section sits, so that every socket it kept
@@ -428,7 +474,7 @@ fn tile(family: usize, config: &SectionConfig, rotation: Quat) -> Option<Tile> {
     );
 
     Some(Tile {
-        part: Some(PlacedPart {
+        part: Some(TileBody {
             prototype: config.base.id.clone(),
             rotation,
             offset: snapped(offset),
@@ -750,14 +796,40 @@ fn seam_allows(tile: &Tile) -> bool {
     tile.faces[1] && part.offset.x.abs() < GRID_EPSILON
 }
 
-/// The structural pass's opening domains: structure only, the seam ruled on as
-/// a unary constraint, every other grid edge treated as the vacuum it is.
+/// Whether a tile points the way its part is allowed to point
+/// ([`Part::aim`]).
+///
+/// A UNARY constraint, like [`seam_allows`] beside it, and the only thing in
+/// this file that knows a ship has a BACK. [`compatible`] is binary: it sees a
+/// cell and its neighbour, and a drive bolted to the roof is as legal to it as
+/// one bolted to the transom. Which way a drive fires is not a free choice
+/// either - it carries one socket, on its forward end, so the face it is bolted
+/// to IS the direction it exhausts. Six drives on one hull facing six ways is
+/// what that adds up to.
+///
+/// Free, and safe by construction. Striking options out of an OPENING domain is
+/// the standard way to add a unary constraint to a constraint solve, and it
+/// cannot empty a domain here because [`VACUUM`] is compatible with everything
+/// and is never struck. There is no backtracking in this collapse and none is
+/// needed.
+fn aim_allowed(tile: &Tile) -> bool {
+    tile.family
+        .and_then(|family| PARTS[family].aim)
+        .is_none_or(|aim| tile.exit == Some(aim))
+}
+
+/// The structural pass's opening domains: structure only, the seam and the aim
+/// ruled on as unary constraints, every other grid edge treated as the vacuum
+/// it is.
 fn hull_domains(tiles: &[Tile]) -> Vec<Vec<bool>> {
     (0..HULL_GRID.cells())
         .map(|cell| {
             let on_seam = HULL_GRID.coords(cell).0 == 0;
             (0..tiles.len())
                 .map(|index| {
+                    if !aim_allowed(&tiles[index]) {
+                        return false;
+                    }
                     if on_seam && !seam_allows(&tiles[index]) {
                         return false;
                     }
@@ -788,8 +860,12 @@ fn upright_tile(tiles: &[Tile], prototype: &str) -> usize {
 }
 
 /// Lay the keel: collapse the spine by hand, before the generator gets a say.
+///
+/// It stops ONE CELL SHORT of the transom, and that cell belongs to
+/// [`seed_stern`]: the drive standing beside it turns a blind flank at the
+/// seam, and a keel cube there would press a socket into it.
 fn seed_keel(tiles: &[Tile], domains: &mut [Vec<bool>]) {
-    for z in 0..LENGTH {
+    for z in 0..LENGTH - 1 {
         let cell = HULL_GRID.index(0, KEEL_ROW, z);
         let keel = upright_tile(tiles, keel_prototype(z));
         assert!(
@@ -799,6 +875,41 @@ fn seed_keel(tiles: &[Tile], domains: &mut [Vec<bool>]) {
             keel_prototype(z)
         );
         assign(domains, cell, keel);
+    }
+}
+
+/// Lay the DRIVE DECK: a block beside the last keel cell and a nozzle bolted to
+/// its aft face, which the mirror makes a pair either side of the centreline.
+///
+/// Taste and one guarantee, exactly as [`seed_keel`] is: the keel says a ship is
+/// one connected structure, and this says it has an engine at the back of it.
+/// [`Part::aim`] alone does not - it says where a drive may NOT go, and a hull
+/// with no aft-facing surface simply comes out with no engines. The seed is what
+/// makes the aft-facing surface, and the roll then fills the transom around it.
+///
+/// A drive may not stand ON the centreline: its one socket is on its forward
+/// face, so it has no `-x` socket to meet its own reflection with
+/// ([`seam_allows`]). So it stands one cell off, and the keel stops one cell
+/// short of the transom to leave the seam cell beside it free - a hull cube
+/// there would press a socket into the drive's blind flank.
+fn seed_stern(tiles: &[Tile], domains: &mut [Vec<bool>]) {
+    for (cell, prototype) in [
+        (
+            HULL_GRID.index(1, KEEL_ROW, LENGTH - 2),
+            "reinforced_hull_section",
+        ),
+        (
+            HULL_GRID.index(1, KEEL_ROW, LENGTH - 1),
+            "basic_thruster_section",
+        ),
+    ] {
+        let tile = upright_tile(tiles, prototype);
+        assert!(
+            domains[cell][tile],
+            "the drive deck is seeded before anything is drawn, so `{prototype}` \
+             has to stand there",
+        );
+        assign(domains, cell, tile);
     }
 }
 
@@ -1164,6 +1275,9 @@ fn ship_lattice(cells: &[ShipCell]) -> (SkinStructure, Vec<ShipExit>) {
     let mut structure = SkinStructure::default();
     for placed in cells {
         structure.insert(placed.cell, placed.faces);
+        if let Some(out) = placed.exit {
+            structure.insert_exit(placed.cell, out);
+        }
     }
     let exits = cells
         .iter()
@@ -1261,6 +1375,7 @@ fn refuse_blocked_exits(cells: &[ShipCell], seed: u64) {
 fn wfc_ship(tiles: &[Tile], seed: u64, roster: Roster, style: StyleId) -> SpaceshipConfig {
     let mut domains = hull_domains(tiles);
     seed_keel(tiles, &mut domains);
+    seed_stern(tiles, &mut domains);
     let chosen = collapse(
         &HULL_GRID,
         tiles,

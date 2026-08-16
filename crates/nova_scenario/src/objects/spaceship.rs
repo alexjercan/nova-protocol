@@ -434,6 +434,14 @@ fn insert_spaceship_sections(
                 Transform::from_translation(section.position).with_rotation(section.rotation),
             ));
 
+            // The last point anything knows this section's KIND. A live section
+            // carries its sockets and its collider and nothing that says what
+            // sort of part it is, and the derived skin has to know which face a
+            // part fires through to leave that one cell of it bare.
+            if let Some(exit) = SectionExit::of(&config) {
+                section_entity.insert(exit);
+            }
+
             match &config.kind {
                 SectionKind::Hull(hull_config) => {
                     section_entity.insert(hull_section(hull_config.clone()));

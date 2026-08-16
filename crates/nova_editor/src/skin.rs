@@ -82,26 +82,31 @@ pub(crate) fn sync_editor_skin(
 
     // Poses and sockets come out of the BUILD STATE, not off the preview
     // entities: it is the same data Play flattens into a ship, so the editor
-    // cannot show a skin the flown ship will not wear.
-    let mut placed: Vec<(Transform, &[LinkPoint])> = player_config
+    // cannot show a skin the flown ship will not wear. The EXIT comes from the
+    // same place and for the same reason a placement's does: a preview section
+    // carries its sockets and its collider as components and nothing that says
+    // what kind of part it is.
+    let mut placed: Vec<PlacedPart> = player_config
         .sections
         .values()
         .filter_map(|section| {
             let SectionSource::Inline(config) = &section.source else {
                 return None;
             };
-            Some((
-                Transform::from_translation(section.position).with_rotation(section.rotation),
-                config.base.link_points.as_slice(),
-            ))
+            Some(PlacedPart {
+                position: section.position,
+                rotation: section.rotation,
+                link_points: config.base.link_points.as_slice(),
+                exit: exit_normal(&config.kind),
+            })
         })
         .collect();
     // Sorted because the build state is keyed by ENTITY: the same ship read
     // twice can hand its sections over in two orders, and the signature below
     // would then report a change that is only a change of order.
-    placed.sort_unstable_by(|(a, _), (b, _)| {
-        (a.translation.x, a.translation.y, a.translation.z)
-            .partial_cmp(&(b.translation.x, b.translation.y, b.translation.z))
+    placed.sort_unstable_by(|a, b| {
+        (a.position.x, a.position.y, a.position.z)
+            .partial_cmp(&(b.position.x, b.position.y, b.position.z))
             .unwrap_or(std::cmp::Ordering::Equal)
     });
     if let Some(ghost) = ghost_section(&preview, &sections) {
@@ -225,13 +230,18 @@ fn strip(commands: &mut Commands, q_plates: &Query<Entity, With<EditorSkinPlate>
 fn ghost_section<'a>(
     preview: &PlacementPreview,
     sections: &'a GameSections,
-) -> Option<(Transform, &'a [LinkPoint])> {
+) -> Option<PlacedPart<'a>> {
     let placement = preview.placement.as_ref()?;
     if placement.solve.refusal.is_some() {
         return None;
     }
     let part = sections.get_section(&placement.prototype)?;
-    Some((placement.solve.transform, part.base.link_points.as_slice()))
+    Some(PlacedPart {
+        position: placement.solve.transform.translation,
+        rotation: placement.solve.transform.rotation,
+        link_points: part.base.link_points.as_slice(),
+        exit: exit_normal(&part.kind),
+    })
 }
 
 /// What the skin on screen was derived from, in one number.
@@ -240,23 +250,29 @@ fn ghost_section<'a>(
 /// only when the answer would differ. Dragging the pointer across one face of a
 /// hull does not move the ghost at all - placement mates sockets, so the ghost
 /// travels in whole cells - and those frames stop here.
-fn signature(root: Entity, placed: &[(Transform, &[LinkPoint])]) -> u64 {
+fn signature(root: Entity, placed: &[PlacedPart]) -> u64 {
     let mut hasher = DefaultHasher::new();
     root.hash(&mut hasher);
-    for (pose, link_points) in placed {
-        pose.translation.x.to_bits().hash(&mut hasher);
-        pose.translation.y.to_bits().hash(&mut hasher);
-        pose.translation.z.to_bits().hash(&mut hasher);
-        pose.rotation.x.to_bits().hash(&mut hasher);
-        pose.rotation.y.to_bits().hash(&mut hasher);
-        pose.rotation.z.to_bits().hash(&mut hasher);
-        pose.rotation.w.to_bits().hash(&mut hasher);
-        // The sockets, not the part: two parts with the same footprint and the
-        // same sockets are the same thing to the skin.
-        for point in *link_points {
+    for part in placed {
+        part.position.x.to_bits().hash(&mut hasher);
+        part.position.y.to_bits().hash(&mut hasher);
+        part.position.z.to_bits().hash(&mut hasher);
+        part.rotation.x.to_bits().hash(&mut hasher);
+        part.rotation.y.to_bits().hash(&mut hasher);
+        part.rotation.z.to_bits().hash(&mut hasher);
+        part.rotation.w.to_bits().hash(&mut hasher);
+        // The sockets and the exit, not the part: two parts with the same
+        // footprint, the same sockets and the same muzzle are the same thing to
+        // the skin.
+        for point in part.link_points {
             point.normal.x.to_bits().hash(&mut hasher);
             point.normal.y.to_bits().hash(&mut hasher);
             point.normal.z.to_bits().hash(&mut hasher);
+        }
+        if let Some(exit) = part.exit {
+            exit.x.to_bits().hash(&mut hasher);
+            exit.y.to_bits().hash(&mut hasher);
+            exit.z.to_bits().hash(&mut hasher);
         }
     }
     hasher.finish()

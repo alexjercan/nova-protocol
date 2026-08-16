@@ -21,7 +21,7 @@
 //!   blue noise, because alignment is what makes a greeble read as bolted on
 //!   rather than as confetti. [`PlateReading::along`] is the axis it aligns to.
 //! - decoration is weighted toward BORDERS and FITTINGS, which is free here:
-//!   [`PlateReading::border`] and [`PlateReading::pocket`] are both distances
+//!   [`PlateReading::border`] and [`PlateReading::fitting`] are both distances
 //!   the derivation already had the ingredients for.
 //!
 //! # What a real hull is made of
@@ -52,8 +52,8 @@ use bevy::{
 use crate::sections::{
     shell_shape::{ShellShape, FULL},
     shell_skin::{
-        blind_pocket, ends_against, face_plane, step, support_depth, SkinPlate, SkinStructure,
-        FACES, FACE_CORNERS,
+        ends_against, face_plane, step, support_depth, SkinPlate, SkinStructure, FACES,
+        FACE_CORNERS,
     },
 };
 
@@ -70,12 +70,12 @@ pub mod prelude {
 /// is per plate per direction.
 pub const RUN_REACH: u8 = 8;
 
-/// How far a plate looks across its own surface for the mouth of a fitting.
+/// How far a plate looks across its own surface for a fitting.
 ///
-/// [`PlateReading::pocket`] saturates HERE rather than at some sentinel, so
-/// `pocket == POCKET_REACH` reads as "nothing near" and a rule never has to
+/// [`PlateReading::fitting`] saturates HERE rather than at some sentinel, so
+/// `fitting == FITTING_REACH` reads as "nothing near" and a rule never has to
 /// spell a magic number.
-pub const POCKET_REACH: u8 = 3;
+pub const FITTING_REACH: u8 = 3;
 
 /// What the top of a plate is shaped like, in the terms a scatter rule asks in.
 ///
@@ -241,15 +241,15 @@ pub struct PlateReading {
     /// difference between a radiator bank looking bolted on and looking
     /// impossible.
     pub depth: u8,
-    /// How many STEPS ACROSS THE SURFACE the nearest POCKET is - the mouth of a
-    /// drive bay or a gun well, which is a hole the skin was refused rather
-    /// than the end of it. Saturates at [`POCKET_REACH`], which reads as "no
-    /// fitting near".
+    /// How many STEPS ACROSS THE SURFACE the nearest FITTING is - a drive, a
+    /// bay or a gun mount, the parts that stand proud of the plating and fire
+    /// through it. Saturates at [`FITTING_REACH`], which reads as "no fitting
+    /// near".
     ///
     /// This is the research's "weight decoration toward link points", answered
-    /// with the only socket fact that discriminates on a hull of cubes: every
-    /// hull face offers a socket, so socket proximity is constant, and it is the
-    /// BLIND faces - the fittings - that mark where a ship gets interesting.
+    /// with the only fact that discriminates on a hull of cubes: every hull face
+    /// offers a socket, so socket proximity is constant, and it is where a ship
+    /// SHOOTS FROM that marks where it gets interesting.
     ///
     /// Counted in FACE steps and not in rings, which was measured rather than
     /// chosen: a ring of 1 is the eight cells round a plate, and on a hull as
@@ -257,7 +257,7 @@ pub struct PlateReading {
     /// on the ship - a rule reading "right beside a nozzle" carpeted 45% of a
     /// hull and starved every rule under it. Four cells is what "beside"
     /// actually means.
-    pub pocket: u8,
+    pub fitting: u8,
 }
 
 /// Read the neighbourhood of every plate in a derived skin.
@@ -316,7 +316,7 @@ pub fn read_plates(structure: &SkinStructure, plates: &[SkinPlate]) -> Vec<Plate
                 border: *alike.iter().min().unwrap_or(&0),
                 height: (plate.shape.volume() * f32::from(FULL)).round() as u8,
                 depth: support_depth(structure, plate.cell, face) as u8,
-                pocket: pocket_distance(structure, plate.cell, u, v),
+                fitting: fitting_distance(structure, plate.cell, u, v),
             }
         })
         .collect()
@@ -411,14 +411,18 @@ fn enclosure(
     count
 }
 
-/// How many face steps away, in the plate's own plane, the nearest blind pocket
-/// is.
+/// How many face steps away, in the plate's own plane, the nearest FITTING is.
+///
+/// A fitting is a cell that fires through some face, which is a drive, a bay or
+/// a gun mount and nothing else. Read off the exit and not off an absent socket:
+/// a fitting's flanks carry nothing to mate either, and so does an authored hull
+/// with a face left bare.
 ///
 /// Walks outward a step at a time, so the first hit is the answer. Saturates at
-/// [`POCKET_REACH`]. See [`PlateReading::pocket`] for why the distance is
+/// [`FITTING_REACH`]. See [`PlateReading::fitting`] for why the distance is
 /// counted in face steps rather than in rings.
-fn pocket_distance(structure: &SkinStructure, cell: IVec3, u: usize, v: usize) -> u8 {
-    for reach in 1..POCKET_REACH {
+fn fitting_distance(structure: &SkinStructure, cell: IVec3, u: usize, v: usize) -> u8 {
+    for reach in 1..FITTING_REACH {
         let far = i32::from(reach);
         for du in -far..=far {
             // The rim of the diamond, not its inside: the nearer cells were
@@ -426,13 +430,13 @@ fn pocket_distance(structure: &SkinStructure, cell: IVec3, u: usize, v: usize) -
             // zero, which costs one repeated lookup and no branch.
             let dv = far - du.abs();
             for dv in [dv, -dv] {
-                if blind_pocket(structure, cell + step(u, du) + step(v, dv)) {
+                if structure.fires_at_all(cell + step(u, du) + step(v, dv)) {
                     return reach;
                 }
             }
         }
     }
-    POCKET_REACH
+    FITTING_REACH
 }
 
 /// The direction a plate shows to space, in the ship's cells.
@@ -808,27 +812,28 @@ mod tests {
         );
     }
 
-    /// A blind face's pocket is measured across the surface, so the plates
-    /// beside a nozzle can be decorated differently from the open hull.
+    /// A fitting is found across the surface, so the plates beside a nozzle can
+    /// be decorated differently from the open hull.
     #[test]
-    fn a_plate_beside_a_fitting_reads_the_pocket_it_leaves() {
+    fn a_plate_beside_a_fitting_reads_how_far_off_it_stands() {
         let mut structure = slab(7);
-        // A drive standing on the deck: bolted down through its base, blind on
-        // every other face, so it keeps the skin out of the cells beside it.
+        // A drive standing on the deck: bolted down through its base, firing
+        // straight up out of the top of its own cell.
         let mut drive = [false; 6];
         drive[3] = true;
         structure.insert(IVec3::new(3, 1, 3), drive);
+        structure.insert_exit(IVec3::new(3, 1, 3), 2);
         let read = read(&structure);
 
         let near = at(&read, IVec3::new(3, 1, 1));
         assert!(
-            near.pocket < POCKET_REACH,
-            "the plate two cells off a nozzle should see its pocket, read {}",
-            near.pocket,
+            near.fitting < FITTING_REACH,
+            "the plate two cells off a nozzle should see it, read {}",
+            near.fitting,
         );
         let far = at(&read, IVec3::new(0, 1, 0));
         assert_eq!(
-            far.pocket, POCKET_REACH,
+            far.fitting, FITTING_REACH,
             "the far corner of the deck has no fitting near it",
         );
     }

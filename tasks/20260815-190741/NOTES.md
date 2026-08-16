@@ -442,6 +442,68 @@ Caught by the closed-solid test, which runs over all shapes.
     filter on visibility - a hidden status node still reports its last words).
     The run builds the shape it needs in view of the camera instead.
 
+20. THE WELL ROUND A FITTING. Owner's report: "if we have a face with a 3x3 of
+    hulls and in the middle of that face you have a PDC or a thruster (which
+    require empty surrounding) there ARE NO shells in the surrounding 3x3 of
+    that PDC/thruster which feels wrong". This is the thing 16 named and did not
+    fix, and the diagnosis there was right: a blind face refused cladding on all
+    FIVE faces a fitting turns to the world when only the EXIT face needs the
+    space. The hole is a CROSS - the four cells edge-on to the fitting plus its
+    own - because the four diagonal cells were never face-neighbours of it and
+    were clad all along.
+
+    The missing fact already existed, one module over: `clearance.rs` reads
+    `exit_normal` off the KIND. `SkinStructure` now carries a second `[bool; 6]`
+    per cell, the faces something FIRES through, beside the sockets it already
+    held, and `blind_pocket` becomes `exit_pocket`. One reading fills both, so
+    the skin and the clearance rule cannot disagree about which face a part
+    fires through - which is the same argument 19 made for sharing the type.
+
+    Plumbing, and it is most of the diff. `read_structure` takes a `PlacedPart`
+    (pose + sockets + exit) instead of a pose/socket pair, which is the struct
+    `clearance` already had as `PlacedExit`; the two are now one type in
+    `shell_skin`, and `clearance::read_ship` is `read_cells` plus the exits.
+    A live section learns its own exit from a new `SectionExit` component, put
+    on at spawn where the `SectionKind` is still in hand - a section entity
+    carries sockets and a collider and nothing that says what kind of part it is.
+    The editor reads it off the build state, exactly as its placement refusal
+    already did.
+
+    NOT WEAKENED: the lane. `blocked_exits` is untouched, and the interaction is
+    pinned rather than argued (`the_skin_plates_around_a_muzzle_without_closing_
+    its_lane`): the lane is held by the SOCKET clause, not by the blind-face
+    one, so narrowing the skin cannot open it. A lane cell is clad only if some
+    neighbour offers a socket into it, and that is exactly what the rule refuses
+    as `BlockedExitReason::Cladding`. On a ship that passes
+    `refuse_blocked_exits`, `exit_pocket` is therefore a no-op in
+    `cladding_cells` - it still earns its place in `ends_against`, and as the
+    answer for a hand-built ship that is already illegal.
+
+    One consequence worth knowing: `PlateReading::pocket` is now
+    `PlateReading::fitting`, and it measures the distance to a cell that FIRES
+    rather than to a hole in the skin. The old predicate would have found
+    nothing at all after the narrowing - a fitting's mouth is one cell out of
+    the plate's own plane, so `pocket_distance`, which walks that plane, would
+    have returned `REACH` for every plate on a deck. `near_fitting` in a style
+    means what it always said it meant.
+
+    RENDERED, matched pose, matched seeds, the only difference being the one
+    line of `exit_pocket`. The structure is byte-identical either way - nothing
+    in the collapse reads this predicate - so the pair is an A/B of the skin
+    alone. Plates over the row 438 -> 520 (162/144/132 -> 196/158/166), shapes
+    18/16/21 -> 17/13/22, and the relief histogram gains flat and step where it
+    used to have nothing at all.
+
+    Honest reading of the frames: the well is GONE, not smaller. The before
+    frame has a trench of bare hull-cube art running the length of every ship
+    wherever drives and mounts stand; the after frame plates it, and what is
+    still visible between the nozzles is the drive BODIES, which is what a
+    nozzle sticking out of a hull looks like. Two things remain and are not this
+    bug: the cell each part fires into stays bare by design, and a HALF-SIZE
+    part (the PDC mount stands on a cell boundary) still leaves a narrow band of
+    hull art at its foot, which is the derivation's whole-cell resolution and
+    not the pocket rule.
+
 ## Current inventory
 
 New:

@@ -311,7 +311,7 @@ impl ScatterRule {
         if self.max_border.is_some_and(|most| reading.border > most) {
             return false;
         }
-        if self.near_fitting.is_some_and(|near| reading.pocket > near) {
+        if self.near_fitting.is_some_and(|near| reading.fitting > near) {
             return false;
         }
         true
@@ -383,7 +383,7 @@ mod tests {
             border: 2,
             height: 2,
             depth: 3,
-            pocket: 3,
+            fitting: 3,
         }
     }
 
@@ -454,13 +454,13 @@ mod tests {
 
     /// A fitting filter passes only where the mouth of one is close.
     #[test]
-    fn a_fitting_filter_reads_the_pocket_distance() {
+    fn a_fitting_filter_reads_the_fitting_distance() {
         let beside = ScatterRule {
             near_fitting: Some(1),
             ..default()
         };
         let mut near = reading(PlateRelief::Flat);
-        near.pocket = 1;
+        near.fitting = 1;
         assert!(beside.accepts(&near));
         assert!(
             !beside.accepts(&reading(PlateRelief::Flat)),

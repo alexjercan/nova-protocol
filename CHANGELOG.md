@@ -167,6 +167,17 @@ tagged **(breaking)**.
   counts toward the ship's own health or holds a severed hull together. A
   destroyed section takes its own cladding with it. Off by default, and only for
   hulls built out of the unit-cell sections.
+- Generated `wfc_ships` hulls have a BACK. A drive may only fire aft, and the
+  stern is seeded with a drive deck for it to stand on, so a ship comes out with
+  one bank of nozzles all pointing the same way instead of engines bolted to six
+  faces. The mating rule could never say this for itself: it reads one cell and
+  its neighbour, and a drive bolts by its forward end, so the face it found WAS
+  the way it fired. Design note in `docs/ship-layout-sense.md`.
+- The derived skin plates around a drive or a gun instead of opening a well of
+  bare hull round it. Only the one cell a part FIRES into is left bare; its four
+  flanks are ordinary plating, so a fitting standing on a deck now sticks out of
+  a continuous surface rather than out of a cross-shaped hole five cells across.
+  Exit clearance itself is unchanged - a muzzle still needs its whole lane void.
 - `basic_thruster_section` carries ONE socket now, on the forward face it
   bolts by - the rest of the part is barrel, nozzle and plume, so nothing
   mounts on the drive or plates over its exhaust.

@@ -37,16 +37,16 @@ use bevy::{platform::collections::HashSet, prelude::*};
 
 use crate::sections::{
     base_section::prelude::{SectionConfig, SectionKind},
-    link_points::prelude::LinkPoint,
-    shell_skin::{lattice_phase, section_cell, SkinStructure, FACES},
+    shell_skin::{lattice_phase, read_cells, PlacedPart, SkinStructure, FACES},
 };
 
-/// The prelude: `exit_normal`, `PlacedExit`, `BlockedExit`, `BlockedExitReason`,
-/// `ShipExit`, `blocked_exits`, `exit_lanes` and `placement_blocks_an_exit`.
+/// The prelude: `exit_normal`, `SectionExit`, `BlockedExit`,
+/// `BlockedExitReason`, `ShipExit`, `blocked_exits`, `exit_lanes` and
+/// `placement_blocks_an_exit`.
 pub mod prelude {
     pub use super::{
         blocked_exits, exit_lanes, exit_normal, placement_blocks_an_exit, BlockedExit,
-        BlockedExitReason, PlacedExit, ShipExit,
+        BlockedExitReason, SectionExit, ShipExit,
     };
 }
 
@@ -71,34 +71,21 @@ pub fn exit_normal(kind: &SectionKind) -> Option<Vec3> {
     }
 }
 
-/// One placed part, as the clearance rule reads it: where it stands, which way
-/// it is turned, the sockets it presents and the face it fires through.
+/// Which way a live section fires, in its OWN frame.
 ///
-/// Deliberately not a `SectionConfig`: the generator holds tiles and the editor
-/// holds preview entities, and neither has one to hand at the point it asks.
-#[derive(Clone, Debug)]
-pub struct PlacedExit<'a> {
-    /// Where the part stands, in the ship's frame.
-    pub position: Vec3,
-    /// How it is turned, in the ship's frame.
-    pub rotation: Quat,
-    /// The sockets it carries, in its own frame.
-    pub link_points: &'a [LinkPoint],
-    /// The direction it fires, launches or exhausts, in its own frame. See
-    /// [`exit_normal`].
-    pub exit: Option<Vec3>,
-}
+/// Put on a section when it is spawned from a [`SectionConfig`], because that is
+/// the last point anything knows its KIND: a section entity carries its sockets
+/// and its collider as components and nothing that says what sort of part it is.
+/// The skin reads it back off the ship to decide which cells may not be clad.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[reflect(Component)]
+pub struct SectionExit(pub Vec3);
 
-impl<'a> PlacedExit<'a> {
-    /// A part standing at `position` and `rotation`, reading its sockets and
-    /// its exit off the catalog entry it was placed from.
-    pub fn from_config(config: &'a SectionConfig, position: Vec3, rotation: Quat) -> Self {
-        Self {
-            position,
-            rotation,
-            link_points: &config.base.link_points,
-            exit: exit_normal(&config.kind),
-        }
+impl SectionExit {
+    /// The exit a section built from `config` carries, or `None` for a part
+    /// whose whole surface is structure.
+    pub fn of(config: &SectionConfig) -> Option<Self> {
+        exit_normal(&config.kind).map(Self)
     }
 }
 
@@ -212,24 +199,20 @@ pub fn blocked_exits(structure: &SkinStructure, exits: &[ShipExit]) -> Vec<Block
 /// The lattice is passed in rather than read here, so that two readings of the
 /// same ship - with a part and without it - land in the same cells. A ship has
 /// no grid, and the offset its sections share moves when the set does.
-fn read_cells(parts: &[PlacedExit], phase: Vec3) -> (SkinStructure, Vec<ShipExit>) {
-    let mut structure = SkinStructure::default();
-    let mut exits = Vec::new();
-    for part in parts {
-        let cell = section_cell(part.position, phase);
-        structure.insert_section(
-            cell,
-            part.link_points
-                .iter()
-                .map(|point| part.rotation * point.normal),
-        );
-        if let Some(out) = part
-            .exit
-            .and_then(|normal| super::shell_skin::face_index(part.rotation * normal))
-        {
-            exits.push(ShipExit { cell, out });
-        }
-    }
+///
+/// The reading itself is the SKIN's ([`read_cells`]), which is the whole point:
+/// the lateral clause below is the skin's own rule, so the two must bucket a
+/// ship the same way or they are arguing about different ships.
+fn read_ship(parts: &[PlacedPart], phase: Vec3) -> (SkinStructure, Vec<ShipExit>) {
+    let (structure, cells) = read_cells(parts, phase);
+    let exits = parts
+        .iter()
+        .zip(cells)
+        .filter_map(|(part, cell)| {
+            let out = super::shell_skin::face_index(part.rotation * part.exit?)?;
+            Some(ShipExit { cell, out })
+        })
+        .collect();
     (structure, exits)
 }
 
@@ -244,25 +227,28 @@ fn read_cells(parts: &[PlacedExit], phase: Vec3) -> (SkinStructure, Vec<ShipExit
 /// Both readings share one lattice, taken over the whole set. Reading them
 /// apart would let the extra part move the cells everything else stands in, and
 /// the difference would be about the bucketing rather than about the placement.
-pub fn placement_blocks_an_exit(ship: &[PlacedExit], part: &PlacedExit) -> bool {
-    let mut whole: Vec<PlacedExit> = ship.to_vec();
+pub fn placement_blocks_an_exit(ship: &[PlacedPart], part: &PlacedPart) -> bool {
+    let mut whole: Vec<PlacedPart> = ship.to_vec();
     whole.push(part.clone());
     let phase = lattice_phase(whole.iter().map(|part| part.position));
 
-    let (before, exits) = read_cells(ship, phase);
-    let (after, with) = read_cells(&whole, phase);
+    let (before, exits) = read_ship(ship, phase);
+    let (after, with) = read_ship(&whole, phase);
     blocked_exits(&after, &with).len() > blocked_exits(&before, &exits).len()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sections::link_points::unit_cube_link_points;
+    use crate::sections::{
+        link_points::{prelude::LinkPoint, unit_cube_link_points},
+        shell_skin::derive_skin,
+    };
 
     /// A hull cube: sockets on all six faces, nothing to fire.
-    fn hull(position: Vec3) -> PlacedExit<'static> {
+    fn hull(position: Vec3) -> PlacedPart<'static> {
         static POINTS: std::sync::OnceLock<Vec<LinkPoint>> = std::sync::OnceLock::new();
-        PlacedExit {
+        PlacedPart {
             position,
             rotation: Quat::IDENTITY,
             link_points: POINTS.get_or_init(unit_cube_link_points),
@@ -272,9 +258,9 @@ mod tests {
 
     /// A bay: one socket on the face it bolts down through, firing the other
     /// way, with the torpedo born two cells out.
-    fn bay(position: Vec3, rotation: Quat) -> PlacedExit<'static> {
+    fn bay(position: Vec3, rotation: Quat) -> PlacedPart<'static> {
         static POINTS: std::sync::OnceLock<Vec<LinkPoint>> = std::sync::OnceLock::new();
-        PlacedExit {
+        PlacedPart {
             position,
             rotation,
             link_points: POINTS.get_or_init(|| {
@@ -350,5 +336,47 @@ mod tests {
             placement_blocks_an_exit(&ship, &bay(Vec3::Y * 2.0, Quat::from_rotation_z(quarter))),
             "a part standing in the lane blocks it whichever way it faces",
         );
+    }
+
+    /// The skin may plate a fitting's FLANK and still not its LANE.
+    ///
+    /// This rule and the skin pull opposite ways over one [`SkinStructure`]:
+    /// the skin covers every face of structure that would otherwise look at
+    /// vacuum, and this rule wants a column in front of every muzzle left
+    /// empty. Narrowing the skin's refusal from a fitting's five blind faces to
+    /// its one exit face is only safe if the lane is held by something else -
+    /// and it is, by the socket clause below, which is why a hull DIAGONALLY
+    /// off a muzzle is refused. Checked over a whole derivation rather than
+    /// argued.
+    #[test]
+    fn the_skin_plates_around_a_muzzle_without_closing_its_lane() {
+        let mut ship: Vec<PlacedPart> = (-1..=1)
+            .flat_map(|x| (-1..=1).map(move |z| hull(Vec3::new(x as f32, 0.0, z as f32))))
+            .collect();
+        ship.push(bay(Vec3::Y, Quat::IDENTITY));
+
+        let phase = lattice_phase(ship.iter().map(|part| part.position));
+        let (structure, exits) = read_ship(&ship, phase);
+        assert!(
+            blocked_exits(&structure, &exits).is_empty(),
+            "a bay on the middle of a flat deck can fire",
+        );
+
+        let lanes = exit_lanes(&structure, &exits);
+        assert!(!lanes.is_empty(), "the bay has a lane to hold");
+        let clad: Vec<IVec3> = derive_skin(&structure)
+            .iter()
+            .map(|plate| plate.cell)
+            .collect();
+        assert!(
+            clad.contains(&IVec3::new(1, 1, 0)),
+            "the deck beside a muzzle is plating, not a hole",
+        );
+        for cell in lanes {
+            assert!(
+                !clad.contains(&cell),
+                "{cell:?} is in the bay's lane and the skin closed over it",
+            );
+        }
     }
 }

@@ -261,13 +261,13 @@ fn refuse(
     // it and demanding the cladding that would close it over. The rule itself is
     // `nova_ship`'s, so a hull the collapse may not draw is one a builder may
     // not build either.
-    let firing: Vec<PlacedExit<'_>> = ship.iter().map(clearing).collect();
+    let firing: Vec<PlacedPart<'_>> = ship.iter().map(clearing).collect();
     placement_blocks_an_exit(&firing, &clearing(&ghost)).then_some(Refusal::BlockedExit)
 }
 
 /// One placed section as the shared clearance rule reads it.
-fn clearing(section: &PlacedSection) -> PlacedExit<'_> {
-    PlacedExit {
+fn clearing(section: &PlacedSection) -> PlacedPart<'_> {
+    PlacedPart {
         position: section.position,
         rotation: section.rotation,
         link_points: &section.link_points,
