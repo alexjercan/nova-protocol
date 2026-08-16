@@ -612,6 +612,108 @@ mod tests {
     }
 
     #[test]
+    fn a_low_framerate_turret_tracking_a_crosser_reaches_the_gate_and_fires() {
+        // THE BUG (task 20260816-184718), end to end: the per-frame aim damp
+        // left ~1.8 deg of tracking lag at 14 fps - above the 0.92 deg bearing
+        // gate - so a PDC on a struggling machine refused to fire at a crosser
+        // it was tracking fine at 60 fps. With the dt-based decay the lag at
+        // 1/14 stays inside the gate and the turret shoots. Full production
+        // chain on a 1/14 clock: lead solve + joint CCD + controller sync +
+        // the gated fire path.
+        use nova_gameplay::transform::prelude::SmoothLookRotationPlugin;
+
+        let dt = 1.0 / 14.0;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, TransformPlugin, SmoothLookRotationPlugin));
+        app.add_observer(insert_turret_section);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(dt),
+        ));
+        // Production runs the fire path on the fixed clock BEFORE the Update
+        // joint sync, so the gate reads a muzzle pose one frame staler than
+        // the aim point; keep that staleness or the test understates the lag.
+        app.add_systems(
+            Update,
+            (shoot_spawn_projectile, sync_turret_joint_rotation).chain(),
+        );
+        // The same aim-before-controller edge TurretSectionPlugin declares.
+        app.add_systems(
+            PostUpdate,
+            (update_turret_aim_point, update_turret_target_joints_system)
+                .chain()
+                .before(SmoothLookRotationSystems::Sync),
+        );
+
+        // The ship carries every component both the aim inherit query and the
+        // raw-clock fire path read.
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                Transform::IDENTITY,
+                Position(Vec3::ZERO),
+                Rotation::default(),
+                LinearVelocity(Vec3::ZERO),
+                AngularVelocity(Vec3::ZERO),
+                ComputedCenterOfMass(Vec3::ZERO),
+            ))
+            .id();
+        // A crossing target at gunfight range: 100 u out, 12 u/s across the
+        // bow (~7 deg/s of bearing rate at closest approach - the defect's
+        // measured regime, where the old lag read ~1.4 deg and held fire).
+        let velocity = Vec3::new(12.0, 0.0, 0.0);
+        let target_at = |t: f32| Vec3::new(-30.0, 0.0, -100.0) + velocity * t;
+
+        // Trigger COLD until the aim point exists: a turret with no aim point
+        // fires freely (fail-open), which would pass this test vacuously.
+        let turret = app
+            .world_mut()
+            .spawn(turret_section(TurretSectionConfig::default()))
+            .id();
+        app.world_mut().entity_mut(turret).insert((
+            ChildOf(ship),
+            Transform::IDENTITY,
+            TurretSectionTargetInput(Some(target_at(0.0))),
+            TurretSectionTargetVelocity(velocity),
+        ));
+        app.world_mut().flush();
+
+        // The first manual-clock update has dt 0; burn it before tracking (it
+        // also resolves the first aim point).
+        app.update();
+
+        // Track trigger-COLD for 2.5 s first: the acquisition slew sweeps the
+        // barrel THROUGH the aim cone once while it catches the crosser, and
+        // even the laggy pre-fix turret fired a burst on that crossing. The
+        // claim under test is STEADY tracking, so only arm once settled.
+        let steps = (2.5 / dt).round() as u32;
+        for k in 1..=steps {
+            app.world_mut()
+                .entity_mut(turret)
+                .insert(TurretSectionTargetInput(Some(target_at(k as f32 * dt))));
+            app.update();
+        }
+        assert_eq!(bullet_count(&mut app), 0, "trigger is cold while settling");
+
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretSectionInput(true));
+        for k in steps + 1..=2 * steps {
+            app.world_mut()
+                .entity_mut(turret)
+                .insert(TurretSectionTargetInput(Some(target_at(k as f32 * dt))));
+            app.update();
+        }
+
+        assert!(
+            bullet_count(&mut app) > 0,
+            "a turret in steady pursuit of a crosser at 14 fps must sit inside \
+             the bearing gate and fire (pre-fix it lagged ~1.4 deg, outside \
+             the 0.92 deg gate, and held fire)"
+        );
+    }
+
+    #[test]
     fn a_turret_with_no_aim_point_still_fires_freely() {
         // FAIL-OPEN, the same rule the weapons safety follows for an unmanaged
         // ship: a turret nobody has aimed (a bare rig, an example range, a mod

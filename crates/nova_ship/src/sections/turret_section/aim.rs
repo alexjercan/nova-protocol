@@ -232,18 +232,31 @@ fn signed_angle_about(from: Vec3, to: Vec3, axis: Vec3) -> f32 {
     c.atan2(d)
 }
 
-/// Damping gain on each hinge's per-frame CCD correction. The step target is
-/// `output + AIM_CORRECTION_GAIN * delta`, NOT the full `output + delta`. A hinge
-/// solves its `delta` assuming every OTHER joint holds still, but a turret's
-/// joints are coupled (yaw and pitch both swing the offset muzzle), so applying
-/// each full correction at once overshoots the joint solution and settles into a
-/// visible limit cycle - the barrel shakes a few degrees around the aim. A gain
-/// below 1 makes each joint under-correct, so the coupled system converges
-/// monotonically instead of ringing. Large errors are still rate-limited by
-/// `SmoothLookRotation` (not the gain), so a slew stays responsive; the gain
-/// only shapes the settle. Lowered to 0.35 (from 0.5) after playtest - a
-/// stronger damp for extra shake margin; lower further if a deep chain rings.
-const AIM_CORRECTION_GAIN: f32 = 0.35;
+/// Per-second decay rate of each hinge's CCD aim error. The step target is
+/// `output + gain * delta` with `gain = 1 - exp(-AIM_CORRECTION_RATE * dt)`,
+/// NOT the full `output + delta`, for two reasons:
+///
+/// - DAMPING. A hinge solves its `delta` assuming every OTHER joint holds
+///   still, but a turret's joints are coupled (yaw and pitch both swing the
+///   offset muzzle), so applying each full correction at once overshoots the
+///   joint solution and settles into a visible limit cycle - the barrel shakes
+///   a few degrees around the aim. Under-correcting makes the coupled system
+///   converge monotonically instead of ringing. Large errors are still
+///   rate-limited by `SmoothLookRotation` (not this), so a slew stays
+///   responsive; the decay only shapes the settle.
+/// - FRAMERATE INVARIANCE. A flat per-frame gain decays the error per FRAME,
+///   so residual tracking lag scaled with frame time (~0.43 deg at 60 fps vs
+///   ~1.8 deg at 14 fps on a crossing target) and sat above the
+///   [`TURRET_ON_TARGET_RAD`] fire gate exactly when the machine struggled
+///   (task 20260816-184718). The exponential form decays the same error
+///   fraction per unit TIME at any frame rate.
+///
+/// DERIVED from the shipped per-frame gain, not retuned: the damp shipped as
+/// a flat 0.35 of the error per frame, tuned at 60 fps (playtest-lowered from
+/// 0.5 for shake margin). `-ln(1 - 0.35) * 60 = 25.847` reproduces exactly
+/// that fraction at dt = 1/60, so the 60 fps feel is unchanged. Lower the
+/// rate if a deep chain rings.
+const AIM_CORRECTION_RATE: f32 = 25.847;
 
 /// Below this per-frame correction (radians, ~0.23 deg) a hinge is treated as
 /// ON target and HOLDS (target = current output) instead of chasing sub-degree
@@ -263,7 +276,7 @@ const AIM_HINGE_POLE_SIN: f32 = 1e-3;
 /// chain (one step per articulated joint, from the muzzle up to the root). Each
 /// articulated joint nudges its [`SmoothLookRotationTarget`] toward the angle
 /// that swings the muzzle forward (-Z) at the aim point, decomposed in that
-/// joint's own hinge plane and DAMPED by [`AIM_CORRECTION_GAIN`] so coupled
+/// joint's own hinge plane and DAMPED by [`AIM_CORRECTION_RATE`] so coupled
 /// joints do not overshoot into a shake; the [`SmoothLookRotation`] controller
 /// rate-limits and clamps the visible motion. Basis-independent, so it reduces
 /// to the old yaw/pitch behavior for the Y/X chain and solves arbitrary trees.
@@ -282,6 +295,7 @@ const AIM_HINGE_POLE_SIN: f32 = 1e-3;
 /// at the pole, which turns it onto the target's bearing until the pitch demand
 /// drops back under the limit and the normal solve resumes.
 pub(super) fn update_turret_target_joints_system(
+    time: Res<Time>,
     q_turret: Query<
         (&TurretSectionAimPoint, &TurretSectionMuzzles),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
@@ -293,6 +307,9 @@ pub(super) fn update_turret_target_joints_system(
     q_output: Query<&SmoothLookRotationOutput>,
     transform_helper: TransformHelper,
 ) {
+    // The error fraction each hinge corrects this frame; dt 0 (startup frame)
+    // holds every joint. See AIM_CORRECTION_RATE for the derivation.
+    let gain = 1.0 - (-AIM_CORRECTION_RATE * time.delta_secs()).exp();
     for (aim_point, muzzles) in &q_turret {
         let Some(target) = **aim_point else {
             continue;
@@ -374,7 +391,7 @@ pub(super) fn update_turret_target_joints_system(
                                 **target_angle = if delta.abs() <= AIM_DEADBAND_RAD {
                                     out
                                 } else {
-                                    out + AIM_CORRECTION_GAIN * delta
+                                    out + gain * delta
                                 };
                             }
                         }
@@ -922,6 +939,81 @@ mod tests {
             peak_to_peak < 0.5,
             "an aimed turret must hold steady, not shake: aim error swings \
              {peak_to_peak} deg (min {min}, max {max})"
+        );
+    }
+
+    /// Track a target crossing the bow (range 100 u, 15 u/s on +X) on a fixed
+    /// `dt` clock for `sim_time` seconds, then return the residual aim error
+    /// (deg) against the target's final position. One extra settle update
+    /// precedes the measurement: the Update-schedule joint sync applies the
+    /// PREVIOUS frame's controller output, so without it the measured pose
+    /// would lag the last correction by one frame of the rate under test.
+    fn crossing_residual_error_deg(dt: f32, sim_time: f32) -> f32 {
+        use bevy::time::TimeUpdateStrategy;
+
+        let target_at = |t: f32| Vec3::new(-30.0 + 15.0 * t, 0.0, -100.0);
+
+        let mut app = aim_convergence_app();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            dt,
+        )));
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, Transform::IDENTITY))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn(turret_section(TurretSectionConfig::default()))
+            .id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert((ChildOf(ship), Transform::IDENTITY));
+        app.world_mut().flush();
+        let muzzle = muzzle_entity(&app, turret);
+
+        // The first manual-clock update has dt 0; burn it before tracking.
+        app.update();
+
+        let steps = (sim_time / dt).round() as u32;
+        for k in 1..=steps {
+            let t = k as f32 * dt;
+            app.world_mut()
+                .entity_mut(turret)
+                .insert(TurretSectionTargetInput(Some(target_at(t))));
+            app.update();
+        }
+        app.update();
+
+        muzzle_aim_error_deg(&mut app, muzzle, target_at(sim_time))
+    }
+
+    #[test]
+    fn aim_tracking_lag_is_framerate_invariant() {
+        // THE BUG (task 20260816-184718): the correction gain damped the aim
+        // error per FRAME, so residual tracking lag scaled with frame time -
+        // ~0.43 deg at 60 fps vs ~1.8 deg at 14 fps on a crossing target,
+        // above the 0.92 deg fire gate exactly when the machine struggled.
+        // With the dt-based decay, the same SIM time against the same crosser
+        // must land the same residual at any frame rate.
+        //
+        // Tolerance: the decay itself is exactly framerate-invariant; what
+        // remains is sampling - the target moves w * dt between corrections,
+        // so the residual measured right after a correction reads
+        // (1 - gain) * w * dt / gain (~0.24 deg at 1/60, ~0.11 deg at 1/14
+        // here), both bracketing the continuous-time lag w / rate. 0.5 deg
+        // covers that bias; the pre-fix per-frame gain read ~1.0 deg at 1/14
+        // in this harness and fails this assert.
+        let at_60 = crossing_residual_error_deg(1.0 / 60.0, 4.0);
+        let at_14 = crossing_residual_error_deg(1.0 / 14.0, 4.0);
+        assert!(
+            at_60 < 1.0 && at_14 < 1.0,
+            "both rates must actually track the crosser: {at_60} deg at 1/60, \
+             {at_14} deg at 1/14"
+        );
+        assert!(
+            (at_60 - at_14).abs() < 0.5,
+            "residual tracking lag must not depend on frame rate: {at_60} deg \
+             at 1/60 vs {at_14} deg at 1/14"
         );
     }
 

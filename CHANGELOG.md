@@ -287,6 +287,9 @@ tagged **(breaking)**.
   render target.
 - The menu's interface camera no longer re-renders world-space particle effects
   over the finished frame: the overlay draws on a UI-only render layer.
+- Turret aim smoothing decays per second, not per frame: tracking lag no longer
+  grows at low framerate, so a PDC on a struggling machine still reaches the
+  fire gate.
 
 ### Internals & Tooling
 
