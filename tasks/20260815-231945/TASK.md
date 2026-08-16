@@ -1,13 +1,17 @@
 # Market research: open-source prior art, technique, and licence positions
 
-- STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog, research, art
+- STATUS: IN_PROGRESS
+- PRIORITY: 67
+- TAGS: v0.11.0, research, art, ship, skin
 
 ## Goal
 
 A durable, browsable record of what already exists in the world that Nova
-Protocol can REUSE or LEARN FROM. Reference material, not scheduled work.
+Protocol can REUSE or LEARN FROM. **The single point for market research** - a
+new question gets a ROUND here rather than a task of its own, so the findings
+accumulate in one place instead of scattering.
+
+The record is reference material. Individual rounds are scheduled work.
 
 Priority is OPEN SOURCE: other space games' code, art, data formats and design
 decisions, plus the licence position on each. Second priority is reference
@@ -20,12 +24,58 @@ art generator. Research that informs it is the most valuable.
 
 ## Contents
 
-- `RESEARCH.md` - the findings. Fourteen sections plus a ranked recommendation
+- `RESEARCH.md` - round 1. Fourteen sections plus a ranked recommendation
   section at the end; read that first.
 - `PRIOR-POINT-DEFENCE.md` - a point-defence-versus-missile balance survey done
   by a SEPARATE lane, banked here rather than lost, credited to that lane, with
   my own Nova-specific reading kept separate from theirs. None of its figures
   could be re-verified from here; the file says so.
+- `PLATING-AND-GREEBLES.md` - round 2, below.
+
+## Round 2: hull plating shape and greeble placement
+
+Scoped so the shell-shape work starts from a technique instead of inventing one.
+Owner: "start the market research again and see if we find anything related to
+this issue, such that we do not waste time with the research part".
+
+Feeds task `20260816-112429` (shell shape and decoration placement), which holds
+the full code reading. In short: every plate top is an eight-triangle fan off ONE
+centre vertex at the mean of its eight boundary samples, so no plate has flat
+area unless all eight agree; corners vote three ways only, so an alternating
+corner pattern is a forced saddle; and the boundary polyline is the whole
+contract with the neighbours, so the plate INTERIOR is free.
+
+The questions:
+
+1. **Plate top geometry.** How do other systems give procedural plating a flat,
+   usable top while still matching neighbours exactly - inset plateau with a
+   chamfer, bevelled tile edges, trim-sheet insets, something else? What breaks
+   when they do it.
+2. **Continuity over spikes.** How is a procedural surface biased to read as
+   continuous plating rather than scattered studs and cones? What suppresses
+   isolated protrusions WITHOUT flattening deliberate ones. Owner: "it should
+   prefer having continous skin rather than spikes all over the place", while
+   still liking ridges and spikes where they are meant.
+3. **Greeble placement.** What do real systems key scatter on - flat AREA,
+   contiguous run, normal, enclosure, curvature? Which decorations are worth
+   placing on edges, corners and high points, and how are those made to look
+   intentional rather than stuck on.
+4. **Saddle avoidance.** Where a height field is sampled at corners and edge
+   midpoints, how is the alternating-corner saddle avoided or made to read well.
+
+Prior art to check: Townscaper's driver-layer / generated-layer split, Hardspace:
+Shipbreaker, Lagae and Dutre 2006 corner tiles with Barrett's mid-edge fix,
+Nebulous: Fleet Command, Children of a Dead Earth, marching-cubes and
+dual-contouring work on flat-region preservation and sharp-feature
+reconstruction, and open-source greebling or kitbash tooling.
+
+A technique that needs a global relaxation pass or per-instance randomness is
+OUT: Nova's derivation is deterministic and matches neighbours through shared
+samples.
+
+## Lane
+
+Round 2 runs in sprout `shape-research`.
 
 ## Headline findings
 

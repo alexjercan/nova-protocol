@@ -82,8 +82,8 @@ what the debug dump says it is.
 
 ## Order, and why
 
-Market research first, so the technique question is not re-derived. Then the skin
-debug dump, then this.
+Market research first (round 2 of task 20260815-231945), so the technique
+question is not re-derived. Then the skin debug dump, then this.
 
 The dump is the instrument. Today "the shapes are meh" is a picture; with the
 dump it is: how many plates come out saddles, mean flat area per plate, what
@@ -98,4 +98,4 @@ Skin debug dump.
 ## Lane
 
 Not started. Queued behind the skin debug dump (task 20260816-112405) and the
-shape research (task 20260816-112446).
+shape research (round 2 of task 20260815-231945).
