@@ -1,0 +1,84 @@
+{
+  "_comment": "SALVAGE kit: someone else's comms dish. The bowl is a faded, dirt-dulled COBALT - the one hue in this kit that is not steel, rust or livery green, and it is spent here alone: the dish is the piece whose whole story is 'this came off another ship', so the foreign paint does the telling. It echoes the civilian accent at half the saturation and none of the gloss, a liner's radio bleached by years on a raider's flank. The bowl is tilted 16 degrees off its own mount with a rust patch riveted over a dent in the rim, on a steel pylon with a rust collar where it was welded back on. Nothing else in the kit may take this hue - one accent used once is a stolen part, used twice it is a palette.",
+  "materials": {
+    "rust": {
+      "color": [0.165, 0.058, 0.024],
+      "roughness": 0.95,
+      "metallic": 0.05
+    },
+    "scrap_steel": {
+      "color": [0.235, 0.255, 0.295],
+      "roughness": 0.72,
+      "metallic": 0.15
+    },
+    "soot": {
+      "color": [0.008, 0.0075, 0.008],
+      "roughness": 0.9,
+      "metallic": 0.1
+    },
+    "stolen_cobalt": {
+      "color": [0.02, 0.06, 0.19],
+      "roughness": 0.9,
+      "metallic": 0.05
+    },
+    "weld": {
+      "color": [0.07, 0.061, 0.05],
+      "roughness": 0.95,
+      "metallic": 0.05
+    }
+  },
+  "material": "scrap_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.14, 0.024, 0.14],
+      "at": [0.01, 0.012, -0.01],
+      "material": "weld"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.028,
+      "height": 0.1,
+      "sides": 6,
+      "at": [0.01, 0.07, -0.01]
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 0.03, 0.06],
+      "at": [0.01, 0.09, -0.01],
+      "material": "rust"
+    },
+    {
+      "primitive": "box",
+      "size": [0.03, 0.08, 0.03],
+      "at": [0.01, 0.1, -0.01]
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.05,
+      "radius_top": 0.16,
+      "height": 0.06,
+      "sides": 8,
+      "rotate": [16.0, 0.0, 6.0],
+      "at": [0.01, 0.15, -0.01],
+      "material": "stolen_cobalt"
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.012,
+      "radius_top": 0.0,
+      "height": 0.07,
+      "sides": 6,
+      "rotate": [16.0, 0.0, 6.0],
+      "at": [0.004, 0.207, 0.007],
+      "material": "soot"
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.02, 0.055],
+      "rotate": [16.0, 0.0, 6.0],
+      "at": [0.155, 0.19, -0.005],
+      "material": "rust"
+    }
+  ]
+}

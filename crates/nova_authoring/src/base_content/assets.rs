@@ -98,11 +98,19 @@ pub struct BaseContentAssets {
     pub greeble_industrial_ribbing: AssetRef<WorldAsset>,
     pub greeble_industrial_stack: AssetRef<WorldAsset>,
     /// The SALVAGE kit: mismatched patches, a hand-run weld bead, lashed
-    /// tankage, a kinked whip and a tow cleat. Seven pieces, and the cap is
-    /// the point - a hull reads as repaired because of where the pieces land
-    /// and what they are made of, never because there are more of them.
+    /// tankage and rigging, scavenged fittings off other ships, a kinked whip
+    /// and a tow cleat. Fourteen pieces, and the doctrine holds - a hull reads
+    /// as repaired because of where the pieces land and what they are made of,
+    /// never because there are more of them.
+    pub greeble_salvage_chain: AssetRef<WorldAsset>,
+    pub greeble_salvage_cog_patch: AssetRef<WorldAsset>,
+    pub greeble_salvage_dish: AssetRef<WorldAsset>,
     pub greeble_salvage_drum: AssetRef<WorldAsset>,
+    pub greeble_salvage_grille: AssetRef<WorldAsset>,
     pub greeble_salvage_hook: AssetRef<WorldAsset>,
+    pub greeble_salvage_hose: AssetRef<WorldAsset>,
+    pub greeble_salvage_kills: AssetRef<WorldAsset>,
+    pub greeble_salvage_net: AssetRef<WorldAsset>,
     pub greeble_salvage_patch_plate: AssetRef<WorldAsset>,
     pub greeble_salvage_patch_scab: AssetRef<WorldAsset>,
     pub greeble_salvage_patch_strip: AssetRef<WorldAsset>,
@@ -236,11 +244,32 @@ impl BaseContentAssets {
             greeble_industrial_stack: AssetRef::from(
                 "self://gltf/greebles/industrial_stack.glb#Scene0".to_string(),
             ),
+            greeble_salvage_chain: AssetRef::from(
+                "self://gltf/greebles/salvage_chain.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_cog_patch: AssetRef::from(
+                "self://gltf/greebles/salvage_cog_patch.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_dish: AssetRef::from(
+                "self://gltf/greebles/salvage_dish.glb#Scene0".to_string(),
+            ),
             greeble_salvage_drum: AssetRef::from(
                 "self://gltf/greebles/salvage_drum.glb#Scene0".to_string(),
             ),
+            greeble_salvage_grille: AssetRef::from(
+                "self://gltf/greebles/salvage_grille.glb#Scene0".to_string(),
+            ),
             greeble_salvage_hook: AssetRef::from(
                 "self://gltf/greebles/salvage_hook.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_hose: AssetRef::from(
+                "self://gltf/greebles/salvage_hose.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_kills: AssetRef::from(
+                "self://gltf/greebles/salvage_kills.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_net: AssetRef::from(
+                "self://gltf/greebles/salvage_net.glb#Scene0".to_string(),
             ),
             greeble_salvage_patch_plate: AssetRef::from(
                 "self://gltf/greebles/salvage_patch_plate.glb#Scene0".to_string(),

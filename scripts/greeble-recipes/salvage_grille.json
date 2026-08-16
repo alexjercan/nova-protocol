@@ -1,0 +1,85 @@
+{
+  "_comment": "SALVAGE kit: a mismatched grate over a vent hole. The frame is rust stock and the slats are bare steel EXCEPT one - the centre slat is a rust offcut, a slat replaced with whatever was in the bin - and one steel slat is sprung, rotated 12 degrees so one end stands proud of the frame. The rim carries soot along the exhaust edge, because a vent that works stains its own frame. Off-centre in +X like the rest of the kit: a centred grate repeated is a tile.",
+  "materials": {
+    "rust": {
+      "color": [0.165, 0.058, 0.024],
+      "roughness": 0.95,
+      "metallic": 0.05
+    },
+    "scrap_steel": {
+      "color": [0.235, 0.255, 0.295],
+      "roughness": 0.72,
+      "metallic": 0.15
+    },
+    "soot": {
+      "color": [0.008, 0.0075, 0.008],
+      "roughness": 0.9,
+      "metallic": 0.1
+    }
+  },
+  "material": "rust",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.34, 0.012, 0.24],
+      "at": [0.035, 0.006, -0.02],
+      "material": "soot"
+    },
+    {
+      "primitive": "box",
+      "size": [0.38, 0.032, 0.05],
+      "at": [0.035, 0.016, -0.145]
+    },
+    {
+      "primitive": "box",
+      "size": [0.38, 0.032, 0.05],
+      "at": [0.035, 0.016, 0.105]
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.032, 0.3],
+      "at": [-0.13, 0.016, -0.02]
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.032, 0.3],
+      "at": [0.2, 0.016, -0.02]
+    },
+    {
+      "primitive": "box",
+      "size": [0.036, 0.026, 0.2],
+      "at": [-0.075, 0.024, -0.02],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "box",
+      "size": [0.036, 0.026, 0.2],
+      "at": [0.0, 0.024, -0.02]
+    },
+    {
+      "primitive": "box",
+      "size": [0.036, 0.026, 0.2],
+      "rotate": [12.0, 0.0, 0.0],
+      "at": [0.075, 0.045, -0.02],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "box",
+      "size": [0.036, 0.026, 0.2],
+      "at": [0.15, 0.024, -0.02],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "box",
+      "size": [0.3, 0.01, 0.05],
+      "at": [0.02, 0.036, -0.145],
+      "material": "soot"
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.01, 0.16],
+      "at": [0.2, 0.036, -0.06],
+      "material": "soot"
+    }
+  ]
+}

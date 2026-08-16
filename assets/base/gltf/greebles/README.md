@@ -48,9 +48,11 @@ collars (the stack collar, the cell rack's bus bar) and handles (the hatch
 handle, the winch crank).
 
 `salvage_*.glb` - mismatched patches in three materials, a hand-run weld bead, a
-lashed drum, a kinked whip antenna and a tow cleat. Seven pieces, and the cap is
-deliberate: the look comes from where they land and what they are made of, never
-from how many of them there are.
+lashed drum, a kinked whip antenna, a tow cleat, and the batch-C scavenge: a
+bent-slat grille, a sagging hose bundle, a kill tally, a cog bolted over a hole,
+a netted cargo bundle, someone else's cobalt comms dish and a rigged tow chain.
+Fourteen pieces, and the cap is deliberate: the look comes from where they land
+and what they are made of, never from how many of them there are.
 
 `placeholder_*.glb` are PLACEHOLDERS in garish magenta, shipped only to prove
 the pipeline runs end to end. They make no art decision (task

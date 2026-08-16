@@ -1,0 +1,112 @@
+{
+  "_comment": "SALVAGE kit: a taped hose bundle SAGGING between two crude clamps - three cylinder segments, the outer pair tilted 5 degrees so the run dips between its supports, because a hose someone pulled taut would read as plumbing and this is not plumbing. A thinner second line runs beside it and vanishes under the tape, and the tape wraps are LIVERY GREEN: they bind with the same stolen green stock the patches are cut from, which keeps the mismatch inside the kit's three hues. Long axis Z with the clamps at 0.40 of a cell out, footprint raised to 0.92, so consecutive plates of one run join into a continuing bundle while a lone piece still reads complete - clamp, sag, clamp.",
+  "materials": {
+    "livery_green": {
+      "color": [0.06, 0.2, 0.155],
+      "roughness": 0.85,
+      "metallic": 0.1
+    },
+    "rust": {
+      "color": [0.165, 0.058, 0.024],
+      "roughness": 0.95,
+      "metallic": 0.05
+    },
+    "scrap_steel": {
+      "color": [0.235, 0.255, 0.295],
+      "roughness": 0.72,
+      "metallic": 0.15
+    },
+    "soot": {
+      "color": [0.008, 0.0075, 0.008],
+      "roughness": 0.9,
+      "metallic": 0.1
+    },
+    "weld": {
+      "color": [0.07, 0.061, 0.05],
+      "roughness": 0.95,
+      "metallic": 0.05
+    }
+  },
+  "material": "soot",
+  "budget": {
+    "footprint": 0.92,
+    "height": 0.5
+  },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.1, 0.03, 0.07],
+      "at": [0.02, 0.015, -0.4],
+      "material": "weld"
+    },
+    {
+      "primitive": "box",
+      "size": [0.1, 0.03, 0.07],
+      "at": [-0.01, 0.015, 0.4],
+      "material": "weld"
+    },
+    {
+      "primitive": "box",
+      "size": [0.07, 0.075, 0.05],
+      "at": [0.02, 0.0375, -0.4],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "box",
+      "size": [0.07, 0.075, 0.05],
+      "at": [-0.01, 0.0375, 0.4],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.03,
+      "height": 0.28,
+      "sides": 6,
+      "rotate": [95.0, 0.0, 0.0],
+      "at": [0.005, 0.054, -0.265]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.03,
+      "height": 0.3,
+      "sides": 6,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.04, 0.0]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.03,
+      "height": 0.28,
+      "sides": 6,
+      "rotate": [85.0, 0.0, 0.0],
+      "at": [-0.005, 0.054, 0.265]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.018,
+      "height": 0.26,
+      "sides": 6,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.055, 0.035, -0.05],
+      "material": "rust"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.036,
+      "height": 0.045,
+      "sides": 6,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.04, -0.09],
+      "material": "livery_green"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.036,
+      "height": 0.045,
+      "sides": 6,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.002, 0.04, 0.14],
+      "material": "livery_green"
+    }
+  ]
+}

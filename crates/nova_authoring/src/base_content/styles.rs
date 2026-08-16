@@ -22,20 +22,22 @@
 //! lists here name a ZONE of the hull and nothing more, and no seated rule
 //! lists a relief that can never carry a seat.
 //!
-//! Ten rules opt out with [`ScatterSeat::Any`]. Six are pieces that WANT the
-//! high ground - the stack, the whip, the fin, the two masts and the corner
+//! Thirteen rules opt out with [`ScatterSeat::Any`]. Six are pieces that WANT
+//! the high ground - the stack, the whip, the fin, the two masts and the corner
 //! boss. The pointiest plate on a hull is a cone every time, so a blanket
 //! "surfaces only" would take a ship's silhouette off to fix a bedding
 //! defect. A piece on a cone stands up its own cell rather than lying down
 //! one of its facets, which is what a mast on a spar tip wants anyway.
 //!
-//! Three are THIN-SHAPE CARRIERS (task 20260816-203812): the civilian
-//! fairing, the salvage scab and the armoured applique. A hand-built hull one
-//! cell thick derives as cones from end to end - zero coplanar plates on half
-//! the bench roster - so a style whose every filler is seated places NOTHING
-//! on the shapes players actually build. One cone-friendly filler per style
-//! is the floor under the look; the armoured cap and the industrial stack
-//! already were one.
+//! Six are THIN-SHAPE CARRIERS (task 20260816-203812): the civilian fairing,
+//! the salvage scab and the armoured applique fillers, plus the industrial
+//! stencil, the civilian registry and the salvage kill tally - flat decals,
+//! the pieces that lie on a cone honestly. A hand-built hull one cell thick
+//! derives as cones from end to end - zero coplanar plates on half the bench
+//! roster - so a style whose every filler is seated places NOTHING on the
+//! shapes players actually build. One cone-friendly filler per style is the
+//! floor under the look; the armoured cap and the industrial stack already
+//! were one.
 //!
 //! The last is the armoured ammo stripes, whose own pin test spells out the
 //! bench-proven reason: the plates beside a boom-mounted gun are cones.
@@ -1425,6 +1427,21 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
 /// `near_fitting` is third and fifth rather than first (it reads as narrow and
 /// is not), and the broad patches carry `min_height` so they stay off the
 /// slivers.
+///
+/// # The batch pieces (task 20260816-222658) slot into the same allocation
+///
+/// Seven pieces doubled the kit without adding a rule SHAPE it did not have:
+/// the dish is a second rationed silhouette breaker (flanks, as the whip is
+/// crests), the net shares the drum's decks, the chain takes the short edges
+/// the seam's `min_run` leaves bare, the hose is the duct class at a share
+/// instead of full, the grille and the cog sit on the body ahead of the broad
+/// plate, and the kill tally is a second thin-shape carrier ahead of the scab.
+/// The ham budget from the art direction (GREEBLES.md section 2) is enforced
+/// by the numbers here: the one new silhouette breaker (the dish) is rationed
+/// under the whip, every other new rule is thinned by a stride or a run gate
+/// as well as its share, no new rule carries a patch floor (the
+/// 20260816-203812 origin-octant lever), and the one new hue in the whole
+/// batch rides the dish recipe alone.
 fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     ShipStyleConfig {
         id: SALVAGE_STYLE_ID.to_string(),
@@ -1502,6 +1519,31 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 },
             },
             StyleFixtureConfig {
+                id: "salvage_dish".to_string(),
+                model: assets.greeble_salvage_dish.clone(),
+                health: 10.0,
+                density: 0.08,
+                collider: Vec3::new(0.33, 0.24, 0.31),
+                // Someone else's comms dish, bolted to a FLANK where it can
+                // see - the second silhouette breaker in the kit, and rationed
+                // below the whip (0.18) for the same reason the whip is
+                // rationed at all: a hull bristling with breakers reads as a
+                // porcupine, not a raider. `stride: 2` keeps two stolen dishes
+                // from standing shoulder to shoulder, which no crew would rig.
+                //
+                // This is the piece the kit's ONE foreign hue rides on - the
+                // faded cobalt lives in the recipe, nowhere else - so the rule
+                // has to keep it rare enough that the accent stays an anecdote
+                // ("that came off a liner") rather than a fourth patch colour.
+                scatter: ScatterRule {
+                    facing: PlateFacing::Side,
+                    min_height: 1,
+                    stride: 2,
+                    chance: 0.12,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
                 id: "salvage_drum".to_string(),
                 model: assets.greeble_salvage_drum.clone(),
                 health: 24.0,
@@ -1524,6 +1566,34 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                     // than in plates.
                     chance: 0.10,
                     patch: 6,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "salvage_net".to_string(),
+                model: assets.greeble_salvage_net.clone(),
+                health: 14.0,
+                density: 0.12,
+                collider: Vec3::new(0.38, 0.16, 0.57),
+                // Lashed loot shares the drum's zone - the broad, solid decks
+                // are where a crew straps things down - and is sampled right
+                // AFTER it, so the two chunky pieces interleave on the same
+                // ground instead of one carpeting it: the drum takes its 10%
+                // first, the net takes 8% of what is left. Same filter shape
+                // as the drum on purpose; a shared zone with a shared dominant
+                // material (green tarp beside green patches) is accumulation,
+                // two zones of one piece each would be allocation.
+                //
+                // No patch floor: the floor keys on (origin-octant block,
+                // face) and multiplies on centred hulls - the 20260816-203812
+                // lever - so the scab's floor stays the only one in the kit.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    min_run: 2,
+                    min_height: 2,
+                    min_depth: 2,
+                    chance: 0.08,
                     align: ScatterAlign::Run,
                     ..Default::default()
                 },
@@ -1588,6 +1658,32 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 },
             },
             StyleFixtureConfig {
+                id: "salvage_chain".to_string(),
+                model: assets.greeble_salvage_chain.clone(),
+                health: 12.0,
+                density: 0.14,
+                collider: Vec3::new(0.11, 0.13, 0.88),
+                // The SHORT edges. Sampled after the seam on purpose: the seam
+                // takes every brink in a run of three or more at full share,
+                // so what reaches this rule is exactly the runs of two the
+                // seam's `min_run` leaves bare - the seam owns the hull's long
+                // edges, the chain rigs its stubs and breaks. Two pieces
+                // splitting one relief BY RUN LENGTH is a partition, not a
+                // pile: no edge can carry both.
+                //
+                // `chance: 0.5` and not 1.0 because the chain is rigging, not
+                // trim - a crew laces the edges they tow from, and every stub
+                // wearing chain would read as a uniform finish, which is the
+                // machined claim this kit exists to refuse.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Brink],
+                    min_run: 2,
+                    chance: 0.5,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
                 id: "salvage_patch_strip".to_string(),
                 model: assets.greeble_salvage_patch_strip.clone(),
                 health: 18.0,
@@ -1608,6 +1704,75 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                     min_height: 1,
                     chance: 0.35,
                     align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "salvage_hose".to_string(),
+                model: assets.greeble_salvage_hose.clone(),
+                health: 8.0,
+                density: 0.07,
+                collider: Vec3::new(0.13, 0.09, 0.87),
+                // The services run, in this kit's voice: where the industrial
+                // duct is a straight conduit at full share down every long
+                // deck shoulder, the hose is rigged where somebody NEEDED a
+                // line - `chance: 0.4` against the duct's 1.0, and sampled
+                // after the fitting rules so the cleats and green plating
+                // keep the ring the pocket rules own. The piece affords the
+                // thinning: a sag between two clamps is complete on one cell,
+                // so a broken run of hose reads as a bundle picked up and
+                // dropped again, where a dashed duct would read as a broken
+                // machine. `min_run: 3` still wants the long shoulder - a
+                // hose needs somewhere to be going.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Step, PlateRelief::Flat],
+                    min_run: 3,
+                    chance: 0.4,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "salvage_grille".to_string(),
+                model: assets.greeble_salvage_grille.clone(),
+                health: 12.0,
+                density: 0.1,
+                collider: Vec3::new(0.38, 0.08, 0.3),
+                // A vent cut wherever there was room to cut one, which is why
+                // the filter names no relief: any whole surface with a cell
+                // of structure behind it can hide a duct mouth. `min_depth: 1`
+                // is that cell - it asks for something to vent FROM without
+                // the `min_depth: 2` gate that blanks every one-cell-thick
+                // build, so the grate reaches the thin shapes players build.
+                // `stride: 2` plus the share keeps grates from clustering:
+                // two vents side by side read as a designed bank, and nothing
+                // on this ship was designed together.
+                scatter: ScatterRule {
+                    min_depth: 1,
+                    min_height: 1,
+                    stride: 2,
+                    chance: 0.3,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "salvage_cog_patch".to_string(),
+                model: assets.greeble_salvage_cog_patch.clone(),
+                health: 16.0,
+                density: 0.15,
+                collider: Vec3::new(0.38, 0.06, 0.38),
+                // A cog used as armour, on the same ground the steel patch
+                // plates: anywhere whole with structure behind the hole it
+                // covers (`min_depth: 1`, thin builds included). Sampled just
+                // BEFORE the broad plate so the gear is not starved into the
+                // plate's leavings, but on a stride and a low share - the
+                // gear is the kit's most literal piece of junk, and one per
+                // neighbourhood is a story where three make a machine shop.
+                scatter: ScatterRule {
+                    min_depth: 1,
+                    min_height: 1,
+                    stride: 2,
+                    chance: 0.18,
                     ..Default::default()
                 },
             },
@@ -1637,6 +1802,33 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                     min_height: 1,
                     chance: 0.4,
                     align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "salvage_kills".to_string(),
+                model: assets.greeble_salvage_kills.clone(),
+                health: 6.0,
+                density: 0.05,
+                collider: Vec3::new(0.4, 0.03, 0.3),
+                // The kill tally, and the kit's SECOND thin-shape carrier
+                // (the scab is the first): a flat decal lies on anything, so
+                // the seat gate is off and there is no depth ask - the two
+                // filters that blank a one-cell-thick build. `min_height`
+                // stays for the same reason it stays on the scab: paint on a
+                // height-0 sliver hovers.
+                //
+                // After the plate, before the scab: the tally is painted ON
+                // the hull the patches left showing, so it takes what the
+                // plate's 40% declined, and the scab's floor still guarantees
+                // the true filler lands last. `stride: 2` because two tallies
+                // in adjacent cells read as one crew bragging twice - the
+                // marks are the ship talking, and a ship says a thing once.
+                scatter: ScatterRule {
+                    seat: ScatterSeat::Any,
+                    min_height: 1,
+                    stride: 2,
+                    chance: 0.22,
                     ..Default::default()
                 },
             },
@@ -1905,6 +2097,11 @@ mod tests {
                 "civilian_registry",
                 "civilian_fairing",
                 "salvage_whip",
+                // The kill tally (task 20260816-222658) is salvage's second
+                // carrier: a flat decal touches any top along its whole face,
+                // so the seat gate would only cost it the thin builds it
+                // exists to reach.
+                "salvage_kills",
                 "salvage_patch_scab",
                 "placeholder_mast",
             ],
@@ -2304,10 +2501,17 @@ mod tests {
     #[test]
     fn the_salvage_kit_is_prefixed_and_stays_small() {
         let style = salvage_style(&BaseContentAssets::from_paths());
-        assert!(
-            (6..=8).contains(&style.fixtures.len()),
-            "the salvage kit is {} pieces, and the cap is 6 to 8",
+        // Raised 7 -> 14 by the approved vocabulary batch (task
+        // 20260816-222658): seven CLASSES with one piece each, not variants.
+        // The doctrine survives the raise - mismatch still comes from
+        // placement and material - and the pin still exists for the same
+        // reason: a kit that grows past its batch has stopped being a small
+        // fixed set of committed assets.
+        assert_eq!(
             style.fixtures.len(),
+            14,
+            "the salvage kit is pinned at 14 pieces (7 original + batch \
+             20260816-222658); grow it through an approved batch or not at all",
         );
         for fixture in &style.fixtures {
             assert!(

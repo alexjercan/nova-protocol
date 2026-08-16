@@ -1,0 +1,100 @@
+{
+  "_comment": "SALVAGE kit: a scavenged gear bolted FLAT over a hole - a cog used as armour. The hole is a soot square and the gear is a rust disc that does not quite cover it: the disc sits offset toward +X/+Z, so a sliver of dark shows at one edge and the repair reads as approximate, which is the whole voice of the kit. Six teeth stand around the rim at angles 15 degrees off the grid - a gear whose teeth lined up with the plate seams would read as trim - with a proud steel hub and two soot bolt heads at irregular spots. Footprint raised to 0.56: a gear big enough to armour a hole is over half a cell across.",
+  "materials": {
+    "rust": {
+      "color": [0.165, 0.058, 0.024],
+      "roughness": 0.95,
+      "metallic": 0.05
+    },
+    "scrap_steel": {
+      "color": [0.235, 0.255, 0.295],
+      "roughness": 0.72,
+      "metallic": 0.15
+    },
+    "soot": {
+      "color": [0.008, 0.0075, 0.008],
+      "roughness": 0.9,
+      "metallic": 0.1
+    }
+  },
+  "material": "rust",
+  "budget": {
+    "footprint": 0.56,
+    "height": 0.5
+  },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.24, 0.01, 0.22],
+      "at": [0.005, 0.005, 0.0],
+      "material": "soot"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.155,
+      "thickness": 0.035,
+      "sides": 8,
+      "at": [0.05, 0.0175, 0.04]
+    },
+    {
+      "primitive": "box",
+      "size": [0.055, 0.03, 0.045],
+      "rotate": [0.0, -15.0, 0.0],
+      "at": [0.209, 0.0175, 0.083]
+    },
+    {
+      "primitive": "box",
+      "size": [0.055, 0.03, 0.045],
+      "rotate": [0.0, -75.0, 0.0],
+      "at": [0.093, 0.0175, 0.199]
+    },
+    {
+      "primitive": "box",
+      "size": [0.055, 0.03, 0.045],
+      "rotate": [0.0, -135.0, 0.0],
+      "at": [-0.067, 0.0175, 0.157]
+    },
+    {
+      "primitive": "box",
+      "size": [0.055, 0.03, 0.045],
+      "rotate": [0.0, -195.0, 0.0],
+      "at": [-0.109, 0.0175, -0.003]
+    },
+    {
+      "primitive": "box",
+      "size": [0.055, 0.03, 0.045],
+      "rotate": [0.0, -255.0, 0.0],
+      "at": [0.007, 0.0175, -0.119]
+    },
+    {
+      "primitive": "box",
+      "size": [0.055, 0.03, 0.045],
+      "rotate": [0.0, -315.0, 0.0],
+      "at": [0.167, 0.0175, -0.077]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.055,
+      "thickness": 0.03,
+      "sides": 6,
+      "at": [0.05, 0.04, 0.04],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.022,
+      "thickness": 0.016,
+      "sides": 6,
+      "at": [0.14, 0.042, -0.02],
+      "material": "soot"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.022,
+      "thickness": 0.016,
+      "sides": 6,
+      "at": [-0.03, 0.042, 0.12],
+      "material": "soot"
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "_comment": "SALVAGE kit: the kill tally, and a FLAT decal like the hazard band - a thin steel sheet with two GENERATIONS of marks on it that disagree about which way is straight. The old tally was painted over with a soot block yawed 9 degrees, and two rust marks still peek out past its edge; the fresh tally - four green bars and the strike-through of a five-count - is yawed 4 degrees the OTHER way, in the same livery green the patches are cut from, because a raider paints with the paint it has. Everything under 0.03 of a cell tall, so the piece lies on anything: this is the kit's second thin-shape carrier and its rule asks for no seat and no depth.",
+  "materials": {
+    "livery_green": {
+      "color": [0.06, 0.2, 0.155],
+      "roughness": 0.85,
+      "metallic": 0.1
+    },
+    "rust": {
+      "color": [0.165, 0.058, 0.024],
+      "roughness": 0.95,
+      "metallic": 0.05
+    },
+    "scrap_steel": {
+      "color": [0.235, 0.255, 0.295],
+      "roughness": 0.72,
+      "metallic": 0.15
+    },
+    "soot": {
+      "color": [0.008, 0.0075, 0.008],
+      "roughness": 0.9,
+      "metallic": 0.1
+    }
+  },
+  "material": "livery_green",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.4, 0.014, 0.3],
+      "at": [0.02, 0.007, 0.0],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "box",
+      "size": [0.16, 0.012, 0.13],
+      "rotate": [0.0, 9.0, 0.0],
+      "at": [-0.08, 0.018, -0.045],
+      "material": "soot"
+    },
+    {
+      "primitive": "box",
+      "size": [0.014, 0.01, 0.07],
+      "rotate": [0.0, 9.0, 0.0],
+      "at": [-0.05, 0.016, -0.115],
+      "material": "rust"
+    },
+    {
+      "primitive": "box",
+      "size": [0.014, 0.01, 0.07],
+      "rotate": [0.0, 9.0, 0.0],
+      "at": [-0.105, 0.016, -0.11],
+      "material": "rust"
+    },
+    {
+      "primitive": "box",
+      "size": [0.018, 0.012, 0.09],
+      "rotate": [0.0, -4.0, 0.0],
+      "at": [0.065, 0.016, 0.055]
+    },
+    {
+      "primitive": "box",
+      "size": [0.018, 0.012, 0.09],
+      "rotate": [0.0, -4.0, 0.0],
+      "at": [0.105, 0.016, 0.055]
+    },
+    {
+      "primitive": "box",
+      "size": [0.018, 0.012, 0.09],
+      "rotate": [0.0, -4.0, 0.0],
+      "at": [0.145, 0.016, 0.055]
+    },
+    {
+      "primitive": "box",
+      "size": [0.018, 0.012, 0.09],
+      "rotate": [0.0, -4.0, 0.0],
+      "at": [0.185, 0.016, 0.055]
+    },
+    {
+      "primitive": "box",
+      "size": [0.016, 0.012, 0.13],
+      "rotate": [0.0, -38.0, 0.0],
+      "at": [0.125, 0.016, 0.055]
+    }
+  ]
+}

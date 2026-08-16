@@ -889,6 +889,23 @@
                 ),
             ),
             (
+                id: "salvage_dish",
+                model: "self://gltf/greebles/salvage_dish.glb#Scene0",
+                health: 10.0,
+                density: 0.08,
+                collider: (
+                    0.33,
+                    0.24,
+                    0.31,
+                ),
+                scatter: (
+                    facing: Side,
+                    min_height: 1,
+                    stride: 2,
+                    chance: 0.12,
+                ),
+            ),
+            (
                 id: "salvage_drum",
                 model: "self://gltf/greebles/salvage_drum.glb#Scene0",
                 health: 24.0,
@@ -909,6 +926,29 @@
                     stride: 1,
                     chance: 0.1,
                     patch: 6,
+                    align: Run,
+                ),
+            ),
+            (
+                id: "salvage_net",
+                model: "self://gltf/greebles/salvage_net.glb#Scene0",
+                health: 14.0,
+                density: 0.12,
+                collider: (
+                    0.38,
+                    0.16,
+                    0.57,
+                ),
+                scatter: (
+                    relief: [
+                        Flat,
+                        Step,
+                    ],
+                    min_run: 2,
+                    min_height: 2,
+                    min_depth: 2,
+                    stride: 1,
+                    chance: 0.08,
                     align: Run,
                 ),
             ),
@@ -949,6 +989,26 @@
                 ),
             ),
             (
+                id: "salvage_chain",
+                model: "self://gltf/greebles/salvage_chain.glb#Scene0",
+                health: 12.0,
+                density: 0.14,
+                collider: (
+                    0.11,
+                    0.13,
+                    0.88,
+                ),
+                scatter: (
+                    relief: [
+                        Brink,
+                    ],
+                    min_run: 2,
+                    stride: 1,
+                    chance: 0.5,
+                    align: Run,
+                ),
+            ),
+            (
                 id: "salvage_patch_strip",
                 model: "self://gltf/greebles/salvage_patch_strip.glb#Scene0",
                 health: 18.0,
@@ -967,6 +1027,61 @@
                 ),
             ),
             (
+                id: "salvage_hose",
+                model: "self://gltf/greebles/salvage_hose.glb#Scene0",
+                health: 8.0,
+                density: 0.07,
+                collider: (
+                    0.13,
+                    0.09,
+                    0.87,
+                ),
+                scatter: (
+                    relief: [
+                        Step,
+                        Flat,
+                    ],
+                    min_run: 3,
+                    stride: 1,
+                    chance: 0.4,
+                    align: Run,
+                ),
+            ),
+            (
+                id: "salvage_grille",
+                model: "self://gltf/greebles/salvage_grille.glb#Scene0",
+                health: 12.0,
+                density: 0.1,
+                collider: (
+                    0.38,
+                    0.08,
+                    0.3,
+                ),
+                scatter: (
+                    min_height: 1,
+                    min_depth: 1,
+                    stride: 2,
+                    chance: 0.3,
+                ),
+            ),
+            (
+                id: "salvage_cog_patch",
+                model: "self://gltf/greebles/salvage_cog_patch.glb#Scene0",
+                health: 16.0,
+                density: 0.15,
+                collider: (
+                    0.38,
+                    0.06,
+                    0.38,
+                ),
+                scatter: (
+                    min_height: 1,
+                    min_depth: 1,
+                    stride: 2,
+                    chance: 0.18,
+                ),
+            ),
+            (
                 id: "salvage_patch_plate",
                 model: "self://gltf/greebles/salvage_patch_plate.glb#Scene0",
                 health: 20.0,
@@ -982,6 +1097,23 @@
                     stride: 1,
                     chance: 0.4,
                     align: Run,
+                ),
+            ),
+            (
+                id: "salvage_kills",
+                model: "self://gltf/greebles/salvage_kills.glb#Scene0",
+                health: 6.0,
+                density: 0.05,
+                collider: (
+                    0.4,
+                    0.03,
+                    0.3,
+                ),
+                scatter: (
+                    seat: Any,
+                    min_height: 1,
+                    stride: 2,
+                    chance: 0.22,
                 ),
             ),
             (

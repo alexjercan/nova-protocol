@@ -251,6 +251,9 @@ tagged **(breaking)**.
 - A second skin bench at ship scale: `block_bench` stands eight hand-placed
   building block ships - destroyer wedge, spine freighter, carrier deck -
   clad, labelled and reported like `shape_bench`.
+- The salvage kit doubles to 14 pieces: a bent-slat grille, a sagging hose, a
+  kill tally, a cog patch, a cargo net, a stolen cobalt dish and a tow chain -
+  accumulation, still one hue of ham.
 - Turret rounds are modelled per DAMAGE TYPE: a stubby Kinetic tracer, a thin
   Pierce needle, a squat Explosive shell, each in the type's own HUD colour.
 - Torpedoes fly nose-first: the warhead is a coned body instead of a

@@ -1,0 +1,93 @@
+{
+  "_comment": "SALVAGE kit: a tow chain looped between two welded cleats - the tow is their livelihood, and the chain stays rigged. Seven link boxes alternate flat and upright the way real links do, sag on a shallow curve between the cleat horns (each link is tilted to follow the slope under it), wander a centimetre either side of the line, and alternate WELD-dark and rust: a chain assembled from two chains. The cleats are the hook's grammar - posts of different height on welded pads - because the same crew made both. Long axis Z with the cleats at 0.40 of a cell out, footprint raised to 0.92, so consecutive plates of one run read as chain rigged the length of an edge.",
+  "materials": {
+    "rust": {
+      "color": [0.165, 0.058, 0.024],
+      "roughness": 0.95,
+      "metallic": 0.05
+    },
+    "scrap_steel": {
+      "color": [0.235, 0.255, 0.295],
+      "roughness": 0.72,
+      "metallic": 0.15
+    },
+    "weld": {
+      "color": [0.07, 0.061, 0.05],
+      "roughness": 0.95,
+      "metallic": 0.05
+    }
+  },
+  "material": "weld",
+  "budget": {
+    "footprint": 0.92,
+    "height": 0.5
+  },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.09, 0.026, 0.08],
+      "at": [0.015, 0.013, -0.4]
+    },
+    {
+      "primitive": "box",
+      "size": [0.09, 0.026, 0.08],
+      "at": [-0.015, 0.013, 0.4]
+    },
+    {
+      "primitive": "box",
+      "size": [0.035, 0.09, 0.04],
+      "at": [0.015, 0.058, -0.4],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "box",
+      "size": [0.035, 0.075, 0.04],
+      "at": [-0.015, 0.075, 0.4],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "box",
+      "size": [0.022, 0.014, 0.13],
+      "rotate": [20.0, 0.0, 0.0],
+      "at": [0.012, 0.1, -0.3]
+    },
+    {
+      "primitive": "box",
+      "size": [0.014, 0.03, 0.13],
+      "rotate": [14.0, 0.0, 0.0],
+      "at": [-0.008, 0.069, -0.2],
+      "material": "rust"
+    },
+    {
+      "primitive": "box",
+      "size": [0.022, 0.014, 0.13],
+      "rotate": [7.0, 0.0, 0.0],
+      "at": [0.01, 0.051, -0.1]
+    },
+    {
+      "primitive": "box",
+      "size": [0.014, 0.03, 0.13],
+      "at": [0.0, 0.045, 0.0],
+      "material": "rust"
+    },
+    {
+      "primitive": "box",
+      "size": [0.022, 0.014, 0.13],
+      "rotate": [-7.0, 0.0, 0.0],
+      "at": [-0.01, 0.051, 0.1]
+    },
+    {
+      "primitive": "box",
+      "size": [0.014, 0.03, 0.13],
+      "rotate": [-14.0, 0.0, 0.0],
+      "at": [0.008, 0.069, 0.2],
+      "material": "rust"
+    },
+    {
+      "primitive": "box",
+      "size": [0.022, 0.014, 0.13],
+      "rotate": [-20.0, 0.0, 0.0],
+      "at": [-0.012, 0.1, 0.3]
+    }
+  ]
+}
