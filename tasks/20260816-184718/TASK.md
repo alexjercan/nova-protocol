@@ -1,6 +1,6 @@
 # Turret aim smoothing is framerate-dependent
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 67
 - TAGS: v0.11.0,bug,combat,ship
 
@@ -30,3 +30,16 @@ chosen to match today's 60 fps feel so tuning does not shift.
   target at 14 fps equivalent dt still reaches the gate and fires
 - 60 fps feel unchanged (rate constant derived from the old per-frame gain at
   60 fps, stated in a comment)
+
+## Closure
+
+Landed as 8852fa5e (2026-08-16), lane turret-aim-dt. AIM_CORRECTION_GAIN
+(0.35/frame) is now AIM_CORRECTION_RATE = 25.847/s, gain = 1 - exp(-rate*dt);
+-ln(1-0.35)*60 reproduces the shipped 60 fps feel exactly. Residual at matched
+sim time: 1.057 deg -> 0.105 deg at 1/14 (0.244 at 1/60 both before and after).
+The live 14 fps gate sees ~0.6 deg, under the 0.92 deg fire gate - a PDC on a
+struggling machine fires again. Two tests pin it (invariance in aim.rs, the
+full 14 fps gate-and-fire chain in firing.rs); both fail on the old flat gain.
+Full workspace lib run: 22 binaries, 1790 passed; the one failure
+(nova_editor skin::tests::the_build_view_wears_its_ship_style) is pre-existing
+at the branch point and tracked separately.
