@@ -1,8 +1,8 @@
 # A neutralized ship stops fighting, including its point defence
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 62
-- TAGS: v0.11.0,combat,ai,bug
+- TAGS: v0.11.0, combat, ai, bug
 
 ## The bug
 
