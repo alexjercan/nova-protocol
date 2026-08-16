@@ -1,6 +1,6 @@
 # Bench building blocks: ship-worthy shapes for judging styles
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 59
 - TAGS: v0.11.0,example,skin,harness
 
@@ -21,3 +21,21 @@ it, so the blocks are first judged with repaired rules.
 - renders of the blocks set per style land in this folder for owner review;
   this is the evidence for the block-ships-as-mainline-cast decision and the
   gate before the vocabulary batches (follow-up 4)
+
+## Closure
+
+Landed as 75cec156 (2026-08-16), lane greeble-flow commit c1ac1223.
+`cargo run --example block_bench --features debug`. Eight shapes: wedge_8,
+spine_freighter, outrigger, tower_ship, carrier_deck, trench_hull,
+owners_l_2x, asym_gunship - all lint clean, exits unblocked. Per-style
+renders in this folder are the owner review evidence for the vocabulary
+batches and the block-ships-as-mainline-cast decision.
+
+Lane's honest read: trench_hull, carrier_deck, wedge_8 pass comfortably;
+spine_freighter, asym_gunship, owners_l_2x pass; outrigger plain;
+tower_ship weakest (all-cone spire).
+
+Facts for batch A: asym_gunship's gun pocket reads 0 for every seat-gated
+near_fitting rule (the plates beside a boom gun are cones) - armoured ammo
+stripes MUST be cone-friendly or they never sit beside that well.
+carrier_deck's tucked drive zeroes strided pocket rules via lattice parity.
