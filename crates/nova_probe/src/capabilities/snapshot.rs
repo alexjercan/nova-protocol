@@ -112,12 +112,13 @@ use nova_scenario::{
     world::NovaEventWorld,
 };
 use nova_ship::prelude::{
-    derive_skin, read_plates, read_structure, section_cell, skin_report, skin_summary, AITarget,
-    AITurretDefenseTarget, CombatLock, GameStyles, PlacedPart, PlateReport, SectionAmmo,
-    SectionExit, SectionFixture, SectionLinkPoints, SectionReload, ShipDecorMarker, ShipSkin,
-    ShipSkinMarker, ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast,
-    TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock,
-    TurretSectionAimPoint, TurretSectionInput, TurretSectionTargetInput, WeaponsHot, WithheldVerbs,
+    derive_skin, muzzle_aim_error, read_plates, read_structure, section_cell, skin_report,
+    skin_summary, AITarget, AITurretDefenseTarget, CombatLock, GameStyles, PlacedPart, PlateReport,
+    SectionAmmo, SectionExit, SectionFixture, SectionLinkPoints, SectionReload, ShipDecorMarker,
+    ShipSkin, ShipSkinMarker, ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming,
+    TorpedoBlast, TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType,
+    TravelLock, TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity,
+    TurretSectionTargetInput, WeaponsHot, WithheldVerbs, TURRET_ON_TARGET_RAD,
 };
 
 use crate::capabilities::{frametime::prelude::*, timeline::stamp};
@@ -765,6 +766,23 @@ fn modifications(world: &World, entity: Entity) -> Vec<serde_json::Value> {
     applied
 }
 
+/// How far a turret's PRIMARY muzzle points off its own aim point, in degrees,
+/// or `None` for a section that has no muzzle or nothing to aim at.
+///
+/// The trigger says what the pilot (or the AI) WANTS; this says whether the
+/// barrel can deliver it, and the section fire path spends a round only when
+/// this is inside [`TURRET_ON_TARGET_RAD`]. Without it a dump cannot tell a
+/// mount that is shooting from one that is holding fire mid-slew - the muzzle's
+/// bearing appears nowhere else in a snapshot.
+fn muzzle_aim_error_deg(world: &World, entity: Entity) -> Option<f32> {
+    let aim = world
+        .get::<TurretSectionAimPoint>(entity)
+        .and_then(|a| a.0)?;
+    let muzzle = world.get::<TurretSectionMuzzleEntity>(entity)?.0;
+    let pose = world.get::<GlobalTransform>(muzzle)?;
+    Some(muzzle_aim_error(pose.forward().into(), pose.translation(), aim).to_degrees())
+}
+
 /// A weapon section's live state, or `null` for a section that is not one.
 ///
 /// Magazine and reload live on the SECTION entity; a section with no
@@ -787,9 +805,15 @@ fn weapon(
                 .get::<TorpedoSectionInput>(entity)
                 .map(|input| input.0)
         });
+    let aim_error = muzzle_aim_error_deg(world, entity);
     Some(serde_json::json!({
         "kind": kind,
+        // `firing` is the TRIGGER; `on_target` is whether the barrel bears.
+        // Rounds leave only when both hold, so the pair is what answers "did
+        // this mount fire while off target".
         "firing": firing,
+        "aim_error_deg": aim_error.map(num),
+        "on_target": aim_error.map(|error| error <= TURRET_ON_TARGET_RAD.to_degrees()),
         "ammo": world.get::<SectionAmmo>(entity).map(|ammo| serde_json::json!({
             "rounds": ammo.rounds,
             "capacity": ammo.capacity,

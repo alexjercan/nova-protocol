@@ -12,8 +12,11 @@ mod test_support;
 
 #[cfg(test)]
 pub(crate) use aim::lead_intercept_point;
+pub use aim::{
+    muzzle_aim_error, muzzle_on_target, update_turret_aim_point, TurretSectionAimSystems,
+    CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
+};
 use aim::{sync_turret_joint_rotation, update_turret_target_joints_system};
-pub use aim::{update_turret_aim_point, TurretSectionAimSystems};
 pub use arc::TurretSectionArc;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::EffectAsset;
@@ -32,11 +35,12 @@ use crate::prelude::*;
 /// inputs, the loaded bullet and `TurretSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        turret_section, LoadedBullet, MuzzleConfig, TurretJoint, TurretSectionAimPoint,
-        TurretSectionAimSystems, TurretSectionArc, TurretSectionBarrelMuzzleMarker,
-        TurretSectionConfig, TurretSectionConfigHelper, TurretSectionInput,
-        TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionTargetInput,
-        TurretSectionTargetVelocity,
+        muzzle_aim_error, muzzle_on_target, turret_section, LoadedBullet, MuzzleConfig,
+        TurretJoint, TurretSectionAimPoint, TurretSectionAimSystems, TurretSectionArc,
+        TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
+        TurretSectionInput, TurretSectionMuzzleEntity, TurretSectionPlugin,
+        TurretSectionTargetInput, TurretSectionTargetVelocity, CLOSE_ENGAGEMENT_RANGE,
+        HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
     };
 }
 

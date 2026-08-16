@@ -996,7 +996,7 @@ mod tests {
 /// `weave_fade` - the same three functions the real projectile systems call -
 /// through the turn/thrust/drag model the guidance tests already use. The mount
 /// fires on `lead_intercept_point`, the exact solve `update_turret_aim_point`
-/// hands every AI turret, under the real [`AI_FIRE_ALIGNMENT`] gate, at the
+/// hands every AI turret, under the real [`muzzle_on_target`] gate, at the
 /// shipped PDC's rate, speed and damage, inside the shipped point-defense
 /// envelope. What it does NOT model is avian, the body's attitude controller,
 /// or more than one mount; the absolute round counts are therefore indicative,
@@ -1006,7 +1006,7 @@ mod tests {
 #[cfg(test)]
 mod point_defense_cost_tests {
     use super::*;
-    use crate::{input::ai::AI_FIRE_ALIGNMENT, sections::turret_section::lead_intercept_point};
+    use crate::sections::turret_section::{lead_intercept_point, muzzle_on_target};
 
     /// Default turret `muzzle_speed`.
     const BULLET_SPEED: f32 = 100.0;
@@ -1138,7 +1138,9 @@ mod point_defense_cost_tests {
             let in_envelope = pos.length() <= ENGAGE_RANGE;
             while fire_timer >= interval {
                 fire_timer -= interval;
-                if !in_envelope || barrel.dot(desired) <= AI_FIRE_ALIGNMENT {
+                // The mount sits at the origin, so the barrel's aim point is
+                // `aim` itself - the same predicate the section fire path runs.
+                if !in_envelope || !muzzle_on_target(barrel, Vec3::ZERO, aim) {
                     continue;
                 }
                 // Sub-tick lead, as `shoot_spawn_projectile` gives the stream:

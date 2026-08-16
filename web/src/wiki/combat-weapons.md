@@ -67,6 +67,18 @@ only cover until it gets shot away, and intangible volumes (beacon rings,
 trigger zones) stop nothing. Point-defense is the exception - a turret
 swatting an inbound torpedo keeps firing no matter what is in the way.
 
+## Barrel discipline
+
+A gun fires only while its barrel is actually **on** the point it is aiming at.
+The tolerance is what a round can still hit: about a degree, which is a
+corvette's beam at a kilometre. So a mount shoots while it is tracking and
+**holds while it is slewing**, and two things follow from that. Wrenching the
+ship around mid-burst stops the guns until the barrels catch up. And a mount
+that cannot train on your target at all - the port gun ordered onto something
+off the starboard quarter, or anything under the keel - simply holds, while the
+mounts that CAN bear keep shooting. It is your ammunition either way; the rounds
+a gun does not spend are the ones that were going to miss.
+
 ## Point defense
 
 Every gun on a hostile hull runs its own point defense, and each mount picks its

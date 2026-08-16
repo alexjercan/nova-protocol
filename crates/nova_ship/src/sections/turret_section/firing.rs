@@ -155,6 +155,7 @@ pub(super) fn shoot_spawn_projectile(
             &TurretSectionConfigHelper,
             Option<&LoadedBullet>,
             &TurretSectionInput,
+            Option<&TurretSectionAimPoint>,
             Option<&mut SectionAmmo>,
         ),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
@@ -164,7 +165,9 @@ pub(super) fn shoot_spawn_projectile(
     q_hot: Query<&WeaponsHot>,
 ) {
     let dt = time.delta_secs();
-    for (turret, muzzles, ChildOf(spaceship), config, loaded, input, mut ammo) in &mut q_turret {
+    for (turret, muzzles, ChildOf(spaceship), config, loaded, input, aim_point, mut ammo) in
+        &mut q_turret
+    {
         // The weapons safety is a LIVE predicate: a managed ship (player,
         // mirrored AI) cannot fire
         // while SAFE even mid-held-trigger - the input bool is latched, so a
@@ -249,6 +252,25 @@ pub(super) fn shoot_spawn_projectile(
             let projectile_rotation = rotation.0 * muzzle_local_rot;
             let muzzle_position = position.0 + rotation.mul_vec3(muzzle_local_pos);
             let muzzle_direction = projectile_rotation * Vec3::NEG_Z;
+
+            // FIRE ONLY WHERE THE BARREL POINTS. The trigger is intent; this is
+            // the barrel's own answer, per MUZZLE, so a mount that cannot bear
+            // holds while its siblings keep shooting. It subsumes reachability:
+            // hinges that cannot swing onto the target never converge, so the
+            // muzzle is never inside the cone (see `muzzle_on_target`).
+            //
+            // Graded against the LEAD point the turret actually steers to, not
+            // the target's current position: a turret correctly leading a
+            // crossing target is by construction off the raw bearing.
+            //
+            // A turret with no aim point has been told nothing to hit and fires
+            // freely - the same fail-open as an unmanaged ship above, so bare
+            // rigs and example turrets are untouched.
+            if let Some(aim) = aim_point.and_then(|aim| **aim) {
+                if !muzzle_on_target(muzzle_direction, muzzle_position, aim) {
+                    continue;
+                }
+            }
 
             // Inherit the full motion of the muzzle, not just the ship's linear
             // velocity: a muzzle offset from the center of mass of a rotating
@@ -467,6 +489,148 @@ mod tests {
             .query_filtered::<Entity, With<TurretBulletProjectileMarker>>()
             .iter(app.world())
             .count()
+    }
+
+    /// The world-space point every aim-gate test below fires at: dead ahead of
+    /// the ship at a plain gunfight range.
+    const GATE_TEST_AIM: Vec3 = Vec3::new(0.0, 0.0, -100.0);
+
+    /// A ship at the origin with `bearings.len()` turrets, each holding its
+    /// trigger and each aimed at [`GATE_TEST_AIM`], whose muzzle is swung
+    /// `bearing` degrees off that line - which is what a mount pinned at a hinge
+    /// stop looks like from the fire path. Returns (ship, turrets, muzzles).
+    fn spawn_aimed_turrets(app: &mut App, bearings: &[f32]) -> (Entity, Vec<Entity>, Vec<Entity>) {
+        let world = app.world_mut();
+        let ship = world
+            .spawn((
+                SpaceshipRootMarker,
+                Position(Vec3::ZERO),
+                Rotation::default(),
+                LinearVelocity(Vec3::ZERO),
+                AngularVelocity(Vec3::ZERO),
+                ComputedCenterOfMass(Vec3::ZERO),
+            ))
+            .id();
+        let (mut turrets, mut muzzles) = (Vec::new(), Vec::new());
+        for &bearing in bearings {
+            let turret = world
+                .spawn((
+                    TurretSectionMarker,
+                    TurretSectionConfigHelper(TurretSectionConfig::default()),
+                    TurretSectionInput(true),
+                    TurretSectionAimPoint(Some(GATE_TEST_AIM)),
+                    Transform::default(),
+                    ChildOf(ship),
+                ))
+                .id();
+            let muzzle = world
+                .spawn((
+                    TurretSectionBarrelMuzzleMarker,
+                    TurretSectionBarrelFireState({
+                        let mut timer = Timer::from_seconds(1.0 / 100.0, TimerMode::Once);
+                        timer.finish();
+                        timer
+                    }),
+                    Transform::from_rotation(Quat::from_rotation_y(bearing.to_radians())),
+                    ChildOf(turret),
+                ))
+                .id();
+            world.entity_mut(turret).insert((
+                TurretSectionMuzzleEntity(muzzle),
+                TurretSectionMuzzles(vec![muzzle]),
+            ));
+            turrets.push(turret);
+            muzzles.push(muzzle);
+        }
+        (ship, turrets, muzzles)
+    }
+
+    /// Swing one turret's muzzle onto a new bearing, as the aim chain would.
+    fn slew_muzzle(app: &mut App, muzzle: Entity, bearing: f32) {
+        app.world_mut()
+            .get_mut::<Transform>(muzzle)
+            .unwrap()
+            .rotation = Quat::from_rotation_y(bearing.to_radians());
+    }
+
+    #[test]
+    fn a_mount_that_cannot_bear_holds_fire_while_its_siblings_shoot() {
+        // THE BUG. A turret fired the instant the trigger was held, wherever the
+        // barrel pointed, so a mount whose hinges cannot swing onto the target -
+        // the owner's port gun ordered onto something off the starboard side -
+        // emptied its magazine into its own hull.
+        //
+        // The other half is the one that matters more: the gate is PER MUZZLE,
+        // so the mount that CAN bear keeps shooting. A hard gate that silenced
+        // the whole ship would be a worse bug than the one being fixed.
+        let mut app = firing_app(1.0);
+        let (_, _, muzzles) = spawn_aimed_turrets(&mut app, &[0.0, 40.0]);
+
+        for _ in 0..10 {
+            app.update();
+        }
+
+        let per = bullets_per_muzzle(&mut app, &muzzles);
+        assert!(
+            per[0] > 0,
+            "the mount that bears on the target must keep shooting, got {per:?}"
+        );
+        assert_eq!(
+            per[1], 0,
+            "the mount pinned 40 deg off it must not fire a round, got {per:?}"
+        );
+    }
+
+    #[test]
+    fn a_turret_mid_slew_holds_fire_until_it_is_on_the_aim_point() {
+        // "Sometimes I shoot while turning and I would say let's not do that."
+        // Walk one barrel down onto the aim point and record where the stream
+        // starts: nothing leaves the muzzle until the error is inside the
+        // on-target cone, and then it fires at once (the fire timer is not
+        // reset by the hold, so a ready gun shoots the moment it bears).
+        let mut app = firing_app(1.0);
+        let (_, _, muzzles) = spawn_aimed_turrets(&mut app, &[30.0]);
+
+        for bearing in [30.0, 20.0, 10.0, 5.0, 2.0] {
+            slew_muzzle(&mut app, muzzles[0], bearing);
+            app.update();
+            assert_eq!(
+                bullet_count(&mut app),
+                0,
+                "a barrel {bearing} deg off the aim point must not fire"
+            );
+        }
+
+        // Settled: half a degree, inside the cone and inside what a converged
+        // turret actually holds.
+        slew_muzzle(&mut app, muzzles[0], 0.5);
+        app.update();
+        assert!(
+            bullet_count(&mut app) > 0,
+            "an on-target barrel must fire immediately once it bears"
+        );
+    }
+
+    #[test]
+    fn a_turret_with_no_aim_point_still_fires_freely() {
+        // FAIL-OPEN, the same rule the weapons safety follows for an unmanaged
+        // ship: a turret nobody has aimed (a bare rig, an example range, a mod
+        // path that drives the trigger directly) has no bearing to be wrong
+        // about, so the gate must not silence it.
+        let mut app = firing_app(1.0);
+        let (_, turrets, muzzles) = spawn_aimed_turrets(&mut app, &[40.0]);
+        app.world_mut()
+            .entity_mut(turrets[0])
+            .insert(TurretSectionAimPoint(None));
+
+        for _ in 0..3 {
+            app.update();
+        }
+
+        assert!(
+            bullets_per_muzzle(&mut app, &muzzles)[0] > 0,
+            "a turret with nothing to aim at must keep its pre-gate behavior"
+        );
     }
 
     #[test]

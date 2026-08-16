@@ -18,6 +18,9 @@ tagged **(breaking)**.
 
 ### Combat & Weapons
 
+- Turrets fire only when the barrel is ON its aim point (0.92 deg, derived from
+  what still hits a hull at 1 km), so a mount that cannot bear holds fire and
+  the ones that can keep shooting.
 - Point defense is assigned PER TURRET: each mount holds the most imminent
   torpedo it can bear on, so a battery no longer dogpiles one torpedo.
 - Torpedo bays regrow one torpedo every 10 s, up from every 4 s, so a bay

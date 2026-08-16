@@ -26,10 +26,6 @@ mod torpedo;
 
 use acquisition::{mirror_ai_combat_state, update_ai_target, update_point_defense_target};
 use behavior::update_behavior_state;
-/// The alignment gate AI point defense fires under, re-exported crate-wide so
-/// the torpedo weave measurement scores against the real number.
-#[cfg(test)]
-pub(crate) use guns::AI_FIRE_ALIGNMENT;
 use guns::{on_projectile_input, update_fire_cadence, update_turret_target_input};
 use maneuver::{on_thruster_input, update_controller_target_rotation_torque};
 use passive::update_passive_flight;

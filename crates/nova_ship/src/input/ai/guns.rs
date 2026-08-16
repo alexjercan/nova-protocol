@@ -10,10 +10,6 @@ use super::maneuver::ai_target_anchor;
 use super::torpedo::update_torpedo_section_input;
 use crate::prelude::*;
 
-/// Only fire when the muzzle aligns with the aim point at least this much.
-/// `pub(crate)` so the torpedo weave measurement scores against the gate AI
-/// point defense actually fires under, not a copy of the number.
-pub(crate) const AI_FIRE_ALIGNMENT: f32 = 0.95;
 /// Fraction of a turret's maximum bullet travel (muzzle_speed * lifetime)
 /// inside which the AI considers a shot worth taking: a margin below 1.0 so
 /// bullets arrive with the target still catchable, not at their despawn
@@ -312,12 +308,14 @@ pub(super) fn on_projectile_input(
         // to (falling back to the anchor before the lead resolves): a
         // turret correctly leading a crossing target never aligns with
         // the raw anchor, and would otherwise hold fire forever.
+        //
+        // The SECTION fire path applies [`muzzle_on_target`] too, per muzzle
+        // and on the raw physics pose, so this is not the enforcement - it is
+        // what keeps an AI trigger meaning "this mount is shooting" for the
+        // readers of `TurretSectionInput`, and it is the same predicate rather
+        // than a second, looser number of its own.
         let aim = aim_point.unwrap_or(target_anchor);
-        let direction_to_aim = (aim - muzzle_position).normalize();
-        let forward = muzzle_transform.forward();
-
-        let alignment = forward.dot(direction_to_aim);
-        if alignment <= AI_FIRE_ALIGNMENT {
+        if !muzzle_on_target(muzzle_transform.forward().into(), muzzle_position, aim) {
             **input = false;
             continue;
         }
@@ -417,7 +415,7 @@ mod fire_discipline_tests {
     fn fire_aligns_with_the_leaded_aim_point_not_the_anchor() {
         // A crossing target: the aim point leads it well off the raw
         // anchor bearing. The muzzle (facing -Z) is ON the lead point and
-        // ~22 degrees OFF the anchor (cos ~0.93, outside the 0.95 cone) -
+        // ~22 degrees OFF the anchor, far outside the on-target cone -
         // discipline must fire anyway, because the turret is exactly where
         // the lead solution wants it.
         let (mut world, turret, _) = firing_world(Vec3::new(40.0, 0.0, -100.0), Vec3::ZERO);
