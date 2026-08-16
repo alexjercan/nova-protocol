@@ -180,9 +180,10 @@ path = "examples/screenshots/parts_viewer.rs"
 name = "wfc_ships"
 path = "examples/screenshots/wfc_ships.rs"
 
-# The same generator (shared/wfc.rs) with the safety off: two collapsed hulls
-# on opposing allegiances under the campaign's AI pilot, in a dressed arena -
-# the flyability bench for wfc ships and the skin's combat-motion showcase.
+# The same generator (shared/wfc.rs) with the safety off: a `--ship` roster of
+# collapsed hulls on two allegiances under the campaign's AI pilot, in a dressed
+# arena, fighting with all four weapon flavours - the flyability bench for wfc
+# ships and the skin's combat-motion showcase.
 [[example]]
 name = "wfc_arena"
 path = "examples/screenshots/wfc_arena.rs"

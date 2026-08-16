@@ -314,6 +314,9 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- `wfc_arena` takes a repeatable `--ship TEAM[:STYLE[:SEED]]` roster, loads half
+  of every hull's bays with Lances, draws both PDC mounts, and remaps the
+  cameras: Q orbit, E overview, 1-4 follows.
 - New `greeble_catalog` example: every fixture model the merged styles own in
   named rows on style-tinted pedestals, with idle orbit, focus turntable and
   per-style captures.

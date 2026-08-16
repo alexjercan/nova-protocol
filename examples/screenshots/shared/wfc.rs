@@ -97,8 +97,9 @@ const AFT: usize = 4;
 /// a gap. The unit-cube turret is the one weapon left out: it REPLACES a hull
 /// face with a gun and a bare mounting plate, where the PDC mount sits on one.
 ///
-/// The three fitting weights are all far above what a headcount would suggest,
-/// and they have to be. A fitting is not competing with hull for a cell, it is
+/// The fitting weights - the drive, the bay, and the mount pair that splits one
+/// share between them - are all far above what a headcount would suggest, and
+/// they have to be. A fitting is not competing with hull for a cell, it is
 /// competing for a cell WITH ROOM AROUND IT: exit clearance voids its whole
 /// lane, and the skin then refuses every cell the part turns a blind face to.
 /// Most of the ones the draw offers are taken back off by
@@ -107,7 +108,7 @@ const AFT: usize = 4;
 /// 3.2 / 1.4 / 1.6) against a cheaper vacuum took drives 636 -> 988, bays
 /// 144 -> 338 and mounts 268 -> 526, with the hull no thinner for it
 /// (6630 -> 7126 cells).
-const PARTS: [Part; 5] = [
+const PARTS: [Part; 6] = [
     Part {
         prototype: "reinforced_hull_section",
         weight: 6.0,
@@ -155,12 +156,34 @@ const PARTS: [Part; 5] = [
     Part {
         // A mount punches a gun well through the skin around it, and its lane
         // is the traverse it needs to shoot along. The dearest of the three per
-        // cell it occupies, which is why it is priced above the bay.
+        // cell it occupies, which is why the two mounts TOGETHER are priced
+        // above the bay.
+        //
+        // The 1.6 a single mount used to carry is now SHARED with the pierce
+        // mount below, because the two are one housing on one socket wearing
+        // two guns: pricing each at the old figure would have doubled how much
+        // battery a hull grows, which is a different ship rather than the same
+        // ship with two flavours of gun. Kinetic keeps the larger share as the
+        // general-purpose round.
         //
         // Free for the bay's reason and one better: a turret TRAVERSES, so the
         // face it fires through is only the direction it rests at.
         prototype: "pdc_kinetic_turret_section",
-        weight: 1.6,
+        weight: 1.0,
+        aim: None,
+    },
+    Part {
+        // The same mount firing penetrators: identical body, identical single
+        // base-plate socket, identical lane. Nothing in the collapse can tell
+        // the two apart, and nothing needs to - what differs is what the round
+        // does after it leaves, which is a combat fact and not a fitting one.
+        //
+        // Drawn so a hull comes out with a MIXED battery: `wfc_arena` fights
+        // over what the two guns are for (a punch that stops at what it cannot
+        // destroy against a rake that crosses everything), and a fight cannot
+        // show that with one flavour of mount on the field.
+        prototype: "pdc_pierce_turret_section",
+        weight: 0.6,
         aim: None,
     },
 ];
