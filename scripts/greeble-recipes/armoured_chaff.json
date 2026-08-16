@@ -1,0 +1,47 @@
+{
+  "_comment": "ARMOURED kit: the chaff decoy tube - the one piece allowed to hint at the ship's combat life, and it still hints quietly: a single sealed cylinder strapped DOWN into a dark cradle, lying flat along +X rather than aimed anywhere, 0.13 cells at its crown. Two dark straps over the light tube, and one white ordnance band pushed toward the muzzle end - the stencil white doing its marking job at an edge, never mid-body.",
+  "materials": {
+    "armour_rail": { "color": [0.045, 0.048, 0.055], "roughness": 0.68, "metallic": 0.15 },
+    "armour_shell": { "color": [0.145, 0.15, 0.158], "roughness": 0.75, "metallic": 0.05 },
+    "armour_stencil": { "color": [0.62, 0.62, 0.6], "roughness": 0.9, "metallic": 0.0 }
+  },
+  "material": "armour_shell",
+  "budget": { "footprint": 0.5, "height": 0.16 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.3, 0.024, 0.18],
+      "at": [0.0, 0.012, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.055,
+      "height": 0.3,
+      "sides": 8,
+      "rotate": [0.0, 0.0, 90.0],
+      "at": [0.0, 0.075, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.03, 0.132, 0.16],
+      "at": [-0.09, 0.066, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "box",
+      "size": [0.03, 0.132, 0.16],
+      "at": [0.09, 0.066, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.058,
+      "thickness": 0.03,
+      "sides": 8,
+      "rotate": [0.0, 0.0, 90.0],
+      "at": [0.125, 0.075, 0.0],
+      "material": "armour_stencil"
+    }
+  ]
+}

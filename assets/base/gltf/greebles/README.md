@@ -22,9 +22,11 @@ Four authored KITS and the scaffolding. Each `<kit>_` prefix is worn by the
 style of that name.
 
 `armoured_*.glb` - a belt (`strake`) that runs the length of a hull's straight
-edges, a corner boss (`cap`), a flush access hatch, and a faceted sensor
-blister. Four pieces on purpose: the look is mostly PALETTE, and the geometry
-only says the two things a warship's hull says.
+edges, a corner boss (`cap`), a flush access hatch, a faceted sensor blister,
+and the vocabulary batch: a stub raked mast, a shuttered intake, a ready
+magazine, a chaff tube, an applique tile grid and a white rounds-count tally
+(`ammo_stripes`). Ten pieces and still the smallest kit BY DOCTRINE: everything
+low, flush and bolted, gunmetal plus ONE stencil white, nothing lit.
 
 `civilian_*.glb` - the racer's look, a ship built to be sold: a livery rail
 (`stripe`), a cabin window row (`windows`), a raked aero fin (`fin`), a smooth

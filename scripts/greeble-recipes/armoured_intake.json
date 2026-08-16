@@ -1,0 +1,77 @@
+{
+  "_comment": "ARMOURED kit: the flush shuttered intake - the vent class in this style's voice, which is a vent CLOSED. Four louvre slats angled 55 degrees shut inside a dark recessed slit, so what reads at range is a dark slot with light bars across it, 0.054 cells proud at its tallest. Long axis +Z, laid down the run by its rule. Two bolt heads on the rails, diagonal, because a sealed thing is a bolted thing.",
+  "materials": {
+    "armour_rail": { "color": [0.045, 0.048, 0.055], "roughness": 0.68, "metallic": 0.15 },
+    "armour_shell": { "color": [0.145, 0.15, 0.158], "roughness": 0.75, "metallic": 0.05 }
+  },
+  "material": "armour_shell",
+  "budget": { "footprint": 0.5, "height": 0.08 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.2, 0.018, 0.44],
+      "at": [0.0, 0.009, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "box",
+      "size": [0.03, 0.03, 0.44],
+      "at": [-0.085, 0.032, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.03, 0.03, 0.44],
+      "at": [0.085, 0.032, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.006, 0.055],
+      "rotate": [55.0, 0.0, 0.0],
+      "at": [0.0, 0.03, -0.15]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.006, 0.055],
+      "rotate": [55.0, 0.0, 0.0],
+      "at": [0.0, 0.03, -0.05]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.006, 0.055],
+      "rotate": [55.0, 0.0, 0.0],
+      "at": [0.0, 0.03, 0.05]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.006, 0.055],
+      "rotate": [55.0, 0.0, 0.0],
+      "at": [0.0, 0.03, 0.15]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.026, 0.03],
+      "at": [0.0, 0.03, -0.205]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.026, 0.03],
+      "at": [0.0, 0.03, 0.205]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.012,
+      "thickness": 0.01,
+      "sides": 4,
+      "at": [0.085, 0.051, 0.17],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.012,
+      "thickness": 0.01,
+      "sides": 4,
+      "at": [-0.085, 0.051, -0.17],
+      "material": "armour_rail"
+    }
+  ]
+}

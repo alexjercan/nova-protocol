@@ -57,10 +57,18 @@ pub struct BaseContentAssets {
     pub greeble_mast: AssetRef<WorldAsset>,
     pub greeble_vent: AssetRef<WorldAsset>,
     /// The ARMOURED kit: a belt down the straight edges, a boss on the outer
-    /// corners, a flush hatch on the flat panels and the one blister that
-    /// breaks the plane.
+    /// corners, a flush hatch on the flat panels, the one blister that breaks
+    /// the plane, and the vocabulary batch (task 20260816-222644): a stub
+    /// mast, a shuttered intake, a ready magazine, a chaff tube, an applique
+    /// tile grid and the white rounds-count tally beside the gun wells.
+    pub greeble_armoured_ammo_stripes: AssetRef<WorldAsset>,
+    pub greeble_armoured_applique: AssetRef<WorldAsset>,
     pub greeble_armoured_cap: AssetRef<WorldAsset>,
+    pub greeble_armoured_chaff: AssetRef<WorldAsset>,
     pub greeble_armoured_hatch: AssetRef<WorldAsset>,
+    pub greeble_armoured_intake: AssetRef<WorldAsset>,
+    pub greeble_armoured_magazine: AssetRef<WorldAsset>,
+    pub greeble_armoured_mast: AssetRef<WorldAsset>,
     pub greeble_armoured_sensor: AssetRef<WorldAsset>,
     pub greeble_armoured_strake: AssetRef<WorldAsset>,
     /// The CIVILIAN kit, which the `civilian` style scatters: a livery rail, a
@@ -131,11 +139,29 @@ impl BaseContentAssets {
             greeble_vent: AssetRef::from(
                 "self://gltf/greebles/placeholder_vent.glb#Scene0".to_string(),
             ),
+            greeble_armoured_ammo_stripes: AssetRef::from(
+                "self://gltf/greebles/armoured_ammo_stripes.glb#Scene0".to_string(),
+            ),
+            greeble_armoured_applique: AssetRef::from(
+                "self://gltf/greebles/armoured_applique.glb#Scene0".to_string(),
+            ),
             greeble_armoured_cap: AssetRef::from(
                 "self://gltf/greebles/armoured_cap.glb#Scene0".to_string(),
             ),
+            greeble_armoured_chaff: AssetRef::from(
+                "self://gltf/greebles/armoured_chaff.glb#Scene0".to_string(),
+            ),
             greeble_armoured_hatch: AssetRef::from(
                 "self://gltf/greebles/armoured_hatch.glb#Scene0".to_string(),
+            ),
+            greeble_armoured_intake: AssetRef::from(
+                "self://gltf/greebles/armoured_intake.glb#Scene0".to_string(),
+            ),
+            greeble_armoured_magazine: AssetRef::from(
+                "self://gltf/greebles/armoured_magazine.glb#Scene0".to_string(),
+            ),
+            greeble_armoured_mast: AssetRef::from(
+                "self://gltf/greebles/armoured_mast.glb#Scene0".to_string(),
             ),
             greeble_armoured_sensor: AssetRef::from(
                 "self://gltf/greebles/armoured_sensor.glb#Scene0".to_string(),

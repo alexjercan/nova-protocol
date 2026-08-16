@@ -63,8 +63,14 @@
         // a mod can reuse one with `dep://base/gltf/greebles/<id>.glb`. Each
         // prefix is one authored KIT worn by the style of that name; the
         // `placeholder_` four are the scaffolding that proved the pipeline.
+        "gltf/greebles/armoured_ammo_stripes.glb",
+        "gltf/greebles/armoured_applique.glb",
         "gltf/greebles/armoured_cap.glb",
+        "gltf/greebles/armoured_chaff.glb",
         "gltf/greebles/armoured_hatch.glb",
+        "gltf/greebles/armoured_intake.glb",
+        "gltf/greebles/armoured_magazine.glb",
+        "gltf/greebles/armoured_mast.glb",
         "gltf/greebles/armoured_sensor.glb",
         "gltf/greebles/armoured_strake.glb",
         "gltf/greebles/civilian_beacon.glb",

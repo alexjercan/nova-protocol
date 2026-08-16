@@ -1,0 +1,67 @@
+{
+  "_comment": "ARMOURED kit: the ready magazine - the power-cell class in this style's voice, which is a cell you cannot see into. A low bolted box on a dark skid, lid lip pinched dark over the light body so the seal reads before the shape, and ONE white stencil bar on the lid, pushed to the aft corner - everything sealed, everything numbered, and the number sits at the edge because armoured detail never sits mid-panel. Four bolts, one per skid corner.",
+  "materials": {
+    "armour_rail": { "color": [0.045, 0.048, 0.055], "roughness": 0.68, "metallic": 0.15 },
+    "armour_shell": { "color": [0.145, 0.15, 0.158], "roughness": 0.75, "metallic": 0.05 },
+    "armour_stencil": { "color": [0.62, 0.62, 0.6], "roughness": 0.9, "metallic": 0.0 }
+  },
+  "material": "armour_shell",
+  "budget": { "footprint": 0.5, "height": 0.16 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.34, 0.02, 0.28],
+      "at": [0.0, 0.01, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "box",
+      "size": [0.28, 0.085, 0.22],
+      "at": [0.0, 0.0615, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.29, 0.014, 0.23],
+      "at": [0.0, 0.1105, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "box",
+      "size": [0.1, 0.006, 0.03],
+      "at": [0.06, 0.1195, -0.07],
+      "material": "armour_stencil"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.014,
+      "thickness": 0.012,
+      "sides": 4,
+      "at": [0.15, 0.0255, 0.115],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.014,
+      "thickness": 0.012,
+      "sides": 4,
+      "at": [-0.15, 0.0255, 0.115],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.014,
+      "thickness": 0.012,
+      "sides": 4,
+      "at": [0.15, 0.0255, -0.115],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.014,
+      "thickness": 0.012,
+      "sides": 4,
+      "at": [-0.15, 0.0255, -0.115],
+      "material": "armour_rail"
+    }
+  ]
+}

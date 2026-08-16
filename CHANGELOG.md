@@ -236,6 +236,9 @@ tagged **(breaking)**.
 
 ### Audio & Visuals
 
+- The armoured kit grows 4 to 10: stub mast, shuttered intake, magazine, chaff
+  tube, applique tiles and white rounds-count stripes beside every gun well -
+  low, bolted, gunmetal plus one stencil white.
 - Every skin style now dresses hand-built hulls: the windows, sensor and
   radiator signature pieces reach real builds, and each kit carries one
   cone-friendly piece for one-cell-thick shapes.

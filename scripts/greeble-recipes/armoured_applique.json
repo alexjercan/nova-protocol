@@ -1,0 +1,37 @@
+{
+  "_comment": "ARMOURED kit: the applique tile grid - reactive armour bolted over the plate, and the kit's second thin-shape carrier after the cap. Four raised tiles on a dark backing with the shadow gap between them doing all the drawing, 0.04 cells proud: the flush hatch's trick (the gap reads, not the plate) repeated four up, so it stays legible at range without breaking the silhouette. Nothing sits at the grid's centre - the detail IS the edges between the tiles.",
+  "materials": {
+    "armour_rail": { "color": [0.045, 0.048, 0.055], "roughness": 0.68, "metallic": 0.15 },
+    "armour_shell": { "color": [0.145, 0.15, 0.158], "roughness": 0.75, "metallic": 0.05 }
+  },
+  "material": "armour_shell",
+  "budget": { "footprint": 0.5, "height": 0.06 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.42, 0.016, 0.42],
+      "at": [0.0, 0.008, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "box",
+      "size": [0.175, 0.024, 0.175],
+      "at": [-0.0975, 0.026, -0.0975]
+    },
+    {
+      "primitive": "box",
+      "size": [0.175, 0.024, 0.175],
+      "at": [0.0975, 0.026, -0.0975]
+    },
+    {
+      "primitive": "box",
+      "size": [0.175, 0.024, 0.175],
+      "at": [-0.0975, 0.026, 0.0975]
+    },
+    {
+      "primitive": "box",
+      "size": [0.175, 0.024, 0.175],
+      "at": [0.0975, 0.026, 0.0975]
+    }
+  ]
+}

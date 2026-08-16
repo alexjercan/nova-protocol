@@ -1,0 +1,41 @@
+{
+  "_comment": "ARMOURED kit: the stub sensor mast, and deliberately the SHORTEST tall piece of the four styles - a warship hides its silhouette, so where the salvage whip leans overboard at 0.42 cells this spike stops at 0.23. Raked 12 degrees so it reads swept rather than planted, with one matte radome at the tip: dark on light, the kit's one repeated idea inverted at the top of its one vertical. Six sides, hard facets - a smooth spike would read civilian.",
+  "materials": {
+    "armour_rail": { "color": [0.045, 0.048, 0.055], "roughness": 0.68, "metallic": 0.15 },
+    "armour_shell": { "color": [0.145, 0.15, 0.158], "roughness": 0.75, "metallic": 0.05 }
+  },
+  "material": "armour_shell",
+  "budget": { "footprint": 0.5, "height": 0.26 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.16, 0.03, 0.16],
+      "at": [0.0, 0.015, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "box",
+      "size": [0.1, 0.025, 0.1],
+      "at": [0.0, 0.042, 0.0]
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.028,
+      "radius_top": 0.012,
+      "height": 0.15,
+      "sides": 6,
+      "rotate": [12.0, 0.0, 0.0],
+      "at": [0.0, 0.128, 0.0]
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.03,
+      "radius_top": 0.016,
+      "height": 0.032,
+      "sides": 6,
+      "rotate": [12.0, 0.0, 0.0],
+      "at": [0.0, 0.217, 0.019],
+      "material": "armour_rail"
+    }
+  ]
+}

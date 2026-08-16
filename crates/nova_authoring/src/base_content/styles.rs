@@ -22,19 +22,23 @@
 //! lists here name a ZONE of the hull and nothing more, and no seated rule
 //! lists a relief that can never carry a seat.
 //!
-//! Seven rules opt out with [`ScatterSeat::Any`]. Five are pieces that WANT
-//! the high ground - the stack, the whip, the fin, the mast and the corner
+//! Ten rules opt out with [`ScatterSeat::Any`]. Six are pieces that WANT the
+//! high ground - the stack, the whip, the fin, the two masts and the corner
 //! boss. The pointiest plate on a hull is a cone every time, so a blanket
 //! "surfaces only" would take a ship's silhouette off to fix a bedding
 //! defect. A piece on a cone stands up its own cell rather than lying down
 //! one of its facets, which is what a mast on a spar tip wants anyway.
 //!
-//! The other two are THIN-SHAPE CARRIERS (task 20260816-203812): the civilian
-//! fairing and the salvage scab. A hand-built hull one cell thick derives as
-//! cones from end to end - zero coplanar plates on half the bench roster - so
-//! a style whose every filler is seated places NOTHING on the shapes players
-//! actually build. One cone-friendly filler per style is the floor under the
-//! look; the armoured cap and the industrial stack already were one.
+//! Three are THIN-SHAPE CARRIERS (task 20260816-203812): the civilian
+//! fairing, the salvage scab and the armoured applique. A hand-built hull one
+//! cell thick derives as cones from end to end - zero coplanar plates on half
+//! the bench roster - so a style whose every filler is seated places NOTHING
+//! on the shapes players actually build. One cone-friendly filler per style
+//! is the floor under the look; the armoured cap and the industrial stack
+//! already were one.
+//!
+//! The last is the armoured ammo stripes, whose own pin test spells out the
+//! bench-proven reason: the plates beside a boom-mounted gun are cones.
 
 use bevy::prelude::{Color, Vec3};
 use nova_ship::prelude::{
@@ -363,17 +367,31 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
 /// which is the in-fiction answer as much as the graphic one - a warship does
 /// not want a specular highlight.
 ///
-/// The kit, in PRIORITY order, and what each reads:
+/// The kit, in PRIORITY order, and what each reads. Ten pieces after the
+/// vocabulary batch (task 20260816-222644), and still the smallest kit of the
+/// four BY DOCTRINE: everything sealed, everything numbered, every new piece
+/// low, flush and bolted, colour budget gunmetal plus ONE stencil white -
+/// nothing lit, nothing specular:
 ///
 /// 1. the sensor blister takes the FLAT panels, on a density floor rather than
 ///    a share, so a hull wears a handful of them wherever it is broad enough to
 ///    carry one. The rarest piece and the only one that stands proud;
-/// 2. the corner boss reads the SPUR - the tips and outer corners - and only on
+/// 2. the mast is the silhouette's one spike, shortest of the four styles' tall
+///    pieces, and it is sampled before the cap sweeps the same cones;
+/// 3. the corner boss reads the SPUR - the tips and outer corners - and only on
 ///    the upper surface, which is the armour a ship is hit on;
-/// 3. the belt reads the BRINK, the straight edge of a hull and its largest
+/// 4. the belt reads the BRINK, the straight edge of a hull and its largest
 ///    single bucket, and is turned down the RUN. It is the whole look;
-/// 4. the hatch is the filler, on whatever flat and stepped plate the sensor
-///    left, giving a bare panel a scale without giving a gunner a target.
+/// 5. the intake is a vent CLOSED - a shuttered slit down the panel runs;
+/// 6. the magazine is the chunky rarity, only where there is ship under it;
+/// 7. the chaff tube is the sparse accent, sampled before the fillers;
+/// 8. the hatch is the seated filler, giving a bare panel a scale without
+///    giving a gunner a target;
+/// 9. the applique tile grid is the cone-friendly filler - the kit's second
+///    thin-shape carrier after the cap;
+/// 10. the ammo stripes read the gun pockets, LAST because `near_fitting` is
+///     the documented carpet, and off ANY seat because the plates beside a
+///     boom-mounted gun are cones (bench-proven on `asym_gunship`).
 fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     ShipStyleConfig {
         id: ARMOURED_STYLE_ID.to_string(),
@@ -451,6 +469,37 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 },
             },
             StyleFixtureConfig {
+                id: "armoured_mast".to_string(),
+                model: assets.greeble_armoured_mast.clone(),
+                health: 8.0,
+                density: 0.06,
+                collider: Vec3::new(0.16, 0.24, 0.16),
+                // The HIGH GROUND, read the way every mast in this file reads
+                // it: `seat: Any` because a crest and a spar tip are CONES, and
+                // no height floor because a spur MEASURES height 0. What makes
+                // it armoured is the RATION - a warship hides its silhouette,
+                // so the share is a third of the stack's and the piece itself
+                // is the shortest tall piece of the four styles. The patch
+                // floor is what keeps the ration honest rather than absent:
+                // one spike per block of high ground, so a hull reads manned
+                // without reading bristling.
+                //
+                // BEFORE the cap, and it has to be: the cap sweeps the same
+                // cones at full share on its lattice, and a sparse accent
+                // sampled out of a carpet's leavings logs `x0` - the measured
+                // starvation trap the industrial hatch documents.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Spur, PlateRelief::Ridge, PlateRelief::Peak],
+                    seat: ScatterSeat::Any,
+                    facing: PlateFacing::Up,
+                    min_depth: 1,
+                    chance: 0.12,
+                    patch: 6,
+                    align: ScatterAlign::Outward,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
                 id: "armoured_cap".to_string(),
                 model: assets.greeble_armoured_cap.clone(),
                 health: 26.0,
@@ -517,6 +566,82 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 },
             },
             StyleFixtureConfig {
+                id: "armoured_intake".to_string(),
+                model: assets.greeble_armoured_intake.clone(),
+                health: 16.0,
+                density: 0.12,
+                collider: Vec3::new(0.2, 0.06, 0.44),
+                // The VENT class in this style's voice: shuttered, flush, laid
+                // down the panel runs. Seated on Flat and Step only - no Brink,
+                // because the belt owns every straight edge at full share and a
+                // slit punched into the belt would hole the one continuous
+                // line the look is built on. `min_run: 2` because a slit is a
+                // piece with a direction: on a run-1 singleton it reads as a
+                // dropped part, and the thin subjects are carried by the
+                // applique and the stripes instead. The lattice and share keep
+                // it a scatter of shutters rather than a grille field, and the
+                // patch floor keeps a small hull from losing the class
+                // entirely.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    min_run: 2,
+                    stride: 2,
+                    chance: 0.5,
+                    patch: 4,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "armoured_magazine".to_string(),
+                model: assets.greeble_armoured_magazine.clone(),
+                health: 22.0,
+                density: 0.2,
+                collider: Vec3::new(0.34, 0.12, 0.28),
+                // The POWER CELL class, and the chunky-piece placement note
+                // from the vocabulary matrix applied as written: `min_depth: 2`
+                // because a ready magazine bolts to the thick body, never to
+                // the skin over a one-cell spar, and a LOW share on a patch
+                // floor because the drum's measured lesson (0.28 gave a hull
+                // 13-14 drums) says external stores at any real share read as
+                // a depot. One low box per block of thick hull is the doctrine
+                // statement: this ship carries rounds, and it does not show
+                // you how many - the stripes do the counting.
+                scatter: ScatterRule {
+                    min_depth: 2,
+                    min_height: 1,
+                    stride: 2,
+                    chance: 0.12,
+                    patch: 6,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "armoured_chaff".to_string(),
+                model: assets.greeble_armoured_chaff.clone(),
+                health: 12.0,
+                density: 0.12,
+                collider: Vec3::new(0.3, 0.13, 0.18),
+                // The one piece that hints at the ship's combat life, so it is
+                // rationed like the mast and sampled BEFORE the fillers for
+                // the same starvation reason. `Outward` turns the tube's long
+                // axis off the ship where the plate falls away - a decoy
+                // launches overboard - and a plate with no fall leaves it
+                // square, which is the rest of the hull. `min_depth: 1` keeps
+                // it off nothing: a chaff pod is light, and the deck shoulder
+                // of a thin hull is exactly where one bolts.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    min_depth: 1,
+                    stride: 2,
+                    chance: 0.2,
+                    patch: 6,
+                    align: ScatterAlign::Outward,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
                 id: "armoured_hatch".to_string(),
                 model: assets.greeble_armoured_hatch.clone(),
                 health: 14.0,
@@ -532,6 +657,66 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                     min_height: 1,
                     stride: 2,
                     chance: 0.6,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "armoured_applique".to_string(),
+                model: assets.greeble_armoured_applique.clone(),
+                health: 24.0,
+                density: 0.2,
+                collider: Vec3::new(0.42, 0.04, 0.42),
+                // The kit's SECOND thin-shape carrier (finding 1.5.3 of the
+                // greeble spike), on the cap's filter shape: seat gate OFF and
+                // no relief list, because a hand-built hull one cell thick
+                // derives as cones end to end and a kit whose every filler is
+                // seated leaves exactly the shapes players build bare. It can
+                // afford the cone seat for the same reason the ammo stripes
+                // can: reactive tiles are 0.04 cells proud, so a mean-height
+                // seat cannot make them hover visibly. `min_height: 1` keeps
+                // the scab's distinction - tiles on a crest or a stud read as
+                // bolted armour, tiles floating over a height-0 spur tip do
+                // not, and the tips stay the mast's and the cap's. AFTER the
+                // hatch: on thick hulls the seated filler keeps first refusal
+                // and the grid takes the leavings plus the whole thin regime
+                // the hatch cannot touch.
+                scatter: ScatterRule {
+                    seat: ScatterSeat::Any,
+                    min_height: 1,
+                    stride: 2,
+                    chance: 0.6,
+                    patch: 3,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "armoured_ammo_stripes".to_string(),
+                model: assets.greeble_armoured_ammo_stripes.clone(),
+                health: 6.0,
+                density: 0.04,
+                collider: Vec3::new(0.3, 0.02, 0.34),
+                // The MARKING class, and the kit's one job for stencil white:
+                // a rounds-count tally beside every gun well. LAST, and only
+                // ever last - `near_fitting` is the measured carpet, pinned
+                // last in every kit that uses it.
+                //
+                // The filter is deliberately nearly empty, and every absence
+                // is the HARD CONSTRAINT from the blocks bench (task
+                // 20260816-203837 closure): the plates beside a boom-mounted
+                // gun are CONES, so `seat: Any` or the rule never fires on
+                // `asym_gunship`; no `min_depth`, because a boom is one cell
+                // thin; no `min_height`, because the cone beside a gun can be
+                // a spur and a spur measures height 0; NO stride, because the
+                // carrier deck's tucked drive proved lattice parity can zero
+                // a strided pocket rule outright. The share thins it and the
+                // patch floor guarantees the fiction: whatever the hash says,
+                // every block of hull with a well in it gets its tally.
+                scatter: ScatterRule {
+                    near_fitting: Some(1),
+                    seat: ScatterSeat::Any,
+                    chance: 0.5,
+                    patch: 4,
+                    align: ScatterAlign::Run,
                     ..Default::default()
                 },
             },
@@ -1268,10 +1453,11 @@ mod tests {
     ///
     /// Pinned as a LIST rather than as a count: `seat: Any` is the one field
     /// that puts a piece back on a crease, and a rule that acquires it quietly
-    /// is the placement defect coming back. Five of these stand on the
-    /// pointiest thing on the hull; the fairing and the scab are the carriers
-    /// task 20260816-203812 opened - one cone-friendly filler per style, so a
-    /// one-cell-thick build (all cones, zero coplanar plates) is not bare.
+    /// is the placement defect coming back. Six of these stand on the
+    /// pointiest thing on the hull; the fairing, the scab and the armoured
+    /// applique are the carriers task 20260816-203812 opened - one
+    /// cone-friendly filler per style, so a one-cell-thick build (all cones,
+    /// zero coplanar plates) is not bare.
     #[test]
     fn only_the_high_ground_and_the_carriers_opt_out_of_the_seat() {
         let opted: Vec<String> = style_catalog(&BaseContentAssets::from_paths())
@@ -1280,11 +1466,18 @@ mod tests {
             .filter(|fixture| fixture.scatter.seat == ScatterSeat::Any)
             .map(|fixture| fixture.id)
             .collect();
+        // The armoured batch (task 20260816-222644) adds three: the mast is
+        // high ground, the applique is the kit's second thin-shape carrier,
+        // and the ammo stripes seat on the cones beside a boom-mounted gun -
+        // the bench-proven hard constraint their own pin test spells out.
         assert_eq!(
             opted,
             vec![
                 "industrial_stack",
+                "armoured_mast",
                 "armoured_cap",
+                "armoured_applique",
+                "armoured_ammo_stripes",
                 "civilian_fin",
                 "civilian_fairing",
                 "salvage_whip",
@@ -1456,7 +1649,18 @@ mod tests {
     #[test]
     fn the_armoured_kit_is_namespaced() {
         let style = armoured_style(&BaseContentAssets::from_paths());
-        assert!(!style.fixtures.is_empty());
+        // Raised 4 -> 10 by the vocabulary batch (task 20260816-222644):
+        // mast, intake, magazine, chaff, applique and ammo stripes joined the
+        // kit. Pinned exactly, because a kit that grows quietly is the defect
+        // that once put forty meshes in this repo - and armoured staying the
+        // SMALLEST of the four is the art direction (restraint is the
+        // identity); the cross-style ordering is the coordinator's pin, not
+        // this one.
+        assert_eq!(
+            style.fixtures.len(),
+            10,
+            "the armoured kit is pinned at 10 pieces",
+        );
         for fixture in &style.fixtures {
             assert!(
                 fixture.id.starts_with("armoured_"),
@@ -1492,6 +1696,46 @@ mod tests {
         assert!(
             belt.scatter.stride <= 1 && belt.scatter.chance >= 1.0,
             "a belt with holes thinned into it is not a belt",
+        );
+    }
+
+    /// The ammo stripes are the armoured pocket rule, and every clause here is
+    /// the HARD CONSTRAINT the blocks bench proved (task 20260816-203837
+    /// closure): the plates beside a boom-mounted gun are CONES, so a seat
+    /// gate, a depth floor, a height floor or a stride each silently zero the
+    /// rule on exactly the gun it exists to mark - `asym_gunship` measured 0
+    /// for every seat-gated `near_fitting` rule, and the carrier deck's tucked
+    /// drive zeroed the strided ones via lattice parity.
+    #[test]
+    fn the_armoured_ammo_stripes_read_the_gun_pocket_off_any_seat() {
+        let style = armoured_style(&BaseContentAssets::from_paths());
+        let pocket: Vec<usize> = style
+            .fixtures
+            .iter()
+            .enumerate()
+            .filter(|(_, fixture)| fixture.scatter.near_fitting.is_some())
+            .map(|(index, _)| index)
+            .collect();
+        // `near_fitting` is the measured carpet: last, and the only one.
+        assert_eq!(
+            pocket,
+            vec![style.fixtures.len() - 1],
+            "the pocket rule is not the one and only last rule",
+        );
+        let stripes = &style.fixtures[pocket[0]];
+        assert_eq!(stripes.id, "armoured_ammo_stripes");
+        let rule = &stripes.scatter;
+        assert_eq!(
+            rule.seat,
+            ScatterSeat::Any,
+            "a seated pocket rule never fires beside a boom-mounted gun",
+        );
+        assert_eq!(rule.min_depth, 0, "a boom is one cell thin");
+        assert_eq!(rule.min_height, 0, "the cone beside a gun can measure 0");
+        assert_eq!(rule.stride, 1, "lattice parity can zero a pocket rule");
+        assert!(
+            rule.patch > 0,
+            "without the floor a well can hash its way out of its tally",
         );
     }
 

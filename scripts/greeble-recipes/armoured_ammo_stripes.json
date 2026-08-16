@@ -1,0 +1,43 @@
+{
+  "_comment": "ARMOURED kit: the rounds-count tally beside a gun well - the marking class, and the kit's ONE use of stencil white. FLAT geometry like the hazard band, a decal drawn as thin boxes: four white stripes and a fifth struck diagonally through them on a dark painted-out backing, 0.021 cells proud in total. Flat is load-bearing here, not just cheap - the rule seats this piece on CONES (the plates beside a boom-mounted gun are cones, bench-proven on asym_gunship), and a piece with no height is the only thing that can lie on a mean-height seat without reading as hovering. Stripes run +Z so align Run lays the tally down the well's edge.",
+  "materials": {
+    "armour_rail": { "color": [0.045, 0.048, 0.055], "roughness": 0.68, "metallic": 0.15 },
+    "armour_stencil": { "color": [0.62, 0.62, 0.6], "roughness": 0.9, "metallic": 0.0 }
+  },
+  "material": "armour_stencil",
+  "budget": { "footprint": 0.5, "height": 0.05 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.3, 0.012, 0.34],
+      "at": [0.0, 0.006, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "box",
+      "size": [0.045, 0.008, 0.24],
+      "at": [-0.0975, 0.015, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.045, 0.008, 0.24],
+      "at": [-0.0325, 0.015, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.045, 0.008, 0.24],
+      "at": [0.0325, 0.015, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.045, 0.008, 0.24],
+      "at": [0.0975, 0.015, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.3, 0.008, 0.05],
+      "rotate": [0.0, -60.0, 0.0],
+      "at": [0.0, 0.0155, 0.0]
+    }
+  ]
+}
