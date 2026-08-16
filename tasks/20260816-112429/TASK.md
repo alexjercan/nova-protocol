@@ -1,6 +1,6 @@
 # Shell shape and decoration placement: flat tops, continuous skin
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.11.0,ship,render,art,skin
 
@@ -159,4 +159,29 @@ need it and can run first.
 
 ## Lane
 
-Not started.
+Never started. Closed 2026-08-16 without a build lane.
+
+## Closure
+
+Overtaken by measurement and by landed fixes. Item by item:
+
+- R5 (`decor_pose` on a cone tip): FIXED by ddca3e30 - decorations bed on the
+  surface they stand on. This was the loudest visible complaint.
+- R1 (measure first): DONE - the skin dump ran over real hulls.
+- R1b / R3 (diagonal saddle + gable): DEAD - zero diagonal saddles occur on
+  generated hulls. The ugly saddle only exists on a hand-built pathological
+  pattern.
+- R8 (flat seat size in the schema): DEAD - flat area is bimodal; plates are
+  either flat enough or hopeless, nothing to grade.
+- R2/R4/R6/R7/R9 (interior case table and its dependents): NOT BUILT. The
+  residual defect is the soft crease on `Spur` and uneven `Step` (89% of
+  measured creasing). The owner reviewed the current wfc row and likes the
+  look; the crease reads as panel-line texture. No confirmed defect remains
+  to build against.
+- The test bench section: moved out and became 20260816-142330.
+
+Two open questions moved into 20260816-142330 ("Inherited questions"): whether
+creased plates read as a defect on the worst hand-built subjects, and the three
+unjudged style regressions (near_fitting reach, salvage_hook absence,
+industrial density). If the bench renders show a real defect, reopen the fix as
+a NEW task with the bench subject as its repro - do not reopen this one.

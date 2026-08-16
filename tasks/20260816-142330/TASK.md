@@ -1,6 +1,6 @@
 # A shape bench for judging the skin
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 65
 - TAGS: v0.11.0,ship,render,harness,skin
 
@@ -46,9 +46,34 @@ Every A/B render judged in the first half of the skin work was invalid because
 `freeze_bodies` did not exist and subjects rotated between runs at a rate that
 depended on machine load. Comparability has to be built in, not assumed.
 
+## Inherited questions (from 20260816-112429, closed into this bench)
+
+Task 20260816-112429 closed with two open questions. The bench answers both;
+neither needs new machinery, only that the report and renders surface them.
+
+1. **Do creased plates read as a defect?** The interior is still a fan off one
+   centre vertex, so `Spur` and uneven `Step` carry a soft crease (89% of all
+   measured creasing). The owner looked at the current wfc row and likes it.
+   The bench must make the call checkable on the WORST subjects - the small
+   hand-built shapes where every corner falls. Report per subject: count of
+   creased plates by relief class, so a render can be judged next to its
+   numbers. No fix is planned unless the bench renders show one is needed.
+2. **Three measured style regressions, unjudged.** Against the pre-styles skin:
+   `near_fitting` lost most of its reach, `salvage_hook` is absent from a third
+   of a row, industrial density roughly doubled. The bench's fitting-bearing
+   subject plus `--style` stepping is the instrument. Report per subject and
+   style: decoration count and `near_fitting` hit count. Judgment stays with
+   the owner; the bench only has to make the comparison possible in one run.
+
 ## Definition of done
 
 - one command renders the whole roster, clad, named, at a repeatable pose
 - a style swaps without a rebuild
 - the skin report for each subject is emitted with the render
 - the owner's L is in the roster as a named case
+- the report carries the two inherited counts above (creases by relief class,
+  decoration/`near_fitting` counts per style)
+
+## Lane
+
+shape-bench
