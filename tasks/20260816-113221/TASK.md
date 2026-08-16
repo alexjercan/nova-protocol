@@ -1,8 +1,8 @@
 # Torpedo types: how smart a torpedo is, as a choice
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 65
-- TAGS: v0.11.0,combat,balance,content,modding
+- TAGS: v0.11.0, combat, balance, content, modding
 
 ## Goal
 
