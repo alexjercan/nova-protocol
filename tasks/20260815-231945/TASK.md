@@ -1,8 +1,8 @@
 # Market research: open-source prior art, technique, and licence positions
 
-- STATUS: IN_PROGRESS
-- PRIORITY: 67
-- TAGS: v0.11.0, research, art, ship, skin
+- STATUS: OPEN
+- PRIORITY: 0
+- TAGS: backlog,research,art
 
 ## Goal
 
