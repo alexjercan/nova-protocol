@@ -1,6 +1,6 @@
 # Greeble batch: salvage, the scavengers
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 54
 - TAGS: v0.11.0,art,skin,content
 
@@ -44,3 +44,20 @@ cap-ordering assertion - the coordinator re-pins it after all batches land.
 - block_bench salvage render: ham reads as accumulation, not confetti; the
   known fill_patches floor lever (20260816-203812 closure) not made worse
 - style tests pass with the new cap
+
+## Closure
+
+Landed 2026-08-16, lane batch-scrap. All seven pieces shipped; kit is 14,
+pinned, still the biggest. Honest confetti read: carrier_deck reads as one
+working surface (drum row, ONE green net, hoses and chains as joined lines);
+wedge_8 wears exactly one cobalt dish; adjacent cells keep the brown/rust
+dominance. Accumulation, not confetti.
+
+Discipline held: one accent hue spent (stolen_cobalt, dish bowl only - a
+faded echo of the civilian accent); no new rule carries a patch floor, so
+the origin-octant lever (20260816-203812) is untouched; chain and seam
+PARTITION the edges (seam owns runs >= 3, chain owns the 2-stubs).
+
+For the tuning pass: owners_l_2x tall walls still show vertical scab rows
+(the pre-existing patch-10 floor lever); hook/patch_strip land nothing on
+the blocks bench (near_fitting 0 of 0 bench-wide, known).
