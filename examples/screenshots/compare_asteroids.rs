@@ -134,7 +134,7 @@ fn load_scene(
 
     // The exact mesh pipeline `insert_asteroid_collider` runs, at a pinned
     // seed so every subject is the same rock.
-    let planet = PlanetHeight::default().with_seed(ROCK_SEED);
+    let planet = PlanetHeight::default().with_seed(ROCK_SEED).sampler();
     let mesh = meshes.add(
         TriangleMeshBuilder::new_octahedron(3)
             .apply_noise(&planet)

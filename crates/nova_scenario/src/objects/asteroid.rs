@@ -22,7 +22,7 @@ pub mod prelude {
     pub use super::{
         asteroid_scenario_object, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,
         AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidSeed,
-        AsteroidTexture, PlanetHeight, ASTEROID_GEOMETRIC_FACTOR_MAX,
+        AsteroidTexture, PlanetHeight, PlanetHeightNoise, ASTEROID_GEOMETRIC_FACTOR_MAX,
         ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
     };
 }
@@ -347,7 +347,7 @@ fn insert_asteroid_collider(
     };
 
     let seed = (**seed).unwrap_or_else(|| rng.next_u32());
-    let planet = PlanetHeight::default().with_seed(seed);
+    let planet = PlanetHeight::default().with_seed(seed).sampler();
     let mesh = TriangleMeshBuilder::new_octahedron(3)
         .apply_noise(&planet)
         .build();
@@ -634,23 +634,53 @@ impl PlanetHeight {
         self
     }
 
-    /// Sample the terrain-height noise at a point on the unit sphere.
-    pub fn get_point(&self, point: Vec3) -> f64 {
-        _ = self.mountain_lacunarity; // Silence unused warning
-        _ = self.hills_lacunarity; // Silence unused warning
-        _ = self.plains_lacunarity; // Silence unused warning
-        _ = self.badlands_lacunarity; // Silence unused warning
-        _ = self.mountains_twist; // Silence unused warning
-        _ = self.hills_twist; // Silence unused warning
-        _ = self.badlands_twist; // Silence unused warning
-        _ = self.shelf_level; // Silence unused warning
-        _ = self.mountain_glaciation; // Silence unused warning
-        _ = self.river_depth; // Silence unused warning
-        _ = self.terrain_offset; // Silence unused warning
-        _ = self.hills_amount; // Silence unused warning
-        _ = self.mountains_amount; // Silence unused warning
-        _ = self.badlands_amount; // Silence unused warning
-        _ = self.continent_height_scale; // Silence unused warning
+    /// Build the sampler these parameters describe.
+    ///
+    /// The graph is assembled ONCE here and then sampled, which is the whole
+    /// point of the split: `Fbm::new` seeds a permutation table per octave, and
+    /// this graph carries 25 of them, so assembling it per sample cost ~80 us a
+    /// vertex - about 125 ms for one 1536-vertex rock and ~11 s for the 88 rocks
+    /// a chapter scatters, all inside the single frame that spawns them.
+    pub fn sampler(&self) -> PlanetHeightNoise {
+        PlanetHeightNoise::new(self)
+    }
+}
+
+/// The assembled Perlin-FBM graph for one [`PlanetHeight`] parameter set, and
+/// the only thing that samples it.
+///
+/// Build one per asteroid ([`PlanetHeight::sampler`]) and hand it to
+/// `TriangleMeshBuilder::apply_noise`. Not [`Clone`] or [`Send`]: the graph ends
+/// in a `noise::Cache`, whose last-sample memo is a `Cell`.
+pub struct PlanetHeightNoise {
+    /// The assembled graph, boxed because its concrete type is a ~7-layer
+    /// nesting of `noise` combinators that no signature wants to name.
+    graph: Box<dyn NoiseFn<f64, 3>>,
+    /// Sample-space scale, applied to the point before the graph sees it.
+    zoom_scale: f64,
+}
+
+impl PlanetHeightNoise {
+    fn new(params: &PlanetHeight) -> Self {
+        _ = params.mountain_lacunarity; // Silence unused warning
+        _ = params.hills_lacunarity; // Silence unused warning
+        _ = params.plains_lacunarity; // Silence unused warning
+        _ = params.badlands_lacunarity; // Silence unused warning
+        _ = params.mountains_twist; // Silence unused warning
+        _ = params.hills_twist; // Silence unused warning
+        _ = params.badlands_twist; // Silence unused warning
+        _ = params.shelf_level; // Silence unused warning
+        _ = params.mountain_glaciation; // Silence unused warning
+        _ = params.river_depth; // Silence unused warning
+        _ = params.terrain_offset; // Silence unused warning
+        _ = params.hills_amount; // Silence unused warning
+        _ = params.mountains_amount; // Silence unused warning
+        _ = params.badlands_amount; // Silence unused warning
+        _ = params.continent_height_scale; // Silence unused warning
+
+        let (seed, sea_level) = (params.seed, params.sea_level);
+        let continent_frequency = params.continent_frequency;
+        let continent_lacunarity = params.continent_lacunarity;
 
         // Example taken from
         // <https://github.com/Razaekel/noise-rs/blob/develop/examples/complexplanet.rs>
@@ -658,35 +688,35 @@ impl PlanetHeight {
         // 1: [Continent module]: This FBM module generates the continents. This
         // noise function has a high number of octaves so that detail is visible at
         // high zoom levels.
-        let base_continent_def_fb0 = Fbm::<Perlin>::new(self.seed)
-            .set_frequency(self.continent_frequency)
+        let base_continent_def_fb0 = Fbm::<Perlin>::new(seed)
+            .set_frequency(continent_frequency)
             .set_persistence(0.5)
-            .set_lacunarity(self.continent_lacunarity)
+            .set_lacunarity(continent_lacunarity)
             .set_octaves(14);
 
         // 2: [Continent-with-ranges module]: Next, a curve module modifies the
         // output value from the continent module so that very high values appear
         // near sea level. This defines the positions of the mountain ranges.
         let base_continent_def_cu = noise::Curve::new(base_continent_def_fb0)
-            .add_control_point(-2.0000 + self.sea_level, -1.625 + self.sea_level)
-            .add_control_point(-1.0000 + self.sea_level, -1.375 + self.sea_level)
-            .add_control_point(0.0000 + self.sea_level, -0.375 + self.sea_level)
-            .add_control_point(0.0625 + self.sea_level, 0.125 + self.sea_level)
-            .add_control_point(0.1250 + self.sea_level, 0.250 + self.sea_level)
-            .add_control_point(0.2500 + self.sea_level, 1.000 + self.sea_level)
-            .add_control_point(0.5000 + self.sea_level, 0.250 + self.sea_level)
-            .add_control_point(0.7500 + self.sea_level, 0.250 + self.sea_level)
-            .add_control_point(1.0000 + self.sea_level, 0.500 + self.sea_level)
-            .add_control_point(2.0000 + self.sea_level, 0.500 + self.sea_level);
+            .add_control_point(-2.0000 + sea_level, -1.625 + sea_level)
+            .add_control_point(-1.0000 + sea_level, -1.375 + sea_level)
+            .add_control_point(0.0000 + sea_level, -0.375 + sea_level)
+            .add_control_point(0.0625 + sea_level, 0.125 + sea_level)
+            .add_control_point(0.1250 + sea_level, 0.250 + sea_level)
+            .add_control_point(0.2500 + sea_level, 1.000 + sea_level)
+            .add_control_point(0.5000 + sea_level, 0.250 + sea_level)
+            .add_control_point(0.7500 + sea_level, 0.250 + sea_level)
+            .add_control_point(1.0000 + sea_level, 0.500 + sea_level)
+            .add_control_point(2.0000 + sea_level, 0.500 + sea_level);
 
         // 3: [Carver module]: This higher-frequency BasicMulti module will be
         // used by subsequent noise functions to carve out chunks from the
         // mountain ranges within the continent-with-ranges module so that the
         // mountain ranges will not be completely impassible.
-        let base_continent_def_fb1 = Fbm::<Perlin>::new(self.seed + 1)
-            .set_frequency(self.continent_frequency * 4.34375)
+        let base_continent_def_fb1 = Fbm::<Perlin>::new(seed + 1)
+            .set_frequency(continent_frequency * 4.34375)
             .set_persistence(0.5)
-            .set_lacunarity(self.continent_lacunarity)
+            .set_lacunarity(continent_lacunarity)
             .set_octaves(11);
 
         // 4: [Scaled-carver module]: This scale/bias module scales the output
@@ -717,16 +747,24 @@ impl PlanetHeight {
         // the clamped-continent module.
         let base_continent_def = noise::Cache::new(base_continent_def_cl);
 
+        Self {
+            graph: Box::new(base_continent_def),
+            zoom_scale: params.zoom_scale,
+        }
+    }
+
+    /// Sample the terrain-height noise at a point on the unit sphere.
+    pub fn get_point(&self, point: Vec3) -> f64 {
         let x = point.x as f64 * self.zoom_scale;
         let y = point.y as f64 * self.zoom_scale;
         let z = point.z as f64 * self.zoom_scale;
 
-        let noise = base_continent_def.get([x, y, z]);
+        let noise = self.graph.get([x, y, z]);
         ((noise + 1.0) * 0.5) * 5.0
     }
 }
 
-impl NoiseFn<f64, 3> for PlanetHeight {
+impl NoiseFn<f64, 3> for PlanetHeightNoise {
     fn get(&self, point: [f64; 3]) -> f64 {
         let vec = Vec3::new(point[0] as f32, point[1] as f32, point[2] as f32);
         self.get_point(vec)
@@ -736,6 +774,35 @@ impl NoiseFn<f64, 3> for PlanetHeight {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A REUSED sampler answers every point the way a fresh one would.
+    ///
+    /// The graph ends in a `noise::Cache`, which memoises the LAST point it was
+    /// asked about. That memo never mattered while the graph was rebuilt per
+    /// sample; now that one graph answers 1536 vertices, a revisited point must
+    /// still come back with its own value rather than a neighbour's - so sample
+    /// A, then B, then A again, and require the two A's to agree with a fresh
+    /// sampler's A.
+    #[test]
+    fn a_reused_sampler_answers_every_point_the_same() {
+        let sampler = PlanetHeight::default().with_seed(4242).sampler();
+        let (a, b) = (Vec3::new(0.3, -0.7, 0.65), Vec3::new(-0.9, 0.1, 0.42));
+
+        let first = sampler.get_point(a);
+        let between = sampler.get_point(b);
+        let again = sampler.get_point(a);
+
+        assert_ne!(first, between, "delivery guard: the two points differ");
+        assert_eq!(first, again, "a revisited point keeps its own value");
+        assert_eq!(
+            first,
+            PlanetHeight::default()
+                .with_seed(4242)
+                .sampler()
+                .get_point(a),
+            "a reused sampler agrees with a fresh one"
+        );
+    }
 
     /// Pin ASTEROID_GEOMETRIC_FACTOR_MIN/MAX against the real mesh
     /// generator: sweep the production noise + mesh path (the exact
@@ -752,7 +819,7 @@ mod tests {
             // Spread the sampled seeds across the u32 space (production
             // seeds come from rng.next_u32(), not small integers).
             let seed = i.wrapping_mul(2654435761);
-            let planet = PlanetHeight::default().with_seed(seed);
+            let planet = PlanetHeight::default().with_seed(seed).sampler();
             let mesh = TriangleMeshBuilder::new_octahedron(3)
                 .apply_noise(&planet)
                 .build();

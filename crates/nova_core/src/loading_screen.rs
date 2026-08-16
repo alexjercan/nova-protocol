@@ -1,23 +1,20 @@
-//! The boot loading screen: a full-screen phosphor panel shown while the game's
-//! assets load, then torn down at the handoff to the menu/gameplay.
+//! The loading screens: the boot panel shown while the game's assets load, and
+//! the scenario panel shown over a gameplay scenario swap.
 //!
-//! Before this, native builds showed a blank window during
-//! [`GameAssetsStates::Loading`] (the web build has its own HTML spinner). Now
-//! the two-state boot chain in `nova_assets` preloads the UI font in
-//! [`GameAssetsStates::Boot`], so from the first `Loading` frame this screen can
-//! render themed text: a near-black CRT screen with a green-phosphor "NOVA OS"
-//! mark and a "LOADING" line carrying an indeterminate CRT animation (marching
-//! amber dots + a blinking block cursor). No progress tracking - the animation
-//! is purely time-driven, so it needs no per-collection wiring or extra
-//! dependency.
+//! Both wear the same phosphor CRT face and share one animation, driven by
+//! [`Time<Real>`] rather than the virtual clock: a scenario swap can be
+//! requested from a PAUSED outcome frame, where the virtual clock is stopped and
+//! a virtual-clock animation would sit frozen on the exact screen that exists to
+//! prove the game is still alive. Real time also makes a long frame VISIBLE - the
+//! sweep jumps the distance the stall cost instead of gliding through it.
 //!
-//! The screen owns its own 2D UI camera because nothing else renders during
-//! loading (the scene/menu cameras spawn later). Both the panel and its camera
-//! despawn at `OnEnter(`[`GameAssetsStates::Loaded`]`)`, before the
-//! menu/gameplay handoff spawns their own cameras.
+//! Change this module when the load presentation changes; the scenario screen's
+//! dismissal rule ([`SCENARIO_SETTLED_DELTA`]) is the interesting knob.
 
 use bevy::prelude::*;
 use nova_assets::prelude::GameAssetsStates;
+use nova_gameplay::prelude::GameStates;
+use nova_scenario::prelude::LoadScenario;
 use nova_ui::font::UiFont;
 
 /// Near-black CRT screen (PoC `--screen`). The panel background.
@@ -26,8 +23,10 @@ const LOADING_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
 const LOADING_PHOSPHOR: Color = Color::srgb_u8(54, 255, 121);
 /// Pale mint body text (PoC `--text`) for the LOADING label.
 const LOADING_TEXT: Color = Color::srgb_u8(185, 255, 201);
-/// Amber accent (PoC `--amber`) for the marching dots.
+/// Amber accent (PoC `--amber`) for the marching dots and the sweep block.
 const LOADING_AMBER: Color = Color::srgb_u8(255, 184, 74);
+/// Dim phosphor for the sweep track the block runs along.
+const LOADING_TRACK: Color = Color::srgb_u8(13, 110, 53);
 
 /// The block-cursor glyph (full block, present in the shipped Iosevka face).
 const CURSOR_GLYPH: &str = "\u{2588}";
@@ -36,13 +35,47 @@ const CURSOR_BLINK_SECS: f32 = 0.53;
 /// Marching-dots step, seconds: the dot count cycles 0..=3 at this cadence.
 const DOTS_MARCH_SECS: f32 = 0.4;
 
-/// The full-screen loading panel root (despawned recursively at `Loaded`).
+/// Sweep track width and height, pixels.
+const SWEEP_TRACK: Vec2 = Vec2::new(260.0, 6.0);
+/// Sweep block width, pixels.
+const SWEEP_BLOCK_W: f32 = 44.0;
+/// Seconds the sweep block takes to cross the track and come back.
+///
+/// Short on purpose: the load costs a handful of ~300 ms frames, so the block
+/// has to move a VISIBLE fraction of the track between two of them. At 1.1 s a
+/// 300 ms frame advances it by more than a quarter of the track.
+const SWEEP_CYCLE_SECS: f32 = 1.1;
+
+/// How long the scenario screen stays up at minimum, seconds.
+///
+/// A shipped chapter's spawn costs two or three ~300 ms frames, so a dwell much
+/// under this comes down after two RENDERED frames and reads as a flicker rather
+/// than as a screen. At 0.6 s the panel outlasts the stall by a few smooth
+/// frames, which is what makes the sweep legible as motion.
+const SCENARIO_MIN_DWELL: f32 = 0.6;
+/// The frame delta the scenario screen calls "settled", seconds. It comes down
+/// on the first frame at or under this after the minimum dwell - so the panel
+/// covers exactly the janky frames and no more.
+const SCENARIO_SETTLED_DELTA: f32 = 0.05;
+/// Hard cap on the scenario screen, seconds: a machine that never gets back
+/// under [`SCENARIO_SETTLED_DELTA`] must still be given its game back.
+const SCENARIO_MAX_DWELL: f32 = 6.0;
+
+/// The full-screen BOOT loading panel root (despawned recursively at `Loaded`).
 #[derive(Component)]
 struct LoadingScreenMarker;
 
-/// The dedicated 2D UI camera the loading screen renders through.
+/// The dedicated 2D UI camera the boot loading screen renders through.
 #[derive(Component)]
 struct LoadingScreenCameraMarker;
+
+/// The full-screen SCENARIO loading panel root, and the hold that decides when
+/// it comes down.
+#[derive(Component)]
+struct ScenarioLoadScreenMarker {
+    /// `Time<Real>` elapsed when the load was requested.
+    started: f32,
+}
 
 /// The blinking block cursor text.
 #[derive(Component)]
@@ -52,17 +85,26 @@ struct LoadingCursorMarker;
 #[derive(Component)]
 struct LoadingDotsMarker;
 
-/// Spawns/animates/tears down the boot [loading screen](self).
+/// The block that sweeps back and forth along its track.
+#[derive(Component)]
+struct LoadingSweepMarker;
+
+/// Spawns/animates/tears down both [loading screens](self).
 pub struct LoadingScreenPlugin;
 
 impl Plugin for LoadingScreenPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameAssetsStates::Loading), spawn_loading_screen);
+        app.add_systems(OnEnter(GameAssetsStates::Loaded), despawn_loading_screen);
+        app.add_observer(spawn_scenario_load_screen);
+        // Deliberately ungated: one animation drives BOTH screens, which live in
+        // different states, and the gate that matters is simply whether a panel
+        // exists - which is what the (empty) queries already answer. Chained so a
+        // panel is never taken down on a frame it was not first animated for.
         app.add_systems(
             Update,
-            animate_loading_screen.run_if(in_state(GameAssetsStates::Loading)),
+            (animate_loading_screen, dismiss_scenario_load_screen).chain(),
         );
-        app.add_systems(OnEnter(GameAssetsStates::Loaded), despawn_loading_screen);
     }
 }
 
@@ -79,96 +121,205 @@ fn loading_text(text: &str, size: f32, color: Color, font: &Handle<Font>) -> imp
     )
 }
 
-/// Spawn the loading screen (camera + full-screen panel) at `OnEnter(Loading)`.
+/// The CRT panel both screens wear: a full-screen backdrop over a centred
+/// column - the `mark`, the LOADING line (label + marching dots + cursor), and
+/// the sweep track.
 ///
-/// The UI font is preloaded in `Boot` and published as [`UiFont`] at
-/// `OnExit(Boot)`, which runs before this, so the handle is normally present; a
-/// missing resource (a rig that never ran the boot collection) falls back to
-/// the engine default font rather than failing.
-fn spawn_loading_screen(mut commands: Commands, ui_font: Option<Res<UiFont>>) {
-    let font = ui_font.map(|f| f.handle()).unwrap_or_default();
+/// One builder rather than two, so the boot screen and the scenario screen
+/// cannot drift apart; the only difference between them is the mark and who
+/// despawns them.
+fn loading_panel(mark: &str, font: Handle<Font>) -> impl Bundle {
+    (
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            row_gap: Val::Px(18.0),
+            ..default()
+        },
+        BackgroundColor(LOADING_BACKDROP),
+        children![
+            loading_text(mark, 44.0, LOADING_PHOSPHOR, &font),
+            (
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                children![
+                    loading_text("LOADING", 20.0, LOADING_TEXT, &font),
+                    (
+                        loading_text("", 20.0, LOADING_AMBER, &font),
+                        LoadingDotsMarker,
+                    ),
+                    (
+                        loading_text(CURSOR_GLYPH, 20.0, LOADING_PHOSPHOR, &font),
+                        LoadingCursorMarker,
+                    ),
+                ],
+            ),
+            (
+                Node {
+                    width: Val::Px(SWEEP_TRACK.x),
+                    height: Val::Px(SWEEP_TRACK.y),
+                    ..default()
+                },
+                BackgroundColor(LOADING_TRACK),
+                children![(
+                    LoadingSweepMarker,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(0.0),
+                        width: Val::Px(SWEEP_BLOCK_W),
+                        height: Val::Px(SWEEP_TRACK.y),
+                        ..default()
+                    },
+                    BackgroundColor(LOADING_AMBER),
+                )],
+            ),
+        ],
+    )
+}
 
+/// The UI font, or the engine default when the boot collection never ran (a
+/// headless rig): a missing handle must not fail the screen.
+fn ui_font_handle(font: Option<Res<UiFont>>) -> Handle<Font> {
+    font.map(|font| font.handle()).unwrap_or_default()
+}
+
+/// Spawn the boot loading screen (camera + full-screen panel) at
+/// `OnEnter(Loading)`.
+///
+/// It owns a 2D UI camera because nothing else renders during boot - the
+/// scene/menu cameras spawn later. The UI font is preloaded in `Boot` and
+/// published as [`UiFont`] at `OnExit(Boot)`, which runs before this, so the
+/// handle is normally present.
+fn spawn_loading_screen(mut commands: Commands, ui_font: Option<Res<UiFont>>) {
     commands.spawn((
         Name::new("LoadingScreenCamera"),
         LoadingScreenCameraMarker,
         Camera2d,
     ));
 
-    commands
-        .spawn((
-            Name::new("LoadingScreen"),
-            LoadingScreenMarker,
-            Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                row_gap: Val::Px(18.0),
-                ..default()
-            },
-            BackgroundColor(LOADING_BACKDROP),
-        ))
-        .with_children(|screen| {
-            screen.spawn(loading_text("NOVA OS", 44.0, LOADING_PHOSPHOR, &font));
-            screen
-                .spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    ..default()
-                })
-                .with_children(|line| {
-                    line.spawn(loading_text("LOADING", 20.0, LOADING_TEXT, &font));
-                    line.spawn((
-                        loading_text("", 20.0, LOADING_AMBER, &font),
-                        LoadingDotsMarker,
-                    ));
-                    line.spawn((
-                        loading_text(CURSOR_GLYPH, 20.0, LOADING_PHOSPHOR, &font),
-                        LoadingCursorMarker,
-                    ));
-                });
-        });
+    commands.spawn((
+        Name::new("LoadingScreen"),
+        LoadingScreenMarker,
+        loading_panel("NOVA OS", ui_font_handle(ui_font)),
+    ));
 }
 
-/// Drive the indeterminate CRT animation while in `Loading`: blink the block
-/// cursor and march the amber dots (0..=3), both purely time-driven.
-fn animate_loading_screen(
-    time: Res<Time>,
-    mut cursor_elapsed: Local<f32>,
-    mut cursor_on: Local<bool>,
-    mut dots_elapsed: Local<f32>,
-    mut dots_count: Local<usize>,
-    mut q_cursor: Query<&mut Visibility, With<LoadingCursorMarker>>,
-    mut q_dots: Query<&mut Text, With<LoadingDotsMarker>>,
+/// Raise the scenario loading screen when a gameplay scenario is (re)loaded.
+///
+/// PLAYING ONLY. The menu loads a backdrop scenario of its own on every entry,
+/// and covering the front door with a LOADING panel would both hide the menu the
+/// player just asked for and swallow the frames a click needs to land.
+///
+/// No camera of its own: a scenario load happens inside gameplay, which always
+/// has one. Re-triggering while the panel is already up (a chapter chain that
+/// switches twice) restarts the hold rather than stacking a second panel.
+fn spawn_scenario_load_screen(
+    _: On<LoadScenario>,
+    mut commands: Commands,
+    state: Option<Res<State<GameStates>>>,
+    time: Res<Time<Real>>,
+    ui_font: Option<Res<UiFont>>,
+    mut q_existing: Query<&mut ScenarioLoadScreenMarker>,
 ) {
-    *cursor_elapsed += time.delta_secs();
-    if *cursor_elapsed >= CURSOR_BLINK_SECS {
-        *cursor_elapsed = 0.0;
-        *cursor_on = !*cursor_on;
-        let vis = if *cursor_on {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
-        for mut visibility in &mut q_cursor {
-            *visibility = vis;
-        }
+    if !state.is_some_and(|state| *state.get() == GameStates::Playing) {
+        return;
+    }
+    let started = time.elapsed_secs();
+    if let Some(mut existing) = q_existing.iter_mut().next() {
+        existing.started = started;
+        return;
     }
 
-    *dots_elapsed += time.delta_secs();
-    if *dots_elapsed >= DOTS_MARCH_SECS {
-        *dots_elapsed = 0.0;
-        *dots_count = (*dots_count + 1) % 4;
-        let dots = ".".repeat(*dots_count);
-        for mut text in &mut q_dots {
+    commands.spawn((
+        Name::new("Scenario Loading Screen"),
+        ScenarioLoadScreenMarker { started },
+        // Dies with gameplay: backing out to the menu mid-load must not leave
+        // the panel over the front door.
+        DespawnOnExit(GameStates::Playing),
+        // Above the pause overlay (10) and its settings modal (11): a load
+        // requested from a paused outcome frame draws over both.
+        GlobalZIndex(100),
+        // Deliberately NOT a modal blocker: the panel is up for a handful of
+        // frames and swallowing a click in that window is worse than letting
+        // one through to a screen the player cannot see anyway.
+        Pickable::IGNORE,
+        loading_panel("LOADING SCENARIO", ui_font_handle(ui_font)),
+    ));
+}
+
+/// Take the scenario screen down once the swap has settled: after the minimum
+/// dwell, on the first frame back under [`SCENARIO_SETTLED_DELTA`], or at the
+/// hard cap.
+///
+/// Reads `Time<Real>` for both the dwell and the settle test - a load can be
+/// requested from a paused outcome frame, where the virtual clock is stopped and
+/// the panel would never come down.
+fn dismiss_scenario_load_screen(
+    mut commands: Commands,
+    time: Res<Time<Real>>,
+    q_screen: Query<(Entity, &ScenarioLoadScreenMarker)>,
+) {
+    let now = time.elapsed_secs();
+    let delta = time.delta_secs();
+    for (entity, screen) in &q_screen {
+        let held = now - screen.started;
+        let settled = held >= SCENARIO_MIN_DWELL && delta <= SCENARIO_SETTLED_DELTA;
+        if settled || held >= SCENARIO_MAX_DWELL {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+/// Drive the indeterminate CRT animation on whichever screen is up: blink the
+/// block cursor, march the amber dots (0..=3), and sweep the block along its
+/// track.
+///
+/// Time-driven, no progress tracking, so it needs no per-collection wiring. The
+/// clock is [`Time<Real>`]: see the module docs for why the virtual one cannot
+/// be used, and the sweep is derived from ABSOLUTE elapsed time rather than
+/// accumulated deltas so a stalled frame moves it by what the stall cost.
+fn animate_loading_screen(
+    time: Res<Time<Real>>,
+    mut q_cursor: Query<&mut Visibility, With<LoadingCursorMarker>>,
+    mut q_dots: Query<&mut Text, With<LoadingDotsMarker>>,
+    mut q_sweep: Query<&mut Node, With<LoadingSweepMarker>>,
+) {
+    let elapsed = time.elapsed_secs();
+
+    let cursor_on = (elapsed / CURSOR_BLINK_SECS) as u32 % 2 == 0;
+    let vis = if cursor_on {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
+    for mut visibility in &mut q_cursor {
+        visibility.set_if_neq(vis);
+    }
+
+    let dots = ".".repeat((elapsed / DOTS_MARCH_SECS) as usize % 4);
+    for mut text in &mut q_dots {
+        if text.0 != dots {
             text.0 = dots.clone();
         }
     }
+
+    // Ping-pong across the free travel: 0 -> 1 -> 0 over one cycle.
+    let phase = (elapsed / SWEEP_CYCLE_SECS).fract();
+    let travel = (phase * 2.0 - 1.0).abs();
+    let left = Val::Px((SWEEP_TRACK.x - SWEEP_BLOCK_W) * (1.0 - travel));
+    for mut node in &mut q_sweep {
+        node.left = left;
+    }
 }
 
-/// Despawn the loading screen and its camera at `OnEnter(Loaded)`, before the
-/// menu/gameplay handoff spawns its own camera.
+/// Despawn the boot loading screen and its camera at `OnEnter(Loaded)`, before
+/// the menu/gameplay handoff spawns its own camera.
 fn despawn_loading_screen(
     mut commands: Commands,
     q_screen: Query<Entity, With<LoadingScreenMarker>>,
@@ -185,19 +336,17 @@ fn despawn_loading_screen(
 #[cfg(test)]
 mod tests {
     use bevy::state::app::StatesPlugin;
+    use nova_scenario::prelude::ScenarioConfig;
 
     use super::*;
 
-    /// Live-tree test: walking the asset states must SPAWN the loading screen +
-    /// its camera when entering `Loading`, and DESPAWN both when entering
-    /// `Loaded`. Runs the real plugin systems (would fail if spawn or despawn
-    /// were a no-op).
+    /// Live-tree test: walking the asset states must SPAWN the boot loading
+    /// screen + its camera when entering `Loading`, and DESPAWN both when
+    /// entering `Loaded`. Runs the real plugin systems (would fail if spawn or
+    /// despawn were a no-op).
     #[test]
     fn loading_screen_spawns_in_loading_and_despawns_on_loaded() {
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, StatesPlugin));
-        app.init_state::<GameAssetsStates>();
-        app.add_plugins(LoadingScreenPlugin);
+        let mut app = screen_app();
 
         app.update();
         assert_eq!(
@@ -237,31 +386,127 @@ mod tests {
         );
     }
 
-    /// The marching-dots text cycles through the four dot counts as time
-    /// advances (would fail if the animation system were a no-op).
+    /// The marching dots cycle and the sweep block MOVES as real time advances.
+    /// The sweep is the load-bearing half: the dots step four times a cycle, so
+    /// two frames of a stuttering load can easily land on the same dot count,
+    /// while the sweep is at a different offset on every frame.
     #[test]
-    fn loading_dots_march_over_time() {
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, StatesPlugin));
-        app.init_state::<GameAssetsStates>();
-        app.add_plugins(LoadingScreenPlugin);
+    fn the_indicator_moves_between_frames() {
+        let mut app = screen_app();
         app.world_mut()
             .resource_mut::<NextState<GameAssetsStates>>()
             .set(GameAssetsStates::Loading);
         app.update();
 
-        let mut seen = std::collections::HashSet::new();
-        for _ in 0..40 {
+        let mut dot_counts = std::collections::HashSet::new();
+        let mut sweeps: Vec<f32> = Vec::new();
+        for _ in 0..24 {
             std::thread::sleep(std::time::Duration::from_millis(60));
             app.update();
-            if let Some(text) = dots_text(&mut app) {
-                seen.insert(text.len());
-            }
+            dot_counts.insert(dots_text(&mut app).map(|text| text.len()));
+            sweeps.push(sweep_left(&mut app).expect("the sweep block exists"));
         }
+
         assert!(
-            seen.len() >= 3,
-            "marching dots should cycle through multiple lengths, saw {seen:?}"
+            dot_counts.len() >= 3,
+            "marching dots should cycle through multiple lengths, saw {dot_counts:?}"
         );
+        let moved = sweeps.windows(2).filter(|w| w[0] != w[1]).count();
+        assert!(
+            moved >= sweeps.len() - 2,
+            "the sweep must be at a new offset on essentially every frame, \
+             moved on {moved} of {} steps: {sweeps:?}",
+            sweeps.len() - 1
+        );
+    }
+
+    /// The scenario screen is a PLAYING-only cover: loading the menu's backdrop
+    /// scenario must not curtain the front door.
+    #[test]
+    fn a_scenario_load_raises_the_screen_only_in_playing() {
+        let mut app = screen_app();
+        app.update();
+
+        app.world_mut().trigger(LoadScenario(scenario()));
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            0,
+            "the menu's backdrop load must not raise the scenario screen"
+        );
+
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+        app.world_mut().trigger(LoadScenario(scenario()));
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            1,
+            "a gameplay scenario load must raise the scenario screen"
+        );
+
+        // A second load under the same screen restarts the hold instead of
+        // stacking a second panel.
+        app.world_mut().trigger(LoadScenario(scenario()));
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            1,
+            "a re-load must not stack a second panel"
+        );
+    }
+
+    /// The screen holds for the minimum dwell and then comes down on a settled
+    /// frame. Driven on the real clock, which is what the production rule reads.
+    #[test]
+    fn the_scenario_screen_holds_then_comes_down() {
+        let mut app = screen_app();
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+
+        app.world_mut().trigger(LoadScenario(scenario()));
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            1,
+            "delivery guard: the screen went up"
+        );
+
+        // Inside the minimum dwell the screen stays, settled frames or not.
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            1,
+            "the screen must not flash away inside the minimum dwell"
+        );
+
+        std::thread::sleep(std::time::Duration::from_secs_f32(SCENARIO_MIN_DWELL));
+        // One update to pay the sleep as a (long, unsettled) frame delta, then
+        // a short one that settles.
+        app.update();
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            0,
+            "past the dwell, a settled frame takes the screen down"
+        );
+    }
+
+    fn screen_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, StatesPlugin));
+        app.init_state::<GameAssetsStates>();
+        app.init_state::<GameStates>();
+        app.add_plugins(LoadingScreenPlugin);
+        app
+    }
+
+    fn scenario() -> ScenarioConfig {
+        ScenarioConfig::new("probe", "Probe", "sky.png".into())
     }
 
     fn count<M: Component>(app: &mut App) -> usize {
@@ -277,5 +522,16 @@ mod tests {
             .iter(app.world())
             .next()
             .map(|t| t.0.clone())
+    }
+
+    fn sweep_left(app: &mut App) -> Option<f32> {
+        app.world_mut()
+            .query_filtered::<&Node, With<LoadingSweepMarker>>()
+            .iter(app.world())
+            .next()
+            .and_then(|node| match node.left {
+                Val::Px(px) => Some(px),
+                _ => None,
+            })
     }
 }

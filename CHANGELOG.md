@@ -187,6 +187,9 @@ tagged **(breaking)**.
 
 ### Interface & HUD
 
+- A scenario swap draws an animated LOADING SCENARIO panel over the stall, and
+  rocks build 25x faster: a chapter load was 11 s in one frozen frame, now
+  ~0.3 s.
 - The editor SHOWS the ship's derived skin while you build it: **Ship Skin**
   clads the build and re-derives as the structure moves. The toggle rides Play.
 - The editor grows a **parts gallery**: a full-screen catalog browser with a
