@@ -1,8 +1,8 @@
 # Ship import/export: ships as a first-class content kind
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 73
-- TAGS: v0.11.0,ship,content,modding,scenario
+- TAGS: v0.11.0, ship, content, modding, scenario
 
 ## Goal
 

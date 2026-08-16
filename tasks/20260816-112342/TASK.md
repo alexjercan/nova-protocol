@@ -1,8 +1,8 @@
 # Game state snapshot: a nova_probe capability
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 71
-- TAGS: v0.11.0,harness,debug,probe
+- TAGS: v0.11.0, harness, debug, probe
 
 ## Goal
 

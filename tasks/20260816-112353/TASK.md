@@ -1,8 +1,8 @@
 # Loading screen: measure what blocks, then show life
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 69
-- TAGS: v0.11.0,ui,performance,scenario
+- TAGS: v0.11.0, ui, performance, scenario
 
 ## Goal
 
