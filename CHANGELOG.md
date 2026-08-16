@@ -322,6 +322,8 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- `nova-protocol --scenario <id>` boots straight into that scenario, past the
+  main menu; an unknown id refuses the launch and lists every registered id.
 - `wfc_arena` opens cold - lines spawn ~305 u out, weapons free at gun range -
   follows look over their ship at the enemy mean, team chevrons mark the
   sides, and small wreckage fragments form junk blobs.

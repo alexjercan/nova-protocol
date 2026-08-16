@@ -7,6 +7,8 @@
 //! architecture wiki page carries the dependency graph.
 #![warn(missing_docs)]
 
+use std::process::ExitCode;
+
 use bevy::{
     app::Plugins,
     log::{Level, LogPlugin},
@@ -43,8 +45,8 @@ mod loading_screen;
 use loading_screen::LoadingScreenPlugin;
 
 /// Glob-import surface: `use nova_core::prelude::*` re-exports every subsystem
-/// crate's prelude plus [`AppBuilder`] and [`editor_app`], so a binary or
-/// example wires the whole stack from one import.
+/// crate's prelude plus [`AppBuilder`], [`editor_app`] and [`run_app`], so a
+/// binary or example wires the whole stack from one import.
 pub mod prelude {
     pub use nova_assets::prelude::*;
     #[cfg(feature = "debug")]
@@ -58,7 +60,7 @@ pub mod prelude {
     pub use nova_scenario::prelude::*;
     pub use nova_ship::prelude::*;
 
-    pub use super::{editor_app, AppBuilder};
+    pub use super::{editor_app, run_app, AppBuilder};
 }
 
 /// Build the editor application - the exact app the `nova_protocol` binary runs.
@@ -67,20 +69,41 @@ pub mod prelude {
 /// custom game plugins were supplied. Factoring it here lets the binary and the harnessed editor
 /// example (`examples/ui/editor.rs`) launch the identical app instead of each open-coding it, so
 /// the example exercises the same editor the game ships.
-pub fn editor_app(render: bool) -> App {
-    AppBuilder::new().with_rendering(render).build()
+///
+/// `startup_scenario` is the binary's `--scenario <id>` flag: `Some(id)` boots
+/// straight into that scenario instead of the main menu (see
+/// [`AppBuilder::with_startup_scenario`]).
+pub fn editor_app(render: bool, startup_scenario: Option<ScenarioId>) -> App {
+    AppBuilder::new()
+        .with_rendering(render)
+        .with_startup_scenario(startup_scenario)
+        .build()
+}
+
+/// Run `app` and translate bevy's [`AppExit`] into a process exit code.
+///
+/// The binary hands its app here rather than calling `App::run` and discarding
+/// the result: a refusal raised INSIDE the app - an unknown `--scenario` id is
+/// the only one today - must leave a non-zero status for the shell.
+pub fn run_app(app: &mut App) -> ExitCode {
+    match app.run() {
+        AppExit::Success => ExitCode::SUCCESS,
+        AppExit::Error(code) => ExitCode::from(code.get()),
+    }
 }
 
 /// Composition root that assembles the full plugin stack into a runnable [`App`].
 ///
 /// Holds the in-progress [`App`] plus the choices ([`with_game_plugins`](Self::with_game_plugins),
-/// [`with_rendering`](Self::with_rendering)) that [`build`](Self::build) resolves into the
-/// concrete plugin set; with no game plugins it defaults to the editor app fronted by the
+/// [`with_rendering`](Self::with_rendering),
+/// [`with_startup_scenario`](Self::with_startup_scenario)) that [`build`](Self::build) resolves
+/// into the concrete plugin set; with no game plugins it defaults to the editor app fronted by the
 /// main menu.
 pub struct AppBuilder {
     app: App,
     use_default_plugins: bool,
     render: bool,
+    startup_scenario: Option<ScenarioId>,
 }
 
 impl Default for AppBuilder {
@@ -113,6 +136,7 @@ impl AppBuilder {
             app,
             use_default_plugins: true,
             render: true,
+            startup_scenario: None,
         }
     }
 
@@ -128,6 +152,22 @@ impl AppBuilder {
     /// plugins so headless runs (tests, the probe harness) skip GPU work.
     pub fn with_rendering(mut self, render: bool) -> Self {
         self.render = render;
+        self
+    }
+
+    /// Boot straight into one scenario instead of the main menu - the game
+    /// binary's `--scenario <id>` flag.
+    ///
+    /// The menu plugin is still added (the pause overlay, the outcome screens
+    /// and the New Game loader all live there); only the `Loaded` handoff
+    /// changes target, and `build` writes the menu's own [`NewGameScenario`]
+    /// override so the scenario comes up through the SAME OnEnter(Playing)
+    /// loader - and the same non-blocking load screen - a click on Play uses.
+    ///
+    /// No effect on an app that supplied its own game plugins: those never had
+    /// a menu to skip.
+    pub fn with_startup_scenario(mut self, id: Option<ScenarioId>) -> Self {
+        self.startup_scenario = id;
         self
     }
 
@@ -175,13 +215,27 @@ impl AppBuilder {
 
         // The menu fronts the default (editor) app only: an example that supplies
         // its own game plugins goes straight `Loading -> Playing`.
-        let main_menu = self.use_default_plugins;
-        if main_menu {
+        let has_menu = self.use_default_plugins;
+        if has_menu {
             self.app.add_plugins(NovaMenuPlugin);
         }
 
         #[cfg(feature = "debug")]
         self.app.add_plugins(DebugPlugin);
+
+        // `--scenario <id>`: enter through the menu's own New Game door rather
+        // than opening a second loader path. Only a menu app has a menu to
+        // skip, so an app with its own game plugins ignores the flag.
+        let startup_scenario = if has_menu {
+            self.startup_scenario.clone()
+        } else {
+            None
+        };
+        if let Some(id) = &startup_scenario {
+            self.app.insert_resource(GameMode::NewGame);
+            self.app.insert_resource(NewGameScenario(Some(id.clone())));
+        }
+        let boot_to_menu = has_menu && startup_scenario.is_none();
 
         // NOTE: only advance when still in Loading - the screenshot harness
         // (NOVA_SHOT) force-sets Playing on the first frame, and this hook firing
@@ -189,11 +243,26 @@ impl AppBuilder {
         self.app.add_systems(
             OnEnter(GameAssetsStates::Loaded),
             (
-                move |state: Res<State<GameStates>>, mut next: ResMut<NextState<GameStates>>| {
+                move |state: Res<State<GameStates>>,
+                      mut next: ResMut<NextState<GameStates>>,
+                      scenarios: Option<Res<GameScenarios>>,
+                      mut exit: MessageWriter<AppExit>| {
                     if *state.get() != GameStates::Loading {
                         return;
                     }
-                    next.set(if main_menu {
+                    // The merged registry only exists here, once the bundle
+                    // merge has run - which is why an unknown `--scenario` id
+                    // cannot be refused before the window opens.
+                    if let Some(id) = startup_scenario.as_deref() {
+                        let empty = GameScenarios::default();
+                        let scenarios = scenarios.as_deref().unwrap_or(&empty);
+                        if !scenarios.contains_key(id) {
+                            report_unknown_startup_scenario(id, scenarios);
+                            exit.write(AppExit::error());
+                            return;
+                        }
+                    }
+                    next.set(if boot_to_menu {
                         GameStates::MainMenu
                     } else {
                         GameStates::Playing
@@ -204,6 +273,30 @@ impl AppBuilder {
         );
 
         self.app
+    }
+}
+
+/// Refuse an unknown `--scenario <id>` in words, and list what the player could
+/// have asked for.
+///
+/// The list comes from the MERGED registry the Scenarios picker itself reads, so
+/// an enabled mod's ids are in it. It is the full registry rather than the
+/// picker's visible rows: the flag can also launch a `hidden` chapter or a menu
+/// backdrop, which is most of the point of having it.
+///
+/// Printed to stderr rather than logged. This is a command-line refusal and it
+/// must reach the terminal whatever `RUST_LOG` and the release log filter say.
+fn report_unknown_startup_scenario(id: &str, scenarios: &GameScenarios) {
+    eprintln!("error: --scenario '{id}' matches no registered scenario.");
+    let mut ids: Vec<&str> = scenarios.keys().map(String::as_str).collect();
+    if ids.is_empty() {
+        eprintln!("no scenarios are registered at all - the content merge found none.");
+        return;
+    }
+    ids.sort_unstable();
+    eprintln!("available scenario ids ({}):", ids.len());
+    for available in ids {
+        eprintln!("  {available}");
     }
 }
 

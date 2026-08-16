@@ -103,7 +103,7 @@ fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
 
     // The same app the game/binary runs (main menu over the ambience backdrop).
-    let mut app = editor_app(true);
+    let mut app = editor_app(true, None);
 
     #[cfg(feature = "debug")]
     {

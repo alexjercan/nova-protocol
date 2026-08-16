@@ -14,6 +14,7 @@
 
 ```sh
 cargo run                         # the game (boots into the main menu)
+cargo run -- --scenario broadside # the game, straight into one scenario
 cargo run --features dev          # + debug tooling (inspector, wireframe)
 cargo run --example scenario_grammar   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
@@ -276,6 +277,29 @@ have waited on the world - see `hull_section`/`hud_range` for the style); CI's
 probe sweep runs it on every push. Caveat: the handler swap
 does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
 at queue time).
+
+## Launching a scenario from the command line
+
+`--scenario <id>` on the game binary boots straight into that scenario, past
+the main menu - for anyone who would rather not click through the picker, and
+for a mod author testing one scenario id in one command:
+
+```sh
+cargo run -- --scenario broadside          # a base scenario
+cargo run -- --scenario my_mod_intro       # anything an ENABLED mod registers
+cargo run -- --scenario nope               # refuses, and lists every id
+```
+
+- The id is matched against the MERGED registry (base plus every enabled mod),
+  so a mod's scenarios are launchable by id and `hidden` chapters and menu
+  backdrops are too - a superset of the rows the Scenarios picker shows.
+- An unknown id prints the full id list to stderr and exits non-zero. The check
+  happens once the content merge has run, which is after the window opens: the
+  merged registry does not exist before that.
+- The launch is the picker's own door (`NewGameScenario` + `GameMode::NewGame`
+  + `GameStates::Playing`), so the scenario comes up through the same loader and
+  the same non-blocking load screen as a click on Play.
+- Native only. The wasm bundle has no command line.
 
 ## Content CLI
 

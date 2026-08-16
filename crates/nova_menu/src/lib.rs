@@ -24,9 +24,9 @@ use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure};
 use nova_ui::{prelude::UiSkin, widget::button_on_setting};
 
 /// Glob-import surface: `use nova_menu::prelude::*` brings [`NovaMenuPlugin`]
-/// into scope.
+/// and [`NewGameScenario`] into scope.
 pub mod prelude {
-    pub use super::NovaMenuPlugin;
+    pub use super::{NewGameScenario, NovaMenuPlugin};
 }
 
 mod ambience;
@@ -61,10 +61,11 @@ use pause::{
     unpause_clocks,
 };
 use portal::{drive_update_choreography, UpdateRequested};
+pub use scenarios::NewGameScenario;
 use scenarios::{
     poll_scenario_thumbnail, refresh_scenario_details, refresh_scenarios_list,
-    scenario_details_dirty, scenarios_list_dirty, CollapsedCampaigns, NewGameScenario,
-    PendingScenarioThumbnail, SelectedScenarioId,
+    scenario_details_dirty, scenarios_list_dirty, CollapsedCampaigns, PendingScenarioThumbnail,
+    SelectedScenarioId,
 };
 use settings::{
     flush_settings_on_exit, load_persisted_settings, on_volume_slider_change,

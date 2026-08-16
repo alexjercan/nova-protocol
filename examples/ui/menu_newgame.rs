@@ -52,7 +52,7 @@ fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
 
     // The same app the game/binary runs - not a bespoke copy.
-    let mut app = editor_app(true);
+    let mut app = editor_app(true, None);
 
     // Headless smoke-test harness: inert in a normal run (gated on NOVA_AUTOPILOT).
     #[cfg(feature = "debug")]

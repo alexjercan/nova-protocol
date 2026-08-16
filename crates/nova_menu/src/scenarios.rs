@@ -29,8 +29,12 @@ pub(crate) struct SelectedScenarioId(pub(crate) Option<ScenarioId>);
 /// (OnEnter(Playing), gated `GameMode::NewGame`) loads. `None` -> the canned
 /// New Game start; `Some(id)` -> that scenario. The Scenarios picker's Play
 /// button sets it; `on_new_game` clears it so New Game always plays the story.
+///
+/// Public because it is the ONE door into a chosen-scenario start: the game
+/// binary's `--scenario <id>` flag writes it at app build so a command-line
+/// boot lands on the same OnEnter(Playing) loader as a click on Play.
 #[derive(Resource, Default)]
-pub(crate) struct NewGameScenario(pub(crate) Option<ScenarioId>);
+pub struct NewGameScenario(pub Option<ScenarioId>);
 
 /// The selected scenario's thumbnail image, held while it finishes loading.
 ///

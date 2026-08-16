@@ -13,6 +13,11 @@ struct Cli {
     #[cfg(not(target_arch = "wasm32"))]
     #[command(subcommand)]
     command: Option<Command>,
+    /// Boot straight into this scenario, past the main menu. An unknown id
+    /// refuses the launch and lists every registered one.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[arg(long, value_name = "ID")]
+    scenario: Option<String>,
     #[cfg(feature = "debug")]
     #[arg(long)]
     debugdump: bool,
@@ -59,7 +64,13 @@ fn main() -> ExitCode {
     #[cfg(not(feature = "debug"))]
     let render = true;
 
-    let mut app = editor_app(render);
+    // The wasm bundle has no command line to carry a scenario id.
+    #[cfg(not(target_arch = "wasm32"))]
+    let startup_scenario = cli.scenario.clone();
+    #[cfg(target_arch = "wasm32")]
+    let startup_scenario = None;
+
+    let mut app = editor_app(render, startup_scenario);
 
     #[cfg(feature = "debug")]
     if cli.debugdump {
@@ -67,6 +78,5 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    app.run();
-    ExitCode::SUCCESS
+    run_app(&mut app)
 }
