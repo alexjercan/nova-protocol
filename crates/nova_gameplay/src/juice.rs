@@ -107,14 +107,25 @@ impl Default for ShakeSettings {
             // are the *point-blank* impulses; distance attenuation (see
             // `JuiceSettings::near_distance`/`far_distance`) scales them down fast,
             // so anything more than a few units away is gentler still.
-            hit_trauma: 0.08,
-            destroy_trauma: 0.24,
-            // Snappier decay so a kick settles quickly rather than lingering.
-            decay: 2.4,
-            // A small translational shudder with only a whisper of rotational kick,
-            // so the camera trembles in place instead of visibly swinging.
-            max_offset: Vec3::new(0.18, 0.18, 0.1),
-            max_kick: Vec3::new(0.008, 0.008, 0.012),
+            //
+            // Softened from the first tune, which read as thrashing under
+            // sustained fire (owner: "feels really bad"). The offset/kick are
+            // re-sampled EVERY frame, so aggressiveness is frame-rate noise,
+            // not swing - the kick (rotation) reads harshest and is cut most.
+            // DEFAULTS only; the settings menu edits the live resource.
+            // Old -> new:
+            //   hit_trauma     0.08 -> 0.05   (sustained fire saturates slower)
+            //   destroy_trauma 0.24 -> 0.16   (a kill still out-kicks a hit 3:1)
+            //   decay          2.4  -> 3.2    (a burst settles in ~0.3 s, not 0.4)
+            //   max_offset     (0.18, 0.18, 0.10)   -> (0.10, 0.10, 0.06)
+            //   max_kick       (0.008, 0.008, 0.012) -> (0.003, 0.003, 0.0045)
+            //   exponent       2.0 unchanged (the classic curve already crushes
+            //                  residual trauma; raising it would erase single hits)
+            hit_trauma: 0.05,
+            destroy_trauma: 0.16,
+            decay: 3.2,
+            max_offset: Vec3::new(0.10, 0.10, 0.06),
+            max_kick: Vec3::new(0.003, 0.003, 0.0045),
             exponent: 2.0,
         }
     }
@@ -406,8 +417,11 @@ fn prune_juice_throttle(time: Res<Time>, mut throttle: ResMut<JuiceThrottle>) {
 /// camera when it lacks one. Runs every frame but no-ops once the camera has the
 /// component; this handles the camera being (re)spawned or swapped (Nova toggles
 /// the camera's controller between WASD and chase, but the entity persists).
-/// Scoped to [`SfxListenerMarker`] rather than any `Camera3d`, so the editor
-/// camera (or a future minimap camera) never grows a shake.
+/// Attaching is mode-agnostic ON PURPOSE: the free-fly WASD phase of that same
+/// entity is muted by `CameraShakeSuppressed`, maintained by `nova_ship`'s
+/// camera authority - the layer that knows which rig drives - not by removing
+/// the shake here. Scoped to [`SfxListenerMarker`] rather than any `Camera3d`,
+/// so the editor camera (or a future minimap camera) never grows a shake.
 fn ensure_camera_shake(
     settings: Res<JuiceSettings>,
     q_camera: Query<Entity, (With<SfxListenerMarker>, Without<CameraShake>)>,

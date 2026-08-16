@@ -240,6 +240,9 @@ tagged **(breaking)**.
   Pierce needle, a squat Explosive shell, each in the type's own HUD colour.
 - Torpedoes fly nose-first: the warhead is a coned body instead of a
   flat-ended pipe, and one shared mesh serves every launch.
+- Camera shake is scoped to the player camera - the free-fly WASD camera never
+  shakes - and the default shake is roughly halved, with the rotational kick
+  cut hardest.
 
 ### Performance
 

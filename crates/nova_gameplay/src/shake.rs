@@ -65,7 +65,8 @@ use rand::RngExt;
 /// Glob-import surface for the trauma camera-shake rig.
 pub mod prelude {
     pub use super::{
-        CameraShake, CameraShakeInput, CameraShakeOutput, CameraShakePlugin, CameraShakeSystems,
+        CameraShake, CameraShakeInput, CameraShakeOutput, CameraShakePlugin, CameraShakeSuppressed,
+        CameraShakeSystems,
     };
 }
 
@@ -140,6 +141,20 @@ pub struct CameraShakeOutput {
     pub kick: Quat,
 }
 
+/// While present on a shaken camera, the applied offset and kick are held at
+/// zero: the driver's base pose is the frame's final pose.
+///
+/// A mode gate, not a kill switch. The camera ENTITY persists while its
+/// controller flips between rigs (Nova toggles one camera between free-fly
+/// WASD and chase), so stripping [`CameraShake`] on every flip would shed and
+/// rebuild shake state each time. Trauma still accrues and decays underneath:
+/// combat near a suppressed camera spends its energy silently instead of
+/// freezing it and replaying a stale shake the moment the marker is removed.
+/// Maintained by whoever owns the camera mode (`nova_ship`'s camera authority
+/// suppresses while the WASD rig drives); this module names no driver.
+#[derive(Component, Default, Debug, Clone, Copy, Reflect)]
+pub struct CameraShakeSuppressed;
+
 /// Private per-camera state: trauma energy and the last-applied shake, kept so
 /// [`CameraShakeSystems::Restore`] can un-apply it before drivers run.
 #[derive(Component, Default, Debug, Reflect)]
@@ -185,6 +200,7 @@ impl Plugin for CameraShakePlugin {
         app.register_type::<CameraShake>()
             .register_type::<CameraShakeInput>()
             .register_type::<CameraShakeOutput>()
+            .register_type::<CameraShakeSuppressed>()
             .register_type::<CameraShakeState>();
 
         // NOTE: pin Restore before Apply explicitly. This is the ONE edge this
@@ -249,7 +265,9 @@ fn camera_shake_restore_system(
 }
 
 /// Consumes input, decays trauma, and applies a fresh offset and kick on top of
-/// whatever base the driver wrote this frame.
+/// whatever base the driver wrote this frame. A [`CameraShakeSuppressed`]
+/// camera goes through the same input/decay bookkeeping but applies zero, so
+/// the trauma model never forks per mode.
 fn camera_shake_apply_system(
     time: Res<Time>,
     mut q_camera: Query<(
@@ -258,12 +276,14 @@ fn camera_shake_apply_system(
         &mut CameraShakeOutput,
         &mut CameraShakeState,
         &mut Transform,
+        Has<CameraShakeSuppressed>,
     )>,
 ) {
     let dt = time.delta_secs();
     let mut rng = rand::rng();
 
-    for (shake, mut input, mut output, mut state, mut transform) in q_camera.iter_mut() {
+    for (shake, mut input, mut output, mut state, mut transform, suppressed) in q_camera.iter_mut()
+    {
         trace!("camera_shake_apply_system: trauma {}", state.trauma);
 
         // NOTE: reset is a floor, not a veto -- it clears trauma first, so a
@@ -280,7 +300,7 @@ fn camera_shake_apply_system(
         state.trauma = decay_trauma(state.trauma, shake.decay, dt);
         let amount = shake_amount(state.trauma, shake.exponent);
 
-        let (offset, kick) = if amount <= 0.0 {
+        let (offset, kick) = if suppressed || amount <= 0.0 {
             (Vec3::ZERO, Quat::IDENTITY)
         } else {
             // Two INDEPENDENT samples: one sample for both would lock the
@@ -601,6 +621,67 @@ mod tests {
             rot,
             base_rot
         );
+    }
+
+    /// A suppressed camera must sit EXACTLY on the driver's base while trauma
+    /// is live, and the trauma must keep decaying underneath: a suppression
+    /// that outlives the decay window leaves nothing to replay on release.
+    /// The final fresh-trauma phase is the delivery guard - the same camera
+    /// demonstrably still shakes, so the stillness above is the gate working,
+    /// not a dead rig.
+    #[test]
+    fn suppression_pins_the_camera_to_base_while_trauma_decays() {
+        let base = Vec3::new(0.0, 0.0, 22.0);
+        let (mut app, cam) = shake_app(base);
+        app.world_mut()
+            .entity_mut(cam)
+            .insert(CameraShakeSuppressed);
+        app.world_mut()
+            .get_mut::<CameraShakeInput>(cam)
+            .unwrap()
+            .add_trauma = 1.0;
+
+        // 10 frames x 16 ms = 0.16 s: trauma (decay 1.8/s) is still positive
+        // on every asserted frame, so the stillness is not vacuous.
+        for _ in 0..10 {
+            step(&mut app, 16);
+            let pos = app.world().get::<Transform>(cam).unwrap().translation;
+            assert_eq!(pos, base, "suppressed shake moved the camera off base");
+            assert_eq!(
+                app.world().get::<CameraShakeOutput>(cam).unwrap().offset,
+                Vec3::ZERO,
+                "suppressed shake reported a non-zero applied offset"
+            );
+        }
+
+        // Hold the suppression past the full decay window (1.0 / 1.8 ~= 0.56 s),
+        // then release: the trauma drained silently, so nothing replays.
+        for _ in 0..60 {
+            step(&mut app, 16);
+        }
+        app.world_mut()
+            .entity_mut(cam)
+            .remove::<CameraShakeSuppressed>();
+        step(&mut app, 16);
+        assert_eq!(
+            app.world().get::<Transform>(cam).unwrap().translation,
+            base,
+            "stale trauma replayed after the suppression was released"
+        );
+
+        // Delivery guard: fresh trauma on the released camera shakes again.
+        let mut moved = false;
+        for _ in 0..10 {
+            app.world_mut()
+                .get_mut::<CameraShakeInput>(cam)
+                .unwrap()
+                .add_trauma = 1.0;
+            step(&mut app, 16);
+            if app.world().get::<Transform>(cam).unwrap().translation != base {
+                moved = true;
+            }
+        }
+        assert!(moved, "the released camera never shook again");
     }
 
     #[test]
