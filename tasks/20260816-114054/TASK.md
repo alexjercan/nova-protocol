@@ -1,6 +1,6 @@
 # Autonomous point defence for the player
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 53
 - TAGS: v0.11.0,combat,balance,ui,ship
 
@@ -91,3 +91,32 @@ mount, granted by a new controller FlightVerb:
 pd-verb (opus). tasks/20260815-231945/COMBAT-MODE.md is background reading;
 this task does NOT build a combat mode - it leaves a named seam where an RMB
 combat mode plugs into the same precedence.
+
+## Closure
+
+Landed 2026-08-17, lane pd-verb (opus). The approved plan shipped whole:
+
+- FlightVerb::PointDefense granted by default, withheld via the existing
+  DisableVerb / SetControllerVerb machinery; fail-open on hulls with no
+  controller so bare rigs keep defending.
+- MountAuthority per turret (PlayerLock > PlayerManual > FlightComputer >
+  Cold) resolved by one pure fn; the RMB combat mode seam is a named doc
+  comment on PlayerManual.
+- Regrasp grace 0.5 s, written as 2 * RADAR_TAP_SECS so the derivation is
+  executable: a tap-clear or an RMB gap must not swing the battery off and
+  back inside one gesture.
+- The AI point-defence allocator moved to input/point_defense/ and claims
+  idle player mounts; weapons-safety exempts computer-worked mounts (idle ==
+  cold, nothing would ever fire otherwise); a latched trigger releases on
+  authority loss so no shot leaks into the player's hands.
+- Thin amber gizmo line (0.75 px, HUD gunnery family) muzzle-to-torpedo,
+  only for computer-held mounts, gated on the render flag.
+- Evidence: borrowed_battery driven range emits the full JSONL beat chain -
+  claim at t=8.3, cold-hull shot inside the 0.92 deg gate at t=9.4, player
+  lock stealing the mount, return after exactly the grace. 12 new lib tests
+  pin every transition. Probe snapshots now carry per-turret "authority".
+
+Found in passing, NOT fixed (pre-existing): examples/systems/
+neutralized_quiet.rs flakes 4/4 on base commit 5278e8f2 - its step reads
+assignment+firing a frame after advancing on it and the AI trigger drops for
+a frame while the barrel slews. Will fail CI on a fast box; owner's call.
