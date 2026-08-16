@@ -36,11 +36,28 @@
 //! planetoid as a landmark.
 //!
 //! Hand-run (`R` re-rolls both hulls on fresh seeds, `L` cycles the look, WASD
-//! takes the camera off the auto-frame):
+//! and the mouse take the camera free):
 //! ```text
 //! cargo run --example wfc_arena --features debug
 //! cargo run --example wfc_arena --features debug -- --seed 7 --style salvage
 //! ```
+//!
+//! The number row poses the camera, and every pose is computed off the LIVE
+//! fight each frame - midpoint, spread and per-side positions - so a vantage
+//! keeps its subject framed while the ships move:
+//!
+//! - `1` the auto-framing both-ships view (the default and the capture frame),
+//! - `2` broadside-on to the engagement line,
+//! - `3`/`4` over AMBER's/ONYX's shoulder, looking at the rival,
+//! - `5` top-down tactical.
+//!
+//! The idle orbit belongs to `1` and only `1`: left alone there for six
+//! seconds the camera falls into a slow orbit around the fight's midpoint -
+//! `wfc_ships`' turntable bent around a moving pivot - and a pose key or
+//! free-fly input stops it and restarts the clock. Every other vantage, the
+//! free camera included, parks and STAYS parked; press `1` to get the
+//! turntable back. Grave/tilde cycles the game HUD and the scoreboard readout
+//! follows it in a hand-run.
 //!
 //! Harnessed (`NOVA_AUTOPILOT=1`, plus `NOVA_CAPTURE=1` to stage the shot):
 //! wait for the arena, hold until BOTH sides have fired and BOTH have dealt
@@ -49,6 +66,10 @@
 
 use bevy::prelude::*;
 use clap::Parser;
+// Direct, not through `nova_protocol::nova_debug`: that path only exists under
+// the `debug` feature, and `capturing()` gates the idle orbit and the readout
+// in EVERY build.
+use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 
 #[path = "shared/wfc.rs"]
@@ -156,13 +177,15 @@ fn main() -> bevy::app::AppExit {
         // engine-bound invariants. No frame-time capture - a brawl's load
         // varies with the roll, so there is no steady state to grade.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        // Clean frames at the fleet's 16:9; dev overlays and the fps bar out
-        // of shot. The scoreboard readout is the example's own UI and STAYS -
-        // it is what makes a frame evidence.
-        app.add_systems(
-            Startup,
-            (force_capture_resolution, hide_dev_overlays, hide_hud),
-        );
+        // Clean frames at the fleet's 16:9, dev overlays out of shot. The HUD
+        // drops to cinematic only under capture: a hand-run keeps the level On
+        // so grave/tilde round-trips the readout with the rest of the HUD.
+        // The scoreboard readout is the example's own UI and STAYS in every
+        // capture - it is what makes a frame evidence.
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+        if capturing() {
+            app.add_systems(Startup, hide_hud);
+        }
         // NO freeze_bodies here, unlike wfc_ships: the whole point is that
         // these bodies fly.
         app.add_plugins(arena_script());
@@ -175,10 +198,12 @@ fn arena_plugin(app: &mut App, matchup: Matchup, requested: StyleRequest) {
     app.insert_resource(matchup);
     app.insert_resource(requested);
     app.init_resource::<Scoreboard>();
-    // Armed until the free-fly rig is touched, like wfc_ships' idle orbit -
-    // and armed under capture too, because framing the fight IS the capture
-    // framing.
-    app.insert_resource(FollowCamera(true));
+    // The frame vantage until a pose key or the free-fly rig says otherwise -
+    // and under capture too, because framing the fight IS the capture framing.
+    app.insert_resource(Vantage::Frame);
+    // Enabled only for a hand-run: a capture composes its own frame, and an
+    // orbit under it would photograph a different bearing every run.
+    app.insert_resource(IdleOrbit::new(!capturing()));
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_arena);
     app.add_systems(
         Update,
@@ -197,15 +222,20 @@ fn arena_plugin(app: &mut App, matchup: Matchup, requested: StyleRequest) {
             count_shots,
             report_score.run_if(in_state(GameStates::Playing)),
             update_readout,
-            stop_follow_on_input,
+            select_vantage,
+            free_camera_on_input,
+            track_orbit_idle,
         ),
     );
     // PostUpdate, after the free-fly rig's own write and before the transform
     // propagates, for wfc_ships' reason: the rig syncs in PostUpdate and an
-    // unordered Update system loses to it every frame.
+    // unordered Update system loses to it every frame. The orbit is chained
+    // AFTER the pose, so an idle-armed orbit wins the frame and re-arms off
+    // the bearing the pose last wrote.
     app.add_systems(
         PostUpdate,
-        follow_fight_camera
+        (pose_vantage_camera, orbit_idle_camera)
+            .chain()
             .after(WASDCameraSystems::Sync)
             .before(TransformSystems::Propagate),
     );
@@ -682,48 +712,114 @@ fn report_score(
 // Framing and readout.
 // ---------------------------------------------------------------------------
 
-/// How the auto-frame stands off the fight: direction (broadside to the
+/// How the frame vantage stands off the fight: direction (broadside to the
 /// engagement axis and a little above), plus a floor and a rate on the ships'
 /// spread so both hulls stay in frame from merge to knife range.
 const CAMERA_DIRECTION: Vec3 = Vec3::new(0.0, 0.45, 1.0);
 const CAMERA_BASE: f32 = 55.0;
 const CAMERA_PER_SPREAD: f32 = 0.85;
 
-/// Whether the auto-frame still owns the camera. Cleared the first time the
-/// free-fly rig is touched, and never re-armed - a viewer who took the camera
-/// keeps it.
-#[derive(Resource, Default)]
-struct FollowCamera(bool);
+/// How far a shoulder pose stands behind its ship, and how far above: close
+/// enough to read as attached to the hull, far enough that the widest roll's
+/// stern never fills the frame.
+const SHOULDER_BACK: f32 = 30.0;
+const SHOULDER_LIFT: f32 = 9.0;
+
+/// Fraction of the standoff the broadside pose climbs: enough that the far
+/// ship is not hidden behind the near one, low enough to still read side-on.
+const BROADSIDE_LIFT: f32 = 0.15;
+
+/// The camera pose in charge. Every pose except `Free` is recomputed from the
+/// live fight each frame, so it keeps its subject framed while the ships
+/// move; `Free` writes nothing and the free-fly rig keeps whatever the viewer
+/// flies.
+#[derive(Resource, Clone, Copy, PartialEq, Eq)]
+enum Vantage {
+    /// `1`: both ships in frame off the fight's midpoint - the default, and
+    /// the capture framing.
+    Frame,
+    /// `2`: side-on to the engagement line between the two ships.
+    Broadside,
+    /// `3`/`4`: over the shoulder of one side, looking at its rival.
+    Shoulder(usize),
+    /// `5`: straight down onto the fight.
+    TopDown,
+    /// The viewer took the camera; no pose writes until a number key re-arms
+    /// one.
+    Free,
+}
+
+/// The number-row bindings. Digits, because the letters near WASD belong to
+/// the free-fly rig and `R`/`L` already reroll and restyle.
+const VANTAGE_KEYS: [(KeyCode, Vantage); 5] = [
+    (KeyCode::Digit1, Vantage::Frame),
+    (KeyCode::Digit2, Vantage::Broadside),
+    (KeyCode::Digit3, Vantage::Shoulder(0)),
+    (KeyCode::Digit4, Vantage::Shoulder(1)),
+    (KeyCode::Digit5, Vantage::TopDown),
+];
+
+/// Arm the pose under a number key. A chosen pose is attention, exactly like
+/// flying: the idle orbit stands down and its resume clock starts over.
+fn select_vantage(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut vantage: ResMut<Vantage>,
+    mut orbit: ResMut<IdleOrbit>,
+) {
+    for (key, pose) in VANTAGE_KEYS {
+        if keyboard.just_pressed(key) {
+            *vantage = pose;
+            orbit.idle_secs = 0.0;
+        }
+    }
+}
 
 /// Hand back the camera the moment the free-fly rig is asked for anything,
-/// reading the rig's own input component so a binding change cannot leave the
-/// auto-frame fighting the player.
-fn stop_follow_on_input(mut follow: ResMut<FollowCamera>, q_input: Query<&WASDCameraInput>) {
-    if !follow.0 {
+/// reading the rig's own input component so a binding change cannot leave a
+/// pose fighting the player.
+fn free_camera_on_input(mut vantage: ResMut<Vantage>, q_input: Query<&WASDCameraInput>) {
+    if *vantage == Vantage::Free {
         return;
     }
     let touched = q_input
         .iter()
         .any(|input| input.pan != Vec2::ZERO || input.wasd != Vec2::ZERO || input.vertical != 0.0);
     if touched {
-        follow.0 = false;
+        *vantage = Vantage::Free;
     }
 }
 
-/// Keep both combatants in frame: stand on the fight's midpoint, backed off
-/// with their spread. Wrecks keep their root marker, so the camera holds the
-/// aftermath too instead of snapping away on the kill.
-fn follow_fight_camera(
-    follow: Res<FollowCamera>,
-    q_ships: Query<&Transform, (With<SpaceshipRootMarker>, Without<ScenarioCameraMarker>)>,
-    mut q_camera: Query<&mut Transform, With<ScenarioCameraMarker>>,
-) {
-    if !follow.0 {
-        return;
+/// The live fight as the camera reads it: the midpoint of every standing
+/// root, the spread-derived standoff that keeps both hulls in frame, and each
+/// side's own position where its root still stands. Wrecks keep their root
+/// marker, so a pose holds the aftermath too instead of snapping away on the
+/// kill.
+struct FightRead {
+    midpoint: Vec3,
+    standoff: f32,
+    sides: [Option<Vec3>; 2],
+}
+
+/// The camera-side ship query: transforms plus the allegiance that names a
+/// root's side, shared by the poses and the idle orbit.
+type ShipQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static Transform, Option<&'static Allegiance>),
+    (With<SpaceshipRootMarker>, Without<ScenarioCameraMarker>),
+>;
+
+fn read_fight(q_ships: &ShipQuery) -> Option<FightRead> {
+    let mut positions = Vec::new();
+    let mut sides = [None; 2];
+    for (transform, allegiance) in q_ships {
+        positions.push(transform.translation);
+        if let Some(side) = allegiance.and_then(side_of) {
+            sides[side] = Some(transform.translation);
+        }
     }
-    let positions: Vec<Vec3> = q_ships.iter().map(|ship| ship.translation).collect();
     if positions.is_empty() {
-        return;
+        return None;
     }
     let midpoint = positions.iter().sum::<Vec3>() / positions.len() as f32;
     let spread = positions
@@ -731,10 +827,221 @@ fn follow_fight_camera(
         .map(|position| position.distance(midpoint))
         .fold(0.0f32, f32::max)
         * 2.0;
-    let stand =
-        midpoint + CAMERA_DIRECTION.normalize() * (CAMERA_BASE + spread * CAMERA_PER_SPREAD);
+    Some(FightRead {
+        midpoint,
+        standoff: CAMERA_BASE + spread * CAMERA_PER_SPREAD,
+        sides,
+    })
+}
+
+/// One resolved camera pose: where to stand, what to look at, which way is
+/// up.
+struct Pose {
+    stand: Vec3,
+    target: Vec3,
+    up: Vec3,
+}
+
+/// The default framing: stand on the fight's midpoint, backed off with the
+/// ships' spread, broadside to the engagement axis and a little above.
+fn frame_pose(fight: &FightRead) -> Pose {
+    Pose {
+        stand: fight.midpoint + CAMERA_DIRECTION.normalize() * fight.standoff,
+        target: fight.midpoint,
+        up: Vec3::Y,
+    }
+}
+
+/// Resolve the armed vantage against the live fight. A pose that needs a ship
+/// the fight no longer has (a shoulder with that side destroyed, a broadside
+/// with one root left) falls back to the frame pose rather than freezing.
+fn vantage_pose(vantage: Vantage, fight: &FightRead) -> Option<Pose> {
+    match vantage {
+        Vantage::Free => None,
+        Vantage::Frame => Some(frame_pose(fight)),
+        Vantage::Broadside => {
+            let (Some(first), Some(second)) = (fight.sides[0], fight.sides[1]) else {
+                return Some(frame_pose(fight));
+            };
+            // Flattened, so the pose stays level even when the fight tilts
+            // out of the horizontal plane.
+            let axis = second - first;
+            let Some(side) = Vec3::new(axis.x, 0.0, axis.z)
+                .cross(Vec3::Y)
+                .try_normalize()
+            else {
+                return Some(frame_pose(fight));
+            };
+            Some(Pose {
+                stand: fight.midpoint
+                    + side * fight.standoff
+                    + Vec3::Y * (fight.standoff * BROADSIDE_LIFT),
+                target: fight.midpoint,
+                up: Vec3::Y,
+            })
+        }
+        Vantage::Shoulder(side) => {
+            let Some(ship) = fight.sides[side] else {
+                return Some(frame_pose(fight));
+            };
+            let rival = fight.sides[1 - side].unwrap_or(fight.midpoint);
+            let Some(away) = (ship - rival).try_normalize() else {
+                return Some(frame_pose(fight));
+            };
+            Some(Pose {
+                stand: ship + away * SHOULDER_BACK + Vec3::Y * SHOULDER_LIFT,
+                target: rival,
+                up: Vec3::Y,
+            })
+        }
+        Vantage::TopDown => Some(Pose {
+            stand: fight.midpoint + Vec3::Y * fight.standoff,
+            target: fight.midpoint,
+            // Straight down needs an up hint off the view axis; +Z keeps the
+            // spawn axis upright on screen.
+            up: Vec3::Z,
+        }),
+    }
+}
+
+/// Write the armed pose onto the scenario camera.
+fn pose_vantage_camera(
+    vantage: Res<Vantage>,
+    q_ships: ShipQuery,
+    mut q_camera: Query<&mut Transform, With<ScenarioCameraMarker>>,
+) {
+    let Some(fight) = read_fight(&q_ships) else {
+        return;
+    };
+    let Some(pose) = vantage_pose(*vantage, &fight) else {
+        return;
+    };
     for mut camera in &mut q_camera {
-        *camera = Transform::from_translation(stand).looking_at(midpoint, Vec3::Y);
+        *camera = Transform::from_translation(pose.stand).looking_at(pose.target, pose.up);
+    }
+}
+
+/// Radians per second the idle orbit turns at. Slow enough to read the fight
+/// without smearing it, and to sit under a capture's own framing.
+const ORBIT_RATE: f32 = 0.25;
+
+/// Seconds the free-fly rig and the pose keys must sit untouched, in the
+/// frame vantage, before the orbit re-arms.
+///
+/// Six: long enough that a viewer pausing over a detail is not yanked away
+/// the moment their hands leave the keys, short enough that a parked window
+/// goes back to turning before it reads as frozen.
+const ORBIT_RESUME_SECS: f32 = 6.0;
+
+/// The idle orbit's state: whether it may ever run, how long the viewer has
+/// sat quiet, and the bearing the orbit stands at.
+///
+/// The angle is a PHASE that is stepped, not read off the clock: the clock
+/// keeps counting while the viewer flies, so `elapsed * ORBIT_RATE` would
+/// teleport a re-armed camera onto whatever bearing it had drifted to.
+/// Holding the phase, and re-deriving it from the parked camera on each
+/// re-arm, is what lets the orbit pick up from where the viewer left it.
+#[derive(Resource)]
+struct IdleOrbit {
+    /// Never set under a capture: a capture composes its own frame, and an
+    /// orbit under it would photograph a different bearing every run.
+    enabled: bool,
+    /// Seconds since the free-fly rig last reported input or a pose key was
+    /// pressed.
+    idle_secs: f32,
+    /// The orbit's current azimuth around the fight's midpoint, in radians.
+    angle: f32,
+    /// Whether the orbit owned the camera last frame, so the first re-armed
+    /// frame can read the parked bearing before the orbit writes over it.
+    driving: bool,
+}
+
+impl IdleOrbit {
+    fn new(enabled: bool) -> Self {
+        Self {
+            enabled,
+            // Born idle-for-long-enough, so a fresh hand-run orbits at once.
+            idle_secs: ORBIT_RESUME_SECS,
+            angle: 0.0,
+            driving: false,
+        }
+    }
+}
+
+/// Hand back the camera the moment the free-fly rig is asked for anything,
+/// and count the quiet seconds that re-arm the orbit once the flying stops.
+///
+/// Reads the rig's own input component rather than the keyboard, so it cannot
+/// disagree with what actually moves the camera - and so a binding change does
+/// not silently leave the orbit fighting the player.
+fn track_orbit_idle(
+    mut orbit: ResMut<IdleOrbit>,
+    time: Res<Time>,
+    q_input: Query<&WASDCameraInput>,
+) {
+    let touched = q_input
+        .iter()
+        .any(|input| input.pan != Vec2::ZERO || input.wasd != Vec2::ZERO || input.vertical != 0.0);
+    if touched {
+        orbit.idle_secs = 0.0;
+    } else {
+        // Saturated at the threshold: the timer is a re-arm gate, not a
+        // stopwatch, so there is nothing to count past it.
+        orbit.idle_secs = (orbit.idle_secs + time.delta_secs()).min(ORBIT_RESUME_SECS);
+    }
+}
+
+/// Sweep the fight on a slow turntable while nobody is flying, the way
+/// `wfc_ships` turns its row - except the pivot MOVES: the orbit re-centres
+/// on the live midpoint every frame, and the spread-derived standoff keeps
+/// both hulls in frame at every bearing. Runs after the free-fly rig writes
+/// its transform, because that rig writes every frame and would otherwise
+/// win.
+///
+/// The orbit is the FRAME vantage's idle behaviour, not an overlay on every
+/// pose: a viewer who chose a shoulder or the top-down chose that view for as
+/// long as they care to hold it, so only `Vantage::Frame` ever re-arms the
+/// turntable.
+///
+/// On re-arm the azimuth is read off the parked camera's own xz offset from
+/// the midpoint, so the orbit drifts on from wherever the viewer - or the
+/// vantage pose it took over from - left it.
+fn orbit_idle_camera(
+    mut orbit: ResMut<IdleOrbit>,
+    vantage: Res<Vantage>,
+    time: Res<Time>,
+    q_ships: ShipQuery,
+    mut q_camera: Query<&mut Transform, With<ScenarioCameraMarker>>,
+) {
+    if !orbit.enabled || *vantage != Vantage::Frame {
+        return;
+    }
+    if orbit.idle_secs < ORBIT_RESUME_SECS {
+        orbit.driving = false;
+        return;
+    }
+    let Some(fight) = read_fight(&q_ships) else {
+        return;
+    };
+    if !orbit.driving {
+        let Some(parked) = q_camera.iter().next() else {
+            return;
+        };
+        let offset = parked.translation - fight.midpoint;
+        orbit.angle = offset.x.atan2(offset.z);
+        orbit.driving = true;
+    }
+    orbit.angle += time.delta_secs() * ORBIT_RATE;
+    // The frame vantage's own ring: bearing zero IS the frame pose, so the
+    // orbit at rest and the auto-frame agree and a resume never jumps.
+    let ring = Vec3::new(
+        orbit.angle.sin() * CAMERA_DIRECTION.z,
+        CAMERA_DIRECTION.y,
+        orbit.angle.cos() * CAMERA_DIRECTION.z,
+    );
+    for mut camera in &mut q_camera {
+        *camera = Transform::from_translation(fight.midpoint + ring.normalize() * fight.standoff)
+            .looking_at(fight.midpoint, Vec3::Y);
     }
 }
 
@@ -767,14 +1074,19 @@ fn spawn_readout(commands: &mut Commands) {
 /// Written every frame for `wfc_ships`' reason: the readout spawns in the
 /// same command flush as the first resource change, so a change-gated write
 /// would land before the text exists and never run again.
+///
+/// The readout follows the grave/tilde HUD cycle in a hand-run, so "no hud"
+/// clears the whole top of the frame. Captures are exempt: they run at
+/// cinematic from startup, and the readout is the frame's evidence.
 fn update_readout(
     matchup: Res<Matchup>,
     styles: Res<GameStyles>,
     score: Res<Scoreboard>,
-    mut q_readout: Query<&mut Text, With<ScoreReadout>>,
+    hud: Res<HudVisibility>,
+    mut q_readout: Query<(&mut Text, &mut Visibility), With<ScoreReadout>>,
 ) {
     let line = format!(
-        "WFC arena - {} {} vs {} {} - {} - fired {}/{} - dealt {:.0}/{:.0} - [R] re-roll  [L] look",
+        "WFC arena - {} {} vs {} {} - {} - fired {}/{} - dealt {:.0}/{:.0} - [R] re-roll  [L] look  [1-5] camera",
         SIDES[0].callsign,
         matchup.drafted[0],
         SIDES[1].callsign,
@@ -785,7 +1097,13 @@ fn update_readout(
         score.dealt[0],
         score.dealt[1],
     );
-    for mut text in &mut q_readout {
+    let shown = capturing() || hud.shows();
+    for (mut text, mut visibility) in &mut q_readout {
+        visibility.set_if_neq(if shown {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        });
         if text.as_str() != line {
             **text = line.clone();
         }

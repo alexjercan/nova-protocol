@@ -93,6 +93,10 @@
 //! looks COMPARABLE: the same three hulls at the same pose, redressed in place,
 //! instead of four checkouts and four runs.
 //!
+//! Grave/tilde cycles the game HUD, and in a hand-run the seed readout follows
+//! it, so "no hud" clears the whole top of the frame. Captures are exempt: the
+//! readout is what makes a captured frame reproducible.
+//!
 //! Two harnessed modes, the fleet's capture idiom:
 //! - `NOVA_AUTOPILOT=1`: smoke path - collapse the row, frame it, strip the
 //!   cladding, exit clean. This is the path `probe run` takes.
@@ -103,7 +107,8 @@
 use bevy::prelude::*;
 use clap::Parser;
 // Direct, not through `nova_protocol::nova_debug`: that path only exists under
-// the `debug` feature, and `capturing()` gates the idle orbit in EVERY build.
+// the `debug` feature, and `capturing()` gates the idle orbit and the readout
+// in EVERY build.
 use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 
@@ -173,13 +178,15 @@ fn main() -> bevy::app::AppExit {
         // example instead of asserting nothing. No frame-time capture - a
         // posed row holds no steady-state load worth measuring.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        // Clean frames at the fleet's known 16:9; dev overlays and the
-        // fps/version bar out of shot (the seed readout is NOT HUD-tier, so it
-        // stays - it is what makes a frame reproducible).
-        app.add_systems(
-            Startup,
-            (force_capture_resolution, hide_dev_overlays, hide_hud),
-        );
+        // Clean frames at the fleet's known 16:9, dev overlays out of shot.
+        // The HUD drops to cinematic only under capture: a hand-run keeps the
+        // level On so grave/tilde round-trips the readout with the rest of
+        // the HUD. The seed readout is NOT HUD-tier and stays in every
+        // capture - it is what makes a frame reproducible.
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+        if capturing() {
+            app.add_systems(Startup, hide_hud);
+        }
         // A subject is a dynamic body, and in zero-g nothing damps a spawn
         // impulse: the row drifts and TURNS while the harness settles, so two
         // runs that take different wall-clock time photograph the same ships at
@@ -563,10 +570,16 @@ fn spawn_readout(commands: &mut Commands) {
 /// Written every frame rather than on `Roster` change: the readout is spawned
 /// by a command in the same run as the roster's first change, so a
 /// change-gated write lands before the text exists and never runs again.
+///
+/// The readout follows the grave/tilde HUD cycle in a hand-run, so "no hud"
+/// clears the whole top of the frame. Captures are exempt: they run at
+/// cinematic from startup, and the readout is what makes a frame
+/// reproducible.
 fn update_readout(
     roster: Res<Roster>,
     styles: Res<GameStyles>,
-    mut q_readout: Query<&mut Text, With<SeedReadout>>,
+    hud: Res<HudVisibility>,
+    mut q_readout: Query<(&mut Text, &mut Visibility), With<SeedReadout>>,
 ) {
     // The style is NAMED, because a shot of a row is only evidence about a look
     // if the frame says which look it is.
@@ -583,7 +596,13 @@ fn update_readout(
         roster.seed,
         roster.seed + roster.ships as u64 - 1,
     );
-    for mut text in &mut q_readout {
+    let shown = capturing() || hud.shows();
+    for (mut text, mut visibility) in &mut q_readout {
+        visibility.set_if_neq(if shown {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        });
         if text.as_str() != line {
             **text = line.clone();
         }

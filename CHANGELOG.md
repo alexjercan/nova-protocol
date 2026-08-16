@@ -296,6 +296,9 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- `wfc_arena` grows number-row camera poses (frame, broadside, shoulders,
+  top-down) and the shared idle orbit; grave/tilde hides the readout in
+  hand-runs of all three screenshot examples.
 - New `thruster_gallery` example: the shipped drive, the proposed thruster
   shell size family and the CC0 candidate models in one named row, in the
   fleet capture idiom.

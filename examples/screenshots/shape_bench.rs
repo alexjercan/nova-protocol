@@ -28,7 +28,8 @@
 //!    wear.
 //!
 //! Hand-run (free-fly with WASD, `L` cycles the look in place, `C` strips or
-//! restores the cladding on the same subjects):
+//! restores the cladding on the same subjects; grave/tilde cycles the game
+//! HUD and the style readout follows it, capture frames exempt):
 //! ```text
 //! cargo run --example shape_bench --features debug
 //! cargo run --example shape_bench --features debug -- --style salvage
@@ -47,7 +48,8 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use clap::Parser;
 // Direct, not through `nova_protocol::nova_debug`: that path only exists under
-// the `debug` feature, and `capturing()` gates the idle orbit in EVERY build.
+// the `debug` feature, and `capturing()` gates the idle orbit and the readout
+// in EVERY build.
 use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 
@@ -101,10 +103,13 @@ fn main() -> bevy::app::AppExit {
         // invariants so `probe run` grades this example. No frame-time capture
         // - a posed roster holds no steady-state load worth measuring.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        app.add_systems(
-            Startup,
-            (force_capture_resolution, hide_dev_overlays, hide_hud),
-        );
+        // The HUD drops to cinematic only under capture, as in wfc_ships: a
+        // hand-run keeps the level On so grave/tilde round-trips the readout
+        // with the rest of the HUD.
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+        if capturing() {
+            app.add_systems(Startup, hide_hud);
+        }
         // A subject is a dynamic body, and in zero-g nothing damps a spawn
         // impulse: without this the roster drifts and turns at a rate set by
         // machine load, which is the exact defect this bench exists to close.
@@ -592,10 +597,15 @@ fn spawn_readout(commands: &mut Commands) {
 /// Written every frame rather than on `Roster` change, for the same reason as
 /// `wfc_ships`: the readout is spawned by a command in the same run as the
 /// roster's first change, so a change-gated write never runs again.
+///
+/// The readout follows the grave/tilde HUD cycle in a hand-run, so "no hud"
+/// clears the top of the frame. Captures are exempt: they run at cinematic
+/// from startup, and the readout is what names the look a frame shows.
 fn update_readout(
     roster: Res<Roster>,
     styles: Res<GameStyles>,
-    mut q_readout: Query<&mut Text, With<StyleReadout>>,
+    hud: Res<HudVisibility>,
+    mut q_readout: Query<(&mut Text, &mut Visibility), With<StyleReadout>>,
 ) {
     let dress = if roster.clad {
         format!(
@@ -606,7 +616,13 @@ fn update_readout(
         "bare".to_string()
     };
     let line = format!("Shape bench - {dress} - [L] look  [C] cladding");
-    for mut text in &mut q_readout {
+    let shown = capturing() || hud.shows();
+    for (mut text, mut visibility) in &mut q_readout {
+        visibility.set_if_neq(if shown {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        });
         if text.as_str() != line {
             **text = line.clone();
         }
