@@ -432,16 +432,11 @@ mod tests {
     use nova_gameplay::prelude::*;
 
     use super::*;
-
-    /// Apply EVERY queued command. The production sync drains under a per-frame
-    /// time budget (`SPAWN_DRAIN_BUDGET`), so a rig that asserts on a whole
-    /// multi-object batch runs it to settled instead of assuming one call is
-    /// enough.
-    fn drain(world: &mut World) {
-        while world.resource::<NovaEventWorld>().is_settling() {
-            NovaEventWorld::state_to_world_system(world);
-        }
-    }
+    // Apply EVERY queued command: the production sync drains under a per-frame
+    // time budget, so a rig asserting on a whole multi-object batch runs it to
+    // settled. Shared with nova_authoring's beat walks, which need the same
+    // thing through an `App`.
+    use crate::test_support::drain_spawns as drain;
 
     /// The authored `SpaceshipConfig.allegiance` override, through the
     /// production spawn path: a NEUTRAL AI ship ends NEUTRAL even though

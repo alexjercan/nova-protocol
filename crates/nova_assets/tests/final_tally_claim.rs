@@ -41,6 +41,19 @@ const BASE_BUNDLE_RON: &str = include_str!("../../../assets/base/base.bundle.ron
 const HOSTILE_SPAWN_MIN_RANGE: f32 = 700.0;
 const FLAGSHIP_TORPEDO_ENVELOPE: f32 = 1000.0;
 
+/// Two frames, then run the world out to LIVE.
+///
+/// The two frames dispatch the event just fired; `settle_spawns` is what makes
+/// the NEXT one land. This scenario spawns from handlers the rig registers, so
+/// firing an event can leave the world settling - and the dispatcher holds
+/// every handler until those objects are in. A fixed frame count would pass or
+/// fail on machine load rather than on logic.
+fn step(app: &mut App) {
+    app.update();
+    app.update();
+    nova_scenario::test_support::settle_spawns(app);
+}
+
 fn scenario_from(ron_str: &str) -> ScenarioConfig {
     let items: Vec<Content> = ron::de::from_str(ron_str).expect("content RON parses");
     items
@@ -175,8 +188,7 @@ fn destroy(app: &mut App, id: &str) {
             commands.fire::<OnDestroyedEvent>(info.clone());
         })
         .expect("fire OnDestroyed");
-    app.update();
-    app.update();
+    step(app);
 }
 
 /// Fire the scenario travel-lock event the engine bridge emits when the
@@ -192,13 +204,11 @@ fn travel_lock(app: &mut App, target: &str) {
             commands.fire::<OnTravelLockStartEvent>(info.clone());
         })
         .expect("fire OnTravelLockStart");
-    app.update();
-    app.update();
+    step(app);
 }
 
 fn pump(app: &mut App) {
-    app.update();
-    app.update();
+    step(app);
 }
 
 fn number_var(app: &App, key: &str) -> Option<f64> {

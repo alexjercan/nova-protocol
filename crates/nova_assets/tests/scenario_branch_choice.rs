@@ -164,6 +164,19 @@ const SCENARIO_RON: &str = r#"[
 
 // --- content plumbing -------------------------------------------------------
 
+/// Two frames, then run the world out to LIVE.
+///
+/// The two frames dispatch the event just fired; `settle_spawns` is what makes
+/// the NEXT one land. This scenario spawns from handlers the rig registers, so
+/// firing an event can leave the world settling - and the dispatcher holds
+/// every handler until those objects are in. A fixed frame count would pass or
+/// fail on machine load rather than on logic.
+fn step(app: &mut App) {
+    app.update();
+    app.update();
+    nova_scenario::test_support::settle_spawns(app);
+}
+
 fn scenario_from(ron_str: &str) -> ScenarioConfig {
     let items: Vec<Content> = ron::de::from_str(ron_str).expect("content RON parses");
     items
@@ -257,8 +270,7 @@ fn enter(app: &mut App, area: &str, entrant: &str) {
             commands.fire::<OnEnterEvent>(info.clone());
         })
         .expect("fire OnEnter");
-    app.update();
-    app.update();
+    step(app);
 }
 
 fn destroy(app: &mut App, id: &str) {
@@ -275,8 +287,7 @@ fn destroy(app: &mut App, id: &str) {
             commands.fire::<OnDestroyedEvent>(info.clone());
         })
         .expect("fire direct-destruction lifecycle");
-    app.update();
-    app.update();
+    step(app);
 }
 
 fn neutralize(app: &mut App, id: &str) {
@@ -293,14 +304,12 @@ fn neutralize(app: &mut App, id: &str) {
             commands.fire::<OnNeutralizedEvent>(info.clone());
         })
         .expect("fire neutralization lifecycle");
-    app.update();
-    app.update();
+    step(app);
 }
 
 fn pump_clock(app: &mut App, to_secs: f64) {
     seed_var(app, "scenario_elapsed", to_secs);
-    app.update();
-    app.update();
+    step(app);
 }
 
 fn number_var(app: &App, key: &str) -> Option<f64> {

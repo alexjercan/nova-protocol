@@ -38,6 +38,10 @@ bevy_rand = { version = "0.15.0", default-features = false, features = [
     "wyrand",
 ] }
 nova_events = { path = "../nova_events" }
+# The beat walks fire events by hand, so they need `test_support` to run the rig
+# up to a LIVE world: the dispatcher holds every handler while the scenario's
+# objects are still landing.
+nova_scenario = { path = "../nova_scenario", features = ["test-support"] }
 # The lint and RON-parity gates build throwaway content trees on disk.
 tempfile = "3"
 

@@ -179,9 +179,21 @@ fn walk_outro(app: &mut App) {
                 commands.fire::<OnTimerEndEvent>(OnTimerEndEventInfo { key: key.clone() });
             })
             .expect("fire OnTimerEnd");
-        app.update();
-        app.update();
+        step(app);
     }
+}
+
+/// Two frames, then run the world out to LIVE.
+///
+/// The two frames dispatch the event just fired; `settle_spawns` is what makes
+/// the NEXT one land. This scenario spawns from handlers the rig registers, so
+/// firing an event can leave the world settling - and the dispatcher holds
+/// every handler until those objects are in. A fixed frame count would pass or
+/// fail on machine load rather than on logic.
+fn step(app: &mut App) {
+    app.update();
+    app.update();
+    nova_scenario::test_support::settle_spawns(app);
 }
 
 fn destroy(app: &mut App, id: &str) {
@@ -198,13 +210,11 @@ fn destroy(app: &mut App, id: &str) {
             commands.fire::<OnDestroyedEvent>(info.clone());
         })
         .expect("fire OnDestroyed");
-    app.update();
-    app.update();
+    step(app);
 }
 
 fn pump(app: &mut App) {
-    app.update();
-    app.update();
+    step(app);
 }
 
 fn number_var(app: &App, key: &str) -> Option<f64> {

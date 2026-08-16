@@ -32,6 +32,10 @@ pub mod objects;
 /// Typed read-only scenario queries and continuously sampled watches.
 pub mod queries;
 pub mod render_scale;
+/// Driving a rig's scenario to live, for tests in this crate and the crates
+/// whose content walks the same pipeline.
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 /// Typed scenario variables and the small expression tree over them.
 pub mod variables;
 /// The [`world::NovaEventWorld`] resource holding live scenario state.

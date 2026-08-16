@@ -62,6 +62,10 @@ wasm-bindgen-futures = "0.4"
 
 [dev-dependencies]
 nova_events = { path = "../nova_events" }
+# The provocation walk spawns real ships through the OnStart action, so it needs
+# `test_support` to run the rig out to a LIVE world before firing the next
+# event: the dispatcher holds every handler while objects are still landing.
+nova_scenario = { path = "../nova_scenario", features = ["test-support"] }
 # The portal e2e (portal_install.rs) and the publish-gate test
 # (gen_portal_gate.rs) serve/exercise a real portal tree built by the production
 # generator scripts/gen-portal.py, invoked as a python3 subprocess.

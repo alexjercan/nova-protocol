@@ -45,6 +45,10 @@ workspace = true
 # through nova_gameplay so the whole tree resolves ONE bevy variant.
 debug = ["bevy/track_location", "nova_gameplay/debug"]
 serde = ["dep:serde", "bevy/serialize", "nova_gameplay/serde"]
+# The spawn-queue settle helpers in `test_support`, for crates whose content
+# walks this crate's event pipeline. Off by default so no rig wiring reaches a
+# release build; enable it as a dev-dependency feature only.
+test-support = []
 
 # Baseline + regression benchmark for the scenario dispatch hot path (task
 # 20260714-083331): synthetic many-handler scenario, filter/condition micro

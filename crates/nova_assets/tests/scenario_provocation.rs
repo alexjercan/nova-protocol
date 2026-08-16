@@ -291,6 +291,11 @@ fn spawn_patrols(app: &mut App, scenario: &ScenarioConfig) {
     }
     app.update();
     app.update();
+    // Two ship spawns are the most expensive commands there are, and the flush
+    // applies them under a per-frame budget - so two ticks sits exactly on the
+    // edge, and a third patrol would silently leave the world settling with
+    // every later handler held. Wait on the WORLD, not on a frame count.
+    nova_scenario::test_support::settle_spawns(app);
 }
 
 /// Read the LIVE `Allegiance` component off a spawned scenario ship.

@@ -151,3 +151,87 @@ first ship, and on the frame the 20 u planetoid's collider is ingested - the two
 costs the brief named as out of scope (avian collider ingest, and first-draw
 pipeline compilation under the deliberate `synchronous_pipeline_compilation:
 true` from task 20260805-111329).
+
+---
+
+# Follow-up: the gate broke five base-content walks
+
+`b5523a23` landed and `cargo test --lib -p nova_authoring` failed five beat
+walks in `shakedown/tests/walk.rs`. The verification scope of the first round
+(`-p nova_scenario -p nova_core`) was too narrow for a change that adds a
+required trait method and gates every authored handler.
+
+## The actual cause, measured
+
+Not "the rigs never drain" - they do. `pulse` and every other helper call
+`app.update()`, and each update drains a chunk. The cause is that they drain far
+too SLOWLY for a fixed frame count:
+
+- after `boot()` (2 updates) the world is still settling
+- shakedown's `OnStart` burst needs **62 further `app.update()` calls** to drain
+  on this box (an independent run measured 47 - see below)
+- every rig helper ran 2 to 14 updates
+
+So the rigs never reached a live world, `queue_system` stayed gated, and no
+handler after `OnStart` ever fired: objectives never posted, markers never
+moved, gates never unlocked. Confirmed with a throwaway probe that counted
+updates-to-settle, not inferred from the symptom.
+
+## Why a frame count can never be right
+
+`SPAWN_DRAIN_BUDGET` is WALL CLOCK and the drain tests `elapsed()` AFTER
+applying each command, so any single command costing more than the budget forces
+one object per frame. How many objects land per frame is therefore a function of
+machine load and build profile, not of the content: the same burst measured 47
+and 62 frames on two runs. Every fixed-frame rig that queues spawns is
+timing-dependent; the five deterministic failures were just the ones far enough
+over the line. A rig that asks `is_settling` is immune.
+
+## The shared helper
+
+`crates/nova_scenario/src/test_support.rs`, behind a `test-support` feature
+(`#[cfg(any(test, feature = "test-support"))]`), mirroring
+`nova_gameplay::test_support`. Consumers enable it as a dev-dependency feature.
+
+- `settle_spawns(&mut App)` - runs the app to a FIXED POINT: drain the queue,
+  spend one frame letting the dispatcher release what it held, and repeat if
+  those released handlers queued more. A single release frame is not enough -
+  `OnStart` settles, the held `OnUpdate` dispatches, and beat one queues its
+  beacon - and would hand back a settling world, making every call site
+  responsible for calling it twice. Pinned by
+  `settling_reaches_a_fixed_point_when_a_released_handler_spawns`, which is
+  mutation-proven: reverting to one release frame fails it.
+- `drain_spawns(&mut World)` - the `App`-free twin for rigs that drive
+  `state_to_world_system` directly. Replaces the local `drain` helper the first
+  round grew in `actions/spawn.rs`.
+
+Both bound their loops and panic rather than hang.
+
+## Which rigs needed it, and why those
+
+A rig is at risk only if a handler it REGISTERS queues world work. The seven
+`nova_assets` / `nova_authoring` slice rigs all register with
+`.filter(|e| !matches!(e.name, EventConfig::OnStart))`, so the `OnStart` burst
+never happens in them - but several of their scenarios spawn from LATER events.
+Scanned the content rather than guessing:
+
+| rig | spawns outside OnStart | action |
+|---|---|---|
+| `shakedown/tests/walk.rs` | OnUpdate 4, OnTimerEnd 1, OnDestroyed 1 | fixed (the five failures) |
+| `nova_assets/tests/lifeline_convoy.rs` | OnUpdate 7 | hardened |
+| `nova_assets/tests/final_tally_claim.rs` | OnUpdate 2 | hardened |
+| `nova_authoring/tests/broadside_assault.rs` | OnEnter 2 | hardened |
+| `nova_assets/tests/scenario_branch_choice.rs` | OnEnter 1, OnDefeated 1 | hardened |
+| `nova_assets/tests/scenario_provocation.rs` | OnUpdate 2, plus hand-run ship spawns | hardened |
+| `nova_assets/tests/scenario_act_machine.rs` | none | structurally immune |
+| `nova_assets/tests/scenario_gate_course.rs` | none | structurally immune |
+| `nova_assets/tests/neutralized_ships.rs` | none | structurally immune |
+| `nova_scenario/tests/skybox_swap_e2e.rs` | none (already loops on a deadline) | structurally immune |
+
+Each hardened rig gained a local `step(app)` - two frames to dispatch the event
+just fired, then `settle_spawns`. Only the `app.update(); app.update();` PAIRS
+were replaced; the lone `app.update()` delivery guards ("nothing advances on its
+own") were deliberately left alone, since settling there would defeat what they
+assert.
+
+The gate itself was not touched. It is the feature.

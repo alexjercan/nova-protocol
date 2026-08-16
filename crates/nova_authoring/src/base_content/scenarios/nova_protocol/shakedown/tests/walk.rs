@@ -141,6 +141,23 @@ fn finish_opening(app: &mut App) {
     }
 }
 
+/// Two frames, then run the world out to LIVE.
+///
+/// Every helper in this file ends here. The two frames are what dispatches the
+/// event just fired; `settle_spawns` is what makes the NEXT one land, because
+/// a handler that spawns leaves the world settling and the dispatcher holds
+/// every handler until its objects are all in.
+///
+/// A fixed frame count cannot do this job. The drain budget is WALL CLOCK, so
+/// how many objects land per frame depends on machine load and build profile -
+/// the boot burst alone measured 47 and 62 frames on two runs of the same
+/// content. Asking the world whether it is live is the only stable question.
+fn step(app: &mut App) {
+    app.update();
+    app.update();
+    nova_scenario::test_support::settle_spawns(app);
+}
+
 /// One OnUpdate pulse + settle, the way the loader's fire_on_update
 /// emits it while a scenario is live.
 fn pulse(app: &mut App) {
@@ -148,8 +165,7 @@ fn pulse(app: &mut App) {
     app.world_mut()
         .commands()
         .fire::<OnUpdateEvent>(OnUpdateEventInfo);
-    app.update();
-    app.update();
+    step(app);
 }
 
 /// Fire a keyed timer's end, the way `tick_scenario_timers` does once its
@@ -184,8 +200,7 @@ fn enter(app: &mut App, area: &str) {
             other_id: ID_PLAYER.to_string(),
             other_type_name: "spaceship".to_string(),
         });
-    app.update();
-    app.update();
+    step(app);
 }
 
 /// The player reaches a stable orbit, then its authored hold timer ends.
@@ -199,8 +214,7 @@ fn orbit(app: &mut App, well: &str) {
     app.world_mut()
         .commands()
         .fire::<OnOrbitStableEvent>(info.clone());
-    app.update();
-    app.update();
+    step(app);
     assert!(
         app.world()
             .resource::<NovaEventWorld>()
@@ -211,8 +225,7 @@ fn orbit(app: &mut App, well: &str) {
     app.world_mut()
         .commands()
         .fire::<OnOrbitUnstableEvent>(info.clone());
-    app.update();
-    app.update();
+    step(app);
     assert!(
         !app.world()
             .resource::<NovaEventWorld>()
@@ -221,8 +234,7 @@ fn orbit(app: &mut App, well: &str) {
     );
 
     app.world_mut().commands().fire::<OnOrbitStableEvent>(info);
-    app.update();
-    app.update();
+    step(app);
     assert!(
         app.world()
             .resource::<NovaEventWorld>()
@@ -234,8 +246,7 @@ fn orbit(app: &mut App, well: &str) {
         .fire::<OnTimerEndEvent>(OnTimerEndEventInfo {
             key: TIMER_ORBIT_HOLD.to_string(),
         });
-    app.update();
-    app.update();
+    step(app);
 }
 
 fn destroy(app: &mut App, id: &str) {
@@ -246,8 +257,7 @@ fn destroy(app: &mut App, id: &str) {
             id: id.to_string(),
             type_name: "spaceship".to_string(),
         });
-    app.update();
-    app.update();
+    step(app);
 }
 
 /// The player left `area` (the area plugin's exit half).
@@ -260,8 +270,7 @@ fn exit(app: &mut App, area: &str) {
             other_id: ID_PLAYER.to_string(),
             other_type_name: "spaceship".to_string(),
         });
-    app.update();
-    app.update();
+    step(app);
 }
 
 /// The player's TRAVEL lock landed on `id` (the loader's lock bridge -
@@ -277,8 +286,7 @@ fn travel_lock(app: &mut App, id: &str) {
             other_id: ID_PLAYER.to_string(),
             other_type_name: "spaceship".to_string(),
         });
-    app.update();
-    app.update();
+    step(app);
 }
 
 /// The player's COMBAT lock landed on `id`.
@@ -291,8 +299,7 @@ fn combat_lock(app: &mut App, id: &str) {
             other_id: ID_PLAYER.to_string(),
             other_type_name: "spaceship".to_string(),
         });
-    app.update();
-    app.update();
+    step(app);
 }
 
 /// Walk ALL FIVE BEATS through the real event pipeline: the actual
