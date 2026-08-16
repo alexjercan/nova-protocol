@@ -120,8 +120,8 @@ fn main() -> bevy::app::AppExit {
 fn bench_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
     app.insert_resource(roster);
     app.insert_resource(requested);
-    // Armed only for a hand-run: a capture composes its own frame.
-    app.insert_resource(IdleOrbit(!capturing()));
+    // Enabled only for a hand-run: a capture composes its own frame.
+    app.insert_resource(IdleOrbit::new(!capturing()));
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_roster);
     app.add_systems(
         Update,
@@ -131,7 +131,7 @@ fn bench_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
             frame_new_camera,
             update_readout,
             place_labels,
-            stop_orbit_on_input,
+            track_orbit_idle,
         ),
     );
     // PostUpdate, after the rig's own write and before the transform
@@ -819,21 +819,67 @@ const ORBIT_RATE: f32 = 0.25;
 /// so the corner subjects stay in frame on the broadside pass.
 const ORBIT_STANDOFF: f32 = 1.35;
 
-/// Whether the idle orbit still owns the camera. Cleared the first time the
-/// free-fly rig is touched, and never re-armed.
-#[derive(Resource, Default)]
-struct IdleOrbit(bool);
+/// Seconds the free-fly rig must sit untouched before the orbit re-arms.
+///
+/// Six: long enough that a viewer pausing over a detail is not yanked away
+/// the moment their hands leave the keys, short enough that a parked window
+/// goes back to turning before it reads as frozen.
+const ORBIT_RESUME_SECS: f32 = 6.0;
 
-/// Hand back the camera the moment the free-fly rig is asked for anything.
-fn stop_orbit_on_input(mut orbit: ResMut<IdleOrbit>, q_input: Query<&WASDCameraInput>) {
-    if !orbit.0 {
-        return;
+/// The idle orbit's state: whether it may ever run, how long the free-fly rig
+/// has sat untouched, and the bearing the orbit stands at.
+///
+/// The angle is a PHASE that is stepped, not read off the clock: the clock
+/// keeps counting while the viewer flies, so `elapsed * ORBIT_RATE` would
+/// teleport a re-armed camera onto whatever bearing it had drifted to.
+/// Holding the phase, and re-deriving it from the parked camera on each
+/// re-arm, is what lets the orbit pick up from where the viewer left it.
+#[derive(Resource)]
+struct IdleOrbit {
+    /// Never set under a capture: a capture composes its own frame, and an
+    /// orbit under it would photograph a different attitude every run.
+    enabled: bool,
+    /// Seconds since the free-fly rig last reported input.
+    idle_secs: f32,
+    /// The orbit's current azimuth around [`CAMERA_TARGET`], in radians.
+    angle: f32,
+    /// Whether the orbit owned the camera last frame, so the first re-armed
+    /// frame can read the parked bearing before the orbit writes over it.
+    driving: bool,
+}
+
+impl IdleOrbit {
+    fn new(enabled: bool) -> Self {
+        Self {
+            enabled,
+            // Born idle-for-long-enough, so a fresh hand-run orbits at once.
+            idle_secs: ORBIT_RESUME_SECS,
+            angle: 0.0,
+            driving: false,
+        }
     }
+}
+
+/// Hand back the camera the moment the free-fly rig is asked for anything,
+/// and count the quiet seconds that re-arm the orbit once the flying stops.
+///
+/// Reads the rig's own input component rather than the keyboard, so it cannot
+/// disagree with what actually moves the camera - and so a binding change does
+/// not silently leave the orbit fighting the player.
+fn track_orbit_idle(
+    mut orbit: ResMut<IdleOrbit>,
+    time: Res<Time>,
+    q_input: Query<&WASDCameraInput>,
+) {
     let touched = q_input
         .iter()
         .any(|input| input.pan != Vec2::ZERO || input.wasd != Vec2::ZERO || input.vertical != 0.0);
     if touched {
-        orbit.0 = false;
+        orbit.idle_secs = 0.0;
+    } else {
+        // Saturated at the threshold: the timer is a re-arm gate, not a
+        // stopwatch, so there is nothing to count past it.
+        orbit.idle_secs = (orbit.idle_secs + time.delta_secs()).min(ORBIT_RESUME_SECS);
     }
 }
 
@@ -841,22 +887,39 @@ fn stop_orbit_on_input(mut orbit: ResMut<IdleOrbit>, q_input: Query<&WASDCameraI
 /// orbits rather than the subjects, which hold the composition the grid exists
 /// for. Runs after the free-fly rig writes its transform, because that rig
 /// writes every frame and would otherwise win.
+///
+/// On re-arm the azimuth is read off the parked camera's own xz offset, so
+/// the orbit drifts on from wherever the viewer left it. Radius and height
+/// SNAP back to the composed standoff - the one framing known to hold the
+/// whole roster - rather than easing out from a camera flown in close.
 fn orbit_idle_camera(
-    orbit: Res<IdleOrbit>,
+    mut orbit: ResMut<IdleOrbit>,
     time: Res<Time>,
     mut q_camera: Query<&mut Transform, With<ScenarioCameraMarker>>,
 ) {
-    if !orbit.0 {
+    if !orbit.enabled {
         return;
     }
+    if orbit.idle_secs < ORBIT_RESUME_SECS {
+        orbit.driving = false;
+        return;
+    }
+    if !orbit.driving {
+        let Some(parked) = q_camera.iter().next() else {
+            return;
+        };
+        let offset = parked.translation - CAMERA_TARGET;
+        orbit.angle = offset.x.atan2(offset.z);
+        orbit.driving = true;
+    }
+    orbit.angle += time.delta_secs() * ORBIT_RATE;
     let stand = camera_position();
     let radius = Vec2::new(stand.x, stand.z).length() * ORBIT_STANDOFF;
-    let angle = time.elapsed_secs() * ORBIT_RATE;
     for mut transform in &mut q_camera {
         *transform = Transform::from_translation(Vec3::new(
-            radius * angle.sin(),
+            radius * orbit.angle.sin(),
             stand.y,
-            radius * angle.cos(),
+            radius * orbit.angle.cos(),
         ))
         .looking_at(CAMERA_TARGET, Vec3::Y);
     }
