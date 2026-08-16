@@ -290,6 +290,8 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- The `wfc_ships` row holds still and turns on a slow orbit while nobody flies
+  it. The subjects were drifting on their own spawn impulse, not on input.
 - Engine tests stopped reading installed mods: seven rigs over `webmods/` are
   rebuilt as four synthetic-scenario rigs with generic ids, so no mod can block
   an engine change.

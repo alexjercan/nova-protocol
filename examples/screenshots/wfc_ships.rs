@@ -178,7 +178,11 @@ fn main() -> bevy::app::AppExit {
         // different attitudes. That made a pair of shots useless as an A/B of
         // anything but the clock. Pinning the bodies static makes the frame a
         // function of the seeds again.
-        app.add_systems(Update, freeze_bodies.run_if(capturing));
+        //
+        // Ungated: nothing FLIES these hulls (`SpaceshipController::None`), so
+        // the turn a hand-run shows is that same spawn impulse and not input.
+        // A viewer wants the subject still for the same reason a capture does.
+        app.add_systems(Update, freeze_bodies);
         app.add_plugins(wfc_script());
     }
 
@@ -188,6 +192,10 @@ fn main() -> bevy::app::AppExit {
 fn wfc_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
     app.insert_resource(roster);
     app.insert_resource(requested);
+    // Armed only for a hand-run: a capture composes its own frame, and an
+    // orbit under it would photograph a different attitude every run - the
+    // exact defect `freeze_bodies` exists to stop.
+    app.insert_resource(IdleOrbit(!capturing()));
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_row);
     app.add_systems(
         Update,
@@ -195,7 +203,18 @@ fn wfc_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
             reroll_on_key.run_if(in_state(GameStates::Playing)),
             frame_new_camera,
             update_readout,
+            stop_orbit_on_input,
         ),
+    );
+    // PostUpdate, after the rig's own write and before the transform
+    // propagates: the free-fly rig syncs the camera in PostUpdate, so an
+    // Update system ordered against that set is ordered against nothing and
+    // loses every frame.
+    app.add_systems(
+        PostUpdate,
+        orbit_idle_camera
+            .after(WASDCameraSystems::Sync)
+            .before(TransformSystems::Propagate),
     );
 }
 
@@ -1848,6 +1867,74 @@ fn frame_new_camera(
     for mut transform in &mut q_camera {
         *transform = Transform::from_translation(camera_position(roster.ships))
             .looking_at(CAMERA_TARGET, Vec3::Y);
+    }
+}
+
+/// Radians per second the idle orbit turns at. Slow enough to read a hull's
+/// far side without waiting, and to sit under a capture's own framing.
+const ORBIT_RATE: f32 = 0.25;
+
+/// How much further out the orbit stands than the composed front-on framing.
+///
+/// [`camera_position`] frames the row head-on, where a line of hulls is at its
+/// NARROWEST. An orbit also passes the broadside, where the same row is as wide
+/// as its whole span, so it needs the extra reach or the end hulls leave frame
+/// there. Set by rendering both extremes.
+const ORBIT_STANDOFF: f32 = 1.35;
+
+/// Whether the idle orbit still owns the camera. Cleared the first time the
+/// free-fly rig is touched, and never re-armed: a viewer who has taken the
+/// camera does not want it walking off again mid-inspection.
+#[derive(Resource, Default)]
+struct IdleOrbit(bool);
+
+/// Hand back the camera the moment the free-fly rig is asked for anything.
+///
+/// Reads the rig's own input component rather than the keyboard, so it cannot
+/// disagree with what actually moves the camera - and so a binding change does
+/// not silently leave the orbit fighting the player.
+fn stop_orbit_on_input(mut orbit: ResMut<IdleOrbit>, q_input: Query<&WASDCameraInput>) {
+    if !orbit.0 {
+        return;
+    }
+    let touched = q_input
+        .iter()
+        .any(|input| input.pan != Vec2::ZERO || input.wasd != Vec2::ZERO || input.vertical != 0.0);
+    if touched {
+        orbit.0 = false;
+    }
+}
+
+/// Turn the row on a slow turntable while nobody is flying, the way the parts
+/// viewer spins a focused part.
+///
+/// The CAMERA orbits rather than the subject: three hulls stand in a row, so
+/// spinning them in place would break the composition the row exists for. Runs
+/// after the free-fly rig writes its transform, because that rig writes every
+/// frame and would otherwise win.
+fn orbit_idle_camera(
+    orbit: Res<IdleOrbit>,
+    roster: Res<Roster>,
+    time: Res<Time>,
+    mut q_camera: Query<&mut Transform, With<ScenarioCameraMarker>>,
+) {
+    if !orbit.0 {
+        return;
+    }
+    let stand = camera_position(roster.ships);
+    // Further out than the composed stand. That stand frames the row from the
+    // FRONT, where the line of hulls is at its narrowest; an orbit also passes
+    // the broadside, where the same row is as wide as its whole span. Framing
+    // for the front and then turning crops the ships off both edges.
+    let radius = Vec2::new(stand.x, stand.z).length() * ORBIT_STANDOFF;
+    let angle = time.elapsed_secs() * ORBIT_RATE;
+    for mut transform in &mut q_camera {
+        *transform = Transform::from_translation(Vec3::new(
+            radius * angle.sin(),
+            stand.y,
+            radius * angle.cos(),
+        ))
+        .looking_at(CAMERA_TARGET, Vec3::Y);
     }
 }
 
