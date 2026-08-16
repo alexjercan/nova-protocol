@@ -11,6 +11,8 @@ use nova_gameplay::prelude::*;
 use super::behavior::update_behavior_state;
 #[cfg(test)]
 use super::guns::{on_projectile_input, update_turret_target_input, AI_BURST_FIRE_SECS};
+#[cfg(test)]
+use super::point_defense::update_turret_point_defense;
 use super::threat::AI_THREAT_ATTACKER_DISCOUNT;
 use crate::prelude::*;
 
@@ -279,6 +281,11 @@ fn pick_point_defense_target(
 /// torpedoes inside point-defense range, preferring ones whose
 /// [`TorpedoTargetEntity`] is this ship. Runs right after primary
 /// acquisition; the turret systems consume the override the same frame.
+///
+/// An [`AINonCombatant`] hull defends against nothing, exactly as it acquires
+/// nothing above - point defense is a crew job, and a neutralized wreck has no
+/// crew. Cleared rather than skipped so a ship neutralized mid-intercept drops
+/// the torpedo it was tracking instead of holding a stale pick forever.
 #[expect(
     clippy::type_complexity,
     reason = "one query term per point-defense target input"
@@ -301,11 +308,20 @@ pub(super) fn update_point_defense_target(
             &Allegiance,
             Option<&AIPointDefenseRange>,
             &mut AIPointDefenseTarget,
+            Has<AINonCombatant>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
 ) {
-    for (ship, transform, com, own_allegiance, pd_range, mut pd_target) in &mut q_spaceship {
+    for (ship, transform, com, own_allegiance, pd_range, mut pd_target, non_combatant) in
+        &mut q_spaceship
+    {
+        if non_combatant {
+            if pd_target.is_some() {
+                **pd_target = None;
+            }
+            continue;
+        }
         let own_anchor = live_structure_anchor(transform, com);
         let candidates =
             q_torpedoes
@@ -1079,6 +1095,84 @@ mod point_defense_tests {
                 .unwrap(),
             Some(Vec3::new(0.0, 0.0, -150.0)),
             "point defense applies in every behavior state"
+        );
+    }
+
+    /// One defense frame, in the production chain order.
+    fn defend(world: &mut World) {
+        world.run_system_once(update_ai_target).unwrap();
+        world.run_system_once(update_point_defense_target).unwrap();
+        world.run_system_once(update_turret_point_defense).unwrap();
+        world.run_system_once(update_turret_target_input).unwrap();
+        world.run_system_once(on_projectile_input).unwrap();
+    }
+
+    /// The owner's bug, end to end: point defense deliberately bypasses the
+    /// behavior state, so the passive routine a neutralized ship falls into
+    /// never silenced its mounts - a wreck with nobody aboard kept swatting
+    /// torpedoes. The TRIGGER is the claim, not the assignment, and the
+    /// torpedo is still in flight when the hull is neutralized.
+    #[test]
+    fn a_neutralized_hull_stops_defending_itself() {
+        let (mut world, ai_ship, _, torpedo, turret) = defended_world();
+        world.add_observer(super::super::on_neutralized_stand_down);
+        // Muzzle at the origin facing -Z: dead on the torpedo at -150.
+        let muzzle = world
+            .spawn((TurretSectionBarrelMuzzleMarker, GlobalTransform::IDENTITY))
+            .id();
+        world.entity_mut(turret).insert((
+            TurretSectionMuzzleEntity(muzzle),
+            // The mount's own pose: what the per-turret assignment bears from.
+            // No arc, so it is the fail-open case and can reach anything.
+            GlobalTransform::IDENTITY,
+            AITurretDefenseTarget::default(),
+        ));
+
+        defend(&mut world);
+        assert_eq!(
+            **world.entity(turret).get::<AITurretDefenseTarget>().unwrap(),
+            Some(torpedo),
+            "the live hull takes the inbound"
+        );
+        assert!(
+            **world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "and holds the trigger down on it"
+        );
+
+        world.entity_mut(ai_ship).insert(NeutralizedMarker);
+        // The stand-down runs as a command from the observer.
+        world.flush();
+        defend(&mut world);
+
+        assert!(
+            world.entity(ai_ship).contains::<AINonCombatant>(),
+            "the observer is what says the crew is gone"
+        );
+        assert_eq!(
+            **world.entity(ai_ship).get::<AIPointDefenseTarget>().unwrap(),
+            None,
+            "the wreck defends against nothing"
+        );
+        assert_eq!(
+            **world.entity(turret).get::<AITurretDefenseTarget>().unwrap(),
+            None,
+            "and every mount lets go of what it was tracking"
+        );
+        assert!(
+            !**world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "a neutralized hull does not fire at a flying torpedo"
+        );
+        assert_eq!(
+            **world
+                .entity(turret)
+                .get::<TurretSectionTargetInput>()
+                .unwrap(),
+            None,
+            "the guns slew back to rest instead of holding the wreck's last aim"
+        );
+        assert!(
+            world.entities().contains(torpedo),
+            "the torpedo flies on unopposed - that is the point"
         );
     }
 }

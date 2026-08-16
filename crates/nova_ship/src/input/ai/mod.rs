@@ -200,25 +200,57 @@ pub struct AISpaceshipMarker;
 /// idle) but NEVER acquires a target or engages - it simply cannot fight. An
 /// unarmed ship (no turret or torpedo section) gets this at spawn (see
 /// nova_scenario's `insert_spaceship_sections`); a Lifeline convoy hauler is
-/// the first user.
+/// the first user, and a neutralized AI ship gains it from
+/// [`on_neutralized_stand_down`].
 ///
 /// It stays TARGET-able by hostiles (its allegiance is unchanged), so a
 /// Player-aligned convoy is still something the enemy hunts and the player must
-/// defend - it just does not shoot back or chase. `update_ai_target` skips it
-/// and keeps its [`AITarget`] clear, so `update_behavior_state` always reads
-/// "nothing hostile" and holds the routine.
+/// defend - it just does not shoot back or chase.
+///
+/// # The one gate that means "this hull does not fight"
+///
+/// Only the two ACQUISITION systems read it, and everything downstream falls
+/// out of the empty picks they leave behind:
+///
+/// - `update_ai_target` keeps [`AITarget`] clear, so `update_behavior_state`
+///   reads "nothing hostile", holds the passive routine, and `engages()` is
+///   false for the gun, torpedo and maneuver systems.
+/// - `update_point_defense_target` keeps [`AIPointDefenseTarget`] clear and
+///   `update_turret_point_defense` keeps every [`AITurretDefenseTarget`]
+///   clear, which is the arm that closed the neutralized-wreck-still-swats-
+///   torpedoes hole: point defense deliberately bypasses the behavior state,
+///   so the passive routine alone never silenced it.
+///
+/// Adding the check HERE rather than to each consumer is deliberate. The gun
+/// and torpedo systems write an explicit "hold fire" when they find no target,
+/// so gating them too would only trade a released trigger for a skipped ship -
+/// and a skipped ship LATCHES whatever its mounts were last told.
+/// `mirror_ai_combat_state` is left running for the same reason: it is what
+/// publishes the cleared `CombatLock` and lowers the stance.
 #[derive(Component, Debug, Clone, Copy, Default, Reflect)]
 #[reflect(Component)]
 pub struct AINonCombatant;
 
-/// Take a neutralized AI ship out of the fight so it stops being engaged and
-/// chased. Its guns or its flight computer are already gone, so it cannot act.
+/// Take a neutralized AI ship out of the fight: the crew is gone, so the hull
+/// stops choosing targets, stops shooting, and stops defending itself.
 ///
 /// This is the AI HALF of neutralization, and it lives here rather than in
 /// `integrity::neutralize` on purpose: the integrity layer decides only that a
 /// ship is out of the fight, and the AI decides what that means for AI ships.
 /// Keyed on [`AISpaceshipMarker`], so a neutralized PLAYER ship never gains
-/// this.
+/// this - a player is their own crew and keeps their own trigger.
+///
+/// The observer is the ONE place that says "the crew is gone", but it cannot
+/// carry the rule alone: the picks that drive the guns ([`AITarget`],
+/// [`AIPointDefenseTarget`], every mount's [`AITurretDefenseTarget`]) are
+/// recomputed from the world every frame, so a one-shot clear here is
+/// overwritten on the next tick. What the observer CAN do is name the state
+/// once, and it does - [`AINonCombatant`] is that name, and the two
+/// acquisition systems are the only readers.
+///
+/// Neutralization is a CAPABILITY edge, not a physical one: the wreck keeps
+/// its allegiance, its colliders and its health, so it still counts for
+/// `OnNeutralized`, still shows on the HUD, and can still be shot to pieces.
 fn on_neutralized_stand_down(
     add: On<Add, NeutralizedMarker>,
     mut commands: Commands,

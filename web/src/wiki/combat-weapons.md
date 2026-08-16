@@ -86,6 +86,12 @@ The practical consequence for you: **saturate a facing**. Torpedoes arriving
 from one side, or from below a hull, meet only the mounts that can actually
 train on them.
 
+A **neutralized** hull stops defending itself. Take a ship's last gun or its
+flight computer and it is out of the fight for good - nobody is left aboard to
+work the mounts - so a wreck lets your ordnance fly straight past even with an
+intact turret still bolted to it. It is still solid and it still takes damage;
+it just does not answer.
+
 ## Ammo & reloading
 
 Weapons carry a finite magazine, shown by a small diegetic gauge riding on the weapon: a **ring** on each turret that drains as it fires, and a **row of pips** on the torpedo bay, one per loaded torpedo. While a weapon is reloading the gauge fills back up as a **reload sweep** in a dimmer shade of the same color, so you can read at a glance how close it is to firing again. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)

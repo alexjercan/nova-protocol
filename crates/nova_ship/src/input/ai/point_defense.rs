@@ -106,6 +106,11 @@ fn bears_on(
 }
 
 /// Assign each PD-capable turret on an AI ship its own inbound torpedo.
+///
+/// An [`AINonCombatant`] hull builds no threat list, so both passes below hand
+/// its mounts `None` and a wreck neutralized mid-intercept lets go of the
+/// torpedo it was tracking. Clearing beats skipping: a mount left on a stale
+/// assignment would keep firing, which is the whole defect.
 #[expect(
     clippy::type_complexity,
     reason = "one query term per assignment input"
@@ -129,7 +134,11 @@ pub(super) fn update_turret_point_defense(
             &Allegiance,
             Option<&AIPointDefenseRange>,
         ),
-        (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
+        (
+            With<SpaceshipRootMarker>,
+            With<AISpaceshipMarker>,
+            Without<AINonCombatant>,
+        ),
     >,
     mut q_turret: Query<
         (
@@ -528,6 +537,31 @@ mod tests {
         world.run_system_once(update_turret_point_defense).unwrap();
 
         assert_eq!(assignment(&world, turret), Some(under));
+    }
+
+    #[test]
+    fn a_non_combatant_hull_drops_every_mount_it_held() {
+        // A neutralized wreck is the live case (the stand-down observer
+        // inserts the flag), and an unarmed hauler is the other. Clearing,
+        // not skipping: a mount left on a stale assignment keeps firing.
+        let mut world = World::new();
+        let (ship, turrets) = defended_ship(&mut world, 2);
+        let held = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -60.0));
+        for &turret in &turrets {
+            world
+                .entity_mut(turret)
+                .insert(AITurretDefenseTarget(Some(held)));
+        }
+
+        world.entity_mut(ship).insert(AINonCombatant);
+        world.run_system_once(update_turret_point_defense).unwrap();
+
+        assert!(
+            turrets
+                .iter()
+                .all(|&turret| assignment(&world, turret).is_none()),
+            "a hull that cannot fight defends against nothing"
+        );
     }
 
     #[test]

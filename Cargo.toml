@@ -95,6 +95,10 @@ path = "examples/systems/player_path.rs"
 name = "outcomes"
 path = "examples/systems/outcomes.rs"
 
+[[example]]
+name = "neutralized_quiet"
+path = "examples/systems/neutralized_quiet.rs"
+
 # ui/ - staged UI flows with their own autopilot timelines.
 [[example]]
 name = "widget_zoo"

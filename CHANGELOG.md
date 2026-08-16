@@ -243,6 +243,9 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- A neutralized hull stops shooting down torpedoes. Point defense was the one
+  AI behaviour that never read the stand-down, so a wreck with nobody aboard
+  kept working its mounts.
 - **(breaking)** A ship's HP bar no longer FILLS UP as the ship is shot apart:
   a root's maximum health is pinned to the hull it was built with.
 - Weapons no longer offer a mating surface where their business end is: the
