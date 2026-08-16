@@ -201,6 +201,14 @@ path = "examples/screenshots/shape_bench.rs"
 name = "thruster_gallery"
 path = "examples/screenshots/thruster_gallery.rs"
 
+# Every fixture model the merged styles own, stood in named rows grouped by
+# style on pedestal plates, with an idle orbit and a focus turntable - the
+# catalog a greeble is judged on as an object before placement rules touch it
+# (task 20260816-203846).
+[[example]]
+name = "greeble_catalog"
+path = "examples/screenshots/greeble_catalog.rs"
+
 # The compare_* producers frame art candidates for human judgment (task
 # 20260812-100256) - the category's promise verbatim, with the owner's eyes on
 # the frames instead of the website's. Interactive when hand-run (number keys

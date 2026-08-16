@@ -299,6 +299,9 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- New `greeble_catalog` example: every fixture model the merged styles own in
+  named rows on style-tinted pedestals, with idle orbit, focus turntable and
+  per-style captures.
 - `wfc_arena` grows number-row camera poses (frame, broadside, shoulders,
   top-down) and the shared idle orbit; grave/tilde hides the readout in
   hand-runs of all three screenshot examples.
