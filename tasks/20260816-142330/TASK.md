@@ -1,6 +1,6 @@
 # A shape bench for judging the skin
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.11.0,ship,render,harness,skin
 
@@ -76,4 +76,39 @@ neither needs new machinery, only that the report and renders surface them.
 
 ## Lane
 
-shape-bench
+shape-bench, landed as a1d65470 (2026-08-16). Reproduce everything below with:
+`cargo run --example shape_bench --features debug` (add `-- --style <id>`;
+L steps the look, C strips cladding; report prints for all five styles per run).
+
+## Findings delivered (the inherited questions, answered with numbers)
+
+Question 1 - creased plates. The split is THICKNESS, not shape: every
+one-cell-thick subject is 100% creased (owners_l 21/21, lone_cell 6/6,
+run_2 10/10, run_5 22/22, tee 32/32, cross 34/34 - all ridge/peak/spur).
+Flat and brink surfaces only appear at thickness >= 2 (run_5_thick 24/48
+creased, plate_open 24/48, inside_corner 30/43, fitted_hull 24/39 - the
+non-creased share is flat/brink plate). Render confirms it: thin subjects
+read as faceted rock, thick subjects read as plated hulls.
+
+Question 2 - style regressions. near_fitting hits exist only on the fitted
+hull (industrial 2/3, civilian 3/3, salvage 4/12, placeholder 3/3, armoured
+has no near_fitting rules). The sharper finding: SALVAGE PLACES NOTHING on
+small hull-only subjects (0 pieces on owners_l, tee, cross, run_2, run_5,
+lone_cell; salvage_hook 0 everywhere except x2 of 3 on fitted_hull).
+Industrial is similarly absent on thin shapes (0 on tee, cross, run_5).
+Armoured is the only style that dresses thin shapes (10 on tee, 18 on cross).
+
+Judgment stays with the owner. If either number set reads as a defect on the
+render, open a NEW task with the bench subject as the repro.
+
+## Noted in passing (unfixed)
+
+- fitted_hull reports 6 bare hull faces: 4 are muzzle mouths (FiresInto, on
+  purpose), 2 presumably NoSocket against fitting flanks.
+- wfc_ships and shape_bench used capturing() outside a debug cfg while its
+  import sat inside one, so neither built without --features debug - which is
+  what CI's default-features `--all-targets` gate runs. Introduced by 00fcdf04,
+  copied by the bench. FIXED in-session right after landing: both examples now
+  import `nova_debug::prelude::capturing` unconditionally (nova_debug is an
+  ungated root dependency; only the `nova_protocol::nova_debug` PATH is
+  feature-gated). Verified in both feature states.
