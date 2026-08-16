@@ -1,6 +1,6 @@
 # Load a scenario from the command line
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.11.0,cli,scenario
 
@@ -25,3 +25,16 @@ command.
 - dev wiki page updated; CHANGELOG entry
 - the scenario_id example is NOT touched (coordinator retires it after this
   lands)
+
+## Closure
+
+Landed 2026-08-17, lane scenario-flag (opus). `nova-protocol --scenario
+broadside` boots into the belt with the flight HUD and no menu; bogus ids
+refuse with the sorted list of all 18 registered ids (mods and hidden
+chapters included) and exit code 1. The refusal fires at OnEnter(Loaded) -
+the earliest point the merged registry exists - because a pre-window check
+would mean a second source of truth for bundle discovery. Wiki documents the
+flag beside the Content CLI. wasm job command verified clean.
+
+The scenario_id example retires separately (coordinator, after the taxonomy
+lane lands).
