@@ -42,12 +42,13 @@
                         Ridge,
                         Peak,
                         Step,
+                        Spur,
                     ],
                     facing: Up,
-                    min_height: 2,
+                    min_height: 1,
                     min_depth: 2,
                     stride: 1,
-                    chance: 0.3,
+                    chance: 0.25,
                 ),
             ),
             (
@@ -63,11 +64,13 @@
                 scatter: (
                     relief: [
                         Flat,
+                        Bevel,
                     ],
                     min_run: 2,
                     stride: 2,
                     chance: 0.8,
-                    align: true,
+                    patch: 3,
+                    align: Run,
                 ),
             ),
             (
@@ -81,11 +84,13 @@
                     0.22,
                 ),
                 scatter: (
-                    min_height: 2,
+                    min_run: 2,
+                    min_height: 1,
                     max_border: Some(0),
                     stride: 1,
-                    chance: 0.6,
-                    align: true,
+                    chance: 0.0,
+                    patch: 3,
+                    align: Outward,
                 ),
             ),
             (

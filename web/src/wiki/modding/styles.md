@@ -47,10 +47,11 @@ decoration.
                 density: 0.05,
                 collider: (0.12, 0.38, 0.12),
                 scatter: (
-                    relief: [Ridge, Peak],
+                    relief: [Ridge, Peak, Spur],
                     facing: Up,
                     min_depth: 2,
                     chance: 0.3,
+                    align: Outward,
                 ),
             ),
         ],
@@ -92,7 +93,7 @@ An empty rule matches every plate.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `relief` | list | any | the shapes of plate the piece may stand on: `Flat`, `Step`, `Ridge`, `Peak`, `Rim` |
+| `relief` | list | any | the shapes of plate the piece may stand on - see [The seven reliefs](#the-seven-reliefs) |
 | `facing` | `Any`/`Up`/`Down`/`Side` | `Any` | which way the plate faces in the SHIP's own frame |
 | `min_run` | int | 0 | the shortest run of LIKE plate the piece will stand on |
 | `min_height` | int | 0 | how much of its cell the plate must fill, in quarter cells (0-4) |
@@ -100,14 +101,16 @@ An empty rule matches every plate.
 | `max_border` | `Some(int)` | none | how far in it may be at most. `Some(0)` is TRIM: only ever at the end of a run |
 | `min_depth` | int | 0 | how many cells of ship must stand under the plate |
 | `min_enclosure` | int | 0 | how many of the eight surrounding cells the surface carries on into (0-8) |
-| `near_fitting` | `Some(int)` | none | how close the mouth of a fitting - a drive bay, a gun well - must be, across the surface |
+| `near_fitting` | `Some(int)` | none | how many steps across the surface the mouth of a fitting - a drive bay, a gun well - may be at most |
 | `stride` | int | 1 | the LATTICE the piece claims cells on. `2` is every other cell on both in-plane axes |
 | `chance` | float | 1.0 | the share of the plates that pass everything above which take the piece |
-| `align` | bool | false | yaw the piece so its own `+Z` points down the run |
+| `patch` | int | 0 | at least one piece per block of this many cells - see [Density](#density-one-piece-per-block-of-hull) |
+| `align` | `Free`/`Run`/`Outward` | `Free` | which way the piece is turned - see [Alignment](#alignment-not-noise) |
 
-### The five reliefs
+### The seven reliefs
 
-What the top of a plate is shaped like, read off the derivation:
+What the top of a plate is shaped like, read off the derivation. Four fifths of a
+ship FALLS AWAY somewhere, and the last three say how many ways:
 
 | relief | what it is |
 |---|---|
@@ -115,12 +118,25 @@ What the top of a plate is shaped like, read off the derivation:
 | `Step` | the plate climbs structure standing proud beside it. A hard edge |
 | `Ridge` | a crest across the plate: the tent a run of skin one cell wide comes out as |
 | `Peak` | every sample on the floor, so the middle rides half a cell: a lone clad cell |
-| `Rim` | the edge of the skin, tapering away |
+| `Bevel` | falls at ONE CORNER only: a panel with a corner taken off, and nearly a `Flat` |
+| `Brink` | falls along ONE WHOLE SIDE: the straight edge of a hull. The only relief with an outward direction to turn to |
+| `Spur` | falls TWO WAYS OR MORE: an outer corner, the tip of a spar, a saddle |
 
-Measured on the generator's own hulls, about four fifths of every ship comes out
-`Rim`, a seventh `Step`, and under a seventh `Flat`, with `Ridge` rare and `Peak`
-absent. **A rule written for flat panels alone lands on almost nothing.** Start
-from what a hull actually offers.
+### Start from what a hull offers
+
+A GENERATED hull and a HAND-BUILT one offer almost opposite things. Measured, per
+ship:
+
+| subject | plates | flat | step | ridge | peak | bevel | brink | spur |
+|---|---|---|---|---|---|---|---|---|
+| generated (the `wfc_ships` row) | 132-162 | 6-22 | 18-22 | 0-4 | 0 | 10-14 | 48-66 | 34-42 |
+| hand-built (a 5-9 part editor ship) | 19-27 | 0 | 2-3 | 3-8 | 1-3 | 0 | 0 | 9-17 |
+
+**A rule written for flat panels lands on almost nothing, and on a hand-built
+ship it lands on NOTHING AT ALL.** A small build is one cell wide nearly
+everywhere, so it has no flat plate, no bevel and no brink - only spurs, ridges
+and studs. No amount of `patch` rescues that: a floor over an empty set is still
+empty. Widen the `relief` list instead.
 
 ### Priority: one piece per plate
 
@@ -128,16 +144,66 @@ A plate takes AT MOST ONE piece, and the FIRST fixture in the list whose rule
 accepts it wins. So the order is a priority order: put the rare, specific pieces
 first and the common filler last.
 
-Watch out for a rule that reads as specific but is not. `near_fitting: Some(1)`
-sounds narrow; on a hull dense with drives and bays it is nearly everywhere, and
-first in the list it will carpet the ship and starve everything below it.
+Watch out for a rule that READS AS SPECIFIC AND IS NOT. Two measured examples,
+both of which carpeted a ship and starved every rule below them:
+
+- `near_fitting: Some(1)` sounds narrow. On a hull dense with drives and bays,
+  something is beside a fitting nearly everywhere.
+- `max_border: Some(0)` - "only at the end of a run" - admitted 126 of 132
+  plates, because on a broken-up hull almost every plate is the end of its own
+  one-cell run. Pair it with `min_run: 2` so a run has to be a run.
+
+Both are visible rather than guessable. `spawn_ship_skin` and the build view log
+each rule as `taken of reach` at debug, where reach is everything the filter and
+the lattice admit before the share and before priority:
+
+```text
+decoration mast x3 of 8, vent x5 of 7, block x29 of 94, blister x12 of 19
+```
+
+`x0 of 78` is a rule that was starved or thinned away; `x0 of 0` is a filter that
+matches nothing this hull has. They look identical on screen and have opposite
+fixes.
+
+### Density: one piece per block of hull
+
+Every field above is per plate, and they MULTIPLY. A stride of 2 is a quarter of
+the surface, a share of 0.5 is half of that, and a relief filter is another
+fraction again - which reads as a field of pieces on a 150-plate generated hull
+and as one piece on a 20-plate hand-built one.
+
+`patch` states the density in cells of ship instead. Set it to `N` and the rule is
+guaranteed a piece in every block of `N` x `N` x `N` cells, per face, that it can
+stand on at all: where the share already put one, nothing happens; where it did
+not, the block's lowest-hashing eligible plate takes one.
+
+- It is a FLOOR, never a cap. It only ever adds, and it never takes a plate
+  another rule already claimed, so priority still means what it says.
+- It drops the SHARE only. The filter and the lattice still hold, so a floor
+  piece lands on the same grid the rest of the rule does. Keep `patch` at or
+  above `stride`.
+- `chance: 0.0` with a `patch` set is the pure form: no share at all, exactly one
+  piece per block. That is a density that reads the same at any hull size.
+- On a BIG hull a small `patch` outvotes the share - one per 3 cells over a
+  fragmented hull is a lot of pieces. Size it against the ship, then check the
+  logged tally.
 
 ### Alignment, not noise
 
 `stride` and `align` exist because alignment is what makes decoration read as
-bolted on rather than as confetti. A piece claims cells on a lattice and turns to
-the direction the surface runs, so a row of vents lines up with itself and with
-the hull. There is no random jitter and no rotation freedom, deliberately.
+bolted on rather than as confetti. There is no random jitter and no rotation
+freedom, deliberately - a piece is turned in quarter turns about the plate's own
+outward axis, or not at all.
+
+| `align` | what the piece's own `+Z` points down |
+|---|---|
+| `Free` | nothing. Right for anything with no long axis - a blister, a stud, a hatch |
+| `Run` | the direction the surface RUNS, so a rib strip follows the spine it is on and a row of vents lines up with itself |
+| `Outward` | the direction the surface FALLS, which is off the ship - a fairing leans out over the edge it stands on instead of lying along it |
+
+The two are square to each other. `Outward` is a rule for the falling plate:
+`Brink` has a single outward cardinal, an outer corner leans on the diagonal
+between its two sides, and a plate that does not fall one way is left unturned.
 
 ## The scatter is deterministic
 
@@ -152,6 +218,12 @@ would stand in together with the fixture's id, so:
 cells whose hash falls below this". Lowering it REMOVES pieces rather than moving
 them.
 
+`patch` is the one thing decided by a BLOCK of hull rather than by a single cell,
+and the blocks are a fixed division of the ship's own cells. So growing a hull by
+one cell leaves every piece outside the block that cell lands in exactly where it
+was; inside that block the floor's own pick can move, if the new plate hashes
+lower. Nothing shuffles across the ship.
+
 ## The frame a greeble is authored in
 
 A hull plate is one cell - the unit cube, out along `+Y`. A decoration model uses
@@ -162,7 +234,8 @@ that same frame:
 - The footprint is centred on the origin and stays inside half a cell, so a piece
   cannot spill across a plate seam onto its neighbour. A tall piece (a mast)
   reaches further up.
-- `+Z` is the piece's own long axis, which `align: true` points down the run.
+- `+Z` is the piece's own long axis, which `align: Run` points down the run and
+  `align: Outward` points off the ship.
 - Flat-shaded, low-poly, untextured, one primitive per flat colour - and under
   200 triangles, because decoration is scattered many times over a hull.
 

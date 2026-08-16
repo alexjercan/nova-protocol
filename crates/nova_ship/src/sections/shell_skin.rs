@@ -47,8 +47,11 @@ use crate::sections::{
     integrity::build_ship_integrity_graph,
     link_points::prelude::{LinkPoint, SectionLinkPoints},
     shell_shape::{ShellShape, ShellSurface, FULL, HALF, REACH},
-    skin_decor::{decor_body, decor_pose, dress_skin_decor, scatter_decor, ShipDecorMarker},
-    skin_reading::{read_plates, PlateReading, PlateRelief},
+    skin_decor::{
+        decor_body, decor_pose, decor_reach, decor_tally, dress_skin_decor, scatter_decor,
+        ShipDecorMarker,
+    },
+    skin_reading::{read_plates, relief_tally},
     skin_style::{GameStyles, ShipStyle, ShipStyleConfig},
 };
 
@@ -99,7 +102,11 @@ pub(crate) const FACES: [IVec3; 6] = [
 /// The four corners of a cell's outward face, as signs on the two axes that
 /// face lies in, in the order a shape's digits are read. A quarter turn about
 /// the out axis is one step along this list.
-const FACE_CORNERS: [(i32, i32); 4] = [(1, 1), (-1, 1), (-1, -1), (1, -1)];
+///
+/// The SHAPE's own frame counts its digits the same way, with `+Y` out and the
+/// pair read as `(x, z)`, which is what lets the vocabulary turn a shape's
+/// corner slot back into a direction on the hull.
+pub(super) const FACE_CORNERS: [(i32, i32); 4] = [(1, 1), (-1, 1), (-1, -1), (1, -1)];
 
 /// How far down a plate looks for something to lie on. Past a few cells the
 /// answer stops telling it anything.
@@ -681,6 +688,11 @@ fn spawn_ship_skin(
         // interesting half of the look - a style author tuning a rule needs to
         // know what a real hull actually offers, and guessing at it from a
         // screenshot is how a rule ends up firing everywhere or nowhere.
+        //
+        // Each fixture is logged as TAKEN of REACH: what it actually got, and
+        // what it would have got with nothing above it in the priority list. The
+        // gap between the two is the starvation a screenshot cannot show, and
+        // the reach is only computed when this line would be printed.
         debug!(
             "spawn_ship_skin: ship {root} clad in {} plate(s) over {} shape(s); \
              relief {}; decoration {}",
@@ -689,7 +701,7 @@ fn spawn_ship_skin(
             relief_tally(&readings),
             style.map_or_else(
                 || "none (no style)".to_string(),
-                |style| tally(style.fixtures.iter().map(|f| f.id.as_str()).zip(taken)),
+                |style| decor_tally(style, &taken, &decor_reach(&plates, &readings, style)),
             ),
         );
     }
@@ -867,42 +879,6 @@ fn dress_skin_plate(
             Mesh3d(mesh),
             MeshMaterial3d(material),
         ));
-    }
-}
-
-/// How many plates of each relief a skin came out as, for the spawn log.
-///
-/// What a hull OFFERS is what a style can use, and it is not obvious from
-/// looking at one: a small build is nearly all rims and studs, and a rule
-/// written for flat panels lands nowhere on it.
-fn relief_tally(readings: &[PlateReading]) -> String {
-    let count = |wanted: PlateRelief| {
-        readings
-            .iter()
-            .filter(|reading| reading.relief == wanted)
-            .count()
-    };
-    tally(
-        [
-            ("flat", count(PlateRelief::Flat)),
-            ("step", count(PlateRelief::Step)),
-            ("ridge", count(PlateRelief::Ridge)),
-            ("peak", count(PlateRelief::Peak)),
-            ("rim", count(PlateRelief::Rim)),
-        ]
-        .into_iter(),
-    )
-}
-
-/// `name xN` pairs, comma separated, skipping the zeroes.
-fn tally<'a>(counts: impl Iterator<Item = (&'a str, usize)>) -> String {
-    let listed: Vec<String> = counts
-        .filter(|(_, count)| *count > 0)
-        .map(|(name, count)| format!("{name} x{count}"))
-        .collect();
-    match listed.is_empty() {
-        true => "none".to_string(),
-        false => listed.join(", "),
     }
 }
 

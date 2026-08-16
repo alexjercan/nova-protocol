@@ -177,13 +177,26 @@ so what you see in the editor is what you fly.
 The derivation works out far more than it keeps. `read_plates`
 (`sections/skin_reading.rs`) is a SECOND PASS over the finished plates that reads
 it back out as a `PlateReading` each: which way the plate faces, what its top is
-shaped like (`Flat` / `Step` / `Ridge` / `Peak` / `Rim`), how enclosed its cell
-is, how long the run of like plate through it is and which way that run points,
-how far it is from the end of that run, how much of its cell it fills, how deep
-the structure under it goes, and how close the mouth of a fitting is. The plates
-are the whole input - their cells are the clad set, `cell - anchor` is the face
-each shows - so a reading cannot drift from the skin it describes. It costs about
-0.6 ms on a 384-plate ship, against 1.6 ms to derive the skin itself.
+shaped like (`Flat` / `Step` / `Ridge` / `Peak` / `Bevel` / `Brink` / `Spur`),
+which way it falls away, how enclosed its cell is, how long the run of like plate
+through it is and which way that run points, how far it is from the end of that
+run, how much of its cell it fills, how deep the structure under it goes, and how
+close the mouth of a fitting is. The plates are the whole input - their cells are
+the clad set, `cell - anchor` is the face each shows - so a reading cannot drift
+from the skin it describes. It costs about 0.6 ms on a 384-plate ship, against
+1.6 ms to derive the skin itself.
+
+The FALLING PLATE is three reliefs and not one, which matters because it is four
+fifths of every ship. A corner sample dies to the cell floor for exactly one
+reason - open space stands at it - so counting the dead corners says how many
+ways a plate falls: one corner is a `Bevel` (a panel with a corner taken off),
+two on one side is a `Brink` (the straight edge of a hull), and anything more is
+a `Spur` (a tip, an outer corner, a saddle). Summing those corner directions and
+turning them by the plate's own rotation gives `PlateReading::fall`, the
+OUTBOARD direction - a cardinal on a `Brink`, a diagonal on a corner, and zero
+where a plate falls two ways and cancels. It is the second alignment axis: a
+piece turned to `along` lies down an edge, and one turned to `fall` leans out
+over it.
 
 A `ShipStyleConfig` (`sections/skin_style.rs`) is CONTENT resolved by id out of
 `GameStyles`, exactly as a section prototype resolves out of `GameSections`. It
@@ -205,9 +218,21 @@ load-bearing:
   The editor re-derives and re-scatters on every structure change, so anything
   less would flicker while a hull is dragged.
 - GRID CLAIMING, not blue noise. A rule claims cells on its own `stride` and a
-  piece is yawed to `PlateReading::along`. Poisson sampling deliberately destroys
-  alignment, and alignment is the difference between decoration that reads as
-  bolted on and decoration that reads as confetti.
+  piece is yawed to `PlateReading::along` or to `PlateReading::fall`. Poisson
+  sampling deliberately destroys alignment, and alignment is the difference
+  between decoration that reads as bolted on and decoration that reads as
+  confetti.
+
+One thing is decided by a BLOCK of hull rather than by a cell, and it is the
+DENSITY NORMALISATION. Every other knob is per plate and they multiply, so a rule
+tuned on a 150-plate generated hull put one visible piece on a 20-plate editor
+build. `ScatterRule::patch` is a floor: within each block of `patch` cubed cells,
+keyed by the out face, a rule that the share left with nothing claims its lowest
+hashing eligible plate. A block is a fixed division of the ship's own cells, so a
+hull that grows by one cell keeps every piece outside the block it grew into; the
+floor never displaces another rule's piece, so priority still means what it says.
+With `chance: 0.0` the share picks nothing and the rule is purely "one piece per
+block", which is a density that reads the same at any hull size.
 
 A decoration is a `SectionFixture` like a plate, and a child of the PLATE, one
 level further out - so a plate shot off takes its greebles and the `damage_tint`
@@ -216,11 +241,26 @@ under. The base game generates its greeble models from committed JSON recipes
 (`scripts/gen-greebles.py`), and the mod-facing format is documented in
 [Ship skin styles](../../modding/styles/).
 
-What a hull actually OFFERS is worth knowing before writing a rule. Measured on
-the `wfc_ships` row, per ship: 100-120 of 132-162 plates are `Rim`, 18-22 are
-`Step`, 6-22 are `Flat`, 0-4 are `Ridge`, and none are `Peak`. `spawn_ship_skin`
-logs that histogram and the per-fixture tally at debug, so a style is tuned
-against a measurement rather than against a screenshot.
+What a hull actually OFFERS is worth knowing before writing a rule, and a
+GENERATED hull and a HAND-BUILT one offer almost opposite things. Measured, per
+ship:
+
+| subject | plates | flat | step | ridge | peak | bevel | brink | spur |
+|---|---|---|---|---|---|---|---|---|
+| `wfc_ships` row | 132-162 | 6-22 | 18-22 | 0-4 | 0 | 10-14 | 48-66 | 34-42 |
+| editor build | 19-27 | 0 | 2-3 | 3-8 | 1-3 | 0 | 0 | 9-17 |
+
+A hand-built ship has NO flat plate, no bevel and no brink at all: it is spurs,
+ridges and studs, because almost every cell of it is one cell wide. So a rule
+written for flat panels lands nowhere on the thing the owner actually builds, and
+no density normalisation can rescue it - a floor over an empty eligible set is
+still empty.
+
+Both `spawn_ship_skin` and the editor's `sync_editor_skin` log that histogram plus
+a per-rule `taken of reach` tally at debug, where REACH is everything the rule's
+filter and lattice admit before the share and before priority. The two zeroes
+mean opposite things: `x0 of 78` is a rule starved by one above it or thinned away
+by its own share, and `x0 of 0` is a filter that matches nothing this hull has.
 
 ## Integrity: damage -> disable -> destroy
 

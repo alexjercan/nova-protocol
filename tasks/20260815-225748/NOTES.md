@@ -182,3 +182,154 @@ What it cannot express, and what the next agent to touch this should know:
 
 None of those blocks Phase B. All three are worth knowing before four agents
 spend their budget.
+
+# Phase A widening: splitting the falling plate, and a density that scales
+
+Landed on `skin-vocabulary-widen`, off `cf61373d`. Two of the three ceilings
+above are closed; the third (a piece cannot span cells) is untouched and still
+real.
+
+## Ceiling 1: `Rim` was 80% of every ship
+
+The suggestion above - the direction the plate falls away toward - turned out to
+be TWO answers, and both are worth having.
+
+First, the SPLIT. A corner sample dies to the cell floor for exactly one reason:
+`ends_against` is false there, so open space stands at that corner. Structure
+holds a corner up, and so does a fitting's pocket. So counting the dead corners
+counts the directions a plate has vacuum in, and the old `Rim` divides three ways
+with no new computation at all:
+
+| relief | corners on the floor | what it is |
+| --- | --- | --- |
+| `Bevel` | 1 | a panel with a corner taken off - nearly a `Flat` |
+| `Brink` | 2, adjacent | the surface falls along one whole side: the straight edge of a hull |
+| `Spur` | 2 opposite, 3, or 4 | falls two ways or more: a tip, an outer corner, a saddle |
+
+Second, the DIRECTION. Summing those dead-corner directions in the shape's own
+frame and turning them by the plate's own rotation gives `PlateReading::fall`,
+which is OUTBOARD by construction. The sum is what makes it worth having: a
+`Brink`'s two adjacent corners add to the cardinal between them, and a saddle, a
+`Ridge` and a `Peak` all cancel to zero rather than picking a side. `ScatterAlign`
+grew from a bool to `Free` / `Run` / `Outward`, so a fairing can lean out over the
+edge it stands on instead of only lying down it.
+
+### The measurement
+
+Three ships of the `wfc_ships` row, at the fixed seeds:
+
+| plates | flat | step | ridge | peak | bevel | brink | spur | (was rim) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 132 | 6 | 22 | 4 | 0 | 10 | 48 | 42 | 100 |
+| 144 | 12 | 22 | 0 | 0 | 14 | 62 | 34 | 110 |
+| 162 | 22 | 18 | 2 | 0 | 12 | 66 | 42 | 120 |
+
+The largest bucket went from 76-83% of a ship to 36-41%. The split is 45-55%
+`Brink`, 35-42% `Spur`, 9-13% `Bevel` - not the 95/5 that would have made it
+cosmetic.
+
+VERDICT: it buys room, and the demonstration is the placeholder mast. It reads
+the high ground, and the high ground of a generated hull is its tips and outer
+corners - which under one `Rim` were indistinguishable from the middle of a
+flank. `relief: [Ridge, Peak, Step, Spur]` is a sentence the old vocabulary could
+not say.
+
+What it did NOT buy: the task framed this as telling the outer silhouette from
+an INNER EDGE around a fitting pocket, and that distinction does not exist in the
+derivation. A pocket holds a corner UP (`ends_against` counts it), so the plates
+round a well come out `Flat` and a rim always falls toward open space. That
+question was already answered by `pocket`, and the answer is a distance, not a
+relief. The split is about SHAPE - how many ways a plate falls - and it is
+honestly that.
+
+## Ceiling 2: density normalisation
+
+`ScatterRule::patch`. Set it to `N` and the rule is guaranteed a piece in every
+block of N cubed cells, keyed by the out face, that it can stand on at all.
+
+- A FLOOR, never a cap. It only adds, and never onto a plate another rule
+  claimed, so priority still means what it says.
+- It drops the SHARE only. The filter and the lattice still hold, so a floor
+  piece stands on the same grid the rest of the rule does - the lattice is what
+  makes a row read as a row, and a normalisation that broke it would undo the
+  checkpoint's own finding.
+- `chance: 0.0` with a `patch` is the pure form: no share, exactly one piece per
+  block. A density stated in cells of ship.
+
+WHEN A HULL GROWS BY ONE CELL: every piece outside the block that cell lands in
+is untouched, because the blocks are `div_euclid` of the ship's own cells and
+nothing shifts. Inside that block, the floor's own pick can move - and only if
+the new plate hashes lower than the incumbent. A piece the SHARE placed never
+moves at all, anywhere, which is the property the old scatter had and this
+keeps. So the claim is now a pure function of a BLOCK rather than of a cell,
+bounded to `patch` cubed cells, and that is the whole of what was given up.
+
+### The measurement, and the thing the floor cannot fix
+
+The editor build has its own histogram now, and it is the most useful number
+this lane produced:
+
+| subject | plates | flat | step | ridge | peak | bevel | brink | spur |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| generated row | 132-162 | 6-22 | 18-22 | 0-4 | 0 | 10-14 | 48-66 | 34-42 |
+| editor build | 19-27 | 0 | 2-3 | 3-8 | 1-3 | 0 | 0 | 9-17 |
+
+A hand-built ship has NO flat plate, NO bevel and NO brink. It is one cell wide
+nearly everywhere, so it is spurs, ridges and studs. The vent rule (which wants
+flat plate) therefore cannot land on it at any density, and no floor rescues
+that: a floor over an empty eligible set is still empty. The floor normalises
+DENSITY; it does not widen a FILTER. That is worth knowing before a Phase B agent
+spends a budget tuning `patch` on a rule that was never going to fire.
+
+With the placeholder retuned around this, a hand-built ship went from 1-3 pieces
+to 2-6 on 19-27 plates, and the row went from ~40 to ~50 pieces a ship.
+
+## The two authoring traps
+
+Both are now VISIBLE rather than documented-and-forgotten, which is the fix that
+survives a rule being written at 2 a.m.
+
+- Every fixture is logged as `taken of REACH`, where reach is everything the
+  filter and the lattice admit BEFORE the share and before priority. `x0 of 78`
+  is a starved rule; `x0 of 0` is an impossible one. They look identical on
+  screen and have opposite fixes. `sync_editor_skin` logs the same line, so the
+  build view - where the owner actually builds - is measured too.
+- `near_fitting` counts FACE STEPS instead of rings, so `Some(1)` is the four
+  cells beside a nozzle rather than the eight around it. That is what the field
+  reads as, and it halves the carpet the old measure made.
+- The trap generalises past `near_fitting`, and the log is what showed it:
+  `max_border: Some(0)` - "only at the end of a run" - admitted 126 of 132
+  plates, because on a broken-up hull nearly every plate is the end of its own
+  one-cell run. Pairing it with `min_run: 2` took the placeholder's trim from 94
+  eligible plates back to a rule that means what it says. Documented in
+  `modding/styles.md` beside the `near_fitting` case.
+
+## Rendered
+
+`skin-vocabulary-row.png`, `skin-vocabulary-row-detail.png` (the same crop and
+2.5x upscale as the checkpoint's, so the two are comparable),
+`skin-vocabulary-editor.png`. Same harness as the checkpoint: `NOVA_AUTOPILOT=1
+NOVA_CAPTURE=1 --features dev`, Xvfb 1920x1080.
+
+Honest reading against `skin-style-row-detail.png`: the mechanism is unchanged
+and still works - flush, aligned, on a lattice. What changed is visible but
+small, because the placeholder kit is four garish magenta primitives: the trim
+now covers the hull evenly instead of clumping (it is a density, not a share),
+and there are thin masts standing on the outer corners of the silhouette, which
+is the placement the split bought. Nothing regressed.
+
+Honest reading on the editor build: still a faceted crystal, and still the
+resolution limit the skin work recorded. 2-6 pieces instead of 1-3 is a real
+improvement and is not a fix - a 5-part ship has almost nothing for a rule to
+say about it, and the histogram above is why. A candidate look must still be
+judged on a generated hull.
+
+The editor shot is NOT strictly comparable to the checkpoint's: the `editor`
+example's tower beat is a known pre-existing flake (recorded in
+`20260815-190741`), so two runs photograph slightly different builds.
+
+## Still open
+
+Decoration cannot span cells. Untouched, and still a real ceiling: a long
+radiator is a strided row of pieces. It is a mesh and placement change, not a
+vocabulary one.

@@ -152,9 +152,9 @@ pub(crate) fn sync_editor_skin(
     // gameplay half. A preview greeble is a marker, a pose and a visibility and
     // nothing else: no collider for the pointer to hit, no health, and no
     // `EditorSkinPlate` of its own, since it goes when its plate does.
-    let mut decorated = 0;
+    let readings = read_plates(&structure, &plates);
+    let mut taken: Vec<usize> = vec![0; style.map_or(0, |style| style.fixtures.len())];
     if let Some(style) = style {
-        let readings = read_plates(&structure, &plates);
         for placement in scatter_decor(&plates, &readings, style) {
             commands.spawn((
                 Name::new("Editor Skin Decor"),
@@ -163,7 +163,7 @@ pub(crate) fn sync_editor_skin(
                 Visibility::Inherited,
                 ChildOf(laid[placement.plate]),
             ));
-            decorated += 1;
+            taken[placement.fixture] += 1;
         }
     }
 
@@ -171,12 +171,23 @@ pub(crate) fn sync_editor_skin(
         signature: Some(signature),
         plates: plates.len(),
     };
+    // The same histogram and the same per-rule tally the spawner logs, because
+    // this is where the owner BUILDS: a hand-built hull is nearly all studs,
+    // ridges and spurs, and a rule tuned on a generated ship lands almost
+    // nothing on it. Guessing at that from the screen is how a style ends up
+    // tuned for a hull nobody builds.
     debug!(
-        "sync_editor_skin: {} plate(s) and {decorated} decoration(s) over {} section(s) \
-         in {:.2} ms",
+        "sync_editor_skin: {} plate(s) and {} decoration(s) over {} section(s) in {:.2} ms; \
+         relief {}; decoration {}",
         plates.len(),
+        taken.iter().sum::<usize>(),
         placed.len(),
         started.elapsed().as_secs_f32() * 1000.0,
+        relief_tally(&readings),
+        style.map_or_else(
+            || "none (no style)".to_string(),
+            |style| decor_tally(style, &taken, &decor_reach(&plates, &readings, style)),
+        ),
     );
 }
 

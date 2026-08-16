@@ -292,6 +292,25 @@ tagged **(breaking)**.
 - A mod can ship its own greeble `.glb` files and reference them with `self://`,
   the same contract every other mod asset has. The base game's four placeholders
   are reachable as `dep://base/gltf/greebles/<id>.glb`.
+- A style's scatter rules speak a wider vocabulary. The one `Rim` relief, which
+  covered four fifths of every ship, splits by HOW the skin falls away into
+  `Bevel` (one corner), `Brink` (one whole side - the straight edge of a hull)
+  and `Spur` (two ways or more - a tip, an outer corner), and a plate now carries
+  the OUTBOARD direction it falls toward. `align` grew from a flag into `Free` /
+  `Run` / `Outward`, so a fairing can lean off the ship instead of only lying
+  down the run.
+- A scatter rule can state its density in CELLS OF SHIP rather than per plate:
+  `patch: N` guarantees a piece in every block of N cubed cells the rule can
+  stand on, so a look tuned on a 150-plate generated hull does not thin itself
+  down to one piece on a 20-plate hand-built one. Still no RNG - the floor picks
+  by the same cell hash, and a hull that grows keeps every piece outside the
+  block it grew into.
+- `near_fitting` counts steps across the surface instead of rings, so `Some(1)`
+  is the four cells beside a nozzle rather than the eight around it. The same
+  rule used to carpet 45% of a ship and starve everything under it.
+- The skin log tells a STARVED rule from an IMPOSSIBLE one: each fixture reports
+  `taken of reach`, and the build view logs the hull's relief histogram too -
+  where a hand-built ship turns out to have no flat plate at all.
 
 ### Interface & HUD
 

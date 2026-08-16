@@ -11,8 +11,8 @@
 
 use bevy::prelude::{Color, Vec3};
 use nova_ship::prelude::{
-    PlateFacing, PlateRelief, ScatterRule, ShellSurface, ShipStyleConfig, StyleFixtureConfig,
-    StyleSurfaceConfig,
+    PlateFacing, PlateRelief, ScatterAlign, ScatterRule, ShellSurface, ShipStyleConfig,
+    StyleFixtureConfig, StyleSurfaceConfig,
 };
 
 use super::assets::BaseContentAssets;
@@ -36,14 +36,17 @@ pub(crate) fn style_catalog(assets: &BaseContentAssets) -> Vec<ShipStyleConfig> 
 ///    high ground of a ship's upper surface, and only where there is ship under
 ///    it to bolt to;
 /// 2. the vent reads the RUN and aligns to it, on a stride, which is the
-///    grid-occupancy claim the research settled on instead of blue noise;
-/// 3. the block reads the BORDER - trim, only ever at the end of a run, of
-///    whatever kind the run is;
+///    grid-occupancy claim the research settled on instead of blue noise. It
+///    also carries the density FLOOR, so a hand-built hull that the stride and
+///    the share between them would have thinned to nothing still wears a row;
+/// 3. the block reads the BORDER and the FALL - trim at the end of a run, and
+///    on the straight edge of a hull it is turned OUTBOARD, which the run alone
+///    could not say;
 /// 4. the blister reads the POCKET distance - beside the mouth of a fitting,
 ///    which is the "weight decoration toward link points" finding. It goes LAST
-///    because on a hull as full of fittings as the generator draws, "near a
-///    fitting" is nearly everywhere: first in the order it carpeted 45% of every
-///    ship and the other three rules never got a plate.
+///    because "near a fitting" is broad even now that the distance is counted in
+///    face steps: first in the order, on the ring it used to be measured over,
+///    it carpeted 45% of every ship and the other three rules never got a plate.
 fn placeholder_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     ShipStyleConfig {
         id: PLACEHOLDER_STYLE_ID.to_string(),
@@ -68,9 +71,11 @@ fn placeholder_style(assets: &BaseContentAssets) -> ShipStyleConfig {
         ],
         // In PRIORITY order, most specific first - a plate takes one piece.
         // Tuned against what a real hull actually offers, measured on the wfc
-        // row: about four fifths of every ship comes out RIM, a seventh STEP
-        // and under a seventh flat, with ridges rare and studs absent. A rule
-        // written for flat panels alone lands on almost nothing.
+        // row: about four fifths of every ship FALLS AWAY somewhere, a seventh
+        // is a STEP and under a seventh is flat, with ridges rare and studs
+        // absent. A rule written for flat panels alone lands on almost nothing,
+        // which is why the trim below reads the border of any relief and the
+        // fairing reads the falling plate rather than the flat.
         fixtures: vec![
             StyleFixtureConfig {
                 id: "placeholder_mast".to_string(),
@@ -78,12 +83,26 @@ fn placeholder_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 health: 8.0,
                 density: 0.05,
                 collider: Vec3::new(0.12, 0.38, 0.12),
+                // The HIGH GROUND, which now includes the SPUR - the tips and
+                // outer corners a hull ends at. Before the falling plate split
+                // three ways there was no way to say that: a tip and the middle
+                // of a flank were one relief.
+                //
+                // `min_height` is 1 and not 2, measured: a ridge fills an eighth
+                // of its cell and a spur less, so a mast asking for half a cell
+                // of plate under it was asking for something no pointy plate
+                // is - the rule read as narrow and landed on NOTHING.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Ridge, PlateRelief::Peak, PlateRelief::Step],
+                    relief: vec![
+                        PlateRelief::Ridge,
+                        PlateRelief::Peak,
+                        PlateRelief::Step,
+                        PlateRelief::Spur,
+                    ],
                     facing: PlateFacing::Up,
                     min_depth: 2,
-                    min_height: 2,
-                    chance: 0.3,
+                    min_height: 1,
+                    chance: 0.25,
                     ..Default::default()
                 },
             },
@@ -93,12 +112,19 @@ fn placeholder_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 health: 12.0,
                 density: 0.15,
                 collider: Vec3::new(0.32, 0.04, 0.2),
+                // FLAT AND BEVEL, not flat alone. A bevel is a panel with one
+                // corner taken off - the same place to a piece this size, and
+                // there are more of them on a generated hull than there are
+                // flat plates. `patch` is the floor under the stride and the
+                // share: without it this rule is a field of vents on a big hull
+                // and nothing at all on a small one.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat],
+                    relief: vec![PlateRelief::Flat, PlateRelief::Bevel],
                     min_run: 2,
                     stride: 2,
                     chance: 0.8,
-                    align: true,
+                    patch: 3,
+                    align: ScatterAlign::Run,
                     ..Default::default()
                 },
             },
@@ -112,11 +138,36 @@ fn placeholder_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // vent above wants; the END of a run is already sparse and
                 // already structured, and striding it as well left a small
                 // build with a single greeble on it.
+                //
+                // Turned OUTBOARD rather than down the run: at the end of a run
+                // is exactly where a hull turns a corner, and the fall is the
+                // only reading that says which side of it is off the ship. A
+                // plate that does not fall one way is left square, which is the
+                // rest of the hull.
+                //
+                // The PURE per-patch form: no share at all, and one piece per
+                // block of hull. This is the rule that has to carry a small
+                // build, because it is the only one a hand-built hull passes -
+                // the vent wants flat plate and there is none - and a share
+                // tuned on the row put ONE piece on a 20-plate ship. Stated as a
+                // density instead, it reads the same at both sizes.
                 scatter: ScatterRule {
+                    // At the end of a RUN, and a run is two cells or more. The
+                    // border alone reads as specific and is not: on a hull as
+                    // broken up as the generator draws, nearly every plate is at
+                    // the end of its own one-cell run, so the rule admitted 126
+                    // of 132 plates - the `near_fitting` trap wearing another
+                    // field's name.
+                    min_run: 2,
                     max_border: Some(0),
-                    min_height: 2,
-                    chance: 0.6,
-                    align: true,
+                    // A quarter cell, not half. Measured on a hand-built hull:
+                    // it is nearly all ridges and spurs, which fill an eighth
+                    // of their cell, so a trim piece asking for half a cell of
+                    // plate is the vent's mistake again in another rule.
+                    min_height: 1,
+                    chance: 0.0,
+                    patch: 3,
+                    align: ScatterAlign::Outward,
                     ..Default::default()
                 },
             },
@@ -197,8 +248,23 @@ mod tests {
             "nothing reads how much of its cell a plate fills",
         );
         assert!(
-            rules.iter().any(|rule| rule.min_run > 0 && rule.align),
+            rules
+                .iter()
+                .any(|rule| rule.min_run > 0 && rule.align == ScatterAlign::Run),
             "nothing reads the run or aligns to it",
+        );
+        assert!(
+            rules.iter().any(|rule| rule.align == ScatterAlign::Outward),
+            "nothing turns a piece off the ship, so nothing reads the fall",
+        );
+        assert!(
+            rules
+                .iter()
+                .any(|rule| rule.relief.iter().any(|relief| matches!(
+                    relief,
+                    PlateRelief::Bevel | PlateRelief::Brink | PlateRelief::Spur
+                ))),
+            "nothing stands on the falling plate, which is four fifths of a hull",
         );
         assert!(
             rules.iter().any(|rule| rule.max_border == Some(0)),
@@ -207,6 +273,10 @@ mod tests {
         assert!(
             rules.iter().any(|rule| rule.stride > 1),
             "nothing claims a lattice, which is what keeps a look off confetti",
+        );
+        assert!(
+            rules.iter().any(|rule| rule.patch > 0),
+            "nothing normalises its density, so a small build wears almost none",
         );
     }
 }

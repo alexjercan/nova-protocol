@@ -34,8 +34,44 @@ use crate::sections::{
 /// component that names one.
 pub mod prelude {
     pub use super::{
-        GameStyles, ScatterRule, ShipStyle, ShipStyleConfig, StyleFixtureConfig, StyleSurfaceConfig,
+        GameStyles, ScatterAlign, ScatterRule, ShipStyle, ShipStyleConfig, StyleFixtureConfig,
+        StyleSurfaceConfig,
     };
+}
+
+/// Which way a piece is turned on the plate it stands on.
+///
+/// Quarter turns about the plate's own outward axis and nothing finer: the
+/// plate lattice is square, both axes below are cardinals, and a piece snapped
+/// to the grid is the whole point. There is no jitter and no free yaw,
+/// deliberately - see the module note on alignment.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ScatterAlign {
+    /// Not turned. The authored default, and right for anything with no long
+    /// axis - a blister, a stud, a hatch.
+    #[default]
+    Free,
+    /// The piece's own `+Z` lies DOWN THE RUN, along
+    /// [`PlateReading::along`](super::skin_reading::PlateReading::along): a rib
+    /// strip follows the spine it is on, a row of vents lines up with itself.
+    Run,
+    /// The piece's own `+Z` points OFF THE SHIP, down
+    /// [`PlateReading::fall`](super::skin_reading::PlateReading::fall): a
+    /// fairing leans out over the edge it stands on rather than lying along it.
+    ///
+    /// Square to [`Run`](ScatterAlign::Run), and the reason the fall is read at
+    /// all. A plate that does not fall one way is left unturned, so this is a
+    /// rule for the falling plate - `Brink` above all.
+    Outward,
+}
+
+impl ScatterAlign {
+    /// Whether this turns nothing - the `skip_serializing_if` a style keeps the
+    /// field out of its RON with.
+    pub fn is_free(&self) -> bool {
+        *self == Self::Free
+    }
 }
 
 /// One authored look for a derived skin.
@@ -125,8 +161,13 @@ pub struct StyleFixtureConfig {
 
 /// Where one decoration may stand, as a filter over the plate vocabulary.
 ///
-/// Every field is a FILTER except the last three. A rule with nothing set
+/// Every field is a FILTER except the last four. A rule with nothing set
 /// matches every plate, which is why a piece with no rule covers a hull.
+///
+/// The order the four are applied in is fixed and load-bearing: the FILTER
+/// says what kind of place the piece belongs, the LATTICE says which cells of
+/// it are on the grid, the SHARE thins that out, and the PATCH puts one back
+/// wherever the thinning left a block of hull bare.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScatterRule {
@@ -190,10 +231,41 @@ pub struct ScatterRule {
     /// the piece, 0 to 1. Decided by hashing the CELL, never by an RNG.
     #[cfg_attr(feature = "serde", serde(default = "all"))]
     pub chance: f32,
-    /// Whether the piece is yawed so its own `+Z` points down
-    /// [`PlateReading::along`] - the direction the surface runs furthest.
-    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
-    pub align: bool,
+    /// The block of hull, in cells, this rule is guaranteed a piece in: `0` is
+    /// off, and any other value says "at least one piece per `patch` cubed
+    /// cells of ship that this rule can stand on at all".
+    ///
+    /// The DENSITY NORMALISATION, and the reason a rule needs one: every other
+    /// knob here is per plate, and they multiply. A stride of 2 is a quarter of
+    /// the surface, a share of 0.5 is half of that, and a relief filter is
+    /// another fraction again - which reads as a field of pieces on a
+    /// 150-plate generated hull and as three pieces on a 20-plate hand-built
+    /// one. Measured: a rule tuned on the row put ONE visible piece on an
+    /// editor build.
+    ///
+    /// A FLOOR and never a cap. Where the share has already put a piece of this
+    /// rule in a block, nothing happens; where it has not, the block's lowest
+    /// hashing eligible plate takes one. It never displaces another rule's
+    /// piece, so priority still means what it says.
+    ///
+    /// The floor drops the SHARE only - the neighbourhood filter and the
+    /// lattice still hold, so a floor piece lands on the same grid the rest of
+    /// the rule does and a row does not acquire a stray off-lattice member.
+    /// Keep `patch` at or above [`stride`](ScatterRule::stride), or a block can
+    /// hold no lattice cell for the floor to pick.
+    ///
+    /// It is still a pure function of the structure, but of the BLOCK rather
+    /// than of the cell: a hull that grows by one cell keeps every piece
+    /// outside the block that cell lands in, and inside it can move one piece -
+    /// only the floor's own, and only if the newcomer hashes lower.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_zero"))]
+    pub patch: u8,
+    /// Which way the piece is turned on its plate.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "ScatterAlign::is_free")
+    )]
+    pub align: ScatterAlign,
 }
 
 impl Default for ScatterRule {
@@ -210,7 +282,8 @@ impl Default for ScatterRule {
             near_fitting: None,
             stride: 1,
             chance: 1.0,
-            align: false,
+            patch: 0,
+            align: ScatterAlign::Free,
         }
     }
 }
@@ -263,12 +336,6 @@ fn is_zero(count: &u8) -> bool {
     *count == 0
 }
 
-/// `skip_serializing_if` for a flag that defaults to off.
-#[cfg(feature = "serde")]
-fn is_false(flag: &bool) -> bool {
-    !*flag
-}
-
 /// The loaded catalog of authored styles, filled by the mod merge exactly as
 /// the section catalog is. Look one up by id with
 /// [`get_style`](GameStyles::get_style).
@@ -309,6 +376,7 @@ mod tests {
         PlateReading {
             out: IVec3::Y,
             along: IVec3::X,
+            fall: IVec3::Z,
             relief,
             enclosure: 8,
             run: 4,
@@ -329,10 +397,26 @@ mod tests {
             PlateRelief::Step,
             PlateRelief::Ridge,
             PlateRelief::Peak,
-            PlateRelief::Rim,
+            PlateRelief::Bevel,
+            PlateRelief::Brink,
+            PlateRelief::Spur,
         ] {
             assert!(rule.accepts(&reading(relief)), "{relief:?} was refused");
         }
+    }
+
+    /// The falling plate is THREE reliefs a rule can name apart, which is the
+    /// whole point of the split: a rim strip on the straight edge of a hull is
+    /// not the same piece as a cap on the tip of a spar.
+    #[test]
+    fn a_rule_can_name_one_kind_of_falling_plate_without_the_others() {
+        let edges = ScatterRule {
+            relief: vec![PlateRelief::Brink],
+            ..default()
+        };
+        assert!(edges.accepts(&reading(PlateRelief::Brink)));
+        assert!(!edges.accepts(&reading(PlateRelief::Spur)));
+        assert!(!edges.accepts(&reading(PlateRelief::Bevel)));
     }
 
     /// The filters that make a look: relief, facing, run and the two borders.
