@@ -393,7 +393,7 @@ fn raider_mounts(world: &World) -> Vec<(Entity, Option<Entity>, bool)> {
             (
                 turret,
                 world
-                    .get::<AITurretDefenseTarget>(turret)
+                    .get::<TurretDefenseTarget>(turret)
                     .and_then(|assignment| **assignment),
                 world
                     .get::<TurretSectionInput>(turret)

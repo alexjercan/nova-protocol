@@ -79,7 +79,9 @@ impl Plugin for NovaShipPlugin {
         app.add_plugins(physics::prelude::PDControllerPlugin);
 
         // Core Plugins for simulation
-        app.add_plugins(input::SpaceshipInputPlugin);
+        app.add_plugins(input::SpaceshipInputPlugin {
+            render: self.render,
+        });
         app.add_plugins(sections::SpaceshipSectionPlugin {
             render: self.render,
         });

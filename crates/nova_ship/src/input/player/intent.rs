@@ -83,6 +83,11 @@ pub(super) fn update_controller_target_rotation_torque(
 
 /// System that takes the point rotation output from the chase camera and applies it to the
 /// turret target input of the player's spaceship.
+///
+/// Skips the mounts the Flight Computer is working. That is the ONE place the
+/// ownership precedence touches the player's own aim: an idle battery with
+/// nothing inbound still follows the crosshair exactly as it always has, and a
+/// mount only stops following it once the computer has a torpedo to put on it.
 pub(super) fn update_turret_target_input(
     point_rotation: Single<
         &PointRotationOutput,
@@ -96,6 +101,8 @@ pub(super) fn update_turret_target_input(
             &mut TurretSectionTargetInput,
             &mut TurretSectionTargetVelocity,
             &ChildOf,
+            Option<&PointDefenseMount>,
+            Option<&TurretDefenseTarget>,
         ),
         With<TurretSectionMarker>,
     >,
@@ -162,10 +169,13 @@ pub(super) fn update_turret_target_input(
     // feed.
     let (target_point, target_velocity) = component_tier.or(lock_tier).unwrap_or(ray_tier);
 
-    for (mut turret, mut velocity, _) in q_turret
+    for (mut turret, mut velocity, _, mount, assignment) in q_turret
         .iter_mut()
-        .filter(|(_, _, ChildOf(t_parent))| *t_parent == spaceship)
+        .filter(|(_, _, ChildOf(t_parent), _, _)| *t_parent == spaceship)
     {
+        if flight_computer_works(mount, assignment) {
+            continue;
+        }
         **turret = Some(target_point);
         **velocity = target_velocity;
     }

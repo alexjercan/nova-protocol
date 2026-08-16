@@ -113,12 +113,13 @@ use nova_scenario::{
 };
 use nova_ship::prelude::{
     derive_skin, muzzle_aim_error, read_plates, read_structure, section_cell, skin_report,
-    skin_summary, AITarget, AITurretDefenseTarget, CombatLock, GameStyles, PlacedPart, PlateReport,
+    skin_summary, AITarget, CombatLock, GameStyles, PlacedPart, PlateReport, PointDefenseMount,
     SectionAmmo, SectionExit, SectionFixture, SectionLinkPoints, SectionReload, ShipDecorMarker,
     ShipSkin, ShipSkinMarker, ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming,
     TorpedoBlast, TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType,
-    TravelLock, TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity,
-    TurretSectionTargetInput, WeaponsHot, WithheldVerbs, TURRET_ON_TARGET_RAD,
+    TravelLock, TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput,
+    TurretSectionMuzzleEntity, TurretSectionTargetInput, WeaponsHot, WithheldVerbs,
+    TURRET_ON_TARGET_RAD,
 };
 
 use crate::capabilities::{frametime::prelude::*, timeline::stamp};
@@ -827,7 +828,10 @@ fn weapon(
         // A turret aims at a POINT, not an entity: `target` is the world-space
         // point it was told to hit, `aim_point` the lead solution it steers
         // for. `defense_target` is the one entity a mount holds - the inbound
-        // torpedo its point-defense is assigned to.
+        // torpedo its point-defense is assigned to - and `authority` says WHO
+        // is working the mount, which on a player hull is the whole question
+        // (a fired round with `authority: "FlightComputer"` is the ship
+        // defending itself, not the player shooting).
         "target": world
             .get::<TurretSectionTargetInput>(entity)
             .and_then(|target| target.0)
@@ -838,8 +842,11 @@ fn weapon(
             .map(vec3),
         "defense_target": label_of(
             world,
-            world.get::<AITurretDefenseTarget>(entity).and_then(|target| target.0),
+            world.get::<TurretDefenseTarget>(entity).and_then(|target| target.0),
         ),
+        "authority": world
+            .get::<PointDefenseMount>(entity)
+            .map(|mount| format!("{:?}", mount.authority)),
     }))
 }
 

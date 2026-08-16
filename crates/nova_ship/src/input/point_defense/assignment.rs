@@ -14,6 +14,11 @@
 //! DWELL is mandatory. Slew time is real: a mount that re-decides every tick
 //! swings between targets and hits nothing. A turret holds its torpedo until it
 //! dies, leaves its arc, or something far more urgent turns up.
+//!
+//! CONTROLLER-AGNOSTIC. This pass sat under `input/ai/` for historical reasons
+//! only - nothing in it reads a behavior state, a threat memory or an AI
+//! target. It assigns PLAYER mounts too; which of the player's mounts it may
+//! touch is the one thing [`ownership`](super::ownership) decides.
 
 use std::collections::{HashMap, HashSet};
 
@@ -21,8 +26,13 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
-use super::acquisition::{AIPointDefenseRange, AI_POINT_DEFENSE_RANGE};
-use crate::prelude::*;
+#[cfg(test)]
+use super::ownership::MountAuthority;
+use super::ownership::PointDefenseMount;
+use crate::{
+    input::ai::{AIPointDefenseRange, AI_POINT_DEFENSE_RANGE},
+    prelude::*,
+};
 
 /// The inbound torpedo THIS turret is defending against, or `None` when there
 /// is nothing it can reach.
@@ -33,7 +43,7 @@ use crate::prelude::*;
 /// the ship-wide point-defense pick. That fallback IS the dogpile.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
-pub struct AITurretDefenseTarget(pub Option<Entity>);
+pub struct TurretDefenseTarget(pub Option<Entity>);
 
 /// How much more imminent a rival torpedo must be before it takes a mount off
 /// the one it is already tracking: half the time to impact.
@@ -64,25 +74,37 @@ struct PointDefenseThreat {
     time_to_impact: f32,
 }
 
-/// Give every turret on an AI ship a defense slot to be assigned.
+/// Give every turret on a PILOTED ship - AI or player - a defense slot to be
+/// assigned.
 ///
 /// A separate system rather than a `#[require]` on the turret, because the
-/// turret section is a ship-layer type that must not know the AI exists, and
+/// turret section is a ship-layer type that must not know who flies it, and
 /// rather than an observer, because a turret's ship is only knowable once it is
 /// parented.
+///
+/// An UNPILOTED hull (a bare example rig, a drifting prop) gets no slot: the
+/// slot is what makes a mount answerable to a computer, and those hulls have
+/// nobody aboard.
+#[expect(
+    clippy::type_complexity,
+    reason = "the ship filter names both piloted markers"
+)]
 pub(super) fn insert_turret_defense_target(
     mut commands: Commands,
-    q_turret: Query<
-        (Entity, &ChildOf),
-        (With<TurretSectionMarker>, Without<AITurretDefenseTarget>),
+    q_turret: Query<(Entity, &ChildOf), (With<TurretSectionMarker>, Without<TurretDefenseTarget>)>,
+    q_ship: Query<
+        (),
+        (
+            With<SpaceshipRootMarker>,
+            Or<(With<AISpaceshipMarker>, With<PlayerSpaceshipMarker>)>,
+        ),
     >,
-    q_ship: Query<(), (With<SpaceshipRootMarker>, With<AISpaceshipMarker>)>,
 ) {
     for (turret, ChildOf(ship)) in &q_turret {
         if q_ship.contains(*ship) {
             commands
                 .entity(turret)
-                .insert(AITurretDefenseTarget::default());
+                .insert(TurretDefenseTarget::default());
         }
     }
 }
@@ -105,17 +127,33 @@ fn bears_on(
     arc.bears_on(rotation, position - mount, margin)
 }
 
-/// Assign each PD-capable turret on an AI ship its own inbound torpedo.
+/// Whether the computer may put a target on this mount.
+///
+/// A mount with NO ownership slot is an AI ship's, and the AI holds its whole
+/// battery all the time. A mount that HAS one is on the player's hull, where
+/// the computer is only ever the third tier of
+/// [`MountAuthority`](super::ownership::MountAuthority).
+fn computer_may_assign(mount: Option<&PointDefenseMount>) -> bool {
+    mount.is_none_or(PointDefenseMount::computer_owns)
+}
+
+/// Assign each PD-capable turret on a piloted ship its own inbound torpedo.
 ///
 /// An [`AINonCombatant`] hull builds no threat list, so both passes below hand
 /// its mounts `None` and a wreck neutralized mid-intercept lets go of the
 /// torpedo it was tracking. Clearing beats skipping: a mount left on a stale
 /// assignment would keep firing, which is the whole defect.
+///
+/// A mount carrying a [`PointDefenseMount`] (every turret on the PLAYER's hull)
+/// is only the computer's while that slot says so. One condition, applied at
+/// both passes: a mount the player holds is cleared and left alone, so taking a
+/// mount back also takes back its claim on the torpedo, freeing it for a mount
+/// that is still the computer's.
 #[expect(
     clippy::type_complexity,
     reason = "one query term per assignment input"
 )]
-pub(super) fn update_turret_point_defense(
+pub(crate) fn update_turret_point_defense(
     q_torpedoes: Query<
         (
             Entity,
@@ -136,7 +174,7 @@ pub(super) fn update_turret_point_defense(
         ),
         (
             With<SpaceshipRootMarker>,
-            With<AISpaceshipMarker>,
+            Or<(With<AISpaceshipMarker>, With<PlayerSpaceshipMarker>)>,
             Without<AINonCombatant>,
         ),
     >,
@@ -146,7 +184,8 @@ pub(super) fn update_turret_point_defense(
             &GlobalTransform,
             Option<&TurretSectionArc>,
             &ChildOf,
-            &mut AITurretDefenseTarget,
+            Option<&PointDefenseMount>,
+            &mut TurretDefenseTarget,
         ),
         With<TurretSectionMarker>,
     >,
@@ -207,7 +246,11 @@ pub(super) fn update_turret_point_defense(
 
     // Pass one: DWELL. Every turret that can still work its current target
     // keeps it, and claims it, before any turret is allowed to choose.
-    for (_, transform, arc, ChildOf(ship), mut assignment) in &mut q_turret {
+    for (_, transform, arc, ChildOf(ship), mount, mut assignment) in &mut q_turret {
+        if !computer_may_assign(mount) {
+            assignment.set_if_neq(TurretDefenseTarget(None));
+            continue;
+        }
         let Some(current) = **assignment else {
             continue;
         };
@@ -229,14 +272,14 @@ pub(super) fn update_turret_point_defense(
         if hold {
             claimed.insert(current);
         } else {
-            assignment.set_if_neq(AITurretDefenseTarget(None));
+            assignment.set_if_neq(TurretDefenseTarget(None));
         }
     }
 
     // Pass two: fill the idle mounts, most imminent reachable threat first,
     // preferring one nobody has claimed.
-    for (turret, transform, arc, ChildOf(ship), mut assignment) in &mut q_turret {
-        if assignment.is_some() {
+    for (turret, transform, arc, ChildOf(ship), mount, mut assignment) in &mut q_turret {
+        if assignment.is_some() || !computer_may_assign(mount) {
             continue;
         }
         let pick = threats.get(ship).and_then(|threats| {
@@ -257,7 +300,7 @@ pub(super) fn update_turret_point_defense(
             // DECISIONS a fight made rather than a per-frame dump.
             debug!("update_turret_point_defense: mount {turret:?} -> {pick:?}");
         }
-        assignment.set_if_neq(AITurretDefenseTarget(pick));
+        assignment.set_if_neq(TurretDefenseTarget(pick));
     }
 }
 
@@ -289,7 +332,7 @@ mod tests {
                         arc,
                         GlobalTransform::IDENTITY,
                         ChildOf(ship),
-                        AITurretDefenseTarget::default(),
+                        TurretDefenseTarget::default(),
                     ))
                     .id()
             })
@@ -313,7 +356,7 @@ mod tests {
     }
 
     fn assignment(world: &World, turret: Entity) -> Option<Entity> {
-        **world.get::<AITurretDefenseTarget>(turret).unwrap()
+        **world.get::<TurretDefenseTarget>(turret).unwrap()
     }
 
     #[test]
@@ -398,7 +441,7 @@ mod tests {
         let held = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -100.0));
         world
             .entity_mut(turrets[0])
-            .insert(AITurretDefenseTarget(Some(held)));
+            .insert(TurretDefenseTarget(Some(held)));
         // 25% nearer, so 25% sooner: inside the urgency factor.
         inbound(&mut world, ship, Vec3::new(0.0, 10.0, -75.0));
 
@@ -420,7 +463,7 @@ mod tests {
         let held = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -120.0));
         world
             .entity_mut(turrets[0])
-            .insert(AITurretDefenseTarget(Some(held)));
+            .insert(TurretDefenseTarget(Some(held)));
         let urgent = inbound(&mut world, ship, Vec3::new(0.0, 5.0, -25.0));
 
         world.run_system_once(update_turret_point_defense).unwrap();
@@ -439,7 +482,7 @@ mod tests {
         let reachable = inbound(&mut world, ship, Vec3::new(0.0, 40.0, -100.0));
         world
             .entity_mut(turrets[0])
-            .insert(AITurretDefenseTarget(Some(tracked)));
+            .insert(TurretDefenseTarget(Some(tracked)));
 
         world.run_system_once(update_turret_point_defense).unwrap();
 
@@ -458,7 +501,7 @@ mod tests {
         let torpedo = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -60.0));
         world
             .entity_mut(turrets[0])
-            .insert(AITurretDefenseTarget(Some(torpedo)));
+            .insert(TurretDefenseTarget(Some(torpedo)));
 
         // Shot down mid-flight.
         world.despawn(torpedo);
@@ -528,7 +571,7 @@ mod tests {
                 TurretSectionMarker,
                 GlobalTransform::IDENTITY,
                 ChildOf(ship),
-                AITurretDefenseTarget::default(),
+                TurretDefenseTarget::default(),
             ))
             .id();
         // Under the hull, where an arc-carrying mount would refuse it.
@@ -550,7 +593,7 @@ mod tests {
         for &turret in &turrets {
             world
                 .entity_mut(turret)
-                .insert(AITurretDefenseTarget(Some(held)));
+                .insert(TurretDefenseTarget(Some(held)));
         }
 
         world.entity_mut(ship).insert(AINonCombatant);
@@ -565,7 +608,10 @@ mod tests {
     }
 
     #[test]
-    fn only_turrets_on_ai_ships_get_a_defense_slot() {
+    fn every_piloted_hull_gets_a_defense_slot_and_a_drifting_one_does_not() {
+        // The player half is the change: the slot used to be AI-only, which is
+        // what made point defence a behaviour of the AI CONTROLLER instead of
+        // a capability of a flight computer.
         let mut world = World::new();
         let ai = world
             .spawn((AISpaceshipMarker, SpaceshipRootMarker, Transform::default()))
@@ -577,15 +623,63 @@ mod tests {
                 Transform::default(),
             ))
             .id();
+        let drifting = world
+            .spawn((SpaceshipRootMarker, Transform::default()))
+            .id();
         let ai_turret = world.spawn((TurretSectionMarker, ChildOf(ai))).id();
         let player_turret = world.spawn((TurretSectionMarker, ChildOf(player))).id();
+        let drifting_turret = world.spawn((TurretSectionMarker, ChildOf(drifting))).id();
 
         world.run_system_once(insert_turret_defense_target).unwrap();
 
-        assert!(world.get::<AITurretDefenseTarget>(ai_turret).is_some());
+        assert!(world.get::<TurretDefenseTarget>(ai_turret).is_some());
         assert!(
-            world.get::<AITurretDefenseTarget>(player_turret).is_none(),
-            "a player turret is aimed by its player, not by this pass"
+            world.get::<TurretDefenseTarget>(player_turret).is_some(),
+            "the player's mounts answer to the same allocator now"
         );
+        assert!(
+            world.get::<TurretDefenseTarget>(drifting_turret).is_none(),
+            "an unpiloted hull has nobody aboard to work its guns"
+        );
+    }
+
+    #[test]
+    fn a_mount_the_player_holds_is_cleared_and_left_alone() {
+        // The precedence, seen from the allocator's side: the ownership slot
+        // is the ONE thing that keeps the computer off a mount, and taking a
+        // mount back must also take back its claim - not leave a stale pick
+        // that the mount would resume the instant the grace expired.
+        let mut world = World::new();
+        let (ship, turrets) = defended_ship(&mut world, 1);
+        world
+            .entity_mut(ship)
+            .remove::<AISpaceshipMarker>()
+            .insert(PlayerSpaceshipMarker);
+        let inbound = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -60.0));
+
+        // Idle: the computer owns the mount and takes the shot.
+        world.entity_mut(turrets[0]).insert(PointDefenseMount {
+            authority: MountAuthority::FlightComputer,
+            ..default()
+        });
+        world.run_system_once(update_turret_point_defense).unwrap();
+        assert_eq!(assignment(&world, turrets[0]), Some(inbound));
+
+        // The player locks: the claim goes the same pass.
+        world.entity_mut(turrets[0]).insert(PointDefenseMount {
+            authority: MountAuthority::PlayerLock,
+            ..default()
+        });
+        world.run_system_once(update_turret_point_defense).unwrap();
+        assert_eq!(assignment(&world, turrets[0]), None);
+
+        // And a mount the verb was taken away from is no different: only the
+        // computer's own tier is a claim.
+        world.entity_mut(turrets[0]).insert(PointDefenseMount {
+            authority: MountAuthority::Cold,
+            ..default()
+        });
+        world.run_system_once(update_turret_point_defense).unwrap();
+        assert_eq!(assignment(&world, turrets[0]), None);
     }
 }

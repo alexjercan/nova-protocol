@@ -81,7 +81,7 @@ a gun does not spend are the ones that were going to miss.
 
 ## Point defense
 
-Every gun on a hostile hull runs its own point defense, and each mount picks its
+Every gun runs its own point defense, and each mount picks its
 OWN inbound torpedo rather than the whole battery swinging onto one. That is not
 a fairness rule, it is geometry: a turret is bolted to a hull and cannot depress
 its barrel back through its own ship, so a mount handed a torpedo coming in
@@ -97,6 +97,24 @@ spend the whole engagement swinging and hit nothing.
 The practical consequence for you: **saturate a facing**. Torpedoes arriving
 from one side, or from below a hull, meet only the mounts that can actually
 train on them.
+
+### Your own battery
+
+Your flight computer works the guns you are NOT using. There is no toggle and no
+key: while you hold no combat lock and your weapons are lowered, the computer
+may put your idle PDCs onto inbound torpedoes and fire them - the weapons safety
+does not stop it, because the safety is your trigger discipline and this is not
+your trigger. A thin line runs from each mount the computer is working to the
+torpedo it picked, so you can see what the ship took and what it chose.
+
+**You always win the argument.** Lock a target, or raise the weapons, and every
+mount is yours that instant - the computer drops its claim and lets go of the
+trigger it was holding. Let go again and the battery comes back to the computer
+after a short pause, so a tap-clear on the way to your next lock does not make
+the mounts swing away and back.
+
+Scenarios can take the capability away: a hull whose flight computer does not
+grant point defense answers a salvo only by hand.
 
 A **neutralized** hull stops defending itself. Take a ship's last gun or its
 flight computer and it is out of the fight for good - nobody is left aboard to

@@ -99,6 +99,10 @@ path = "examples/systems/outcomes.rs"
 name = "neutralized_quiet"
 path = "examples/systems/neutralized_quiet.rs"
 
+[[example]]
+name = "borrowed_battery"
+path = "examples/systems/borrowed_battery.rs"
+
 # ui/ - staged UI flows with their own autopilot timelines.
 [[example]]
 name = "widget_zoo"

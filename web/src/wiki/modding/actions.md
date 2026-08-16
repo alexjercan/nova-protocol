@@ -338,11 +338,13 @@ withheld and grants it at the beacon).
 | field | type | default | meaning |
 |---|---|---|---|
 | `id` | string | required | scoped ship root |
-| `verb` | verb | required | `Stop` / `Goto` / `Orbit` / `Lock` / `Rcs` (bare enum, no quotes). Convention: never withhold `Stop` - an engaged autopilot should always be cancelable |
+| `verb` | verb | required | `Stop` / `Goto` / `Orbit` / `Lock` / `Rcs` / `PointDefense` (bare enum, no quotes). Convention: never withhold `Stop` - an engaged autopilot should always be cancelable |
 | `enabled` | bool | required | `true` grants, `false` withholds |
 
 ```ron
 SetControllerVerb((id: "player_spaceship", verb: Goto, enabled: true)),
+// The battery answers a salvo by itself - until this takes it away.
+SetControllerVerb((id: "player_spaceship", verb: PointDefense, enabled: false)),
 ```
 
 The spawn-time twin is the `DisableVerb` section modification (see

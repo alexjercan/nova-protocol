@@ -20,7 +20,6 @@ mod behavior;
 mod guns;
 pub mod maneuver;
 pub mod passive;
-mod point_defense;
 mod threat;
 mod torpedo;
 
@@ -29,17 +28,19 @@ use behavior::update_behavior_state;
 use guns::{on_projectile_input, update_fire_cadence, update_turret_target_input};
 use maneuver::{on_thruster_input, update_controller_target_rotation_torque};
 use passive::update_passive_flight;
-use point_defense::{insert_turret_defense_target, update_turret_point_defense};
 use threat::on_damage_track_threat;
 use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 
+// The point-defence envelope moved OUT of the AI module with the allocator that
+// reads it, but the number itself stays here with the engagement-range chain it
+// belongs to.
+pub(crate) use self::acquisition::AI_POINT_DEFENSE_RANGE;
 pub use self::{
     acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AITarget},
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},
     guns::{AIFireCadence, AI_FIRE_RANGE_FACTOR},
     maneuver::AI_STANDOFF_OUTER_EDGE,
     passive::{AIAvoidanceDetour, AIWaypointSlack},
-    point_defense::AITurretDefenseTarget,
     threat::{AIEvade, AIThreat},
     torpedo::AITorpedoBay,
 };
@@ -49,9 +50,8 @@ pub mod prelude {
     pub use super::{
         AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade, AIFireCadence,
         AILeash, AINonCombatant, AIOrbitDirective, AIPatrolRoute, AIPointDefenseRange,
-        AIPointDefenseTarget, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay,
-        AITurretDefenseTarget, AIWaypointSlack, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR,
-        AI_STANDOFF_OUTER_EDGE,
+        AIPointDefenseTarget, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay, AIWaypointSlack,
+        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE,
     };
 }
 
@@ -112,7 +112,6 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIAvoidanceDetour>();
         app.register_type::<AIEngageRange>();
         app.register_type::<AIPointDefenseRange>();
-        app.register_type::<AITurretDefenseTarget>();
         app.register_type::<AIWaypointSlack>();
 
         // NOTE: threat sensing is an observer, not a system: HealthApplyDamage is
@@ -147,12 +146,6 @@ impl Plugin for SpaceshipAIInputPlugin {
             (
                 update_ai_target,
                 update_point_defense_target,
-                // Per-turret assignment sits between the ship-wide pick and
-                // the gun systems that consume it: the ship-level target is
-                // still what the AI's engagement mirror publishes, and each
-                // mount then decides which inbound IT can actually work.
-                insert_turret_defense_target,
-                update_turret_point_defense,
                 update_behavior_state,
                 update_passive_flight,
                 update_controller_target_rotation_torque,
@@ -167,6 +160,12 @@ impl Plugin for SpaceshipAIInputPlugin {
                 update_torpedo_section_input,
             )
                 .chain()
+                // The per-turret assignment moved out to the shared point-
+                // defence chain (it never depended on the AI), and the gun
+                // systems below read what it writes - so the whole AI chain
+                // now declares the edge the old in-chain position used to give
+                // it for free.
+                .after(super::point_defense::SpaceshipPointDefenseSystems)
                 .in_set(super::SpaceshipInputSystems),
         );
     }
@@ -212,7 +211,7 @@ pub struct AISpaceshipMarker;
 ///   reads "nothing hostile", holds the passive routine, and `engages()` is
 ///   false for the gun, torpedo and maneuver systems.
 /// - `update_point_defense_target` keeps [`AIPointDefenseTarget`] clear and
-///   `update_turret_point_defense` keeps every [`AITurretDefenseTarget`]
+///   `update_turret_point_defense` keeps every [`TurretDefenseTarget`](super::point_defense::TurretDefenseTarget)
 ///   clear, which is the arm that closed the neutralized-wreck-still-swats-
 ///   torpedoes hole: point defense deliberately bypasses the behavior state,
 ///   so the passive routine alone never silenced it.
@@ -238,7 +237,7 @@ pub struct AINonCombatant;
 ///
 /// The observer is the ONE place that says "the crew is gone", but it cannot
 /// carry the rule alone: the picks that drive the guns ([`AITarget`],
-/// [`AIPointDefenseTarget`], every mount's [`AITurretDefenseTarget`]) are
+/// [`AIPointDefenseTarget`], every mount's [`TurretDefenseTarget`](super::point_defense::TurretDefenseTarget)) are
 /// recomputed from the world every frame, so a one-shot clear here is
 /// overwritten on the next tick. What the observer CAN do is name the state
 /// once, and it does - [`AINonCombatant`] is that name, and the two

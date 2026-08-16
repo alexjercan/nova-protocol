@@ -23,6 +23,8 @@ tagged **(breaking)**.
   the ones that can keep shooting.
 - Point defense is assigned PER TURRET: each mount holds the most imminent
   torpedo it can bear on, so a battery no longer dogpiles one torpedo.
+- The Flight Computer works your IDLE PDCs against inbound torpedoes, drawing a
+  thin line to each pick. Lock or raise and every mount is yours instantly.
 - Torpedo bays regrow one torpedo every 10 s, up from every 4 s, so a bay
   refills like every other weapon and a ship is never left with nothing.
 - Torpedoes fly a TERMINAL WEAVE: an armed torpedo corkscrews off its guidance

@@ -8,7 +8,7 @@ use nova_gameplay::prelude::*;
 use super::maneuver::ai_target_anchor;
 #[cfg(test)]
 use super::torpedo::update_torpedo_section_input;
-use crate::prelude::*;
+use crate::{input::point_defense::mount_may_shoot, prelude::*};
 
 /// Fraction of a turret's maximum bullet travel (muzzle_speed * lifetime)
 /// inside which the AI considers a shot worth taking: a margin below 1.0 so
@@ -63,7 +63,7 @@ const AI_BURST_HOLD_SECS: f32 = 0.8;
 /// What ONE turret has its guns on this frame, and whether that is a
 /// point-defense engagement.
 ///
-/// The turret's own [`AITurretDefenseTarget`] decides first, because it is the
+/// The turret's own [`TurretDefenseTarget`] decides first, because it is the
 /// only reading of point defense that knows what THIS mount can reach. A
 /// turret carrying that component with `None` has been told there is nothing in
 /// its arc, and drops back to the ship's primary target - it must NOT fall back
@@ -79,7 +79,7 @@ const AI_BURST_HOLD_SECS: f32 = 0.8;
 /// still defends itself - while the engaging states otherwise track the primary
 /// target and non-engaging states clear the aim so turrets slew back to rest.
 fn ai_turret_gun_target(
-    turret_defense: Option<&AITurretDefenseTarget>,
+    turret_defense: Option<&TurretDefenseTarget>,
     ship_defense: &AIPointDefenseTarget,
     state: &AIBehaviorState,
     target: &AITarget,
@@ -99,7 +99,7 @@ pub(super) fn update_turret_target_input(
         (
             &mut TurretSectionTargetInput,
             &mut TurretSectionTargetVelocity,
-            Option<&AITurretDefenseTarget>,
+            Option<&TurretDefenseTarget>,
             &ChildOf,
         ),
         With<TurretSectionMarker>,
@@ -243,7 +243,7 @@ pub(super) fn on_projectile_input(
             &TurretSectionAimPoint,
             &TurretSectionConfigHelper,
             &mut TurretSectionInput,
-            Option<&AITurretDefenseTarget>,
+            Option<&TurretDefenseTarget>,
             &ChildOf,
         ),
         With<TurretSectionMarker>,
@@ -293,29 +293,24 @@ pub(super) fn on_projectile_input(
             continue;
         };
 
-        // Range gate per turret: past the distance its bullets can
-        // actually live (muzzle_speed * lifetime, with a margin), a shot
-        // is noise, not pressure.
-        let effective_range =
-            config.muzzle_speed * config.projectile_lifetime * AI_FIRE_RANGE_FACTOR;
-        let muzzle_position = muzzle_transform.translation();
-        if target_anchor.distance(muzzle_position) > effective_range {
-            **input = false;
-            continue;
-        }
-
-        // Align against the LEADED aim point the turret actually steers
-        // to (falling back to the anchor before the lead resolves): a
-        // turret correctly leading a crossing target never aligns with
-        // the raw anchor, and would otherwise hold fire forever.
+        // The RANGE gate (past the distance its bullets can actually live, a
+        // shot is noise, not pressure) and the BEARING gate, both out of
+        // `mount_may_shoot` - the one place the two triggers on this path
+        // share, so the player's Flight Computer cannot drift onto a looser
+        // number of its own.
         //
-        // The SECTION fire path applies [`muzzle_on_target`] too, per muzzle
-        // and on the raw physics pose, so this is not the enforcement - it is
-        // what keeps an AI trigger meaning "this mount is shooting" for the
-        // readers of `TurretSectionInput`, and it is the same predicate rather
-        // than a second, looser number of its own.
+        // Alignment is judged against the LEADED aim point the turret actually
+        // steers to, falling back to the anchor before the lead resolves: a
+        // turret correctly leading a crossing target never aligns with the raw
+        // anchor, and would otherwise hold fire forever.
+        //
+        // The SECTION fire path applies `muzzle_on_target` too, per muzzle and
+        // on the raw physics pose, so this is not the enforcement - it is what
+        // keeps an AI trigger meaning "this mount is shooting" for the readers
+        // of `TurretSectionInput`.
+        let muzzle_position = muzzle_transform.translation();
         let aim = aim_point.unwrap_or(target_anchor);
-        if !muzzle_on_target(muzzle_transform.forward().into(), muzzle_position, aim) {
+        if !mount_may_shoot(muzzle_transform, config, target_anchor, aim) {
             **input = false;
             continue;
         }
@@ -722,7 +717,8 @@ mod line_of_fire_tests {
 mod per_turret_defense_tests {
     use bevy::ecs::system::RunSystemOnce;
 
-    use super::{super::point_defense::update_turret_point_defense, *};
+    use super::*;
+    use crate::input::point_defense::update_turret_point_defense;
 
     /// An engaged AI ship with `count` turrets and a hostile ship to fight.
     fn engaged_ship(world: &mut World, count: usize) -> (Entity, Vec<Entity>) {
@@ -755,7 +751,7 @@ mod per_turret_defense_tests {
                         GlobalTransform::IDENTITY,
                         TurretSectionTargetInput(None),
                         TurretSectionTargetVelocity(Vec3::ZERO),
-                        AITurretDefenseTarget::default(),
+                        TurretDefenseTarget::default(),
                         ChildOf(ship),
                     ))
                     .id()

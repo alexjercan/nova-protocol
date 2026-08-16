@@ -224,7 +224,7 @@ Section modifications - closed, data-only deltas applied at spawn:
 
 | variant | payload | meaning |
 |---|---|---|
-| `DisableVerb(<verb>)` | `Stop`/`Goto`/`Orbit`/`Lock`/`Rcs` | withhold a flight verb from birth (controller sections; multiple accumulate). Runtime mirror: [`SetControllerVerb`](../actions/#setcontrollerverb) |
+| `DisableVerb(<verb>)` | `Stop`/`Goto`/`Orbit`/`Lock`/`Rcs`/`PointDefense` | withhold a flight verb from birth (controller sections; multiple accumulate). Runtime mirror: [`SetControllerVerb`](../actions/#setcontrollerverb) |
 | `SetHealth(<number>)` | starting health | override the section's health (current and max) |
 | `Rename(<string>)` | new name | rename the section entity |
 | `SetAmmo(<number>)` | rounds | HARD magazine: override the weapon's rounds AND strip its auto-reload - when they are gone the section is dry for good. Inert on a section with no magazine |

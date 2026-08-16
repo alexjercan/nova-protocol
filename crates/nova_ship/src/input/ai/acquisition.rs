@@ -11,9 +11,9 @@ use nova_gameplay::prelude::*;
 use super::behavior::update_behavior_state;
 #[cfg(test)]
 use super::guns::{on_projectile_input, update_turret_target_input, AI_BURST_FIRE_SECS};
-#[cfg(test)]
-use super::point_defense::update_turret_point_defense;
 use super::threat::AI_THREAT_ATTACKER_DISCOUNT;
+#[cfg(test)]
+use crate::input::point_defense::update_turret_point_defense;
 use crate::prelude::*;
 
 /// The entity this AI ship currently fights - what every AI behavior system
@@ -240,7 +240,7 @@ pub struct AIPointDefenseTarget(pub Option<Entity>);
 /// `fire_rate * pd_range / (muzzle_speed + torpedo_speed)`: ~111 at 150 u
 /// against a standard torpedo, where the shipped 400 u burned ~296 for the
 /// same 2-round kill.
-pub(super) const AI_POINT_DEFENSE_RANGE: f32 = 150.0;
+pub(crate) const AI_POINT_DEFENSE_RANGE: f32 = 150.0;
 
 /// Per-ship override of the point-defense range: this ship's guns hold their
 /// fire until an inbound hostile torpedo is inside THIS range instead of the
@@ -1125,12 +1125,12 @@ mod point_defense_tests {
             // The mount's own pose: what the per-turret assignment bears from.
             // No arc, so it is the fail-open case and can reach anything.
             GlobalTransform::IDENTITY,
-            AITurretDefenseTarget::default(),
+            TurretDefenseTarget::default(),
         ));
 
         defend(&mut world);
         assert_eq!(
-            **world.entity(turret).get::<AITurretDefenseTarget>().unwrap(),
+            **world.entity(turret).get::<TurretDefenseTarget>().unwrap(),
             Some(torpedo),
             "the live hull takes the inbound"
         );
@@ -1154,7 +1154,7 @@ mod point_defense_tests {
             "the wreck defends against nothing"
         );
         assert_eq!(
-            **world.entity(turret).get::<AITurretDefenseTarget>().unwrap(),
+            **world.entity(turret).get::<TurretDefenseTarget>().unwrap(),
             None,
             "and every mount lets go of what it was tracking"
         );

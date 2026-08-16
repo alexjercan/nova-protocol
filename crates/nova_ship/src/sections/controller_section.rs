@@ -399,6 +399,14 @@ pub enum FlightVerb {
     /// without it cannot fine-adjust. Drives the
     /// shared `RcsIntent` / `rcs_burn_system` primitive the flight layer owns.
     Rcs,
+    /// POINT DEFENSE: the computer works the IDLE turrets against inbound
+    /// ordnance on its own - the autonomous half of the battery. Not a
+    /// maneuver and not a key: it has no gesture at all, because it is the
+    /// fallback behaviour of a battery the player is not using. The same
+    /// capability model as the rest - a ship whose computer withholds it
+    /// answers a salvo only by hand - which is what makes it the teaching
+    /// lever (`DisableVerb` at spawn, `SetControllerVerb` mid-scenario).
+    PointDefense,
 }
 
 /// The set of flight verbs WITHHELD on a controller section: computer-provided

@@ -163,6 +163,7 @@ pub(super) fn shoot_spawn_projectile(
     mut q_muzzle: Query<&mut TurretSectionBarrelFireState, With<TurretSectionBarrelMuzzleMarker>>,
     q_chain: Query<(&Transform, &ChildOf)>,
     q_hot: Query<&WeaponsHot>,
+    q_defense: Query<(&PointDefenseMount, &TurretDefenseTarget)>,
 ) {
     let dt = time.delta_secs();
     for (turret, muzzles, ChildOf(spaceship), config, loaded, input, aim_point, mut ammo) in
@@ -173,7 +174,20 @@ pub(super) fn shoot_spawn_projectile(
         // while SAFE even mid-held-trigger - the input bool is latched, so a
         // press-time gate alone would leak. Unmanaged ships (no WeaponsHot -
         // bare example turrets) fire freely.
-        if q_hot.get(*spaceship).is_ok_and(|hot| !hot.0) {
+        //
+        // ONE exemption, and it is what autonomous point defence IS: the
+        // safety is the PLAYER's trigger discipline, and a COLD battery is
+        // exactly the state the Flight Computer borrows a mount in. Narrow by
+        // construction - it needs the computer's ownership tier AND a live
+        // assignment, and an assignment can only ever be an inbound hostile
+        // torpedo.
+        let (mount, assignment) = match q_defense.get(turret) {
+            Ok((mount, assignment)) => (Some(mount), Some(assignment)),
+            Err(_) => (None, None),
+        };
+        if !flight_computer_works(mount, assignment)
+            && q_hot.get(*spaceship).is_ok_and(|hot| !hot.0)
+        {
             continue;
         }
         // The fired round: the runtime LoadedBullet slot if present (production
