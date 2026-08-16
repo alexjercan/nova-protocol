@@ -1,6 +1,6 @@
 # Arena: more weapon types, ship rosters, better cameras
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.11.0,example,combat,wfc
 
@@ -26,3 +26,26 @@ Owner-approved arena upgrades, one lane.
   and at least one lance launch observed
 - `--ship` rosters spawn styled, teamed ships without restart
 - the camera row behaves as mapped, orbit still exclusive to camera 1
+
+## Closure
+
+Landed 2026-08-16, lane arena-weapons (opus). All three parts:
+- Weapons: pdc_pierce joins the shared draw with the old mount weight SPLIT
+  (kinetic 1.0 / pierce 0.6) so batteries mix rather than double;
+  load_lances re-sources every second mirrored bay pair to
+  lance_torpedo_section (phase = seed % 2), so any hull with >= 2 bay pairs
+  fields both flavours. Scoreboard counts by flavour off the projectiles.
+  Evidence: default bout fired 334 kinetic + 138 pierce rounds and
+  8 serpent + 8 lance from AMBER alone.
+- Rosters: repeatable --ship TEAM[:STYLE[:SEED]]; teams spawn as lines
+  preserving the ~163u opening range; per-team aggregation; R rerolls the
+  same roster on fresh seeds, pinned hulls keep theirs. 2v3 mixed-style run
+  verified live.
+- Cameras per the owner's revised mapping: Q = idle-orbit auto-frame (only
+  orbiting mode), E = tactical overview, 1-4 = follow roster slots with
+  dead-slot fallback. Q/E collide with nothing (rig verticals are
+  Space/ShiftLeft).
+
+Known, out of lane: bouts are over in ~15 s at 750 blast damage - the
+lethality data point again; avian3d logs a massless-body warning when a
+gutted root despawns (pre-existing).
