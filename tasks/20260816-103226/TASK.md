@@ -1,6 +1,6 @@
 # Torpedo explosion persists on scenario change
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: bug
 
