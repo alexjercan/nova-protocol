@@ -1,0 +1,81 @@
+{
+  "_comment": "SHELL CANDIDATE: the paddle nozzle - the vector language pushed along its own axis, per the owner's 'especially vector'. Same anatomy (plate, drum, bell, heat ring, dark throat) but TWO-AXIS vectoring instead of eight petals: two big thrust paddles top and bottom on full-width hinge rods, with side cheek plates carrying the hinges - the fighter-engine 2D nozzle read. The heavy hinges are the mechanical claim.",
+  "materials": {
+    "shell_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "shell_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "shell_throat": { "color": [0.04, 0.04, 0.045], "metallic": 0.2, "roughness": 0.9 },
+    "shell_heat": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 }
+  },
+  "material": "shell_steel",
+  "parts": [
+    { "primitive": "box", "size": [0.92, 0.92, 0.06], "at": [0.0, 0.0, -0.47] },
+    {
+      "primitive": "cylinder",
+      "radius": 0.28,
+      "height": 0.34,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, -0.26],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.14,
+      "radius_top": 0.33,
+      "height": 0.44,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.13]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.29,
+      "thickness": 0.012,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.356],
+      "material": "shell_heat"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.21,
+      "thickness": 0.012,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.362],
+      "material": "shell_throat"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.045,
+      "height": 0.8,
+      "sides": 10,
+      "rotate": [0.0, 0.0, 90.0],
+      "at": [0.0, 0.36, 0.08],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.045,
+      "height": 0.8,
+      "sides": 10,
+      "rotate": [0.0, 0.0, 90.0],
+      "at": [0.0, -0.36, 0.08],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.44, 0.025, 0.28],
+      "rotate": [-35.0, 0.0, 0.0],
+      "at": [0.0, 0.4, 0.21]
+    },
+    {
+      "primitive": "box",
+      "size": [0.44, 0.025, 0.28],
+      "rotate": [35.0, 0.0, 0.0],
+      "at": [0.0, -0.4, 0.21]
+    },
+    { "primitive": "box", "size": [0.05, 0.56, 0.34], "at": [0.42, 0.0, 0.05] },
+    { "primitive": "box", "size": [0.05, 0.56, 0.34], "at": [-0.42, 0.0, 0.05] }
+  ]
+}

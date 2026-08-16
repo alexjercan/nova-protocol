@@ -1,0 +1,94 @@
+{
+  "_comment": "SHELL CANDIDATE: the twin bank - the cluster case redone in the bell language after the owner rejected the boxy quad. Two full bell stacks (drum, cone, heat ring, dark throat) side by side on one mount plate, tied by a cross manifold pipe. Two proud round bells read where four sunken ones were mush; the shared plumbing is the mechanical claim.",
+  "materials": {
+    "shell_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "shell_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "shell_throat": { "color": [0.04, 0.04, 0.045], "metallic": 0.2, "roughness": 0.9 },
+    "shell_heat": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 }
+  },
+  "material": "shell_steel",
+  "parts": [
+    { "primitive": "box", "size": [0.95, 0.95, 0.07], "at": [0.0, 0.0, -0.465] },
+    {
+      "primitive": "cylinder",
+      "radius": 0.16,
+      "height": 0.28,
+      "sides": 10,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.24, 0.0, -0.28],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.16,
+      "height": 0.28,
+      "sides": 10,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.24, 0.0, -0.28],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.07,
+      "height": 0.44,
+      "sides": 10,
+      "rotate": [0.0, 0.0, 90.0],
+      "at": [0.0, 0.0, -0.28],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.1,
+      "radius_top": 0.235,
+      "height": 0.52,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.24, 0.0, 0.12]
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.1,
+      "radius_top": 0.235,
+      "height": 0.52,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.24, 0.0, 0.12]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.205,
+      "thickness": 0.012,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.24, 0.0, 0.386],
+      "material": "shell_heat"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.205,
+      "thickness": 0.012,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.24, 0.0, 0.386],
+      "material": "shell_heat"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.15,
+      "thickness": 0.012,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.24, 0.0, 0.392],
+      "material": "shell_throat"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.15,
+      "thickness": 0.012,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.24, 0.0, 0.392],
+      "material": "shell_throat"
+    }
+  ]
+}

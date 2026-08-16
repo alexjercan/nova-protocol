@@ -1,0 +1,69 @@
+{
+  "_comment": "SHELL CANDIDATE, LARGE: the 3x3x1 bank - the owner's invitation to go bigger, in the bell language. Nine full ringed bells (cone, heat ring, dark throat each) proud of a plated base, separated by a gunmetal rib lattice on the cell lines, inside a flat perimeter frame that keeps the flanks claddable. ART ONLY: a display candidate at 3x3x1 proportions; multi-cell sections stay parked in THRUSTERS.md 4.3.",
+  "cells": [3, 3, 1],
+  "materials": {
+    "shell_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "shell_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "shell_throat": { "color": [0.04, 0.04, 0.045], "metallic": 0.2, "roughness": 0.9 },
+    "shell_heat": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 }
+  },
+  "material": "shell_steel",
+  "parts": [
+    { "primitive": "box", "size": [3.0, 3.0, 0.3], "at": [0.0, 0.0, -0.35] },
+    { "primitive": "box", "size": [3.0, 0.14, 0.6], "at": [0.0, 1.43, -0.2] },
+    { "primitive": "box", "size": [3.0, 0.14, 0.6], "at": [0.0, -1.43, -0.2] },
+    { "primitive": "box", "size": [0.14, 2.72, 0.6], "at": [1.43, 0.0, -0.2] },
+    { "primitive": "box", "size": [0.14, 2.72, 0.6], "at": [-1.43, 0.0, -0.2] },
+    {
+      "primitive": "box",
+      "size": [0.1, 3.0, 0.5],
+      "at": [0.5, 0.0, -0.15],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.1, 3.0, 0.5],
+      "at": [-0.5, 0.0, -0.15],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [3.0, 0.1, 0.5],
+      "at": [0.0, 0.5, -0.15],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [3.0, 0.1, 0.5],
+      "at": [0.0, -0.5, -0.15],
+      "material": "shell_gunmetal"
+    },
+    { "primitive": "taper", "radius_bottom": 0.12, "radius_top": 0.36, "height": 0.6, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [-1.0, -1.0, 0.08] },
+    { "primitive": "taper", "radius_bottom": 0.12, "radius_top": 0.36, "height": 0.6, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [0.0, -1.0, 0.08] },
+    { "primitive": "taper", "radius_bottom": 0.12, "radius_top": 0.36, "height": 0.6, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [1.0, -1.0, 0.08] },
+    { "primitive": "taper", "radius_bottom": 0.12, "radius_top": 0.36, "height": 0.6, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [-1.0, 0.0, 0.08] },
+    { "primitive": "taper", "radius_bottom": 0.12, "radius_top": 0.36, "height": 0.6, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [0.0, 0.0, 0.08] },
+    { "primitive": "taper", "radius_bottom": 0.12, "radius_top": 0.36, "height": 0.6, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [1.0, 0.0, 0.08] },
+    { "primitive": "taper", "radius_bottom": 0.12, "radius_top": 0.36, "height": 0.6, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [-1.0, 1.0, 0.08] },
+    { "primitive": "taper", "radius_bottom": 0.12, "radius_top": 0.36, "height": 0.6, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [0.0, 1.0, 0.08] },
+    { "primitive": "taper", "radius_bottom": 0.12, "radius_top": 0.36, "height": 0.6, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [1.0, 1.0, 0.08] },
+    { "primitive": "disc", "radius": 0.31, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [-1.0, -1.0, 0.388], "material": "shell_heat" },
+    { "primitive": "disc", "radius": 0.31, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [0.0, -1.0, 0.388], "material": "shell_heat" },
+    { "primitive": "disc", "radius": 0.31, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [1.0, -1.0, 0.388], "material": "shell_heat" },
+    { "primitive": "disc", "radius": 0.31, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [-1.0, 0.0, 0.388], "material": "shell_heat" },
+    { "primitive": "disc", "radius": 0.31, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [0.0, 0.0, 0.388], "material": "shell_heat" },
+    { "primitive": "disc", "radius": 0.31, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [1.0, 0.0, 0.388], "material": "shell_heat" },
+    { "primitive": "disc", "radius": 0.31, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [-1.0, 1.0, 0.388], "material": "shell_heat" },
+    { "primitive": "disc", "radius": 0.31, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [0.0, 1.0, 0.388], "material": "shell_heat" },
+    { "primitive": "disc", "radius": 0.31, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [1.0, 1.0, 0.388], "material": "shell_heat" },
+    { "primitive": "disc", "radius": 0.23, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [-1.0, -1.0, 0.395], "material": "shell_throat" },
+    { "primitive": "disc", "radius": 0.23, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [0.0, -1.0, 0.395], "material": "shell_throat" },
+    { "primitive": "disc", "radius": 0.23, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [1.0, -1.0, 0.395], "material": "shell_throat" },
+    { "primitive": "disc", "radius": 0.23, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [-1.0, 0.0, 0.395], "material": "shell_throat" },
+    { "primitive": "disc", "radius": 0.23, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [0.0, 0.0, 0.395], "material": "shell_throat" },
+    { "primitive": "disc", "radius": 0.23, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [1.0, 0.0, 0.395], "material": "shell_throat" },
+    { "primitive": "disc", "radius": 0.23, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [-1.0, 1.0, 0.395], "material": "shell_throat" },
+    { "primitive": "disc", "radius": 0.23, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [0.0, 1.0, 0.395], "material": "shell_throat" },
+    { "primitive": "disc", "radius": 0.23, "thickness": 0.015, "sides": 12, "rotate": [90.0, 0.0, 0.0], "at": [1.0, 1.0, 0.395], "material": "shell_throat" }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "_comment": "SHELL CANDIDATE: the vectoring shroud - an octagonal shroud drum (faceted deliberately: eight flats read as plate armour around the engine), an inner bell, and a ring of eight vectoring petals flared 28 degrees around the exit with two actuator housings on the shroud flats. The petals are what make it mechanical: a nozzle that visibly ARTICULATES. Heat ring and dark throat inside the petal ring. Petal ring at radius 0.385 so every tip stays inside the cell.",
+  "materials": {
+    "shell_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "shell_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "shell_throat": { "color": [0.04, 0.04, 0.045], "metallic": 0.2, "roughness": 0.9 },
+    "shell_heat": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 }
+  },
+  "material": "shell_steel",
+  "parts": [
+    { "primitive": "box", "size": [0.95, 0.95, 0.06], "at": [0.0, 0.0, -0.47] },
+    {
+      "primitive": "cylinder",
+      "radius": 0.47,
+      "height": 0.72,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 22.5],
+      "at": [0.0, 0.0, -0.09],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.13,
+      "radius_top": 0.33,
+      "height": 0.34,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.25]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.29,
+      "thickness": 0.012,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.426],
+      "material": "shell_heat"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.21,
+      "thickness": 0.012,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.432],
+      "material": "shell_throat"
+    },
+    {
+      "primitive": "box",
+      "size": [0.17, 0.02, 0.22],
+      "rotate": [-28.0, 0.0, 0.0],
+      "at": [0.0, 0.385, 0.33]
+    },
+    {
+      "primitive": "box",
+      "size": [0.17, 0.02, 0.22],
+      "rotate": [-28.0, 0.0, 45.0],
+      "at": [-0.272236, 0.272236, 0.33]
+    },
+    {
+      "primitive": "box",
+      "size": [0.17, 0.02, 0.22],
+      "rotate": [-28.0, 0.0, 90.0],
+      "at": [-0.385, 0.0, 0.33]
+    },
+    {
+      "primitive": "box",
+      "size": [0.17, 0.02, 0.22],
+      "rotate": [-28.0, 0.0, 135.0],
+      "at": [-0.272236, -0.272236, 0.33]
+    },
+    {
+      "primitive": "box",
+      "size": [0.17, 0.02, 0.22],
+      "rotate": [-28.0, 0.0, 180.0],
+      "at": [0.0, -0.385, 0.33]
+    },
+    {
+      "primitive": "box",
+      "size": [0.17, 0.02, 0.22],
+      "rotate": [-28.0, 0.0, 225.0],
+      "at": [0.272236, -0.272236, 0.33]
+    },
+    {
+      "primitive": "box",
+      "size": [0.17, 0.02, 0.22],
+      "rotate": [-28.0, 0.0, 270.0],
+      "at": [0.385, 0.0, 0.33]
+    },
+    {
+      "primitive": "box",
+      "size": [0.17, 0.02, 0.22],
+      "rotate": [-28.0, 0.0, 315.0],
+      "at": [0.272236, 0.272236, 0.33]
+    },
+    { "primitive": "box", "size": [0.14, 0.06, 0.3], "at": [0.0, 0.46, -0.05] },
+    { "primitive": "box", "size": [0.14, 0.06, 0.3], "at": [0.0, -0.46, -0.05] }
+  ]
+}

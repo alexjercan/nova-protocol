@@ -15,10 +15,13 @@
 //!   exhaust cell, so the row reads as "the drive, grown" rather than as new
 //!   art. The real parts would be recipe-generated (see THRUSTERS.md in the
 //!   task folder); these mocks exist to judge silhouette and scale only.
-//! - CANDIDATES: the committed part-candidate `.glb` conversions with an
-//!   engine or thruster silhouette (Fertile Soil blocks pack, Kenney cast
-//!   cuts, Quaternius cuts - all CC0, provenance in `art/README.md`), decoded
-//!   straight off disk. Not through the asset server: `art/` is deliberately
+//! - CANDIDATES: the committed part-candidate `.glb` files, decoded straight
+//!   off disk: the PROPOSED SHELLS (recipe-generated drive shells, 1x1 plus
+//!   two large display formats, in the cross-faction mechanical voice,
+//!   `scripts/gen-thruster-shells.py`, task 20260817-013639) and the pack
+//!   conversions with an engine or thruster silhouette (Fertile Soil blocks
+//!   pack, Kenney cast cuts, Quaternius cuts - all CC0, provenance in
+//!   `art/README.md`). Not through the asset server: `art/` is deliberately
 //!   not an asset source (it ships in no build), and bevy's default
 //!   `UnapprovedPathMode::Forbid` refuses a `../` escape from `assets/` -
 //!   rightly, for the game. Every candidate glb comes out of the repo's own
@@ -34,8 +37,9 @@
 //!
 //! Two harnessed modes, the fleet's capture idiom:
 //! - `NOVA_AUTOPILOT=1`: smoke path - load the gallery, frame it, exit clean.
-//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the full gallery and a
-//!   close pass on the size family (staged under `NOVA_SHOT_DIR`).
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the full gallery, a close
+//!   pass on the size family and one on the proposed shell candidates
+//!   (staged under `NOVA_SHOT_DIR`).
 
 use std::path::{Path, PathBuf};
 
@@ -127,12 +131,16 @@ enum Look {
     /// per exhaust cell.
     Shell(IVec3),
     /// A committed part-candidate glb: the manifest dir under
-    /// [`CANDIDATES_DIR`], the part file inside it, and a presentation yaw
-    /// for packs whose nozzle does not already point aft (+Z).
+    /// [`CANDIDATES_DIR`], the part file inside it, a presentation yaw
+    /// for packs whose nozzle does not already point aft (+Z), and the
+    /// presentation size the model is fitted to - [`CANDIDATE_FIT`] for the
+    /// 1x1 subjects, larger for the large-format shell candidates so the
+    /// size ladder stays visible.
     Candidate {
         dir: &'static str,
         file: &'static str,
         yaw: f32,
+        fit: f32,
     },
 }
 
@@ -149,9 +157,18 @@ struct Item {
 /// - the first row holds TODAY next to the small shells, so the "drive,
 ///   grown" claim is judged against the thing it grows from;
 /// - the second row holds the two big shells the owner named (5x5x1, 5x5x3);
-/// - the third row is the Fertile Soil blocks pack's whole propulsion
+/// - the third row is the PROPOSED SHELLS: recipe-generated 1x1 candidates
+///   (`scripts/gen-thruster-shells.py`, task 20260817-013639) in the
+///   cross-faction mechanical voice. All five share the bell anatomy the
+///   owner kept from the first pass (plate, drum, cone, heat ring, dark
+///   throat), three of them with visible articulation in the vector
+///   candidate's language (pivots, hinges, petals);
+/// - the fourth row is the LARGE proposed shells - 3x3x1 and 5x5x3
+///   proportions in the same voice, display candidates only (multi-cell
+///   sections stay parked in THRUSTERS.md 4.3);
+/// - the fifth row is the Fertile Soil blocks pack's whole propulsion
 ///   family - purpose-built thruster and hyperdrive blocks;
-/// - the fourth row is the engines CUT from the cast ships (Kenney corvette
+/// - the sixth row is the engines CUT from the cast ships (Kenney corvette
 ///   and racer, Quaternius spitfire and striker), the "assets we have
 ///   imported but not used yet" case from the owner's brief.
 fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
@@ -202,6 +219,86 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
             ],
         ),
         (
+            "proposed shells (recipes)",
+            vec![
+                Item {
+                    id: "shell_bell",
+                    look: Look::Candidate {
+                        dir: "shells",
+                        file: "shell_bell.glb",
+                        yaw: 0.0,
+                        fit: CANDIDATE_FIT,
+                    },
+                    note: "exposed ringed bell (kept)",
+                },
+                Item {
+                    id: "shell_gimbal",
+                    look: Look::Candidate {
+                        dir: "shells",
+                        file: "shell_gimbal.glb",
+                        yaw: 0.0,
+                        fit: CANDIDATE_FIT,
+                    },
+                    note: "bell on trunnion pivots",
+                },
+                Item {
+                    id: "shell_twin",
+                    look: Look::Candidate {
+                        dir: "shells",
+                        file: "shell_twin.glb",
+                        yaw: 0.0,
+                        fit: CANDIDATE_FIT,
+                    },
+                    note: "twin bells, shared manifold",
+                },
+                Item {
+                    id: "shell_paddle",
+                    look: Look::Candidate {
+                        dir: "shells",
+                        file: "shell_paddle.glb",
+                        yaw: 0.0,
+                        fit: CANDIDATE_FIT,
+                    },
+                    note: "2D thrust paddles on hinges",
+                },
+                Item {
+                    id: "shell_vector",
+                    look: Look::Candidate {
+                        dir: "shells",
+                        file: "shell_vector.glb",
+                        yaw: 0.0,
+                        fit: CANDIDATE_FIT,
+                    },
+                    note: "petal vectoring shroud (kept)",
+                },
+            ],
+        ),
+        (
+            "proposed shells: large (recipes)",
+            vec![
+                Item {
+                    id: "shell_bank",
+                    look: Look::Candidate {
+                        dir: "shells",
+                        file: "shell_bank.glb",
+                        yaw: 0.0,
+                        fit: 4.4,
+                    },
+                    note: "3x3x1 bell bank (art only)",
+                },
+                Item {
+                    id: "shell_capital",
+                    look: Look::Candidate {
+                        dir: "shells",
+                        file: "shell_capital.glb",
+                        yaw: 0.0,
+                        fit: 5.2,
+                    },
+                    note: "5x5x3 vectoring drive (art only)",
+                },
+            ],
+        ),
+        (
             "blocks pack (CC0)",
             vec![
                 Item {
@@ -210,6 +307,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                         dir: "blocks/propulsion_thruster_single_small",
                         file: "spacestation_propulsion_thruster_single_small.glb",
                         yaw: 0.0,
+                        fit: CANDIDATE_FIT,
                     },
                     note: "Fertile Soil blocks",
                 },
@@ -219,6 +317,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                         dir: "blocks/propulsion_thruster_triple_small",
                         file: "spacestation_propulsion_thruster_triple_small.glb",
                         yaw: 0.0,
+                        fit: CANDIDATE_FIT,
                     },
                     note: "Fertile Soil blocks",
                 },
@@ -228,6 +327,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                         dir: "blocks/propulsion_thruster_triple_large",
                         file: "spacestation_propulsion_thruster_triple_large.glb",
                         yaw: 0.0,
+                        fit: CANDIDATE_FIT,
                     },
                     note: "Fertile Soil blocks",
                 },
@@ -237,6 +337,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                         dir: "blocks/propulsion_hyperdrive_rearmount_medium",
                         file: "spacestation_propulsion_hyperdrive_rearmount_medium.glb",
                         yaw: 0.0,
+                        fit: CANDIDATE_FIT,
                     },
                     note: "Fertile Soil blocks",
                 },
@@ -246,6 +347,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                         dir: "blocks/propulsion_hyperdrive_sidemount_small",
                         file: "spacestation_propulsion_hyperdrive_sidemount_small.glb",
                         yaw: 0.0,
+                        fit: CANDIDATE_FIT,
                     },
                     note: "Fertile Soil blocks",
                 },
@@ -260,6 +362,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                         dir: "cargoa",
                         file: "engine_port.glb",
                         yaw: 0.0,
+                        fit: CANDIDATE_FIT,
                     },
                     note: "Kenney corvette cut",
                 },
@@ -269,6 +372,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                         dir: "racer",
                         file: "engine_port.glb",
                         yaw: 0.0,
+                        fit: CANDIDATE_FIT,
                     },
                     note: "Kenney racer cut",
                 },
@@ -278,6 +382,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                         dir: "quaternius/spitfire",
                         file: "engine_upper_port.glb",
                         yaw: 0.0,
+                        fit: CANDIDATE_FIT,
                     },
                     note: "Quaternius cut",
                 },
@@ -287,6 +392,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                         dir: "quaternius/striker",
                         file: "nacelle_port.glb",
                         yaw: 0.0,
+                        fit: CANDIDATE_FIT,
                     },
                     note: "Quaternius cut",
                 },
@@ -367,7 +473,12 @@ fn load_gallery(
                         item.id, cells.x, cells.y, cells.z
                     );
                 }
-                Look::Candidate { dir, file, yaw } => {
+                Look::Candidate {
+                    dir,
+                    file,
+                    yaw,
+                    fit,
+                } => {
                     spawn_candidate(
                         &mut commands,
                         &mut meshes,
@@ -376,6 +487,7 @@ fn load_gallery(
                         dir,
                         file,
                         *yaw,
+                        *fit,
                         pose,
                     );
                 }
@@ -446,6 +558,7 @@ fn spawn_candidate(
     dir: &str,
     file: &str,
     yaw: f32,
+    fit_size: f32,
     pose: Transform,
 ) {
     let root = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
@@ -460,7 +573,7 @@ fn spawn_candidate(
             (low.min(position), high.max(position))
         });
     let (centre, size) = ((low + high) * 0.5, high - low);
-    let fit = CANDIDATE_FIT / size.max_element();
+    let fit = fit_size / size.max_element();
     info!(
         "thruster_gallery: `{}`: {dir}/{file}, native {:.2} x {:.2} x {:.2}, fit x{fit:.2}",
         item.id, size.x, size.y, size.z
@@ -770,8 +883,19 @@ fn frame_sizes(world: &mut World) {
     pose_camera(world, target + Vec3::new(0.0, 12.0, 21.0), target);
 }
 
+/// Pose the harness camera on the two proposed shell rows (row indices 2 and
+/// 3), close enough that a candidate's silhouette and its nameplate both
+/// read, far enough that the five-column row fits with margin.
+#[cfg(feature = "debug")]
+fn frame_shells(world: &mut World) {
+    let rows = gallery_rows().len();
+    // The z of the midpoint between row 2 and row 3.
+    let target = Vec3::new(0.0, 0.0, (2.5 - (rows as f32 - 1.0) * 0.5) * ROW_SPACING);
+    pose_camera(world, target + Vec3::new(0.0, 12.0, 24.0), target);
+}
+
 /// The driven walk: load the gallery, frame it, shoot it, then step in on
-/// the size family.
+/// the size family and on the proposed shell candidates.
 #[cfg(feature = "debug")]
 fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
@@ -799,6 +923,15 @@ fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .step("shoot the size family")
         .on_enter(|world: &mut World| shoot(world, "thruster-gallery-sizes.png"))
         .until(shot_written("thruster-gallery-sizes.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("frame the shell candidates")
+        .on_enter(|world: &mut World| frame_shells(world))
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("shoot the shell candidates")
+        .on_enter(|world: &mut World| shoot(world, "thruster-gallery-shells.png"))
+        .until(shot_written("thruster-gallery-shells.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
 }

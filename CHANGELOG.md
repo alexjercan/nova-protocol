@@ -337,6 +337,10 @@ tagged **(breaking)**.
 - New `thruster_gallery` example: the shipped drive, the proposed thruster
   shell size family and the CC0 candidate models in one named row, in the
   fleet capture idiom.
+- Seven recipe-generated thruster shell candidates - five 1x1 plus 3x3x1 and
+  5x5x3 display formats - in one mechanical voice
+  (`scripts/gen-thruster-shells.py`, deterministic `--check`), judged in two
+  new `thruster_gallery` rows.
 - New `wfc_arena` example: two collapsed hulls drafted from the seed stream
   fight under the campaign AI, clad, over a dressed arena; a scoreboard logs
   shots and damage both ways. `R` re-rolls.

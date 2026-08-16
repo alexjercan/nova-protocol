@@ -1,0 +1,77 @@
+{
+  "_comment": "SHELL CANDIDATE: the gimballed bell - the bell language plus the vector language's articulation. Owner kept bell and vector and asked for more in that style: this is the bell anatomy (plate, pump drum, joint collar, wide cone, heat ring, dark throat) held by a visible two-axis mount - trunnion arms from the plate to pivot rods at the bell's waist. The pivots are what make it read: a nozzle that hangs on bearings says 'this thing steers'.",
+  "materials": {
+    "shell_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "shell_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "shell_throat": { "color": [0.04, 0.04, 0.045], "metallic": 0.2, "roughness": 0.9 },
+    "shell_heat": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 }
+  },
+  "material": "shell_steel",
+  "parts": [
+    { "primitive": "box", "size": [0.9, 0.9, 0.07], "at": [0.0, 0.0, -0.465] },
+    {
+      "primitive": "cylinder",
+      "radius": 0.2,
+      "height": 0.26,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, -0.3],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.24,
+      "thickness": 0.06,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, -0.15]
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.13,
+      "radius_top": 0.4,
+      "height": 0.55,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.16]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.35,
+      "thickness": 0.012,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.442],
+      "material": "shell_heat"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.26,
+      "thickness": 0.012,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.448],
+      "material": "shell_throat"
+    },
+    { "primitive": "box", "size": [0.07, 0.16, 0.44], "at": [0.38, 0.0, -0.24] },
+    { "primitive": "box", "size": [0.07, 0.16, 0.44], "at": [-0.38, 0.0, -0.24] },
+    {
+      "primitive": "cylinder",
+      "radius": 0.06,
+      "height": 0.24,
+      "sides": 10,
+      "rotate": [0.0, 0.0, 90.0],
+      "at": [0.28, 0.0, -0.02],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.06,
+      "height": 0.24,
+      "sides": 10,
+      "rotate": [0.0, 0.0, 90.0],
+      "at": [-0.28, 0.0, -0.02],
+      "material": "shell_gunmetal"
+    }
+  ]
+}

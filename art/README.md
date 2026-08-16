@@ -39,8 +39,13 @@ adds to the download whether or not the game loads it.
   ship building spike (task 20260812-100246), browsed by
   `examples/screenshots/parts_viewer.rs`. Regenerate with
   `scripts/cut-obj-into-parts.py` (recipes in `scripts/part-recipes/`,
-  blocks/craft conversions recorded in the task SPIKE). Not shipped; anything
-  promoted into the game moves to `assets/` through the content builders.
+  blocks/craft conversions recorded in the task SPIKE). `shells/` holds the
+  recipe-generated thruster shell candidates - original work, regenerated with
+  `scripts/gen-thruster-shells.py` (recipes in
+  `scripts/thruster-shell-recipes/`), judged in
+  `examples/screenshots/thruster_gallery.rs` (task 20260817-013639). Not
+  shipped; anything promoted into the game moves to `assets/` through the
+  content builders.
 - `texture-candidates/` - texture candidates under evaluation (task
   `20260812-100256`). Loaded from here by the `compare_asteroids` /
   `compare_planets` examples straight off disk, so nothing ships until a

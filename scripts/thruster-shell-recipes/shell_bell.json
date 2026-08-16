@@ -1,0 +1,66 @@
+{
+  "_comment": "SHELL CANDIDATE: the exposed engine bell - the required cylinder, and the classic rocket read. A flat mount plate forward (the face it bolts on by), a dark turbopump drum, a machined collar, then the wide expansion bell with one proud stiffening ring. Heat discoloration ring just inside the lip, dark throat core. Reads mechanical because every piece is a machining operation: plate, drum, collar, cone, ring.",
+  "materials": {
+    "shell_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "shell_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "shell_throat": { "color": [0.04, 0.04, 0.045], "metallic": 0.2, "roughness": 0.9 },
+    "shell_heat": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 }
+  },
+  "material": "shell_steel",
+  "parts": [
+    { "primitive": "box", "size": [0.92, 0.92, 0.08], "at": [0.0, 0.0, -0.46] },
+    {
+      "primitive": "cylinder",
+      "radius": 0.26,
+      "height": 0.38,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, -0.22],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.31,
+      "thickness": 0.06,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, -0.02]
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.15,
+      "radius_top": 0.42,
+      "height": 0.46,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.24]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.37,
+      "thickness": 0.025,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.33],
+      "material": "shell_gunmetal"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.37,
+      "thickness": 0.012,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.478],
+      "material": "shell_heat"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.28,
+      "thickness": 0.012,
+      "sides": 16,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.485],
+      "material": "shell_throat"
+    }
+  ]
+}
