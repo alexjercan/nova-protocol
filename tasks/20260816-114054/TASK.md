@@ -35,22 +35,32 @@ the LOGIC is controller-agnostic - it sits under `ai/` for historical reasons,
 not because it depends on the AI. Expect to lift it into a driver both
 controllers share rather than to write new targeting.
 
-## Proposed shape
+## Accepted shape
 
-- **An UNBOUND turret becomes autonomous.** A mount with no player input binding
-  auto-engages. Zero micro, decided at build time, and it staggers reloads
-  naturally because the mounts do not fire in lockstep.
-- Optionally, a BOUND turret auto-engages while the player is not firing it.
-- **Avoid an all-or-nothing toggle.** It forces a choice between "no point
-  defense" and "no manual control", when the point is to have both.
+See `DECISION.md`.
+
+- **The computer borrows the battery while it is idle.** With no RMB raise and no
+  combat lock, the existing point-defence logic may assign and fire player PDCs.
+- RMB raise or combat lock immediately returns every PDC to the player and keeps
+  the existing free-aim or locked-fire behavior.
+- No mount is permanently point-defence-only. Binding presence does not decide
+  ownership.
+- No auto-PD toggle. Existing weapon authority determines the behavior.
+- Reuse one controller-agnostic point-defence allocator for AI and player ships.
+- Defer balance changes until the shared player path works and is measured.
 
 ## Definition of done
 
-- a player hull answers a salvo without the player aiming a single mount
-- the player can still take manual control of what they bound
+- an idle player battery answers a salvo without the player aiming a mount
+- RMB raise immediately gives the player free-aim control of every PDC
+- combat lock gives the player locked control of every PDC and suppresses
+  automatic assignments
+- returning to idle restores automatic point defence
+- player and AI paths share the existing dwell, reachability, threat allocation,
+  and anti-overkill behavior
 - ammunition spent per intercept measured for a player hull and compared against
   the AI figure the balance was set on
-- a live playtest, with rendered evidence
+- a live playtest, with rendered evidence of each authority transition
 
 ## Scheduling note
 
