@@ -1,6 +1,6 @@
 # Greeble batch: armoured, the military
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 56
 - TAGS: v0.11.0,art,skin,content
 
@@ -42,3 +42,19 @@ all batches land.
 - block_bench armoured render: ammo stripes sit beside asym_gunship's gun
   well; the row reads MORE dressed but still suppressed
 - style tests pass with the new cap
+
+## Closure
+
+Landed as c9286507 (2026-08-16), lane batch-military. All six pieces shipped
+as recipes + generated models + rules; kit is now 10, smallest by doctrine.
+The ammo-stripes hard constraint held: cone-friendly rule pinned by test
+`the_armoured_ammo_stripes_read_the_gun_pocket_off_any_seat`, x1 of 2 on
+asym_gunship's gun pocket, x3 of 3 on carrier_deck, visually confirmed.
+Honest read: the previously flattest row is now clearly dressed and still
+suppressed - one grey family, silhouettes clean.
+
+For the tuning pass (GREEBLES.md follow-up 6):
+- magazine fires on only 2 of 8 subjects (higher-priority rules claim its
+  blocks); doctrine-low but worth a look
+- near_fitting cannot tell a gun well from a drive pocket, so tallies also
+  appear beside drives (same limitation as louvre/beacon)
