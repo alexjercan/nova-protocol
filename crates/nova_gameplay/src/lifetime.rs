@@ -25,7 +25,9 @@ use bevy::prelude::*;
 
 /// The despawn message and its plugin, and `TempEntity` with `TempEntityPlugin`.
 pub mod prelude {
-    pub use super::{DespawnEntity, DespawnEntityPlugin, TempEntity, TempEntityPlugin};
+    pub use super::{
+        DespawnEntity, DespawnEntityPlugin, TempEntity, TempEntityPlugin, TempEntityState,
+    };
 }
 
 /// Component indicating that the entity is temporary.
@@ -35,13 +37,15 @@ pub mod prelude {
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct TempEntity(pub f32);
 
-/// Internal state for temporary entities.
+/// The countdown behind a [`TempEntity`]: how much of the authored lifetime is
+/// left.
 ///
-/// This component stores the timer used to track when the entity
-/// should be despawned. It is automatically inserted and updated
-/// by the plugin.
+/// Readable, never constructible from outside - the inner timer stays private,
+/// so only [`TempEntityPlugin`] inserts and ticks it. Read it for the REMAINING
+/// lifetime of a transient (a torpedo's flight time, a debris chunk's); the
+/// `TempEntity` beside it carries the authored TOTAL and never moves.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TempEntityState(Timer);
+pub struct TempEntityState(Timer);
 
 /// Plugin that manages temporary entities.
 ///

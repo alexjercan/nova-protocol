@@ -46,6 +46,8 @@ pub enum Capability {
     Invariants,
     /// `nova_frametime()` - the frame-time capture (`frametime.csv`).
     FrameTime,
+    /// `nova_snapshot()` - the world-state snapshot sink (`snapshot.jsonl`).
+    Snapshot,
 }
 
 impl Capability {
@@ -55,6 +57,7 @@ impl Capability {
             Capability::Timeline => "timeline",
             Capability::Invariants => "invariants",
             Capability::FrameTime => "frametime",
+            Capability::Snapshot => "snapshot",
         }
     }
 
@@ -65,6 +68,7 @@ impl Capability {
             "timeline" => Some(Capability::Timeline),
             "invariants" => Some(Capability::Invariants),
             "frametime" => Some(Capability::FrameTime),
+            "snapshot" => Some(Capability::Snapshot),
             _ => None,
         }
     }
@@ -76,6 +80,7 @@ impl Capability {
             Capability::Timeline => "nova_probe::nova_timeline()",
             Capability::Invariants => "nova_probe::nova_invariants()",
             Capability::FrameTime => "nova_probe::nova_frametime()",
+            Capability::Snapshot => "nova_probe::nova_snapshot()",
         }
     }
 }
@@ -231,6 +236,7 @@ mod tests {
             crate::nova_timeline(),
             crate::nova_invariants(),
             crate::nova_frametime(),
+            crate::nova_snapshot(),
         ));
         let contract = app.world().resource::<ProbeContract>().clone();
         assert_eq!(
@@ -238,7 +244,8 @@ mod tests {
             ProbeContract::of([
                 Capability::Timeline,
                 Capability::Invariants,
-                Capability::FrameTime
+                Capability::FrameTime,
+                Capability::Snapshot,
             ])
         );
     }

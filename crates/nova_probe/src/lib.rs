@@ -9,9 +9,11 @@
 //!   [`nova_frametime`] capture - drives a real gameplay app to `Playing`,
 //!   warms up, records the wall-clock delta of every frame for a fixed window,
 //!   then writes percentile stats and exits), [`capabilities::timeline`] (the
-//!   run-timeline JSONL sink) and `capabilities::invariants` (continuous
-//!   invariant checks, riding that sink). [`NovaProbePlugin`] bundles all
-//!   three.
+//!   run-timeline JSONL sink), `capabilities::invariants` (continuous
+//!   invariant checks, riding that sink) and `capabilities::snapshot` (the
+//!   world-state serializer: every ship, section, fixture, weapon and round in
+//!   flight as one JSON object, on demand). [`NovaProbePlugin`] bundles all
+//!   four.
 //! - [`contract`] - what an example CLAIMS to collect, declared by the plugins
 //!   it wires.
 //! - [`stats`] - [`FrameStats`], the per-run [`RunMeta`], and the CSV/JSON

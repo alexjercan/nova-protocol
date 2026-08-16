@@ -52,6 +52,8 @@ so.
 | `NOVA_CAPTURE` | the CAPTURE path of a script that has one: its shot steps write PNGs instead of driving straight through | `capturing()`, which a script reads while building its steps | any (presence only) |
 | `NOVA_SHOT_DIR` | nothing on its own | `capture_window`, and the scenario `Screenshot` action (`nova_scenario/src/actions/view.rs`) reads it independently | directory that relative capture paths resolve under; absolute paths ignore it |
 | `NOVA_PERF_CONTRACT` | the contract writer | `ProbeContract` | file path the run writes its declared capabilities to (probe passes `probe-contract.json`), so the grader can tell an unwired capability from a failed one. Unset - a hand-run example - writes nothing |
+| `NOVA_PERF_SNAPSHOT` | the world-state snapshot sink | `SnapshotPlugin` | JSONL file path. One snapshot per line: ships, their sections, each section's fixtures and weapon state, and every round in flight. Read it with `jq` |
+| `NOVA_PERF_SNAPSHOT_FRAMES` | nothing on its own | `SnapshotPlugin` | comma-separated frame numbers to snapshot at. A repeated value snapshots that frame twice, which is the determinism check: the two lines must be byte-identical. Unset - only `F9` and script calls take one |
 | `NOVA_AUTOPILOT_DEADLINE` | nothing on its own | the completion watcher | seconds before the run gives up and error-exits naming the laggards (default 120); the RUN-level backstop under a script's own per-step deadlines |
 | `NOVA_MENU_BACKDROP` | pins the menu's backdrop draw to one scenario, so a capture run (or a backdrop being authored) looks at a SPECIFIC scene instead of re-rolling the menu | `load_menu_ambience` (`nova_menu/src/ambience.rs`) | a `menu_backdrop`-flagged scenario id (for example `menu_duel`); an unknown or error-flagged id warns and falls back to the random draw |
 
@@ -64,6 +66,38 @@ prefix change - the deadline's stem moved too. A scripted run still pinned to
 the old names arms nothing and silently does a plain play-through, so check
 yours against this table; the CHANGELOG's breaking entry spells out the old
 spellings.
+
+## Reading the world instead of looking at it
+
+The timeline says what HAPPENED. The world-state snapshot
+(`nova_probe::capabilities::snapshot`) says what the world LOOKS like: one JSON
+object holding every ship - identity, pose, velocity, aggregate health, mass,
+the collapse/defeat flags and its weapon locks - each ship's sections with their
+class, pose, health, modifications and magazine state, each section's fixtures
+(the skin plates and decor bolted to it), and every torpedo and round in flight
+with its owner, damage and remaining lifetime.
+
+Use it when a defect would otherwise be judged from a render. A skin bug, a
+section that took damage it should not have, a turret that never reloaded: all
+of them are one `jq` query away instead of a picture to squint at.
+
+```text
+Xvfb :95 -screen 0 1280x720x24 &
+NOVA_AUTOPILOT=1 NOVA_PERF_SNAPSHOT=/tmp/snap.jsonl \
+  NOVA_PERF_SNAPSHOT_FRAMES=600,600 BEVY_ASSET_ROOT="$PWD" DISPLAY=:95 \
+  cargo run --example turret_section --features debug
+jq -S '.ships[0].sections[] | {id, class, health}' /tmp/snap.jsonl
+```
+
+Two rules make it a DIFFABLE artifact rather than a dump. Every list is sorted
+by a value-derived key, never by entity id or query order, so a respawn that
+renumbers entities does not churn the diff. Every float is rounded to four
+decimals with `-0.0` normalized, so the last bit of an `f32` does not either.
+Two snapshots of one frozen frame are byte-identical, which is what the repeated
+frame number above checks.
+
+It is read-only, deliberately. There is no restore: a scenario is already
+replayable and is its own checkpoint.
 
 ## The completion protocol
 

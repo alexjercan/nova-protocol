@@ -250,6 +250,9 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- New probe capability: `NOVA_PERF_SNAPSHOT` dumps world state as JSONL - ships,
+  sections, fixtures, weapons, ordnance - sorted and rounded so two snapshots of
+  one frame diff clean.
 - The base mod generates its own decoration art: `scripts/gen-greebles.py`
   builds one `.glb` per JSON recipe in `scripts/greeble-recipes/`, gated by
   `--check`.

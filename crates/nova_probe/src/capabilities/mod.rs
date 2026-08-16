@@ -10,8 +10,11 @@
 //!   -> `timeline.jsonl`.
 //! - [`invariants`] - engine-guaranteed bounds asserted every frame, riding
 //!   the timeline sink.
+//! - [`snapshot`] - the whole world's state on demand (ships, sections,
+//!   fixtures, weapons, ordnance) -> `snapshot.jsonl`. The timeline says what
+//!   happened; this says what the world LOOKS like.
 //!
-//! [`NovaProbePlugin`] bundles all three. It does not replace their
+//! [`NovaProbePlugin`] bundles all four. It does not replace their
 //! per-example configuration: an example that needs a driver or a custom
 //! output path still wires that capability itself.
 
@@ -25,6 +28,48 @@ pub mod frametime;
 // wire them never build for wasm).
 #[cfg(not(target_arch = "wasm32"))]
 pub mod invariants;
+// The world-state snapshot writes a JSONL file, so it is native-only with the
+// recorder and wasm gets the same shape of no-op stub.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod snapshot;
+#[cfg(target_arch = "wasm32")]
+pub mod snapshot {
+    //! Wasm stubs for the native-only world-state snapshot.
+    use bevy::prelude::*;
+
+    /// No-op on wasm (no filesystem for the JSONL sink).
+    pub fn nova_snapshot() -> SnapshotPlugin {
+        SnapshotPlugin
+    }
+
+    /// Inert wasm stand-in for the native snapshot plugin.
+    pub struct SnapshotPlugin;
+
+    impl SnapshotPlugin {
+        /// No-op on wasm.
+        pub fn out(self, _path: impl Into<std::path::PathBuf>) -> Self {
+            self
+        }
+
+        /// No-op on wasm.
+        pub fn at_frames(self, _frames: impl IntoIterator<Item = u32>) -> Self {
+            self
+        }
+    }
+
+    impl Plugin for SnapshotPlugin {
+        fn build(&self, _app: &mut App) {}
+    }
+
+    /// No-op on wasm.
+    pub fn probe_snapshot(_world: &mut World, _reason: &str) {}
+
+    /// Glob-import surface for the wasm stubs; the same names the native
+    /// module publishes, minus the serializer and the parser.
+    pub mod prelude {
+        pub use super::{nova_snapshot, probe_snapshot, SnapshotPlugin};
+    }
+}
 // The run-timeline recorder writes a JSONL file; the browser has no
 // filesystem, so the module is native-only and wasm gets no-op stubs with the
 // same signatures, so cross-target callers compile.
@@ -70,8 +115,8 @@ pub mod prelude {
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::invariants::prelude::*;
     pub use super::{
-        frametime::prelude::*, timeline::prelude::*, NovaProbePlugin, CORRECTNESS_MODE,
-        PROBE_MODE_ENV,
+        frametime::prelude::*, snapshot::prelude::*, timeline::prelude::*, NovaProbePlugin,
+        CORRECTNESS_MODE, PROBE_MODE_ENV,
     };
 }
 
@@ -151,6 +196,7 @@ impl Plugin for NovaProbePlugin {
             }
         }
         app.add_plugins(nova_timeline());
+        app.add_plugins(nova_snapshot());
         #[cfg(not(target_arch = "wasm32"))]
         app.add_plugins(self.invariants.clone());
     }

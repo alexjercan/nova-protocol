@@ -257,6 +257,11 @@ impl RunArtifacts {
             Capability::Timeline => manifest.armed_timeline,
             Capability::Invariants => manifest.armed_invariants,
             Capability::FrameTime => manifest.armed_fps,
+            // `probe run` does not arm snapshots: they are an on-demand
+            // debugging artifact nothing grades, so the manifest has nothing
+            // to say and "unknown" is the honest answer. A check that reads
+            // one is what earns a manifest field.
+            Capability::Snapshot => return None,
         })
     }
 }
