@@ -29,10 +29,13 @@ magazine, a chaff tube, an applique tile grid and a white rounds-count tally
 low, flush and bolted, gunmetal plus ONE stencil white, nothing lit.
 
 `civilian_*.glb` - the racer's look, a ship built to be sold: a livery rail
-(`stripe`), a cabin window row (`windows`), a raked aero fin (`fin`), a smooth
-fairing over whatever a working ship would leave exposed (`fairing`), and a nav
-beacon (`beacon`). Two accent colours across the whole kit and nothing else:
-cobalt for paint, amber for anything lit.
+(`stripe`), a cabin window row (`windows`) and its deck twin (`skylight`), a
+raked aero fin (`fin`), a smooth fairing (`fairing`), a faired intake scoop
+(`vent`), a flush outlined door (`door`), a faired tank blister (`tank`), a
+faired comms radome (`dish`), an advert panel (`livery`), a registry mark
+(`registry`) and a nav beacon (`beacon`). Twelve pieces, all FINISH: shells
+are hull-coloured, machinery never shows, and the whole kit spends two accent
+colours and nothing else - cobalt for paint, amber for anything lit.
 
 `industrial_*.glb` - seven pieces a fitter would have a part number for: a
 radiator bank, a conduit run, a corrugated panel, a louvred grille, an access

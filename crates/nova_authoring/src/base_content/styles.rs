@@ -733,24 +733,47 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
 /// And the LIVERY: one continuous cobalt band down every straight edge of the
 /// hull, which is the only piece a customer would ever have asked for.
 ///
-/// Everything else is restraint. The kit carries exactly two accents - COBALT
-/// for anything painted and AMBER for anything lit - and its other four pieces
-/// are hull-coloured, so five pieces read as one livery rather than as five
-/// props.
+/// Everything else is restraint, which the vocabulary batch (task
+/// 20260816-222651) names FINISH: function hidden under styling, where the
+/// armoured kit hides it under suppression. The kit carries exactly two
+/// accents - COBALT for anything painted and AMBER for anything lit - and
+/// every shell among the twelve pieces is hull-coloured, so the kit reads as
+/// one livery rather than as twelve props. Detail flows LENGTHWISE: every
+/// long piece is authored long on Z and aligned to the run, the aero grammar,
+/// and nothing here clusters - clustered detail is machinery showing, which a
+/// sold hull never allows.
 ///
 /// In priority order, and the reason for each place in it:
 ///
-/// 1. the WINDOW row is the rarest and most specific piece and the only one
-///    that says what the ship is FOR, so it gets first refusal on the flanks;
-/// 2. the FIN is the only piece that breaks the silhouette, on the high ground
-///    and raked outboard, and it is thinned because one fin is a detail and
-///    twelve are a radar farm;
-/// 3. the STRIPE is the look. See its own note - it is the one rule here that
-///    had to be measured into existence rather than written;
-/// 4. the FAIRING is the filler on panelling, hull-coloured on purpose;
-/// 5. the BEACON reads the pocket and therefore goes LAST - `near_fitting` is
-///    the measured carpeting trap, and first in a list it starves everything
-///    under it.
+/// 1. the WINDOW row is the most specific piece and the one that says what
+///    the ship is FOR, so it gets first refusal on the flanks;
+/// 2. the DISH and the TANK are the two rarest shares in the kit, and a rare
+///    rule sampled after a broad one is starved into `x0` - so the faired
+///    radome and the faired tankage take the decks and the thick body before
+///    anything broad looks at them;
+/// 3. the FIN is the only piece that breaks the silhouette, on the high
+///    ground and raked outboard, and it is thinned because one fin is a
+///    detail and twelve are a radar farm;
+/// 4. the STRIPE is the look. See its own note - it is the one rule here that
+///    had to be measured into existence rather than written. Everything that
+///    lists `Brink` sits BELOW it, so the band is never punctured;
+/// 5. the SKYLIGHT is the window row's claim made to a viewer looking DOWN -
+///    the attitude every bench render and chase camera actually holds. It
+///    lists `Brink` (a narrow deck grows no Flat interior, the windows'
+///    measured lesson) and therefore sits under the stripe;
+/// 6. the VENT and the DOOR are the mid-density service reads - faired and
+///    outlined respectively, because on this hull even the machinery access
+///    is a styling exercise;
+/// 7. the LIVERY panel is commerce, the civilian voice, after the stripe so
+///    an advert can take a short edge but never a cell of the band;
+/// 8. the REGISTRY mark is the kit's second thin-shape carrier and mostly a
+///    per-block floor - every hull that left a yard is registered SOMEWHERE,
+///    and exactly once per neighbourhood reads as paperwork rather than as
+///    pattern;
+/// 9. the FAIRING is the filler on panelling, hull-coloured on purpose;
+/// 10. the BEACON reads the pocket and therefore goes LAST - `near_fitting`
+///     is the measured carpeting trap, and first in a list it starves
+///     everything under it.
 fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     ShipStyleConfig {
         id: CIVILIAN_STYLE_ID.to_string(),
@@ -809,6 +832,58 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                     stride: 2,
                     chance: 0.8,
                     patch: 4,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "civilian_dish".to_string(),
+                model: assets.greeble_civilian_dish.clone(),
+                health: 5.0,
+                density: 0.05,
+                collider: Vec3::new(0.28, 0.14, 0.28),
+                // A faired SATCOM radome, the antenna as a product. The
+                // rarest share in the kit, so it is sampled right after the
+                // windows: a 0.15 rule under a broad one logs `x0` while
+                // looking starved rather than absent. Up-facing decks only -
+                // a dome on a flank reads as a defect - and the patch floor
+                // is what actually places it: one radome per block of deck is
+                // an appliance, a row of them is an array farm.
+                //
+                // `stride: 1`, MEASURED: eligible deck interiors on this kit's
+                // subjects are one or two cells wide, and a narrow lane can
+                // sit entirely off the global stride-2 parity - the floor
+                // only rescues LATTICE cells, so a strided dish was `x0 of 2`
+                // on the carrier deck itself. The share is the thinner here.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    facing: PlateFacing::Up,
+                    chance: 0.15,
+                    patch: 6,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "civilian_tank".to_string(),
+                model: assets.greeble_civilian_tank.clone(),
+                health: 12.0,
+                density: 0.08,
+                collider: Vec3::new(0.24, 0.15, 0.4),
+                // The power-cell class in the civilian voice: tankage exists,
+                // but only its FAIRING shows. Chunky, so it takes the drum's
+                // measured lesson whole: `min_depth 2` keeps it on the thick
+                // body, and the share is LOW because 0.28 put 13-14 drums on
+                // one bench hull - a scrapyard, not a sponson line. Aligned
+                // to the run so a row of blisters reads as one faired
+                // sponson down the hull. No stride: the depth gate already
+                // confines it to narrow thick-body lanes, which a stride-2
+                // parity can miss end to end (measured `x0 of 12` on the
+                // trench hull) - the low share is what keeps it sparse.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    min_depth: 2,
+                    chance: 0.12,
+                    patch: 6,
                     align: ScatterAlign::Run,
                     ..Default::default()
                 },
@@ -876,6 +951,132 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 scatter: ScatterRule {
                     relief: vec![PlateRelief::Brink],
                     min_run: 3,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "civilian_skylight".to_string(),
+                model: assets.greeble_civilian_skylight.clone(),
+                health: 6.0,
+                density: 0.05,
+                collider: Vec3::new(0.2, 0.05, 0.55),
+                // The passenger read for a viewer looking DOWN, which is the
+                // attitude the bench and the chase camera both hold - the
+                // window row's `facing: Side` means the strongest civilian
+                // tell was invisible from above. `min_run 2` because a cabin
+                // line is a LINE: one lit strip alone reads as a hatch, two
+                // butted down a run read as a deck of paying passengers.
+                //
+                // `Brink` is in for the windows' measured reason: a two-wide
+                // deck is edge row on edge row and grows NO Flat interior, so
+                // a Flat/Step skylight was eligible NOWHERE on the spine
+                // freighter - the most liner-shaped subject on the bench.
+                // That is also why this rule sits BELOW the stripe: the band
+                // takes every long deck edge first at full share, and the
+                // skylight may only glaze the short runs and interiors it
+                // left, so the one continuous line the look rests on is never
+                // punctured from above. No stride - the eligible lanes are
+                // narrow and can sit wholly off a stride-2 parity.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step, PlateRelief::Brink],
+                    facing: PlateFacing::Up,
+                    min_run: 2,
+                    chance: 0.4,
+                    patch: 5,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "civilian_vent".to_string(),
+                model: assets.greeble_civilian_vent.clone(),
+                health: 5.0,
+                density: 0.06,
+                collider: Vec3::new(0.18, 0.09, 0.4),
+                // The vent class with the machinery hidden: a faired scoop
+                // whose one dark surface is the mouth itself, amber-lit. NOT
+                // `near_fitting` - the beacon owns the pocket in this kit and
+                // two rules on one halo carpet it (the measured trap). A
+                // scoop rides the open panel runs instead, aligned down them,
+                // so intakes flow along the hull the way the whole kit does.
+                // No stride, low share: the panel runs left over this deep in
+                // the list are narrow, and a stride-2 parity zeroed the rule
+                // on the whole bench (`x0 of 12` in the trench).
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    min_run: 2,
+                    chance: 0.3,
+                    patch: 4,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "civilian_door".to_string(),
+                model: assets.greeble_civilian_door.clone(),
+                health: 8.0,
+                density: 0.05,
+                collider: Vec3::new(0.26, 0.06, 0.44),
+                // The access class as the customer sees it: a flush leaf with
+                // a painted outline and a courtesy light, on the FLANKS where
+                // a boarding party would actually stand. Sampled well under
+                // the window row so cabins outrank doors on a short flank,
+                // and floored per block because a hull with no way in reads
+                // as a drone: every ship gets a door, few get two. No stride
+                // for the measured reason the vent records - the flank cells
+                // the windows leave behind are scattered singles, and a
+                // parity gate on top of them was a door on no ship at all.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    facing: PlateFacing::Side,
+                    chance: 0.25,
+                    patch: 5,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "civilian_livery".to_string(),
+                model: assets.greeble_civilian_livery.clone(),
+                health: 6.0,
+                density: 0.05,
+                collider: Vec3::new(0.3, 0.03, 0.46),
+                // COMMERCE, the voice no other kit has: a sold hull sells its
+                // own panelling. Paint-flat, so it may list `Brink` - but it
+                // sits BELOW the stripe on purpose, so the band takes every
+                // long edge first and an advert only ever lands on the short
+                // edges and open panels the livery rail left behind. Aligned
+                // to the run like every long piece here: adverts read down
+                // the hull, not across it. Share over stride does the
+                // thinning, the same measured lattice argument as the vent.
+                scatter: ScatterRule {
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step, PlateRelief::Brink],
+                    chance: 0.25,
+                    patch: 5,
+                    align: ScatterAlign::Run,
+                    ..Default::default()
+                },
+            },
+            StyleFixtureConfig {
+                id: "civilian_registry".to_string(),
+                model: assets.greeble_civilian_registry.clone(),
+                health: 4.0,
+                density: 0.04,
+                collider: Vec3::new(0.13, 0.03, 0.6),
+                // The marking class, and the kit's SECOND thin-shape carrier
+                // (task 20260816-222651, the batch's cone brief): no relief
+                // filter, no depth floor and `seat: Any`, because paint lies
+                // on any facet a one-cell-thick build derives - the fairing
+                // alone was one coin toss per thin hull. The share is nearly
+                // off and the patch floor does the placing: a registry mark
+                // is PAPERWORK, one per neighbourhood, and a hull sprayed
+                // with them reads as a pattern rather than as insurance.
+                scatter: ScatterRule {
+                    seat: ScatterSeat::Any,
+                    stride: 2,
+                    chance: 0.2,
+                    patch: 4,
                     align: ScatterAlign::Run,
                     ..Default::default()
                 },
@@ -1479,6 +1680,10 @@ mod tests {
                 "armoured_applique",
                 "armoured_ammo_stripes",
                 "civilian_fin",
+                // The registry mark is the civilian batch's second carrier
+                // (task 20260816-222651): paint lies on any facet, and a
+                // marking is the one piece a one-cell hull can wear honestly.
+                "civilian_registry",
                 "civilian_fairing",
                 "salvage_whip",
                 "salvage_patch_scab",
@@ -1697,6 +1902,66 @@ mod tests {
             belt.scatter.stride <= 1 && belt.scatter.chance >= 1.0,
             "a belt with holes thinned into it is not a belt",
         );
+    }
+
+    /// The civilian kit is namespaced like the others, and its size is pinned
+    /// DELIBERATELY at twelve: the vocabulary batch (task 20260816-222651)
+    /// raised the cap from five for seven new CLASSES - vent, door, tank,
+    /// registry, livery, skylight, dish - one piece each, no variants. The
+    /// doctrine stands: mismatch comes from placement and material, never
+    /// from count, and a thirteenth piece needs a class this kit lacks. The
+    /// cross-style ordering (armoured smallest, salvage biggest) is re-pinned
+    /// by the coordinator after all four batches land, not here.
+    #[test]
+    fn the_civilian_kit_is_namespaced_and_capped() {
+        let style = civilian_style(&BaseContentAssets::from_paths());
+        assert_eq!(
+            style.fixtures.len(),
+            12,
+            "the civilian kit is pinned at 12 pieces - one per approved class",
+        );
+        for fixture in &style.fixtures {
+            let prefix = format!("{CIVILIAN_STYLE_ID}_");
+            assert!(
+                fixture.id.starts_with(&prefix),
+                "'{}' is not namespaced by its style",
+                fixture.id,
+            );
+            let path = fixture.model.path().unwrap_or_default().to_string();
+            assert!(
+                path == format!("self://gltf/greebles/{}.glb#Scene0", fixture.id),
+                "'{}' names '{path}' rather than its own greeble",
+                fixture.id,
+            );
+        }
+    }
+
+    /// Every piece below the stripe that lists `Brink` must STAY below it:
+    /// the band is continuous only because nothing above it can claim a cell
+    /// of a straight edge, and the livery panel is the one piece allowed on
+    /// edges at all.
+    #[test]
+    fn nothing_above_the_civilian_stripe_touches_a_brink() {
+        let style = civilian_style(&BaseContentAssets::from_paths());
+        let stripe = style
+            .fixtures
+            .iter()
+            .position(|fixture| fixture.id == "civilian_stripe")
+            .expect("the civilian kit has no band");
+        for fixture in &style.fixtures[..stripe] {
+            // The window row is the pinned exception: task 20260816-203812
+            // put it on the flank edges deliberately, side-facing only.
+            if fixture.id == "civilian_windows" {
+                continue;
+            }
+            assert!(
+                !fixture.scatter.relief.contains(&PlateRelief::Brink)
+                    && !fixture.scatter.relief.is_empty(),
+                "'{}' sits above the stripe and can claim a Brink, which \
+                 punctures the band",
+                fixture.id,
+            );
+        }
     }
 
     /// The ammo stripes are the armoured pocket rule, and every clause here is

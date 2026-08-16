@@ -1,0 +1,42 @@
+{
+  "_comment": "CIVILIAN kit: a faired COMMS DISH - a low twelve-sided radome the shape of an airliner SATCOM blister, not a spike. The salvage whip leans overboard and the armoured mast rakes; a civilian antenna is a PRODUCT, so the dish is a smooth hull-coloured dome on a skirt with one cobalt pinline where the cowling meets the hull and one small amber tell-tale on top. Twelve sides for the same reason the fairing has them: the piece must read as ROUND against flat panelling.",
+  "materials": {
+    "hull": { "color": [0.42, 0.42, 0.4], "metallic": 0.0, "roughness": 0.35 },
+    "accent": { "color": [0.01, 0.1, 0.38], "metallic": 0.0, "roughness": 0.3 },
+    "lamp": { "color": [0.89, 0.342, 0.027], "metallic": 0.0, "roughness": 0.35 }
+  },
+  "material": "hull",
+  "parts": [
+    {
+      "primitive": "disc",
+      "radius": 0.14,
+      "thickness": 0.03,
+      "sides": 12,
+      "at": [0.0, 0.015, 0.0]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.122,
+      "thickness": 0.016,
+      "sides": 12,
+      "at": [0.0, 0.036, 0.0],
+      "material": "accent"
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.112,
+      "radius_top": 0.055,
+      "height": 0.075,
+      "sides": 12,
+      "at": [0.0, 0.079, 0.0]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.02,
+      "thickness": 0.02,
+      "sides": 8,
+      "at": [0.0, 0.124, 0.0],
+      "material": "lamp"
+    }
+  ]
+}

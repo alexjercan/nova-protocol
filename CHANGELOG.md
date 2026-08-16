@@ -236,6 +236,9 @@ tagged **(breaking)**.
 
 ### Audio & Visuals
 
+- The civilian kit grows to twelve pieces: faired vent, flush door, tank
+  blister, comms radome, skylight strip, advert panel and a registry mark
+  that lies on any facet a thin hull offers.
 - The armoured kit grows 4 to 10: stub mast, shuttered intake, magazine, chaff
   tube, applique tiles and white rounds-count stripes beside every gun well -
   low, bolted, gunmetal plus one stencil white.

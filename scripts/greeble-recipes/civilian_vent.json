@@ -1,0 +1,33 @@
+{
+  "_comment": "CIVILIAN kit: a faired INTAKE SCOOP - a hull-coloured stepped shell with a dark mouth and one amber-lit slot glowing inside it. The industrial answer to this class is a bolted grille; a ship built to be sold FAIRS the opening and lights it, so the only dark geometry is the mouth itself and the machinery behind it never shows. Long on Z so `align: Run` lays the scoop down the hull's flow line - detail on this kit travels LENGTHWISE.",
+  "materials": {
+    "hull": { "color": [0.42, 0.42, 0.4], "metallic": 0.0, "roughness": 0.35 },
+    "shadow": { "color": [0.012, 0.013, 0.016], "metallic": 0.0, "roughness": 0.55 },
+    "lamp": { "color": [0.89, 0.342, 0.027], "metallic": 0.0, "roughness": 0.35 }
+  },
+  "material": "hull",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.18, 0.035, 0.4],
+      "at": [0.0, 0.0175, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.055, 0.3],
+      "at": [0.0, 0.058, 0.02]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.05, 0.05],
+      "at": [0.0, 0.05, -0.15],
+      "material": "shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.1, 0.022, 0.05],
+      "at": [0.0, 0.046, -0.153],
+      "material": "lamp"
+    }
+  ]
+}

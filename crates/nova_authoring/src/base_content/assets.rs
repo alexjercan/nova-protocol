@@ -72,11 +72,21 @@ pub struct BaseContentAssets {
     pub greeble_armoured_sensor: AssetRef<WorldAsset>,
     pub greeble_armoured_strake: AssetRef<WorldAsset>,
     /// The CIVILIAN kit, which the `civilian` style scatters: a livery rail, a
-    /// cabin window row, a raked fin, a fairing, a nav beacon.
+    /// cabin window row and skylight strip, a raked fin, a fairing, a faired
+    /// intake, door, tank blister and comms dish, an advert panel, a registry
+    /// mark and a nav beacon. Everything faired or painted - machinery never
+    /// shows on a hull built to be sold.
     pub greeble_civilian_beacon: AssetRef<WorldAsset>,
+    pub greeble_civilian_dish: AssetRef<WorldAsset>,
+    pub greeble_civilian_door: AssetRef<WorldAsset>,
     pub greeble_civilian_fairing: AssetRef<WorldAsset>,
     pub greeble_civilian_fin: AssetRef<WorldAsset>,
+    pub greeble_civilian_livery: AssetRef<WorldAsset>,
+    pub greeble_civilian_registry: AssetRef<WorldAsset>,
+    pub greeble_civilian_skylight: AssetRef<WorldAsset>,
     pub greeble_civilian_stripe: AssetRef<WorldAsset>,
+    pub greeble_civilian_tank: AssetRef<WorldAsset>,
+    pub greeble_civilian_vent: AssetRef<WorldAsset>,
     pub greeble_civilian_windows: AssetRef<WorldAsset>,
     /// The INDUSTRIAL kit: exposed services, ribbing, radiators and paint. Seven
     /// pieces, one per rule of the `industrial` style.
@@ -172,14 +182,35 @@ impl BaseContentAssets {
             greeble_civilian_beacon: AssetRef::from(
                 "self://gltf/greebles/civilian_beacon.glb#Scene0".to_string(),
             ),
+            greeble_civilian_dish: AssetRef::from(
+                "self://gltf/greebles/civilian_dish.glb#Scene0".to_string(),
+            ),
+            greeble_civilian_door: AssetRef::from(
+                "self://gltf/greebles/civilian_door.glb#Scene0".to_string(),
+            ),
             greeble_civilian_fairing: AssetRef::from(
                 "self://gltf/greebles/civilian_fairing.glb#Scene0".to_string(),
             ),
             greeble_civilian_fin: AssetRef::from(
                 "self://gltf/greebles/civilian_fin.glb#Scene0".to_string(),
             ),
+            greeble_civilian_livery: AssetRef::from(
+                "self://gltf/greebles/civilian_livery.glb#Scene0".to_string(),
+            ),
+            greeble_civilian_registry: AssetRef::from(
+                "self://gltf/greebles/civilian_registry.glb#Scene0".to_string(),
+            ),
+            greeble_civilian_skylight: AssetRef::from(
+                "self://gltf/greebles/civilian_skylight.glb#Scene0".to_string(),
+            ),
             greeble_civilian_stripe: AssetRef::from(
                 "self://gltf/greebles/civilian_stripe.glb#Scene0".to_string(),
+            ),
+            greeble_civilian_tank: AssetRef::from(
+                "self://gltf/greebles/civilian_tank.glb#Scene0".to_string(),
+            ),
+            greeble_civilian_vent: AssetRef::from(
+                "self://gltf/greebles/civilian_vent.glb#Scene0".to_string(),
             ),
             greeble_civilian_windows: AssetRef::from(
                 "self://gltf/greebles/civilian_windows.glb#Scene0".to_string(),

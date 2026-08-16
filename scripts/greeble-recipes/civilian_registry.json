@@ -1,0 +1,46 @@
+{
+  "_comment": "CIVILIAN kit: the REGISTRY MARK - a cobalt double pinstripe running lengthwise past a pale maker's plate with three dark glyph bars. Paint-flat like the industrial hazard band, and for the same reason: a marking is a DECAL, so it lies on any seat a thin build offers - this is the kit's cone-friendly thin-shape carrier. The fiction is 'designed, sold, INSURED': every hull that left a yard carries its registration somewhere, which is why the rule floors one per block rather than scattering many. Raises its footprint budget: paint cannot collide with anything and a pinstripe wants length.",
+  "materials": {
+    "accent": { "color": [0.01, 0.1, 0.38], "metallic": 0.0, "roughness": 0.3 },
+    "trim": { "color": [0.72, 0.7, 0.64], "metallic": 0.0, "roughness": 0.3 },
+    "shadow": { "color": [0.012, 0.013, 0.016], "metallic": 0.0, "roughness": 0.55 }
+  },
+  "material": "accent",
+  "budget": { "footprint": 0.8, "height": 0.1 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.045, 0.012, 0.62],
+      "at": [0.02, 0.006, 0.05]
+    },
+    {
+      "primitive": "box",
+      "size": [0.018, 0.012, 0.5],
+      "at": [-0.035, 0.006, 0.08]
+    },
+    {
+      "primitive": "box",
+      "size": [0.1, 0.016, 0.15],
+      "at": [-0.03, 0.008, -0.28],
+      "material": "trim"
+    },
+    {
+      "primitive": "box",
+      "size": [0.064, 0.012, 0.02],
+      "at": [-0.03, 0.012, -0.325],
+      "material": "shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.064, 0.012, 0.02],
+      "at": [-0.03, 0.012, -0.285],
+      "material": "shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.064, 0.012, 0.02],
+      "at": [-0.03, 0.012, -0.245],
+      "material": "shadow"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "_comment": "CIVILIAN kit: an ADVERT PANEL - a pale billboard carrying a cobalt roundel, two cobalt wordmark bars ragged like set type, and one small dark tagline. Commerce is the civilian voice: a warship stencils rounds counts and a scrapper paints kill marks, but a sold hull sells DECK SPACE. Paint-flat so it lies on any panel or straight edge, and long on Z so the run alignment reads it down the hull like livery on an airliner. Cobalt only - an advert is paint, and lit things on this kit are amber, which an advert is not.",
+  "materials": {
+    "trim": { "color": [0.72, 0.7, 0.64], "metallic": 0.0, "roughness": 0.3 },
+    "accent": { "color": [0.01, 0.1, 0.38], "metallic": 0.0, "roughness": 0.3 },
+    "shadow": { "color": [0.012, 0.013, 0.016], "metallic": 0.0, "roughness": 0.55 }
+  },
+  "material": "accent",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.3, 0.014, 0.46],
+      "at": [0.0, 0.007, 0.0],
+      "material": "trim"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.085,
+      "thickness": 0.016,
+      "sides": 12,
+      "at": [0.0, 0.015, -0.13]
+    },
+    {
+      "primitive": "box",
+      "size": [0.2, 0.012, 0.055],
+      "at": [0.0, 0.017, 0.03]
+    },
+    {
+      "primitive": "box",
+      "size": [0.15, 0.012, 0.055],
+      "at": [-0.025, 0.017, 0.13]
+    },
+    {
+      "primitive": "box",
+      "size": [0.11, 0.012, 0.03],
+      "at": [0.02, 0.016, 0.2],
+      "material": "shadow"
+    }
+  ]
+}
