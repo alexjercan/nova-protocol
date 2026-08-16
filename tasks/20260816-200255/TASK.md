@@ -1,6 +1,6 @@
 # Thruster shells: sizes, side link points, and a showcase
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 61
 - TAGS: v0.11.0,research,art,ship
 
@@ -50,3 +50,29 @@ The default thruster model "is kind of simple". Wanted:
 - New meshes follow the primitives-first route where custom: JSON recipes via
   the generator scripts, not hand-authored binaries (see the greeble spike's
   sourcing plan).
+
+## Closure
+
+Landed as 38114fff (2026-08-16), lane thruster-shells. THRUSTERS.md plus the
+thruster_gallery example (16 candidate looks, named, idle orbit, capture
+idiom) and two renders in this folder.
+
+Headline answers:
+- THE SHELL IDEA WORKS. The skin is a pure function of link-point normals:
+  stands()/walls() in shell_skin.rs read sockets, so flank-socketed drives
+  get clad automatically with zero skin-code change, and the socket-free
+  exhaust face keeps its lane bare via the tested exit_pocket behaviour.
+- Priced-in consequences of flank sockets: mixed fitting banks become illegal
+  in wfc unless bays get shells too; staggered drive banks become
+  clearance-illegal; and fitting_distance walks only in-plane, so shroud
+  plates need a one-line near_fitting repair.
+- Size grid: 1x1x1, 2x2x1, 3x3x1, 5x5x1, 5x5x3, 1x1x5. Mass and thrust
+  proportional to cell volume - the family is a geometry choice, not a power
+  ladder.
+- THE REAL PREREQUISITE is multi-cell sections: a section occupies one cell
+  today, so every size above 1x1x1 waits on that (follow-up 3, size L).
+- Licences: Quaternius/Kenney CC0 (per GREEBLES.md), Fertile Soil CC0 (per
+  art/README.md), proposed shells are recipe-generated originals.
+
+Follow-ups are enumerated in THRUSTERS.md section 6; opening them is the
+owner's call. The flank-socket engine change is the decision point.
