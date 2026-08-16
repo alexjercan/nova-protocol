@@ -180,6 +180,13 @@ path = "examples/screenshots/parts_viewer.rs"
 name = "wfc_ships"
 path = "examples/screenshots/wfc_ships.rs"
 
+# A fixed roster of hand-placed structures - the owner's L, runs, a T, a cross,
+# a fitted hull - clad, named and held still, with the skin report printed per
+# subject so a render is judged next to its numbers (task 20260816-142330).
+[[example]]
+name = "shape_bench"
+path = "examples/screenshots/shape_bench.rs"
+
 # The compare_* producers frame art candidates for human judgment (task
 # 20260812-100256) - the category's promise verbatim, with the owner's eyes on
 # the frames instead of the website's. Interactive when hand-run (number keys

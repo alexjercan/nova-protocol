@@ -290,6 +290,9 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- New `shape_bench` example: a fixed roster of hand-placed structures, clad,
+  named and held still, with the skin report printed per subject and style so a
+  render is judged next to its numbers.
 - The `wfc_ships` row holds still and turns on a slow orbit while nobody flies
   it. The subjects were drifting on their own spawn impulse, not on input.
 - Engine tests stopped reading installed mods: seven rigs over `webmods/` are
