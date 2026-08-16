@@ -2108,6 +2108,28 @@ mod tests {
         );
     }
 
+    /// The kit sizes are an ORDERING, and the ordering IS the tone split
+    /// (task 20260816-194637): armoured is the smallest because suppression
+    /// is its look, salvage the biggest because accumulation is. The four
+    /// vocabulary batches (tasks 20260816-2226xx) each pinned their own cap;
+    /// this pin holds the RELATION so a future piece cannot quietly invert
+    /// the doctrine. Equality at the top is tolerated until the tuning pass
+    /// (GREEBLES.md follow-up 6) re-ranks the styles; strict order below it
+    /// stands.
+    #[test]
+    fn the_kit_caps_order_the_tone_split() {
+        let assets = BaseContentAssets::from_paths();
+        let armoured = armoured_style(&assets).fixtures.len();
+        let civilian = civilian_style(&assets).fixtures.len();
+        let industrial = industrial_style(&assets).fixtures.len();
+        let salvage = salvage_style(&assets).fixtures.len();
+        assert!(
+            armoured < civilian && civilian < industrial && industrial <= salvage,
+            "the tone split inverted: armoured {armoured} < civilian \
+             {civilian} < industrial {industrial} <= salvage {salvage} must hold",
+        );
+    }
+
     /// No SEATED rule names a relief that can never carry a seat.
     ///
     /// The relief list says which ZONE of a hull a piece belongs in; the seat
