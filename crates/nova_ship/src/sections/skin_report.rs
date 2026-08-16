@@ -47,13 +47,14 @@ pub mod prelude {
     };
 }
 
-/// How far a plate's top may lean off its own out face before a piece standing
-/// upright on it reads as leaning, in radians - about 15 degrees.
+/// How far a plate's top may lean off its own out face before it counts as a
+/// leaning plate, in radians - about 15 degrees.
 ///
-/// Nothing tilts a decoration to the surface under it
-/// ([`decor_pose`](super::skin_decor::decor_pose) only lifts and yaws), so this
-/// is the line between a piece that looks bolted down and one that looks
-/// balanced. Used for the summary only; nothing places by it.
+/// A property of the HULL rather than of a piece standing on it:
+/// [`decor_pose`](super::skin_decor::decor_pose) beds a decoration onto the
+/// plate's own top normal, so this is how much of the ship's surface is raked
+/// rather than how much of its decoration is balanced. Used for the summary
+/// only; nothing places by it.
 pub const UPRIGHT_TILT: f32 = 0.26;
 
 /// Everything one derived skin is, as facts.
@@ -93,6 +94,14 @@ pub struct SkinReport {
     pub decor_off_flat: usize,
     /// How many stand on a plate whose top is creased rather than one surface.
     pub decor_on_creased: usize,
+    /// The mean [`tilt`](ShellShape::tilt) of the plates carrying a piece, in
+    /// radians - how raked the ground under the decoration is.
+    ///
+    /// The number the placement work is judged on, next to
+    /// [`decor_on_creased`](SkinReport::decor_on_creased): a piece is bedded
+    /// onto its plate, so this is no longer how far the piece leans off its
+    /// own footing, but it is still how far the FOOTING leans off the ship.
+    pub decor_tilt: f32,
     /// How many pieces stand on each relief, in [`RELIEFS`] order.
     pub decor_relief: Vec<ReliefCount>,
 }
@@ -299,6 +308,15 @@ pub fn skin_report(
             .filter(|row| !row.coplanar)
             .map(|row| row.decor.len())
             .sum(),
+        decor_tilt: match decorated().map(|row| row.decor.len()).sum::<usize>() {
+            0 => 0.0,
+            placed => {
+                decorated()
+                    .map(|row| row.tilt * row.decor.len() as f32)
+                    .sum::<f32>()
+                    / placed as f32
+            }
+        },
         decor_relief: tally(&|relief| {
             decorated()
                 .filter(|row| row.reading.relief == relief)
@@ -381,7 +399,8 @@ pub fn skin_summary(report: &SkinReport) -> String {
     format!(
         "{} plate(s): {} flat-topped ({:.0}%), {} saddle(s) ({:.0}%), {} leaning; \
          mean flat area {:.3} cell^2; {} bare hull face(s) over {} bare cell(s); \
-         {} piece(s), {} off flat ({:.0}%), {} on a creased top",
+         {} piece(s), {} off flat ({:.0}%), {} on a creased top, mean tilt under \
+         a piece {:.3} rad",
         report.plates.len(),
         report.coplanar,
         100.0 * report.coplanar as f32 / plates,
@@ -395,6 +414,7 @@ pub fn skin_summary(report: &SkinReport) -> String {
         report.decor_off_flat,
         100.0 * report.decor_off_flat as f32 / decor,
         report.decor_on_creased,
+        report.decor_tilt,
     )
 }
 
@@ -407,7 +427,7 @@ mod tests {
         shell_shape::{FULL, HALF, TOP_FACET_FOOTPRINT},
         shell_skin::derive_skin,
         skin_reading::read_plates,
-        skin_style::{ScatterRule, StyleFixtureConfig},
+        skin_style::{ScatterRule, ScatterSeat, StyleFixtureConfig},
     };
 
     /// A section that mates on every face, like a hull cube.
@@ -724,6 +744,83 @@ mod tests {
         assert_eq!(report.decor, placed.len());
         assert_eq!(report.rules[0].taken, placed.len());
         assert!(report.rules[0].reach > placed.len(), "the reach is a bound");
+    }
+
+    /// The SEAT GATE, counted: it takes the decoration off the creases and off
+    /// the steepest ground, and it costs coverage to do it.
+    ///
+    /// Both halves are the point. A default rule lands nothing on a creased
+    /// top - which is what the owner was looking at - and the same rule seated
+    /// anywhere covers a third more of the hull. The trade is what the
+    /// exception path exists to buy back.
+    #[test]
+    fn the_seat_gate_takes_the_decoration_off_the_creases() {
+        // A deck with a block on it: flat middle, ramps up to the block, cones
+        // on its diagonals and on the deck's own outer corners.
+        let mut cells: Vec<IVec3> = (0..6)
+            .flat_map(|x| (0..6).map(move |z| IVec3::new(x, 0, z)))
+            .collect();
+        cells.push(IVec3::new(2, 1, 2));
+        let structure = hull(&cells);
+        let cover =
+            |rule: ScatterRule| report(&structure, Some(&style(vec![fixture("panel", rule)])));
+
+        let gated = cover(ScatterRule::default());
+        let ungated = cover(ScatterRule {
+            seat: ScatterSeat::Any,
+            ..default()
+        });
+
+        assert_eq!(gated.decor_on_creased, 0, "the gate let a crease through");
+        assert!(
+            ungated.decor_on_creased > 0,
+            "the subject has no creased plate to gate",
+        );
+        assert!(
+            gated.decor_tilt < ungated.decor_tilt,
+            "the gate left the pieces on ground as raked as before: {} against {}",
+            gated.decor_tilt,
+            ungated.decor_tilt,
+        );
+        // The cost, stated: the gate refuses two fifths of this hull.
+        assert!(
+            gated.decor < ungated.decor,
+            "the gate refused nothing at all",
+        );
+    }
+
+    /// A HAND-BUILT hull is the worst case for the seat gate, and this is how
+    /// bad: not one plate on the owner's L is a surface, so a rule that wants
+    /// one lands NOTHING and the whole ship is carried by the exception.
+    ///
+    /// The measurement the exception path was kept for. A blanket "surfaces
+    /// only" is not a stricter version of the old behaviour on a small build -
+    /// it is no decoration at all, and a bare hull is the complaint this work
+    /// started from.
+    #[test]
+    fn the_seat_gate_strips_a_hand_built_l_and_the_high_ground_carries_it() {
+        let worn = style(vec![
+            fixture("panel", ScatterRule::default()),
+            fixture(
+                "mast",
+                ScatterRule {
+                    seat: ScatterSeat::Any,
+                    ..default()
+                },
+            ),
+        ]);
+        let report = report(&elbow(3, 1), Some(&worn));
+
+        assert_eq!(report.coplanar, 0, "the L has no seat anywhere on it");
+        assert_eq!(
+            report.rules[0].reach, 0,
+            "a seated rule reaches nothing on a hand-built hull",
+        );
+        assert_eq!(report.rules[1].taken, report.plates.len());
+        assert_eq!(
+            report.decor_on_creased, report.decor,
+            "every piece on an L stands on a cone, and there is nowhere else",
+        );
     }
 
     /// The report is a pure function of the structure, exactly as the skin is.

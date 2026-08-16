@@ -34,9 +34,57 @@ use crate::sections::{
 /// component that names one.
 pub mod prelude {
     pub use super::{
-        GameStyles, ScatterAlign, ScatterRule, ShipStyle, ShipStyleConfig, StyleFixtureConfig,
-        StyleSurfaceConfig,
+        GameStyles, ScatterAlign, ScatterRule, ScatterSeat, ShipStyle, ShipStyleConfig,
+        StyleFixtureConfig, StyleSurfaceConfig,
     };
+}
+
+/// What the top of a plate has to BE before a piece may stand on it.
+///
+/// One boolean, deliberately, and not a graded seat size: the largest flat
+/// piece of a plate's top is BIMODAL on every hull measured - exactly one cell
+/// (308 of 526 plates on the `wfc_ships` row) or exactly a quarter of one
+/// (218), with nothing in between. A plate is one surface or it is a cone with
+/// one facet pair usable, so there is nothing for a graded rule to grade.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ScatterSeat {
+    /// One unbroken surface under the piece:
+    /// [`PlateReading::coplanar`](super::skin_reading::PlateReading::coplanar).
+    /// The DEFAULT, so a rule that says nothing about its seat gets a real one.
+    ///
+    /// Tilted counts. A ramp is one flat surface and a piece is bedded onto it
+    /// by [`decor_pose`](super::skin_decor::decor_pose); what this refuses is
+    /// the CREASE, where a flat-bottomed model can only ever touch along one
+    /// line.
+    #[default]
+    Whole,
+    /// Any top at all, crease included - the EXCEPTION, and it is meant to be
+    /// used.
+    ///
+    /// A spar tip, a crest and a stud are cones every time, and they are also
+    /// the high ground: an aerial, a stack or a corner boss WANTS to stand on
+    /// the pointiest thing on the hull, and a look that refused them would
+    /// strip a ship of its silhouette to fix a bedding defect. A hand-built
+    /// hull is the same case at ship scale - one cell thick nearly everywhere,
+    /// so no plate on it is coplanar at all.
+    Any,
+}
+
+impl ScatterSeat {
+    /// Whether this is the default seat - the `skip_serializing_if` a style
+    /// keeps the field out of its RON with.
+    pub fn is_whole(&self) -> bool {
+        *self == Self::Whole
+    }
+
+    /// Whether a plate whose top is (or is not) one surface answers this.
+    pub fn accepts(self, coplanar: bool) -> bool {
+        match self {
+            Self::Whole => coplanar,
+            Self::Any => true,
+        }
+    }
 }
 
 /// Which way a piece is turned on the plate it stands on.
@@ -162,7 +210,10 @@ pub struct StyleFixtureConfig {
 /// Where one decoration may stand, as a filter over the plate vocabulary.
 ///
 /// Every field is a FILTER except the last four. A rule with nothing set
-/// matches every plate, which is why a piece with no rule covers a hull.
+/// matches every plate with a WHOLE TOP - see [`seat`](ScatterRule::seat),
+/// which is the one filter that is on by default, because a flat-bottomed
+/// piece on a creased plate touches it along one line whatever else the rule
+/// asked for.
 ///
 /// The order the four are applied in is fixed and load-bearing: the FILTER
 /// says what kind of place the piece belongs, the LATTICE says which cells of
@@ -172,11 +223,25 @@ pub struct StyleFixtureConfig {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScatterRule {
     /// The reliefs the piece may stand on. Empty means any.
+    ///
+    /// A ZONE of the hull - the straight edges, the tips, the shoulder beside
+    /// a raise - and nothing else. It does NOT say whether there is a flat seat
+    /// here; [`seat`](ScatterRule::seat) does, and a relief list written to
+    /// mean that is wrong about a fifth of a hull.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Vec::is_empty")
     )]
     pub relief: Vec<PlateRelief>,
+    /// What the plate's own top must BE: one surface, or anything at all.
+    ///
+    /// Defaults to [`Whole`](ScatterSeat::Whole), so decoration lands on a real
+    /// seat unless a rule says it wants the high ground.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "ScatterSeat::is_whole")
+    )]
+    pub seat: ScatterSeat,
     /// Which way the plate must face, in the ship's own frame.
     #[cfg_attr(
         feature = "serde",
@@ -272,6 +337,7 @@ impl Default for ScatterRule {
     fn default() -> Self {
         Self {
             relief: Vec::new(),
+            seat: ScatterSeat::Whole,
             facing: PlateFacing::Any,
             min_run: 0,
             min_height: 0,
@@ -294,6 +360,9 @@ impl ScatterRule {
     /// The neighbourhood half only. The lattice and the share are decided by
     /// the scatter, which is the only thing that knows the cell.
     pub fn accepts(&self, reading: &PlateReading) -> bool {
+        if !self.seat.accepts(reading.coplanar) {
+            return false;
+        }
         if !self.relief.is_empty() && !self.relief.contains(&reading.relief) {
             return false;
         }
@@ -378,6 +447,7 @@ mod tests {
             along: IVec3::X,
             fall: IVec3::Z,
             relief,
+            coplanar: true,
             enclosure: 8,
             run: 4,
             border: 2,
@@ -387,10 +457,11 @@ mod tests {
         }
     }
 
-    /// An empty rule takes any plate at all, which is what makes a fixture with
-    /// nothing authored cover a hull rather than land nowhere.
+    /// An empty rule takes any plate with a SEAT on it, whatever its relief -
+    /// which is what makes a fixture with nothing authored cover a hull rather
+    /// than land nowhere.
     #[test]
-    fn a_rule_with_nothing_set_accepts_every_plate() {
+    fn a_rule_with_nothing_set_accepts_every_seated_plate() {
         let rule = ScatterRule::default();
         for relief in [
             PlateRelief::Flat,
@@ -403,6 +474,36 @@ mod tests {
         ] {
             assert!(rule.accepts(&reading(relief)), "{relief:?} was refused");
         }
+    }
+
+    /// The SEAT is the one filter that is on by default: a rule that says
+    /// nothing refuses a creased top, and the exception has to be asked for.
+    ///
+    /// The relief is deliberately held constant across both halves. Relief does
+    /// not decide creasing - `Step` is a clean ramp square-on to a raise and a
+    /// cone on its diagonal - so a rule cannot express this by naming classes.
+    #[test]
+    fn the_seat_gate_is_on_by_default_and_the_high_ground_opts_out() {
+        let creased = PlateReading {
+            coplanar: false,
+            ..reading(PlateRelief::Step)
+        };
+
+        assert!(
+            !ScatterRule::default().accepts(&creased),
+            "a flat-bottomed piece was seated on a crease",
+        );
+        assert!(ScatterRule::default().accepts(&reading(PlateRelief::Step)));
+
+        // The exception a mast, a stack or a corner boss is authored with: the
+        // pointiest plate on a hull is a cone every time, and that is where
+        // those pieces belong.
+        let high_ground = ScatterRule {
+            seat: ScatterSeat::Any,
+            ..default()
+        };
+        assert!(high_ground.accepts(&creased));
+        assert!(high_ground.accepts(&reading(PlateRelief::Step)));
     }
 
     /// The falling plate is THREE reliefs a rule can name apart, which is the

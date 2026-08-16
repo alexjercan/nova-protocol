@@ -351,17 +351,21 @@ impl ShellShape {
         largest as f32 * TOP_FACET_FOOTPRINT
     }
 
-    /// How far the largest flat piece of the top LEANS off the cell's own out
-    /// face, in radians.
+    /// The unit normal of the LARGEST flat piece of the top, in the tile's own
+    /// frame - the plane a piece standing on this plate lies on.
     ///
-    /// Zero on a level panel and about 0.46 on a plate ramping a whole cell
-    /// across its own width. It is what says whether a piece standing upright
-    /// on this plate stands upright on the SHIP: nothing tilts a decoration to
-    /// the surface under it, so a flat plate and a ramp of the same
-    /// [`flat_area`](Self::flat_area) are different places to put one.
-    pub fn tilt(&self) -> f32 {
+    /// The same piece of top [`flat_area`](Self::flat_area) measures, so a
+    /// plate that reads as one surface answers that surface's normal exactly
+    /// and a cone answers the facet pair a piece has the most room on. On a
+    /// coplanar top every facet agrees, so the choice only matters where there
+    /// is a crease to choose across.
+    ///
+    /// It always points OUT of the cell: the `y` of the fan's cross product is
+    /// the wedge's own footprint area, which is the same positive number for
+    /// every shape, so this never has to be guarded against pointing inward.
+    pub fn top_normal(&self) -> Vec3 {
         let normals = self.top_normals();
-        let widest = (0..normals.len())
+        (0..normals.len())
             .max_by_key(|facet| {
                 normals
                     .iter()
@@ -369,8 +373,43 @@ impl ShellShape {
                     .count()
             })
             .map(|facet| normals[facet])
-            .unwrap_or(Vec3::Y);
-        widest.dot(Vec3::Y).clamp(-1.0, 1.0).acos()
+            .unwrap_or(Vec3::Y)
+    }
+
+    /// The normal a DECORATION is stood up on: the top's own plane where the
+    /// top is one plane, and the cell's out axis where it is a cone.
+    ///
+    /// The split is the whole of what a flat-bottomed model can be told about a
+    /// plate. On a surface - level or raked - bedding the piece onto it is
+    /// exact, and it is what [`decor_pose`] does with this. On a CONE there is
+    /// no surface to bed onto: the middle of the plate is the apex, every facet
+    /// falls away from it, and leaning the piece onto the widest facet pair
+    /// would read as a mast blown over rather than as a mast. A cone is
+    /// symmetric about the out axis, so standing up it is the one answer that
+    /// does not pick a side.
+    ///
+    /// Nothing here decides WHETHER a piece may stand on a cone; that is
+    /// [`ScatterSeat`], and by default it may not.
+    ///
+    /// [`decor_pose`]: super::skin_decor::decor_pose
+    /// [`ScatterSeat`]: super::skin_style::ScatterSeat
+    pub fn seat_normal(&self) -> Vec3 {
+        match self.is_coplanar() {
+            true => self.top_normal(),
+            false => Vec3::Y,
+        }
+    }
+
+    /// How far the largest flat piece of the top LEANS off the cell's own out
+    /// face, in radians.
+    ///
+    /// Zero on a level panel and about 0.46 on a plate ramping a whole cell
+    /// across its own width. It is what a piece standing here is stood up
+    /// AGAINST: [`decor_pose`](super::skin_decor::decor_pose) turns a
+    /// decoration onto [`top_normal`](Self::top_normal), so this is the angle
+    /// it turns through rather than the angle it leans by.
+    pub fn tilt(&self) -> f32 {
+        self.top_normal().dot(Vec3::Y).clamp(-1.0, 1.0).acos()
     }
 
     /// The unit normal of each of the eight top facets, in the fan's own order.
@@ -953,9 +992,30 @@ mod tests {
         let ramp = shape([0, 0, FULL, FULL], [0, HALF, FULL, HALF]);
         assert_eq!(ramp.flat_area(), 1.0);
         assert!(ramp.tilt() > 0.4, "a whole-cell ramp leans {}", ramp.tilt());
+        // And the normal a piece is stood up on IS that ramp's own plane: it
+        // climbs a whole cell over a whole cell along -z, so the surface
+        // normal is 45 degrees off the out face, toward +z.
+        assert!(
+            ramp.top_normal()
+                .abs_diff_eq(Vec3::new(0.0, 1.0, 1.0).normalize(), MESH_EPSILON),
+            "a ramp's seat normal reads {}",
+            ramp.top_normal(),
+        );
         let flat = shape([HALF; 4], [HALF; 4]);
         assert_eq!(flat.flat_area(), 1.0);
         assert!(flat.tilt() < MESH_EPSILON, "a flat panel is level");
+        assert!(flat.top_normal().abs_diff_eq(Vec3::Y, MESH_EPSILON));
+
+        // Every top normal points OUT of the cell, whatever the shape does -
+        // what `decor_pose` rests on when it turns a piece onto one.
+        for shape in sample_shapes() {
+            assert!(
+                shape.top_normal().y > 0.0,
+                "`{}` seats a piece on {}",
+                shape.id(),
+                shape.top_normal(),
+            );
+        }
 
         // The saddle the owner objected to: four facets fall to the middle from
         // one pair of corners and four rise to it from the other, so the

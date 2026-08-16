@@ -44,6 +44,7 @@
                         Spur,
                         Step,
                     ],
+                    seat: Any,
                     facing: Up,
                     min_height: 1,
                     min_depth: 2,
@@ -85,7 +86,6 @@
                 scatter: (
                     relief: [
                         Flat,
-                        Bevel,
                     ],
                     min_run: 2,
                     stride: 2,
@@ -212,7 +212,6 @@
                 scatter: (
                     relief: [
                         Flat,
-                        Bevel,
                     ],
                     min_run: 2,
                     min_depth: 2,
@@ -235,6 +234,7 @@
                     relief: [
                         Spur,
                     ],
+                    seat: Any,
                     stride: 2,
                     chance: 1.0,
                 ),
@@ -272,7 +272,6 @@
                 scatter: (
                     relief: [
                         Flat,
-                        Bevel,
                         Step,
                     ],
                     min_height: 1,
@@ -323,7 +322,6 @@
                 scatter: (
                     relief: [
                         Flat,
-                        Bevel,
                         Step,
                     ],
                     facing: Side,
@@ -351,6 +349,7 @@
                         Ridge,
                         Peak,
                     ],
+                    seat: Any,
                     facing: Up,
                     min_height: 1,
                     min_depth: 1,
@@ -392,7 +391,6 @@
                 scatter: (
                     relief: [
                         Flat,
-                        Bevel,
                         Step,
                     ],
                     min_height: 1,
@@ -464,6 +462,7 @@
                         Spur,
                         Step,
                     ],
+                    seat: Any,
                     facing: Up,
                     min_height: 1,
                     min_depth: 2,
@@ -485,7 +484,6 @@
                 scatter: (
                     relief: [
                         Flat,
-                        Bevel,
                         Step,
                     ],
                     min_run: 2,
@@ -562,12 +560,6 @@
                     0.68,
                 ),
                 scatter: (
-                    relief: [
-                        Flat,
-                        Bevel,
-                        Brink,
-                        Step,
-                    ],
                     min_height: 1,
                     min_depth: 2,
                     stride: 1,
@@ -639,6 +631,7 @@
                         Step,
                         Spur,
                     ],
+                    seat: Any,
                     facing: Up,
                     min_height: 1,
                     min_depth: 2,
@@ -659,7 +652,6 @@
                 scatter: (
                     relief: [
                         Flat,
-                        Bevel,
                     ],
                     min_run: 2,
                     stride: 2,

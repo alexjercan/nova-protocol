@@ -1,8 +1,8 @@
 # Stand a decoration up straight on the plate it sits on
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 67
-- TAGS: v0.11.0,ship,render,art,skin
+- TAGS: v0.11.0, ship, render, art, skin
 
 ## The finding this rests on
 

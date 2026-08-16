@@ -11,11 +11,28 @@
 //! another is a content edit rather than a rewrite. `placeholder` wires the
 //! four magenta placeholder greebles to four rules chosen to exercise the
 //! whole vocabulary rather than to look like anything.
+//!
+//! # The SEAT, and which rules opt out of it
+//!
+//! A rule that says nothing about its seat stands its piece on a plate whose
+//! top is ONE SURFACE ([`ScatterSeat::Whole`], the default). That is what a
+//! relief list used to try to say and got wrong: measured over 526 generated
+//! plates, `Flat` and `Brink` are surfaces every time, `Bevel`, `Ridge`, `Peak`
+//! and `Spur` are cones every time, and `Step` splits about in half. So the
+//! lists here name a ZONE of the hull and nothing more, and no seated rule
+//! lists a relief that can never carry a seat.
+//!
+//! Five rules opt out with [`ScatterSeat::Any`], and every one of them is a
+//! piece that WANTS the high ground - the stack, the whip, the fin, the mast
+//! and the corner boss. The pointiest plate on a hull is a cone every time, so
+//! a blanket "surfaces only" would take a ship's silhouette off to fix a
+//! bedding defect. A piece on a cone stands up its own cell rather than lying
+//! down one of its facets, which is what a mast on a spar tip wants anyway.
 
 use bevy::prelude::{Color, Vec3};
 use nova_ship::prelude::{
-    PlateFacing, PlateRelief, ScatterAlign, ScatterRule, ShellSurface, ShipStyleConfig,
-    StyleFixtureConfig, StyleSurfaceConfig,
+    PlateFacing, PlateRelief, ScatterAlign, ScatterRule, ScatterSeat, ShellSurface,
+    ShipStyleConfig, StyleFixtureConfig, StyleSurfaceConfig,
 };
 
 use super::assets::BaseContentAssets;
@@ -120,6 +137,12 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // placeholder mast records: a ridge fills an eighth of its cell
                 // and a spur less, so a rule asking for half a cell of plate
                 // under a tall piece lands on nothing at all.
+                //
+                // `seat: Any` for the same reason one step further on: a crest
+                // and a spar tip are CONES, so the seat gate would have refused
+                // every plate this rule is for. A stack standing up the tip of
+                // a spar is the picture; a stack banished to the flat deck is
+                // not this rule any more.
                 scatter: ScatterRule {
                     relief: vec![
                         PlateRelief::Ridge,
@@ -127,6 +150,7 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                         PlateRelief::Spur,
                         PlateRelief::Step,
                     ],
+                    seat: ScatterSeat::Any,
                     facing: PlateFacing::Up,
                     min_depth: 2,
                     min_height: 1,
@@ -168,13 +192,16 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 density: 0.1,
                 collider: Vec3::new(0.38, 0.27, 0.28),
                 // FLAT PANEL, which is where the one piece with real height and
-                // a long axis fits. Flat and bevel together are 16-36 plates a
-                // ship and the run and the lattice cut that to 3-7, measured -
-                // so the share is 1.0 and the rule takes every one of them. A
-                // hero piece thinned by a share on a set that small is a hero
-                // piece that photographs as nothing.
+                // a long axis fits. The run and the lattice cut that to 3-7
+                // plates a ship, measured - so the share is 1.0 and the rule
+                // takes every one of them. A hero piece thinned by a share on a
+                // set that small is a hero piece that photographs as nothing.
+                //
+                // `Bevel` came off the list when the seat gate went in: a panel
+                // with a corner taken off is a CONE, so it never carried this
+                // piece flat in the first place and the gate refuses it now.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat, PlateRelief::Bevel],
+                    relief: vec![PlateRelief::Flat],
                     min_run: 2,
                     stride: 2,
                     patch: 3,
@@ -189,7 +216,10 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 density: 0.07,
                 collider: Vec3::new(0.14, 0.16, 0.9),
                 // THE SHOULDER: a `Step` is where one deck stands proud of the
-                // next, and that is where a services run belongs.
+                // next, and that is where a services run belongs. The seat gate
+                // sorts the two kinds of step out for it - square-on to a raise
+                // a step is a clean ramp and takes the pipe, on the diagonal it
+                // is a cone and does not.
                 //
                 // No `Brink` in the list, though a pipe would lie on one
                 // perfectly well. Measured: with `Brink` in it the rule reached
@@ -375,11 +405,12 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 health: 10.0,
                 density: 0.1,
                 collider: Vec3::new(0.4, 0.12, 0.4),
-                // FLAT and BEVEL, which between them are a sixth of a generated
-                // hull, and the pure per-patch form on top: no share at all, one
-                // blister per block of ship that can carry one. A share here
-                // would have put four on one flank and none on the other, and
-                // the piece is rare enough that where it lands is visible.
+                // The FLAT panel, and the pure per-patch form on top: no share
+                // at all, one blister per block of ship that can carry one. A
+                // share here would have put four on one flank and none on the
+                // other, and the piece is rare enough that where it lands is
+                // visible. (`Bevel` was in this list and is out: a corner-cut
+                // panel is a cone, so a hood never lay flat on one.)
                 //
                 // `min_depth` keeps it off the skin over a one-cell spar: a
                 // sensor hood wants a ship under it.
@@ -388,7 +419,7 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // 7-12 blisters, which is a rash of the one piece that is
                 // supposed to be rare.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat, PlateRelief::Bevel],
+                    relief: vec![PlateRelief::Flat],
                     min_run: 2,
                     min_depth: 2,
                     chance: 0.0,
@@ -415,8 +446,16 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // under it and it fills almost none of its own cell. Three
                 // filters that each read as mild, multiplied, made an
                 // impossible rule out of a bucket 42 plates deep.
+                //
+                // `seat: Any` is the fourth filter that would have done it
+                // again: a spur is a CONE by definition - it falls two ways or
+                // more - so a seated rule for spurs is a rule for nothing. A
+                // boss on a corner is the exception the gate is written to
+                // allow, and it stands up its own cell rather than lying down
+                // one facet of it.
                 scatter: ScatterRule {
                     relief: vec![PlateRelief::Spur],
+                    seat: ScatterSeat::Any,
                     stride: 2,
                     ..Default::default()
                 },
@@ -457,7 +496,7 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // is out of the sensor's: a step is a hard edge rather than a
                 // panel, which is wrong for a hood and right for a hatch.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat, PlateRelief::Bevel, PlateRelief::Step],
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
                     min_height: 1,
                     stride: 2,
                     chance: 0.6,
@@ -533,11 +572,12 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 collider: Vec3::new(0.28, 0.06, 0.7),
                 // The panelled reliefs on the FLANKS. `Flat` alone would land
                 // almost nowhere (6-22 plates a ship, and none on a hand-built
-                // hull), so a bevel - a panel with a corner off - and a step
-                // count as panel too. Strided and shared down hard: a window
-                // row is precious, and a hull covered in them is a cruise liner.
+                // hull), so a step - a panel climbing structure beside it -
+                // counts as panel too, and the seat gate keeps only the clean
+                // ramps of them. Strided and shared down hard: a window row is
+                // precious, and a hull covered in them is a cruise liner.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat, PlateRelief::Bevel, PlateRelief::Step],
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
                     facing: PlateFacing::Side,
                     min_run: 2,
                     min_depth: 2,
@@ -558,9 +598,12 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // ship. `min_height` is 1 and not 2 for the reason the
                 // placeholder mast records: a ridge fills an eighth of its cell
                 // and a spur less, so asking for half a cell of plate under a
-                // tall piece asks for something no pointy plate is.
+                // tall piece asks for something no pointy plate is. `seat: Any`
+                // is the same argument about the crease: all three of these
+                // reliefs are cones, and a fin belongs on exactly them.
                 scatter: ScatterRule {
                     relief: vec![PlateRelief::Spur, PlateRelief::Ridge, PlateRelief::Peak],
+                    seat: ScatterSeat::Any,
                     facing: PlateFacing::Up,
                     min_depth: 1,
                     min_height: 1,
@@ -625,7 +668,7 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // `patch` carries it onto a small build, where the share and the
                 // stride between them would otherwise leave nothing.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat, PlateRelief::Bevel, PlateRelief::Step],
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
                     min_height: 1,
                     stride: 2,
                     chance: 0.8,
@@ -789,6 +832,9 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // `Outward` is what makes it a raider's aerial: the whip is
                 // modelled leaning down its own `+Z`, so the fall turns it out
                 // over the edge it stands on rather than upright.
+                //
+                // `seat: Any` because the crests and tips it wants are cones,
+                // every one of them - see the module note on the seat.
                 scatter: ScatterRule {
                     relief: vec![
                         PlateRelief::Ridge,
@@ -796,6 +842,7 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                         PlateRelief::Spur,
                         PlateRelief::Step,
                     ],
+                    seat: ScatterSeat::Any,
                     facing: PlateFacing::Up,
                     min_depth: 2,
                     min_height: 1,
@@ -816,7 +863,7 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // widen it: a plate climbing structure beside it is a corner to
                 // wedge a drum into, and a hand-built hull has nothing else.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat, PlateRelief::Bevel, PlateRelief::Step],
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
                     min_run: 2,
                     min_height: 2,
                     min_depth: 2,
@@ -925,19 +972,17 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // skin over a one-cell spar, where a doubler plate this size
                 // would be wider than the thing it is bolted to.
                 //
-                // The relief list is there because `min_depth` alone is not a
-                // filter: measured, it admitted 122-158 plates of a 132-162
-                // plate hull. What this piece needs is a broad TOP to lie on -
-                // the four reliefs that have one - and half a cell of plate
-                // under it, which is what leaves the tips and the crests to the
-                // whip and the scab.
+                // This rule used to carry a relief list - `Flat`, `Bevel`,
+                // `Brink` and `Step` - and it was the predicate spelled badly:
+                // an enumeration of "the reliefs with a broad top", written
+                // before there was a way to ask. It has come off. The SEAT says
+                // what it was reaching for and says it exactly, and it says it
+                // NARROWER: 308 of 526 measured plates against the 380 the list
+                // admitted, because half the steps in it were cones and the
+                // bevels all were. `min_depth` still leaves the one-cell spars
+                // alone, and the tips and crests still go to the whip and the
+                // scab.
                 scatter: ScatterRule {
-                    relief: vec![
-                        PlateRelief::Flat,
-                        PlateRelief::Bevel,
-                        PlateRelief::Brink,
-                        PlateRelief::Step,
-                    ],
                     min_depth: 2,
                     min_height: 1,
                     chance: 0.4,
@@ -1032,7 +1077,9 @@ fn placeholder_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // `min_height` is 1 and not 2, measured: a ridge fills an eighth
                 // of its cell and a spur less, so a mast asking for half a cell
                 // of plate under it was asking for something no pointy plate
-                // is - the rule read as narrow and landed on NOTHING.
+                // is - the rule read as narrow and landed on NOTHING. `seat` is
+                // the same trap in the same rule: the high ground is a cone, so
+                // a mast has to ask for one.
                 scatter: ScatterRule {
                     relief: vec![
                         PlateRelief::Ridge,
@@ -1040,6 +1087,7 @@ fn placeholder_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                         PlateRelief::Step,
                         PlateRelief::Spur,
                     ],
+                    seat: ScatterSeat::Any,
                     facing: PlateFacing::Up,
                     min_depth: 2,
                     min_height: 1,
@@ -1053,14 +1101,15 @@ fn placeholder_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 health: 12.0,
                 density: 0.15,
                 collider: Vec3::new(0.32, 0.04, 0.2),
-                // FLAT AND BEVEL, not flat alone. A bevel is a panel with one
-                // corner taken off - the same place to a piece this size, and
-                // there are more of them on a generated hull than there are
-                // flat plates. `patch` is the floor under the stride and the
-                // share: without it this rule is a field of vents on a big hull
-                // and nothing at all on a small one.
+                // FLAT PANEL. `Bevel` was in this list to widen it - a panel
+                // with one corner taken off, and there are more of them on a
+                // generated hull than there are flat plates - and it came off
+                // when the seat gate went in: a bevel is a CONE, so a vent on
+                // one never lay flat. `patch` is the floor under the stride and
+                // the share: without it this rule is a field of vents on a big
+                // hull and nothing at all on a small one.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat, PlateRelief::Bevel],
+                    relief: vec![PlateRelief::Flat],
                     min_run: 2,
                     stride: 2,
                     chance: 0.8,
@@ -1152,6 +1201,63 @@ mod tests {
                 ids.iter().any(|id| id == authored),
                 "{authored} is not in the catalog",
             );
+        }
+    }
+
+    /// The SEAT gate is on everywhere but the high ground, and the five pieces
+    /// that opt out are named here.
+    ///
+    /// Pinned as a LIST rather than as a count: `seat: Any` is the one field
+    /// that puts a piece back on a crease, and a rule that acquires it quietly
+    /// is the placement defect coming back. Every one of these is a piece whose
+    /// whole purpose is to stand on the pointiest thing on the hull.
+    #[test]
+    fn only_the_high_ground_opts_out_of_the_seat() {
+        let opted: Vec<String> = style_catalog(&BaseContentAssets::from_paths())
+            .into_iter()
+            .flat_map(|style| style.fixtures)
+            .filter(|fixture| fixture.scatter.seat == ScatterSeat::Any)
+            .map(|fixture| fixture.id)
+            .collect();
+        assert_eq!(
+            opted,
+            vec![
+                "industrial_stack",
+                "armoured_cap",
+                "civilian_fin",
+                "salvage_whip",
+                "placeholder_mast",
+            ],
+        );
+    }
+
+    /// No SEATED rule names a relief that can never carry a seat.
+    ///
+    /// The relief list says which ZONE of a hull a piece belongs in; the seat
+    /// says whether there is a surface to lie on. `Bevel`, `Ridge`, `Peak` and
+    /// `Spur` are cones every time, so listing one in a seated rule is a filter
+    /// that can never fire - and it is exactly how these lists were written
+    /// before the seat existed, as an enumeration of "the reliefs with a broad
+    /// top" that was wrong about a fifth of a hull.
+    #[test]
+    fn no_seated_rule_names_a_relief_that_is_always_a_cone() {
+        for style in style_catalog(&BaseContentAssets::from_paths()) {
+            for fixture in style.fixtures {
+                if fixture.scatter.seat != ScatterSeat::Whole {
+                    continue;
+                }
+                for relief in &fixture.scatter.relief {
+                    assert!(
+                        matches!(
+                            relief,
+                            PlateRelief::Flat | PlateRelief::Brink | PlateRelief::Step
+                        ),
+                        "'{}' is seated and asks for {relief:?}, which is a cone \
+                         every time - the rule can never fire",
+                        fixture.id,
+                    );
+                }
+            }
         }
     }
 

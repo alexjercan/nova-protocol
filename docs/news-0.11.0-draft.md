@@ -501,6 +501,29 @@ The skin log tells a STARVED rule from an IMPOSSIBLE one: each fixture reports
 `taken of reach`, and the build view logs the hull's relief histogram too - which
 is where a hand-built ship turns out to have no flat plate at all.
 
+### Decoration lies down on the hull
+
+A greeble used to be stood upright in its own cell whatever the plate under it
+was doing, and a derived hull is mostly RAKED: measured over 526 plates, 82% of
+them lean more than 15 degrees off their own face, and the mean under a placed
+piece was 26 degrees. Pieces read as balanced on an edge rather than bolted
+down - and 63% of them were standing on a plate that is one perfectly good flat
+surface.
+
+Every piece is now BEDDED on the surface it stands on: turned onto the plate's
+own normal, so it lies flush however far the plate is raked. A cone is left
+alone - there is no plane to lie on, and the middle of the plate is its apex.
+
+The other half is a new scatter filter. `seat: Whole` is the DEFAULT and takes
+only plates whose top is one unbroken surface, tilt included. It replaces the
+relief lists that were trying to say the same thing and getting it wrong:
+`Bevel`, `Ridge`, `Peak` and `Spur` are creased every time and `Step` splits
+about in half, so a list of "the reliefs with a broad top" was wrong about a
+fifth of a hull. `seat: Any` is the exception, and the base kits spend it on
+exactly the pieces that want a high point - a stack, a whip, a fin, a mast, a
+corner boss. Those also carry the hand-built ships, which have no seated plate
+on them anywhere.
+
 ## Interface & HUD
 
 ### The editor shows the skin

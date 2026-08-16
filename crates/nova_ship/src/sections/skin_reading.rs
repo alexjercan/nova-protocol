@@ -224,6 +224,25 @@ pub struct PlateReading {
     pub fall: IVec3,
     /// What the top of the plate is shaped like.
     pub relief: PlateRelief,
+    /// Whether the top is ONE SURFACE rather than a cone -
+    /// [`ShellShape::is_coplanar`], read here so a scatter rule asks the
+    /// vocabulary for it like everything else.
+    ///
+    /// The seat a flat-bottomed piece needs, and NOT what [`relief`] says.
+    /// Measured on 526 generated plates: `Flat` and `Brink` are surfaces every
+    /// time, `Bevel`, `Ridge`, `Peak` and `Spur` are cones every time, and
+    /// `Step` splits about in half - square-on to a raise it is a clean ramp,
+    /// on the diagonal it is a cone. A rule that named reliefs to mean "has a
+    /// top to lie on" was therefore wrong about a fifth of a hull, in both
+    /// directions.
+    ///
+    /// TILTED counts, and has to: a ramp is one flat surface with as much
+    /// material under a piece as a level panel has, and
+    /// [`decor_pose`](super::skin_decor::decor_pose) beds the piece onto it.
+    ///
+    /// [`ShellShape::is_coplanar`]: super::shell_shape::ShellShape::is_coplanar
+    /// [`relief`]: PlateReading::relief
+    pub coplanar: bool,
     /// How many of the eight cells around this one IN THE PLANE the surface
     /// carries on into, rather than ending against vacuum: 8 is the middle of a
     /// field of plate, 0 is a lone stud.
@@ -319,11 +338,11 @@ pub fn read_plates(structure: &SkinStructure, plates: &[SkinPlate]) -> Vec<Plate
             // The four in-plane walks, each stopping twice: once when the
             // surface stops carrying on in the same plane, and once when it
             // stops being the same KIND of place.
-            let mut coplanar = [0u8; 4];
+            let mut facing = [0u8; 4];
             let mut alike = [0u8; 4];
             for (slot, (axis, sign)) in [(u, 1), (u, -1), (v, 1), (v, -1)].into_iter().enumerate() {
                 let (reach, same) = walk(&surface, plate.cell, step(axis, sign), out, relief);
-                coplanar[slot] = reach;
+                facing[slot] = reach;
                 alike[slot] = same;
             }
 
@@ -332,7 +351,7 @@ pub fn read_plates(structure: &SkinStructure, plates: &[SkinPlate]) -> Vec<Plate
             // way its own surface does rather than always answering `+X`.
             let span = |spans: [u8; 4]| (spans[0] + spans[1], spans[2] + spans[3]);
             let (first, second) = span(alike);
-            let (tie_first, tie_second) = span(coplanar);
+            let (tie_first, tie_second) = span(facing);
             let along = match (second > first) || (second == first && tie_second > tie_first) {
                 true => IVec3::AXES[v],
                 false => IVec3::AXES[u],
@@ -344,6 +363,7 @@ pub fn read_plates(structure: &SkinStructure, plates: &[SkinPlate]) -> Vec<Plate
                 along,
                 fall: fall_of(plate),
                 relief,
+                coplanar: plate.shape.is_coplanar(),
                 enclosure: enclosure(structure, &clad, plate.cell, u, v),
                 run: (reach + 1).min(RUN_REACH),
                 border: *alike.iter().min().unwrap_or(&0),
@@ -386,7 +406,7 @@ pub fn relief_tally(readings: &[PlateReading]) -> String {
 /// cells that face the same way, and the number of those that are also the same
 /// kind of place.
 ///
-/// The like count can never run past the coplanar one - a plate that faces
+/// The like count can never run past the same-facing one - a plate that faces
 /// another way is not part of this surface whatever its shape is - so the two
 /// are counted in one walk rather than two.
 fn walk(
@@ -396,13 +416,13 @@ fn walk(
     out: IVec3,
     kind: PlateRelief,
 ) -> (u8, u8) {
-    let mut coplanar = 0;
+    let mut carries = 0;
     let mut alike = 0;
     let mut still_alike = true;
     for reach in 1..=RUN_REACH {
         match surface.get(&(cell + direction * reach as i32)) {
             Some((facing, relief)) if *facing == out => {
-                coplanar = reach;
+                carries = reach;
                 still_alike &= *relief == kind;
                 if still_alike {
                     alike = reach;
@@ -411,7 +431,7 @@ fn walk(
             _ => break,
         }
     }
-    (coplanar, alike)
+    (carries, alike)
 }
 
 /// How many of the eight in-plane cells around `cell` the surface ends against

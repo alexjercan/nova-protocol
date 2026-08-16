@@ -2050,7 +2050,13 @@ mod tests {
                 health: 10.0,
                 density: 0.1,
                 collider: Vec3::new(0.2, 0.1, 0.2),
-                scatter: default(),
+                // Seated anywhere: the subject here is a LONE CUBE, so every
+                // one of its six plates is a stud, and a default rule would
+                // leave a test about parenting with nothing to parent.
+                scatter: crate::sections::skin_style::ScatterRule {
+                    seat: crate::sections::skin_style::ScatterSeat::Any,
+                    ..default()
+                },
             }],
         }
     }

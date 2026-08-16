@@ -157,6 +157,9 @@ tagged **(breaking)**.
   as scaffolding.
 - A ship picks its look in the EDITOR: the cladding toggle lists every loaded
   style. `wfc_ships` cycles them with `L` or takes `--style <id>`.
+- Decoration LIES DOWN on the plate it stands on instead of standing upright in
+  its cell, and only lands on a plate with a whole flat top. `seat: Any` is the
+  high-ground exception.
 
 ### Scenarios & Objectives
 

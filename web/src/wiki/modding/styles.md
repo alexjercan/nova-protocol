@@ -102,7 +102,8 @@ An empty rule matches every plate.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `relief` | list | any | the shapes of plate the piece may stand on - see [The seven reliefs](#the-seven-reliefs) |
+| `seat` | `Whole`/`Any` | `Whole` | what the plate's TOP must be: one unbroken surface, or anything at all - see [The seat](#the-seat-one-surface-or-a-crease) |
+| `relief` | list | any | which ZONE of the hull the piece may stand in - see [The seven reliefs](#the-seven-reliefs) |
 | `facing` | `Any`/`Up`/`Down`/`Side` | `Any` | which way the plate faces in the SHIP's own frame |
 | `min_run` | int | 0 | the shortest run of LIKE plate the piece will stand on |
 | `min_height` | int | 0 | how much of its cell the plate must fill, in quarter cells (0-4) |
@@ -115,6 +116,35 @@ An empty rule matches every plate.
 | `chance` | float | 1.0 | the share of the plates that pass everything above which take the piece |
 | `patch` | int | 0 | at least one piece per block of this many cells - see [Density](#density-one-piece-per-block-of-hull) |
 | `align` | `Free`/`Run`/`Outward` | `Free` | which way the piece is turned - see [Alignment](#alignment-not-noise) |
+
+### The seat: one surface, or a crease
+
+A plate's top is either ONE PLANE or a CONE, and nothing in between. `seat` is
+the filter for it, and it is the one filter that is ON by default:
+
+| `seat` | what it takes |
+|---|---|
+| `Whole` | plates whose top is one unbroken surface. TILTED COUNTS - a ramp is a surface, and a piece is bedded onto it |
+| `Any` | any plate at all. The exception, for a piece that WANTS the high ground: a crest, a spar tip or a stud |
+
+A piece is stood up on the plate it lands on: on a surface it is turned onto that
+surface's own normal, so it lies flush however far the plate is raked; on a cone
+it stands up the cell, because a cone has no plane to lie on and the middle of
+the plate is its apex.
+
+**Do not use `relief` to mean this.** Measured over 526 generated plates: `Flat`
+and `Brink` are surfaces every time, `Bevel`, `Ridge`, `Peak` and `Spur` are cones
+every time, and `Step` splits about in half - square-on to a raise it is a clean
+ramp, on its diagonal it is a cone. A relief list written to mean "somewhere flat
+to lie" is therefore wrong about a fifth of a hull in both directions. Name the
+zone with `relief` and the seat with `seat`.
+
+**A hand-built ship has no seat anywhere on it.** A small build is one cell thick
+nearly everywhere, so every plate on it is a cone: the owner's five-cube L reads
+0% seated against 58.6% on a generated hull. A kit whose every rule is `Whole`
+therefore decorates a generated ship and leaves an editor build BARE. Give the
+pieces that belong on the high ground `seat: Any` - every base kit does, for its
+mast, whip, fin, stack or corner boss - and they carry the small builds.
 
 ### The seven reliefs
 
@@ -145,8 +175,10 @@ build:
 **A rule written for flat panels lands on almost nothing, and on a hand-built
 ship it lands on NOTHING AT ALL.** A small build is one cell wide nearly
 everywhere, so it has no flat plate, no bevel and no brink - only spurs, ridges
-and studs. No amount of `patch` rescues that: a floor over an empty set is still
-empty. Widen the `relief` list instead.
+and studs, none of which is a [seat](#the-seat-one-surface-or-a-crease). No
+amount of `patch` rescues that: a floor over an empty set is still empty. Widen
+the `relief` list, and give the piece `seat: Any` if it belongs on the high
+ground.
 
 **Read the SPREAD, not the middle.** Every bucket above swings by two or three
 times across three seeds of one generator, so a rule sized against one hull is
@@ -215,6 +247,10 @@ outward axis, or not at all.
 | `Free` | nothing. Right for anything with no long axis - a blister, a stud, a hatch |
 | `Run` | the direction the surface RUNS, so a rib strip follows the spine it is on and a row of vents lines up with itself |
 | `Outward` | the direction the surface FALLS, which is off the ship - a fairing leans out over the edge it stands on instead of lying along it |
+
+The piece is turned ACROSS THE SURFACE it lies on, and then bedded onto it, so on
+a raked plate its `+Z` comes out raked too: a fairing on a hull edge noses down
+the slope rather than standing square out of it.
 
 The two are square to each other. `Outward` is a rule for the falling plate:
 `Brink` has a single outward cardinal, an outer corner leans on the diagonal

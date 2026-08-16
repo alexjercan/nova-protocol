@@ -645,6 +645,11 @@ fn skin_record(report: &SkinReport) -> serde_json::Value {
             "placed": report.decor,
             "off_flat": report.decor_off_flat,
             "on_creased": report.decor_on_creased,
+            // How raked the ground under the decoration is, in radians. A piece
+            // is bedded onto its plate's own top normal, so this reads the HULL
+            // the pieces landed on rather than how far any of them leans off
+            // its own footing.
+            "tilt": num(report.decor_tilt),
             "relief": histogram(&report.decor_relief),
             "rules": report.rules.iter().map(|rule| serde_json::json!({
                 "id": rule.id,

@@ -435,15 +435,42 @@ fn share(hash: u64) -> f32 {
     (hash >> 40) as f32 / (1u64 << 24) as f32
 }
 
-/// Where a decoration stands on the plate it is bolted to.
+/// Where a decoration stands on the plate it is bolted to, and which way it is
+/// stood up.
 ///
 /// In the PLATE's frame, which is already the frame a greeble is authored in:
-/// `+Y` is out of the plate, so the piece only has to be lifted to the surface
-/// and yawed. The lift is the plate's own centre height, which is the mean of
-/// its eight boundary samples - the same number the collider is cut to.
+/// `+Y` is out of the plate and `y = 0` is the mounting face. The lift is the
+/// plate's own centre height, which is the mean of its eight boundary samples -
+/// the same number the collider is cut to, and the exact height the fan's own
+/// middle vertex rides at, so the piece stands ON the surface rather than near
+/// it.
+///
+/// # The lean was the bigger half of the placement defect
+///
+/// This used to lift and yaw and nothing else, which stood every piece upright
+/// in the PLATE's cell whatever the plate's top was doing. Measured over 526
+/// plates of the `wfc_ships` row: 82% of plates lean more than 15 degrees off
+/// their own out face, the mean tilt under a placed piece was 26 degrees, and
+/// 63% of placed pieces stood on a plate whose top is ONE FLAT SURFACE - a
+/// ramp, with nothing wrong with it, wearing a piece balanced on one edge.
+///
+/// So the piece is turned onto [`ShellShape::seat_normal`] first and yawed
+/// second. Composed in that order because the yaw is a turn ACROSS THE
+/// SURFACE - the quarter turn [`turns_for`] chose against the plate's in-plane
+/// axes - and turning first then bedding keeps that choice meaning what it
+/// said.
+///
+/// A CONE is left standing up its own cell, and that is the seat normal's
+/// business rather than this one's: the pieces that stand on one are the ones
+/// whose rule asked for the high ground, and a mast on a spar tip wants to
+/// stand up the tip.
+///
+/// [`ShellShape::seat_normal`]: super::shell_shape::ShellShape::seat_normal
 pub fn decor_pose(plate: &SkinPlate, turns: u8) -> Transform {
-    Transform::from_translation(Vec3::Y * (-REACH + plate.shape.volume()))
-        .with_rotation(Quat::from_rotation_y(quarter(turns)))
+    Transform::from_translation(Vec3::Y * (-REACH + plate.shape.volume())).with_rotation(
+        Quat::from_rotation_arc(Vec3::Y, plate.shape.seat_normal())
+            * Quat::from_rotation_y(quarter(turns)),
+    )
 }
 
 /// Marks a decoration and carries the model that draws it.
@@ -520,7 +547,7 @@ mod tests {
     use crate::sections::{
         shell_skin::{derive_skin, SkinStructure},
         skin_reading::{read_plates, PlateRelief},
-        skin_style::{ScatterRule, ShipStyleConfig},
+        skin_style::{ScatterRule, ScatterSeat, ShipStyleConfig},
     };
 
     /// A section that mates on every face, like a hull cube.
@@ -682,12 +709,18 @@ mod tests {
     fn a_plate_takes_one_piece_and_the_first_rule_wins() {
         let structure = slab(5);
         let plates = derive_skin(&structure);
+        // Seated anywhere, so "every plate" means every plate: the deck's
+        // outer corners are cones and a default rule would leave them bare.
+        let anywhere = ScatterRule {
+            seat: ScatterSeat::Any,
+            ..default()
+        };
         let placements = scatter_decor(
             &plates,
             &read_plates(&structure, &plates),
             &style(vec![
-                fixture("first", ScatterRule::default()),
-                fixture("second", ScatterRule::default()),
+                fixture("first", anywhere.clone()),
+                fixture("second", anywhere),
             ]),
         );
 
@@ -720,6 +753,9 @@ mod tests {
                 "rib",
                 ScatterRule {
                     relief: vec![PlateRelief::Ridge],
+                    // A crest is a cone every time, so a rib on one is a rule
+                    // that asked for the high ground.
+                    seat: ScatterSeat::Any,
                     align: ScatterAlign::Run,
                     ..default()
                 },
@@ -739,9 +775,78 @@ mod tests {
         }
     }
 
+    /// A piece is BEDDED on the plate it stands on: its own `+Y` comes out
+    /// along the plate's top normal, so it lies on the surface rather than
+    /// standing upright in the cell.
+    ///
+    /// The measured defect this closes: 82% of plates lean more than 15 degrees
+    /// off their own out face, and a lifted-and-yawed piece stood upright on
+    /// every one of them.
+    #[test]
+    fn a_piece_is_bedded_on_the_surface_it_stands_on() {
+        // A deck with a block on it: a level middle, and a ramp climbing the
+        // block square-on. Both are one flat surface; only one is level.
+        let mut structure = slab(6);
+        structure.insert(IVec3::new(2, 1, 2), OPEN);
+        let plates = derive_skin(&structure);
+        let at = |cell: IVec3| {
+            plates
+                .iter()
+                .find(|plate| plate.cell == cell)
+                .expect("a plate stands here")
+        };
+
+        let level = at(IVec3::new(4, 1, 4));
+        assert!(level.shape.tilt() < 1e-4, "the far deck is level");
+        let up = level.rotation * decor_pose(level, 0).rotation * Vec3::Y;
+        assert!(
+            up.abs_diff_eq(Vec3::Y, 1e-4),
+            "a piece on a level panel was turned to {up}",
+        );
+
+        let ramp = at(IVec3::new(1, 1, 2));
+        assert!(ramp.shape.is_coplanar() && ramp.shape.tilt() > 0.4);
+        let pose = decor_pose(ramp, 0);
+        assert!(
+            (pose.rotation * Vec3::Y).abs_diff_eq(ramp.shape.top_normal(), 1e-4),
+            "a piece on a ramp stands up {} against a surface facing {}",
+            pose.rotation * Vec3::Y,
+            ramp.shape.top_normal(),
+        );
+        // ...and the whole of the turn is that bedding: the piece leans exactly
+        // as far as the plate does, and no further.
+        let leaned = (pose.rotation * Vec3::Y)
+            .dot(Vec3::Y)
+            .clamp(-1.0, 1.0)
+            .acos();
+        assert!(
+            (leaned - ramp.shape.tilt()).abs() < 1e-4,
+            "the piece turned {leaned} rad on a plate leaning {} rad",
+            ramp.shape.tilt(),
+        );
+
+        // A CONE is the exception, and it is left alone: the diagonal of the
+        // same raise falls three ways from its own middle, so a piece there
+        // stands up the cell rather than lying down one facet of it.
+        let cone = at(IVec3::new(1, 1, 1));
+        assert!(!cone.shape.is_coplanar() && cone.shape.tilt() > 0.4);
+        assert!(
+            (decor_pose(cone, 0).rotation * Vec3::Y).abs_diff_eq(Vec3::Y, 1e-4),
+            "a piece on a crease was laid down one of its facets",
+        );
+    }
+
     /// An OUTWARD piece is turned off the ship, square to the run and with a
     /// sign - which is the whole difference between a fairing shrouding an edge
     /// and one leaning back over the hull behind it.
+    ///
+    /// Measured ACROSS THE SURFACE, because a piece is bedded onto the plate
+    /// now: the edge of a hull drops half a cell over a cell, so a fairing on
+    /// it noses 27 degrees down the slope and its raw `+Z` is no longer the
+    /// cardinal it was turned to. The claim that survives is the one that was
+    /// always meant - which way it points along the plate it lies on - plus a
+    /// new one: it rakes DOWN, with the edge, rather than standing square out
+    /// of it.
     #[test]
     fn an_outward_piece_turns_off_the_ship() {
         let structure = slab(6);
@@ -764,11 +869,17 @@ mod tests {
         for placement in &placements {
             let plate = &plates[placement.plate];
             let fall = readings[placement.plate].fall.as_vec3();
+            let out = readings[placement.plate].out.as_vec3();
             let pose = decor_pose(plate, placement.turns);
             let facing = plate.rotation * pose.rotation * Vec3::Z;
+            let heading = (facing - out * facing.dot(out)).normalize();
             assert!(
-                facing.dot(fall) > 0.9,
-                "a fairing on an edge falling {fall} points {facing}",
+                heading.dot(fall) > 0.9,
+                "a fairing on an edge falling {fall} heads {heading}",
+            );
+            assert!(
+                facing.dot(out) < -0.1,
+                "a fairing on a hull edge stands square out of it ({facing})",
             );
         }
     }
@@ -870,7 +981,13 @@ mod tests {
         let plates = derive_skin(&structure);
         let readings = read_plates(&structure, &plates);
         let style = style(vec![
-            fixture("greedy", ScatterRule::default()),
+            fixture(
+                "greedy",
+                ScatterRule {
+                    seat: ScatterSeat::Any,
+                    ..default()
+                },
+            ),
             fixture(
                 "starved",
                 ScatterRule {
