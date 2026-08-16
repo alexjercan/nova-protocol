@@ -53,7 +53,7 @@ use crate::sections::{
 pub mod prelude {
     pub use super::{
         decor_body, decor_pose, decor_reach, decor_tally, scatter_decor, DecorPlacement,
-        ShipDecorMarker,
+        DecorReason, ShipDecorMarker,
     };
 }
 
@@ -81,6 +81,33 @@ pub struct DecorPlacement {
     /// the axis its rule aligns to. `0` for a piece that does not align, and
     /// for one whose plate has no such axis to turn to.
     pub turns: u8,
+    /// WHICH of the two ways of claiming a plate put this piece here.
+    pub reason: DecorReason,
+}
+
+/// Why a piece stands where it stands.
+///
+/// Two answers, and the difference is what a dump is read for: a rule that
+/// covers a hull through its own share is tuned, and one whose pieces are
+/// nearly all [`Patch`](DecorReason::Patch) is a rule whose share was thinner
+/// than the hull it landed on and is being carried by the floor.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DecorReason {
+    /// The rule's own filter, lattice and share all admitted the plate.
+    Rule,
+    /// The share left this block of hull bare and the per-patch floor put one
+    /// piece back. See [`fill_patches`].
+    Patch,
+}
+
+impl DecorReason {
+    /// The stable lowercase name a dump spells this with.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Rule => "rule",
+            Self::Patch => "patch",
+        }
+    }
 }
 
 /// Every decoration a style puts on a derived skin.
@@ -114,6 +141,9 @@ pub fn scatter_decor(
                 .position(|fixture| claims(fixture, plate, reading))
         })
         .collect();
+    // Kept so the answer can say WHICH pass put each piece down: everything the
+    // floor adds is a slot that was `None` here.
+    let by_share = claimed.clone();
     fill_patches(plates, readings, style, &mut claimed);
 
     claimed
@@ -125,6 +155,10 @@ pub fn scatter_decor(
                 plate: index,
                 fixture,
                 turns: turns_for(&plates[index], &readings[index], &style.fixtures[fixture]),
+                reason: match by_share[index] {
+                    Some(_) => DecorReason::Rule,
+                    None => DecorReason::Patch,
+                },
             })
         })
         .collect()

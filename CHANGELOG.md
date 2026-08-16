@@ -271,6 +271,9 @@ tagged **(breaking)**.
 - New probe capability: `NOVA_PERF_SNAPSHOT` dumps world state as JSONL - ships,
   sections, fixtures, weapons, ordnance - sorted and rounded so two snapshots of
   one frame diff clean.
+- A snapshot carries the DERIVED SKIN: per plate the eight boundary samples, the
+  relief and the zone facts, per ship the shape statistics and every cell the
+  derivation refused to clad, with the reason.
 - The base mod generates its own decoration art: `scripts/gen-greebles.py`
   builds one `.glb` per JSON recipe in `scripts/greeble-recipes/`, gated by
   `--check`.

@@ -1,6 +1,6 @@
 # Skin debug dump and wfc edge-case tests
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.11.0, ship, render, debug, harness
 
@@ -44,4 +44,14 @@ input half. The dump itself can be built against a live ship first.
 
 ## Lane
 
-Not started. Queued behind `ship-content` (task 20260816-112330).
+Done. `NOTES.md` holds the schema additions, the measurements and the excerpt.
+
+Two things for the lanes downstream:
+
+- The shell-shape task (20260816-112429) should DROP or requeue R1b: there are
+  ZERO diagonal saddles on 526 generated plates and zero on the owner's L. The
+  mass is `Spur` and the creased half of `Step` - 89% of every creased plate.
+- The owner's bare inside angle is NOT a shape defect and the shape work will
+  not fix it. It is `cladding_cells` dropping a cell that could bolt down but
+  had every outward direction taken by other cladding - `BareReason::Crowded`,
+  12 of them on the wfc row. It needs a task of its own.

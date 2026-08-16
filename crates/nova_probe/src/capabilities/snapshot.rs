@@ -15,14 +15,31 @@
 //!
 //! - `ships` - every [`SpaceshipRootMarker`]: identity, transform, velocity,
 //!   aggregate health, mass, the collapse/defeat/neutralize flags, weapon
-//!   locks, and its `sections`.
+//!   locks, its `skin`, and its `sections`.
+//! - `ships[].skin` - the DERIVED SKIN as a whole, for a clad ship: the relief
+//!   histogram, how many plates have a flat top rather than a cone, how many
+//!   are the diagonal saddle, the mean flat area, the per-rule decoration
+//!   tally, and every cell the derivation refused to clad with the reason. Null
+//!   for a ship wearing none.
 //! - `ships[].sections` - every [`SectionMarker`] child: id, prototype, class,
 //!   local pose, health, alive/disabled, the `modifications` applied to it, its
 //!   `weapon` state when it carries one, and its `fixtures`.
 //! - `ships[].sections[].fixtures` - every [`SectionFixture`] hanging off that
-//!   section (skin plates, decor), with health and alive.
+//!   section (skin plates, decor), with health and alive. A skin plate also
+//!   carries `plate`: the eight boundary samples, the relief they read as, and
+//!   every zone fact the decoration scatter filtered on. A decoration carries
+//!   `stands_on`, which is the plate under it.
 //! - `ordnance` - every torpedo and turret round in flight: owner, position,
 //!   velocity, damage, remaining lifetime, target.
+//!
+//! ## Why the skin, and why in this much detail
+//!
+//! Because it is the one subsystem a dump makes REPRODUCIBLE. The skin is a
+//! pure function of structure - no RNG, the decoration hashed off the cell - so
+//! the eight samples on a plate record are a complete repro of that tile, and a
+//! defect can be pinned in a test instead of photographed. The derivation is
+//! re-run here over the ship's live sections rather than read back off the
+//! plates, which is also the only way to report a cell that carries NO plate.
 //!
 //! ## Why JSON, and why it diffs clean
 //!
@@ -95,8 +112,10 @@ use nova_scenario::{
     world::NovaEventWorld,
 };
 use nova_ship::prelude::{
-    AITarget, AITurretDefenseTarget, CombatLock, SectionAmmo, SectionFixture, SectionReload,
-    ShipDecorMarker, ShipSkinMarker, StructuralCollapseMarker, TorpedoArming, TorpedoBlast,
+    derive_skin, read_plates, read_structure, section_cell, skin_report, skin_summary, AITarget,
+    AITurretDefenseTarget, CombatLock, GameStyles, PlacedPart, PlateReport, SectionAmmo,
+    SectionExit, SectionFixture, SectionLinkPoints, SectionReload, ShipDecorMarker, ShipSkin,
+    ShipSkinMarker, ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast,
     TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TravelLock,
     TurretSectionAimPoint, TurretSectionInput, TurretSectionTargetInput, WeaponsHot, WithheldVerbs,
 };
@@ -414,6 +433,12 @@ fn vec3(value: Vec3) -> serde_json::Value {
     serde_json::json!([num(value.x), num(value.y), num(value.z)])
 }
 
+/// A cell or a cardinal direction. Whole numbers, so nothing is rounded and
+/// [`num`] does not apply.
+fn ivec3(value: IVec3) -> serde_json::Value {
+    serde_json::json!([value.x, value.y, value.z])
+}
+
 fn quat(value: Quat) -> serde_json::Value {
     serde_json::json!([num(value.x), num(value.y), num(value.z), num(value.w)])
 }
@@ -452,6 +477,7 @@ fn key(value: &serde_json::Value) -> String {
 fn ship_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
     let id = label(world, entity);
     let transform = world.get::<Transform>(entity).copied().unwrap_or_default();
+    let skin = skin_index(world, entity);
     let sections = ordered(
         world
             .get::<Children>(entity)
@@ -459,7 +485,7 @@ fn ship_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
                 children
                     .iter()
                     .filter(|child| world.get::<SectionMarker>(*child).is_some())
-                    .map(|child| section_record(world, child))
+                    .map(|child| section_record(world, child, skin.as_ref()))
                     .collect()
             })
             .unwrap_or_default(),
@@ -487,9 +513,188 @@ fn ship_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
         "travel_lock": label_of(world, world.get::<TravelLock>(entity).and_then(|lock| lock.0)),
         "combat_lock": label_of(world, world.get::<CombatLock>(entity).and_then(|lock| lock.0)),
         "ai_target": label_of(world, world.get::<AITarget>(entity).and_then(|target| target.0)),
+        // The derived skin as a whole: the histogram, the measurements and the
+        // cells it refused. Per-plate detail hangs off the plate's own fixture
+        // record; this is the half no single plate can answer.
+        "skin": skin.map(|skin| skin.summary),
         "sections": sections,
     });
     (key(&record["id"]), record)
+}
+
+/// One ship's derived skin, indexed the way a fixture record asks for it.
+///
+/// The dump RE-DERIVES rather than reading the plates back off the ship, and it
+/// can: the skin is a pure function of the structure, so the derivation over a
+/// live ship's sections is the same one that clad it. That is also the only way
+/// to answer the other half - a cell that carries NO plate has no entity to
+/// hang a record on, and "why is this hull face bare" is the question the dump
+/// was asked for.
+struct SkinIndex {
+    /// Where the cell lattice this ship's sections stand on has its origin.
+    phase: Vec3,
+    /// One record per clad cell.
+    rows: std::collections::HashMap<IVec3, serde_json::Value>,
+    /// The ship-level summary.
+    summary: serde_json::Value,
+}
+
+impl SkinIndex {
+    /// The cell a live plate stands in, off its pose in its section's frame.
+    ///
+    /// Never off the plate's own translation alone: the derivation works in the
+    /// SHIP's cells and a plate is parented to the section it clads.
+    fn cell_of(&self, world: &World, plate: Entity, section: Entity) -> Option<IVec3> {
+        let local = world.get::<Transform>(plate)?;
+        let pose = world.get::<Transform>(section)?;
+        Some(section_cell(
+            pose.rotation * local.translation + pose.translation,
+            self.phase,
+        ))
+    }
+}
+
+/// Derive `root`'s skin and index it, or `None` for a ship that wears none.
+fn skin_index(world: &World, root: Entity) -> Option<SkinIndex> {
+    if !world.get::<ShipSkin>(root).is_some_and(|skin| skin.0) {
+        return None;
+    }
+    let sections: Vec<(&Transform, &SectionLinkPoints, Option<&SectionExit>)> = world
+        .get::<Children>(root)?
+        .iter()
+        .filter(|child| world.get::<SectionMarker>(*child).is_some())
+        .filter_map(|child| {
+            Some((
+                world.get::<Transform>(child)?,
+                world.get::<SectionLinkPoints>(child)?,
+                world.get::<SectionExit>(child),
+            ))
+        })
+        .collect();
+    let placed: Vec<PlacedPart> = sections
+        .iter()
+        .map(|(pose, sockets, exit)| PlacedPart {
+            position: pose.translation,
+            rotation: pose.rotation,
+            link_points: sockets.as_slice(),
+            exit: exit.map(|exit| exit.0),
+        })
+        .collect();
+
+    let (structure, phase, _) = read_structure(&placed);
+    if structure.is_empty() {
+        return None;
+    }
+    let plates = derive_skin(&structure);
+    let readings = read_plates(&structure, &plates);
+    let style = world
+        .get::<ShipStyle>(root)
+        .zip(world.get_resource::<GameStyles>())
+        .and_then(|(worn, styles)| worn.resolve(styles));
+    let report = skin_report(&structure, &plates, &readings, style);
+
+    Some(SkinIndex {
+        phase,
+        rows: report
+            .plates
+            .iter()
+            .map(|row| (row.cell, plate_record(row)))
+            .collect(),
+        summary: skin_record(&report),
+    })
+}
+
+/// The ship-level half of a skin dump: what the hull came out as, and what it
+/// refused.
+fn skin_record(report: &SkinReport) -> serde_json::Value {
+    let histogram = |counted: &[nova_ship::prelude::ReliefCount]| {
+        serde_json::Value::Object(
+            counted
+                .iter()
+                .map(|count| {
+                    (
+                        count.relief.name().to_string(),
+                        serde_json::json!(count.count),
+                    )
+                })
+                .collect(),
+        )
+    };
+    serde_json::json!({
+        // The one line a human reads; every number in it is also a field.
+        "summary": skin_summary(report),
+        "plates": report.plates.len(),
+        "shapes": report.shapes,
+        "relief": histogram(&report.relief),
+        // The measurements the shell-shape work is sized against: how many
+        // plates have a whole flat top rather than a cone, how many are the
+        // diagonal saddle, and how much room the average plate offers a piece.
+        "coplanar": report.coplanar,
+        "saddles": report.saddles,
+        "leaning": report.leaning,
+        "flat_area": num(report.flat_area),
+        // STRUCTURE FACING VACUUM. The coverage rule's claim is that this is
+        // zero, so anything else is a defect and the cells below say which.
+        "bare_faces": report.bare_faces,
+        "bare": report.bare.iter().map(|bare| serde_json::json!({
+            "cell": ivec3(bare.cell),
+            "reason": bare.reason.name(),
+            "faces": bare.faces,
+        })).collect::<Vec<_>>(),
+        "decor": {
+            "placed": report.decor,
+            "off_flat": report.decor_off_flat,
+            "on_creased": report.decor_on_creased,
+            "relief": histogram(&report.decor_relief),
+            "rules": report.rules.iter().map(|rule| serde_json::json!({
+                "id": rule.id,
+                "taken": rule.taken,
+                "reach": rule.reach,
+            })).collect::<Vec<_>>(),
+        },
+    })
+}
+
+/// One clad cell: the eight samples, what they spell, and every fact the
+/// scatter read on its way to dressing it.
+fn plate_record(row: &PlateReport) -> serde_json::Value {
+    let reading = &row.reading;
+    serde_json::json!({
+        "cell": ivec3(row.cell),
+        "anchor": ivec3(row.anchor),
+        "out": ivec3(row.out),
+        // The eight boundary samples, in the order the shape's id spells them.
+        // These ARE the shape: given them, the tile is reproducible offline.
+        "corners": row.shape.corners,
+        "midpoints": row.shape.midpoints,
+        "relief": reading.relief.name(),
+        // Which corner slots die to the cell floor. The derivation puts one
+        // there for exactly one reason - open space stands at it - so this is
+        // the number of directions the plate has vacuum in, and the two
+        // diagonal masks are the saddle.
+        "fallen": row.fallen,
+        "saddle": row.saddle,
+        // Whether the fanned top is ONE surface or a cone, and how much of the
+        // cell the widest flat piece of it covers.
+        "coplanar": row.coplanar,
+        "flat_area": num(row.flat_area),
+        "tilt": num(row.tilt),
+        // The zone facts a scatter rule filters on.
+        "along": ivec3(reading.along),
+        "fall": ivec3(reading.fall),
+        "run": reading.run,
+        "border": reading.border,
+        "enclosure": reading.enclosure,
+        "height": reading.height,
+        "depth": reading.depth,
+        "fitting": reading.fitting,
+        // What landed here, and by which of the two paths.
+        "decor": row.decor.iter().map(|piece| serde_json::json!({
+            "id": piece.id,
+            "reason": piece.reason.name(),
+            "turns": piece.turns,
+        })).collect::<Vec<_>>(),
+    })
 }
 
 /// The controller kind, without its config: `None`, `Player` or `AI`.
@@ -502,7 +707,11 @@ fn controller_kind(controller: &SpaceshipController) -> &'static str {
 }
 
 /// One section, keyed by its ship-local id.
-fn section_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
+fn section_record(
+    world: &World,
+    entity: Entity,
+    skin: Option<&SkinIndex>,
+) -> (String, serde_json::Value) {
     let transform = world.get::<Transform>(entity).copied().unwrap_or_default();
     let class = world.get::<SectionClass>(entity);
     let record = serde_json::json!({
@@ -520,7 +729,7 @@ fn section_record(world: &World, entity: Entity) -> (String, serde_json::Value) 
         "disabled": world.get::<IntegrityDisabledMarker>(entity).is_some(),
         "modifications": modifications(world, entity),
         "weapon": weapon(world, entity, class),
-        "fixtures": fixtures(world, entity),
+        "fixtures": fixtures(world, entity, skin),
     });
     (key(&record["id"]), record)
 }
@@ -611,45 +820,72 @@ fn weapon(
 /// Recursion does not stop at a fixture and does not cross into another
 /// section: sections are children of the ship ROOT, never of each other, so a
 /// walk from one section can only reach its own dressing and render children.
-fn fixtures(world: &World, section: Entity) -> Vec<serde_json::Value> {
+fn fixtures(world: &World, section: Entity, skin: Option<&SkinIndex>) -> Vec<serde_json::Value> {
     let mut found = Vec::new();
-    collect_fixtures(world, section, section, &mut found);
+    collect_fixtures(world, section, skin, None, &mut found);
     ordered(found)
 }
 
+/// `cell` is the clad cell the walk is currently INSIDE: `None` at the section,
+/// and the plate's own cell everywhere under a plate. That is what lets a
+/// greeble say which plate it stands on - its own pose is on top of the plate's
+/// surface rather than at the middle of the cell, so nothing about its
+/// transform alone would answer.
 fn collect_fixtures(
     world: &World,
     parent: Entity,
-    section: Entity,
+    skin: Option<&SkinIndex>,
+    cell: Option<IVec3>,
     found: &mut Vec<(String, serde_json::Value)>,
 ) {
     let Some(children) = world.get::<Children>(parent) else {
         return;
     };
     for child in children.iter() {
+        let cell = match world.get::<ShipSkinMarker>(child).is_some() {
+            true => skin.and_then(|skin| skin.cell_of(world, child, parent)),
+            false => cell,
+        };
         if world.get::<SectionFixture>(child).is_some() {
-            found.push(fixture_record(world, child, parent));
+            found.push(fixture_record(world, child, parent, skin, cell));
         }
-        collect_fixtures(world, child, section, found);
+        collect_fixtures(world, child, skin, cell, found);
     }
 }
 
 /// One fixture: what it is, what it hangs off, where it sits in its parent's
 /// frame, and whether it is still there.
 ///
-/// `shape` is a skin plate's [`ShellShape`](nova_ship::prelude::ShellShape) id.
-/// It is the anchor a skin-derivation dump extends from - the sample heights
-/// and the relief that CHOSE that shape belong on this record, not in a second
-/// serializer.
-fn fixture_record(world: &World, entity: Entity, parent: Entity) -> (String, serde_json::Value) {
+/// `shape` is a skin plate's [`ShellShape`](nova_ship::prelude::ShellShape) id,
+/// and it is the ANCHOR the skin dump extends from: `plate` carries the eight
+/// samples that spell that shape, the relief they read as, and every zone fact
+/// the scatter used. One serializer, not two.
+///
+/// `plate` is null on a plate whose cell the CURRENT structure no longer derives
+/// one for - a section died and took the neighbourhood with it, while the plate
+/// beside it survived. That is a real state and the null says so rather than
+/// inventing a reading.
+///
+/// A decoration answers `stands_on` instead: the plate under it, and whether
+/// that plate is a surface or a crease. It is the placement complaint in one
+/// field.
+fn fixture_record(
+    world: &World,
+    entity: Entity,
+    parent: Entity,
+    skin: Option<&SkinIndex>,
+    cell: Option<IVec3>,
+) -> (String, serde_json::Value) {
     let plate = world.get::<ShipSkinMarker>(entity);
+    let decor = world.get::<ShipDecorMarker>(entity).is_some();
     let kind = if plate.is_some() {
         "skin_plate"
-    } else if world.get::<ShipDecorMarker>(entity).is_some() {
+    } else if decor {
         "skin_decor"
     } else {
         "fixture"
     };
+    let row = cell.zip(skin).and_then(|(cell, skin)| skin.rows.get(&cell));
     let transform = world.get::<Transform>(entity).copied().unwrap_or_default();
     let record = serde_json::json!({
         "kind": kind,
@@ -660,6 +896,14 @@ fn fixture_record(world: &World, entity: Entity, parent: Entity) -> (String, ser
         "rotation": quat(transform.rotation),
         "health": health(world.get::<Health>(entity)),
         "alive": world.get::<HealthZeroMarker>(entity).is_none(),
+        "plate": plate.map(|_| row.cloned().unwrap_or(serde_json::Value::Null)),
+        "stands_on": decor.then(|| row.map_or(serde_json::Value::Null, |row| serde_json::json!({
+            "cell": row["cell"],
+            "relief": row["relief"],
+            "coplanar": row["coplanar"],
+            "flat_area": row["flat_area"],
+            "tilt": row["tilt"],
+        }))),
     });
     (format!("{kind}/{}", key(&record["name"])), record)
 }
@@ -724,6 +968,7 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     use nova_gameplay::prelude::DamageType;
+    use nova_ship::prelude::unit_cube_link_points;
 
     use super::*;
 
@@ -815,6 +1060,132 @@ mod tests {
             TempEntity(3.0),
         ));
         root
+    }
+
+    /// A clad ship: one hull cube, and the six plates the derivation lays on
+    /// it, spawned the way `spawn_ship_skin` spawns them (children of the
+    /// section, posed in ITS frame).
+    fn clad_ship(app: &mut App, at: Vec3) -> Entity {
+        let root = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                EntityId::new("clad"),
+                ShipSkin(true),
+                Transform::from_translation(at),
+            ))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                EntityId::new("clad_hull"),
+                SectionLinkPoints(unit_cube_link_points()),
+                Transform::IDENTITY,
+                ChildOf(root),
+            ))
+            .id();
+        for cell in [
+            IVec3::X,
+            IVec3::NEG_X,
+            IVec3::Y,
+            IVec3::NEG_Y,
+            IVec3::Z,
+            IVec3::NEG_Z,
+        ] {
+            // Every face of a lone cube comes out a STUD, whatever way it
+            // faces, so one shape covers the six.
+            let stud = nova_ship::prelude::ShellShape::new([0; 4], [0; 4]).expect("a legal shape");
+            app.world_mut().spawn((
+                SectionFixture,
+                ShipSkinMarker(stud),
+                Name::new(format!("Skin Plate {}", stud.id())),
+                Transform::from_translation(cell.as_vec3()),
+                ChildOf(section),
+            ));
+        }
+        root
+    }
+
+    /// The skin half of the dump: a plate carries the eight samples that spell
+    /// its shape, the relief they read as, and the zone facts the scatter used,
+    /// and the ship carries the histogram and the cells the derivation refused.
+    ///
+    /// The samples are the load-bearing part. The skin is a pure function of
+    /// the structure, so a dumped shape is a COMPLETE repro - the tile can be
+    /// rebuilt offline from these eight digits and pinned in a test.
+    #[test]
+    fn a_clad_ship_carries_its_derivation_per_plate_and_a_summary_per_ship() {
+        let mut app = rig();
+        clad_ship(&mut app, Vec3::ZERO);
+        app.update();
+
+        let snapshot = capture_snapshot(app.world_mut(), "test");
+        let ship = &snapshot["ships"][0];
+        let skin = &ship["skin"];
+        assert_eq!(skin["plates"], 6, "a lone cube is clad on all six faces");
+        assert_eq!(skin["shapes"], 1, "and every face of it is the same stud");
+        assert_eq!(skin["relief"]["peak"], 6);
+        assert_eq!(skin["coplanar"], 0, "a stud is a pyramid, not a surface");
+        assert_eq!(skin["bare_faces"], 0, "nothing on a lone cube is bare");
+        assert_eq!(skin["decor"]["placed"], 0, "it wears no style");
+        assert!(skin["summary"]
+            .as_str()
+            .is_some_and(|line| line.contains("6 plate(s)")));
+
+        let plate = ship["sections"][0]["fixtures"]
+            .as_array()
+            .expect("the plates are fixtures")
+            .iter()
+            .find(|fixture| fixture["plate"]["cell"] == serde_json::json!([0, 1, 0]))
+            .expect("a plate stands on the roof of the cube");
+        assert_eq!(plate["kind"], "skin_plate");
+        assert_eq!(plate["shape"], "shell_0000_0000");
+        assert_eq!(plate["plate"]["corners"], serde_json::json!([0, 0, 0, 0]));
+        assert_eq!(plate["plate"]["midpoints"], serde_json::json!([0, 0, 0, 0]));
+        assert_eq!(plate["plate"]["relief"], "peak");
+        assert_eq!(plate["plate"]["out"], serde_json::json!([0, 1, 0]));
+        assert_eq!(plate["plate"]["anchor"], serde_json::json!([0, 0, 0]));
+        assert_eq!(
+            plate["plate"]["fallen"], 15,
+            "every corner dies to the floor"
+        );
+        assert_eq!(plate["plate"]["saddle"], false);
+        assert_eq!(plate["plate"]["coplanar"], false);
+        assert_eq!(plate["plate"]["enclosure"], 0, "nothing stands beside it");
+        assert_eq!(plate["plate"]["depth"], 1, "one cell of hull under it");
+        assert_eq!(plate["plate"]["decor"], serde_json::json!([]));
+
+        // A ship that wears no skin says so, rather than carrying an empty one.
+        let mut bare = rig();
+        self::ship(&mut bare, "player", Vec3::ZERO);
+        bare.update();
+        assert!(capture_snapshot(bare.world_mut(), "test")["ships"][0]["skin"].is_null());
+    }
+
+    /// The skin half diffs clean too: it is derived from the structure rather
+    /// than read off entity order, so two dumps of one clad ship are the same
+    /// bytes and two ships built back to front are the same bytes.
+    #[test]
+    fn a_clad_ship_dumps_the_same_bytes_twice_and_in_either_spawn_order() {
+        let mut app = rig();
+        clad_ship(&mut app, Vec3::ZERO);
+        app.update();
+        let first = capture_snapshot(app.world_mut(), "test").to_string();
+        assert_eq!(first, capture_snapshot(app.world_mut(), "test").to_string());
+
+        let mut second = rig();
+        ship(&mut second, "player", Vec3::new(10.0, 0.0, 0.0));
+        clad_ship(&mut second, Vec3::ZERO);
+        second.update();
+        let mut third = rig();
+        clad_ship(&mut third, Vec3::ZERO);
+        ship(&mut third, "player", Vec3::new(10.0, 0.0, 0.0));
+        third.update();
+        assert_eq!(
+            capture_snapshot(second.world_mut(), "test").to_string(),
+            capture_snapshot(third.world_mut(), "test").to_string(),
+        );
     }
 
     #[test]

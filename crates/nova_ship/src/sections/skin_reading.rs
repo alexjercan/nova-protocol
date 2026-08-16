@@ -57,10 +57,14 @@ use crate::sections::{
     },
 };
 
-/// The prelude: `PlateReading`, `PlateRelief`, `PlateFacing`, `read_plates` and
-/// `relief_tally`.
+/// The prelude: `PlateReading`, `PlateRelief`, `PlateFacing`, `read_plates`,
+/// `relief_tally`, `relief_of`, `fallen_corners`, `is_diagonal_saddle` and
+/// `RELIEFS`.
 pub mod prelude {
-    pub use super::{read_plates, relief_tally, PlateFacing, PlateReading, PlateRelief};
+    pub use super::{
+        fallen_corners, is_diagonal_saddle, read_plates, relief_of, relief_tally, PlateFacing,
+        PlateReading, PlateRelief, RELIEFS,
+    };
 }
 
 /// How far a run walk looks along one direction before it stops counting.
@@ -115,6 +119,35 @@ pub enum PlateRelief {
     /// The skin falls away on TWO SIDES OR MORE: an outer corner, the tip of a
     /// spar, a saddle between two runs. The pointy end of a ship.
     Spur,
+}
+
+/// Every relief class, in the order a tally reads them. The one list, so a
+/// histogram and a dump cannot disagree about the roster.
+pub const RELIEFS: [PlateRelief; 7] = [
+    PlateRelief::Flat,
+    PlateRelief::Step,
+    PlateRelief::Ridge,
+    PlateRelief::Peak,
+    PlateRelief::Bevel,
+    PlateRelief::Brink,
+    PlateRelief::Spur,
+];
+
+impl PlateRelief {
+    /// The lowercase name a tally, a dump and a log all spell this class with.
+    /// A STABLE string, unlike `Debug`: it is read back by whatever diffs two
+    /// dumps.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Flat => "flat",
+            Self::Step => "step",
+            Self::Ridge => "ridge",
+            Self::Peak => "peak",
+            Self::Bevel => "bevel",
+            Self::Brink => "brink",
+            Self::Spur => "spur",
+        }
+    }
 }
 
 /// Which way a plate faces, in the SHIP's own frame.
@@ -336,21 +369,13 @@ pub fn relief_tally(readings: &[PlateReading]) -> String {
             .filter(|reading| reading.relief == wanted)
             .count()
     };
-    let listed: Vec<String> = [
-        ("flat", PlateRelief::Flat),
-        ("step", PlateRelief::Step),
-        ("ridge", PlateRelief::Ridge),
-        ("peak", PlateRelief::Peak),
-        ("bevel", PlateRelief::Bevel),
-        ("brink", PlateRelief::Brink),
-        ("spur", PlateRelief::Spur),
-    ]
-    .into_iter()
-    .filter_map(|(name, relief)| match count(relief) {
-        0 => None,
-        found => Some(format!("{name} x{found}")),
-    })
-    .collect();
+    let listed: Vec<String> = RELIEFS
+        .into_iter()
+        .filter_map(|relief| match count(relief) {
+            0 => None,
+            found => Some(format!("{} x{found}", relief.name())),
+        })
+        .collect();
     match listed.is_empty() {
         true => "none".to_string(),
         false => listed.join(", "),
@@ -459,7 +484,7 @@ fn face_of(out: IVec3) -> usize {
 /// The order is load-bearing. A plate with every sample on the floor is the
 /// STUD, whose middle falls back to half a cell - it would read as flat, and it
 /// is the pointiest thing on a hull.
-fn relief_of(shape: &ShellShape) -> PlateRelief {
+pub fn relief_of(shape: &ShellShape) -> PlateRelief {
     let samples = [shape.corners, shape.midpoints].concat();
     if samples.iter().all(|sample| *sample == 0) {
         return PlateRelief::Peak;
@@ -494,9 +519,26 @@ fn relief_of(shape: &ShellShape) -> PlateRelief {
     }
 }
 
+/// The two [`Spur`](PlateRelief::Spur) masks whose fallen corners sit across a
+/// DIAGONAL: the saddle, which falls two ways at once and has no side to lean a
+/// piece off.
+pub const SADDLE_MASKS: [u8; 2] = [0b0101, 0b1010];
+
+/// Whether a plate is the diagonal SADDLE - the shape the owner called ugly,
+/// and the one place on a hull with no outward direction to turn a piece to.
+///
+/// Inside [`Spur`](PlateRelief::Spur) rather than beside it: the class is
+/// "falls two ways or more", and this is the pair of ways that cancel. Split
+/// out here so a rule, a dump or a style can refuse it without the relief
+/// roster having to grow a variant that every authored style would then have to
+/// name.
+pub fn is_diagonal_saddle(shape: &ShellShape) -> bool {
+    relief_of(shape) == PlateRelief::Spur && SADDLE_MASKS.contains(&fallen_corners(shape))
+}
+
 /// Which of a shape's four corner slots die to the cell floor, as a bit per
 /// slot in the order the digits are read.
-fn fallen_corners(shape: &ShellShape) -> u8 {
+pub fn fallen_corners(shape: &ShellShape) -> u8 {
     (0..4).fold(0u8, |mask, slot| match shape.corners[slot] {
         0 => mask | 1 << slot,
         _ => mask,

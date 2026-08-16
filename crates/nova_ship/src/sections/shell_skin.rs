@@ -53,16 +53,17 @@ use crate::sections::{
         ShipDecorMarker,
     },
     skin_reading::{read_plates, relief_tally},
+    skin_report::{skin_report, skin_summary},
     skin_style::{GameStyles, ShipStyle, ShipStyleConfig},
 };
 
 /// The prelude: `SkinStructure`, `SkinPlate`, `PlacedPart`, `derive_skin`,
-/// `read_structure`, `plate_body`, `SkinAssets`, `ShipSkin`, `ShipSkinMarker`
-/// and `ShipSkinPlugin`.
+/// `read_structure`, `section_cell`, `plate_body`, `SkinAssets`, `ShipSkin`,
+/// `ShipSkinMarker` and `ShipSkinPlugin`.
 pub mod prelude {
     pub use super::{
-        derive_skin, plate_body, read_structure, PlacedPart, ShipSkin, ShipSkinMarker,
-        ShipSkinPlugin, SkinAssets, SkinPlate, SkinStructure,
+        derive_skin, plate_body, read_structure, section_cell, PlacedPart, ShipSkin,
+        ShipSkinMarker, ShipSkinPlugin, SkinAssets, SkinPlate, SkinStructure,
     };
 }
 
@@ -770,7 +771,7 @@ fn spawn_ship_skin(
         // the reach is only computed when this line would be printed.
         debug!(
             "spawn_ship_skin: ship {root} clad in {} plate(s) over {} shape(s); \
-             relief {}; decoration {}",
+             relief {}; decoration {}; {}",
             laid.iter().flatten().count(),
             shapes.len(),
             relief_tally(&readings),
@@ -778,6 +779,12 @@ fn spawn_ship_skin(
                 || "none (no style)".to_string(),
                 |style| decor_tally(style, &taken, &decor_reach(&plates, &readings, style)),
             ),
+            // The SHAPE half of the same picture: how much of this hull is
+            // creased, how much of it is the saddle, how many hull faces are
+            // bare, and how much of the decoration landed somewhere a
+            // flat-bottomed piece actually fits. None of it is legible in a
+            // screenshot and all of it decides a style.
+            skin_summary(&skin_report(&structure, &plates, &readings, style)),
         );
     }
 }
@@ -873,7 +880,11 @@ pub(crate) fn lattice_phase(positions: impl Iterator<Item = Vec3> + Clone) -> Ve
 
 /// The cell a section stands in, on the lattice `phase` places. See
 /// [`PLACEMENT_SNAP`] for why the quantum is taken out before the rounding.
-pub(crate) fn section_cell(position: Vec3, phase: Vec3) -> IVec3 {
+///
+/// Public because a READER needs it too: a dump holding a live plate has to put
+/// that plate back on the same lattice the derivation used, and rounding the
+/// raw float is exactly the mistake this function exists to prevent.
+pub fn section_cell(position: Vec3, phase: Vec3) -> IVec3 {
     (((position - phase) * PLACEMENT_SNAP).round() / PLACEMENT_SNAP)
         .round()
         .as_ivec3()

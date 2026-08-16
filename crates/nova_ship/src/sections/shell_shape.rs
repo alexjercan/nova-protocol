@@ -77,6 +77,16 @@ pub(crate) const REACH: f32 = 0.5;
 /// Every shell id opens with this.
 pub const SHELL_ID_PREFIX: &str = "shell_";
 
+/// How much of the cell footprint ONE facet of the fanned top covers. The fan
+/// cuts the face into eight equal wedges, so this is the quantum
+/// [`ShellShape::flat_area`] is measured in.
+pub const TOP_FACET_FOOTPRINT: f32 = 0.125;
+
+/// How far apart two facet normals may be and still count as one surface.
+/// Generous: the digits are exact, so the only spread here is the last bits of
+/// a normalized cross product.
+const FACET_EPSILON: f32 = 1e-4;
+
 /// Separates the corner round from the midpoint round in an id.
 const ROUND_SEPARATOR: char = '_';
 
@@ -255,7 +265,7 @@ impl ShellShape {
     /// section - and so a caller scaling health or a collider by this never
     /// gets a plate born dead inside a box of no volume.
     pub fn volume(&self) -> f32 {
-        if self.corners == [0; 4] && self.midpoints == [0; 4] {
+        if self.is_stud() {
             return SAMPLE_HEIGHTS[HALF as usize];
         }
         let total: f32 = self
@@ -272,6 +282,108 @@ impl ShellShape {
     /// the module note for why the mean and not something else.
     pub fn centre_height(&self) -> f32 {
         self.volume()
+    }
+
+    /// Whether the whole boundary is on the cell floor, which is the ONE shape
+    /// whose middle is not read off its own samples.
+    ///
+    /// It rides at half a cell instead, so an isolated clad cell comes out a
+    /// stud rather than an invisible section - see
+    /// [`volume`](Self::volume). Named rather than spelled twice, because it is
+    /// also the reason the stud is the pointiest thing on a hull and the one
+    /// coplanar boundary that still draws a cone.
+    pub fn is_stud(&self) -> bool {
+        self.corners == [0; 4] && self.midpoints == [0; 4]
+    }
+
+    /// Whether all nine points of the top - the eight boundary samples and the
+    /// middle - lie in ONE PLANE, which is exactly when the fan draws a flat
+    /// surface rather than a cone.
+    ///
+    /// An EXACT integer test on the digits, never a residual against a fitted
+    /// plane: the two diagonals of a planar quad share a midpoint
+    /// (`c0 + c2 == c1 + c3`), and a boundary sample on that plane is the mean
+    /// of the two corners it stands between (`2 * m_i == c_i + c_(i+1)`). The
+    /// middle then falls out for free, because the mean of the eight IS the
+    /// plane's height at the centre - which is what
+    /// [`centre_height`](Self::centre_height) rides at.
+    ///
+    /// TILTED counts. A ramp is one flat surface, and a piece laid on it has as
+    /// much material under it as one on a level panel; what a decoration cannot
+    /// stand on is a CREASE, and this is the test for the absence of one.
+    ///
+    /// The STUD is the exception and is refused here: its boundary is coplanar
+    /// (all of it on the floor) and its middle is not on that plane, because
+    /// [`is_stud`](Self::is_stud) lifts it. It draws a pyramid.
+    pub fn is_coplanar(&self) -> bool {
+        if self.is_stud() {
+            return false;
+        }
+        let corner = |slot: usize| i32::from(self.corners[slot]);
+        let midpoint = |slot: usize| i32::from(self.midpoints[slot]);
+        corner(0) + corner(2) == corner(1) + corner(3)
+            && (0..4).all(|edge| 2 * midpoint(edge) == corner(edge) + corner((edge + 1) % 4))
+    }
+
+    /// How much of the cell footprint the LARGEST unbroken flat piece of the
+    /// top covers, in square cells: 1.0 for a plate the fan draws as one
+    /// surface, and as little as [`TOP_FACET_FOOTPRINT`] for a cone.
+    ///
+    /// Measured on the FOOTPRINT rather than on the surface, so it answers the
+    /// question a decoration asks - how much room is there under a piece
+    /// standing here - and so a steep facet does not read as more material than
+    /// a level one of the same width.
+    ///
+    /// The fan cuts the top into eight facets over eight equal eighths of the
+    /// cell, so the whole measurement is: group the facets by the plane they
+    /// lie in, and count the biggest group.
+    pub fn flat_area(&self) -> f32 {
+        let normals = self.top_normals();
+        let largest = (0..normals.len())
+            .map(|facet| {
+                normals
+                    .iter()
+                    .filter(|other| other.abs_diff_eq(normals[facet], FACET_EPSILON))
+                    .count()
+            })
+            .max()
+            .unwrap_or_default();
+        largest as f32 * TOP_FACET_FOOTPRINT
+    }
+
+    /// How far the largest flat piece of the top LEANS off the cell's own out
+    /// face, in radians.
+    ///
+    /// Zero on a level panel and about 0.46 on a plate ramping a whole cell
+    /// across its own width. It is what says whether a piece standing upright
+    /// on this plate stands upright on the SHIP: nothing tilts a decoration to
+    /// the surface under it, so a flat plate and a ramp of the same
+    /// [`flat_area`](Self::flat_area) are different places to put one.
+    pub fn tilt(&self) -> f32 {
+        let normals = self.top_normals();
+        let widest = (0..normals.len())
+            .max_by_key(|facet| {
+                normals
+                    .iter()
+                    .filter(|other| other.abs_diff_eq(normals[*facet], FACET_EPSILON))
+                    .count()
+            })
+            .map(|facet| normals[facet])
+            .unwrap_or(Vec3::Y);
+        widest.dot(Vec3::Y).clamp(-1.0, 1.0).acos()
+    }
+
+    /// The unit normal of each of the eight top facets, in the fan's own order.
+    fn top_normals(&self) -> [Vec3; 8] {
+        let boundary = self.boundary();
+        let middle = Vec3::new(0.0, -REACH + self.centre_height(), 0.0);
+        // Wound the way the fan is DRAWN, so a level top answers `+Y` rather
+        // than the inward normal of the same triangle.
+        std::array::from_fn(|step| {
+            (boundary[(step + 1) % 8] - middle)
+                .cross(boundary[step] - middle)
+                .normalize_or_zero()
+        })
     }
 
     /// The top boundary as a closed polyline: corner, midpoint, corner,
@@ -469,10 +581,12 @@ impl MeshFaces {
     }
 }
 
-/// `ShellShape`, `ShellSurface`, `SAMPLE_HEIGHTS`, `SHELL_ID_PREFIX`, `FULL`
-/// and `HALF`.
+/// `ShellShape`, `ShellSurface`, `SAMPLE_HEIGHTS`, `SHELL_ID_PREFIX`, `FULL`,
+/// `HALF` and `TOP_FACET_FOOTPRINT`.
 pub mod prelude {
-    pub use super::{ShellShape, ShellSurface, FULL, HALF, SAMPLE_HEIGHTS, SHELL_ID_PREFIX};
+    pub use super::{
+        ShellShape, ShellSurface, FULL, HALF, SAMPLE_HEIGHTS, SHELL_ID_PREFIX, TOP_FACET_FOOTPRINT,
+    };
 }
 
 #[cfg(test)]
@@ -807,6 +921,48 @@ mod tests {
             1,
             "a stud touches nothing but the floor it stands on",
         );
+    }
+
+    /// A plate has a WHOLE flat top exactly when its boundary is coplanar, and
+    /// a cone otherwise.
+    ///
+    /// The pin the interior work needs before it starts: it says the exact
+    /// integer test and the measured area agree over the whole spread, so a
+    /// case table can be written against the digits instead of against a
+    /// residual. It also fixes what "broken" means - a crease, not a slope.
+    #[test]
+    fn a_plate_has_a_whole_flat_top_exactly_when_its_boundary_is_coplanar() {
+        for shape in sample_shapes() {
+            let area = shape.flat_area();
+            assert_eq!(
+                shape.is_coplanar(),
+                (area - 1.0).abs() < MESH_EPSILON,
+                "`{}` reads coplanar {} and a flat area of {area}",
+                shape.id(),
+                shape.is_coplanar(),
+            );
+            assert!(
+                area >= TOP_FACET_FOOTPRINT - MESH_EPSILON,
+                "`{}` has no flat facet at all",
+                shape.id(),
+            );
+        }
+
+        // A ramp is ONE flat surface that happens to lean, which is the whole
+        // reason the measurement is not "is it level".
+        let ramp = shape([0, 0, FULL, FULL], [0, HALF, FULL, HALF]);
+        assert_eq!(ramp.flat_area(), 1.0);
+        assert!(ramp.tilt() > 0.4, "a whole-cell ramp leans {}", ramp.tilt());
+        let flat = shape([HALF; 4], [HALF; 4]);
+        assert_eq!(flat.flat_area(), 1.0);
+        assert!(flat.tilt() < MESH_EPSILON, "a flat panel is level");
+
+        // The saddle the owner objected to: four facets fall to the middle from
+        // one pair of corners and four rise to it from the other, so the
+        // biggest flat piece of it is a quarter of the cell.
+        let saddle = shape([HALF, 0, HALF, 0], [1, 1, 1, 1]);
+        assert!(!saddle.is_coplanar());
+        assert_eq!(saddle.flat_area(), 0.25);
     }
 
     /// The shapes the old dead-edge scheme could not express are real now.
