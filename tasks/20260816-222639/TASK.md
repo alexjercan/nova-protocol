@@ -1,0 +1,39 @@
+# Greeble batch: industrial, the builders
+
+- STATUS: IN_PROGRESS
+- PRIORITY: 57
+- TAGS: v0.11.0,art,skin,content
+
+## Goal
+
+Vocabulary batch, owner-approved: industrial - THE BUILDERS. Fiction: a
+working shipyard that never left the ship. Art direction: EXPOSURE
+(GREEBLES.md section 2) - everything serviceable outside with a part number;
+yellow keeps its three-use discipline; a piece must be something a fitter
+would unbolt.
+
+## Pieces (7 new; recipes + rules + models)
+
+From the approved matrix (GREEBLES.md section 3):
+- industrial_cells: open battery rack, yellow terminal collar
+- industrial_stencil: unit number + hazard diamond panel - FLAT decal
+  geometry, a thin-shape carrier (cone-friendly filter, no min_depth)
+- industrial_winch: winch drum with cog flank, near fittings - deck machinery
+
+Owner-approved additions (batch C):
+- industrial_crane: folded jib arm on a pedestal - builders hoist things
+- industrial_plate_rack: stacked spare hull plates lashed flat - they carry
+  their materials
+- industrial_floodlight: work-light cluster aimed at fittings
+- industrial_umbilical: a row of capped sockets - ships get built plugged in
+
+## Kit cap
+
+7 -> 14. Update ONLY your own style's cap pin; do NOT touch the shared
+cap-ordering assertion - the coordinator re-pins it after all batches land.
+
+## Done when
+
+- greeble_catalog shows all 7 with correct labels and materials
+- block_bench per-style render shows them placed sanely (no confetti)
+- style tests pass with the new cap

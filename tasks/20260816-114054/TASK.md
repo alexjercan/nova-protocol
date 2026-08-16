@@ -1,7 +1,7 @@
 # Autonomous point defence for the player
 
-- STATUS: OPEN
-- PRIORITY: 40
+- STATUS: IN_PROGRESS
+- PRIORITY: 53
 - TAGS: v0.11.0,combat,balance,ui,ship
 
 ## The gap
@@ -66,3 +66,28 @@ See `DECISION.md`.
 
 Slotted into v0.11.0 at low priority because the gap is created by this
 release's own torpedo work. Drop it to backlog if the release ships without it.
+
+## Approved plan (2026-08-16, supersedes the open questions above)
+
+The owner resolved the mode-vs-fitting debate as an OWNERSHIP PRECEDENCE per
+mount, granted by a new controller FlightVerb:
+
+1. Precedence, per turret: player lock (CTRL) -> manual combat control ->
+   Flight Computer point defence -> cold. Releasing a mount returns it to the
+   computer after a short debounce grace.
+2. New `FlightVerb::PointDefense`: granted by default, withholdable per
+   controller/scenario via the existing DisableVerb modification and
+   SetControllerVerb action - the teaching lever, and forward-compatible with
+   the owner's buy/skill-level idea for verbs.
+3. Reuse: the per-turret torpedo assignment AI ships already run claims the
+   player's IDLE mounts; the 0.92 deg bearing gate and dt-invariant aim are
+   already landed.
+4. Visibility: a thin gizmo line from each computer-held PDC to its target.
+5. Verification: precedence-transition lib tests plus an example emitting the
+   probe JSONL.
+
+## Lane
+
+pd-verb (opus). tasks/20260815-231945/COMBAT-MODE.md is background reading;
+this task does NOT build a combat mode - it leaves a named seam where an RMB
+combat mode plugs into the same precedence.
