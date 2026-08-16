@@ -575,7 +575,14 @@ mod tests {
                 health: 10.0,
                 density: 0.1,
                 collider: Vec3::new(0.2, 0.1, 0.2),
-                scatter: default(),
+                // `Whole` (the default seat) refuses a crease, and the lone
+                // cell this suite builds is six cone plates - the seat gate
+                // would land nothing on it. `Any` keeps the fixture what these
+                // tests need: a rule that takes every plate.
+                scatter: ScatterRule {
+                    seat: ScatterSeat::Any,
+                    ..default()
+                },
             }],
         }
     }
