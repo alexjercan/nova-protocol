@@ -1,6 +1,6 @@
 # Torpedo attrition: evasive ordnance, finite salvos, per-turret point defence
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 72
 - TAGS: v0.11.0, combat, balance, ai, ship
 
@@ -140,3 +140,26 @@ health before that number is fixed.
 - Evasion reads as evasive, not drunk, and torpedoes still hit what they aim at
 - Numbers justified against the landed range and ammunition figures
 - A live playtest with rendered evidence, not only passing tests
+
+## Closing note
+
+Five of the seven done-conditions were met as written. The other two:
+
+- **"Torpedo magazines are finite" is SUPERSEDED, not unmet.** The owner's later
+  call was that bays regenerate like every other weapon: "torpedo bays should
+  regenerate the same way as the PDCs once they are out they regen". Landed as
+  one torpedo per 10 s. The attrition economy survives because the attacker wins
+  by out-carrying through the 6-round rack, never by outlasting - two bays run
+  two point-defense mounts at 59% of capacity.
+- **"Point defence is autonomous; the player's only control is one toggle" is
+  MOVED**, not dropped. All point-defense code sits under
+  `crates/nova_ship/src/input/ai/`, so it is a behaviour of the AI controller and
+  a player hull gets none of it. That is a feature in its own right and is now
+  tracked separately.
+
+The second one leaves a live balance hole worth stating plainly: every figure in
+this task assumes a defender that tracks perfectly and never stops firing - 369
+rounds an intercept, one mount answering 0.17 torpedoes/s, bay regeneration set
+against that. A human answering by hand is far worse than that, so a player
+currently fights an attrition economy balanced against point defence they do not
+have. Finite ammunition sharpens it.

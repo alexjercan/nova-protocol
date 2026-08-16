@@ -1,6 +1,6 @@
 # Combat balance: engagement range, ammunition economy, ordnance survivability
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 74
 - TAGS: v0.11.0, balance, combat, spike
 
