@@ -293,6 +293,9 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- New `wfc_arena` example: two collapsed hulls drafted from the seed stream
+  fight under the campaign AI, clad, over a dressed arena; a scoreboard logs
+  shots and damage both ways. `R` re-rolls.
 - New `shape_bench` example: a fixed roster of hand-placed structures, clad,
   named and held still, with the skin report printed per subject and style so a
   render is judged next to its numbers.

@@ -180,6 +180,13 @@ path = "examples/screenshots/parts_viewer.rs"
 name = "wfc_ships"
 path = "examples/screenshots/wfc_ships.rs"
 
+# The same generator (shared/wfc.rs) with the safety off: two collapsed hulls
+# on opposing allegiances under the campaign's AI pilot, in a dressed arena -
+# the flyability bench for wfc ships and the skin's combat-motion showcase.
+[[example]]
+name = "wfc_arena"
+path = "examples/screenshots/wfc_arena.rs"
+
 # A fixed roster of hand-placed structures - the owner's L, runs, a T, a cross,
 # a fitted hull - clad, named and held still, with the skin report printed per
 # subject so a render is judged next to its numbers (task 20260816-142330).
