@@ -8,13 +8,18 @@
 //! prove the game is still alive. Real time also makes a long frame VISIBLE - the
 //! sweep jumps the distance the stall cost instead of gliding through it.
 //!
-//! Change this module when the load presentation changes; the scenario screen's
-//! dismissal rule ([`SCENARIO_SETTLED_DELTA`]) is the interesting knob.
+//! Change this module when the load presentation changes. The scenario
+//! screen's dismissal rule is the interesting part: it is up for exactly as
+//! long as the scenario is SETTLING (the engine's own spawn gate,
+//! `EventWorld::is_settling`, which holds every handler while queued objects
+//! land), with [`SCENARIO_MIN_DWELL`] as a floor and
+//! [`SCENARIO_SETTLED_DELTA`] as the "the machine is smooth again" test.
 
 use bevy::prelude::*;
 use nova_assets::prelude::GameAssetsStates;
+use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::GameStates;
-use nova_scenario::prelude::LoadScenario;
+use nova_scenario::prelude::{LoadScenario, NovaEventWorld};
 use nova_ui::font::UiFont;
 
 /// Near-black CRT screen (PoC `--screen`). The panel background.
@@ -41,24 +46,28 @@ const SWEEP_TRACK: Vec2 = Vec2::new(260.0, 6.0);
 const SWEEP_BLOCK_W: f32 = 44.0;
 /// Seconds the sweep block takes to cross the track and come back.
 ///
-/// Short on purpose: the load costs a handful of ~300 ms frames, so the block
-/// has to move a VISIBLE fraction of the track between two of them. At 1.1 s a
-/// 300 ms frame advances it by more than a quarter of the track.
+/// Short on purpose. It was sized when a load cost a handful of ~300 ms frames
+/// and the block had to move a VISIBLE fraction of the track between two of
+/// them; the spawn now chunks across smooth frames, where the same cycle simply
+/// reads as motion. Kept short so a long frame still shows as a jump.
 const SWEEP_CYCLE_SECS: f32 = 1.1;
 
 /// How long the scenario screen stays up at minimum, seconds.
 ///
-/// A shipped chapter's spawn costs two or three ~300 ms frames, so a dwell much
-/// under this comes down after two RENDERED frames and reads as a flicker rather
-/// than as a screen. At 0.6 s the panel outlasts the stall by a few smooth
-/// frames, which is what makes the sweep legible as motion.
+/// The FLOOR, not the rule: the spawn gate is what normally holds the panel,
+/// until every object the scenario asked for has landed. This is what stops a
+/// scenario that spawns nothing from flashing a panel up and down inside two
+/// RENDERED frames, which reads as a flicker rather than as a screen.
 const SCENARIO_MIN_DWELL: f32 = 0.6;
-/// The frame delta the scenario screen calls "settled", seconds. It comes down
-/// on the first frame at or under this after the minimum dwell - so the panel
-/// covers exactly the janky frames and no more.
+/// The frame delta the scenario screen calls "settled", seconds. Past the
+/// minimum dwell and the spawn gate, the panel comes down on the first frame at
+/// or under this - so a machine still hitching on the newly built scene keeps
+/// its cover.
 const SCENARIO_SETTLED_DELTA: f32 = 0.05;
 /// Hard cap on the scenario screen, seconds: a machine that never gets back
-/// under [`SCENARIO_SETTLED_DELTA`] must still be given its game back.
+/// under [`SCENARIO_SETTLED_DELTA`] must still be given its game back. It does
+/// NOT cap the spawn gate - a big scene taking longer than this to build is
+/// working, not stuck, and the panel belongs over it.
 const SCENARIO_MAX_DWELL: f32 = 6.0;
 
 /// The full-screen BOOT loading panel root (despawned recursively at `Loaded`).
@@ -253,9 +262,18 @@ fn spawn_scenario_load_screen(
     ));
 }
 
-/// Take the scenario screen down once the swap has settled: after the minimum
-/// dwell, on the first frame back under [`SCENARIO_SETTLED_DELTA`], or at the
-/// hard cap.
+/// Take the scenario screen down once the swap is done: never while the
+/// scenario is still spawning, and then after the minimum dwell on the first
+/// frame back under [`SCENARIO_SETTLED_DELTA`], or at the hard cap.
+///
+/// The spawn gate ([`EventWorld::is_settling`]) makes the panel and the script
+/// gate ONE fact: the scenario engine holds every handler while its queued
+/// objects are still landing, and the panel says so on screen for exactly that
+/// long. It is checked BEFORE the cap on purpose - the cap exists for a machine
+/// that never gets smooth again, not for a scene that is legitimately big, and
+/// the spawn queue is finite and always makes progress (at least one object per
+/// frame), so this cannot hold forever. Optional, so a rig without the scenario
+/// engine (the boot screen's own tests) dismisses on the frame rule alone.
 ///
 /// Reads `Time<Real>` for both the dwell and the settle test - a load can be
 /// requested from a paused outcome frame, where the virtual clock is stopped and
@@ -263,8 +281,12 @@ fn spawn_scenario_load_screen(
 fn dismiss_scenario_load_screen(
     mut commands: Commands,
     time: Res<Time<Real>>,
+    event_world: Option<Res<NovaEventWorld>>,
     q_screen: Query<(Entity, &ScenarioLoadScreenMarker)>,
 ) {
+    if event_world.is_some_and(|world| world.is_settling()) {
+        return;
+    }
     let now = time.elapsed_secs();
     let delta = time.delta_secs();
     for (entity, screen) in &q_screen {
@@ -493,6 +515,61 @@ mod tests {
             count::<ScenarioLoadScreenMarker>(&mut app),
             0,
             "past the dwell, a settled frame takes the screen down"
+        );
+    }
+
+    /// The panel and the scenario's spawn gate are ONE fact. The screen HOLDS
+    /// while the scenario's queued objects are landing - past the minimum
+    /// dwell, on smooth frames, and past the hard cap, which exists for a
+    /// machine that never gets smooth and not for a scene that is legitimately
+    /// big. It comes down on the first settled frame after the queue empties.
+    /// Without the gate the panel would come down at the dwell and the player
+    /// would watch the rest of the scene pop in.
+    #[test]
+    fn the_scenario_screen_holds_while_the_scenario_is_still_spawning() {
+        let mut app = screen_app();
+        app.init_resource::<NovaEventWorld>();
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+
+        // A scenario mid-spawn: one command still queued.
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .push_command(|_: &mut Commands| {});
+        app.world_mut().trigger(LoadScenario(scenario()));
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            1,
+            "delivery guard: the screen went up"
+        );
+
+        // Backdate the hold well past the hard cap rather than sleeping it out:
+        // both the dwell rule and the cap now say "come down", and only the
+        // spawn gate is holding the panel.
+        let world = app.world_mut();
+        let mut q = world.query::<&mut ScenarioLoadScreenMarker>();
+        for mut screen in q.iter_mut(world) {
+            screen.started -= SCENARIO_MAX_DWELL * 2.0;
+        }
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            1,
+            "the screen holds while the scenario is still spawning, cap included"
+        );
+
+        // The queue empties (production drains it; here the teardown reset does).
+        app.world_mut().resource_mut::<NovaEventWorld>().clear();
+        app.update();
+        assert_eq!(
+            count::<ScenarioLoadScreenMarker>(&mut app),
+            0,
+            "a spawned-out scenario lets the screen come down"
         );
     }
 

@@ -10,7 +10,7 @@ The whole vocabulary at a glance:
 | event | payload | fires when |
 |---|---|---|
 | [`OnStart`](#onstart) | none | once, right after the scenario loads |
-| [`OnUpdate`](#onupdate) | none | every frame while live and unpaused |
+| [`OnUpdate`](#onupdate) | none | every frame while live, unpaused and fully spawned |
 | [`OnTimerEnd`](#ontimerend) | `key` | a keyed scenario timer ends |
 | [`OnDefeated`](#ondefeated) | `id`, `type_name` | a ship is neutralized or directly destroyed |
 | [`OnDestroyed`](#ondestroyed) | `id`, `type_name` | a scenario object is physically destroyed |
@@ -41,6 +41,11 @@ objects and lights, seed every variable its expression filters will read
 (they [fail closed](../filters/#traps-for-the-unwary) on unset variables),
 and post the first objective.
 
+Its spawns arrive over the next few frames, and the scenario is HELD until they
+have: no other handler runs, the scenario clock does not tick, and the LOADING
+panel stays up. So the first `OnUpdate` after `OnStart` already sees every
+object `OnStart` asked for - a count gate cannot read a half-built world.
+
 ```ron
 (
     name: OnStart,
@@ -54,10 +59,10 @@ and post the first objective.
 ## OnUpdate
 
 Fires every frame while the scenario is live and UNPAUSED (frozen behind the
-pause menu and the outcome overlay). Carries no payload. The chain order is
-guaranteed: the scenario clock ticks, typed queries and watches update, ended
-timers fire, then `OnUpdate` fires. Query-backed gates see one coherent frame
-snapshot.
+pause menu and the outcome overlay) and every object it asked for exists.
+Carries no payload. The chain order is guaranteed: the scenario clock ticks,
+typed queries and watches update, ended timers fire, then `OnUpdate` fires.
+Query-backed gates see one coherent frame snapshot.
 
 An unfiltered `OnUpdate` handler runs its actions EVERY frame. Always gate it
 with `Expression` filters plus a one-shot flag (the

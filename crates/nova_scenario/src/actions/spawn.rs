@@ -433,6 +433,16 @@ mod tests {
 
     use super::*;
 
+    /// Apply EVERY queued command. The production sync drains under a per-frame
+    /// time budget (`SPAWN_DRAIN_BUDGET`), so a rig that asserts on a whole
+    /// multi-object batch runs it to settled instead of assuming one call is
+    /// enough.
+    fn drain(world: &mut World) {
+        while world.resource::<NovaEventWorld>().is_settling() {
+            NovaEventWorld::state_to_world_system(world);
+        }
+    }
+
     /// The authored `SpaceshipConfig.allegiance` override, through the
     /// production spawn path: a NEUTRAL AI ship ends NEUTRAL even though
     /// `AISpaceshipMarker` requires `Allegiance = Enemy` - the spawn action's
@@ -971,7 +981,7 @@ mod tests {
             config.action(&mut event_world, &GameEventInfo::default());
         }
         // The action only queues; the drain in state_to_world applies the spawns.
-        NovaEventWorld::state_to_world_system(&mut world);
+        drain(&mut world);
 
         let mut query = world
             .query_filtered::<(&EntityId, &Transform, &AsteroidRadius), With<AsteroidMarker>>();
@@ -1051,7 +1061,7 @@ mod tests {
                 let mut event_world = world.resource_mut::<NovaEventWorld>();
                 config.action(&mut event_world, &GameEventInfo::default());
             }
-            NovaEventWorld::state_to_world_system(&mut world);
+            drain(&mut world);
             let mut query =
                 world.query_filtered::<(&EntityId, &AsteroidSeed), With<AsteroidMarker>>();
             let mut seeds: Vec<(String, Option<u32>)> = query
@@ -1142,7 +1152,7 @@ mod tests {
             let mut event_world = world.resource_mut::<NovaEventWorld>();
             config.action(&mut event_world, &GameEventInfo::default());
         }
-        NovaEventWorld::state_to_world_system(&mut world);
+        drain(&mut world);
 
         let mut query = world.query_filtered::<&EntityId, With<AsteroidMarker>>();
         let spawned = query.iter(&world).count();

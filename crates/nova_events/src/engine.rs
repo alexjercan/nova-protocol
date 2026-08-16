@@ -36,6 +36,16 @@ pub trait EventWorld: Resource<Mutability = Mutable> + Send + Sync {
 
     /// System to update the state back to the world after processing events.
     fn state_to_world_system(world: &mut World);
+
+    /// True while the bevy world this event world feeds is still being BUILT.
+    ///
+    /// An event world whose [`state_to_world_system`](Self::state_to_world_system)
+    /// applies its queued work over SEVERAL frames reports true until that work
+    /// is done. Dispatch is held while it is true, so no handler ever runs
+    /// against a half-populated world - "the world is not yet live" rather than
+    /// "the world is briefly inconsistent". An event world that applies
+    /// everything in one call returns false forever.
+    fn is_settling(&self) -> bool;
 }
 
 /// A trait representing a kind of game event.
@@ -288,11 +298,20 @@ where
             PostUpdate,
             (
                 W::world_to_state_system,
-                queue_system::<W>,
+                // HELD while the world is settling: a handler that counts
+                // objects must not read a world whose spawns are still
+                // landing. Fired events keep queueing and dispatch in order
+                // once the world is live. `state_to_world_system` deliberately
+                // stays ungated - it is what applies the rest.
+                queue_system::<W>.run_if(not(is_settling::<W>)),
                 W::state_to_world_system,
             )
                 .chain()
-                .run_if(not(is_queue_empty::<W>).or_else(resource_changed::<W>)),
+                .run_if(
+                    not(is_queue_empty::<W>)
+                        .or_else(resource_changed::<W>)
+                        .or_else(is_settling::<W>),
+                ),
         );
     }
 }
@@ -303,6 +322,12 @@ where
     W: Send + Sync + 'static,
 {
     queue.events.is_empty()
+}
+
+/// Returns true while the event world is still building the bevy world
+/// (see [`EventWorld::is_settling`]).
+fn is_settling<W: EventWorld>(world: Res<W>) -> bool {
+    world.is_settling()
 }
 
 /// Observer that pushes fired events into the queue.
@@ -423,6 +448,16 @@ fn queue_system<W: EventWorld>(
                 }
             }
         }
+
+        // A handler that queued world work has made the world INCOMPLETE from
+        // here on, so the pass STOPS and the remaining events wait for the
+        // frame it is live again. Without this the scenario's OnStart burst and
+        // the same frame's OnUpdate pulse dispatch back to back, and the pulse
+        // reads a world whose every object is still sitting in the queue.
+        if world.is_settling() {
+            trace!("queue_system: world is settling; holding the rest of the queue");
+            break;
+        }
     }
 }
 
@@ -453,20 +488,35 @@ mod tests {
         requires_unit_payload::<OnQuiet>();
     }
 
-    /// Minimal event world that just counts action fires by tag.
+    /// Minimal event world that just counts action fires by tag. `settling`
+    /// stands in for a world whose spawns are still landing.
     #[derive(Resource, Default)]
-    struct Counts(StdHashMap<&'static str, u32>);
+    struct Counts {
+        fires: StdHashMap<&'static str, u32>,
+        settling: bool,
+    }
 
     impl EventWorld for Counts {
         fn world_to_state_system(_: &mut World) {}
         fn state_to_world_system(_: &mut World) {}
+        fn is_settling(&self) -> bool {
+            self.settling
+        }
     }
 
     /// Action that bumps the counter for its tag when it runs.
     struct Bump(&'static str);
     impl EventAction<Counts> for Bump {
         fn action(&self, world: &mut Counts, _: &GameEventInfo) {
-            *world.0.entry(self.0).or_default() += 1;
+            *world.fires.entry(self.0).or_default() += 1;
+        }
+    }
+
+    /// Action that queues world work - the stand-in for a spawn.
+    struct Settle;
+    impl EventAction<Counts> for Settle {
+        fn action(&self, world: &mut Counts, _: &GameEventInfo) {
+            world.settling = true;
         }
     }
 
@@ -495,10 +545,71 @@ mod tests {
     fn count(app: &App, tag: &str) -> u32 {
         app.world()
             .resource::<Counts>()
-            .0
+            .fires
             .get(tag)
             .copied()
             .unwrap_or(0)
+    }
+
+    /// A SETTLING world holds dispatch: nothing runs against a world whose
+    /// spawns are still landing. The held events are not dropped - they
+    /// dispatch, in order, on the first frame the world reports live.
+    #[test]
+    fn a_settling_world_holds_dispatch_until_it_is_live() {
+        let mut app = app();
+        spawn_handler(&mut app, "alpha", "a1");
+        app.update();
+
+        app.world_mut().resource_mut::<Counts>().settling = true;
+        fire(&mut app, "alpha");
+        fire(&mut app, "alpha");
+        assert_eq!(
+            count(&app, "a1"),
+            0,
+            "a settling world must not dispatch (the pre-gate engine fires here)"
+        );
+
+        app.world_mut().resource_mut::<Counts>().settling = false;
+        app.update();
+        assert_eq!(
+            count(&app, "a1"),
+            2,
+            "both held events dispatch once the world is live"
+        );
+    }
+
+    /// A handler that queues world work STOPS the pass: the events behind it
+    /// wait for the frame the world is live again. This is the scenario's
+    /// OnStart-then-OnUpdate case - without the break the pulse dispatches in
+    /// the same pass as the spawn burst and reads an empty world.
+    #[test]
+    fn queueing_world_work_holds_the_rest_of_the_pass() {
+        let mut app = app();
+        let mut spawner = EventHandler::<Counts>::from_event_name("alpha");
+        spawner.add_action(Bump("a1"));
+        spawner.add_action(Settle);
+        app.world_mut().spawn(spawner);
+        spawn_handler(&mut app, "beta", "b1");
+        app.update();
+
+        let queue = &mut app
+            .world_mut()
+            .resource_mut::<GameEventQueue<Counts>>()
+            .events;
+        queue.push_back(GameEvent::new("alpha", GameEventInfo::default()));
+        queue.push_back(GameEvent::new("beta", GameEventInfo::default()));
+        app.update();
+
+        assert_eq!(count(&app, "a1"), 1, "the first event dispatched");
+        assert_eq!(
+            count(&app, "b1"),
+            0,
+            "the event behind the spawn must wait for a live world"
+        );
+
+        app.world_mut().resource_mut::<Counts>().settling = false;
+        app.update();
+        assert_eq!(count(&app, "b1"), 1, "it dispatches once the world is live");
     }
 
     #[test]

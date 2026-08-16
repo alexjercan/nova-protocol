@@ -10,17 +10,51 @@
 /// Glob-import surface: `use nova_scenario::world::prelude::*` re-exports the
 /// public API of this module.
 pub mod prelude {
-    pub use super::NovaEventWorld;
+    pub use super::{scenario_has_settled, NovaEventWorld};
 }
 
+use core::time::Duration;
 use std::collections::VecDeque;
 
-use bevy::{ecs::world::CommandQueue, platform::collections::HashMap, prelude::*};
+// NOTE: bevy's platform Instant, not std's - `std::time::Instant::now` panics
+// on wasm32-unknown-unknown, which this crate ships to.
+use bevy::{
+    ecs::world::CommandQueue, platform::collections::HashMap, platform::time::Instant, prelude::*,
+};
 use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
 
 use crate::prelude::*;
+
+/// How long ONE frame may spend applying queued scenario commands.
+///
+/// A shipped chapter's `OnStart` queues every object it spawns, and applying
+/// that whole queue in one go cost a ~300 ms frame - a frame nothing can be
+/// drawn on, so the loading panel froze on the exact frames it exists to cover.
+/// The drain is chunked under this wall-clock budget instead: a slower machine
+/// takes MORE FRAMES, never a longer frame.
+///
+/// A time budget rather than a command count because the commands are wildly
+/// uneven - one clad ship is worth hundreds of rocks. One command is ALWAYS
+/// applied per run, so an object costing more than the whole budget still lands
+/// (overrunning by its own cost) instead of deadlocking the drain.
+///
+/// 3 ms is about a fifth of a 60 Hz frame, which leaves the rest of the
+/// schedule its budget while still emptying a chapter's queue in a handful of
+/// frames.
+const SPAWN_DRAIN_BUDGET: Duration = Duration::from_millis(3);
+
+/// Run condition: the live scenario has finished spawning.
+///
+/// The scenario SCRIPT is gated on this - the clock, the `OnUpdate` pulse, the
+/// keyed timers and the event dispatch all stand down while queued spawns are
+/// still landing. An `OnUpdate` predicate that counts objects therefore never
+/// reads a half-built world: the world is not yet LIVE, rather than briefly
+/// inconsistent.
+pub fn scenario_has_settled(world: Res<NovaEventWorld>) -> bool {
+    !world.is_settling()
+}
 
 /// The event world for the live scenario: the game-specific [`EventWorld`]
 /// carrying scenario state that scenario actions read and write - objectives,
@@ -234,19 +268,30 @@ impl EventWorld for NovaEventWorld {
             }
         }
 
-        let mut event_world = world.resource_mut::<NovaEventWorld>();
-        if !event_world.queued_commands.is_empty() {
-            let queued_commands = std::mem::take(&mut event_world.queued_commands);
-
+        // CHUNKED, not drained (see [`SPAWN_DRAIN_BUDGET`]). One command is
+        // popped and applied at a time, which is what keeps each object
+        // ATOMIC: a ship's sections all land inside one `apply`, so the
+        // `Added<SectionLinkPoints>` batch the integrity graph and the derived
+        // skin key off is still complete the first time they see it.
+        let started = Instant::now();
+        while let Some(command) = world
+            .resource_mut::<NovaEventWorld>()
+            .queued_commands
+            .pop_front()
+        {
             let mut queue = CommandQueue::default();
             let mut commands = Commands::new(&mut queue, world);
-
-            for cmd in queued_commands.into_iter() {
-                cmd(&mut commands);
-            }
-
+            command(&mut commands);
             queue.apply(world);
+
+            if started.elapsed() >= SPAWN_DRAIN_BUDGET {
+                break;
+            }
         }
+    }
+
+    fn is_settling(&self) -> bool {
+        !self.queued_commands.is_empty()
     }
 }
 
@@ -510,6 +555,102 @@ impl NovaEventWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The queued-command flush is CHUNKED, not drained. Five commands costing
+    /// 2 ms each cannot fit in the 3 ms budget, so the batch takes several
+    /// runs - which is the point: the old single `queue.apply` paid a shipped
+    /// chapter's whole spawn burst as ONE ~300 ms frame. While commands remain
+    /// the event world reports itself SETTLING, and every command still lands
+    /// exactly once, in push order.
+    ///
+    /// Fail-first: the pre-change flush applies all five in the first run, so
+    /// both the "not all applied yet" and the "settling" asserts fail.
+    #[test]
+    fn the_spawn_flush_is_chunked_across_runs() {
+        use std::sync::{Arc, Mutex};
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let applied: Arc<Mutex<Vec<usize>>> = Arc::default();
+        {
+            let mut event_world = world.resource_mut::<NovaEventWorld>();
+            for index in 0..5 {
+                let applied = applied.clone();
+                event_world.push_command(move |commands| {
+                    commands.queue(move |_: &mut World| {
+                        // Each object costs a little under the frame budget, so
+                        // no single run can take the whole batch.
+                        std::thread::sleep(Duration::from_millis(2));
+                        applied.lock().unwrap().push(index);
+                    });
+                });
+            }
+        }
+        assert!(
+            world.resource::<NovaEventWorld>().is_settling(),
+            "a queued batch reports the world as settling"
+        );
+
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert!(
+            applied.lock().unwrap().len() < 5,
+            "one run must not swallow the whole batch (got {:?})",
+            applied.lock().unwrap()
+        );
+        assert!(
+            world.resource::<NovaEventWorld>().is_settling(),
+            "the world is still settling with commands left"
+        );
+
+        let mut runs = 1;
+        while world.resource::<NovaEventWorld>().is_settling() {
+            NovaEventWorld::state_to_world_system(&mut world);
+            runs += 1;
+            assert!(runs < 100, "the drain must terminate");
+        }
+
+        assert!(runs >= 2, "the batch spanned {runs} run(s)");
+        assert_eq!(
+            *applied.lock().unwrap(),
+            vec![0, 1, 2, 3, 4],
+            "every command lands exactly once, in push order"
+        );
+        assert!(
+            !world.resource::<NovaEventWorld>().is_settling(),
+            "an empty queue means the world is live"
+        );
+    }
+
+    /// A command costing MORE than the whole budget still lands: the drain
+    /// always applies at least one per run, so an expensive object overruns by
+    /// its own cost instead of deadlocking the queue behind it.
+    #[test]
+    fn an_over_budget_command_still_lands() {
+        use std::sync::{Arc, Mutex};
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let applied: Arc<Mutex<bool>> = Arc::default();
+        {
+            let flag = applied.clone();
+            world
+                .resource_mut::<NovaEventWorld>()
+                .push_command(move |commands| {
+                    commands.queue(move |_: &mut World| {
+                        std::thread::sleep(SPAWN_DRAIN_BUDGET * 2);
+                        *flag.lock().unwrap() = true;
+                    });
+                });
+        }
+
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert!(*applied.lock().unwrap(), "the over-budget command applied");
+        assert!(!world.resource::<NovaEventWorld>().is_settling());
+    }
 
     #[test]
     fn watched_names_are_read_only_and_share_normal_lookup() {

@@ -222,6 +222,12 @@ tagged **(breaking)**.
 - Torpedoes fly nose-first: the warhead is a coned body instead of a
   flat-ended pipe, and one shared mesh serves every launch.
 
+### Performance
+
+- A scenario swap never blocks the main thread: queued spawns drain under a
+  3 ms per-frame budget and the scenario is held until they land, so the
+  LOADING panel animates across the whole transition.
+
 ### Fixes
 
 - **(breaking)** A ship's HP bar no longer FILLS UP as the ship is shot apart:

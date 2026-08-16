@@ -207,7 +207,25 @@ flowchart LR
 mutate only this resource, never the Bevy `World`; world access goes through
 `world.push_command(|commands| ...)`. Each frame `state_to_world_system` syncs
 objectives into `GameObjectives` (write-on-diff), runs a queued non-lingering
-`NextScenario` switch, and flushes the command queue.
+`NextScenario` switch, and drains the command queue.
+
+The drain is CHUNKED, not one flush. A chapter's `OnStart` queues a closure per
+object, and applying them together cost one ~300 ms frame - a frame nothing can
+be drawn on, so the LOADING panel froze on the exact frames it exists to cover.
+Commands are applied one at a time until `SPAWN_DRAIN_BUDGET` (3 ms) of the
+frame is spent, so a big scene arrives over several frames and a slower machine
+takes MORE FRAMES rather than a longer one. One command per apply is also what
+keeps each object atomic: a ship's sections all land inside one apply, so the
+`Added<SectionLinkPoints>` batch the integrity graph and the derived skin key
+off is complete the first time they see it.
+
+While commands remain, the scenario is SETTLING (`EventWorld::is_settling`).
+The dispatcher holds every handler, and a handler that queues world work stops
+the current pass, so no handler ever runs against a world known to be
+incomplete. The scenario clock stops, keyed timers do not expire, watches are
+not sampled, the `OnUpdate` pulse does not fire, and the LOADING panel stays up.
+The world is not yet LIVE, rather than briefly inconsistent. Held events are not
+dropped: they dispatch in order on the frame the world goes live.
 
 Variables are typed literals (`String`, `Number`, `Boolean`) with a small
 expression tree: `VariableExpressionNode` (add/subtract), `VariableTermNode`

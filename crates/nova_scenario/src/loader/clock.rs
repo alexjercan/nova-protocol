@@ -61,6 +61,11 @@ fn tick_scenario_timers(mut commands: Commands, mut world: ResMut<NovaEventWorld
 
 /// The ONE registration of the clock, timers, and pulse, shared by the plugin
 /// and test rigs. Timer-end events queue before the frame's OnUpdate pulse.
+///
+/// Gated on [`scenario_has_settled`] as well as live-and-unpaused: while a
+/// scenario's queued spawns are still landing the world is not yet LIVE, so
+/// its clock must not advance, its timers must not expire and the pulse must
+/// not offer handlers a half-built world to read.
 pub(super) fn register_clock_and_pulse(app: &mut App) {
     app.add_systems(
         Update,
@@ -71,7 +76,11 @@ pub(super) fn register_clock_and_pulse(app: &mut App) {
             fire_on_update,
         )
             .chain()
-            .run_if(scenario_is_live.and_then(in_state(PauseStates::Unpaused))),
+            .run_if(
+                scenario_is_live
+                    .and_then(in_state(PauseStates::Unpaused))
+                    .and_then(scenario_has_settled),
+            ),
     );
 }
 
@@ -231,6 +240,100 @@ mod tests {
             "unpausing must resume the OnUpdate pulse ({} -> {})",
             at_pause,
             count(&app)
+        );
+    }
+
+    /// The scenario SCRIPT is held until the spawn queue drains. A slow spawn
+    /// batch queued before the first frame keeps the world settling for several
+    /// frames; across those the clock must not advance and the `OnUpdate` pulse
+    /// must not hand a handler a half-built world. Both resume on the first
+    /// frame after the last command lands.
+    ///
+    /// Fail-first: without the gate the pulse fires on frame one, while four
+    /// fifths of the scenario's objects do not exist yet.
+    #[test]
+    fn the_script_is_held_until_the_spawn_queue_drains() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+        use nova_events::prelude::{EventHandler, EventWorld, GameEventsPlugin};
+        use nova_gameplay::prelude::GameObjectives;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CurrentScenario>();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+            100,
+        )));
+        register_clock_and_pulse(&mut app);
+
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnUpdate);
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "pulsed".to_string(),
+            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
+            )),
+        }));
+        app.world_mut().spawn(handler);
+        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
+
+        // The OnStart burst: five objects, each costing about the whole
+        // per-frame drain budget, queued before any frame runs.
+        {
+            let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+            for _ in 0..5 {
+                world.push_command(|commands| {
+                    commands.queue(|_: &mut World| {
+                        std::thread::sleep(Duration::from_millis(2));
+                    });
+                });
+            }
+        }
+
+        app.update();
+        assert!(
+            app.world().resource::<NovaEventWorld>().is_settling(),
+            "delivery guard: the batch is still landing after one frame"
+        );
+        assert!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable("pulsed")
+                .is_none(),
+            "the OnUpdate pulse must not fire against a half-built world"
+        );
+        assert_eq!(
+            app.world().resource::<NovaEventWorld>().scenario_elapsed(),
+            0.0,
+            "the scenario clock must not run while the world is being built"
+        );
+
+        let mut frames = 1;
+        while app.world().resource::<NovaEventWorld>().is_settling() {
+            app.update();
+            frames += 1;
+            assert!(frames < 100, "the drain must terminate");
+        }
+        assert!(frames >= 2, "the batch spanned {frames} frame(s)");
+
+        // Live at last: the pulse and the clock resume.
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable("pulsed"),
+            Some(&VariableLiteral::Boolean(true)),
+            "the script runs once the world is fully spawned"
+        );
+        assert!(
+            app.world().resource::<NovaEventWorld>().scenario_elapsed() > 0.0,
+            "the scenario clock resumes with the script"
         );
     }
 
