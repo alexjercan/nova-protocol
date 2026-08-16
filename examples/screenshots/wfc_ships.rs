@@ -102,6 +102,9 @@ use std::collections::{HashSet, VecDeque};
 
 use bevy::prelude::*;
 use clap::Parser;
+// Direct, not through `nova_protocol::nova_debug`: that path only exists under
+// the `debug` feature, and `capturing()` gates the idle orbit in EVERY build.
+use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 use rand::{rngs::StdRng, RngExt, SeedableRng};
 
