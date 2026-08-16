@@ -22,12 +22,19 @@
 //! lists here name a ZONE of the hull and nothing more, and no seated rule
 //! lists a relief that can never carry a seat.
 //!
-//! Five rules opt out with [`ScatterSeat::Any`], and every one of them is a
-//! piece that WANTS the high ground - the stack, the whip, the fin, the mast
-//! and the corner boss. The pointiest plate on a hull is a cone every time, so
-//! a blanket "surfaces only" would take a ship's silhouette off to fix a
-//! bedding defect. A piece on a cone stands up its own cell rather than lying
-//! down one of its facets, which is what a mast on a spar tip wants anyway.
+//! Seven rules opt out with [`ScatterSeat::Any`]. Five are pieces that WANT
+//! the high ground - the stack, the whip, the fin, the mast and the corner
+//! boss. The pointiest plate on a hull is a cone every time, so a blanket
+//! "surfaces only" would take a ship's silhouette off to fix a bedding
+//! defect. A piece on a cone stands up its own cell rather than lying down
+//! one of its facets, which is what a mast on a spar tip wants anyway.
+//!
+//! The other two are THIN-SHAPE CARRIERS (task 20260816-203812): the civilian
+//! fairing and the salvage scab. A hand-built hull one cell thick derives as
+//! cones from end to end - zero coplanar plates on half the bench roster - so
+//! a style whose every filler is seated places NOTHING on the shapes players
+//! actually build. One cone-friendly filler per style is the floor under the
+//! look; the armoured cap and the industrial stack already were one.
 
 use bevy::prelude::{Color, Vec3};
 use nova_ship::prelude::{
@@ -133,16 +140,21 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 density: 0.08,
                 collider: Vec3::new(0.18, 0.28, 0.18),
                 // THE HIGH GROUND, and the only rule allowed to break the
-                // silhouette. `min_height: 1` rather than 2 for the reason the
-                // placeholder mast records: a ridge fills an eighth of its cell
-                // and a spur less, so a rule asking for half a cell of plate
-                // under a tall piece lands on nothing at all.
+                // silhouette. `seat: Any` because a crest and a spar tip are
+                // CONES, so the seat gate would have refused every plate this
+                // rule is for. A stack standing up the tip of a spar is the
+                // picture; a stack banished to the flat deck is not this rule
+                // any more.
                 //
-                // `seat: Any` for the same reason one step further on: a crest
-                // and a spar tip are CONES, so the seat gate would have refused
-                // every plate this rule is for. A stack standing up the tip of
-                // a spar is the picture; a stack banished to the flat deck is
-                // not this rule any more.
+                // This is also the kit's THIN-SHAPE CARRIER (task
+                // 20260816-203812): a hand-built hull one cell thick is all
+                // cones, so the one seat-free rule has to be the one that
+                // reaches it. `min_depth` was 2 and `min_height` was 1, and
+                // together they zeroed the whole thin half of the bench - a
+                // spar has one cell of ship under its tip, and a spur fills so
+                // little of its cell it MEASURES height 0. The patch floor is
+                // what makes the reach a guarantee rather than a coin toss:
+                // one stack per block of high ground, whatever the share says.
                 scatter: ScatterRule {
                     relief: vec![
                         PlateRelief::Ridge,
@@ -152,9 +164,9 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                     ],
                     seat: ScatterSeat::Any,
                     facing: PlateFacing::Up,
-                    min_depth: 2,
-                    min_height: 1,
+                    min_depth: 1,
                     chance: 0.35,
+                    patch: 4,
                     ..Default::default()
                 },
             },
@@ -192,18 +204,24 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 density: 0.1,
                 collider: Vec3::new(0.38, 0.27, 0.28),
                 // FLAT PANEL, which is where the one piece with real height and
-                // a long axis fits. The run and the lattice cut that to 3-7
-                // plates a ship, measured - so the share is 1.0 and the rule
-                // takes every one of them. A hero piece thinned by a share on a
-                // set that small is a hero piece that photographs as nothing.
+                // a long axis fits.
+                //
+                // The rule used to ask for `min_run: 2` on a stride of 2 at
+                // full share - a description of GENERATED flats, which come in
+                // fields. Measured on the hand-built bench (task
+                // 20260816-203812), `Flat` is 0-8 plates a subject and mostly
+                // reads run 1, so the old filter reached 2 plates on one
+                // subject and nothing anywhere else. Now every flat is in
+                // reach and the SHARE does the thinning the lattice used to:
+                // on a generated hull's 6-22 flats that is the same 3-11
+                // radiators, and on a hand-built deck it is finally not zero.
                 //
                 // `Bevel` came off the list when the seat gate went in: a panel
                 // with a corner taken off is a CONE, so it never carried this
                 // piece flat in the first place and the gate refuses it now.
                 scatter: ScatterRule {
                     relief: vec![PlateRelief::Flat],
-                    min_run: 2,
-                    stride: 2,
+                    chance: 0.5,
                     patch: 3,
                     align: ScatterAlign::Run,
                     ..Default::default()
@@ -405,23 +423,28 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 health: 10.0,
                 density: 0.1,
                 collider: Vec3::new(0.4, 0.12, 0.4),
-                // The FLAT panel, and the pure per-patch form on top: no share
-                // at all, one blister per block of ship that can carry one. A
+                // The PANELS, and the pure per-patch form on top: no share at
+                // all, one blister per block of ship that can carry one. A
                 // share here would have put four on one flank and none on the
                 // other, and the piece is rare enough that where it lands is
                 // visible. (`Bevel` was in this list and is out: a corner-cut
                 // panel is a cone, so a hood never lay flat on one.)
                 //
-                // `min_depth` keeps it off the skin over a one-cell spar: a
-                // sensor hood wants a ship under it.
+                // `Step` is in (task 20260816-203812): the seat gate already
+                // keeps only the clean ramps of it, and a hood on the panel
+                // beside a raise is still a hood on a panel. It has to be,
+                // measured: the old `Flat + min_run 2 + min_depth 2` filter
+                // described a generated hull's broad fields and reached ZERO
+                // plates on the entire hand-built bench - flats there are
+                // run-1 singletons, and half the subjects are one cell thick.
+                // The seat plus the patch floor now do all the gating: the
+                // piece stays on coplanar panel and stays rare.
                 //
                 // The block is 6 cells and not 4, measured: at 4 a hull wore
                 // 7-12 blisters, which is a rash of the one piece that is
                 // supposed to be rare.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat],
-                    min_run: 2,
-                    min_depth: 2,
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
                     chance: 0.0,
                     patch: 6,
                     ..Default::default()
@@ -453,8 +476,17 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // boss on a corner is the exception the gate is written to
                 // allow, and it stands up its own cell rather than lying down
                 // one facet of it.
+                //
+                // `Ridge` and `Peak` joined `Spur` (task 20260816-203812):
+                // the crest of a one-cell-wide run and the top of a lone stud
+                // are the same pointy armour the boss is for, and they are
+                // what a hand-built L is MADE of. Measured before the widening
+                // the owner's own build wore zero armoured pieces - its twelve
+                // spurs all sat off this rule's lattice, a parity accident of
+                // where the hull happens to stand, and no other armoured rule
+                // can touch a creased plate at all.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Spur],
+                    relief: vec![PlateRelief::Spur, PlateRelief::Ridge, PlateRelief::Peak],
                     seat: ScatterSeat::Any,
                     stride: 2,
                     ..Default::default()
@@ -570,17 +602,25 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 health: 6.0,
                 density: 0.05,
                 collider: Vec3::new(0.28, 0.06, 0.7),
-                // The panelled reliefs on the FLANKS. `Flat` alone would land
-                // almost nowhere (6-22 plates a ship, and none on a hand-built
-                // hull), so a step - a panel climbing structure beside it -
-                // counts as panel too, and the seat gate keeps only the clean
-                // ramps of them. Strided and shared down hard: a window row is
-                // precious, and a hull covered in them is a cruise liner.
+                // The FLANKS. `Flat` alone would land almost nowhere (6-22
+                // plates a ship, and none on a hand-built hull), so a step - a
+                // panel climbing structure beside it - counts as panel too,
+                // and the seat gate keeps only the clean ramps of them.
+                //
+                // `Brink` is in, and the run and depth gates are off (task
+                // 20260816-203812). Measured: a hand-built flank NEVER grows a
+                // flat interior - a two-cell-tall side is edge row on edge row
+                // - so the old `Flat/Step + min_run 2 + min_depth 2` filter
+                // was eligible NOWHERE on the whole bench and the style's most
+                // characterful piece never shipped. The straight edge of a
+                // flank is exactly where a liner draws its window line, and
+                // the facing is what keeps the rule off the deck edges the
+                // stripe owns end to end. Strided and shared down hard: a
+                // window row is precious, and a hull covered in them is a
+                // cruise liner.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step, PlateRelief::Brink],
                     facing: PlateFacing::Side,
-                    min_run: 2,
-                    min_depth: 2,
                     stride: 2,
                     chance: 0.8,
                     patch: 4,
@@ -663,13 +703,22 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 collider: Vec3::new(0.4, 0.16, 0.4),
                 // The filler, and the only rule with no accent on it: a
                 // hull-coloured shell over whatever a working ship would have
-                // left exposed. Same panelled reliefs as the windows, minus the
+                // left exposed. Panelled reliefs like the windows, minus the
                 // facing - a fairing belongs on the roof as much as the flank.
                 // `patch` carries it onto a small build, where the share and the
                 // stride between them would otherwise leave nothing.
+                //
+                // Also the kit's THIN-SHAPE CARRIER (task 20260816-203812),
+                // on the armoured cap's filter shape: `Spur` in the relief,
+                // the seat gate off, no height floor - a spur measures height
+                // 0. A one-cell-thick build is all cones, so without one
+                // cone-friendly filler the style's only reach there is the
+                // fin's coin toss, and the bench's two-cell run wore NOTHING.
+                // A fairing is the piece that can afford this: a smooth shell
+                // over a spar tip is what fairing structure MEANS.
                 scatter: ScatterRule {
-                    relief: vec![PlateRelief::Flat, PlateRelief::Step],
-                    min_height: 1,
+                    relief: vec![PlateRelief::Flat, PlateRelief::Step, PlateRelief::Spur],
+                    seat: ScatterSeat::Any,
                     stride: 2,
                     chance: 0.8,
                     patch: 3,
@@ -1001,7 +1050,17 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // plate on it at all. A small share plus a per-patch floor, so
                 // it reads as a scatter of old repairs on a big hull and still
                 // puts something on a small one.
+                //
+                // The seat gate is OFF (task 20260816-203812): this is the
+                // kit's thin-shape carrier, and a one-cell-thick build has no
+                // coplanar plate anywhere - seated, the filler that exists for
+                // "a hull nothing else fits" was refusing exactly that hull,
+                // and the thin half of the bench photographed as bare rock.
+                // `min_height` stays: a scab on a crest or a stud reads as a
+                // repair, a scab hovering over a height-0 spur tip does not -
+                // the tips stay the whip's.
                 scatter: ScatterRule {
+                    seat: ScatterSeat::Any,
                     min_height: 1,
                     chance: 0.05,
                     patch: 10,
@@ -1204,15 +1263,17 @@ mod tests {
         }
     }
 
-    /// The SEAT gate is on everywhere but the high ground, and the five pieces
-    /// that opt out are named here.
+    /// The SEAT gate is on everywhere but the high ground and the thin-shape
+    /// carriers, and every piece that opts out is named here.
     ///
     /// Pinned as a LIST rather than as a count: `seat: Any` is the one field
     /// that puts a piece back on a crease, and a rule that acquires it quietly
-    /// is the placement defect coming back. Every one of these is a piece whose
-    /// whole purpose is to stand on the pointiest thing on the hull.
+    /// is the placement defect coming back. Five of these stand on the
+    /// pointiest thing on the hull; the fairing and the scab are the carriers
+    /// task 20260816-203812 opened - one cone-friendly filler per style, so a
+    /// one-cell-thick build (all cones, zero coplanar plates) is not bare.
     #[test]
-    fn only_the_high_ground_opts_out_of_the_seat() {
+    fn only_the_high_ground_and_the_carriers_opt_out_of_the_seat() {
         let opted: Vec<String> = style_catalog(&BaseContentAssets::from_paths())
             .into_iter()
             .flat_map(|style| style.fixtures)
@@ -1225,7 +1286,9 @@ mod tests {
                 "industrial_stack",
                 "armoured_cap",
                 "civilian_fin",
+                "civilian_fairing",
                 "salvage_whip",
+                "salvage_patch_scab",
                 "placeholder_mast",
             ],
         );

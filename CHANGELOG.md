@@ -236,6 +236,12 @@ tagged **(breaking)**.
 
 ### Audio & Visuals
 
+- Every skin style now dresses hand-built hulls: the windows, sensor and
+  radiator signature pieces reach real builds, and each kit carries one
+  cone-friendly piece for one-cell-thick shapes.
+- A second skin bench at ship scale: `block_bench` stands eight hand-placed
+  building block ships - destroyer wedge, spine freighter, carrier deck -
+  clad, labelled and reported like `shape_bench`.
 - Turret rounds are modelled per DAMAGE TYPE: a stubby Kinetic tracer, a thin
   Pierce needle, a squat Explosive shell, each in the type's own HUD colour.
 - Torpedoes fly nose-first: the warhead is a coned body instead of a

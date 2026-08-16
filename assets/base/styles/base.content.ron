@@ -46,10 +46,10 @@
                     ],
                     seat: Any,
                     facing: Up,
-                    min_height: 1,
-                    min_depth: 2,
+                    min_depth: 1,
                     stride: 1,
                     chance: 0.35,
+                    patch: 4,
                 ),
             ),
             (
@@ -87,9 +87,8 @@
                     relief: [
                         Flat,
                     ],
-                    min_run: 2,
-                    stride: 2,
-                    chance: 1.0,
+                    stride: 1,
+                    chance: 0.5,
                     patch: 3,
                     align: Run,
                 ),
@@ -212,9 +211,8 @@
                 scatter: (
                     relief: [
                         Flat,
+                        Step,
                     ],
-                    min_run: 2,
-                    min_depth: 2,
                     stride: 1,
                     chance: 0.0,
                     patch: 6,
@@ -233,6 +231,8 @@
                 scatter: (
                     relief: [
                         Spur,
+                        Ridge,
+                        Peak,
                     ],
                     seat: Any,
                     stride: 2,
@@ -323,10 +323,9 @@
                     relief: [
                         Flat,
                         Step,
+                        Brink,
                     ],
                     facing: Side,
-                    min_run: 2,
-                    min_depth: 2,
                     stride: 2,
                     chance: 0.8,
                     patch: 4,
@@ -392,8 +391,9 @@
                     relief: [
                         Flat,
                         Step,
+                        Spur,
                     ],
-                    min_height: 1,
+                    seat: Any,
                     stride: 2,
                     chance: 0.8,
                     patch: 3,
@@ -578,6 +578,7 @@
                     0.44,
                 ),
                 scatter: (
+                    seat: Any,
                     min_height: 1,
                     stride: 1,
                     chance: 0.05,

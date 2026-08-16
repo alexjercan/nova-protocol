@@ -194,6 +194,13 @@ path = "examples/screenshots/wfc_arena.rs"
 name = "shape_bench"
 path = "examples/screenshots/shape_bench.rs"
 
+# The shape bench at ship scale: a roster of hand-placed BUILDING BLOCK ships
+# - destroyer wedge, spine freighter, carrier deck - clad, named and held
+# still, judged against "this can be an actual ship" (task 20260816-203837).
+[[example]]
+name = "block_bench"
+path = "examples/screenshots/block_bench.rs"
+
 # A named row of thruster looks - the shipped drive, the proposed shell size
 # family, and the CC0 candidate models under art/part-candidates - the
 # showcase half of the thruster-shell spike (task 20260816-200255).
