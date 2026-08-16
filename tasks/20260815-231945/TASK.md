@@ -115,3 +115,52 @@ Round 2 runs in sprout `shape-research`.
 - Decoration continuity across tiles. `20260815-190741` NOTES.md already banks
   the corner-tile / Townscaper / Hardspace findings. This record complements
   them and does not repeat them.
+
+## Round 3: combat mode UX - manual, auto-aim and point defence together
+
+The owner wants point defence that saves them without taking the ship away from
+them, and has not settled the shape. Their words:
+
+> "I want you to be able to control the turrets if you want to, lock onto things,
+> but at the same time there should also be an auto 'emergency' mode that takes
+> control of the PDCs to save your ass; like I would be ok with it being a skill
+> issue and you have to manually lock on things, but it's too much micro
+> management"
+
+The reference is The Expanse: a ship goes to combat stations, turns red, and
+every mount comes alive.
+
+Three control modes have to coexist without fighting each other:
+
+1. **Manual** - the player aims and fires a bound turret
+2. **Auto-aim** - what the game already does, a bound turret leading the ship's
+   current target
+3. **Autonomous point defence** - unbound mounts answering inbound ordnance on
+   their own, which is task `20260816-114054`
+
+The questions:
+
+- How do shipped games let a player hand weapons to the computer and take them
+  back, without a mode the player forgets they are in? What makes the current
+  mode LEGIBLE at a glance?
+- Is an emergency auto-mode better as a TOGGLE, a HOLD, or automatic on a
+  trigger condition (ordnance inbound, hull below a threshold)? What do games
+  that tried each report?
+- Where does a player's manual target and the computer's target coexist, and who
+  wins when they disagree?
+- Does anyone let the player fire manually while the computer keeps the rest of
+  the battery on point defence? That is the shape the owner is describing.
+
+**A real constraint, and possibly the deciding one: the keyboard is nearly full.**
+`Ctrl` is lock, `Alt` is free look, right click is point-fire at anything. So a
+recommendation that needs three new modifiers is not usable. Report what keys or
+gestures other games spend on this, and whether any of them avoid a new binding
+entirely by making the mode a consequence of something the player already does.
+
+Prior art worth checking: The Expanse (fiction, for the read), Nebulous: Fleet
+Command (weapon control from a bridge), Children of a Dead Earth, Highfleet,
+Cosmoteer, FTL, Sins of a Solar Empire II, Elite Dangerous and Star Citizen
+turret modes, plus any submarine or naval sim with a weapons officer.
+
+Feeds `20260816-114054` (autonomous point defence for the player), which is
+DESIGNED but undecided and must not be built before this lands.
