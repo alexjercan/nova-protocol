@@ -169,17 +169,9 @@ pub enum BareReason {
     /// Something FIRES into it - a muzzle, a nozzle, the mouth of a bay - so a
     /// plate here would be a ship shooting its own plating.
     FiresInto,
-    /// CROWDED OUT: it could bolt to structure, but every direction it could
-    /// show to space is already taken by another plate, so it is not the last
-    /// thing before vacuum and cannot stand.
-    ///
-    /// The INSIDE ANGLE of an L, and the owner's bare corner. Three cells want
-    /// the same concave pocket, two of them have a free direction and this one
-    /// does not. It appears from arms of THREE cells up: with arms of two, the
-    /// cell past one of its faces is not clad and it stands.
-    Crowded,
-    /// It is wedged: no face of it both bolts to structure and shows vacuum, so
-    /// the plate would have nowhere to stand.
+    /// It is WEDGED: every face that offers something to bolt to has structure
+    /// on the far side of the cell, so a plate here would be buried in the ship
+    /// rather than the last thing before space.
     NoFooting,
     /// It was claimed and then no shape could be found for it, which is a bug
     /// rather than a refusal.
@@ -192,7 +184,6 @@ impl BareReason {
         match self {
             Self::NoSocket => "no_socket",
             Self::FiresInto => "fires_into",
-            Self::Crowded => "crowded",
             Self::NoFooting => "no_footing",
             Self::NoShape => "no_shape",
         }
@@ -357,20 +348,7 @@ fn bare_cells(structure: &SkinStructure, clad: &HashSet<IVec3>) -> Vec<BareCell>
             } else if !touches_socket {
                 BareReason::NoSocket
             } else if !claimed.contains(&cell) {
-                // CROWDED apart from wedged, because the two want opposite
-                // fixes: a plate that could bolt down and was outvoted for the
-                // space is the concave corner of an L, and a cell with nothing
-                // to bolt to or with structure on every side is not a place a
-                // plate was ever going to stand.
-                match (0..FACES.len()).any(|out| {
-                    let ahead = cell + FACES[out];
-                    structure.offers(cell + FACES[out ^ 1], out) == Some(true)
-                        && !structure.filled(ahead)
-                        && clad.contains(&ahead)
-                }) {
-                    true => BareReason::Crowded,
-                    false => BareReason::NoFooting,
-                }
+                BareReason::NoFooting
             } else {
                 BareReason::NoShape
             };
@@ -502,46 +480,50 @@ mod tests {
     /// THE OWNER'S L, and the two things he saw on it: a bare section at the
     /// inside angle, and a hull that reads as a field of spikes.
     ///
-    /// Three cubes in a run, two more up off the right-hand end. He also gave a
-    /// hypothesis - that the spikes are what stop the inside angle being clad -
-    /// and it is REFUTED here, in both directions:
+    /// The inside angle is CLAD, at every thickness. It used to be dropped for
+    /// having no direction left to show, which is a refusal
+    /// [`cladding_cells`] no longer makes - the plate on the roof and the plate
+    /// up the wall hug different walls of the same corner and neither is in the
+    /// other's way.
     ///
-    /// - an elbow with arms of TWO is just as spiky and has no bare cell at all;
-    /// - the same L three cells thick is much less spiky and has THREE bare
-    ///   cells, one per slice.
+    /// The spikes are the OTHER reading, and they survive the corner being
+    /// filled, which is the owner's hypothesis refuted in both directions:
+    ///
+    /// - an elbow with arms of TWO is just as spiky and never had a bare cell;
+    /// - the same L three cells thick is much less spiky and had THREE, one per
+    ///   slice.
     ///
     /// They are two independent readings of one property: the L has no interior.
     /// [`cladding_cells`] never looks at a height - it runs before any sample is
     /// read - so a shape cannot decide which cells are clad.
     #[test]
-    fn the_inside_angle_of_an_l_is_crowded_out_and_the_spikes_are_not_why() {
+    fn the_inside_angle_of_an_l_is_clad_and_the_spikes_are_a_separate_reading() {
         let report = report(&elbow(3, 1), None);
 
         assert_eq!(
             report.bare,
-            vec![BareCell {
-                // The concave corner: the cell above the middle of the run and
-                // left of the middle of the upright.
-                cell: IVec3::new(1, 1, 0),
-                reason: BareReason::Crowded,
-                faces: 2,
-            }],
-            "the owner's bare section, and the reason for it",
+            vec![],
+            "the owner's bare section is bare again"
         );
+        assert_eq!(report.bare_faces, 0, "an L has hull looking at vacuum");
+        // The corner plate itself: bolted to the run below it, standing full
+        // height where it closes against the upright.
+        let angle = at(&report, IVec3::new(1, 1, 0));
+        assert_eq!(angle.anchor, IVec3::new(1, 0, 0));
         assert_eq!(
-            report.bare_faces, 2,
-            "two hull faces look into the angle and both show raw section",
+            angle.shape.corners.iter().filter(|h| **h == FULL).count(),
+            2,
+            "`{}` does not close against the upright",
+            angle.shape.id(),
         );
 
         // ...and the spikes, which are the whole hull rather than the corner: an
-        // L is one cell thick everywhere, so no corner of any plate has four
-        // cells around it that carry the surface on, and every one of them dies
-        // to the floor.
-        assert_eq!(report.plates.len(), 20);
+        // L is one cell thick everywhere, so almost no corner of any plate has
+        // four cells around it that carry the surface on.
+        assert_eq!(report.plates.len(), 21);
         assert_eq!(report.coplanar, 0, "not one plate on the L is a surface");
-        assert!(report.plates.iter().all(|row| row.fallen == 0b1111));
-        assert_eq!(report.flat_area, 0.25);
         assert_eq!(report.saddles, 0, "and not one of them is the saddle");
+        assert!(report.flat_area < 0.3);
 
         // The hypothesis, both ways round. Arms of two: as spiky, nothing bare.
         let short = self::report(&elbow(2, 1), None);
@@ -553,18 +535,21 @@ mod tests {
             short.flat_area,
         );
 
-        // Three cells thick: less spiky, and MORE bare - one crowded cell per
-        // slice of the angle.
+        // Three cells thick: less spiky, and the three cells that used to be
+        // dropped at the angle are the three that carry its fillet.
         let deep = self::report(&elbow(3, 3), None);
         assert!(
             deep.coplanar > 0 && deep.flat_area > report.flat_area,
             "thickening the L should take spikes off it",
         );
-        assert_eq!(deep.bare.len(), 3, "and it leaves three cells crowded out");
-        assert!(deep
-            .bare
-            .iter()
-            .all(|bare| bare.reason == BareReason::Crowded));
+        assert_eq!(
+            deep.bare,
+            vec![],
+            "a thick L still drops cells at the angle"
+        );
+        for z in 0..3 {
+            assert_eq!(at(&deep, IVec3::new(1, 1, z)).anchor, IVec3::new(1, 0, z));
+        }
     }
 
     /// A BARE HULL FACE is named, with the reason it is bare and how much hull

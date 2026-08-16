@@ -1,6 +1,6 @@
 # A crowded cell refuses cladding it could carry
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 63
 - TAGS: v0.11.0, ship, render, bug, skin
 
@@ -56,3 +56,19 @@ failure here.
 - a test pins the L, since it is a 5-cell structure and the skin is a pure
   function of structure
 - no regression in `fires_into` or `no_socket` bare faces - those are correct
+
+## Lane
+
+Done. `NOTES.md` holds the argument and the measurements.
+
+Refusing was WRONG, and the refusal guarded nothing: a plate is bounded by its
+own cell and bolts to structure, so a plate and the plate in the cell it faces
+always stand on different walls of the same concave feature. The clause is gone
+and `cladding_cells` is one pass again.
+
+- the L's inner corner is clad, as `shell_0044_2242` - full height where it
+  closes against the upright. **No new shape is needed**, which is the answer
+  the shape task (20260816-112429) was owed.
+- all 12 crowded faces on the row are clad. `fires_into` (56 cells / 60 faces)
+  and `no_socket` (48 / 58) are unchanged, and nothing became newly bare.
+- `BareReason::Crowded` is deleted - it can no longer occur.

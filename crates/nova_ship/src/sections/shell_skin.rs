@@ -273,10 +273,14 @@ pub fn derive_skin(structure: &SkinStructure) -> Vec<SkinPlate> {
 /// muzzle, a bay's mouth, a drive's bell - and nothing may be built in the
 /// space a part's business points through, which is what leaves those mouths
 /// open without any of the three being named here. And a plate has to bolt down
-/// to structure on one face while showing vacuum on the opposite one, so a cell
-/// wedged between sections on every axis has nowhere to stand; those are dropped
-/// repeatedly until none are left, since dropping a cell only ever frees its
-/// neighbours to be the vacuum they needed.
+/// to structure through one face and show an EMPTY cell through the opposite
+/// one ([`stands`]), so a cell wedged between sections on every axis has nowhere
+/// to stand.
+///
+/// ONE PASS, because neither test reads the skin being built. What the cells
+/// around a candidate are already wearing cannot decide whether it may be clad:
+/// a plate is bounded by its own cell, so no two of them can be in each other's
+/// way. Refusing on that ground is what left the inside angle of every L bare.
 ///
 /// The EXIT face and not every blind one. A fitting turns five faces with
 /// nothing to mate to the world and fires through exactly one of them, so
@@ -291,25 +295,10 @@ pub fn cladding_cells(structure: &SkinStructure) -> HashSet<IVec3> {
             if structure.filled(candidate) {
                 continue;
             }
-            let touches_socket = (0..FACES.len())
-                .any(|f| structure.offers(candidate + FACES[f], f ^ 1) == Some(true));
-            if touches_socket && !exit_pocket(structure, candidate) {
+            let footing = (0..FACES.len()).any(|out| stands(structure, candidate, out));
+            if footing && !exit_pocket(structure, candidate) {
                 skin.insert(candidate);
             }
-        }
-    }
-
-    loop {
-        let doomed: Vec<IVec3> = skin
-            .iter()
-            .copied()
-            .filter(|cell| !(0..FACES.len()).any(|out| stands(structure, &skin, *cell, out)))
-            .collect();
-        if doomed.is_empty() {
-            break;
-        }
-        for cell in doomed {
-            skin.remove(&cell);
         }
     }
     skin
@@ -336,15 +325,20 @@ pub(super) fn exit_pocket(structure: &SkinStructure, cell: IVec3) -> bool {
 /// Whether a plate in `cell` may show `out` to space.
 ///
 /// It BOLTS DOWN to structure through the face opposite its out face, and shows
-/// vacuum through the out face itself. Both halves matter. Without the first,
-/// cladding hangs off other cladding with nothing solid to carry it - and
-/// worse, it samples its boundary in a plane none of its neighbours agreed to,
-/// so the surface it draws need not meet theirs. Without the second it is not
-/// the last thing before space, which is the one job a skin has.
-fn stands(structure: &SkinStructure, skin: &HashSet<IVec3>, cell: IVec3, out: usize) -> bool {
+/// an EMPTY cell through the out face itself. Without the first, cladding hangs
+/// off other cladding with nothing solid to carry it - and worse, it samples its
+/// boundary in a plane none of its neighbours agreed to, so the surface it draws
+/// need not meet theirs. Without the second the plate is buried in the ship.
+///
+/// Empty, and never "empty and not already clad". A plate bolts to structure and
+/// stays inside its own cell, so the plate in the cell ahead can neither face
+/// the same way (its own bolt face would be this empty cell) nor reach into this
+/// one: it hugs another wall of the same concave feature. Refusing a cell whose
+/// every direction was taken left the INSIDE ANGLE of every L bare, and both
+/// walls of every two-cell slot, and covered neither.
+fn stands(structure: &SkinStructure, cell: IVec3, out: usize) -> bool {
     let bolted = structure.offers(cell + FACES[out ^ 1], out) == Some(true);
-    let ahead = cell + FACES[out];
-    bolted && !structure.filled(ahead) && !skin.contains(&ahead)
+    bolted && !structure.filled(cell + FACES[out])
 }
 
 /// The two axes a face lies in, lowest first.
@@ -477,7 +471,7 @@ pub fn plate_for(
     cell: IVec3,
 ) -> Option<SkinPlate> {
     let out = (0..FACES.len())
-        .filter(|out| stands(structure, skin, cell, *out))
+        .filter(|out| stands(structure, cell, *out))
         .max_by_key(|out| support_depth(structure, cell, *out))?;
     let wanted = boundary_heights(structure, skin, cell, out);
 
@@ -1392,14 +1386,14 @@ mod tests {
 
         for cell in skin.iter().copied() {
             for out in 0..FACES.len() {
-                if !stands(&structure, &skin, cell, out) {
+                if !stands(&structure, cell, out) {
                     continue;
                 }
                 let mine = boundary_heights(&structure, &skin, cell, out);
                 let (u, v) = face_plane(out);
                 for (axis, sign) in [(u, 1), (u, -1), (v, 1), (v, -1)] {
                     let next = cell + step(axis, sign);
-                    if !skin.contains(&next) || !stands(&structure, &skin, next, out) {
+                    if !skin.contains(&next) || !stands(&structure, next, out) {
                         continue;
                     }
                     let theirs = boundary_heights(&structure, &skin, next, out);
@@ -1650,6 +1644,137 @@ mod tests {
             "`{}` stands in a hole in the skin, not at the edge of one",
             walled_in.shape.id(),
         );
+    }
+
+    /// THE OWNER'S L: three cubes in a run, two more up off one end.
+    ///
+    /// The inside angle can bolt down two ways and both of the cells it would
+    /// show are themselves clad. That used to drop it, and left the two hull
+    /// faces looking into the angle bare. It stands: the plate on the roof and
+    /// the plate on the upright hug different walls of the same concave corner,
+    /// and this one fills the corner between them - full height where it closes
+    /// against the upright, dying to the floor away from it.
+    #[test]
+    fn the_inside_angle_of_an_l_is_clad_and_closes_against_the_upright() {
+        let structure = hull(&[
+            IVec3::new(0, 0, 0),
+            IVec3::new(1, 0, 0),
+            IVec3::new(2, 0, 0),
+            IVec3::new(2, 1, 0),
+            IVec3::new(2, 2, 0),
+        ]);
+        let skin = cladding_cells(&structure);
+        let angle = IVec3::new(1, 1, 0);
+        assert!(skin.contains(&angle), "the inside angle of the L is bare");
+
+        let plate = plate_for(&structure, &skin, angle).expect("a plate fits the angle");
+        assert_eq!(
+            plate.anchor,
+            IVec3::new(1, 0, 0),
+            "the corner plate should bolt to the deepest structure under it",
+        );
+        let shape = boundary_heights(&structure, &skin, angle, 2);
+        // The out face is +Y, whose plane is read as (x, z); the upright stands
+        // at +x of the angle.
+        let (against, away): (Vec<usize>, Vec<usize>) =
+            (0..4).partition(|slot| FACE_CORNERS[*slot].0 > 0);
+        assert!(
+            against.iter().all(|slot| shape.corners[*slot] == FULL),
+            "`{}` leaves a gap where it meets the upright",
+            shape.id(),
+        );
+        assert!(
+            away.iter().all(|slot| shape.corners[*slot] == 0),
+            "`{}` stands up where the L faces open space",
+            shape.id(),
+        );
+
+        // Every hull face of this ship is covered. It is the whole claim: a
+        // five-cell L is small enough to check exhaustively.
+        for cell in structure.filled_cells() {
+            for face in 0..FACES.len() {
+                let outward = cell + FACES[face];
+                assert!(
+                    structure.filled(outward) || skin.contains(&outward),
+                    "face {face} of {cell:?} is structure looking at vacuum",
+                );
+            }
+        }
+    }
+
+    /// Both walls of a two-cell slot are plated.
+    ///
+    /// The same refusal in its other shape: each side could only ever show the
+    /// other, so the pair used to knock each other out and the slot came back
+    /// bare on both faces. They are back to back with a gap between them, which
+    /// is what a slot looks like.
+    #[test]
+    fn a_slot_two_cells_wide_is_plated_on_both_of_its_walls() {
+        let structure = hull(&[
+            IVec3::new(0, 0, 0),
+            IVec3::new(0, 1, 0),
+            IVec3::new(3, 0, 0),
+            IVec3::new(3, 1, 0),
+        ]);
+        let skin = cladding_cells(&structure);
+        for (cell, anchor) in [
+            (IVec3::new(1, 0, 0), IVec3::new(0, 0, 0)),
+            (IVec3::new(2, 0, 0), IVec3::new(3, 0, 0)),
+            (IVec3::new(1, 1, 0), IVec3::new(0, 1, 0)),
+            (IVec3::new(2, 1, 0), IVec3::new(3, 1, 0)),
+        ] {
+            let plate = plate_for(&structure, &skin, cell)
+                .unwrap_or_else(|| panic!("{cell:?} is a wall of the slot and came back bare"));
+            assert_eq!(plate.anchor, anchor, "{cell:?} plated the far wall");
+        }
+    }
+
+    /// No plate can be in another plate's way, which is why nothing has to ask.
+    ///
+    /// The property the one-pass rule rests on, checked over a lumpy hull
+    /// rather than argued: a plate is bounded by its own cell and bolts to
+    /// structure, so a plate and the plate in the cell it faces always show
+    /// different directions and always bolt to different structure. There is no
+    /// pair to arbitrate between.
+    #[test]
+    fn a_plate_and_the_plate_it_faces_never_stand_on_the_same_wall() {
+        let structure = hull(&[
+            IVec3::ZERO,
+            IVec3::X,
+            IVec3::X * 2,
+            IVec3::Y,
+            IVec3::Z,
+            IVec3::X + IVec3::Y,
+            IVec3::X * 2 + IVec3::Z,
+            IVec3::new(1, 1, 1),
+            IVec3::new(-1, 0, 0),
+            IVec3::new(0, 0, -1),
+        ]);
+        let plates = derive_skin(&structure);
+        let by_cell: HashMap<IVec3, SkinPlate> =
+            plates.iter().map(|plate| (plate.cell, *plate)).collect();
+        for plate in &plates {
+            let out = plate.cell - plate.anchor;
+            assert!(
+                !structure.filled(plate.cell),
+                "{:?} stands inside structure",
+                plate.cell,
+            );
+            let Some(ahead) = by_cell.get(&(plate.cell + out)) else {
+                continue;
+            };
+            assert_ne!(
+                ahead.cell - ahead.anchor,
+                out,
+                "{:?} is buried behind the plate in front of it",
+                plate.cell,
+            );
+            assert_ne!(
+                ahead.anchor, plate.anchor,
+                "{:?} and {:?} clad the same face of the same section",
+                plate.cell, ahead.cell,
+            );
+        }
     }
 
     /// A ship root of cube sections, as the scenario spawner builds one.
