@@ -645,9 +645,9 @@ mod tests {
     /// FALLING PLATE is what most of a real hull comes out as, so the run and
     /// the border have to speak about it - not only about flat panels.
     ///
-    /// Measured, on the wfc row: 100-120 of every 132-162 plates fall, and 6-22
-    /// are flat. A vocabulary whose run and border were silent on four fifths
-    /// of every ship could not carry a look, whatever else it said.
+    /// Measured, on the wfc row: 84-134 of every 158-204 plates fall, and 18-38
+    /// are flat. A vocabulary whose run and border were silent on half to four
+    /// fifths of every ship could not carry a look, whatever else it said.
     #[test]
     fn a_brink_carries_a_run_and_a_border_of_its_own() {
         let structure = slab(6);

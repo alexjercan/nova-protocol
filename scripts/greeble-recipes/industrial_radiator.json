@@ -1,0 +1,25 @@
+{
+  "_comment": "INDUSTRIAL: a radiator fin bank on a dark mounting frame. The tallest thing the kit puts on flat panel, and the piece that says the hull is a machine with heat to get rid of. The fins are deliberately over half as tall as the piece is wide - a shallow fin bank photographs as a grille, and the read that is wanted is a THING standing on the hull. Fins run along +Z so `align: Run` combs them the same way down a panel.",
+  "materials": {
+    "industrial_steel": { "color": [0.105, 0.1, 0.092], "metallic": 0.45, "roughness": 0.72 },
+    "industrial_shadow": { "color": [0.018, 0.019, 0.022], "metallic": 0.1, "roughness": 0.9 }
+  },
+  "material": "industrial_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.38, 0.03, 0.28],
+      "at": [0.0, 0.015, 0.0],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "ribs",
+      "size": [0.32, 0.02, 0.26],
+      "count": 5,
+      "rib_height": 0.22,
+      "rib_width": 0.035,
+      "across": "x",
+      "at": [0.0, 0.04, 0.0]
+    }
+  ]
+}

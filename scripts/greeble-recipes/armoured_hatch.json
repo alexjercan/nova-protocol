@@ -1,0 +1,22 @@
+{
+  "_comment": "ARMOURED kit: the flush access hatch, for the middle of a flat panel. Two boxes and nothing else - a dark surround with a lighter plate raised inside it, so what reads at range is the SHADOW GAP around the plate rather than the plate. 0.042 cells tall, well under anything that would break a silhouette: this is the piece that gives a bare panel a scale without giving a gunner a target.",
+  "materials": {
+    "armour_rail": { "color": [0.045, 0.048, 0.055], "roughness": 0.68, "metallic": 0.15 },
+    "armour_shell": { "color": [0.145, 0.15, 0.158], "roughness": 0.75, "metallic": 0.05 }
+  },
+  "material": "armour_shell",
+  "budget": { "footprint": 0.5, "height": 0.1 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.3, 0.016, 0.3],
+      "at": [0.0, 0.008, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "box",
+      "size": [0.2, 0.026, 0.2],
+      "at": [0.0, 0.029, 0.0]
+    }
+  ]
+}

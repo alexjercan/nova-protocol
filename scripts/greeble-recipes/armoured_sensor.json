@@ -1,0 +1,36 @@
+{
+  "_comment": "ARMOURED kit: the sensor blister, and the ONLY piece of this look that breaks the plane of the hull. An octagonal armour ring, a faceted hood over it, and a glossy optic sunk into the top - the one shiny thing on a ship whose whole palette is matte. Eight sides everywhere: a smooth dome would read as civilian, and the facets are what keep it in the same language as the plate under it.",
+  "materials": {
+    "armour_rail": { "color": [0.045, 0.048, 0.055], "roughness": 0.68, "metallic": 0.15 },
+    "armour_shell": { "color": [0.145, 0.15, 0.158], "roughness": 0.75, "metallic": 0.05 },
+    "armour_optic": { "color": [0.012, 0.03, 0.04], "roughness": 0.12, "metallic": 0.2 }
+  },
+  "material": "armour_shell",
+  "budget": { "footprint": 0.5, "height": 0.2 },
+  "parts": [
+    {
+      "primitive": "disc",
+      "radius": 0.2,
+      "thickness": 0.022,
+      "sides": 8,
+      "at": [0.0, 0.011, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.165,
+      "radius_top": 0.085,
+      "height": 0.085,
+      "sides": 8,
+      "at": [0.0, 0.0645, 0.0]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.07,
+      "thickness": 0.014,
+      "sides": 8,
+      "at": [0.0, 0.108, 0.0],
+      "material": "armour_optic"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "_comment": "INDUSTRIAL: a bolted access hatch - a mounting plate, a dark cover and a painted grab handle. 'Built to be maintained' is the whole brief, and a hatch is the shortest way to say a crew gets inside this panel. The handle carries the kit's yellow, and it is deliberately oversized against a real one: at the size a hull photographs, a scale handle is one pixel and the accent is lost.",
+  "materials": {
+    "industrial_steel": { "color": [0.105, 0.1, 0.092], "metallic": 0.45, "roughness": 0.72 },
+    "industrial_shadow": { "color": [0.018, 0.019, 0.022], "metallic": 0.1, "roughness": 0.9 },
+    "industrial_hazard": { "color": [0.95, 0.52, 0.02], "metallic": 0.0, "roughness": 0.55 }
+  },
+  "material": "industrial_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.32, 0.022, 0.32],
+      "at": [0.0, 0.011, 0.0]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.12,
+      "thickness": 0.018,
+      "sides": 8,
+      "at": [0.0, 0.031, 0.0],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.16, 0.026, 0.05],
+      "at": [0.0, 0.053, 0.0],
+      "material": "industrial_hazard"
+    }
+  ]
+}

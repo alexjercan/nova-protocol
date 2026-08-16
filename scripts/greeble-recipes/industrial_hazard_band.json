@@ -1,0 +1,46 @@
+{
+  "_comment": "INDUSTRIAL: a painted hazard band, the kit's signature. Almost no geometry at all - a yellow strip with five dark bars across it - because it is PAINT, and the point of it is that it draws the straight edges of a hull in safety yellow. Long axis is +Z, so `align: Run` lays it down the edge it stands on. It RAISES ITS OWN FOOTPRINT BUDGET to 0.92 of a cell, which no other piece here does: a stripe is a LINE, and at the default half-cell budget consecutive plates of one edge come out as a row of dashes rather than as a painted edge. It is the one piece worth spending the seam on.",
+  "materials": {
+    "industrial_hazard": { "color": [0.95, 0.52, 0.02], "metallic": 0.0, "roughness": 0.55 },
+    "industrial_shadow": { "color": [0.018, 0.019, 0.022], "metallic": 0.1, "roughness": 0.9 }
+  },
+  "material": "industrial_hazard",
+  "budget": { "footprint": 0.92, "height": 0.5 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.18, 0.016, 0.9],
+      "at": [0.0, 0.008, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.188, 0.012, 0.075],
+      "at": [0.0, 0.022, -0.3],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.188, 0.012, 0.075],
+      "at": [0.0, 0.022, -0.15],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.188, 0.012, 0.075],
+      "at": [0.0, 0.022, 0.0],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.188, 0.012, 0.075],
+      "at": [0.0, 0.022, 0.15],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.188, 0.012, 0.075],
+      "at": [0.0, 0.022, 0.3],
+      "material": "industrial_shadow"
+    }
+  ]
+}

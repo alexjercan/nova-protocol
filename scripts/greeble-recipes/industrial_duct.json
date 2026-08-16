@@ -1,0 +1,46 @@
+{
+  "_comment": "INDUSTRIAL: an exposed conduit run - a pipe on three clamp saddles with a joint flange amidships. Plumbing on the OUTSIDE of the hull is the whole thesis of this kit: a working ship routes its services where a fitter can reach them. Like the hazard band it raises its footprint budget to 0.92 of a cell and lies along +Z, so consecutive plates of one run come out as a CONTINUOUS pipe rather than as a row of short stubs - which is the only way a conduit reads as a conduit.",
+  "materials": {
+    "industrial_steel": { "color": [0.105, 0.1, 0.092], "metallic": 0.45, "roughness": 0.72 },
+    "industrial_shadow": { "color": [0.018, 0.019, 0.022], "metallic": 0.1, "roughness": 0.9 }
+  },
+  "material": "industrial_steel",
+  "budget": { "footprint": 0.92, "height": 0.5 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.11, 0.07, 0.05],
+      "at": [0.0, 0.035, -0.3],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.11, 0.07, 0.05],
+      "at": [0.0, 0.035, 0.0],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.11, 0.07, 0.05],
+      "at": [0.0, 0.035, 0.3],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.05,
+      "height": 0.9,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.085, 0.0]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.07,
+      "thickness": 0.026,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.085, 0.15],
+      "material": "industrial_shadow"
+    }
+  ]
+}

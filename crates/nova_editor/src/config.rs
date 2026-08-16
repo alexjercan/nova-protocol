@@ -26,9 +26,9 @@ pub(crate) struct PlayerSpaceshipConfig {
     /// the content merge loaded.
     ///
     /// Part of the build state for the same reason `skin` is: it travels out to
-    /// the scenario with the ship. There is no picker for it yet, so the build
-    /// view falls back to the first AUTHORED style rather than to a hard-coded
-    /// id - a mod that ships one look is then what the editor shows.
+    /// the scenario with the ship. `None` falls back to the first AUTHORED
+    /// style rather than to a hard-coded id, so a mod that ships one look is
+    /// what the editor shows; the rail's Look row writes an explicit id.
     pub(crate) style: Option<String>,
 }
 
@@ -114,3 +114,13 @@ pub(crate) struct EditorKeyLegend;
 /// [`PlayerSpaceshipConfig::skin`] changes.
 #[derive(Component)]
 pub(crate) struct SkinToggleCheckbox;
+
+/// The list of looks under the cladding toggle. Shown only while the ship is
+/// clad, because a look is a property of a skin that is on.
+#[derive(Component)]
+pub(crate) struct StyleList;
+
+/// One row of that list, carrying the style id it picks - the same shape the
+/// tool rows use, so the shared `Selected` highlight marks the active look.
+#[derive(Component)]
+pub(crate) struct StyleChoice(pub(crate) String);

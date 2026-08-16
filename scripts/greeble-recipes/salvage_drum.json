@@ -1,0 +1,113 @@
+{
+  "_comment": "SALVAGE kit: a drum lashed to the hull - an eight-sided tank lying on its side in a pair of crude cradles, with two collar straps over it. External tankage is a raider's tell: nothing is plumbed inside where it belongs. The drum sits off-centre in +X and the straps are at -0.10 and +0.08 rather than symmetric about it, so a run of these does not read as a repeated tile. Long axis Z, so `align: Run` lies it down the surface it is strapped to.",
+  "materials": {
+    "rust": {
+      "color": [
+        0.165,
+        0.058,
+        0.024
+      ],
+      "roughness": 0.95,
+      "metallic": 0.05
+    },
+    "soot": {
+      "color": [
+        0.008,
+        0.0075,
+        0.008
+      ],
+      "roughness": 0.9,
+      "metallic": 0.1
+    },
+    "weld": {
+      "color": [
+        0.07,
+        0.061,
+        0.05
+      ],
+      "roughness": 0.95,
+      "metallic": 0.05
+    }
+  },
+  "material": "rust",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [
+        0.22,
+        0.03,
+        0.055
+      ],
+      "at": [
+        0.015,
+        0.015,
+        -0.12
+      ],
+      "material": "weld"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.22,
+        0.03,
+        0.055
+      ],
+      "at": [
+        0.015,
+        0.015,
+        0.15
+      ],
+      "material": "weld"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.115,
+      "height": 0.36,
+      "sides": 8,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.015,
+        0.125,
+        0.01
+      ]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.122,
+      "height": 0.03,
+      "sides": 8,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.015,
+        0.125,
+        -0.1
+      ],
+      "material": "soot"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.122,
+      "height": 0.03,
+      "sides": 8,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.015,
+        0.125,
+        0.08
+      ],
+      "material": "soot"
+    }
+  ]
+}

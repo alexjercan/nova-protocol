@@ -57,13 +57,36 @@
         // Decoration fixtures for the derived skin, generated from the recipes
         // in `scripts/greeble-recipes/` by `scripts/gen-greebles.py`. Declared
         // here so a style can name one with `self://gltf/greebles/<id>.glb` and
-        // a mod can reuse one with `dep://base/gltf/greebles/<id>.glb`. These
-        // four are PLACEHOLDERS that prove the pipeline; the shipped kit
-        // replaces them.
+        // a mod can reuse one with `dep://base/gltf/greebles/<id>.glb`. Each
+        // prefix is one authored KIT worn by the style of that name; the
+        // `placeholder_` four are the scaffolding that proved the pipeline.
+        "gltf/greebles/armoured_cap.glb",
+        "gltf/greebles/armoured_hatch.glb",
+        "gltf/greebles/armoured_sensor.glb",
+        "gltf/greebles/armoured_strake.glb",
+        "gltf/greebles/civilian_beacon.glb",
+        "gltf/greebles/civilian_fairing.glb",
+        "gltf/greebles/civilian_fin.glb",
+        "gltf/greebles/civilian_stripe.glb",
+        "gltf/greebles/civilian_windows.glb",
+        "gltf/greebles/industrial_duct.glb",
+        "gltf/greebles/industrial_hatch.glb",
+        "gltf/greebles/industrial_hazard_band.glb",
+        "gltf/greebles/industrial_louvre.glb",
+        "gltf/greebles/industrial_radiator.glb",
+        "gltf/greebles/industrial_ribbing.glb",
+        "gltf/greebles/industrial_stack.glb",
         "gltf/greebles/placeholder_blister.glb",
         "gltf/greebles/placeholder_block.glb",
         "gltf/greebles/placeholder_mast.glb",
         "gltf/greebles/placeholder_vent.glb",
+        "gltf/greebles/salvage_drum.glb",
+        "gltf/greebles/salvage_hook.glb",
+        "gltf/greebles/salvage_patch_plate.glb",
+        "gltf/greebles/salvage_patch_scab.glb",
+        "gltf/greebles/salvage_patch_strip.glb",
+        "gltf/greebles/salvage_weld_seam.glb",
+        "gltf/greebles/salvage_whip.glb",
         // NOTE: the cladding shells ship no meshes. Every one of the 954
         // shapes is built at load from the eight boundary samples its id
         // spells - see `nova_ship`'s `shell_shape`. Art shipped here under a

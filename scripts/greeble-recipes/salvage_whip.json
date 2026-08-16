@@ -1,0 +1,113 @@
+{
+  "_comment": "SALVAGE kit: a whip antenna with a kink in it, welded to a crude pad. Two sections lean the SAME way (14 then 26 degrees about X) so the mast leans down its own +Z, which `align: Outward` then points off the ship - a raider's aerial hanging out over the edge rather than standing to attention. The cross-arm is a scavenged element, not a symmetric spreader: one arm, one side. Raises the height budget, which is what the mast case is for.",
+  "materials": {
+    "scrap_steel": {
+      "color": [
+        0.235,
+        0.255,
+        0.295
+      ],
+      "roughness": 0.72,
+      "metallic": 0.15
+    },
+    "soot": {
+      "color": [
+        0.008,
+        0.0075,
+        0.008
+      ],
+      "roughness": 0.9,
+      "metallic": 0.1
+    }
+  },
+  "material": "scrap_steel",
+  "budget": {
+    "footprint": 0.5,
+    "height": 0.46
+  },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [
+        0.13,
+        0.024,
+        0.11
+      ],
+      "at": [
+        0.0,
+        0.012,
+        0.0
+      ],
+      "material": "soot"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.021,
+      "height": 0.2,
+      "sides": 6,
+      "rotate": [
+        14.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.12,
+        0.0
+      ]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.013,
+      "height": 0.17,
+      "sides": 6,
+      "rotate": [
+        26.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.2934,
+        0.0615
+      ],
+      "material": "soot"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.12,
+        0.016,
+        0.018
+      ],
+      "rotate": [
+        26.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.3,
+        0.065
+      ]
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.013,
+      "radius_top": 0.0,
+      "height": 0.06,
+      "sides": 6,
+      "rotate": [
+        26.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.3968,
+        0.112
+      ],
+      "material": "soot"
+    }
+  ]
+}

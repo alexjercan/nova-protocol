@@ -1,0 +1,29 @@
+{
+  "_comment": "CIVILIAN kit: the LIVERY BAND, and the piece the whole look rests on. A raised trim rail - pale fillet, cobalt face, white pinstripe - that runs the FULL cell along Z, so consecutive plates of one run butt their bands together and the row reads as one continuous stripe down the hull rather than as a dashed line of greebles. That is why the footprint budget is raised to a whole cell: a piece is always placed at its plate's centre, never scattered off it, so a full-cell piece cannot spill onto a neighbour. Proud (0.08 cells) rather than flush, because a plate that FALLS along one side is a ramp under the band: a paint-thin strip would bury itself on the up side, and a rail this tall clears the cross-fall over its own width.",
+  "materials": {
+    "hull": { "color": [0.42, 0.42, 0.4], "metallic": 0.0, "roughness": 0.35 },
+    "accent": { "color": [0.01, 0.1, 0.38], "metallic": 0.0, "roughness": 0.3 },
+    "trim": { "color": [0.72, 0.7, 0.64], "metallic": 0.0, "roughness": 0.3 }
+  },
+  "material": "hull",
+  "budget": { "footprint": 1.0, "height": 0.2 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.3, 0.05, 0.99],
+      "at": [0.0, 0.025, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.22, 0.075, 0.99],
+      "at": [0.0, 0.0375, 0.0],
+      "material": "accent"
+    },
+    {
+      "primitive": "box",
+      "size": [0.07, 0.082, 0.99],
+      "at": [0.0, 0.041, 0.0],
+      "material": "trim"
+    }
+  ]
+}

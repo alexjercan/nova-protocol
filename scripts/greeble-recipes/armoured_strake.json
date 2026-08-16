@@ -1,0 +1,22 @@
+{
+  "_comment": "ARMOURED kit, the hero piece: the armour belt that runs down the straight edge of a hull. Two stacked slabs, a narrow light rail standing on a wider dark base, so what carries at range is the value break rather than the profile. It is 0.98 cells LONG, which is why it raises the footprint budget: a greeble stands dead centre of its plate (no jitter), so a piece that spans its whole cell meets the next one in the run and a row of them reads as ONE continuous strake instead of a dashed line. 0.98 and not 1.0 leaves a hair of clearance at the seam so two neighbours never share a coincident face. Turned with align: Run, so +Z is the long axis, down the edge.",
+  "materials": {
+    "armour_rail": { "color": [0.045, 0.048, 0.055], "roughness": 0.68, "metallic": 0.15 },
+    "armour_shell": { "color": [0.145, 0.15, 0.158], "roughness": 0.75, "metallic": 0.05 }
+  },
+  "material": "armour_shell",
+  "budget": { "footprint": 1.0, "height": 0.12 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.3, 0.032, 0.98],
+      "at": [0.0, 0.016, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "box",
+      "size": [0.17, 0.05, 0.98],
+      "at": [0.0, 0.057, 0.0]
+    }
+  ]
+}

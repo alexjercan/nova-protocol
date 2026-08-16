@@ -79,12 +79,17 @@
 //! with the findings rather than shooting it.
 //!
 //! Hand-run (free-fly with WASD, `R` re-rolls the whole row, `C` strips or
-//! restores the cladding on the same seeds):
+//! restores the cladding on the same seeds, `L` cycles the look the row wears):
 //! ```text
 //! cargo run --example wfc_ships --features debug
 //! cargo run --example wfc_ships --features debug -- --seed 7 --ships 3
 //! cargo run --example wfc_ships --features debug -- --ships 1 --bare
+//! cargo run --example wfc_ships --features debug -- --style salvage
 //! ```
+//!
+//! `L` - not `S`, which the free-fly camera owns - is what makes four authored
+//! looks COMPARABLE: the same three hulls at the same pose, redressed in place,
+//! instead of four checkouts and four runs.
 //!
 //! Two harnessed modes, the fleet's capture idiom:
 //! - `NOVA_AUTOPILOT=1`: smoke path - collapse the row, frame it, strip the
@@ -114,6 +119,10 @@ struct Cli {
     /// Strip the cladding and show the bare structural collapse.
     #[arg(long)]
     bare: bool,
+    /// Start on this style id instead of the first the content offers. `S`
+    /// cycles from wherever this leaves the row.
+    #[arg(long)]
+    style: Option<String>,
 }
 
 /// The row's default first seed.
@@ -140,9 +149,13 @@ fn main() -> bevy::app::AppExit {
         seed: cli.seed,
         ships: cli.ships.max(1),
         clad: !cli.bare,
+        style: 0,
     };
+    let requested = cli.style.clone();
     let mut app = AppBuilder::new()
-        .with_game_plugins(move |app: &mut App| wfc_plugin(app, roster))
+        .with_game_plugins(move |app: &mut App| {
+            wfc_plugin(app, roster, StyleRequest(requested.clone()))
+        })
         .build();
 
     #[cfg(feature = "debug")]
@@ -172,8 +185,9 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-fn wfc_plugin(app: &mut App, roster: Roster) {
+fn wfc_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
     app.insert_resource(roster);
+    app.insert_resource(requested);
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_row);
     app.add_systems(
         Update,
@@ -185,25 +199,44 @@ fn wfc_plugin(app: &mut App, roster: Roster) {
     );
 }
 
-/// Which row is on the stage: the first seed, how many ships stand in it, and
-/// whether they wear their skin.
+/// Which row is on the stage: the first seed, how many ships stand in it,
+/// whether they wear their skin, and WHICH look they wear.
+///
+/// The look is an INDEX into the merged catalog rather than an id, because this
+/// example is a producer and must not know what a style is called. `L` steps it;
+/// the index is taken modulo the catalog, so it survives a mod adding one.
 #[derive(Resource, Clone, Copy)]
 struct Roster {
     seed: u64,
     ships: usize,
     clad: bool,
+    style: usize,
 }
+
+/// The style id `--style` asked for, before the content it names has loaded.
+///
+/// Resolved to a `Roster` index once, on the first row: the catalog does not
+/// exist when the CLI is parsed, and a producer holds an index from then on.
+#[derive(Resource)]
+struct StyleRequest(Option<String>);
 
 fn load_row(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     styles: Res<GameStyles>,
-    roster: Res<Roster>,
+    requested: Res<StyleRequest>,
+    mut roster: ResMut<Roster>,
 ) {
-    // The FIRST authored style, whatever the merged content called it. This
-    // example is a producer, not content: it must not know a style's id.
-    let style = styles.first().map(|style| style.id.as_str());
+    if let Some(id) = requested.0.as_deref() {
+        match styles.iter().position(|style| style.id == id) {
+            Some(index) => roster.style = index,
+            // Loud, not silent: a typo would otherwise photograph the first
+            // look and read as the one that was asked for.
+            None => panic!("--style '{id}' is not in the merged content"),
+        }
+    }
+    let style = style_at(&styles, roster.style);
     commands.trigger(LoadScenario(wfc_row(
         &game_assets,
         &sections,
@@ -216,9 +249,25 @@ fn load_row(
 /// The id of the style the row's clad ships wear, read off the merged content.
 type StyleId<'a> = Option<&'a str>;
 
+/// The style at this index of the merged catalog, wrapped.
+///
+/// The wrap is what lets `L` be a plain increment, and the catalog is whatever
+/// the content shipped - a mod that adds a fifth look joins the rotation with
+/// nothing here changing.
+fn style_at(styles: &GameStyles, index: usize) -> StyleId<'_> {
+    if styles.is_empty() {
+        return None;
+    }
+    styles
+        .get(index % styles.len())
+        .map(|style| style.id.as_str())
+}
+
 /// `R` re-rolls the whole row: a fresh scenario off the next seed block,
 /// through the same `LoadScenario` path the first row took (which tears the
-/// old one down for us). `C` strips or restores the cladding on the spot.
+/// old one down for us). `C` strips or restores the cladding on the spot, and
+/// `L` steps to the next authored look on the SAME seeds - which is the only
+/// way to judge four looks against one hull rather than against four hulls.
 fn reroll_on_key(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -231,10 +280,15 @@ fn reroll_on_key(
         roster.seed = roster.seed.wrapping_add(roster.ships as u64);
     } else if keyboard.just_pressed(KeyCode::KeyC) {
         roster.clad = !roster.clad;
+    } else if keyboard.just_pressed(KeyCode::KeyL) {
+        roster.style = roster.style.wrapping_add(1);
+        // A style change is invisible on a bare row, so asking for one asks
+        // for the skin back.
+        roster.clad = true;
     } else {
         return;
     }
-    let style = styles.first().map(|style| style.id.as_str());
+    let style = style_at(&styles, roster.style);
     commands.trigger(LoadScenario(wfc_row(
         &game_assets,
         &sections,
@@ -1813,12 +1867,25 @@ fn spawn_readout(commands: &mut Commands) {
 /// Written every frame rather than on `Roster` change: the readout is spawned
 /// by a command in the same run as the roster's first change, so a
 /// change-gated write lands before the text exists and never runs again.
-fn update_readout(roster: Res<Roster>, mut q_readout: Query<&mut Text, With<SeedReadout>>) {
+fn update_readout(
+    roster: Res<Roster>,
+    styles: Res<GameStyles>,
+    mut q_readout: Query<&mut Text, With<SeedReadout>>,
+) {
+    // The style is NAMED, because a shot of a row is only evidence about a look
+    // if the frame says which look it is.
+    let dress = if roster.clad {
+        format!(
+            "clad: {}",
+            style_at(&styles, roster.style).unwrap_or("bare")
+        )
+    } else {
+        "bare".to_string()
+    };
     let line = format!(
-        "WFC ships - seeds {}..{} - {} - [R] re-roll  [C] cladding",
+        "WFC ships - seeds {}..{} - {dress} - [R] re-roll  [C] cladding  [L] look",
         roster.seed,
         roster.seed + roster.ships as u64 - 1,
-        if roster.clad { "clad" } else { "bare" },
     );
     for mut text in &mut q_readout {
         if text.as_str() != line {
@@ -1873,7 +1940,7 @@ fn wfc_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
                 ..*world.resource::<Roster>()
             };
             *world.resource_mut::<Roster>() = next;
-            let style = styles.first().map(|style| style.id.as_str());
+            let style = style_at(&styles, next.style);
             world.trigger(LoadScenario(wfc_row(&assets, &sections, next, style)));
         })
         .until(and(scenario_camera_present(), frames(SETTLE_FRAMES)))

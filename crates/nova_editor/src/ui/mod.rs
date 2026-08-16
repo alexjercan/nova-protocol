@@ -19,18 +19,19 @@ use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{panel, panel_header, separator, themed_button, ButtonValue, UiSkin},
     theme,
-    widget::{checkbox_colors, checkbox_glyph},
+    widget::{checkbox_colors, checkbox_glyph, Selected},
 };
 
 use crate::{
     config::{
         EditorKeyLegend, PlacementStatus, PlayerSpaceshipConfig, SectionChoice, SkinToggleCheckbox,
+        StyleChoice, StyleList,
     },
     gallery::{EditorCamera, EditorChrome, GalleryAction},
     placement::{
         continue_to_simulation, create_new_spaceship, create_new_spaceship_with_controller,
     },
-    ui::rail::{category_row, coming_soon_category, skin_toggle_row},
+    ui::rail::{category_row, coming_soon_category, skin_toggle_row, style_row},
     ExampleStates,
 };
 
@@ -54,10 +55,15 @@ pub(crate) fn setup_editor_scene(
     mut commands: Commands,
     skin: Res<UiSkin>,
     game_assets: Res<GameAssets>,
+    styles: Res<GameStyles>,
     player_config: Res<PlayerSpaceshipConfig>,
 ) {
     let skin = *skin;
     let clad = player_config.skin;
+    let looks: Vec<(String, String)> = styles
+        .iter()
+        .map(|style| (style.id.clone(), style.name.clone()))
+        .collect();
     // Key + rim, the same bearings the parts viewer lights its turntable with.
     // The editor used to carry one light shining straight down, which put every
     // vertical face of every part in flat shadow - fine for a ship seen from
@@ -211,6 +217,23 @@ pub(crate) fn setup_editor_scene(
                     skin_toggle_row(clad, skin),
                     observe(on_skin_toggle),
                 ));
+                // Under the toggle, and shown only while it is on, because it
+                // answers the question the toggle raises: the skin is on, and
+                // this is which of the shipped looks it wears. One row per
+                // style out of the MERGED content, so a mod's look is listed
+                // beside the base ones without the editor knowing any id.
+                rail.spawn((Name::new("Ship Look List"), StyleList, style_list_node()))
+                    .with_children(|list| {
+                        for (index, (id, name)) in looks.iter().enumerate() {
+                            list.spawn((
+                                Name::new(format!("Look: {name}")),
+                                // The first is what an unset style wears, so it
+                                // is the row that starts marked.
+                                style_row(id, name, index == 0, skin),
+                                observe(on_style_choice),
+                            ));
+                        }
+                    });
 
                 rail.spawn(separator());
                 rail.spawn((
@@ -304,6 +327,78 @@ pub(crate) fn on_skin_toggle(
     player_config.skin = !player_config.skin;
 }
 
+/// The look list's own column, so the rows read as one group under the toggle
+/// rather than as four more tools.
+fn style_list_node() -> Node {
+    Node {
+        width: percent(100),
+        flex_direction: FlexDirection::Column,
+        ..default()
+    }
+}
+
+/// Pick the look this row names.
+///
+/// Writes an explicit id rather than a list index: the build state travels out
+/// to the scenario and back, and an index into a catalog a mod can grow would
+/// not survive that trip meaning the same thing.
+pub(crate) fn on_style_choice(
+    activate: On<Activate>,
+    choices: Query<&StyleChoice>,
+    mut player_config: ResMut<PlayerSpaceshipConfig>,
+) {
+    let Ok(choice) = choices.get(activate.entity) else {
+        return;
+    };
+    player_config.style = Some(choice.0.clone());
+}
+
+/// Show the look list only while the ship is clad, and mark the row the build
+/// view is actually dressing plates in.
+///
+/// The FALLBACK is spelled here as well as in `crate::skin`, because the rail
+/// has to mark what is on screen: a ship that has picked no style wears the
+/// FIRST one, so that row is the one to highlight.
+///
+/// Compared before writing rather than gated on a change, for the same reason
+/// as [`sync_skin_toggle`]: the rows are spawned on entering the editor, which
+/// need not be a frame the style changed on.
+pub(crate) fn sync_style_list(
+    mut commands: Commands,
+    player_config: Res<PlayerSpaceshipConfig>,
+    styles: Res<GameStyles>,
+    mut lists: Query<&mut Node, With<StyleList>>,
+    rows: Query<(Entity, &StyleChoice, Has<Selected>)>,
+) {
+    let display = if player_config.skin {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    for mut node in &mut lists {
+        if node.display != display {
+            node.display = display;
+        }
+    }
+
+    let active = match player_config.style.as_deref() {
+        Some(id) => styles.get_style(id),
+        None => styles.first(),
+    }
+    .map(|style| style.id.as_str());
+    for (entity, choice, selected) in &rows {
+        match (active == Some(choice.0.as_str()), selected) {
+            (true, false) => {
+                commands.entity(entity).insert(Selected);
+            }
+            (false, true) => {
+                commands.entity(entity).remove::<Selected>();
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Repaint the cladding checkbox for the state it reports, IN PLACE.
 ///
 /// Painted from nova_ui's `checkbox_colors`/`checkbox_glyph` rather than by
@@ -354,7 +449,7 @@ pub(crate) fn sync_key_legend(
     let line = match *selection {
         SectionChoice::None => {
             "Tab parts   LMB rebind a section   Q pick its part   RMB+drag look   \
-             WASD/Space/Shift fly   Ship Skin clads the build   Esc pause"
+             WASD/Space/Shift fly   Ship Skin clads the build, Look dresses it   Esc pause"
         }
         SectionChoice::Section(_) => {
             "LMB place   wheel roll   Ctrl+wheel socket   R roll   F socket   Q pick   \
@@ -366,5 +461,104 @@ pub(crate) fn sync_key_legend(
         if text.0 != line {
             text.0 = line.to_string();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nova_ship::prelude::ShipStyleConfig;
+
+    use super::*;
+
+    fn style(id: &str) -> ShipStyleConfig {
+        ShipStyleConfig {
+            id: id.to_string(),
+            name: id.to_string(),
+            surfaces: vec![],
+            fixtures: vec![],
+        }
+    }
+
+    /// The rail as `sync_style_list` sees it: the list node and one row per
+    /// style, wired to the real observer so a press goes the way a click does.
+    fn app(clad: bool) -> App {
+        let mut app = App::new();
+        app.insert_resource(GameStyles(vec![style("first"), style("second")]));
+        app.insert_resource(PlayerSpaceshipConfig {
+            skin: clad,
+            ..default()
+        });
+        app.world_mut()
+            .spawn((StyleList, style_list_node()))
+            .with_children(|list| {
+                for id in ["first", "second"] {
+                    list.spawn((StyleChoice(id.to_string()), observe(on_style_choice)));
+                }
+            });
+        app.add_systems(Update, sync_style_list);
+        app
+    }
+
+    fn row(app: &mut App, id: &str) -> Entity {
+        app.world_mut()
+            .query::<(Entity, &StyleChoice)>()
+            .iter(app.world())
+            .find(|(_, choice)| choice.0 == id)
+            .map(|(entity, _)| entity)
+            .expect("the row exists")
+    }
+
+    fn marked(app: &mut App) -> Vec<String> {
+        app.world_mut()
+            .query_filtered::<&StyleChoice, With<Selected>>()
+            .iter(app.world())
+            .map(|choice| choice.0.clone())
+            .collect()
+    }
+
+    /// A ship that has picked no style wears the FIRST one, so that is the row
+    /// the rail marks. Marking nothing would say the build view is showing no
+    /// look, which is not what it is showing.
+    #[test]
+    fn an_unset_style_marks_the_first_look() {
+        let mut app = app(true);
+        app.update();
+        assert_eq!(marked(&mut app), vec!["first".to_string()]);
+    }
+
+    /// Pressing a row picks that look, and the mark follows it.
+    #[test]
+    fn picking_a_look_moves_the_mark_to_it() {
+        let mut app = app(true);
+        app.update();
+        let second = row(&mut app, "second");
+        app.world_mut().trigger(Activate { entity: second });
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<PlayerSpaceshipConfig>().style,
+            Some("second".to_string()),
+        );
+        assert_eq!(marked(&mut app), vec!["second".to_string()]);
+    }
+
+    /// A look is a property of a skin that is on. With the cladding off the
+    /// list is not a control the builder can act on, so it is not on screen.
+    #[test]
+    fn the_look_list_is_hidden_while_the_ship_is_bare() {
+        let mut app = app(false);
+        app.update();
+        let display = |app: &mut App| {
+            app.world_mut()
+                .query_filtered::<&Node, With<StyleList>>()
+                .single(app.world())
+                .expect("the list exists")
+                .display
+        };
+        assert_eq!(display(&mut app), Display::None);
+
+        app.world_mut().resource_mut::<PlayerSpaceshipConfig>().skin = true;
+        app.update();
+        assert_eq!(display(&mut app), Display::Flex);
     }
 }

@@ -75,6 +75,15 @@ decoration.
 | `roughness` | float | 0 (mirror) to 1 (matte) |
 | `metallic` | float | 0 (dielectric) to 1 (metal) |
 
+**`Top` is nearly the whole of what a camera sees.** Measured, by painting
+`Wall` a colour nothing else uses and shooting the `wfc_ships` row: two plates
+in a run press their walls together and neither is ever seen, so `Wall` comes
+back only at the skin's OUTER RIM and on the side of a plate climbing past a
+lower neighbour - roughly a twentieth of the hull. A dark wall under a pale top
+therefore does NOT draw a panel line at every plate boundary; it makes the
+silhouette read thick, like plate with depth. Panel lines are geometry, or they
+are the livery. Budget your effort accordingly.
+
 ### `fixtures`
 
 | field | type | default | meaning |
@@ -125,18 +134,24 @@ ship FALLS AWAY somewhere, and the last three say how many ways:
 ### Start from what a hull offers
 
 A GENERATED hull and a HAND-BUILT one offer almost opposite things. Measured, per
-ship:
+ship, on the three fixed seeds of the `wfc_ships` row and on a 7-9 part editor
+build:
 
 | subject | plates | flat | step | ridge | peak | bevel | brink | spur |
 |---|---|---|---|---|---|---|---|---|
-| generated (the `wfc_ships` row) | 132-162 | 6-22 | 18-22 | 0-4 | 0 | 10-14 | 48-66 | 34-42 |
-| hand-built (a 5-9 part editor ship) | 19-27 | 0 | 2-3 | 3-8 | 1-3 | 0 | 0 | 9-17 |
+| generated (the `wfc_ships` row) | 158-204 | 18-38 | 12-52 | 0-4 | 0 | 4-8 | 48-76 | 32-76 |
+| hand-built (a 7-9 part editor ship) | 22-27 | 0 | 2-3 | 0-5 | 1-4 | 0 | 0 | 14-20 |
 
 **A rule written for flat panels lands on almost nothing, and on a hand-built
 ship it lands on NOTHING AT ALL.** A small build is one cell wide nearly
 everywhere, so it has no flat plate, no bevel and no brink - only spurs, ridges
 and studs. No amount of `patch` rescues that: a floor over an empty set is still
 empty. Widen the `relief` list instead.
+
+**Read the SPREAD, not the middle.** Every bucket above swings by two or three
+times across three seeds of one generator, so a rule sized against one hull is
+not sized against the next. Tune against the logged tally below, on more than
+one subject.
 
 ### Priority: one piece per plate
 
@@ -262,5 +277,56 @@ and a clean one on the civilians. A style id nothing authored leaves the ship
 clad and BARE rather than falling back to another look - a missing mod is
 visible, not silently substituted.
 
-The base game ships `placeholder`, which is scaffolding for the authored kits
-rather than a look to build on.
+The base game ships four authored looks and one piece of scaffolding:
+
+| id | what it is |
+|---|---|
+| `industrial` | a working hull: exposed services, corrugation, radiators, safety-yellow paint on its edges |
+| `armoured` | flat plate, a belt down every straight edge, sensor blisters |
+| `civilian` | the racer's: pale satin paint, a cobalt livery rail, lit cabin windows, smooth fairings |
+| `salvage` | the raider's: mismatched patches, weld beads, a lashed drum, a whip antenna |
+| `placeholder` | scaffolding for the authored kits rather than a look to build on |
+
+A ship that names no style takes the FIRST the merged content offers, so the
+authored looks are listed before the scaffolding. The editor lists every merged
+style under its cladding toggle - a mod's look appears there beside the base
+ones with nothing to register - and the `wfc_ships` example cycles the same list
+with `L`, or takes `--style <id>`.
+
+### Drawing a CONTINUOUS line
+
+Decoration cannot span cells: every piece stands on one plate. A band that
+looks continuous is therefore a row of pieces, and it needs three things at
+once - `civilian_stripe` is the worked example.
+
+- The MODEL fills its cell along `+Z` (a raised budget in the recipe), so
+  neighbours butt together instead of leaving a gap. A piece is always centred
+  on its plate, so a full-cell piece still cannot spill onto a neighbour.
+- The RULE takes every eligible plate: `stride: 1` and `chance: 1.0`. A band
+  with every other cell missing is a dashed line.
+- `align: Run` turns each piece down the run, and `relief: [Brink]` is the run
+  worth following - the straight edge of a hull.
+
+**Do not try to cap the run's ends with `min_border`.** `border` is the smallest
+of the four in-plane walks, and a `Brink` has open space on one side, so a hull
+edge reads border 0 along its whole length: a body rule on `min_border: 1`
+matches nothing (`x0 of 0`) and the terminal takes the entire edge. `min_border`
+is a rule for `Flat` and for nothing else.
+
+### Reading as UNPLANNED with no randomness
+
+The scatter has no RNG in it, deliberately. `salvage` is the worked example of
+what that makes hardest: decoration that reads as unplanned. Four devices carry
+it, and none of them is jitter:
+
+- three patch pieces in three materials, each gated on a DIFFERENT structural
+  reading (`near_fitting`, `min_depth`, a `patch` floor), because a hash is
+  spatially incoherent and splitting one rule three ways by `chance` alone gives
+  an even speckle rather than regions;
+- two of those pieces authored long on OPPOSITE in-plane axes with both aligned
+  to the run, so neighbouring repairs cross at right angles while every piece
+  stays square to the grid;
+- every model authored OFF-CENTRE in its own footprint, since the scatter offers
+  no jitter and a centred piece repeated is a tile;
+- a weld bead built from four lumps of different size rather than from the
+  `ribs` primitive, because even ribbing reads as machined.

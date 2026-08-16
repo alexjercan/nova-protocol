@@ -1,0 +1,18 @@
+{
+  "_comment": "INDUSTRIAL: a corrugated panel, the kit's filler. One primitive and one material, because it lands more often than anything else and it is the piece that has to be cheap. Sized to very nearly fill its plate: a corrugation that leaves a bare border round itself reads as a small grille stuck on a big panel, and the whole point of it is that the PLATE is corrugated. Ribs run along +Z so `align: Run` combs a face the same way instead of leaving a patchwork.",
+  "materials": {
+    "industrial_steel": { "color": [0.105, 0.1, 0.092], "metallic": 0.45, "roughness": 0.72 }
+  },
+  "material": "industrial_steel",
+  "parts": [
+    {
+      "primitive": "ribs",
+      "size": [0.46, 0.02, 0.42],
+      "count": 7,
+      "rib_height": 0.05,
+      "rib_width": 0.045,
+      "across": "x",
+      "at": [0.0, 0.01, 0.0]
+    }
+  ]
+}

@@ -18,9 +18,44 @@ unrelated diff.
 
 ## What is here now
 
+Four authored KITS and the scaffolding. Each `<kit>_` prefix is worn by the
+style of that name.
+
+`armoured_*.glb` - a belt (`strake`) that runs the length of a hull's straight
+edges, a corner boss (`cap`), a flush access hatch, and a faceted sensor
+blister. Four pieces on purpose: the look is mostly PALETTE, and the geometry
+only says the two things a warship's hull says.
+
+`civilian_*.glb` - the racer's look, a ship built to be sold: a livery rail
+(`stripe`), a cabin window row (`windows`), a raked aero fin (`fin`), a smooth
+fairing over whatever a working ship would leave exposed (`fairing`), and a nav
+beacon (`beacon`). Two accent colours across the whole kit and nothing else:
+cobalt for paint, amber for anything lit.
+
+`industrial_*.glb` - seven pieces a fitter would have a part number for: a
+radiator bank, a conduit run, a corrugated panel, a louvred grille, an access
+hatch, a heat stack and a painted hazard band.
+
+`salvage_*.glb` - mismatched patches in three materials, a hand-run weld bead, a
+lashed drum, a kinked whip antenna and a tow cleat. Seven pieces, and the cap is
+deliberate: the look comes from where they land and what they are made of, never
+from how many of them there are.
+
 `placeholder_*.glb` are PLACEHOLDERS in garish magenta, shipped only to prove
-the pipeline runs end to end. They make no art decision and the authored kit
-replaces them (task `20260815-225748`, Phase B).
+the pipeline runs end to end. They make no art decision (task
+`20260815-225748`, Phase A).
+
+Two recipe habits the kits share, and both are answers to the same constraint -
+the scatter stands a piece at the CENTRE of its plate and offers no jitter:
+
+- A piece meant to draw a LINE raises its own footprint budget toward a whole
+  cell (`armoured_strake`, `civilian_stripe`, the industrial band and pipe, the
+  salvage patches), so consecutive plates of one run butt together instead of
+  photographing as a dashed row. A full-cell piece still cannot spill onto a
+  neighbour, because it is centred.
+- A piece meant to read as UNPLANNED is authored off-centre in its own footprint
+  (the whole salvage kit), because a centred piece repeated is a tile and there
+  is no jitter to break it.
 
 ## The frame a greeble is authored in
 

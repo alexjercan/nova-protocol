@@ -1,0 +1,109 @@
+{
+  "_comment": "SALVAGE kit: a hand-run weld seam - a bead down the straight edge of a hull with four lumps of DIFFERENT size on it, wandering either side of the line, and a doubler plate over one end. Deliberately NOT the `ribs` primitive: even ribbing reads as a machined surface, and the point here is a bead a person laid badly. Long axis Z and 0.92 of a cell long, so `align: Run` runs it down the edge and consecutive plates join into ONE unbroken bead rather than a dotted row. Its rule then stops the bead one cell short of each end of the run, so a seam ends mid-edge - a repair that ran out where the salvaged plate did, which is a story, where a dotted row is only noise.",
+  "materials": {
+    "weld": {
+      "color": [
+        0.07,
+        0.061,
+        0.05
+      ],
+      "roughness": 0.95,
+      "metallic": 0.05
+    },
+    "scrap_steel": {
+      "color": [
+        0.235,
+        0.255,
+        0.295
+      ],
+      "roughness": 0.72,
+      "metallic": 0.15
+    }
+  },
+  "material": "weld",
+  "budget": {
+    "footprint": 0.94,
+    "height": 0.5
+  },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [
+        0.17,
+        0.016,
+        0.13
+      ],
+      "at": [
+        0.05,
+        0.008,
+        -0.3
+      ],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.13,
+        0.03,
+        0.92
+      ],
+      "at": [
+        0.0,
+        0.015,
+        0.0
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.15,
+        0.05,
+        0.13
+      ],
+      "at": [
+        0.016,
+        0.025,
+        -0.32
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.125,
+        0.04,
+        0.1
+      ],
+      "at": [
+        -0.018,
+        0.02,
+        -0.05
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.165,
+        0.058,
+        0.15
+      ],
+      "at": [
+        0.01,
+        0.029,
+        0.2
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.115,
+        0.036,
+        0.085
+      ],
+      "at": [
+        -0.012,
+        0.018,
+        0.4
+      ]
+    }
+  ]
+}

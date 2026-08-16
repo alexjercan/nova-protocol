@@ -1,0 +1,26 @@
+{
+  "_comment": "ARMOURED kit: the corner boss, for the outer corners and spar tips a hull ends at. A truncated PYRAMID rather than a dome - four sides, hard edges, sloped so nothing catches a round square on. The taper is 4-sided and turned 45 degrees about Y so its square is axis-aligned with the plate rather than standing on a diagonal. The dark lip under it is the kit's one repeated idea: every armoured piece is a light body standing on a dark base, so a piece reads as bolted on rather than as a lump of the plate it sits on.",
+  "materials": {
+    "armour_rail": { "color": [0.045, 0.048, 0.055], "roughness": 0.68, "metallic": 0.15 },
+    "armour_shell": { "color": [0.145, 0.15, 0.158], "roughness": 0.75, "metallic": 0.05 }
+  },
+  "material": "armour_shell",
+  "budget": { "footprint": 0.5, "height": 0.14 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.3, 0.022, 0.3],
+      "at": [0.0, 0.011, 0.0],
+      "material": "armour_rail"
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.19,
+      "radius_top": 0.105,
+      "height": 0.075,
+      "sides": 4,
+      "rotate": [0.0, 45.0, 0.0],
+      "at": [0.0, 0.0595, 0.0]
+    }
+  ]
+}

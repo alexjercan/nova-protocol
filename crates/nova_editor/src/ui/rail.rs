@@ -6,10 +6,10 @@ use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
 use nova_ui::{
     prelude::{ThemedButton, UiSkin},
     theme,
-    widget::{badge, checkbox, BadgeKind},
+    widget::{badge, checkbox, list_row_colors, BadgeKind, ListRow},
 };
 
-use crate::config::SkinToggleCheckbox;
+use crate::config::{SkinToggleCheckbox, StyleChoice};
 
 /// A live category row. Uses `ThemedButton` so it gets the shared hover
 /// colouring, but carries no `ButtonValue`, so pressing one never touches
@@ -80,6 +80,47 @@ pub(crate) fn skin_toggle_row(on: bool, skin: UiSkin) -> impl Bundle {
             ),
             (SkinToggleCheckbox, checkbox(on, skin)),
         ],
+    )
+}
+
+/// One look in the list under the cladding toggle.
+///
+/// A `ListRow` and not a `themed_button`: the rows are a SELECTION over the
+/// merged style catalog, which is what a list row paints, and the shared
+/// reconciler then repaints this one from its own `Selected`/`Hovered` without
+/// the editor owning any colour.
+///
+/// Deliberately COMPACT - 22px against a tool button's 34. The rail is 150px
+/// wide on a 1024x768 window and the catalog is as long as the content merge
+/// makes it, so five looks at tool height push Play off the bottom of the
+/// screen. Measured, not guessed.
+pub(crate) fn style_row(id: &str, name: &str, selected: bool, skin: UiSkin) -> impl Bundle {
+    let (background, border) = list_row_colors(selected, false, skin);
+    (
+        ListRow,
+        StyleChoice(id.to_string()),
+        Button,
+        Hovered::default(),
+        Node {
+            width: percent(100),
+            min_height: px(22),
+            margin: UiRect::bottom(px(2)),
+            padding: UiRect::axes(px(10), px(2)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            align_items: AlignItems::Center,
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        BorderColor::all(border),
+        BackgroundColor(background),
+        children![(
+            Text::new(name.to_string()),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(theme::PHOSPHOR),
+        )],
     )
 }
 

@@ -1,0 +1,43 @@
+{
+  "_comment": "INDUSTRIAL: a heat stack - a base flange, a drum, a painted collar and a dark cowl. The kit's one tall piece, so it stands on the high ground (ridges, tips, outer corners) and breaks the silhouette. The yellow collar is the same paint as the hazard band, which is what makes the accent read as a system rather than as a colour.",
+  "materials": {
+    "industrial_steel": { "color": [0.105, 0.1, 0.092], "metallic": 0.45, "roughness": 0.72 },
+    "industrial_shadow": { "color": [0.018, 0.019, 0.022], "metallic": 0.1, "roughness": 0.9 },
+    "industrial_hazard": { "color": [0.95, 0.52, 0.02], "metallic": 0.0, "roughness": 0.55 }
+  },
+  "material": "industrial_steel",
+  "parts": [
+    {
+      "primitive": "disc",
+      "radius": 0.09,
+      "thickness": 0.02,
+      "sides": 8,
+      "at": [0.0, 0.01, 0.0],
+      "material": "industrial_shadow"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.055,
+      "height": 0.22,
+      "sides": 8,
+      "at": [0.0, 0.13, 0.0]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.066,
+      "height": 0.035,
+      "sides": 8,
+      "at": [0.0, 0.2, 0.0],
+      "material": "industrial_hazard"
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.075,
+      "radius_top": 0.05,
+      "height": 0.04,
+      "sides": 8,
+      "at": [0.0, 0.26, 0.0],
+      "material": "industrial_shadow"
+    }
+  ]
+}

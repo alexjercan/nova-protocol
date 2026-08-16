@@ -1,0 +1,94 @@
+{
+  "_comment": "SALVAGE kit: the strip patch, and the loudest thing in the kit - a length of somebody else's hull in a faded livery green, cut down and bolted over the damage round a fitting. Its long axis is Z, so `align: Run` lays it DOWN the run: paired with the plate, which lies across it, two neighbouring repairs cross each other while both stay square to the grid. Offset in +X so it overhangs one side of its cell, with a second smaller sheet lapped over it off the other way - a repair on top of a repair. Footprint raised to 0.86 for the same reason the plate's is: two of these on one run join into a continuous strake.",
+  "materials": {
+    "livery_green": {
+      "color": [
+        0.06,
+        0.2,
+        0.155
+      ],
+      "roughness": 0.85,
+      "metallic": 0.1
+    },
+    "scrap_steel": {
+      "color": [
+        0.235,
+        0.255,
+        0.295
+      ],
+      "roughness": 0.72,
+      "metallic": 0.15
+    },
+    "weld": {
+      "color": [
+        0.07,
+        0.061,
+        0.05
+      ],
+      "roughness": 0.95,
+      "metallic": 0.05
+    }
+  },
+  "material": "livery_green",
+  "budget": {
+    "footprint": 0.86,
+    "height": 0.5
+  },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [
+        0.44,
+        0.028,
+        0.84
+      ],
+      "at": [
+        0.08,
+        0.014,
+        0.0
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.28,
+        0.024,
+        0.42
+      ],
+      "at": [
+        -0.01,
+        0.04,
+        -0.14
+      ],
+      "material": "scrap_steel"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.45,
+        0.016,
+        0.05
+      ],
+      "at": [
+        0.08,
+        0.036,
+        0.36
+      ],
+      "material": "weld"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.05,
+        0.016,
+        0.4
+      ],
+      "at": [
+        -0.1,
+        0.036,
+        0.1
+      ],
+      "material": "weld"
+    }
+  ]
+}

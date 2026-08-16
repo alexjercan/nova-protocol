@@ -258,6 +258,20 @@ tagged **(breaking)**.
   same ship always wears the same greebles, the build view shows them live while
   a hull is dragged without anything flickering, and a reloaded ship comes back
   identical.
+- The base game ships FOUR authored looks, each a point of view about what a
+  hull is rather than a palette swap: `industrial` runs its services on the
+  outside with corrugation, radiators and safety-yellow paint on every edge;
+  `armoured` spends nearly its whole kit on an unbroken belt down the straight
+  edges, with corner bosses, flush hatches and one sensor blister; `civilian` is
+  the racer's, pale satin paint with a single cobalt livery rail, lit cabin
+  windows and smooth fairings; `salvage` is the raider's, mismatched patches in
+  three materials, hand-run weld beads, lashed drums and whip antennae. 23
+  greebles between them, all generated from committed recipes. `placeholder`
+  stays as scaffolding, last in the list.
+- A ship picks its look in the EDITOR: the cladding toggle now has a list of
+  every style the content merge loaded under it, so a mod's look is listed
+  beside the base ones. `wfc_ships` cycles them on one row with `L`, or takes
+  `--style <id>`, and names the current one in its readout.
 
 ### Scenarios & Objectives
 

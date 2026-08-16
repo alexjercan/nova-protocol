@@ -50,11 +50,46 @@ pub struct BaseContentAssets {
     /// The thruster engine hum.
     pub thruster_loop_sound: AssetRef<AudioSource>,
     /// The decoration models a skin style scatters, generated from the recipes
-    /// in `scripts/greeble-recipes/`. Placeholders until Phase B's kits land.
+    /// in `scripts/greeble-recipes/`. The `greeble_*` four with no kit in their
+    /// name are the scaffolding style's; the rest are the four authored kits.
     pub greeble_blister: AssetRef<WorldAsset>,
     pub greeble_block: AssetRef<WorldAsset>,
     pub greeble_mast: AssetRef<WorldAsset>,
     pub greeble_vent: AssetRef<WorldAsset>,
+    /// The ARMOURED kit: a belt down the straight edges, a boss on the outer
+    /// corners, a flush hatch on the flat panels and the one blister that
+    /// breaks the plane.
+    pub greeble_armoured_cap: AssetRef<WorldAsset>,
+    pub greeble_armoured_hatch: AssetRef<WorldAsset>,
+    pub greeble_armoured_sensor: AssetRef<WorldAsset>,
+    pub greeble_armoured_strake: AssetRef<WorldAsset>,
+    /// The CIVILIAN kit, which the `civilian` style scatters: a livery rail, a
+    /// cabin window row, a raked fin, a fairing, a nav beacon.
+    pub greeble_civilian_beacon: AssetRef<WorldAsset>,
+    pub greeble_civilian_fairing: AssetRef<WorldAsset>,
+    pub greeble_civilian_fin: AssetRef<WorldAsset>,
+    pub greeble_civilian_stripe: AssetRef<WorldAsset>,
+    pub greeble_civilian_windows: AssetRef<WorldAsset>,
+    /// The INDUSTRIAL kit: exposed services, ribbing, radiators and paint. Seven
+    /// pieces, one per rule of the `industrial` style.
+    pub greeble_industrial_duct: AssetRef<WorldAsset>,
+    pub greeble_industrial_hatch: AssetRef<WorldAsset>,
+    pub greeble_industrial_hazard_band: AssetRef<WorldAsset>,
+    pub greeble_industrial_louvre: AssetRef<WorldAsset>,
+    pub greeble_industrial_radiator: AssetRef<WorldAsset>,
+    pub greeble_industrial_ribbing: AssetRef<WorldAsset>,
+    pub greeble_industrial_stack: AssetRef<WorldAsset>,
+    /// The SALVAGE kit: mismatched patches, a hand-run weld bead, lashed
+    /// tankage, a kinked whip and a tow cleat. Seven pieces, and the cap is
+    /// the point - a hull reads as repaired because of where the pieces land
+    /// and what they are made of, never because there are more of them.
+    pub greeble_salvage_drum: AssetRef<WorldAsset>,
+    pub greeble_salvage_hook: AssetRef<WorldAsset>,
+    pub greeble_salvage_patch_plate: AssetRef<WorldAsset>,
+    pub greeble_salvage_patch_scab: AssetRef<WorldAsset>,
+    pub greeble_salvage_patch_strip: AssetRef<WorldAsset>,
+    pub greeble_salvage_weld_seam: AssetRef<WorldAsset>,
+    pub greeble_salvage_whip: AssetRef<WorldAsset>,
 }
 
 impl BaseContentAssets {
@@ -95,6 +130,75 @@ impl BaseContentAssets {
             ),
             greeble_vent: AssetRef::from(
                 "self://gltf/greebles/placeholder_vent.glb#Scene0".to_string(),
+            ),
+            greeble_armoured_cap: AssetRef::from(
+                "self://gltf/greebles/armoured_cap.glb#Scene0".to_string(),
+            ),
+            greeble_armoured_hatch: AssetRef::from(
+                "self://gltf/greebles/armoured_hatch.glb#Scene0".to_string(),
+            ),
+            greeble_armoured_sensor: AssetRef::from(
+                "self://gltf/greebles/armoured_sensor.glb#Scene0".to_string(),
+            ),
+            greeble_armoured_strake: AssetRef::from(
+                "self://gltf/greebles/armoured_strake.glb#Scene0".to_string(),
+            ),
+            greeble_civilian_beacon: AssetRef::from(
+                "self://gltf/greebles/civilian_beacon.glb#Scene0".to_string(),
+            ),
+            greeble_civilian_fairing: AssetRef::from(
+                "self://gltf/greebles/civilian_fairing.glb#Scene0".to_string(),
+            ),
+            greeble_civilian_fin: AssetRef::from(
+                "self://gltf/greebles/civilian_fin.glb#Scene0".to_string(),
+            ),
+            greeble_civilian_stripe: AssetRef::from(
+                "self://gltf/greebles/civilian_stripe.glb#Scene0".to_string(),
+            ),
+            greeble_civilian_windows: AssetRef::from(
+                "self://gltf/greebles/civilian_windows.glb#Scene0".to_string(),
+            ),
+            greeble_industrial_duct: AssetRef::from(
+                "self://gltf/greebles/industrial_duct.glb#Scene0".to_string(),
+            ),
+            greeble_industrial_hatch: AssetRef::from(
+                "self://gltf/greebles/industrial_hatch.glb#Scene0".to_string(),
+            ),
+            greeble_industrial_hazard_band: AssetRef::from(
+                "self://gltf/greebles/industrial_hazard_band.glb#Scene0".to_string(),
+            ),
+            greeble_industrial_louvre: AssetRef::from(
+                "self://gltf/greebles/industrial_louvre.glb#Scene0".to_string(),
+            ),
+            greeble_industrial_radiator: AssetRef::from(
+                "self://gltf/greebles/industrial_radiator.glb#Scene0".to_string(),
+            ),
+            greeble_industrial_ribbing: AssetRef::from(
+                "self://gltf/greebles/industrial_ribbing.glb#Scene0".to_string(),
+            ),
+            greeble_industrial_stack: AssetRef::from(
+                "self://gltf/greebles/industrial_stack.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_drum: AssetRef::from(
+                "self://gltf/greebles/salvage_drum.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_hook: AssetRef::from(
+                "self://gltf/greebles/salvage_hook.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_patch_plate: AssetRef::from(
+                "self://gltf/greebles/salvage_patch_plate.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_patch_scab: AssetRef::from(
+                "self://gltf/greebles/salvage_patch_scab.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_patch_strip: AssetRef::from(
+                "self://gltf/greebles/salvage_patch_strip.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_weld_seam: AssetRef::from(
+                "self://gltf/greebles/salvage_weld_seam.glb#Scene0".to_string(),
+            ),
+            greeble_salvage_whip: AssetRef::from(
+                "self://gltf/greebles/salvage_whip.glb#Scene0".to_string(),
             ),
         }
     }

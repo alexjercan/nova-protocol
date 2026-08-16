@@ -44,7 +44,7 @@ use placement::{
 };
 use scenario::setup_scenario;
 use skin::sync_editor_skin;
-use ui::{setup_editor_scene, sync_key_legend, sync_skin_toggle};
+use ui::{setup_editor_scene, sync_key_legend, sync_skin_toggle, sync_style_list};
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`]
 /// into scope.
@@ -181,6 +181,7 @@ fn editor_plugin(app: &mut App) {
             sync_tool_selection,
             sync_key_legend,
             sync_skin_toggle,
+            sync_style_list,
             pick_section_under_pointer,
             cycle_placement_pose,
             update_placement_preview,
