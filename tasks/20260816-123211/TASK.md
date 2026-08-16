@@ -1,8 +1,8 @@
 # Let two sections share a keybind in the editor
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 63
-- TAGS: v0.11.0,editor,input,bug
+- TAGS: v0.11.0, editor, input, bug
 
 ## The bug
 
