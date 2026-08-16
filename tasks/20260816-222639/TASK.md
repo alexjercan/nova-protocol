@@ -1,6 +1,6 @@
 # Greeble batch: industrial, the builders
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 57
 - TAGS: v0.11.0,art,skin,content
 
@@ -37,3 +37,20 @@ cap-ordering assertion - the coordinator re-pins it after all batches land.
 - greeble_catalog shows all 7 with correct labels and materials
 - block_bench per-style render shows them placed sanely (no confetti)
 - style tests pass with the new cap
+
+## Closure
+
+Landed 2026-08-16, lane batch-industrial. All seven pieces shipped; kit is
+14, pinned. Honest read: EXPOSURE, not confetti - bands trace edges, cranes
+lean overboard from the Brink stubs the band refuses, racks and conduits
+cluster on decks, sockets row on flanks, stencils dress the thin shapes
+(7-13 each).
+
+For the tuning pass:
+- block_bench exercises NO industrial pocket rule (near_fitting 0 of 0
+  bench-wide at stride 2); winch and floodlight are proven as objects in the
+  catalog but never placed by this roster - the civilian lane's stride-1
+  fix is the known cure
+- the styles.rs header prose "Seven rules opt out with ScatterSeat::Any" is
+  stale across the batches; coordinator refreshes it with the ordering
+  re-pin
