@@ -1,6 +1,6 @@
 # Greeble batch: civilian, normal people
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.11.0,art,skin,content
 
@@ -37,3 +37,21 @@ cap-ordering assertion - the coordinator re-pins it after all batches land.
 - block_bench civilian render: thin subjects no longer bare; the row reads
   FINISHED, not cluttered
 - style tests pass with the new cap
+
+## Closure
+
+Landed 2026-08-16, lane batch-civilian. All seven pieces shipped; kit is 12,
+pinned with the raise reasoning plus a nothing-above-the-stripe-touches-a-
+Brink guard. Honest read: the band runs unbroken, ambers give the passenger
+read, registry pinstripes dress the thin subjects (x7 on pontoons and boom,
+no bare thin subjects), hulls stay pale and lengthwise - FINISHED.
+
+Measured finding worth spreading: stride-2 rules on 1-2 cell lanes are
+systematically starved (lane can sit wholly off the global lattice parity;
+the patch floor only rescues lattice cells). Fixed here by stride 1 +
+share/floor thinning; industrial_ribbing (x4 of 43) and other kits carry the
+same trap - tuning-pass item.
+
+For the tuning pass: door x0 on 4 of 8 subjects (the window row eats flanks
+first); near_fitting 0 of 0 bench-wide for seat-gated pocket rules (known
+from 20260816-203837; armoured stripes are the seat-Any counterexample).
