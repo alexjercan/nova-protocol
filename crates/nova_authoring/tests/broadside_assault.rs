@@ -182,15 +182,6 @@ fn outcome_kind(app: &App) -> Option<ScenarioOutcomeKind> {
         .map(|outcome| outcome.outcome)
 }
 
-fn outcome_message(app: &App) -> String {
-    app.world()
-        .resource::<CurrentOutcome>()
-        .0
-        .as_ref()
-        .and_then(|outcome| outcome.message.clone())
-        .unwrap_or_default()
-}
-
 #[test]
 fn breaking_both_corvettes_declares_the_chapter_checkpoint() {
     let scenario = scenario_from(BROADSIDE_RON);
