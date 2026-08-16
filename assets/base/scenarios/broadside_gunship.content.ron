@@ -276,7 +276,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargob"),
+                            hull: Prototype("cargob_lance"),
                             controller: AI(()),
                         )),
                     )),

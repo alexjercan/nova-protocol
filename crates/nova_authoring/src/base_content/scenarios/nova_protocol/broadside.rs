@@ -219,6 +219,17 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
 /// The gang's gunship: the capital the slice exists for. Two PDC turrets,
 /// two torpedo tubes, an armored spine of reinforced hulls. No leash - it
 /// came here to end the fight, and it chases.
+///
+/// The LANCE cargo-B, and that is this chapter's difficulty setting. This is
+/// the first torpedo the campaign throws at the player (shakedown and part one
+/// field none), and the player meets it with two hand-aimed PDCs and no
+/// autonomous point defense at all. Measured against one PERFECT defender
+/// across the shipped 150 u point-defense envelope, a Serpent costs ~370 rounds
+/// to stop and is only killed ~40 u out - barely outside its own 30 u blast
+/// radius, with nothing left over for a human's aim - while a Lance costs ~120
+/// and dies ~115 u out. The gunship still opens with twelve of them, so
+/// screening is still the fight; it is now a fight whose answer exists. The
+/// Serpent is what `final_tally` escalates to.
 fn gunship() -> ScenarioObjectConfig {
     // The Rust Tally is the cargob (moved into base from the craft_cargoB
     // example mod): a 42-cube capital with two PDC turrets, two torpedo tubes
@@ -234,7 +245,7 @@ fn gunship() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             allegiance: None,
-            hull: ships::hull(ships::CARGOB_SHIP_ID),
+            hull: ships::hull(ships::CARGOB_LANCE_SHIP_ID),
             ..Default::default()
         }),
     }

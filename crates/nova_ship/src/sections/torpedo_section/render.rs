@@ -124,7 +124,10 @@ pub(super) fn insert_torpedo_controller_render(
     default_render: Res<DefaultTorpedoRender>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     q_controller: Query<&ChildOf, With<TorpedoControllerMarker>>,
-    q_torpedo: Query<&TorpedoProjectileRenderMesh, With<TorpedoProjectileMarker>>,
+    q_torpedo: Query<
+        (&TorpedoProjectileRenderMesh, Option<&TorpedoType>),
+        With<TorpedoProjectileMarker>,
+    >,
 ) {
     let entity = add.entity;
     trace!("insert_torpedo_controller_render: entity {:?}", entity);
@@ -137,7 +140,7 @@ pub(super) fn insert_torpedo_controller_render(
         return;
     };
 
-    let Ok(render_mesh) = q_torpedo.get(*torpedo) else {
+    let Ok((render_mesh, torpedo_type)) = q_torpedo.get(*torpedo) else {
         error!(
             "insert_torpedo_controller_render: entity {:?} not found in q_torpedo",
             *torpedo
@@ -150,9 +153,18 @@ pub(super) fn insert_torpedo_controller_render(
         return;
     }
 
+    // The type's tint, so two ordnance types read apart in the frame BEFORE
+    // their flight paths have had time to diverge. The warhead's material is
+    // already built per projectile (`SectionDamageTint` clones it per section
+    // anyway), so a per-type colour costs nothing the shared MESH handle above
+    // was protecting. A torpedo spawned with no type - a bare test fixture -
+    // keeps the old neutral grey.
+    let tint = torpedo_type
+        .map(|torpedo_type| torpedo_type.tint)
+        .unwrap_or(Color::srgb(0.8, 0.8, 0.8));
     commands.entity(entity).insert((
         Mesh3d(default_render.mesh.clone()),
-        MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
+        MeshMaterial3d(materials.add(tint)),
     ));
 }
 
@@ -701,6 +713,58 @@ mod tests {
             handles.iter().all(|h| *h == handles[0]),
             "every torpedo shares one body mesh handle"
         );
+    }
+
+    /// Two torpedo types must be tellable apart IN THE AIR, and the body colour
+    /// is the half of that a player reads before the flight path has drawn
+    /// itself. The mesh stays shared (the test above); only the material is per
+    /// projectile, which it already was.
+    #[test]
+    fn a_torpedo_flies_in_its_own_types_colour() {
+        use bevy::asset::AssetPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.init_resource::<DefaultTorpedoRender>();
+        app.add_observer(insert_torpedo_controller_render);
+        app.update();
+
+        let flown_in = |app: &mut App, tint: Color| {
+            let torpedo = app
+                .world_mut()
+                .spawn((
+                    TorpedoProjectileMarker,
+                    TorpedoProjectileRenderMesh(None),
+                    TorpedoType {
+                        name: "Test".to_string(),
+                        tint,
+                    },
+                ))
+                .id();
+            let controller = app
+                .world_mut()
+                .spawn((TorpedoControllerMarker, ChildOf(torpedo)))
+                .id();
+            app.update();
+            let handle = app
+                .world()
+                .get::<MeshMaterial3d<StandardMaterial>>(controller)
+                .expect("body material")
+                .0
+                .clone();
+            app.world()
+                .resource::<Assets<StandardMaterial>>()
+                .get(&handle)
+                .expect("material")
+                .base_color
+        };
+
+        let lance = Color::srgb(0.7, 0.78, 0.86);
+        let serpent = Color::srgb(0.95, 0.45, 0.1);
+        assert_eq!(flown_in(&mut app, lance), lance);
+        assert_eq!(flown_in(&mut app, serpent), serpent);
     }
 
     /// The torpedo bay reads its `render_mesh_transform` STRAIGHT OFF THE CONFIG

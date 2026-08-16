@@ -29,7 +29,13 @@ A gun is a **short-range** weapon. A round is not tracked forever: it expires af
 
 A torpedo homes on the combat lock with **proportional-navigation** guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It detonates on a proximity fuze and deals **blast (area) damage** that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.
 
-Once armed, a torpedo runs in on a **terminal weave**: a slow corkscrew laid over the guidance solution rather than instead of it. Point defense fires on a lead solution - where the torpedo will be when the round gets there - and a weaving torpedo is never quite there, so the defender spends several times the ammunition on the same intercept. Evasion is not free: a corkscrew is a longer path, so a weaving torpedo also spends longer inside the guns' reach. The weave fades out on the final approach, and the torpedo arrives dead on the aim point - which is also the defender's cleanest shot at it.
+A bay does not just launch "a torpedo" - it launches a **torpedo type**, and a ship's tubes are loaded with one before the fight starts. Two types fly in the base game, and they carry the same warhead, the same rack and the same blast. What differs is how they run in, and each has its own colour in flight so you can see which one is coming.
+
+**Serpent** - the assault torpedo. Once armed it runs in on a **terminal weave**: a slow corkscrew laid over the guidance solution rather than instead of it. Point defense fires on a lead solution - where the torpedo will be when the round gets there - and a weaving torpedo is never quite there, so the defender spends roughly three times the ammunition on the same intercept and only kills it on the doorstep. The weave fades out on the final approach, and the torpedo arrives dead on the aim point - which is also the defender's cleanest shot at it. It pays for that with **speed**: the Serpent cruises slower, so it takes noticeably longer to arrive and gains ground on a fleeing target far more slowly.
+
+**Lance** - the bombardment torpedo. No weave at all: the bare intercept, flown straight, and the faster cruise of the two. It is the cheaper one to shoot down and does not pretend otherwise, which is exactly why it is what you fire at something that cannot answer: it gets there sooner, and against a ship running away it closes half again as fast as a Serpent. A defender meeting Lances is a defender whose point defense works.
+
+Which type is in the tubes is the difference between a salvo that costs a defender a magazine and one that costs it four. The campaign uses that on purpose: the first gunship that fires torpedoes at you fires Lances, and the flagship at the end fires Serpents.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-combat-torpedo.png -->

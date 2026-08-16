@@ -101,7 +101,10 @@ lint reports it as an error.
 
 Reach for a second ship id instead when the difference is what the hull IS - the
 base game ships `cargoa` and `cargoa_raider` as separate hulls because thinner
-plating and scavenger-grade guns are a different ship to fight, not a tweak.
+plating and scavenger-grade guns are a different ship to fight, not a tweak. It
+ships `cargob` and `cargob_lance` for the same reason: which torpedo TYPE the
+pods load decides whether a defender's point defense can answer the salvo at
+all, and that is the ship, not a tweak to it.
 
 ## One-off hulls
 
@@ -144,6 +147,7 @@ second scenario would spawn belongs in the catalog.
 | id | what it is |
 |---|---|
 | `racer` | the unarmed Racer yacht - fast, expensive, the civilian hull the campaign protects |
-| `cargob` | the CargoB hauler - two torpedo pods, two PDC mounts, the capital silhouette |
+| `cargob` | the CargoB hauler - two torpedo pods, two PDC mounts, the capital silhouette. Its pods load weaving **Serpent** torpedoes |
+| `cargob_lance` | the same hauler loading straight-running **Lance** torpedoes: the same guns, hull and rack, but faster ordnance point defense can answer |
 | `cargoa` | the CargoA corvette at player grade - the armed hauler the player flies |
 | `cargoa_raider` | the same corvette at scavenger grade: thinner plating, light turrets, a softer flight computer |

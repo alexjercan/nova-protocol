@@ -248,6 +248,12 @@ fn picket(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
 
 /// The Final Tally: the gang's flagship - the cargob capital at full grade
 /// (two PDC turrets, two torpedo tubes), no leash: it casts off to end it.
+///
+/// The SERPENT cargo-B, against the Lances the chapter-two gunship opened with.
+/// That is the escalation, and it costs the fight nothing else: the same hull,
+/// the same twelve-torpedo alpha strike, the same warhead - flown so a lead
+/// solution cannot hold it. The player has had two chapters of screening the
+/// straight ones to earn it.
 fn flagship() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {

@@ -180,7 +180,10 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
                     torpedo.blast_damage, torpedo.blast_radius
                 ),
             ),
-            ("speed".to_string(), format!("{:.0} u/s", torpedo.max_speed)),
+            (
+                "speed".to_string(),
+                format!("{:.0} u/s", torpedo.torpedo_type.max_speed),
+            ),
             (
                 "ammo".to_string(),
                 torpedo

@@ -72,13 +72,30 @@ further pass.
 An armed torpedo now flies a TERMINAL WEAVE. It corkscrews about 25 degrees off
 its guidance solution until the final approach, which breaks the lead solution
 point defense fires on. The weave fades to nothing at the proximity fuze, so a
-torpedo still hits what it aims at. It is authorable per bay through
-`weave_angle` and `weave_rate`; `0.0` flies the bare intercept as before.
+torpedo still hits what it aims at.
 
 Measured against one stock PDC across the 150 u point-defense envelope, a
 weaving torpedo costs about 3x the rounds to stop - 116 rounds became 369 - and
 dies 39 u from its target instead of 114 u out. Those two numbers drive the
 rest of the torpedo balance in this release.
+
+And they are now a CHOICE, because a bay loads a torpedo TYPE rather than a
+loose pair of weave numbers. Two ship: the weaving **Serpent** and the
+straight-running **Lance**. Same tube, same warhead, same blast, same rack -
+only the run-in differs, and each flies in its own colour so you can see which
+one is inbound.
+
+Evasion is not free, and it is not free by construction. The Serpent cruises at
+32 u/s against the Lance's 35, so it arrives about 7% later over a long run and
+closes on a fleeing ship at 4.1 u/s where a Lance manages 6.3. That is the whole
+trade: the Lance is the cheaper one to shoot down and does not pretend
+otherwise, but it gets there first and it catches things that run. A defender
+meeting Lances is a defender whose point defense works.
+
+The campaign uses that as its difficulty curve - the chapter-two gunship, your
+first torpedo fight anywhere in the story, throws Lances, and the Final Tally
+flagship escalates to Serpents. A mod authors its own type the same way, name,
+colour and cruise included.
 
 Torpedo ordnance also stops dying to one bullet. The default `projectile_health`
 goes 1.0 -> 10.0, which is above the hardest single round a stock PDC can land

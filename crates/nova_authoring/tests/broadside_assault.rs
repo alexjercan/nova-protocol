@@ -683,14 +683,39 @@ fn the_gunship_keeps_its_torpedo_tubes() {
         panic!("gunship is a spaceship");
     };
     let catalog = nova_authoring::generation::build_section_catalog();
-    let tubes = ship_sections(ship)
+    let tubes: Vec<_> = ship_sections(ship)
         .iter()
-        .filter(|s| matches!(section_kind(s, &catalog), Some(SectionKind::Torpedo(_))))
-        .count();
+        .filter_map(|s| match section_kind(s, &catalog) {
+            Some(SectionKind::Torpedo(bay)) => Some(bay),
+            _ => None,
+        })
+        .collect();
     assert!(
-        tubes >= 2,
-        "the gunship fields its torpedo tubes (got {tubes})"
+        tubes.len() >= 2,
+        "the gunship fields its torpedo tubes (got {})",
+        tubes.len()
     );
+
+    // And they are LANCES. This is the campaign's first torpedo of any kind
+    // (shakedown and part one field none), and the player meets it with two
+    // hand-aimed PDCs and no autonomous point defense at all. Straight-running
+    // ordnance is exactly what a lead solution solves: measured against one
+    // perfect defender over the shipped 150 u envelope, a Lance costs ~120
+    // rounds and dies ~115 u out, where the Serpent costs ~370 and is only
+    // killed ~40 u out - just outside its own 30 u blast radius, with nothing
+    // spare for a human's aim. The escalation to Serpents is `final_tally`'s.
+    //
+    // Read through the resolved HULL, so this pins what the gunship actually
+    // flies rather than which ship id the scenario happens to name.
+    for bay in &tubes {
+        assert!(
+            bay.torpedo_type.weave_angle == 0.0,
+            "the first torpedo the campaign shows the player must be the \
+             straight-running type, got '{}' at {} rad of weave",
+            bay.torpedo_type.name,
+            bay.torpedo_type.weave_angle
+        );
+    }
 }
 
 /// A scenario absent from base.bundle.ron is dead data the game never loads

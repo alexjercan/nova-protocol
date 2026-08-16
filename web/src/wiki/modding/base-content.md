@@ -39,7 +39,8 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 | `light_turret_section` | Turret | Light Turret Section | 60 | Kinetic 3.825/hit at 25 rps, ammo 150 |
 | `pdc_kinetic_turret_section` | Turret | PDC Turret (Kinetic) | 130 | the better turret's gun on a 0.5 mount box; fits any hull face. Kinetic 4.0/hit at 100 rps, ammo 500 |
 | `pdc_pierce_turret_section` | Turret | PDC Turret (Pierce) | 130 | the same gun loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through |
-| `torpedo_section` | Torpedo | Torpedo Bay Section | 100 | blast 750 dmg / 30 u, ordnance 10 hp, ammo 6 regrowing +1 per 10 s |
+| `torpedo_section` | Torpedo | Torpedo Bay (Serpent) | 100 | blast 750 dmg / 30 u, ordnance 10 hp, ammo 6 regrowing +1 per 10 s; loads the WEAVING Serpent - 32 u/s, ~390 PDC rounds an intercept, killed ~40 u out |
+| `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same bay and warhead loading the straight-running Lance: no weave, 35 u/s, ~116 PDC rounds an intercept, killed ~114 u out |
 | `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; scene dressing, hidden in the editor |
 
 ### Cladding (not a prototype)
@@ -93,6 +94,7 @@ Kinetic and a Pierce loadout.
 | Racer | `turret_port_light`, `turret_starboard_light` | Turret | 60 |
 | CargoB | `engine_port`, `engine_starboard` | Thruster | 70 |
 | CargoB | `pod_port`, `pod_starboard` | Torpedo | 350 |
+| CargoB | `pod_port_lance`, `pod_starboard_lance` | Torpedo | 350 |
 | CargoB | `nose` | Hull | 180 |
 | CargoB | `tail` | Hull | 150 |
 | CargoB | `fuselage` | Controller | 300 |
@@ -115,6 +117,14 @@ gunship, and the racer an unarmed civilian (the yacht the story protects).
 The `racer_turret_*` prototypes stay in the catalog for mods that arm the
 racer themselves (the ledger campaign does), but no shipped racer mounts
 them.
+
+The cargob's pods come in two: the base id loads the weaving Serpent, and the
+`_lance` twin loads the straight-running Lance, exactly as the `_light` turret
+suffix names a weaker gun. Nothing else about the pod changes. A ship does not
+mix them - the two loads are two catalog SHIPS, `cargob` and `cargob_lance`
+(see [Ships](../ships/)) - and the campaign flies both: the chapter-two gunship
+takes Lances so a player's first torpedo fight is one point defense can answer,
+and the Final Tally flagship takes Serpents.
 
 ## Scenario ids
 

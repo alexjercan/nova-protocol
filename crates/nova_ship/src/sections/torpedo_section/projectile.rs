@@ -833,8 +833,12 @@ mod tests {
             |rel_pos, tv, v| {
                 let steer = pn_steer_direction(rel_pos, tv, v, 3.0);
                 let faded = angle * weave_fade(rel_pos.length(), 30.0);
-                let (command, next) =
-                    weave_steer_direction(steer, offset.get(), faded, default_weave_rate() * dt);
+                let (command, next) = weave_steer_direction(
+                    steer,
+                    offset.get(),
+                    faded,
+                    TorpedoTypeConfig::default().weave_rate * dt,
+                );
                 offset.set(next);
                 command
             },
@@ -876,8 +880,12 @@ mod tests {
         for step in 0..64 {
             // Swing the command around as a closing torpedo's would.
             let steer = Quat::from_rotation_y(step as f32 * 0.02) * Vec3::NEG_Z;
-            let (command, next) =
-                weave_steer_direction(steer, offset, 0.44, default_weave_rate() / 30.0);
+            let (command, next) = weave_steer_direction(
+                steer,
+                offset,
+                0.44,
+                TorpedoTypeConfig::default().weave_rate / 30.0,
+            );
             offset = next;
             assert!(offset.is_normalized(), "the tilt direction stays unit");
             assert!(
@@ -1043,7 +1051,17 @@ mod point_defense_cost_tests {
 
     /// One torpedo runs in from [`ENGAGE_RANGE`] at cruise against one mount at
     /// the origin. `weave_angle` of zero flies the bare intercept.
-    fn defend(weave_angle: f32, weave_rate: f32) -> DefenseRun {
+    ///
+    /// `max_speed` is a parameter because the two shipped types no longer share
+    /// one: the evasive type buys its evasion with a lower cruise cap, and a
+    /// rig that assumed 35 everywhere would score it as the old, faster round.
+    fn defend(torpedo_type: &TorpedoTypeConfig) -> DefenseRun {
+        let TorpedoTypeConfig {
+            max_speed,
+            weave_angle,
+            weave_rate,
+            ..
+        } = *torpedo_type;
         let dt = 1.0 / 120.0;
         let interval = 1.0 / FIRE_RATE;
         let blast_radius = 30.0;
@@ -1054,7 +1072,7 @@ mod point_defense_cost_tests {
         // the run-in, not the launch (the launch turn is covered by the
         // guidance tests, and it happens outside any defender's reach).
         let mut pos = Vec3::new(0.0, 0.0, -ENGAGE_RANGE);
-        let mut vel = Vec3::Z * 35.0;
+        let mut vel = Vec3::Z * max_speed;
         let mut nose = Vec3::Z;
         let mut offset = Vec3::Y;
 
@@ -1091,7 +1109,8 @@ mod point_defense_cost_tests {
                 nose = (Quat::from_axis_angle(axis.normalize(), (3.0 * dt).min(turn)) * nose)
                     .normalize();
             }
-            let thrust = nose.dot(steer).clamp(0.0, 1.0) * thrust_headroom(vel.dot(nose), 35.0);
+            let thrust =
+                nose.dot(steer).clamp(0.0, 1.0) * thrust_headroom(vel.dot(nose), max_speed);
             vel += nose * 25.0 * thrust * dt;
             vel -= vel * 0.8 * dt;
             pos += vel * dt;
@@ -1169,10 +1188,22 @@ mod point_defense_cost_tests {
         }
     }
 
+    /// The straight-running type, as `sections::ordnance::lance` authors it:
+    /// no weave, and the reference cruise the evasive type is slowed against.
+    fn straight_type() -> TorpedoTypeConfig {
+        TorpedoTypeConfig {
+            name: "Straight".to_string(),
+            max_speed: 35.0,
+            weave_angle: 0.0,
+            weave_rate: 0.0,
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn a_weaving_torpedo_costs_the_defender_more_rounds_than_a_straight_one() {
-        let straight = defend(0.0, 0.0);
-        let weaving = defend(default_weave_angle(), default_weave_rate());
+        let straight = defend(&straight_type());
+        let weaving = defend(&TorpedoTypeConfig::default());
         println!("point-defense cost: straight {straight:?}, weaving {weaving:?}");
 
         // Control first: a straight torpedo IS stopped, cheaply. Without this
@@ -1237,8 +1268,13 @@ mod point_defense_cost_tests {
     fn a_wider_weave_costs_the_defender_more_still() {
         // Monotone in amplitude, which is what makes the knob a tuning dial
         // rather than a coin flip.
-        let narrow = defend(0.15, default_weave_rate());
-        let wide = defend(default_weave_angle(), default_weave_rate());
+        // Amplitude only: same cruise on both arms, or this would be measuring
+        // the speed the shipped evasive type also authors.
+        let narrow = defend(&TorpedoTypeConfig {
+            weave_angle: 0.15,
+            ..TorpedoTypeConfig::default()
+        });
+        let wide = defend(&TorpedoTypeConfig::default());
         println!("amplitude sweep: narrow {narrow:?}, wide {wide:?}");
         let narrow_cost = if narrow.killed {
             narrow.rounds as f32

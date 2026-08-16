@@ -119,5 +119,5 @@ pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
 pub(super) fn sections() -> Vec<SpaceshipSectionConfig> {
     // The meshed seven only: the turret modules (indices 7-8) are
     // catalog-only prototypes, not part of the unarmed assembly.
-    ship_sections(&RACER_PARTS[..7], ShipGrade::Player)
+    ship_sections(&RACER_PARTS[..7], ShipGrade::Player, Ordnance::Serpent)
 }

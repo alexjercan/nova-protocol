@@ -228,16 +228,22 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
 }
 
 /// The player ship both scenes fly: a controller (so it holds attitude and is
-/// aimable) and the torpedo bay under test. The bay's section id "torpedo" is
-/// what the input mapping binds the fire key to.
+/// aimable) and BOTH shipped torpedo bays, side by side on one trigger.
+///
+/// Two bays and not one, because what is worth looking at on this range is the
+/// DIFFERENCE. A Serpent and a Lance launched at the same target in the same
+/// frame draw their paths in the same picture, each in its type's own colour,
+/// and a corkscrew is only legible next to the straight line it departs from.
+/// Both bays fire on the same key: the range is a comparison, not a loadout.
 fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
+    let trigger = || vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()];
     fixtures::ship(
         sections,
         SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::from([(
-                "torpedo".to_string(),
-                vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
-            )]),
+            input_mapping: HashMap::from([
+                ("torpedo".to_string(), trigger()),
+                ("lance".to_string(), trigger()),
+            ]),
             speed_cap: None,
             // Dev/tuning harness: fire freely.
             infinite_ammo: true,
@@ -246,6 +252,7 @@ fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
             SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),
             SectionSpec::new("hull", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
             SectionSpec::new("torpedo", "torpedo_section", Vec3::new(0.0, 0.0, -1.0)),
+            SectionSpec::new("lance", "lance_torpedo_section", Vec3::new(1.0, 0.0, -1.0)),
         ],
     )
 }
@@ -569,11 +576,15 @@ const PATH_SAMPLE_SPACING: f32 = 0.5;
 /// for the whole flight of the longest shot on either range.
 const PATH_SAMPLE_LIMIT: usize = 600;
 
-/// Trail length the weave frame waits for, in samples - about 50 units of
-/// flight, which at the standard bay's corkscrew rate is more than one full
-/// turn of the helix.
+/// Trail length the weave frame waits for, in UNITS of flight - more than one
+/// full turn of the helix at the Serpent's corkscrew rate.
+///
+/// In units and not in samples: a sample is taken at most once per frame, so a
+/// sample count is a frame count on any run whose frames are longer than
+/// [`PATH_SAMPLE_SPACING`] of travel - and it silently asks a slow run to fly
+/// several times as far.
 #[cfg(feature = "debug")]
-const WEAVE_TRAIL_SAMPLES: usize = 100;
+const WEAVE_TRAIL_UNITS: f32 = 50.0;
 
 /// Append each live torpedo's position to its trail.
 fn record_flight_paths(
@@ -614,11 +625,12 @@ fn draw_guidance_gizmos(
             &TorpedoTargetPosition,
             &TorpedoArming,
             Option<&RangeFlightPath>,
+            Option<&TorpedoType>,
         ),
         With<TorpedoProjectileMarker>,
     >,
 ) {
-    for (torpedo_transform, target, arming, path) in &q_torpedo {
+    for (torpedo_transform, target, arming, path, torpedo_type) in &q_torpedo {
         let pos = torpedo_transform.translation();
         let status = if arming.is_armed() {
             tailwind::GREEN_400
@@ -633,7 +645,13 @@ fn draw_guidance_gizmos(
             tailwind::RED_400,
         );
         if let Some(path) = path {
-            gizmos.linestrip(path.0.iter().copied(), tailwind::SKY_400);
+            // In the TYPE's own colour, so two trails in one frame say which
+            // ordnance flew which path without a legend. A torpedo with no
+            // type (nothing shipped) keeps the range's old trail blue.
+            let trail = torpedo_type
+                .map(|torpedo_type| torpedo_type.tint)
+                .unwrap_or(tailwind::SKY_400.into());
+            gizmos.linestrip(path.0.iter().copied(), trail);
         }
     }
 }
@@ -902,10 +920,14 @@ fn torpedo_script() -> Script {
 fn frame_the_weave(world: &mut World) {
     // The HUD chrome sits over the corridor at this framing.
     nova_protocol::nova_debug::harness::hide_hud(world);
-    let mut q_path = world.query_filtered::<&RangeFlightPath, With<TorpedoProjectileMarker>>();
-    let trail = q_path
-        .iter(world)
-        .max_by_key(|path| path.0.len())
+    // The longest WEAVING trail: the range fires both types off one trigger, so
+    // the longest trail outright is as likely to be a Lance running dead
+    // straight, and this shot exists to show the corkscrew.
+    let trail = world
+        .iter_entities()
+        .filter(|entity| entity.contains::<TorpedoProjectileMarker>() && is_weaving(entity))
+        .filter_map(|entity| entity.get::<RangeFlightPath>())
+        .max_by(|a, b| trail_extent(a).total_cmp(&trail_extent(b)))
         .map(|path| path.0.clone())
         .unwrap_or_default();
     // Nothing in the air: frame the corridor the crossing scene uses, so the
@@ -1025,15 +1047,40 @@ fn torpedo_armed() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 /// The weave frame needs a torpedo mid-flight with a path behind it, and the
 /// launch beat can perfectly well end on a frame between a detonation and the
 /// next launch - which framed an empty corridor. Sized at
-/// [`WEAVE_TRAIL_SAMPLES`] samples of [`PATH_SAMPLE_SPACING`] each.
+/// [`WEAVE_TRAIL_UNITS`] of flown ground.
 #[cfg(feature = "debug")]
 fn weave_trail_flown() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     Arc::new(|world: &World| {
         world
             .iter_entities()
+            .filter(|entity| is_weaving(entity))
             .filter_map(|entity| entity.get::<RangeFlightPath>())
-            .any(|path| path.0.len() >= WEAVE_TRAIL_SAMPLES)
+            .any(|path| trail_extent(path) >= WEAVE_TRAIL_UNITS)
     })
+}
+
+/// How much ground a trail covers, end to end. Both types run essentially
+/// straight over this distance, so the end-to-end span is a fair stand-in for
+/// the flown length and costs nothing to take.
+#[cfg(feature = "debug")]
+fn trail_extent(path: &RangeFlightPath) -> f32 {
+    match (path.0.first(), path.0.last()) {
+        (Some(first), Some(last)) => first.distance(*last),
+        _ => 0.0,
+    }
+}
+
+/// Whether this entity is a torpedo that actually WEAVES.
+///
+/// The range flies both shipped types off one trigger, so "the longest trail in
+/// the air" is a coin flip between a corkscrew and a straight run - and the
+/// weave shot is worthless framed on the straight one. Everything about the
+/// picture that has to be a weave asks here first.
+#[cfg(feature = "debug")]
+fn is_weaving(entity: &bevy::ecs::world::EntityRef) -> bool {
+    entity
+        .get::<TorpedoWeave>()
+        .is_some_and(|weave| weave.angle > 0.0)
 }
 
 /// A torpedo has flown the midcourse leg [`track_lead_angle`] samples over.

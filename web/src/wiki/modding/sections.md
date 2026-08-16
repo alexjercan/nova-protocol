@@ -400,10 +400,16 @@ kind: Torpedo((
     arm_time: 0.5,
     arm_distance: 5.0,
     nav_constant: 3.0,
-    max_speed: 35.0,
     linear_damping: 0.8,
     blast_radius: 30.0,
     blast_damage: 100.0,
+    torpedo_type: (
+        name: "Serpent",
+        tint: Srgba((red: 0.95, green: 0.45, blue: 0.1, alpha: 1.0)),
+        max_speed: 32.0,
+        weave_angle: 0.44,
+        weave_rate: 1.4,
+    ),
     ammo_capacity: Some(6),
 )),
 ```
@@ -429,7 +435,6 @@ kind: Torpedo((
   it clears the firing ship.
 - `nav_constant` - the proportional-navigation constant `N` (typically 3-5;
   higher leads a moving target harder).
-- `max_speed` - cruise speed cap in units per second.
 - `linear_damping` - drag on the torpedo body (gives a real terminal velocity so
   the flight path follows guidance).
 - `blast_radius`, `blast_damage` - detonation radius and peak centre damage
@@ -444,18 +449,47 @@ kind: Torpedo((
   PDC can land (4.0 authored x the 2.0 kinetic speed ceiling), so an intercept
   costs a short burst rather than one lucky tap; author far more for armored
   ordnance point defense has to chew through across the closing window.
-- `weave_angle` (optional, default `0.44` rad, ~25 degrees) - the terminal
-  weave: how far off the guidance solution an armed torpedo corkscrews. It
-  PERTURBS the solution rather than replacing it and fades to nothing between
-  three blast radii and the proximity fuze, so a weaving torpedo still arrives on
-  the aim point. `0.0` flies the bare intercept. Widening it costs the torpedo
-  exposure time - a corkscrew is a longer path - which is what keeps the knob
-  self-balancing.
-- `weave_rate` (optional, default `2.2` rad/s) - how fast the weave spins about
-  the guidance command. The lateral acceleration a defender's lead solution fails
-  to predict scales with `max_speed * sin(weave_angle) * weave_rate`, while the
-  helix radius (`max_speed * sin(weave_angle) / weave_rate`) shrinks with it -
-  keep that radius comfortably inside the proximity fuze.
+- `torpedo_type` (optional, defaults to the Serpent) - **what the bay loads**, as
+  opposed to the tube it loads into. Four fields:
+  - `name` - the ordnance's player-facing name (`"Lance"`, `"Serpent"`). It names
+    the launched projectile, so a log line or a probe snapshot says WHICH torpedo
+    is in the air.
+  - `tint` - the warhead's colour in flight, as
+    `Srgba((red: .., green: .., blue: .., alpha: 1.0))`. Two types a player is
+    meant to tell apart want different colours: it is the only difference visible
+    before the flight paths have diverged.
+  - `max_speed` (u/s; `35.0` on the Lance, `32.0` on the Serpent) - cruise speed
+    cap. The thruster tapers off as the torpedo approaches it, so it decides
+    time to target and, with `projectile_lifetime`, how far the ordnance can
+    reach. **This is where an evasive type pays for its weave**, and it has to
+    be authored: see the note below.
+  - `weave_angle` (rad; `0.44`, ~25 degrees, on the Serpent) - the terminal
+    weave: how far off the guidance solution an armed torpedo corkscrews. It
+    PERTURBS the solution rather than replacing it and fades to nothing between
+    three blast radii and the proximity fuze, so a weaving torpedo still arrives
+    on the aim point. `0.0` flies the bare intercept, which is what the Lance
+    authors.
+  - `weave_rate` (rad/s; `1.4` on both shipped types) - how fast the weave spins
+    about the guidance command. The lateral acceleration a defender's lead
+    solution fails to predict scales with
+    `max_speed * sin(weave_angle) * weave_rate`, while the helix radius
+    (`max_speed * sin(weave_angle) / weave_rate`) shrinks with it - keep that
+    radius comfortably inside the proximity fuze. Unread at zero amplitude.
+
+  The ANGLE is the exchange: measured against one stock PDC across the shipped
+  150 u point-defense envelope, a Serpent costs ~370 rounds to stop and is only
+  killed ~40 u out, where a Lance costs ~120 and dies ~115 u out. The RATE is the
+  picture, not the price - the intercept cost barely moves with it, while the
+  visible swing runs 24 u at 0.7 rad/s down to 6 u at 2.2.
+
+  A weave does NOT pay for itself, which is why the shipped Serpent authors a
+  lower `max_speed`. A corkscrew is a longer path, but only by ~1.7% as the real
+  body flies it, and thrust is capped on the ALONG-NOSE speed - so a torpedo
+  holding its nose off its own velocity never reaches the taper band, keeps its
+  engine lit, and settles FASTER than a straight one. Author a weave without
+  dropping the cap and you get evasion for free. Do not try to fix it by capping
+  total speed instead: a total-speed cap leaves the torpedo ballistic at cruise
+  and unable to steer at all.
 - `ammo_capacity` (optional) - magazine size in torpedoes; `None` for unlimited.
 - `reload` (optional) - auto-reload for the bay (needs `ammo_capacity`); same
   `Some((reload_time, rounds_per_cycle, only_when_empty))` shape as the turret.

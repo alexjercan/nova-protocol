@@ -7,11 +7,16 @@
 //! CLADDING is not here and is not a prototype at all. A ship's skin is DERIVED
 //! from the structure it wraps - see `nova_ship`'s `shell_skin` - so no id names
 //! a plate and nothing places one by hand.
+//!
+//! `ordnance` is the odd one out: a torpedo TYPE is not a section, it is what a
+//! torpedo bay loads, so it lives beside the bays that author it and is shared
+//! with the semantic pods under `ships`.
 
 use nova_ship::prelude::SectionConfig;
 
 use super::{assets::BaseContentAssets, ships};
 
+pub(crate) mod ordnance;
 mod standard;
 
 pub(crate) use standard::{turret_joint_tree, UNIT_TURRET_MOUNT, UNIT_TURRET_SCALE};
@@ -63,6 +68,123 @@ mod range_tests {
                  {AI_STANDOFF_OUTER_EDGE:.0}u - a ship carrying it would orbit \
                  outside its own reach and never fire"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod ordnance_tests {
+    use bevy::platform::collections::HashMap;
+    use nova_ship::prelude::{SectionKind, TorpedoSectionConfig, TorpedoTypeConfig};
+
+    use super::*;
+
+    /// Every torpedo bay in the catalog, as `(id, config)`.
+    fn bays(assets: &BaseContentAssets) -> Vec<(String, TorpedoSectionConfig)> {
+        section_catalog(assets)
+            .into_iter()
+            .filter_map(|section| match section.kind {
+                SectionKind::Torpedo(bay) => Some((section.base.id, bay)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The owner's rule, made structural: the two assault types "both deal the
+    /// same blast damage but one is more evasive than the other". A type
+    /// decides how the ordnance FLIES and nothing else, so any second
+    /// difference between the two bays is a balance change nobody asked for -
+    /// and a difference in blast, reach or magazine would quietly turn the
+    /// choice into a straight upgrade.
+    ///
+    /// `max_speed` is deliberately NOT in the list below: it lives on the type
+    /// now and is the evasive type's price (see `sections::ordnance`). It is
+    /// how the ordnance flies, which is exactly what a type is allowed to
+    /// change.
+    ///
+    /// Checked over every pair of bays sharing a `blast_damage`, so the
+    /// semantic cargo-B pods are graded next to their own `_lance` twin the
+    /// same way the standalone bays are, and a third type inherits the rule.
+    #[test]
+    fn torpedo_types_differ_only_in_how_the_ordnance_flies() {
+        let assets = BaseContentAssets::from_paths();
+        let bays = bays(&assets);
+        assert!(!bays.is_empty(), "the catalog carries torpedo bays");
+
+        let mut pairs = 0usize;
+        for (id, bay) in &bays {
+            for (other_id, other) in &bays {
+                if id >= other_id || bay.blast_damage != other.blast_damage {
+                    continue;
+                }
+                pairs += 1;
+                let stats = |bay: &TorpedoSectionConfig| {
+                    (
+                        bay.blast_damage,
+                        bay.blast_radius,
+                        bay.linear_damping,
+                        bay.nav_constant,
+                        bay.projectile_lifetime,
+                        bay.projectile_health,
+                        bay.fire_rate,
+                        bay.ammo_capacity,
+                        bay.reload.map(|reload| {
+                            (
+                                reload.reload_time,
+                                reload.rounds_per_cycle,
+                                reload.only_when_empty,
+                            )
+                        }),
+                    )
+                };
+                assert_eq!(
+                    stats(bay),
+                    stats(other),
+                    "'{id}' and '{other_id}' load different torpedo types, so \
+                     everything else about them must be identical"
+                );
+            }
+        }
+        assert!(pairs > 0, "the catalog carries bays to compare");
+    }
+
+    /// A type is a NAME plus a look plus a flight, and all three have to agree
+    /// across the catalog: one name must always mean the same ordnance, and two
+    /// names must always be tellable apart in flight. Otherwise "which torpedo
+    /// is that" has no answer a player can read, which is the whole reason the
+    /// type carries a tint at all.
+    #[test]
+    fn every_torpedo_type_is_one_thing_and_looks_unlike_the_others() {
+        let assets = BaseContentAssets::from_paths();
+        let mut types: HashMap<String, (TorpedoTypeConfig, String)> = HashMap::new();
+        for (id, bay) in bays(&assets) {
+            let torpedo_type = bay.torpedo_type;
+            if let Some((known, known_id)) = types.get(&torpedo_type.name) {
+                assert_eq!(
+                    known, &torpedo_type,
+                    "'{id}' and '{known_id}' both load a '{}' but authored it \
+                     differently",
+                    torpedo_type.name
+                );
+                continue;
+            }
+            types.insert(torpedo_type.name.clone(), (torpedo_type, id));
+        }
+        assert!(
+            types.len() >= 2,
+            "the catalog must offer a CHOICE of torpedo type, got {:?}",
+            types.keys().collect::<Vec<_>>()
+        );
+        let listed: Vec<_> = types.values().collect();
+        for (index, (torpedo_type, id)) in listed.iter().enumerate() {
+            for (other, other_id) in &listed[index + 1..] {
+                assert_ne!(
+                    torpedo_type.tint, other.tint,
+                    "'{}' ({id}) and '{}' ({other_id}) fly in the same colour, \
+                     so nothing in the frame says which one is inbound",
+                    torpedo_type.name, other.name
+                );
+            }
         }
     }
 }

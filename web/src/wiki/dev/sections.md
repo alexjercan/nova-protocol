@@ -23,7 +23,7 @@ A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 | `Thruster`   | Forward thrust (`magnitude`); drives the exhaust visual. |
 | `Controller` | PD attitude controller (`frequency`, `damping_ratio`, `max_torque`). Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop (see below). |
 | `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
-| `Torpedo`    | Torpedo bay. Fires guided torpedoes that run in on a terminal weave (`weave_angle`, `weave_rate`) and detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. |
+| `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
 
 `GameSections(Vec<SectionConfig>)` is the resource of section blueprints.
 Generic prototypes are authored in
@@ -525,4 +525,7 @@ per contact. A symmetric rule - ram damage - wants both.
   per muzzle: it must never allocate per shot, and
   `default_projectile_render_allocates_no_assets_per_shot` pins that. Its meshes
   come from `sections::nose_cone_mesh` (a cylinder and a cone, merged), which
-  the torpedo warhead's `DefaultTorpedoRender` shares.
+  the torpedo warhead's `DefaultTorpedoRender` shares. The warhead colours ITS copy of that
+  mesh from the launched `TorpedoType`'s tint - the material was already per
+  projectile (`SectionDamageTint` clones it per section), so per-type colour
+  costs nothing the shared mesh handle protects.

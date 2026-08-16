@@ -126,5 +126,6 @@ pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
 }
 
 pub(super) fn sections(grade: ShipGrade) -> Vec<SpaceshipSectionConfig> {
-    ship_sections(&CARGOA_PARTS, grade)
+    // The cargoa carries no torpedo pod, so its ordnance argument is inert.
+    ship_sections(&CARGOA_PARTS, grade, Ordnance::Serpent)
 }

@@ -110,6 +110,11 @@ pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
     prototypes(&CARGOB_PARTS, &CARGOB_EDGES, "CargoB", assets, false)
 }
 
-pub(super) fn sections() -> Vec<SpaceshipSectionConfig> {
-    ship_sections(&CARGOB_PARTS, ShipGrade::Player)
+/// The cargo-B assembly. `ordnance` is the one real build-time choice this hull
+/// offers: it is the only shipped craft with torpedo pods, and which type they
+/// load decides whether a defender's point defense can answer it at all - so
+/// the two ordnance loads are two catalog SHIPS, the way the two corvette
+/// grades are.
+pub(super) fn sections(ordnance: Ordnance) -> Vec<SpaceshipSectionConfig> {
+    ship_sections(&CARGOB_PARTS, ShipGrade::Player, ordnance)
 }

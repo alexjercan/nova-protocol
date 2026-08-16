@@ -116,7 +116,7 @@ use nova_ship::prelude::{
     AITurretDefenseTarget, CombatLock, GameStyles, PlacedPart, PlateReport, SectionAmmo,
     SectionExit, SectionFixture, SectionLinkPoints, SectionReload, ShipDecorMarker, ShipSkin,
     ShipSkinMarker, ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast,
-    TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TravelLock,
+    TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock,
     TurretSectionAimPoint, TurretSectionInput, TurretSectionTargetInput, WeaponsHot, WithheldVerbs,
 };
 
@@ -940,6 +940,13 @@ fn ordnance_record(world: &World, entity: Entity) -> (String, serde_json::Value)
 
     let record = serde_json::json!({
         "kind": kind,
+        // Torpedo only: WHICH ordnance type this is. Two bays on one hull can
+        // load different torpedoes, and every other field here - owner, damage,
+        // lifetime - is identical between them, so without this a snapshot
+        // cannot tell a Lance from a Serpent.
+        "type": world
+            .get::<TorpedoType>(entity)
+            .map(|torpedo_type| torpedo_type.name.clone()),
         "owner": owner,
         "allegiance": world.get::<Allegiance>(entity).map(|a| format!("{a:?}")),
         "position": vec3(transform.translation),

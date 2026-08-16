@@ -25,6 +25,16 @@ tagged **(breaking)**.
 - Torpedoes fly a TERMINAL WEAVE: an armed torpedo corkscrews off its guidance
   solution until the fuze, breaking the point-defense lead solution. Authorable
   per bay.
+- **(breaking)** A bay loads a torpedo TYPE - name, tint, cruise cap and weave
+  in one authored value - replacing loose `weave_angle`/`weave_rate`/`max_speed`.
+  Mods author their own.
+- Two shipped torpedoes: the fast, straight-running Lance and the slower,
+  weaving Serpent. Same warhead, same rack, own colour in flight.
+- Evasion costs speed: the Serpent cruises 32 u/s against the Lance's 35, so it
+  arrives ~7% later and gains on a runner half as fast.
+- The campaign's first torpedo fight (Broadside part two) now throws Lances,
+  which point defense can answer; the Final Tally flagship escalates to
+  Serpents.
 - Gunfights happen at 1-2 km instead of 4-5: shorter round lifetimes
   (PDC 2.0 s, scavenger 3.0 s) and AI ranges to match. No weapon's damage moved.
 - **(breaking)** The per-section damage-resistance table is GONE. Damage is one

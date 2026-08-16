@@ -256,6 +256,149 @@
         ),
     )),
     Ship((
+        id: "cargob_lance",
+        name: "CargoB Hauler (Lance)",
+        hull: (
+            sections: [
+                (
+                    id: "engine_starboard",
+                    position: (
+                        1.005,
+                        0.7,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargob_engine_starboard"),
+                ),
+                (
+                    id: "engine_port",
+                    position: (
+                        -1.005,
+                        0.7,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargob_engine_port"),
+                ),
+                (
+                    id: "pod_starboard",
+                    position: (
+                        1.0550001,
+                        0.7,
+                        -0.5,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargob_pod_starboard_lance"),
+                ),
+                (
+                    id: "pod_port",
+                    position: (
+                        -1.0550001,
+                        0.7,
+                        -0.5,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargob_pod_port_lance"),
+                ),
+                (
+                    id: "nose",
+                    position: (
+                        0.0,
+                        1.0,
+                        -1.75,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargob_nose"),
+                ),
+                (
+                    id: "tail",
+                    position: (
+                        0.0,
+                        0.65,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargob_tail"),
+                ),
+                (
+                    id: "fuselage",
+                    position: (
+                        0.0,
+                        0.9,
+                        0.25,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype("cargob_fuselage"),
+                ),
+                (
+                    id: "turret_starboard",
+                    position: (
+                        1.55,
+                        1.2,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        -0.70710677,
+                        0.70710677,
+                    ),
+                    source: Prototype("cargob_turret_starboard"),
+                ),
+                (
+                    id: "turret_port",
+                    position: (
+                        -1.55,
+                        1.2,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.70710677,
+                        0.70710677,
+                    ),
+                    source: Prototype("cargob_turret_port"),
+                ),
+            ],
+        ),
+    )),
+    Ship((
         id: "cargoa",
         name: "CargoA Corvette",
         hull: (

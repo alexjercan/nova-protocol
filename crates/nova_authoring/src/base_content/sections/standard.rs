@@ -11,6 +11,8 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
+use super::ordnance;
+
 // Per-section-type durability baselines.
 //
 // Section TYPE governs how much damage a section effectively takes. These are
@@ -532,105 +534,28 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
             DamageType::Pierce,
             PIERCE_PDC_BULLET_DAMAGE,
         ),
-        SectionConfig {
-            base: BaseSectionConfig {
-                id: "torpedo_section".to_string(),
-                name: "Torpedo Bay Section".to_string(),
-                description: "A torpedo bay section for spaceships.".to_string(),
-                mass: 1.0,
-                // Torpedo bay: mid durability baseline.
-                health: TORPEDO_BASE_HEALTH,
-                impact_sound: Some(meshes.section_impact_sound.clone()),
-                destroy_sound: Some(meshes.section_destroy_sound.clone()),
-                collider: None,
-                // Sides and backblast only: the tube fires out of -Z
-                // (`spawn_offset`), so the bow face is the open muzzle.
-                link_points: unit_cube_link_points_without(Vec3::NEG_Z),
-                hide_in_editor: false,
-            },
-            kind: SectionKind::Torpedo(TorpedoSectionConfig {
-                render_mesh: Some(meshes.torpedo_bay.clone()),
-                render_mesh_transform: None,
-                projectile_render_mesh: None,
-                spawn_offset: Vec3::NEG_Z * 2.0,
-                spawn_rotation: Quat::IDENTITY,
-                fire_rate: 1.0,
-                spawner_speed: 1.0,
-                projectile_lifetime: 100.0,
-                arm_time: 0.5,
-                arm_distance: 5.0,
-                nav_constant: 3.0,
-                max_speed: 35.0,
-                linear_damping: 0.8,
-                blast_radius: 30.0,
-                // A torpedo that CONNECTS should all but decide the fight
-                // (owner direction, 2026-08-14: Expanse-style near-one-hit
-                // ordnance; the old 100 took ~7 hits to kill a corvette while a
-                // PDC sustains ~400 DPS). 750 with linear falloff over 30 u
-                // kills or guts every small-craft section on a direct hit;
-                // the counter is shooting the fragile (1 hp) torpedo down,
-                // not tanking it.
-                blast_damage: 750.0,
-                blast_effect: None,
-                launch_effect: None,
-                launch_sound: Some(meshes.torpedo_launch_sound.clone()),
-                // The blast IS the destruction voice: same wav as section
-                // destruction (per-target authoring; playtest can diverge it).
-                detonation_sound: Some(meshes.section_destroy_sound.clone()),
-                // Above the hardest single PDC round (4.0 authored x the 2.0
-                // Kinetic speed ceiling), so an intercept costs two or three
-                // rounds instead of one lucky tap.
-                projectile_health: 10.0,
-                // Terminal weave: ~25 degrees of corkscrew off the intercept,
-                // spun at 1.4 rad/s. Measured against one shipped PDC across
-                // the shipped 150 u point-defense envelope
-                // (`point_defense_cost_tests`), that is ~3x the rounds to
-                // stop - 116 -> 369 - and a torpedo that dies 39 u out instead
-                // of 114 u out. Those two numbers are what turn a salvo into an
-                // ammunition cost rather than a coin flip. The angle sets that
-                // price; the rate only sets how wide the flight path visibly
-                // swings (~11 u, measured in-engine).
-                weave_angle: 0.44,
-                weave_rate: 1.4,
-                // The rack, and the alpha strike it buys: six away in six
-                // seconds at the fire rate above. Saturation is what beats
-                // point defense - attrition never does - so the burst is the
-                // attacker's weapon and the regen below is only its floor.
-                ammo_capacity: Some(6),
-                // Regen, not a hard magazine. Ammunition in this game is a RATE
-                // LIMIT and not a budget: every other weapon pairs a magazine
-                // with an unlimited reload, which is why no fight can strand
-                // itself with a live enemy and nothing left to answer it. The
-                // bay was the one exception, and a spent bay is a ship that has
-                // stopped participating.
-                //
-                // The RATE is the whole balance, and the old +1 per 4 s is no
-                // longer it. That number was set when an intercept cost 116
-                // rounds; the terminal weave above tripled the price to 369
-                // (`point_defense_cost_tests`). A PDC sustains
-                // 500 / (500/100 + 3) = 62.5 rounds/s, so ONE mount answers
-                // 62.5 / 369 = 0.17 torpedoes/s. At +1 per 4 s two bays put up
-                // 0.50/s against the 0.34/s two mounts answer - the attacker
-                // wins by WAITING, which is the failure this bay's whole design
-                // is against. At +1 per 10 s two bays put up 0.20/s: 59% of
-                // what two mounts answer and 118% of what one does, so the
-                // attacker still wins by out-carrying the defender and never by
-                // outlasting it. The standing relation is pinned by
-                // `no_torpedo_bay_out_sustains_a_point_defense_mount`.
-                //
-                // 10 s is also AI_TORPEDO_COOLDOWN_SECS (nova_ship
-                // `input/ai/torpedo.rs`): an AI bay already spaces its launches
-                // exactly this far apart, so the regen never gates an AI
-                // attacker and the campaign's torpedo pressure is what it was
-                // before the magazine was made hard. The rack is the player's
-                // burst allowance; the AI never gets to use one.
-                reload: Some(SectionReloadConfig {
-                    reload_time: 10.0,
-                    rounds_per_cycle: 1,
-                    only_when_empty: false,
-                }),
-            }),
-        },
+        torpedo_bay_prototype(
+            meshes,
+            "torpedo_section",
+            "Torpedo Bay (Serpent)",
+            "The standard bay, loaded with Serpent assault torpedoes. They run \
+             in on a terminal weave, so point defense spends roughly three \
+             times the rounds to stop one and only kills it on the doorstep. \
+             The corkscrew is a longer path: a Serpent arrives later than a \
+             Lance and gains less on a target that is running.",
+            ordnance::serpent(),
+        ),
+        torpedo_bay_prototype(
+            meshes,
+            "lance_torpedo_section",
+            "Torpedo Bay (Lance)",
+            "The same bay and the same warhead, loaded with Lance bombardment \
+             torpedoes: no weave, the bare intercept. The shortest path there \
+             is - it arrives soonest and keeps closing on a runner - which is \
+             also the path point defense is built to solve. Ordnance for a \
+             target that will not shoot back.",
+            ordnance::lance(),
+        ),
         SectionConfig {
             base: BaseSectionConfig {
                 id: "heavy_torpedo_section".to_string(),
@@ -663,9 +588,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 arm_time: 0.5,
                 arm_distance: 5.0,
                 nav_constant: 4.0,
-                // Twice the standard cruise: the closing window through a
-                // 400 u point-defense envelope is what makes it hard to stop.
-                max_speed: 70.0,
                 linear_damping: 0.4,
                 // One hit destroys every section of a corvette outright:
                 // 2000 at the centre with linear falloff over 45 u leaves
@@ -682,19 +604,123 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // through this inside the ~6 s closing window, so point
                 // defense visibly hammers it and still loses.
                 projectile_health: 5000.0,
-                // Half the standard amplitude at twice the cruise, so the
-                // flight path swings about as wide as a standard torpedo's
-                // (the swing scales with both) and a capital round still reads
-                // as a committed run rather than a dance. It needs the evasion
-                // least - the armor already beats point defense outright.
-                weave_angle: 0.22,
-                weave_rate: 1.4,
+                torpedo_type: ordnance::breaker(),
                 ammo_capacity: None,
                 reload: None,
             }),
         },
     ];
     sections
+}
+
+/// One assault torpedo bay, named for the ORDNANCE it loads.
+///
+/// Everything a bay is - the tube art, the cadence, the warhead, the rack and
+/// its regen - is identical across both shipped bays, so the only argument
+/// between them is `torpedo_type` and the trade it carries. Keeping them one
+/// builder is what makes that true by construction rather than by review: a
+/// balance edit here lands on both types at once and cannot quietly become a
+/// second, unmeasured difference.
+fn torpedo_bay_prototype(
+    meshes: &BaseContentAssets,
+    id: &str,
+    name: &str,
+    description: &str,
+    torpedo_type: TorpedoTypeConfig,
+) -> SectionConfig {
+    SectionConfig {
+        base: BaseSectionConfig {
+            id: id.to_string(),
+            name: name.to_string(),
+            description: description.to_string(),
+            mass: 1.0,
+            // Torpedo bay: mid durability baseline.
+            health: TORPEDO_BASE_HEALTH,
+            impact_sound: Some(meshes.section_impact_sound.clone()),
+            destroy_sound: Some(meshes.section_destroy_sound.clone()),
+            collider: None,
+            // Sides and backblast only: the tube fires out of -Z
+            // (`spawn_offset`), so the bow face is the open muzzle.
+            link_points: unit_cube_link_points_without(Vec3::NEG_Z),
+            hide_in_editor: false,
+        },
+        kind: SectionKind::Torpedo(TorpedoSectionConfig {
+            render_mesh: Some(meshes.torpedo_bay.clone()),
+            render_mesh_transform: None,
+            projectile_render_mesh: None,
+            spawn_offset: Vec3::NEG_Z * 2.0,
+            spawn_rotation: Quat::IDENTITY,
+            fire_rate: 1.0,
+            spawner_speed: 1.0,
+            projectile_lifetime: 100.0,
+            arm_time: 0.5,
+            arm_distance: 5.0,
+            nav_constant: 3.0,
+            linear_damping: 0.8,
+            blast_radius: 30.0,
+            // A torpedo that CONNECTS should all but decide the fight
+            // (owner direction, 2026-08-14: Expanse-style near-one-hit
+            // ordnance; the old 100 took ~7 hits to kill a corvette while a
+            // PDC sustains ~400 DPS). 750 with linear falloff over 30 u
+            // kills or guts every small-craft section on a direct hit;
+            // the counter is shooting the fragile (1 hp) torpedo down,
+            // not tanking it.
+            //
+            // EQUAL ACROSS TYPES by owner direction: a torpedo type decides
+            // how the ordnance flies, never how hard it lands.
+            blast_damage: 750.0,
+            blast_effect: None,
+            launch_effect: None,
+            launch_sound: Some(meshes.torpedo_launch_sound.clone()),
+            // The blast IS the destruction voice: same wav as section
+            // destruction (per-target authoring; playtest can diverge it).
+            detonation_sound: Some(meshes.section_destroy_sound.clone()),
+            // Above the hardest single PDC round (4.0 authored x the 2.0
+            // Kinetic speed ceiling), so an intercept costs two or three
+            // rounds instead of one lucky tap.
+            projectile_health: 10.0,
+            // The whole difference between the two shipped bays: see
+            // `sections::ordnance` for what each type costs and buys.
+            torpedo_type,
+            // The rack, and the alpha strike it buys: six away in six
+            // seconds at the fire rate above. Saturation is what beats
+            // point defense - attrition never does - so the burst is the
+            // attacker's weapon and the regen below is only its floor.
+            ammo_capacity: Some(6),
+            // Regen, not a hard magazine. Ammunition in this game is a RATE
+            // LIMIT and not a budget: every other weapon pairs a magazine
+            // with an unlimited reload, which is why no fight can strand
+            // itself with a live enemy and nothing left to answer it. The
+            // bay was the one exception, and a spent bay is a ship that has
+            // stopped participating.
+            //
+            // The RATE is the whole balance, and the old +1 per 4 s is no
+            // longer it. That number was set when an intercept cost 116
+            // rounds; the Serpent's terminal weave tripled the price to 369
+            // (`point_defense_cost_tests`). A PDC sustains
+            // 500 / (500/100 + 3) = 62.5 rounds/s, so ONE mount answers
+            // 62.5 / 369 = 0.17 torpedoes/s. At +1 per 4 s two bays put up
+            // 0.50/s against the 0.34/s two mounts answer - the attacker
+            // wins by WAITING, which is the failure this bay's whole design
+            // is against. At +1 per 10 s two bays put up 0.20/s: 59% of
+            // what two mounts answer and 118% of what one does, so the
+            // attacker still wins by out-carrying the defender and never by
+            // outlasting it. The standing relation is pinned by
+            // `no_torpedo_bay_out_sustains_a_point_defense_mount`.
+            //
+            // 10 s is also AI_TORPEDO_COOLDOWN_SECS (nova_ship
+            // `input/ai/torpedo.rs`): an AI bay already spaces its launches
+            // exactly this far apart, so the regen never gates an AI
+            // attacker and the campaign's torpedo pressure is what it was
+            // before the magazine was made hard. The rack is the player's
+            // burst allowance; the AI never gets to use one.
+            reload: Some(SectionReloadConfig {
+                reload_time: 10.0,
+                rounds_per_cycle: 1,
+                only_when_empty: false,
+            }),
+        }),
+    }
 }
 
 #[cfg(test)]

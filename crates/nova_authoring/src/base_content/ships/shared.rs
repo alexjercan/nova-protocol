@@ -10,7 +10,7 @@ use nova_ship::prelude::*;
 
 use crate::base_content::{
     assets::BaseContentAssets,
-    sections::{turret_joint_tree, UNIT_TURRET_MOUNT, UNIT_TURRET_SCALE},
+    sections::{ordnance, turret_joint_tree, UNIT_TURRET_MOUNT, UNIT_TURRET_SCALE},
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -257,7 +257,11 @@ fn controller_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
     })
 }
 
-fn torpedo_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
+fn torpedo_kind(
+    spec: PartSpec,
+    meshes: &BaseContentAssets,
+    torpedo_type: TorpedoTypeConfig,
+) -> SectionKind {
     SectionKind::Torpedo(TorpedoSectionConfig {
         render_mesh: spec.mesh.map(mesh_ref),
         render_mesh_transform: render_transform(spec),
@@ -270,7 +274,6 @@ fn torpedo_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
         arm_time: 0.5,
         arm_distance: 5.0,
         nav_constant: 3.0,
-        max_speed: 35.0,
         linear_damping: 0.8,
         blast_radius: 30.0,
         // The standard torpedo's damage (see `sections::standard`): a
@@ -285,9 +288,9 @@ fn torpedo_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
         // Matches the catalog bay: above the hardest single PDC round, so an
         // intercept costs two or three rounds rather than one.
         projectile_health: 10.0,
-        // The catalog bay's terminal weave (see `sections::standard`).
-        weave_angle: 0.44,
-        weave_rate: 1.4,
+        // What the pod LOADS, and the only thing the `_lance` variant of this
+        // prototype changes (see `sections::ordnance`).
+        torpedo_type,
         // The catalog bay's rack and regen (see `sections::standard` for the
         // rate's derivation): six for the alpha strike, then +1 every 10 s. The
         // cargo-B carries two pods, so twelve away up front and 0.2
@@ -351,6 +354,11 @@ fn turret_kind(meshes: &BaseContentAssets, enemy: bool) -> SectionKind {
 /// that a part mates onto any socket the same way up (see [`link_points`]),
 /// there is nothing a per-craft copy could do that the standard turret cannot.
 /// The ships still build from them, and mods can still name them.
+///
+/// A torpedo pod is doubled the same way the light turret is, into a `_lance`
+/// variant loading the straight-running type. Everything else about the pod -
+/// the art, the tube, the warhead, the rack - is shared, so [`Ordnance`] picks
+/// which prototype a ship references and nothing else about the ship moves.
 pub(super) fn prototypes(
     specs: &[PartSpec],
     edges: &[(usize, usize)],
@@ -365,7 +373,7 @@ pub(super) fn prototypes(
             PartRole::Hull => hull_kind(spec),
             PartRole::Thruster => thruster_kind(spec, meshes),
             PartRole::Controller => controller_kind(spec, meshes),
-            PartRole::Torpedo => torpedo_kind(spec, meshes),
+            PartRole::Torpedo => torpedo_kind(spec, meshes, ordnance::serpent()),
             PartRole::Turret => turret_kind(meshes, false),
         };
         output.push(SectionConfig {
@@ -373,7 +381,7 @@ pub(super) fn prototypes(
             kind,
         });
         if light_turrets && matches!(spec.role, PartRole::Turret) {
-            let mut base = base_config(spec, family, links, meshes);
+            let mut base = base_config(spec, family, links.clone(), meshes);
             base.id = format!("{}_light", spec.prototype);
             base.name = format!("{} Light", base.name);
             base.health = 60.0;
@@ -382,16 +390,62 @@ pub(super) fn prototypes(
                 kind: turret_kind(meshes, true),
             });
         }
+        if matches!(spec.role, PartRole::Torpedo) {
+            let mut base = base_config(spec, family, links, meshes);
+            base.id = format!("{}{}", spec.prototype, Ordnance::Lance.prototype_suffix());
+            base.name = format!("{} (Lance)", base.name);
+            base.description = format!(
+                "{} Loaded with straight-running Lance torpedoes.",
+                base.description
+            );
+            output.push(SectionConfig {
+                base,
+                kind: torpedo_kind(spec, meshes, ordnance::lance()),
+            });
+        }
     }
     output
 }
 
-pub(super) fn ship_sections(specs: &[PartSpec], grade: ShipGrade) -> Vec<SpaceshipSectionConfig> {
+/// Which torpedo type a craft's pods are built with.
+///
+/// Build-time, exactly like [`ShipGrade`], and for the same reason the ship
+/// catalog gives the raider corvette its own entry: which torpedo a hull
+/// carries is a different ship to fight, not a flag a spawn flips. It is NOT a
+/// grade - the two types are equals that trade evasion against what an
+/// intercept costs the defender (see `sections::ordnance`).
+#[derive(Clone, Copy, PartialEq)]
+pub(super) enum Ordnance {
+    /// Straight-running bombardment torpedoes: what point defense can answer.
+    Lance,
+    /// Weaving assault torpedoes: the default, and the escalation.
+    Serpent,
+}
+
+impl Ordnance {
+    /// The prototype-id suffix this ordnance is authored under, mirroring the
+    /// light turret's `_light`.
+    fn prototype_suffix(self) -> &'static str {
+        match self {
+            Ordnance::Lance => "_lance",
+            Ordnance::Serpent => "",
+        }
+    }
+}
+
+pub(super) fn ship_sections(
+    specs: &[PartSpec],
+    grade: ShipGrade,
+    ordnance: Ordnance,
+) -> Vec<SpaceshipSectionConfig> {
     specs
         .iter()
         .map(|&spec| {
             let mut modifications = Vec::new();
             let mut prototype = spec.prototype.to_string();
+            if matches!(spec.role, PartRole::Torpedo) {
+                prototype.push_str(ordnance.prototype_suffix());
+            }
             if grade == ShipGrade::Enemy {
                 match spec.role {
                     PartRole::Hull => modifications.push(SectionModification::SetHealth(
@@ -404,6 +458,8 @@ pub(super) fn ship_sections(specs: &[PartSpec], grade: ShipGrade) -> Vec<Spacesh
                         modifications.push(SectionModification::SetHealth(140.0));
                     }
                     PartRole::Turret => prototype.push_str("_light"),
+                    // Ordnance is not graded: which torpedo a hull carries is
+                    // its own catalog entry above, not this hull's tier.
                     PartRole::Torpedo => {}
                 }
             }

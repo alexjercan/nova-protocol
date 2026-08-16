@@ -234,8 +234,20 @@ pub(super) fn shoot_spawn_projectile(
             ..default()
         };
 
+        let torpedo_type = &config.torpedo_type;
         let mut projectile = commands.spawn((
-            Name::new("Torpedo Projectile"),
+            // Named for the ORDNANCE, not for the mechanism: every reader that
+            // resolves an entity to a label (a log line, the event timeline, a
+            // probe snapshot's `owner` / `target`) then says WHICH torpedo it
+            // is looking at, with no extra plumbing. Nested with the type so
+            // the outer bundle stays inside bevy's tuple size limit.
+            (
+                Name::new(format!("{} Torpedo", torpedo_type.name)),
+                TorpedoType {
+                    name: torpedo_type.name.clone(),
+                    tint: torpedo_type.tint,
+                },
+            ),
             TorpedoProjectileMarker,
             ProjectileOwner(*spaceship),
             projectile_transform,
@@ -278,7 +290,7 @@ pub(super) fn shoot_spawn_projectile(
             (
                 TorpedoGuidance {
                     nav_constant: config.nav_constant,
-                    max_speed: config.max_speed,
+                    max_speed: config.torpedo_type.max_speed,
                 },
                 TorpedoSteering(projectile_transform.forward().into()),
                 LinearDamping(config.linear_damping),
@@ -383,8 +395,8 @@ pub(super) fn shoot_spawn_projectile(
         // helix. Inserted after the spawn because the phase needs the id.
         let torpedo = projectile.id();
         projectile.insert(TorpedoWeave::new(
-            config.weave_angle,
-            config.weave_rate,
+            config.torpedo_type.weave_angle,
+            config.torpedo_type.weave_rate,
             projectile_transform.forward().into(),
             TorpedoWeave::phase_for(torpedo),
         ));
@@ -1009,6 +1021,174 @@ mod tests {
         );
     }
 
+    /// How far downrange [`fly`] puts its target. Past the terminal fade band
+    /// (three blast radii, 90 u) with room to spare, so most of the flight is
+    /// flown at full weave - which is exactly the part of a real engagement
+    /// the weave exists for.
+    const TARGET_RANGE: f32 = 300.0;
+
+    /// One midcourse run-in, as flown by the real body.
+    #[derive(Debug)]
+    struct Flight {
+        /// Widest lateral offset off the launch-to-target line, over the
+        /// midcourse. The VISIBLE amplitude - a weave the player cannot see is
+        /// not evasion.
+        swing: f32,
+        /// Closest the torpedo came to the target.
+        closest: f32,
+        /// Seconds from the midcourse injection to that closest approach.
+        seconds: f32,
+        /// Path length flown over those seconds. Against the straight-line
+        /// [`TARGET_RANGE`] this is the `1 / cos(weave_angle)` stretch the
+        /// corkscrew costs, measured on the real body rather than assumed.
+        path: f32,
+    }
+
+    impl Flight {
+        /// Ground speed along the launch-to-target LINE, in u/s: how fast the
+        /// gap to the target actually shuts. This, not cruise speed, is what
+        /// decides when a torpedo arrives and how far it can reach.
+        fn closing_speed(&self) -> f32 {
+            (TARGET_RANGE - self.closest) / self.seconds
+        }
+
+        /// How far this type can reach in `lifetime` seconds, in units: the
+        /// closing speed above carried out to the bay's authored
+        /// `projectile_lifetime`.
+        fn reach(&self, lifetime: f32) -> f32 {
+            self.closing_speed() * lifetime
+        }
+    }
+
+    /// One torpedo of `torpedo_type`, injected onto the line at cruise
+    /// [`TARGET_RANGE`] from a stationary target, flown on the REAL stack
+    /// (avian, the PD attitude controller, the thruster, the whole
+    /// `TorpedoSectionPlugin` chain) until it fuzes.
+    ///
+    /// The pose and velocity are overwritten at pickup to put the torpedo ON
+    /// the line at cruise. A bay fires along its +Y while the torpedo's nose is
+    /// its -Z, so every real launch starts with the nose across its own
+    /// velocity and costs ~10 u of lateral excursion turning onto course - on
+    /// every type, monotone, and an order of magnitude wider than the weave
+    /// under test. This measures the midcourse, so it starts at the midcourse.
+    fn fly(torpedo_type: TorpedoTypeConfig) -> Flight {
+        use nova_gameplay::{
+            projectile_hooks::ProjectileHooks,
+            test_support::{settle, unfinished_integrity_physics_app_with},
+        };
+
+        // `unfinished_integrity_physics_app_with` pins a manual clock, so a
+        // frame is exactly this long and elapsed time is a frame count.
+        const DT: f32 = 1.0 / 60.0;
+
+        let mut app = unfinished_integrity_physics_app_with(
+            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+        );
+        app.add_plugins(crate::physics::prelude::PDControllerPlugin);
+        app.add_plugins(crate::sections::SpaceshipSectionPlugin { render: false });
+        app.finish();
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                RigidBody::Static,
+                Transform::default(),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+            ))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((
+                TorpedoSectionMarker,
+                ChildOf(ship),
+                Transform::default(),
+                TorpedoSectionConfigHelper(TorpedoSectionConfig {
+                    // Launch straight downrange rather than out of the bay's
+                    // side, so the run-in starts on the line the swing is
+                    // measured against.
+                    spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+                    spawner_speed: 10.0,
+                    torpedo_type,
+                    ..default()
+                }),
+                TorpedoSectionInput(true),
+            ))
+            .id();
+        settle(&mut app);
+
+        let target = Vec3::new(0.0, 0.0, -TARGET_RANGE);
+        let mut flight = Flight {
+            swing: 0.0,
+            closest: f32::INFINITY,
+            seconds: 0.0,
+            path: 0.0,
+        };
+        // Seconds and path length are banked at the CLOSEST approach, not at
+        // the end of the loop: a torpedo that overshoots and turns back would
+        // otherwise be credited with the recovery.
+        let mut elapsed = 0.0f32;
+        let mut path = 0.0f32;
+        let mut previous = None;
+        let mut torpedo = None;
+        for _ in 0..1400 {
+            app.update();
+
+            // Take the first torpedo out of the bay and hold the trigger
+            // closed, so the measurement follows ONE flight.
+            if torpedo.is_none() {
+                torpedo = app
+                    .world_mut()
+                    .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+                    .iter(app.world())
+                    .next();
+                if let Some(torpedo) = torpedo {
+                    // The guidance target: normally written by the player or
+                    // AI targeting, supplied directly here so the rig needs no
+                    // second ship.
+                    app.world_mut().entity_mut(torpedo).insert((
+                        TorpedoTargetPosition(target),
+                        Position(Vec3::ZERO),
+                        Rotation::default(),
+                        LinearVelocity(Vec3::NEG_Z * 35.0),
+                    ));
+                    app.world_mut()
+                        .get_mut::<TorpedoSectionInput>(section)
+                        .unwrap()
+                        .0 = false;
+                    continue; // the injected pose is next frame's start
+                }
+            }
+            let Some(id) = torpedo else { continue };
+            let Some(position) = app.world().get::<Position>(id).map(|p| p.0) else {
+                break; // fuzed or expired
+            };
+            elapsed += DT;
+            if let Some(previous) = previous {
+                path += position.distance(previous);
+            }
+            previous = Some(position);
+
+            let range = position.distance(target);
+            if range < flight.closest {
+                flight.closest = range;
+                flight.seconds = elapsed;
+                flight.path = path;
+            }
+            // The direct line runs down -Z from the origin, so the lateral
+            // offset off it is the distance from the Z axis.
+            //
+            // Measured over the MIDCOURSE only. The near end is the terminal
+            // fade band, where the weave is deliberately winding down; the far
+            // end cuts the ~50 u the launch spends settling onto the line.
+            if (90.0..TARGET_RANGE - 50.0).contains(&range) {
+                flight.swing = flight.swing.max(position.xy().length());
+            }
+        }
+        flight
+    }
+
     /// THE weave test that matters, and the one the pure-guidance sims cannot
     /// stand in for.
     ///
@@ -1017,157 +1197,173 @@ mod tests {
     /// damping), its thrust law and its linear drag. Each of those attenuates
     /// the commanded cone, and the pure-math rigs in `projectile` model none of
     /// them - they scored a weave that the real body flies at a fraction of the
-    /// amplitude. This runs the REAL stack (avian, the PD controller, the
-    /// thruster, the whole `TorpedoSectionPlugin` chain) against a stationary
-    /// target and measures the path itself.
+    /// amplitude. This runs the real stack against a stationary target and
+    /// measures the path itself.
     ///
-    /// Two arms off one rig: the same launch with the weave off is the control,
-    /// so the swing measured here is the weave and not the guidance settling.
+    /// Two arms off one rig: the Lance (no weave at all) is the control, so the
+    /// swing measured here is the weave and not the guidance settling.
     #[test]
     fn the_weave_puts_a_visible_bend_in_the_real_flight_path() {
-        /// How far downrange the target sits. Past the terminal fade band
-        /// (three blast radii, 90 u) with room to spare, so most of the flight
-        /// is flown at full weave - which is exactly the part of a real
-        /// engagement the weave exists for.
-        const TARGET_RANGE: f32 = 300.0;
-
         /// Lateral swing off the launch-to-target line that counts as visible,
         /// in units. The torpedo is ~2 u long, so anything under this is inside
         /// its own drive plume and reads as a straight run.
         const VISIBLE_SWING: f32 = 3.0;
 
-        // (max lateral swing off the direct line, closest approach)
-        fn fly(weave_angle: f32) -> (f32, f32) {
-            use nova_gameplay::{
-                projectile_hooks::ProjectileHooks,
-                test_support::{settle, unfinished_integrity_physics_app_with},
-            };
-
-            let mut app = unfinished_integrity_physics_app_with(
-                PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
-            );
-            app.add_plugins(crate::physics::prelude::PDControllerPlugin);
-            app.add_plugins(crate::sections::SpaceshipSectionPlugin { render: false });
-            app.finish();
-
-            let ship = app
-                .world_mut()
-                .spawn((
-                    SpaceshipRootMarker,
-                    RigidBody::Static,
-                    Transform::default(),
-                    Collider::cuboid(1.0, 1.0, 1.0),
-                    ColliderDensity(1.0),
-                ))
-                .id();
-            let section = app
-                .world_mut()
-                .spawn((
-                    TorpedoSectionMarker,
-                    ChildOf(ship),
-                    Transform::default(),
-                    TorpedoSectionConfigHelper(TorpedoSectionConfig {
-                        // Launch straight downrange rather than out of the
-                        // bay's side, so the run-in starts on the line the
-                        // swing is measured against.
-                        spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                        spawner_speed: 10.0,
-                        weave_angle,
-                        ..default()
-                    }),
-                    TorpedoSectionInput(true),
-                ))
-                .id();
-            settle(&mut app);
-
-            let target = Vec3::new(0.0, 0.0, -TARGET_RANGE);
-            let mut swing = 0.0f32;
-            let mut closest = f32::INFINITY;
-            let mut torpedo = None;
-            for _ in 0..1400 {
-                app.update();
-
-                // Take the first torpedo out of the bay and hold the trigger
-                // closed, so the measurement follows ONE flight.
-                if torpedo.is_none() {
-                    torpedo = app
-                        .world_mut()
-                        .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
-                        .iter(app.world())
-                        .next();
-                    if let Some(torpedo) = torpedo {
-                        // The guidance target: normally written by the player
-                        // or AI targeting, supplied directly here so the rig
-                        // needs no second ship.
-                        //
-                        // The pose and velocity are overwritten to put the
-                        // torpedo ON the line at cruise. A bay fires along its
-                        // +Y while the torpedo's nose is its -Z, so every real
-                        // launch starts with the nose across the velocity and
-                        // costs ~10 u of lateral excursion turning onto course
-                        // - on BOTH arms, monotone, and an order of magnitude
-                        // wider than the weave under test. This measures the
-                        // midcourse, so it starts at the midcourse.
-                        app.world_mut().entity_mut(torpedo).insert((
-                            TorpedoTargetPosition(target),
-                            Position(Vec3::ZERO),
-                            Rotation::default(),
-                            LinearVelocity(Vec3::NEG_Z * 35.0),
-                        ));
-                        app.world_mut()
-                            .get_mut::<TorpedoSectionInput>(section)
-                            .unwrap()
-                            .0 = false;
-                    }
-                }
-                let Some(id) = torpedo else { continue };
-                let Some(position) = app.world().get::<Position>(id).map(|p| p.0) else {
-                    break; // fuzed or expired
-                };
-                let range = position.distance(target);
-                closest = closest.min(range);
-                // The direct line runs down -Z from the origin, so the lateral
-                // offset off it is the distance from the Z axis.
-                //
-                // Measured over the MIDCOURSE only. The near end is the
-                // terminal fade band, where the weave is deliberately winding
-                // down. The far end cuts the launch: a torpedo leaves its bay
-                // SIDEWAYS with its nose across its own velocity (the bay fires
-                // along +Y, the nose is -Z), so the first ~50 u are a turn onto
-                // course worth ~10 u of lateral offset on either arm - which
-                // would swamp the thing being measured.
-                if (90.0..TARGET_RANGE - 50.0).contains(&range) {
-                    swing = swing.max(position.xy().length());
-                }
-            }
-            (swing, closest)
-        }
-
-        let (straight_swing, straight_miss) = fly(0.0);
-        let (weave_swing, weave_miss) = fly(default_weave_angle());
-        println!(
-            "real flight: straight swing {straight_swing:.1} miss {straight_miss:.1}, \
-             weaving swing {weave_swing:.1} miss {weave_miss:.1}"
-        );
+        let straight = fly(straight_type());
+        let weaving = fly(TorpedoTypeConfig::default());
+        println!("real flight: straight {straight:?}, weaving {weaving:?}");
 
         // The control: with the weave off the torpedo runs straight down the
         // line, so the rig itself contributes no swing worth measuring.
         assert!(
-            straight_swing < VISIBLE_SWING,
-            "an unweaved torpedo must fly the direct line: swung {straight_swing:.1} u"
+            straight.swing < VISIBLE_SWING,
+            "an unweaved torpedo must fly the direct line: swung {:.1} u",
+            straight.swing
         );
         assert!(
-            weave_swing > VISIBLE_SWING,
+            weaving.swing > VISIBLE_SWING,
             "the weave must put a VISIBLE bend in the real flight path, not just \
-             in the steering command: swung {weave_swing:.1} u (straight arm: \
-             {straight_swing:.1} u)"
+             in the steering command: swung {:.1} u (straight arm: {:.1} u)",
+            weaving.swing,
+            straight.swing
         );
         // And it still arrives: inside the proximity fuze of a target that
         // never moved, which is the trap the terminal fade exists to avoid.
         assert!(
-            weave_miss < 15.0,
+            weaving.closest < 15.0,
             "a weaving torpedo must still reach the fuze of a stationary target, \
-             closest was {weave_miss:.1} u"
+             closest was {:.1} u",
+            weaving.closest
         );
+    }
+
+    /// **Evasion costs time to target and effective reach - because the
+    /// evasive type authors a lower cruise cap, NOT because the corkscrew is a
+    /// longer path.** Both halves are measured, because the second one is the
+    /// finding that made the first one necessary.
+    ///
+    /// The design originally assumed the weave priced itself: a corkscrew of
+    /// half-angle `a` is a longer path by `1 / cos(a)`, so the evasive type
+    /// should fly ~11% further, arrive proportionally later, and reach
+    /// proportionally less far for the same `projectile_lifetime`. It does not
+    /// work, for two reasons this test pins with a third arm:
+    ///
+    /// 1. The flown path is longer by only ~1.7%, not 11%. The body's drag is
+    ///    a first-order lag on the velocity, so the flown helix is far
+    ///    shallower than the commanded cone.
+    /// 2. [`thrust_headroom`](super::thrust_headroom) gates thrust on the
+    ///    ALONG-NOSE speed, not the total. A torpedo holding its nose off its
+    ///    own velocity never reaches the taper band, keeps its engine lit, and
+    ///    settles at a HIGHER terminal speed against the same drag. Evasion
+    ///    runs a hotter engine, and 1.7% of extra path is not a fee it notices.
+    ///
+    /// Do not "fix" that by capping total speed instead: the doc on
+    /// `thrust_headroom` rejects it, because a total-speed cap leaves the
+    /// torpedo ballistic at cruise and unable to steer at all. The lever is the
+    /// cap itself, lowered on the evasive type, which lowers the band it never
+    /// quite reaches. What the real body flies over a 300 u run-in:
+    ///
+    /// | | straight (35.0) | evasive (32.0) | evasive AT 35.0 |
+    /// |---|---|---|---|
+    /// | path flown | 284.3 u | 289.2 u | 289.6 u |
+    /// | time to fuze | 9.10 s | **9.78 s** | **8.97 s** |
+    /// | speed along the line | 31.30 u/s | 29.14 u/s | 31.83 u/s |
+    /// | reach at a 100 s lifetime | 3130 u | 2914 u | 3183 u |
+    ///
+    /// The third column is the control and the whole argument for the second:
+    /// give the weave the straight type's cap and it arrives SOONER, longer
+    /// path and all.
+    #[test]
+    fn evasion_costs_time_because_the_type_is_slower_not_because_the_path_is_longer() {
+        /// The shipped bay's `projectile_lifetime`, the horizon a reach figure
+        /// is quoted against.
+        const LIFETIME: f32 = 100.0;
+
+        let straight = fly(straight_type());
+        let evasive = fly(TorpedoTypeConfig::default());
+        // The same weave at the straight type's cruise cap: the control that
+        // isolates the corkscrew from the cap.
+        let evasive_uncapped = fly(TorpedoTypeConfig {
+            max_speed: straight_type().max_speed,
+            ..TorpedoTypeConfig::default()
+        });
+        println!(
+            "the trade over {TARGET_RANGE:.0} u: straight {:.2} s, path {:.1} u, \
+             closing {:.2} u/s, reach {:.0} u | evasive {:.2} s, path {:.1} u, \
+             closing {:.2} u/s, reach {:.0} u | evasive at the straight cap \
+             {:.2} s, path {:.1} u, closing {:.2} u/s",
+            straight.seconds,
+            straight.path,
+            straight.closing_speed(),
+            straight.reach(LIFETIME),
+            evasive.seconds,
+            evasive.path,
+            evasive.closing_speed(),
+            evasive.reach(LIFETIME),
+            evasive_uncapped.seconds,
+            evasive_uncapped.path,
+            evasive_uncapped.closing_speed(),
+        );
+
+        // The control: the straight arm flies the direct line, so its path is
+        // the ground it covered. Without this the comparison could be measuring
+        // a rig that wanders on both arms.
+        let straight_stretch = straight.path / (TARGET_RANGE - straight.closest);
+        assert!(
+            straight_stretch < 1.02,
+            "the straight arm must fly the direct line: {straight_stretch:.3}x the range"
+        );
+
+        // THE TRADE. Both halves of it, at the shipped caps.
+        assert!(
+            evasive.seconds > straight.seconds * 1.03,
+            "the evasive type must arrive meaningfully later: {:.2} s vs {:.2} s",
+            evasive.seconds,
+            straight.seconds
+        );
+        assert!(
+            evasive.reach(LIFETIME) < straight.reach(LIFETIME) * 0.97,
+            "and reach meaningfully less far for the same lifetime: {:.0} u vs {:.0} u",
+            evasive.reach(LIFETIME),
+            straight.reach(LIFETIME)
+        );
+
+        // AND WHY IT HAD TO BE AUTHORED. The corkscrew is a longer path, and
+        // that costs the torpedo nothing: at the straight type's cap the
+        // weaving arm still arrives FIRST. This is the arm to read when someone
+        // proposes deleting the evasive type's speed penalty as redundant.
+        assert!(
+            evasive_uncapped.path > straight.path,
+            "the corkscrew must be a LONGER path: {:.1} u weaving vs {:.1} u straight",
+            evasive_uncapped.path,
+            straight.path
+        );
+        assert!(
+            evasive_uncapped.seconds < straight.seconds,
+            "and the longer path must still not be a cost: at the straight type's \
+             cap the weave arrives in {:.2} s against {:.2} s. If this ever flips, \
+             the thrust law changed and the authored speed penalty can be \
+             revisited",
+            evasive_uncapped.seconds,
+            straight.seconds
+        );
+    }
+
+    /// The straight-running type, as `sections::ordnance::lance` authors it.
+    /// Named here rather than imported: nova_ship owns the mechanism and the
+    /// default, and the catalog that names the two shipped types is content.
+    ///
+    /// `max_speed` is spelled out rather than inherited from the default. The
+    /// default IS the evasive type, which now authors a LOWER cap as the price
+    /// of its weave, so `..default()` would quietly slow the control arm to
+    /// match and hide the very difference these rigs measure.
+    fn straight_type() -> TorpedoTypeConfig {
+        TorpedoTypeConfig {
+            name: "Straight".to_string(),
+            max_speed: 35.0,
+            weave_angle: 0.0,
+            weave_rate: 0.0,
+            ..default()
+        }
     }
 }

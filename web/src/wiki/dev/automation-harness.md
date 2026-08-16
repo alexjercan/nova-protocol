@@ -75,7 +75,9 @@ object holding every ship - identity, pose, velocity, aggregate health, mass,
 the collapse/defeat flags and its weapon locks - each ship's sections with their
 class, pose, health, modifications and magazine state, each section's fixtures
 (the skin plates and decor bolted to it), and every torpedo and round in flight
-with its owner, damage and remaining lifetime.
+with its owner, damage, remaining lifetime and - for a torpedo - which ordnance
+TYPE it is, since two bays on one hull can load different torpedoes that are
+identical in every other field.
 
 Use it when a defect would otherwise be judged from a render. A skin bug, a
 section that took damage it should not have, a turret that never reloaded: all

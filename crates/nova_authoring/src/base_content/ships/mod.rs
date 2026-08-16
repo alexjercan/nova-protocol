@@ -6,6 +6,11 @@
 //! to fight and to read about, so it is a second CATALOG entry rather than a
 //! flag a scenario flips. Two entries cost one line each here and no machinery
 //! anywhere else.
+//!
+//! ORDNANCE is the same shape of knob. The two cargo-B entries differ only in
+//! which torpedo their pods load, and that decides whether the ship a player
+//! meets is one their point defense can answer - which is exactly "a different
+//! ship to fight" again.
 
 use nova_scenario::prelude::{
     SectionModification, ShipConfig, ShipHull, ShipSectionModification, ShipSource,
@@ -21,15 +26,21 @@ mod racer;
 mod shared;
 
 pub(crate) use cargo_a::CARGOA_TURRET_IDS;
-use shared::ShipGrade;
+use shared::{Ordnance, ShipGrade};
 
 /// The id the player-grade CargoA corvette is spawned by.
 pub(crate) const CARGOA_SHIP_ID: &str = "cargoa";
 /// The id the scavenger-grade CargoA corvette is spawned by: thinner plating,
 /// light turrets, a softer flight computer.
 pub(crate) const CARGOA_RAIDER_SHIP_ID: &str = "cargoa_raider";
-/// The id the CargoB torpedo hauler is spawned by.
+/// The id the CargoB torpedo hauler is spawned by: weaving Serpents in the
+/// tubes, which is the escalation a defender cannot screen.
 pub(crate) const CARGOB_SHIP_ID: &str = "cargob";
+/// The id the CargoB is spawned by when its tubes carry straight-running
+/// LANCES. The same hull, guns and rack; the ordnance is the whole difference,
+/// and it is the campaign's difficulty setting for a player's first torpedo
+/// fight (see `sections::ordnance`).
+pub(crate) const CARGOB_LANCE_SHIP_ID: &str = "cargob_lance";
 /// The id the unarmed Racer yacht is spawned by.
 pub(crate) const RACER_SHIP_ID: &str = "racer";
 
@@ -49,7 +60,16 @@ pub(crate) fn semantic_part_prototypes(assets: &BaseContentAssets) -> Vec<Sectio
 pub(crate) fn ship_catalog() -> Vec<ShipConfig> {
     vec![
         ship(RACER_SHIP_ID, "Racer Yacht", racer::sections()),
-        ship(CARGOB_SHIP_ID, "CargoB Hauler", cargo_b::sections()),
+        ship(
+            CARGOB_SHIP_ID,
+            "CargoB Hauler",
+            cargo_b::sections(Ordnance::Serpent),
+        ),
+        ship(
+            CARGOB_LANCE_SHIP_ID,
+            "CargoB Hauler (Lance)",
+            cargo_b::sections(Ordnance::Lance),
+        ),
         ship(
             CARGOA_SHIP_ID,
             "CargoA Corvette",
