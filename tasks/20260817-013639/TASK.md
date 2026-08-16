@@ -1,6 +1,6 @@
 # Thruster art candidates in the mechanical style
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 49
 - TAGS: v0.11.0,art,ship
 
@@ -22,3 +22,20 @@ candidate models and them working in the [gallery] example is good progress".
 
 - candidates render in thruster_gallery with names; a capture lands in this
   folder; recipes are deterministic under the generator's --check idiom
+
+## Closure
+
+Landed 2026-08-17, lane thruster-art. Owner feedback folded in mid-lane:
+bell + vector kept, the three rejected candidates replaced by gimbal, twin
+and paddle in the same anatomy (plate, drum, cone, heat ring, dark throat),
+plus two large formats - shell_bank (3x3x1 nine-bell lattice) and
+shell_capital (5x5x3 vectoring drive). Judging render in this folder.
+
+Generator: sibling gen-thruster-shells.py importing gen-greebles' primitive
+and verify layer (one vocabulary, two frames); cell-frame budgets, exhaust
+check, 450 tris/cell, --check byte-compare. Candidates under
+art/part-candidates/shells/, art only.
+
+Noted, unfixed: GREEBLES.md claims the generator --check "fails CI on a
+stale commit" but ci.yaml runs no python step - both generators could be
+gated with one CI line; owner's call.
