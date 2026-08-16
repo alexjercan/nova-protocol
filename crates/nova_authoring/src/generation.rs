@@ -12,7 +12,9 @@
 //! Cargo feature unification carries it here.
 
 use nova_modding::prelude::Content;
-use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
+use nova_scenario::prelude::{
+    CampaignConfig, ScenarioConfig, ShipConfig, ShipSource, SpaceshipConfig, SpaceshipSectionConfig,
+};
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 
 use crate::base_content;
@@ -23,8 +25,9 @@ use crate::base_content;
 pub mod prelude {
     pub use super::{
         build_campaign_contents, build_campaigns, build_scenario_contents, build_scenarios,
-        build_section_catalog, build_section_content, build_style_content, build_styles,
-        content_files, pretty_config, serialize_content,
+        build_section_catalog, build_section_content, build_ship_content, build_ships,
+        build_style_content, build_styles, content_files, pretty_config, serialize_content,
+        spawned_ship_sections,
     };
 }
 
@@ -61,6 +64,12 @@ pub fn build_styles() -> Vec<ShipStyleConfig> {
     base_content::build().styles
 }
 
+/// The base game's ships, in a stable order - the whole hulls the scenarios
+/// spawn by id.
+pub fn build_ships() -> Vec<ShipConfig> {
+    base_content::build().ships
+}
+
 /// The section catalog wrapped as one `Vec<Content>` of `Content::Section`
 /// items - the shape the committed `assets/base/sections/base.content.ron` file
 /// carries. The parity test serializes this.
@@ -78,6 +87,30 @@ pub fn build_section_content() -> Vec<Content> {
 /// style is small, the set is short, and a look is read against the others.
 pub fn build_style_content() -> Vec<Content> {
     build_styles().into_iter().map(Content::Style).collect()
+}
+
+/// The section list one authored spawn flies: its inline hull's, or that of
+/// the built-in ship it names. The join every scenario pin needs now that a
+/// scenario REFERENCES a hull instead of carrying one; an unknown id resolves
+/// to nothing (the content lint is what errors on it).
+pub fn spawned_ship_sections(ship: &SpaceshipConfig) -> Vec<SpaceshipSectionConfig> {
+    match &ship.hull {
+        ShipSource::Inline(hull) => hull.sections.clone(),
+        ShipSource::Prototype(id) => build_ships()
+            .into_iter()
+            .find(|entry| entry.id == *id)
+            .map(|entry| entry.hull.sections)
+            .unwrap_or_default(),
+    }
+}
+
+/// The ship catalog wrapped as one `Vec<Content>` of `Content::Ship` items -
+/// the shape the committed `assets/base/ships/base.content.ron` file carries.
+///
+/// ONE file for every ship, like the sections and the styles: the set is short
+/// and a hull is read against the others it shares parts with.
+pub fn build_ship_content() -> Vec<Content> {
+    build_ships().into_iter().map(Content::Ship).collect()
 }
 
 /// The built-in scenarios, each wrapped as its own single-item
@@ -136,6 +169,10 @@ pub fn content_files() -> Vec<(String, String)> {
             "base/styles/base.content.ron".to_string(),
             serialize_content(&build_style_content()),
         ),
+        (
+            "base/ships/base.content.ron".to_string(),
+            serialize_content(&build_ship_content()),
+        ),
     ];
     files.extend(build_scenario_contents().into_iter().map(|(id, content)| {
         (
@@ -171,12 +208,52 @@ mod tests {
         }
     }
 
+    /// Every hull the base game ships - the ship CATALOG entries and the
+    /// one-off hulls a scenario still authors inline - resolves, mates, and
+    /// carries no cube-era section id.
     #[test]
     fn every_built_in_parts_ship_has_a_valid_link_point_graph() {
         let catalog: HashMap<_, _> = build_section_catalog()
             .into_iter()
             .map(|section| (section.base.id.clone(), section))
             .collect();
+
+        let check = |label: &str, sections: &[SpaceshipSectionConfig]| {
+            let resolved: Vec<_> = sections
+                .iter()
+                .map(|section| match &section.source {
+                    SectionSource::Inline(config) => config,
+                    SectionSource::Prototype(id) => catalog
+                        .get(id.as_str())
+                        .unwrap_or_else(|| panic!("missing prototype '{id}'")),
+                })
+                .collect();
+            let placed: Vec<_> = sections
+                .iter()
+                .zip(&resolved)
+                .map(|(section, config)| PlacedSectionLinkPoints {
+                    position: section.position,
+                    rotation: section.rotation,
+                    link_points: &config.base.link_points,
+                })
+                .collect();
+            let mates = derive_link_point_graph(&placed)
+                .unwrap_or_else(|errors| panic!("{label} has invalid points: {errors:?}"));
+            assert!(
+                sections.len() <= 1 || !mates.is_empty(),
+                "{label} has no structural mates"
+            );
+            assert!(
+                sections
+                    .iter()
+                    .all(|section| !section.id.starts_with("cube_")),
+                "{label} retains a cube section id"
+            );
+        };
+
+        for ship in build_ships() {
+            check(&format!("ship '{}'", ship.id), &ship.hull.sections);
+        }
 
         for scenario in build_scenarios() {
             for event in &scenario.events {
@@ -185,45 +262,14 @@ mod tests {
                         let ScenarioObjectKind::Spaceship(ship) = &object.kind else {
                             continue;
                         };
-                        let resolved: Vec<_> = ship
-                            .sections
-                            .iter()
-                            .map(|section| match &section.source {
-                                SectionSource::Inline(config) => config,
-                                SectionSource::Prototype(id) => catalog
-                                    .get(id)
-                                    .unwrap_or_else(|| panic!("missing prototype '{id}'")),
-                            })
-                            .collect();
-                        let placed: Vec<_> = ship
-                            .sections
-                            .iter()
-                            .zip(&resolved)
-                            .map(|(section, config)| PlacedSectionLinkPoints {
-                                position: section.position,
-                                rotation: section.rotation,
-                                link_points: &config.base.link_points,
-                            })
-                            .collect();
-                        let mates = derive_link_point_graph(&placed).unwrap_or_else(|errors| {
-                            panic!(
-                                "scenario '{}' ship '{}' has invalid points: {errors:?}",
-                                scenario.id, object.base.id
-                            )
-                        });
-                        assert!(
-                            ship.sections.len() <= 1 || !mates.is_empty(),
-                            "scenario '{}' ship '{}' has no structural mates",
-                            scenario.id,
-                            object.base.id
-                        );
-                        assert!(
-                            ship.sections
-                                .iter()
-                                .all(|section| !section.id.starts_with("cube_")),
-                            "scenario '{}' ship '{}' retains a cube section id",
-                            scenario.id,
-                            object.base.id
+                        // A Prototype hull is checked once above, where it is
+                        // authored - the same rule a Prototype section follows.
+                        let ShipSource::Inline(hull) = &ship.hull else {
+                            continue;
+                        };
+                        check(
+                            &format!("scenario '{}' ship '{}'", scenario.id, object.base.id),
+                            &hull.sections,
                         );
                     }
                 }

@@ -247,12 +247,13 @@ fn ship(
             rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             controller,
             allegiance,
-            sections,
+            hull: ShipSource::Inline(ShipHull {
+                sections,
+                ..default()
+            }),
+            ..default()
         }),
     })
 }

@@ -168,6 +168,7 @@ tagged **(breaking)**.
 
 ### Modding & Mod Portal
 
+- **(breaking)** A new content kind: `Ship`. A scenario spawns a hull by id and overrides sections per spawn; base scenario RON drops 36%.
 - A new content kind: `Style`. A mod can author the look a ship's derived
   cladding wears, and a scenario picks one per ship by id. Documented in the
   modding wiki.

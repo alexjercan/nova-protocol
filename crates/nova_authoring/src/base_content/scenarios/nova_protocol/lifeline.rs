@@ -37,8 +37,7 @@ use nova_ship::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
     pacing::{self, open_gate, REVEAL_GAP},
-    ships::{self, ShipGrade},
-    SCATTER_SEED, SCENARIO_ELAPSED_VAR,
+    ships, SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
 
@@ -166,9 +165,6 @@ fn player_ship() -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: ships::CARGOA_TURRET_IDS
                     .iter()
@@ -186,10 +182,11 @@ fn player_ship() -> ScenarioObjectConfig {
                 infinite_ammo: false,
             }),
             allegiance: None,
-            sections: ships::cargoa_sections(
-                ShipGrade::Player,
+            hull: ships::hull(ships::CARGOA_SHIP_ID),
+            modifications: vec![ships::on_section(
+                ships::FUSELAGE_SECTION_ID,
                 vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
-            ),
+            )],
         }),
     }
 }
@@ -215,37 +212,33 @@ fn convoy_ship(
             rotation: Quat::from_rotation_y(yaw),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol,
                 ..Default::default()
             }),
             allegiance: Some(Allegiance::Player),
-            sections: ships::racer_sections(),
+            hull: ships::hull(ships::RACER_SHIP_ID),
+            ..Default::default()
         }),
     }
 }
 
-/// A raider: the scavenger-grade cargoa corvette, leashed to the convoy fight,
-/// telegraphed with an arrival grace. `grade` lifts W3's corvette to full
-/// player-grade turrets - the "real guns" the Tallyman promises.
-fn raider(id: &str, spawn_pos: Vec3, grade: ShipGrade, engage_delay: f32) -> ScenarioObjectConfig {
+/// A raider: a cargoa corvette, leashed to the convoy fight, telegraphed with
+/// an arrival grace. `ship` picks the grade: W3's corvette is the FULL
+/// player-grade hull - the "real guns" the Tallyman promises - where the
+/// earlier waves fly the scavenger-grade raider.
+fn raider(id: &str, spawn_pos: Vec3, ship: &str, engage_delay: f32) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
-            name: match grade {
-                ShipGrade::Player => "Raider Corvette".to_string(),
-                ShipGrade::Enemy => "Tally Raider".to_string(),
+            name: match ship {
+                ships::CARGOA_SHIP_ID => "Raider Corvette".to_string(),
+                _ => "Tally Raider".to_string(),
             },
             position: spawn_pos,
             rotation: facing_the_lane(),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 // The run-in: patrol from the spawn to the convoy's lane.
                 patrol: vec![spawn_pos, QUEEN_POS + Vec3::new(0.0, 30.0, 80.0)],
@@ -254,7 +247,8 @@ fn raider(id: &str, spawn_pos: Vec3, grade: ShipGrade, engage_delay: f32) -> Sce
                 ..Default::default()
             }),
             allegiance: None,
-            sections: ships::cargoa_sections(grade, vec![]),
+            hull: ships::hull(ship),
+            ..Default::default()
         }),
     }
 }
@@ -558,11 +552,11 @@ pub(crate) fn lifeline(
                 "Two contacts off the shelf, one vector, coming down the lane.",
                 vec![
                     (
-                        raider("raider_1a", W1_SPAWNS[0], ShipGrade::Enemy, 8.0),
+                        raider("raider_1a", W1_SPAWNS[0], ships::CARGOA_RAIDER_SHIP_ID, 8.0),
                         "RAIDER",
                     ),
                     (
-                        raider("raider_1b", W1_SPAWNS[1], ShipGrade::Enemy, 8.0),
+                        raider("raider_1b", W1_SPAWNS[1], ships::CARGOA_RAIDER_SHIP_ID, 8.0),
                         "RAIDER",
                     ),
                 ],
@@ -600,15 +594,15 @@ pub(crate) fn lifeline(
                  your flank.",
                 vec![
                     (
-                        raider("raider_2a", W2_SPAWNS[0], ShipGrade::Enemy, 8.0),
+                        raider("raider_2a", W2_SPAWNS[0], ships::CARGOA_RAIDER_SHIP_ID, 8.0),
                         "RAIDER",
                     ),
                     (
-                        raider("raider_2b", W2_SPAWNS[1], ShipGrade::Enemy, 8.0),
+                        raider("raider_2b", W2_SPAWNS[1], ships::CARGOA_RAIDER_SHIP_ID, 8.0),
                         "RAIDER",
                     ),
                     (
-                        raider("raider_2c", W2_SPAWNS[2], ShipGrade::Enemy, 8.0),
+                        raider("raider_2c", W2_SPAWNS[2], ships::CARGOA_RAIDER_SHIP_ID, 8.0),
                         "RAIDER",
                     ),
                 ],
@@ -648,11 +642,11 @@ pub(crate) fn lifeline(
                 "Last push: a full-gun corvette with an escort. Hold them off.",
                 vec![
                     (
-                        raider("raider_3a", W3_SPAWNS[0], ShipGrade::Player, 8.0),
+                        raider("raider_3a", W3_SPAWNS[0], ships::CARGOA_SHIP_ID, 8.0),
                         "CORVETTE",
                     ),
                     (
-                        raider("raider_3b", W3_SPAWNS[1], ShipGrade::Enemy, 8.0),
+                        raider("raider_3b", W3_SPAWNS[1], ships::CARGOA_RAIDER_SHIP_ID, 8.0),
                         "RAIDER",
                     ),
                 ],

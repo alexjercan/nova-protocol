@@ -6,7 +6,10 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::AssetRef;
 use nova_ship::prelude::SectionConfig;
 
-use crate::{lint::KnownSections, prelude::*};
+use crate::{
+    lint::{KnownSections, KnownShips},
+    prelude::*,
+};
 
 pub(crate) fn known(ids: &[&str]) -> HashSet<String> {
     ids.iter().map(|s| s.to_string()).collect()
@@ -33,6 +36,28 @@ pub(crate) fn sections(ids: &[&str]) -> KnownSections {
         })
         .collect();
     KnownSections::from_configs(&configs)
+}
+
+/// A catalog of known ships, each one unit-cube hull section named `hull`.
+pub(crate) fn ships(ids: &[&str]) -> KnownShips {
+    let configs: Vec<_> = ids
+        .iter()
+        .map(|id| ShipConfig {
+            id: (*id).to_string(),
+            name: (*id).to_string(),
+            hull: ShipHull {
+                sections: vec![SpaceshipSectionConfig {
+                    id: "hull".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Prototype("hull".to_string()),
+                    modifications: vec![],
+                }],
+                ..default()
+            },
+        })
+        .collect();
+    KnownShips::from_configs(&configs)
 }
 
 pub(crate) fn spawn_object(id: &str) -> EventActionConfig {
@@ -62,18 +87,18 @@ pub(crate) fn spawn_ship(id: &str, proto: &str) -> EventActionConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
-            allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig::default()),
-            sections: vec![SpaceshipSectionConfig {
-                id: "hull".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Prototype(proto.to_string()),
-                modifications: vec![],
-            }],
+            hull: ShipSource::Inline(ShipHull {
+                sections: vec![SpaceshipSectionConfig {
+                    id: "hull".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Prototype(proto.to_string()),
+                    modifications: vec![],
+                }],
+                ..default()
+            }),
+            ..default()
         }),
     })
 }

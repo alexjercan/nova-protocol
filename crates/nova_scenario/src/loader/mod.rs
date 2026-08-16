@@ -534,8 +534,12 @@ mod tests {
             BaseSectionConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
         };
 
-        use crate::objects::spaceship::{
-            PlayerControllerConfig, SpaceshipConfig, SpaceshipController, SpaceshipSectionConfig,
+        use crate::objects::{
+            ship::prelude::{ShipHull, ShipSource},
+            spaceship::{
+                PlayerControllerConfig, SpaceshipConfig, SpaceshipController,
+                SpaceshipSectionConfig,
+            },
         };
 
         let bindings = vec![
@@ -546,28 +550,28 @@ mod tests {
         input_mapping.insert("thruster".to_string(), bindings.clone());
 
         let ship = SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
-            allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping,
                 speed_cap: Some(100.0),
                 infinite_ammo: true,
             }),
-            sections: vec![SpaceshipSectionConfig {
-                id: "thruster".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(SectionConfig {
-                    base: BaseSectionConfig {
-                        id: "thruster".to_string(),
-                        ..default()
-                    },
-                    kind: SectionKind::Thruster(ThrusterSectionConfig::default()),
-                }),
-                modifications: vec![],
-            }],
+            hull: ShipSource::Inline(ShipHull {
+                sections: vec![SpaceshipSectionConfig {
+                    id: "thruster".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Inline(SectionConfig {
+                        base: BaseSectionConfig {
+                            id: "thruster".to_string(),
+                            ..default()
+                        },
+                        kind: SectionKind::Thruster(ThrusterSectionConfig::default()),
+                    }),
+                    modifications: vec![],
+                }],
+                ..default()
+            }),
+            ..default()
         };
 
         let scenario = ScenarioConfig {

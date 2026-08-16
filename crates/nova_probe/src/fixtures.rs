@@ -61,26 +61,26 @@ pub fn ship(
     specs: &[SectionSpec],
 ) -> SpaceshipConfig {
     SpaceshipConfig {
-        collapse_threshold: None,
-        skin: false,
-        style: None,
-        allegiance: None,
         controller,
-        sections: specs
-            .iter()
-            .map(|spec| SpaceshipSectionConfig {
-                id: spec.id.clone(),
-                position: spec.position,
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(
-                    sections
-                        .get_section(&spec.asset)
-                        .unwrap_or_else(|| panic!("section '{}' not found", spec.asset))
-                        .clone(),
-                ),
-                modifications: vec![],
-            })
-            .collect(),
+        hull: ShipSource::Inline(ShipHull {
+            sections: specs
+                .iter()
+                .map(|spec| SpaceshipSectionConfig {
+                    id: spec.id.clone(),
+                    position: spec.position,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Inline(
+                        sections
+                            .get_section(&spec.asset)
+                            .unwrap_or_else(|| panic!("section '{}' not found", spec.asset))
+                            .clone(),
+                    ),
+                    modifications: vec![],
+                })
+                .collect(),
+            ..Default::default()
+        }),
+        ..Default::default()
     }
 }
 
@@ -164,7 +164,10 @@ mod tests {
 
         let built = ship(&sections, SpaceshipController::None, &specs);
 
-        let placed: Vec<_> = built
+        let ShipSource::Inline(hull) = &built.hull else {
+            panic!("the fixture authors its hull inline");
+        };
+        let placed: Vec<_> = hull
             .sections
             .iter()
             .map(|s| (s.id.as_str(), s.position))
@@ -179,7 +182,7 @@ mod tests {
         );
         // The slot id is the ship-local one; the content id it resolved is the
         // asset. Confusing the two is the failure this pins.
-        let SectionSource::Inline(front) = &built.sections[0].source else {
+        let SectionSource::Inline(front) = &hull.sections[0].source else {
             panic!("sections are inlined, not referenced");
         };
         assert_eq!(front.base.id, "hull_a");

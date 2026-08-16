@@ -1484,22 +1484,27 @@ fn wfc_ship(tiles: &[Tile], seed: u64, roster: Roster, style: StyleId) -> Spaces
     }
 
     SpaceshipConfig {
-        // The whole of the skin, from this side. The plates, their shapes and
-        // where they stand are the game's business, derived from the sections
-        // above at spawn - which is what makes the clad frame evidence rather
-        // than a picture of what this file already decided.
-        skin: roster.clad,
-        // The look, by id, out of the MERGED content - never a literal. A clad
-        // ship wears whatever style the content shipped, so nothing in this
-        // file names a greeble, a rule or a cell, and a mod that overlays the
-        // style changes the shot without changing the example.
-        style: roster.clad.then_some(style).flatten().map(str::to_string),
-        collapse_threshold: None,
         allegiance: None,
         // Scenery: these are subjects, not craft. Nothing flies them and
         // nothing shoots them.
         controller: SpaceshipController::None,
-        sections,
+        // A one-off hull: the collapse builds a new one every seed, so there
+        // is nothing for a catalog id to name.
+        hull: ShipSource::Inline(ShipHull {
+            sections,
+            // The whole of the skin, from this side. The plates, their shapes
+            // and where they stand are the game's business, derived from the
+            // sections above at spawn - which is what makes the clad frame
+            // evidence rather than a picture of what this file already decided.
+            skin: roster.clad,
+            // The look, by id, out of the MERGED content - never a literal. A
+            // clad ship wears whatever style the content shipped, so nothing in
+            // this file names a greeble, a rule or a cell, and a mod that
+            // overlays the style changes the shot without changing the example.
+            style: roster.clad.then_some(style).flatten().map(str::to_string),
+            ..default()
+        }),
+        ..default()
     }
 }
 
@@ -1608,7 +1613,7 @@ struct Placed<'a> {
     body: (Vec3, Vec3),
 }
 
-fn place<'a>(ship: &SpaceshipConfig, sections: &'a GameSections) -> Vec<Placed<'a>> {
+fn place<'a>(ship: &ShipHull, sections: &'a GameSections) -> Vec<Placed<'a>> {
     ship.sections
         .iter()
         .map(|section| {
@@ -1653,7 +1658,7 @@ fn place<'a>(ship: &SpaceshipConfig, sections: &'a GameSections) -> Vec<Placed<'
 /// socket on nothing. What is NOT exempt is a socket on one side and a bare
 /// face on the other: that is the plug pressed into a blank face, and the
 /// second half of this function refuses it wherever it appears.
-fn refuse_unmated_contacts(placed: &[Placed], ship: &SpaceshipConfig) {
+fn refuse_unmated_contacts(placed: &[Placed], ship: &ShipHull) {
     let points: Vec<PlacedSectionLinkPoints> = placed
         .iter()
         .map(|section| PlacedSectionLinkPoints {
@@ -1748,7 +1753,12 @@ fn body_holds((centre, half): (Vec3, Vec3), point: Vec3) -> bool {
 /// [`refuse_unmated_contacts`], which asks for something the game does not.
 fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections) {
     let known = KnownSections::from_configs(sections.iter());
-    let issues = lint_scenario(scenario, &known, &HashSet::from([scenario.id.clone()]));
+    let issues = lint_scenario(
+        scenario,
+        &known,
+        &KnownShips::default(),
+        &HashSet::from([scenario.id.clone()]),
+    );
     let errors: Vec<&str> = issues
         .iter()
         .filter(|issue| issue.severity == LintSeverity::Error)
@@ -1760,12 +1770,15 @@ fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections) {
         errors.join("\n  ")
     );
 
-    let hulls: Vec<&SpaceshipConfig> = scenario.events[0]
+    let hulls: Vec<&ShipHull> = scenario.events[0]
         .actions
         .iter()
         .filter_map(|action| match action {
             EventActionConfig::SpawnScenarioObject(object) => match &object.kind {
-                ScenarioObjectKind::Spaceship(ship) => Some(ship),
+                ScenarioObjectKind::Spaceship(ship) => match &ship.hull {
+                    ShipSource::Inline(hull) => Some(hull),
+                    ShipSource::Prototype(_) => None,
+                },
                 _ => None,
             },
             _ => None,

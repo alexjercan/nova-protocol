@@ -94,18 +94,16 @@ fn battery(id: &str, park: Vec3) -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             allegiance: Some(Allegiance::Enemy),
             controller: SpaceshipController::None,
-            sections: vec![SpaceshipSectionConfig {
+            hull: ships::inline_hull(vec![SpaceshipSectionConfig {
                 id: "bay".to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
                 source: SectionSource::Prototype("torpedo_section".to_string()),
                 modifications: vec![],
-            }],
+            }]),
+            ..Default::default()
         }),
     }
 }
@@ -192,9 +190,6 @@ pub(crate) fn menu_gauntlet(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             // Player allegiance is what makes the Enemy batteries' torpedoes
             // hostile - AI-vs-AI combat needs one side on the player's team.
             allegiance: Some(Allegiance::Player),
@@ -222,17 +217,16 @@ pub(crate) fn menu_gauntlet(
             // Player-grade corvette with HARD magazines: the full 100-rounds/s
             // PDC turrets are the show, and their finite rounds are the
             // scene's clock - when they run dry the stand falls.
-            sections: {
-                let mut sections = ships::cargoa_sections(ships::ShipGrade::Player, vec![]);
-                for section in &mut sections {
-                    if ships::CARGOA_TURRET_IDS.contains(&section.id.as_str()) {
-                        section
-                            .modifications
-                            .push(SectionModification::SetAmmo(CORVETTE_ROUNDS_PER_TURRET));
-                    }
-                }
-                sections
-            },
+            hull: ships::hull(ships::CARGOA_SHIP_ID),
+            modifications: ships::CARGOA_TURRET_IDS
+                .iter()
+                .map(|turret| {
+                    ships::on_section(
+                        turret,
+                        vec![SectionModification::SetAmmo(CORVETTE_ROUNDS_PER_TURRET)],
+                    )
+                })
+                .collect(),
         }),
     });
 

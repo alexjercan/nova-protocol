@@ -166,152 +166,154 @@
                                 speed_cap: Some(25.0),
                                 infinite_ammo: false,
                             )),
-                            sections: [
-                                (
-                                    id: "engine_starboard",
-                                    position: (
-                                        1.205,
-                                        0.6,
-                                        1.975,
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "engine_starboard",
+                                        position: (
+                                            1.205,
+                                            0.6,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_engine_starboard"),
+                                        modifications: [],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "engine_port",
+                                        position: (
+                                            -1.205,
+                                            0.6,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_engine_port"),
+                                        modifications: [],
                                     ),
-                                    source: Prototype("cargoa_engine_starboard"),
-                                    modifications: [],
-                                ),
-                                (
-                                    id: "engine_port",
-                                    position: (
-                                        -1.205,
-                                        0.6,
-                                        1.975,
+                                    (
+                                        id: "pod_starboard",
+                                        position: (
+                                            1.205,
+                                            0.7,
+                                            0.47500002,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_pod_starboard"),
+                                        modifications: [],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "pod_port",
+                                        position: (
+                                            -1.205,
+                                            0.7,
+                                            0.47500002,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_pod_port"),
+                                        modifications: [],
                                     ),
-                                    source: Prototype("cargoa_engine_port"),
-                                    modifications: [],
-                                ),
-                                (
-                                    id: "pod_starboard",
-                                    position: (
-                                        1.205,
-                                        0.7,
-                                        0.47500002,
+                                    (
+                                        id: "nose",
+                                        position: (
+                                            0.0,
+                                            0.8,
+                                            -1.8,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_nose"),
+                                        modifications: [],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "tail",
+                                        position: (
+                                            0.0,
+                                            0.5875,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_tail"),
+                                        modifications: [],
                                     ),
-                                    source: Prototype("cargoa_pod_starboard"),
-                                    modifications: [],
-                                ),
-                                (
-                                    id: "pod_port",
-                                    position: (
-                                        -1.205,
-                                        0.7,
-                                        0.47500002,
+                                    (
+                                        id: "fuselage",
+                                        position: (
+                                            0.0,
+                                            0.8,
+                                            0.17500001,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_fuselage"),
+                                        modifications: [],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "turret_starboard",
+                                        position: (
+                                            0.95,
+                                            0.8,
+                                            -1.8,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            -0.70710677,
+                                            0.70710677,
+                                        ),
+                                        source: Prototype("cargoa_turret_starboard"),
+                                        modifications: [],
                                     ),
-                                    source: Prototype("cargoa_pod_port"),
-                                    modifications: [],
-                                ),
-                                (
-                                    id: "nose",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        -1.8,
+                                    (
+                                        id: "turret_port",
+                                        position: (
+                                            -0.95,
+                                            0.8,
+                                            -1.8,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.70710677,
+                                            0.70710677,
+                                        ),
+                                        source: Prototype("cargoa_turret_port"),
+                                        modifications: [],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_nose"),
-                                    modifications: [],
-                                ),
-                                (
-                                    id: "tail",
-                                    position: (
-                                        0.0,
-                                        0.5875,
-                                        1.975,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_tail"),
-                                    modifications: [],
-                                ),
-                                (
-                                    id: "fuselage",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        0.17500001,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_fuselage"),
-                                    modifications: [],
-                                ),
-                                (
-                                    id: "turret_starboard",
-                                    position: (
-                                        0.95,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargoa_turret_starboard"),
-                                    modifications: [],
-                                ),
-                                (
-                                    id: "turret_port",
-                                    position: (
-                                        -0.95,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargoa_turret_port"),
-                                    modifications: [],
-                                ),
-                            ],
+                                ],
+                            )),
                         )),
                     )),
                     // The escort: Mesa Verde's hauler, Neutral (a bystander
@@ -330,113 +332,115 @@
                         kind: Spaceship((
                             allegiance: Some(Neutral),
                             controller: AI(()),
-                            sections: [
-                                (
-                                    id: "engine_starboard",
-                                    position: (
-                                        1.205,
-                                        0.6,
-                                        1.975,
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "engine_starboard",
+                                        position: (
+                                            1.205,
+                                            0.6,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_engine_starboard"),
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "engine_port",
+                                        position: (
+                                            -1.205,
+                                            0.6,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_engine_port"),
                                     ),
-                                    source: Prototype("cargoa_engine_starboard"),
-                                ),
-                                (
-                                    id: "engine_port",
-                                    position: (
-                                        -1.205,
-                                        0.6,
-                                        1.975,
+                                    (
+                                        id: "pod_starboard",
+                                        position: (
+                                            1.205,
+                                            0.7,
+                                            0.47500002,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_pod_starboard"),
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "pod_port",
+                                        position: (
+                                            -1.205,
+                                            0.7,
+                                            0.47500002,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_pod_port"),
                                     ),
-                                    source: Prototype("cargoa_engine_port"),
-                                ),
-                                (
-                                    id: "pod_starboard",
-                                    position: (
-                                        1.205,
-                                        0.7,
-                                        0.47500002,
+                                    (
+                                        id: "nose",
+                                        position: (
+                                            0.0,
+                                            0.8,
+                                            -1.8,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_nose"),
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "tail",
+                                        position: (
+                                            0.0,
+                                            0.5875,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_tail"),
                                     ),
-                                    source: Prototype("cargoa_pod_starboard"),
-                                ),
-                                (
-                                    id: "pod_port",
-                                    position: (
-                                        -1.205,
-                                        0.7,
-                                        0.47500002,
+                                    (
+                                        id: "fuselage",
+                                        position: (
+                                            0.0,
+                                            0.8,
+                                            0.17500001,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_fuselage"),
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_pod_port"),
-                                ),
-                                (
-                                    id: "nose",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_nose"),
-                                ),
-                                (
-                                    id: "tail",
-                                    position: (
-                                        0.0,
-                                        0.5875,
-                                        1.975,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_tail"),
-                                ),
-                                (
-                                    id: "fuselage",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        0.17500001,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_fuselage"),
-                                ),
-                            ],
+                                ],
+                            )),
                         )),
                     )),
                     // Hard cover: an invulnerable rock arc between the
@@ -600,166 +604,168 @@
                                 leash: Some(550.0),
                                 engage_delay: Some(8.0),
                             )),
-                            sections: [
-                                (
-                                    id: "engine_starboard",
-                                    position: (
-                                        1.205,
-                                        0.6,
-                                        1.975,
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "engine_starboard",
+                                        position: (
+                                            1.205,
+                                            0.6,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_engine_starboard"),
+                                        modifications: [
+                                            SetHealth(25.0),
+                                        ],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "engine_port",
+                                        position: (
+                                            -1.205,
+                                            0.6,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_engine_port"),
+                                        modifications: [
+                                            SetHealth(25.0),
+                                        ],
                                     ),
-                                    source: Prototype("cargoa_engine_starboard"),
-                                    modifications: [
-                                        SetHealth(25.0),
-                                    ],
-                                ),
-                                (
-                                    id: "engine_port",
-                                    position: (
-                                        -1.205,
-                                        0.6,
-                                        1.975,
+                                    (
+                                        id: "pod_starboard",
+                                        position: (
+                                            1.205,
+                                            0.7,
+                                            0.47500002,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_pod_starboard"),
+                                        modifications: [
+                                            SetHealth(203.0),
+                                        ],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "pod_port",
+                                        position: (
+                                            -1.205,
+                                            0.7,
+                                            0.47500002,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_pod_port"),
+                                        modifications: [
+                                            SetHealth(203.0),
+                                        ],
                                     ),
-                                    source: Prototype("cargoa_engine_port"),
-                                    modifications: [
-                                        SetHealth(25.0),
-                                    ],
-                                ),
-                                (
-                                    id: "pod_starboard",
-                                    position: (
-                                        1.205,
-                                        0.7,
-                                        0.47500002,
+                                    (
+                                        id: "nose",
+                                        position: (
+                                            0.0,
+                                            0.8,
+                                            -1.8,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_nose"),
+                                        modifications: [
+                                            SetHealth(104.399994),
+                                        ],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "tail",
+                                        position: (
+                                            0.0,
+                                            0.5875,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_tail"),
+                                        modifications: [
+                                            SetHealth(87.0),
+                                        ],
                                     ),
-                                    source: Prototype("cargoa_pod_starboard"),
-                                    modifications: [
-                                        SetHealth(203.0),
-                                    ],
-                                ),
-                                (
-                                    id: "pod_port",
-                                    position: (
-                                        -1.205,
-                                        0.7,
-                                        0.47500002,
+                                    (
+                                        id: "fuselage",
+                                        position: (
+                                            0.0,
+                                            0.8,
+                                            0.17500001,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_fuselage"),
+                                        modifications: [
+                                            SetHealth(140.0),
+                                        ],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "turret_starboard",
+                                        position: (
+                                            0.95,
+                                            0.8,
+                                            -1.8,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            -0.70710677,
+                                            0.70710677,
+                                        ),
+                                        source: Prototype("cargoa_turret_starboard_light"),
+                                        modifications: [],
                                     ),
-                                    source: Prototype("cargoa_pod_port"),
-                                    modifications: [
-                                        SetHealth(203.0),
-                                    ],
-                                ),
-                                (
-                                    id: "nose",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        -1.8,
+                                    (
+                                        id: "turret_port",
+                                        position: (
+                                            -0.95,
+                                            0.8,
+                                            -1.8,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.70710677,
+                                            0.70710677,
+                                        ),
+                                        source: Prototype("cargoa_turret_port_light"),
+                                        modifications: [],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_nose"),
-                                    modifications: [
-                                        SetHealth(104.399994),
-                                    ],
-                                ),
-                                (
-                                    id: "tail",
-                                    position: (
-                                        0.0,
-                                        0.5875,
-                                        1.975,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_tail"),
-                                    modifications: [
-                                        SetHealth(87.0),
-                                    ],
-                                ),
-                                (
-                                    id: "fuselage",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        0.17500001,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_fuselage"),
-                                    modifications: [
-                                        SetHealth(140.0),
-                                    ],
-                                ),
-                                (
-                                    id: "turret_starboard",
-                                    position: (
-                                        0.95,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargoa_turret_starboard_light"),
-                                    modifications: [],
-                                ),
-                                (
-                                    id: "turret_port",
-                                    position: (
-                                        -0.95,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargoa_turret_port_light"),
-                                    modifications: [],
-                                ),
-                            ],
+                                ],
+                            )),
                         )),
                     )),
                     SpawnScenarioObject((
@@ -778,166 +784,168 @@
                                 leash: Some(550.0),
                                 engage_delay: Some(8.0),
                             )),
-                            sections: [
-                                (
-                                    id: "engine_starboard",
-                                    position: (
-                                        1.205,
-                                        0.6,
-                                        1.975,
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "engine_starboard",
+                                        position: (
+                                            1.205,
+                                            0.6,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_engine_starboard"),
+                                        modifications: [
+                                            SetHealth(25.0),
+                                        ],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "engine_port",
+                                        position: (
+                                            -1.205,
+                                            0.6,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_engine_port"),
+                                        modifications: [
+                                            SetHealth(25.0),
+                                        ],
                                     ),
-                                    source: Prototype("cargoa_engine_starboard"),
-                                    modifications: [
-                                        SetHealth(25.0),
-                                    ],
-                                ),
-                                (
-                                    id: "engine_port",
-                                    position: (
-                                        -1.205,
-                                        0.6,
-                                        1.975,
+                                    (
+                                        id: "pod_starboard",
+                                        position: (
+                                            1.205,
+                                            0.7,
+                                            0.47500002,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_pod_starboard"),
+                                        modifications: [
+                                            SetHealth(203.0),
+                                        ],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "pod_port",
+                                        position: (
+                                            -1.205,
+                                            0.7,
+                                            0.47500002,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_pod_port"),
+                                        modifications: [
+                                            SetHealth(203.0),
+                                        ],
                                     ),
-                                    source: Prototype("cargoa_engine_port"),
-                                    modifications: [
-                                        SetHealth(25.0),
-                                    ],
-                                ),
-                                (
-                                    id: "pod_starboard",
-                                    position: (
-                                        1.205,
-                                        0.7,
-                                        0.47500002,
+                                    (
+                                        id: "nose",
+                                        position: (
+                                            0.0,
+                                            0.8,
+                                            -1.8,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_nose"),
+                                        modifications: [
+                                            SetHealth(104.399994),
+                                        ],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "tail",
+                                        position: (
+                                            0.0,
+                                            0.5875,
+                                            1.975,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_tail"),
+                                        modifications: [
+                                            SetHealth(87.0),
+                                        ],
                                     ),
-                                    source: Prototype("cargoa_pod_starboard"),
-                                    modifications: [
-                                        SetHealth(203.0),
-                                    ],
-                                ),
-                                (
-                                    id: "pod_port",
-                                    position: (
-                                        -1.205,
-                                        0.7,
-                                        0.47500002,
+                                    (
+                                        id: "fuselage",
+                                        position: (
+                                            0.0,
+                                            0.8,
+                                            0.17500001,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("cargoa_fuselage"),
+                                        modifications: [
+                                            SetHealth(140.0),
+                                        ],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
+                                    (
+                                        id: "turret_starboard",
+                                        position: (
+                                            0.95,
+                                            0.8,
+                                            -1.8,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            -0.70710677,
+                                            0.70710677,
+                                        ),
+                                        source: Prototype("cargoa_turret_starboard_light"),
+                                        modifications: [],
                                     ),
-                                    source: Prototype("cargoa_pod_port"),
-                                    modifications: [
-                                        SetHealth(203.0),
-                                    ],
-                                ),
-                                (
-                                    id: "nose",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        -1.8,
+                                    (
+                                        id: "turret_port",
+                                        position: (
+                                            -0.95,
+                                            0.8,
+                                            -1.8,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.70710677,
+                                            0.70710677,
+                                        ),
+                                        source: Prototype("cargoa_turret_port_light"),
+                                        modifications: [],
                                     ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_nose"),
-                                    modifications: [
-                                        SetHealth(104.399994),
-                                    ],
-                                ),
-                                (
-                                    id: "tail",
-                                    position: (
-                                        0.0,
-                                        0.5875,
-                                        1.975,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_tail"),
-                                    modifications: [
-                                        SetHealth(87.0),
-                                    ],
-                                ),
-                                (
-                                    id: "fuselage",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        0.17500001,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_fuselage"),
-                                    modifications: [
-                                        SetHealth(140.0),
-                                    ],
-                                ),
-                                (
-                                    id: "turret_starboard",
-                                    position: (
-                                        0.95,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargoa_turret_starboard_light"),
-                                    modifications: [],
-                                ),
-                                (
-                                    id: "turret_port",
-                                    position: (
-                                        -0.95,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargoa_turret_port_light"),
-                                    modifications: [],
-                                ),
-                            ],
+                                ],
+                            )),
                         )),
                     )),
                 ],

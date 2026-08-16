@@ -49,7 +49,7 @@ of it: nothing places a plate, no id names one, and none is saved. Build the
 structure and the skin follows. There is nothing here for a mod to reference.
 
 A ship asks for it with one field - `skin: true` on the
-[Spaceship](../objects/#spaceship) - and gets destructible cladding: each plate
+[ship](../ships/)'s hull - and gets destructible cladding: each plate
 carries its own health and mass, comes off when it is shot out, and leaves the
 hull behind it bare. Build the hull out of the unit-cell sections above; the
 semantic ship parts are modelled shapes of their own sizes and are not on the
@@ -64,7 +64,8 @@ have an id.
 |---|---|
 | `placeholder` | scaffolding, in deliberately garish magenta: four placeholder greebles wired to four rules that exercise the whole plate vocabulary. It makes no art decision and the authored kits replace it |
 
-A ship names one with `style: Some("<id>")` beside `skin: true`. A mod declaring
+A ship names one with `style: Some("<id>")` beside `skin: true` on its
+[hull](../ships/#the-hull). A mod declaring
 a `Style` with the same id replaces that look everywhere; a new id is a new look.
 See [Ship skin styles](../styles/).
 

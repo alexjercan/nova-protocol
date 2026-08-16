@@ -207,9 +207,6 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         modifications: vec![],
     });
     let player = SpaceshipConfig {
-        collapse_threshold: None,
-        skin: false,
-        style: None,
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),
@@ -217,15 +214,20 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
             // Dev/tuning harness: fire freely.
             infinite_ammo: true,
         }),
-        sections: player_sections,
+        hull: ShipSource::Inline(ShipHull {
+            sections: player_sections,
+            ..default()
+        }),
+        ..default()
     };
     let target = SpaceshipConfig {
-        collapse_threshold: None,
-        skin: false,
-        style: None,
         allegiance: None,
         controller: SpaceshipController::None,
-        sections: sections_line("target"),
+        hull: ShipSource::Inline(ShipHull {
+            sections: sections_line("target"),
+            ..default()
+        }),
+        ..default()
     };
 
     let spawn = |id: &str, name: &str, position: Vec3, ship: SpaceshipConfig| {

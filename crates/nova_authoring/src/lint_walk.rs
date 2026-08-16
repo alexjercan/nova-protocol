@@ -12,8 +12,9 @@ use std::{
 use nova_mod_format::BundleManifest;
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
-    lint_campaign, lint_scenario, CampaignConfig, EventActionConfig, KnownSections, LintIssue,
-    LintSeverity, ScenarioConfig, ScenarioObjectKind, SpaceshipController,
+    lint_campaign, lint_scenario, lint_ship_config, CampaignConfig, EventActionConfig,
+    KnownSections, KnownShips, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
+    ShipConfig, SpaceshipController,
 };
 use nova_ship::prelude::{binding_source, flight_rig_reserved_sources, InputSource, SectionConfig};
 
@@ -36,6 +37,7 @@ struct WalkedBundle {
     id: String,
     manifest: BundleManifest,
     sections: Vec<SectionConfig>,
+    ships: Vec<ShipConfig>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
     /// Every parsed content item paired with the bundle-relative file it was
@@ -57,6 +59,7 @@ impl WalkedBundle {
                 Content::Section(cfg) => cfg.base.id.as_str(),
                 Content::Campaign(cfg) => cfg.id.as_str(),
                 Content::Style(cfg) => cfg.id.as_str(),
+                Content::Ship(cfg) => cfg.id.as_str(),
             };
             (id == element_id).then_some(file.as_str())
         })
@@ -98,11 +101,13 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         content.extend(items.into_iter().map(|item| (rel.clone(), item)));
     }
     let mut sections = Vec::new();
+    let mut ships = Vec::new();
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
     for (_, item) in &content {
         match item {
             Content::Section(section) => sections.push(section.as_ref().clone()),
+            Content::Ship(ship) => ships.push(ship.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             // Styles have no cross-content references of their own - a style
@@ -115,6 +120,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         id: id.to_string(),
         manifest,
         sections,
+        ships,
         scenarios,
         campaigns,
         content,
@@ -184,9 +190,36 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     visible.extend(bundle.sections.iter());
     let known_sections = KnownSections::from_configs(visible);
 
+    // Visible ships, same overlay: base + declared dependencies' + this
+    // bundle's own, so a scenario may spawn a base hull by id.
+    let ships_by_bundle: HashMap<&str, &[ShipConfig]> = all
+        .iter()
+        .map(|b| (b.id.as_str(), b.ships.as_slice()))
+        .collect();
+    let mut visible_ships: Vec<&ShipConfig> = ships_by_bundle
+        .get("base")
+        .map(|s| s.iter().collect())
+        .unwrap_or_default();
+    for dep in &bundle.manifest.meta.dependencies {
+        if let Some(dep_ships) = ships_by_bundle.get(dep.as_str()) {
+            visible_ships.extend(dep_ships.iter());
+        }
+    }
+    visible_ships.extend(bundle.ships.iter());
+    let known_ships = KnownShips::from_configs(visible_ships);
+
     let mut issues = Vec::new();
     for scenario in &bundle.scenarios {
-        for issue in lint_scenario(scenario, &known_sections, &known_scenarios) {
+        for issue in lint_scenario(scenario, &known_sections, &known_ships, &known_scenarios) {
+            issues.push((bundle.id.clone(), issue));
+        }
+    }
+
+    // Ship well-formedness: validate every hull THIS bundle ships, so a
+    // disconnected or unresolvable ship is caught even when no scenario spawns
+    // it. Same rule the section catalog follows below.
+    for ship in &bundle.ships {
+        for issue in lint_ship_config(ship, &known_sections, ship.id.as_str()) {
             issues.push((bundle.id.clone(), issue));
         }
     }
@@ -257,6 +290,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             Content::Section(cfg) => (cfg.base.id.clone(), "section"),
             Content::Campaign(cfg) => (cfg.id.clone(), "campaign"),
             Content::Style(cfg) => (cfg.id.clone(), "style"),
+            Content::Ship(cfg) => (cfg.id.clone(), "ship"),
         };
         for message in nova_assets::mod_refs::resource_ref_violations(item, &scope) {
             issues.push((
@@ -300,6 +334,8 @@ pub struct AuditBundle {
     pub dependencies: Vec<String>,
     /// The bundle's parsed section configs.
     pub sections: Vec<SectionConfig>,
+    /// The bundle's parsed ship configs.
+    pub ships: Vec<ShipConfig>,
     /// The bundle's parsed scenario configs.
     pub scenarios: Vec<ScenarioConfig>,
 }
@@ -311,6 +347,7 @@ pub fn audit_bundles() -> Vec<AuditBundle> {
         .map(|bundle| AuditBundle {
             dependencies: bundle.manifest.meta.dependencies.clone(),
             sections: bundle.sections,
+            ships: bundle.ships,
             scenarios: bundle.scenarios,
             id: bundle.id,
         })
@@ -461,6 +498,7 @@ fn build_report(
             id: b.id.clone(),
             dependencies: b.manifest.meta.dependencies.clone(),
             sections: b.sections.clone(),
+            ships: b.ships.clone(),
             scenarios: b.scenarios.clone(),
         })
         .collect();
@@ -668,6 +706,13 @@ mod tests {
                 _ => None,
             })
             .collect();
+        let ships = content
+            .iter()
+            .filter_map(|c| match c {
+                Content::Ship(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect();
         WalkedBundle {
             id: id.to_string(),
             manifest: BundleManifest {
@@ -680,6 +725,7 @@ mod tests {
                 new_game_scenario: None,
             },
             sections,
+            ships,
             scenarios,
             campaigns,
             // The tests do not exercise multi-file provenance; a single

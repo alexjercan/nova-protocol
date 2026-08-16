@@ -52,6 +52,88 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "controller",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("basic_controller_section"),
+                                        modifications: [
+                                            DisableVerb(Rcs),
+                                        ],
+                                    ),
+                                    (
+                                        id: "hull_front",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_back",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "thruster",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "turret",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -2.0,
+                                        ),
+                                        rotation: (
+                                            -0.70710677,
+                                            0.0,
+                                            0.0,
+                                            0.70710677,
+                                        ),
+                                        source: Prototype("better_turret_section"),
+                                    ),
+                                ],
+                            )),
                             controller: Player((
                                 input_mapping: {
                                     "turret": [
@@ -61,86 +143,6 @@
                                 },
                                 infinite_ammo: false,
                             )),
-                            sections: [
-                                (
-                                    id: "controller",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("basic_controller_section"),
-                                    modifications: [
-                                        DisableVerb(Rcs),
-                                    ],
-                                ),
-                                (
-                                    id: "hull_front",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("reinforced_hull_section"),
-                                ),
-                                (
-                                    id: "hull_back",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("reinforced_hull_section"),
-                                ),
-                                (
-                                    id: "thruster",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("basic_thruster_section"),
-                                ),
-                                (
-                                    id: "turret",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        -0.70710677,
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("better_turret_section"),
-                                ),
-                            ],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -160,84 +162,86 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "controller",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "hull_front",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_back",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "thruster",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            2.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "turret",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -2.0,
+                                        ),
+                                        rotation: (
+                                            -0.70710677,
+                                            0.0,
+                                            0.0,
+                                            0.70710677,
+                                        ),
+                                        source: Prototype("better_turret_section"),
+                                    ),
+                                ],
+                            )),
                             controller: r#None,
-                            sections: [
-                                (
-                                    id: "controller",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("basic_controller_section"),
-                                ),
-                                (
-                                    id: "hull_front",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("reinforced_hull_section"),
-                                ),
-                                (
-                                    id: "hull_back",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        -1.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("reinforced_hull_section"),
-                                ),
-                                (
-                                    id: "thruster",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("basic_thruster_section"),
-                                ),
-                                (
-                                    id: "turret",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        -0.70710677,
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("better_turret_section"),
-                                ),
-                            ],
                         )),
                     )),
                     SpawnScenarioObject((

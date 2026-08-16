@@ -53,13 +53,21 @@ const ASTEROID_NEXT_RON: &str =
     include_str!("../../../assets/base/scenarios/asteroid_next.content.ron");
 const BASE_BUNDLE_RON: &str = include_str!("../../../assets/base/base.bundle.ron");
 
+/// The sections a spawn flies, joined through the built-in ship catalog: a
+/// scenario may reference a whole hull by id instead of carrying one.
+fn ship_sections(ship: &SpaceshipConfig) -> Vec<SpaceshipSectionConfig> {
+    nova_authoring::generation::spawned_ship_sections(ship)
+}
+
 fn scenario_from(ron: &str) -> ScenarioConfig {
     let items: Vec<Content> = ron::de::from_str(ron).expect("content RON parses");
     items
         .into_iter()
         .find_map(|c| match c {
             Content::Scenario(s) => Some(s),
-            Content::Section(_) | Content::Campaign(_) | Content::Style(_) => None,
+            Content::Section(_) | Content::Campaign(_) | Content::Style(_) | Content::Ship(_) => {
+                None
+            }
         })
         .expect("content contains a Scenario")
 }
@@ -611,16 +619,15 @@ fn on_start_stages_the_slice() {
     // player screens them, not trades them - and the magazine is finite with
     // auto-reload.
     let catalog = nova_authoring::generation::build_section_catalog();
+    let player_sections = ship_sections(player_ship);
     assert!(
-        !player_ship
-            .sections
+        !player_sections
             .iter()
             .any(|s| matches!(section_kind(s, &catalog), Some(SectionKind::Torpedo(_)))),
         "the player carries NO torpedo bay in chapter two"
     );
     assert!(
-        player_ship
-            .sections
+        player_sections
             .iter()
             .any(|s| matches!(section_kind(s, &catalog), Some(SectionKind::Turret(_)))),
         "the PDC turret is the player's weapon"
@@ -676,8 +683,7 @@ fn the_gunship_keeps_its_torpedo_tubes() {
         panic!("gunship is a spaceship");
     };
     let catalog = nova_authoring::generation::build_section_catalog();
-    let tubes = ship
-        .sections
+    let tubes = ship_sections(ship)
         .iter()
         .filter(|s| matches!(section_kind(s, &catalog), Some(SectionKind::Torpedo(_))))
         .count();

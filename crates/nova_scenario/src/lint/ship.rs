@@ -6,42 +6,113 @@ use nova_ship::prelude::{
     SectionCollider, SectionConfig, SectionKind, TurretJoint, TurretSectionConfig,
 };
 
-use super::{KnownSections, LintIssue};
+use super::{KnownSections, KnownShips, LintIssue};
 use crate::prelude::*;
 
-/// Every section prototype a spawned (or scatter-template) ship references
-/// must exist in the caller's known set.
+/// Every reference a spawned (or scatter-template) ship makes must resolve: the
+/// hull it names, the section prototypes that hull is built from, and the
+/// sections its spawn-time modifications aim at.
+///
+/// A `Prototype` hull's own geometry is NOT re-checked here - it is linted where
+/// the ship catalog is walked ([`lint_ship_config`]), the same rule a
+/// `Prototype` section follows.
 pub(super) fn check_object_prototypes(
     config: &ScenarioObjectConfig,
     scenario: &str,
     sections: &KnownSections,
+    ships: &KnownShips,
     issues: &mut Vec<LintIssue>,
 ) {
-    if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
-        for section in &ship.sections {
-            if let SectionSource::Prototype(proto) = &section.source {
-                if !sections.contains(proto) {
-                    issues.push(LintIssue::error(
-                        scenario,
-                        format!(
-                            "ship '{}' section '{}': unknown section prototype '{proto}'",
-                            config.base.id, section.id
-                        ),
-                    ));
-                }
-            }
+    let ScenarioObjectKind::Spaceship(ship) = &config.kind else {
+        return;
+    };
+    let hull = match &ship.hull {
+        ShipSource::Inline(hull) => {
+            check_hull_sections(config.base.id.as_str(), hull, scenario, sections, issues);
+            hull
         }
-        check_section_overlaps(config.base.id.as_str(), ship, scenario, sections, issues);
-        check_link_point_graph(config.base.id.as_str(), ship, scenario, sections, issues);
-        // Inline section configs a scenario writes directly (a Prototype ref
-        // resolves to a catalog section, which is linted where the catalog is
-        // walked - lint_bundle - so it is not re-linted here).
-        for section in &ship.sections {
-            if let SectionSource::Inline(inline) = &section.source {
-                issues.extend(lint_section_config(inline, scenario));
+        ShipSource::Prototype(id) => match ships.get(id) {
+            Some(hull) => hull,
+            None => {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!("ship '{}': unknown ship '{id}'", config.base.id),
+                ));
+                return;
+            }
+        },
+    };
+
+    // A spawn override aimed at a section the hull does not carry does nothing
+    // at all - a silent no-op is exactly what this lint exists to catch.
+    for modification in &ship.modifications {
+        if !hull
+            .sections
+            .iter()
+            .any(|section| section.id == modification.section)
+        {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "ship '{}': modification names section '{}', which this hull does not carry",
+                    config.base.id, modification.section
+                ),
+            ));
+        }
+    }
+}
+
+/// Static checks over one hull's section list: every prototype resolves, the
+/// sections do not interpenetrate, the link-point graph is sound, and every
+/// inline section config is well-formed.
+///
+/// Run on an inline hull where the scenario spawns it, and on a catalog ship
+/// where the ship catalog is walked - so a hull is checked exactly once,
+/// wherever it is authored.
+fn check_hull_sections(
+    ship_id: &str,
+    hull: &ShipHull,
+    source: &str,
+    sections: &KnownSections,
+    issues: &mut Vec<LintIssue>,
+) {
+    for section in &hull.sections {
+        if let SectionSource::Prototype(proto) = &section.source {
+            if !sections.contains(proto) {
+                issues.push(LintIssue::error(
+                    source,
+                    format!(
+                        "ship '{ship_id}' section '{}': unknown section prototype '{proto}'",
+                        section.id
+                    ),
+                ));
             }
         }
     }
+    check_section_overlaps(ship_id, &hull.sections, source, sections, issues);
+    check_link_point_graph(ship_id, &hull.sections, source, sections, issues);
+    // Inline section configs authored directly (a Prototype ref resolves to a
+    // catalog section, which is linted where the catalog is walked -
+    // lint_bundle - so it is not re-linted here).
+    for section in &hull.sections {
+        if let SectionSource::Inline(inline) = &section.source {
+            issues.extend(lint_section_config(inline, source));
+        }
+    }
+}
+
+/// Static well-formedness of one CATALOG ship: the same structural checks a
+/// scenario's inline hull gets, run where the ship is authored so a hull
+/// referenced by eleven scenarios is checked once. Pure over the config, like
+/// [`lint_section_config`] beside it.
+pub fn lint_ship_config(
+    ship: &ShipConfig,
+    sections: &KnownSections,
+    source: &str,
+) -> Vec<LintIssue> {
+    let mut issues = Vec::new();
+    check_hull_sections(ship.id.as_str(), &ship.hull, source, sections, &mut issues);
+    issues
 }
 
 /// Static well-formedness of one section's config that the RON parser cannot
@@ -215,13 +286,12 @@ fn link_point_name(points: &[nova_ship::prelude::LinkPoint], reference: LinkPoin
 
 fn check_link_point_graph(
     ship_id: &str,
-    ship: &SpaceshipConfig,
+    ship_sections: &[SpaceshipSectionConfig],
     scenario: &str,
     sections: &KnownSections,
     issues: &mut Vec<LintIssue>,
 ) {
-    let resolved: Option<Vec<_>> = ship
-        .sections
+    let resolved: Option<Vec<_>> = ship_sections
         .iter()
         .map(|section| match &section.source {
             SectionSource::Inline(config) => Some(config.base.link_points.as_slice()),
@@ -233,8 +303,7 @@ fn check_link_point_graph(
     let Some(resolved) = resolved else {
         return;
     };
-    let placed: Vec<_> = ship
-        .sections
+    let placed: Vec<_> = ship_sections
         .iter()
         .zip(resolved)
         .map(|(section, link_points)| PlacedSectionLinkPoints {
@@ -251,35 +320,36 @@ fn check_link_point_graph(
         let message = match error {
             LinkPointGraphError::NonFiniteSectionPosition { section_index } => format!(
                 "ship '{ship_id}' section '{}': position {:?} must be finite",
-                ship.sections[section_index].id, ship.sections[section_index].position
+                ship_sections[section_index].id, ship_sections[section_index].position
             ),
             LinkPointGraphError::NonFiniteSectionRotation { section_index } => format!(
                 "ship '{ship_id}' section '{}': rotation {:?} must be finite",
-                ship.sections[section_index].id, ship.sections[section_index].rotation
+                ship_sections[section_index].id, ship_sections[section_index].rotation
             ),
             LinkPointGraphError::NonUnitSectionRotation { section_index } => format!(
                 "ship '{ship_id}' section '{}': rotation {:?} must have unit length",
-                ship.sections[section_index].id, ship.sections[section_index].rotation
+                ship_sections[section_index].id, ship_sections[section_index].rotation
             ),
             LinkPointGraphError::AmbiguousMate {
                 link_point,
                 candidates,
             } => {
-                let point = &resolved_link_point(ship, sections, link_point);
+                let point = &resolved_link_point(ship_sections, sections, link_point);
                 let candidates = candidates
                     .into_iter()
                     .map(|candidate| {
-                        let candidate_point = resolved_link_point(ship, sections, candidate);
+                        let candidate_point =
+                            resolved_link_point(ship_sections, sections, candidate);
                         format!(
                             "{}.{}",
-                            ship.sections[candidate.section_index].id, candidate_point.id
+                            ship_sections[candidate.section_index].id, candidate_point.id
                         )
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!(
                     "ship '{ship_id}' section '{}' link point '{}': ambiguous mates [{candidates}]",
-                    ship.sections[link_point.section_index].id, point.id
+                    ship_sections[link_point.section_index].id, point.id
                 )
             }
             LinkPointGraphError::Disconnected { components } => {
@@ -288,7 +358,7 @@ fn check_link_point_graph(
                     .map(|component| {
                         component
                             .into_iter()
-                            .map(|index| ship.sections[index].id.as_str())
+                            .map(|index| ship_sections[index].id.as_str())
                             .collect::<Vec<_>>()
                             .join(", ")
                     })
@@ -306,11 +376,11 @@ fn check_link_point_graph(
 }
 
 fn resolved_link_point<'a>(
-    ship: &'a SpaceshipConfig,
+    ship_sections: &'a [SpaceshipSectionConfig],
     sections: &'a KnownSections,
     reference: LinkPointRef,
 ) -> &'a nova_ship::prelude::LinkPoint {
-    let section = &ship.sections[reference.section_index];
+    let section = &ship_sections[reference.section_index];
     let points = match &section.source {
         SectionSource::Inline(config) => &config.base.link_points,
         SectionSource::Prototype(id) => &sections.get(id).expect("prototype resolved").link_points,
@@ -326,7 +396,7 @@ fn resolved_link_point<'a>(
 /// conservative broad-phase authoring check rather than physical narrow-phase geometry.
 fn check_section_overlaps(
     ship_id: &str,
-    ship: &SpaceshipConfig,
+    ship_sections: &[SpaceshipSectionConfig],
     scenario: &str,
     sections: &KnownSections,
     issues: &mut Vec<LintIssue>,
@@ -346,16 +416,14 @@ fn check_section_overlaps(
         }
     }
 
-    let resolved: Option<Vec<_>> = ship
-        .sections
+    let resolved: Option<Vec<_>> = ship_sections
         .iter()
         .map(|section| resolved(section, sections))
         .collect();
     let Some(resolved) = resolved else {
         return;
     };
-    let placed: Vec<_> = ship
-        .sections
+    let placed: Vec<_> = ship_sections
         .iter()
         .zip(&resolved)
         .map(|(section, (_, points))| PlacedSectionLinkPoints {
@@ -374,9 +442,9 @@ fn check_section_overlaps(
         })
         .collect::<std::collections::BTreeSet<_>>();
 
-    for i in 0..ship.sections.len() {
-        for j in (i + 1)..ship.sections.len() {
-            let (a, b) = (&ship.sections[i], &ship.sections[j]);
+    for i in 0..ship_sections.len() {
+        for j in (i + 1)..ship_sections.len() {
+            let (a, b) = (&ship_sections[i], &ship_sections[j]);
             let d = a.position - b.position;
             let sum = resolved[i].0.aabb_half_extents() + resolved[j].0.aabb_half_extents();
             if d.x.abs() < sum.x
@@ -409,10 +477,129 @@ mod tests {
     #[test]
     fn unknown_prototype_is_an_error() {
         let s = scenario(vec![spawn_ship("player", "no_such_proto")], vec![]);
-        let issues = lint_scenario(&s, &sections(&["known_proto"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&["known_proto"]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("no_such_proto"));
+    }
+
+    /// A spawn naming a ship no bundle authored is an Error, exactly like a
+    /// section prototype that resolves to nothing - the reference class this
+    /// lint exists for. A known id is clean, and its geometry is NOT re-linted
+    /// here (it is checked where the ship catalog is walked).
+    #[test]
+    fn an_unknown_ship_reference_is_an_error() {
+        let by_id = |ship: &str| {
+            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "raider".to_string(),
+                    name: "Raider".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                    hull: ShipSource::Prototype(ship.to_string()),
+                    ..default()
+                }),
+            })
+        };
+
+        let s = scenario(vec![by_id("no_such_ship")], vec![]);
+        let issues = lint_scenario(
+            &s,
+            &sections(&["hull"]),
+            &ships(&["cargoa"]),
+            &known(&["test_scenario"]),
+        );
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(errs[0].message.contains("no_such_ship"));
+
+        let s = scenario(vec![by_id("cargoa")], vec![]);
+        let issues = lint_scenario(
+            &s,
+            &sections(&["hull"]),
+            &ships(&["cargoa"]),
+            &known(&["test_scenario"]),
+        );
+        assert!(issues.is_empty(), "a known ship lints clean: {issues:?}");
+    }
+
+    /// A spawn override aimed at a section the hull does not carry is a silent
+    /// no-op at runtime, so it is an Error here.
+    #[test]
+    fn a_modification_naming_no_section_of_the_hull_is_an_error() {
+        let with_override = |section: &str| {
+            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "duelist".to_string(),
+                    name: "Duelist".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                    hull: ShipSource::Prototype("cargoa".to_string()),
+                    modifications: vec![ShipSectionModification {
+                        section: section.to_string(),
+                        modifications: vec![SectionModification::SetHealth(500.0)],
+                    }],
+                    ..default()
+                }),
+            })
+        };
+
+        let s = scenario(vec![with_override("no_such_section")], vec![]);
+        let issues = lint_scenario(
+            &s,
+            &sections(&["hull"]),
+            &ships(&["cargoa"]),
+            &known(&["test_scenario"]),
+        );
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(errs[0].message.contains("no_such_section"));
+
+        // The fixture hull's one section is named `hull`.
+        let s = scenario(vec![with_override("hull")], vec![]);
+        assert!(lint_scenario(
+            &s,
+            &sections(&["hull"]),
+            &ships(&["cargoa"]),
+            &known(&["test_scenario"])
+        )
+        .is_empty());
+    }
+
+    /// A CATALOG ship is linted where it is authored: its own section
+    /// prototypes must resolve. This is what keeps a hull checked once eleven
+    /// scenarios have stopped inlining it.
+    #[test]
+    fn a_catalog_ship_is_linted_where_it_is_authored() {
+        let ship = |proto: &str| ShipConfig {
+            id: "cargoa".to_string(),
+            name: "CargoA".to_string(),
+            hull: ShipHull {
+                sections: vec![SpaceshipSectionConfig {
+                    id: "fuselage".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Prototype(proto.to_string()),
+                    modifications: vec![],
+                }],
+                ..default()
+            },
+        };
+
+        let issues = lint_ship_config(&ship("no_such_proto"), &sections(&["hull"]), "base");
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert!(issues[0].message.contains("no_such_proto"));
+
+        assert!(lint_ship_config(&ship("hull"), &sections(&["hull"]), "base").is_empty());
     }
 
     #[test]
@@ -467,7 +654,10 @@ mod tests {
         let ScenarioObjectKind::Spaceship(ship) = &mut object.kind else {
             unreachable!()
         };
-        ship.sections.push(SpaceshipSectionConfig {
+        let ShipSource::Inline(hull) = &mut ship.hull else {
+            unreachable!()
+        };
+        hull.sections.push(SpaceshipSectionConfig {
             id: "second".to_string(),
             position: Vec3::X,
             rotation: Quat::IDENTITY,
@@ -475,7 +665,7 @@ mod tests {
             modifications: Vec::new(),
         });
         let scenario = scenario(vec![action], vec![]);
-        let issues = lint_scenario(&scenario, &catalog, &known(&["test_scenario"]));
+        let issues = lint_scenario(&scenario, &catalog, &ships(&[]), &known(&["test_scenario"]));
         assert!(
             issues
                 .iter()
@@ -510,7 +700,12 @@ mod tests {
             })],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&["known_proto"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&["known_proto"]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("no_such_proto"));
@@ -529,34 +724,38 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                    collapse_threshold: None,
-                    skin: false,
-                    style: None,
-                    controller: SpaceshipController::None,
-                    allegiance: None,
-                    sections: vec![
-                        SpaceshipSectionConfig {
-                            id: "a".to_string(),
-                            position: Vec3::ZERO,
-                            rotation: Quat::IDENTITY,
-                            source: SectionSource::Prototype("known".to_string()),
-                            modifications: vec![],
-                        },
-                        SpaceshipSectionConfig {
-                            id: "b".to_string(),
-                            position: tube_pos,
-                            rotation: Quat::IDENTITY,
-                            source: SectionSource::Prototype("known".to_string()),
-                            modifications: vec![],
-                        },
-                    ],
+                    hull: ShipSource::Inline(ShipHull {
+                        sections: vec![
+                            SpaceshipSectionConfig {
+                                id: "a".to_string(),
+                                position: Vec3::ZERO,
+                                rotation: Quat::IDENTITY,
+                                source: SectionSource::Prototype("known".to_string()),
+                                modifications: vec![],
+                            },
+                            SpaceshipSectionConfig {
+                                id: "b".to_string(),
+                                position: tube_pos,
+                                rotation: Quat::IDENTITY,
+                                source: SectionSource::Prototype("known".to_string()),
+                                modifications: vec![],
+                            },
+                        ],
+                        ..default()
+                    }),
+                    ..default()
                 }),
             })
         };
 
         // The Auditor shape: half-embedded on the spine.
         let s = scenario(vec![ship_with(Vec3::new(0.0, 0.0, 0.5))], vec![]);
-        let issues = lint_scenario(&s, &sections(&["known"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&["known"]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         assert_eq!(
             issues
                 .iter()
@@ -568,7 +767,12 @@ mod tests {
 
         // Flush side mount: legal.
         let s = scenario(vec![ship_with(Vec3::new(1.0, 0.0, 0.0))], vec![]);
-        let issues = lint_scenario(&s, &sections(&["known"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&["known"]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         assert!(issues.is_empty(), "{issues:?}");
     }
 
@@ -609,12 +813,11 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                    collapse_threshold: None,
-                    skin: false,
-                    style: None,
-                    controller: SpaceshipController::None,
-                    allegiance: None,
-                    sections: vec![a, b],
+                    hull: ShipSource::Inline(ShipHull {
+                        sections: vec![a, b],
+                        ..default()
+                    }),
+                    ..default()
                 }),
             })
         };
@@ -634,7 +837,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(
             issues
                 .iter()
@@ -652,7 +855,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(
             issues
                 .iter()
@@ -669,7 +872,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(
             issues
                 .iter()
@@ -709,27 +912,26 @@ mod tests {
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                collapse_threshold: None,
-                skin: false,
-                style: None,
-                controller: SpaceshipController::None,
-                allegiance: None,
-                sections: vec![
-                    SpaceshipSectionConfig {
-                        id: "left".to_string(),
-                        position: Vec3::ZERO,
-                        rotation: Quat::IDENTITY,
-                        source: SectionSource::Prototype("left".to_string()),
-                        modifications: vec![],
-                    },
-                    SpaceshipSectionConfig {
-                        id: "right".to_string(),
-                        position: Vec3::X * 0.5,
-                        rotation: Quat::IDENTITY,
-                        source: SectionSource::Prototype("right".to_string()),
-                        modifications: vec![],
-                    },
-                ],
+                hull: ShipSource::Inline(ShipHull {
+                    sections: vec![
+                        SpaceshipSectionConfig {
+                            id: "left".to_string(),
+                            position: Vec3::ZERO,
+                            rotation: Quat::IDENTITY,
+                            source: SectionSource::Prototype("left".to_string()),
+                            modifications: vec![],
+                        },
+                        SpaceshipSectionConfig {
+                            id: "right".to_string(),
+                            position: Vec3::X * 0.5,
+                            rotation: Quat::IDENTITY,
+                            source: SectionSource::Prototype("right".to_string()),
+                            modifications: vec![],
+                        },
+                    ],
+                    ..default()
+                }),
+                ..default()
             }),
         });
         (action, KnownSections::from_configs(&configs))
@@ -739,7 +941,7 @@ mod tests {
     fn directly_mated_sections_may_overlap() {
         let (action, catalog) = ship_with_mated_overlap();
         let s = scenario(vec![action], vec![]);
-        let issues = lint_scenario(&s, &catalog, &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &catalog, &ships(&[]), &known(&["test_scenario"]));
         assert!(issues.is_empty(), "{issues:?}");
     }
 

@@ -307,18 +307,18 @@ fn target_hulk(index: usize, position: Vec3) -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
-            allegiance: None,
             controller: SpaceshipController::None,
-            sections: vec![
-                hull("spine", Vec3::ZERO, "reinforced_hull_section"),
-                hull("bow", Vec3::new(0.0, 0.0, -1.0), "light_hull_section"),
-                hull("stern", Vec3::new(0.0, 0.0, 1.0), "light_hull_section"),
-                hull("port", Vec3::new(-1.0, 0.0, 0.0), "light_hull_section"),
-                hull("starboard", Vec3::new(1.0, 0.0, 0.0), "light_hull_section"),
-            ],
+            hull: ShipSource::Inline(ShipHull {
+                sections: vec![
+                    hull("spine", Vec3::ZERO, "reinforced_hull_section"),
+                    hull("bow", Vec3::new(0.0, 0.0, -1.0), "light_hull_section"),
+                    hull("stern", Vec3::new(0.0, 0.0, 1.0), "light_hull_section"),
+                    hull("port", Vec3::new(-1.0, 0.0, 0.0), "light_hull_section"),
+                    hull("starboard", Vec3::new(1.0, 0.0, 0.0), "light_hull_section"),
+                ],
+                ..default()
+            }),
+            ..default()
         }),
     }
 }
@@ -347,9 +347,6 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::AI(AIControllerConfig {
                 // Territorial: a woken picket fights over its own patch and
@@ -360,38 +357,42 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
                 // gives the player a beat before the guns bear.
                 ..default()
             }),
-            sections: vec![
-                section(
-                    "controller",
-                    Vec3::ZERO,
-                    Quat::IDENTITY,
-                    "basic_controller_section",
-                ),
-                section(
-                    "hull_front",
-                    Vec3::new(0.0, 0.0, 1.0),
-                    Quat::IDENTITY,
-                    "reinforced_hull_section",
-                ),
-                section(
-                    "hull_back",
-                    Vec3::new(0.0, 0.0, -1.0),
-                    Quat::IDENTITY,
-                    "reinforced_hull_section",
-                ),
-                section(
-                    "thruster",
-                    Vec3::new(0.0, 0.0, 2.0),
-                    Quat::IDENTITY,
-                    "basic_thruster_section",
-                ),
-                section(
-                    "turret",
-                    Vec3::new(0.0, 0.0, -2.0),
-                    Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                    "better_turret_section",
-                ),
-            ],
+            hull: ShipSource::Inline(ShipHull {
+                sections: vec![
+                    section(
+                        "controller",
+                        Vec3::ZERO,
+                        Quat::IDENTITY,
+                        "basic_controller_section",
+                    ),
+                    section(
+                        "hull_front",
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Quat::IDENTITY,
+                        "reinforced_hull_section",
+                    ),
+                    section(
+                        "hull_back",
+                        Vec3::new(0.0, 0.0, -1.0),
+                        Quat::IDENTITY,
+                        "reinforced_hull_section",
+                    ),
+                    section(
+                        "thruster",
+                        Vec3::new(0.0, 0.0, 2.0),
+                        Quat::IDENTITY,
+                        "basic_thruster_section",
+                    ),
+                    section(
+                        "turret",
+                        Vec3::new(0.0, 0.0, -2.0),
+                        Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+                        "better_turret_section",
+                    ),
+                ],
+                ..default()
+            }),
+            ..default()
         }),
     }
 }
@@ -425,12 +426,6 @@ fn player_ship(player_config: &PlayerSpaceshipConfig) -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            // What the builder saw is what they fly. The editor shows the same
-            // derived skin over the same structure, so the flown ship must not
-            // come up bare (or clad) against it.
-            skin: player_config.skin,
-            style: player_config.style.clone(),
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: player_config
@@ -445,7 +440,16 @@ fn player_ship(player_config: &PlayerSpaceshipConfig) -> ScenarioObjectConfig {
                 // gun is a cadence beat rather than a permanent disarm.
                 infinite_ammo: false,
             }),
-            sections: player_config.sections.values().cloned().collect(),
+            // What the builder saw is what they fly. The editor shows the same
+            // derived skin over the same structure, so the flown ship must not
+            // come up bare (or clad) against it.
+            hull: ShipSource::Inline(ShipHull {
+                sections: player_config.sections.values().cloned().collect(),
+                skin: player_config.skin,
+                style: player_config.style.clone(),
+                ..default()
+            }),
+            ..default()
         }),
     }
 }
@@ -872,8 +876,11 @@ mod tests {
                 hulk.base.id
             );
             assert_eq!(ship.allegiance, None, "'{}' takes no side", hulk.base.id);
+            let ShipSource::Inline(hull) = &ship.hull else {
+                panic!("'{}' authors its hull inline", hulk.base.id);
+            };
             assert!(
-                ship.sections.iter().all(|section| matches!(
+                hull.sections.iter().all(|section| matches!(
                     &section.source,
                     SectionSource::Prototype(id) if id.contains("hull")
                 )),
@@ -907,8 +914,11 @@ mod tests {
                 "'{}' carries a live AI pilot while dormant",
                 picket.id
             );
+            let ShipSource::Inline(hull) = &ship.hull else {
+                panic!("'{}' authors its hull inline", picket.id);
+            };
             assert!(
-                ship.sections.iter().any(|section| matches!(
+                hull.sections.iter().any(|section| matches!(
                     &section.source,
                     SectionSource::Prototype(id) if id.contains("turret")
                 )),
@@ -1094,8 +1104,11 @@ mod tests {
             let ScenarioObjectKind::Spaceship(ship) = player.kind else {
                 panic!("the player object is a spaceship");
             };
+            let ShipSource::Inline(hull) = &ship.hull else {
+                panic!("the editor hands off an inline hull");
+            };
             assert_eq!(
-                ship.skin, clad,
+                hull.skin, clad,
                 "the editor's toggle decides whether the flown ship is clad"
             );
         }

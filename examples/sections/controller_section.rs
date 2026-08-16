@@ -278,12 +278,13 @@ fn attitude_rig(
     }
 
     let ship = SpaceshipConfig {
-        collapse_threshold: None,
-        skin: false,
-        style: None,
         allegiance: None,
         controller: SpaceshipController::None,
-        sections: ship_sections,
+        hull: ShipSource::Inline(ShipHull {
+            sections: ship_sections,
+            ..default()
+        }),
+        ..default()
     };
 
     ScenarioConfig {

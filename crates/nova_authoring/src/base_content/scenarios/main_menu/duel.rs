@@ -35,7 +35,7 @@ fn duelist(
     name: &str,
     spawn: Vec3,
     patrol: [Vec3; 3],
-    grade: ships::ShipGrade,
+    ship: &str,
     allegiance: Option<Allegiance>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -46,9 +46,6 @@ fn duelist(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             allegiance,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: patrol.to_vec(),
@@ -67,7 +64,11 @@ fn duelist(
             // 500 keeps the DOGFIGHT on screen; however the loser finally
             // cripples (guns, computer, or full destruction), the defeat
             // chain fires and the finale plays.
-            sections: ships::cargoa_sections(grade, vec![SectionModification::SetHealth(500.0)]),
+            hull: ships::hull(ship),
+            modifications: vec![ships::on_section(
+                ships::FUSELAGE_SECTION_ID,
+                vec![SectionModification::SetHealth(500.0)],
+            )],
         }),
     }
 }
@@ -113,18 +114,16 @@ pub(crate) fn menu_duel(
             rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::None,
-            sections: vec![SpaceshipSectionConfig {
+            hull: ships::inline_hull(vec![SpaceshipSectionConfig {
                 id: "siege_bay".to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
                 source: SectionSource::Prototype("heavy_torpedo_section".to_string()),
                 modifications: vec![],
-            }],
+            }]),
+            ..Default::default()
         }),
     });
 
@@ -178,7 +177,7 @@ pub(crate) fn menu_duel(
             Vec3::new(70.0, 15.0, -50.0),
             Vec3::new(0.0, 5.0, 70.0),
         ],
-        ships::ShipGrade::Player,
+        ships::CARGOA_SHIP_ID,
         // The relation model only makes Player<->Enemy hostile: one duelist
         // must fly the player's colors for AI-vs-AI combat to exist. It also
         // makes the Enemy finisher's ordnance hostile to the winner.
@@ -196,7 +195,7 @@ pub(crate) fn menu_duel(
             Vec3::new(-70.0, -10.0, 50.0),
             Vec3::new(0.0, -15.0, -70.0),
         ],
-        ships::ShipGrade::Enemy,
+        ships::CARGOA_RAIDER_SHIP_ID,
         None,
     ));
 

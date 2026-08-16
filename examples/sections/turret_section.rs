@@ -302,9 +302,6 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
     };
 
     let ship = SpaceshipConfig {
-        collapse_threshold: None,
-        skin: false,
-        style: None,
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::from([(
@@ -315,31 +312,35 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
             // Dev/tuning harness: fire freely.
             infinite_ammo: true,
         }),
-        sections: vec![
-            SpaceshipSectionConfig {
-                id: "controller".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("basic_controller_section")),
-                modifications: vec![],
-            },
-            SpaceshipSectionConfig {
-                id: "hull".to_string(),
-                position: Vec3::new(0.0, 0.0, 1.0),
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(section("reinforced_hull_section")),
-                modifications: vec![],
-            },
-            SpaceshipSectionConfig {
-                id: "turret".to_string(),
-                position: Vec3::new(0.0, 0.0, -1.0),
-                // Matches the turret placement in the asteroid_field ship so the
-                // base sits upright.
-                rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                source: SectionSource::Inline(section("better_turret_section")),
-                modifications: vec![],
-            },
-        ],
+        hull: ShipSource::Inline(ShipHull {
+            sections: vec![
+                SpaceshipSectionConfig {
+                    id: "controller".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Inline(section("basic_controller_section")),
+                    modifications: vec![],
+                },
+                SpaceshipSectionConfig {
+                    id: "hull".to_string(),
+                    position: Vec3::new(0.0, 0.0, 1.0),
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Inline(section("reinforced_hull_section")),
+                    modifications: vec![],
+                },
+                SpaceshipSectionConfig {
+                    id: "turret".to_string(),
+                    position: Vec3::new(0.0, 0.0, -1.0),
+                    // Matches the turret placement in the asteroid_field ship so the
+                    // base sits upright.
+                    rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+                    source: SectionSource::Inline(section("better_turret_section")),
+                    modifications: vec![],
+                },
+            ],
+            ..default()
+        }),
+        ..default()
     };
 
     // Gates in the turret's firing arc (ahead, -Z, within its pitch range), plus

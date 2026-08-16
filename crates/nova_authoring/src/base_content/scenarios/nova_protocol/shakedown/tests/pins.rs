@@ -308,6 +308,22 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
         .collect();
     assert_eq!(ships.len(), 2, "player and pirate only");
 
+    let pirate_config = ships.iter().find(|(id, _)| *id == ID_PIRATE).unwrap().1;
+    let SpaceshipController::AI(pirate_ai) = &pirate_config.controller else {
+        panic!("the pirate is AI-controlled");
+    };
+    assert_eq!(
+        pirate_ai.leash,
+        Some(PIRATE_LEASH_RADIUS),
+        "the scavenger is leashed to the debris field (playtest round 3)"
+    );
+
+    // Each spawn REFERENCES a catalog ship, so the section list is a join.
+    let ships: Vec<(&str, Vec<SpaceshipSectionConfig>)> = ships
+        .into_iter()
+        .map(|(id, ship)| (id, crate::generation::spawned_ship_sections(ship)))
+        .collect();
+
     // The corvette's sections reference base catalog prototypes; resolve them.
     let catalog = crate::base_content::sections::section_catalog(
         &crate::base_content::assets::BaseContentAssets::from_paths(),
@@ -334,18 +350,16 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
             })
             .unwrap_or_else(|| resolve(s).base.health)
     };
-    let max_turret_damage = |ship: &SpaceshipConfig| -> f32 {
-        ship.sections
-            .iter()
+    let max_turret_damage = |ship: &[SpaceshipSectionConfig]| -> f32 {
+        ship.iter()
             .filter_map(|s| match resolve(s).kind {
                 SectionKind::Turret(t) => Some(t.bullet_damage),
                 _ => None,
             })
             .fold(0.0_f32, f32::max)
     };
-    let max_hull_hp = |ship: &SpaceshipConfig| -> f32 {
-        ship.sections
-            .iter()
+    let max_hull_hp = |ship: &[SpaceshipSectionConfig]| -> f32 {
+        ship.iter()
             .filter(|s| matches!(resolve(s).kind, SectionKind::Hull(_)))
             .map(effective_hp)
             .fold(0.0_f32, f32::max)
@@ -354,14 +368,12 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
     // Every corvette carries its two turret cubes and no torpedo bay.
     for (id, ship) in &ships {
         let turrets = ship
-            .sections
             .iter()
             .filter(|s| matches!(resolve(s).kind, SectionKind::Turret(_)))
             .count();
         assert_eq!(turrets, 2, "'{}' is a corvette with two turret modules", id);
         assert!(
             !ship
-                .sections
                 .iter()
                 .any(|s| matches!(resolve(s).kind, SectionKind::Torpedo(_))),
             "'{}' has no torpedo bay",
@@ -372,12 +384,10 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
     // Every semantic part belongs to the authoritative structural graph.
     for (id, ship) in &ships {
         let points: Vec<_> = ship
-            .sections
             .iter()
             .map(|section| SectionLinkPoints(resolve(section).base.link_points))
             .collect();
         let placed: Vec<_> = ship
-            .sections
             .iter()
             .zip(&points)
             .map(|(section, link_points)| PlacedSectionLinkPoints {
@@ -390,16 +400,8 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
             .unwrap_or_else(|errors| panic!("'{id}' has an invalid parts graph: {errors:?}"));
     }
 
-    let player = ships.iter().find(|(id, _)| *id == ID_PLAYER).unwrap().1;
-    let pirate = ships.iter().find(|(id, _)| *id == ID_PIRATE).unwrap().1;
-    let SpaceshipController::AI(pirate_ai) = &pirate.controller else {
-        panic!("the pirate is AI-controlled");
-    };
-    assert_eq!(
-        pirate_ai.leash,
-        Some(PIRATE_LEASH_RADIUS),
-        "the scavenger is leashed to the debris field (playtest round 3)"
-    );
+    let player = &ships.iter().find(|(id, _)| *id == ID_PLAYER).unwrap().1;
+    let pirate = &ships.iter().find(|(id, _)| *id == ID_PIRATE).unwrap().1;
     assert!(
         max_turret_damage(pirate) < max_turret_damage(player),
         "the scavenger's turrets are weaker than the player's"

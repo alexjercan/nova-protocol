@@ -94,10 +94,12 @@ fn target_mode_lints_one_mod_in_repo_or_external() {
                         base: (id: "ship", name: "Ship", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
                             controller: AI(()),
-                            sections: [
-                                (id: "a", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
-                                (id: "b", position: (0.0, 0.0, 1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("imaginary_hull")),
-                            ],
+                            hull: Inline((
+                                sections: [
+                                    (id: "a", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
+                                    (id: "b", position: (0.0, 0.0, 1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("imaginary_hull")),
+                                ],
+                            )),
                         )),
                     )),
                 ],

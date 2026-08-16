@@ -25,8 +25,7 @@ use nova_ship::prelude::*;
 use super::{
     cast::{CAPTAIN_HALLORAN, PLAYER},
     pacing::{self, clock_past, gated_once, mark_clock, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
-    ships::{self, ShipGrade},
-    SCENARIO_ELAPSED_VAR,
+    ships, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
 
@@ -473,8 +472,9 @@ fn player_ship() -> ScenarioObjectConfig {
     // has not flown a controlled leg and the targeting computer is offline. The
     // beat handlers grant them one at a time via SetControllerVerb (GOTO after
     // beat 1, LOCK at the radar beat, ORBIT when the coast objective asks).
-    // Authored as DisableVerb MODIFICATIONS on the section (not baked into the
-    // shared catalog) so they apply from the instant the controller is built.
+    // Authored as DisableVerb MODIFICATIONS aimed at the shared hull's flight
+    // computer (not baked into the catalog ship) so they apply from the instant
+    // the controller is built, and only to THIS spawn.
     let controller_gate = vec![
         SectionModification::DisableVerb(FlightVerb::Goto),
         SectionModification::DisableVerb(FlightVerb::Lock),
@@ -492,9 +492,6 @@ fn player_ship() -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 // Both corvette turret cubes fire on LMB / right trigger.
@@ -516,7 +513,11 @@ fn player_ship() -> ScenarioObjectConfig {
                 // reload cadence from the first scenario.
                 infinite_ammo: false,
             }),
-            sections: ships::cargoa_sections(ShipGrade::Player, controller_gate),
+            hull: ships::hull(ships::CARGOA_SHIP_ID),
+            modifications: vec![ships::on_section(
+                ships::FUSELAGE_SECTION_ID,
+                controller_gate,
+            )],
         }),
     }
 }
@@ -533,9 +534,6 @@ fn pirate_ship() -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: PIRATE_PATROL.to_vec(),
@@ -551,7 +549,8 @@ fn pirate_ship() -> ScenarioObjectConfig {
                 ..Default::default()
             }),
             // A scavenger-grade corvette: weaker turrets, squishier hull.
-            sections: ships::cargoa_sections(ShipGrade::Enemy, vec![]),
+            hull: ships::hull(ships::CARGOA_RAIDER_SHIP_ID),
+            ..Default::default()
         }),
     }
 }

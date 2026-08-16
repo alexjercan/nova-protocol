@@ -9,9 +9,10 @@
 //! - [`Content::Section`] - a [`SectionConfig`] prototype,
 //! - [`Content::Scenario`] - a [`ScenarioConfig`], and
 //! - [`Content::Campaign`] - a [`CampaignConfig`], the ordered scenario-id
-//!   mapping the Scenarios picker groups and launches by, and
+//!   mapping the Scenarios picker groups and launches by,
 //! - [`Content::Style`] - a [`ShipStyleConfig`], the look a ship's derived skin
-//!   wears: materials per surface role plus the decoration it scatters.
+//!   wears: materials per surface role plus the decoration it scatters, and
+//! - [`Content::Ship`] - a [`ShipConfig`], a whole hull a scenario spawns by id.
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
 //! loader reads any content file and a downstream router (`nova_assets`'s
@@ -45,7 +46,7 @@ use bevy::{
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta};
-use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
+use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipConfig};
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use serde::{Deserialize, Serialize};
 
@@ -83,6 +84,11 @@ pub enum Content {
     /// ship names one and its derived skin wears it, so a mod can ship a look
     /// and a scenario can put it on the enemies without any code changing.
     Style(ShipStyleConfig),
+    /// A [`ShipConfig`] - registers into `GameShips` keyed by its id. A whole
+    /// hull (its section list, its skin and style, its collapse threshold),
+    /// authored once and spawned by id, so a scenario names a corvette instead
+    /// of carrying a copy of one.
+    Ship(ShipConfig),
 }
 
 /// The content of one `*.content.ron` file: a thin [`Asset`] wrapper around a

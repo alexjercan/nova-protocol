@@ -70,9 +70,21 @@ fn scenario() -> ScenarioConfig {
         .into_iter()
         .find_map(|c| match c {
             Content::Scenario(s) => Some(s),
-            Content::Section(_) | Content::Campaign(_) | Content::Style(_) => None,
+            Content::Section(_) | Content::Campaign(_) | Content::Style(_) | Content::Ship(_) => {
+                None
+            }
         })
         .expect("content contains a Scenario")
+}
+
+/// The sections a spawn flies. Every ship in this mod authors its hull inline,
+/// so a `Prototype` reference here would mean the content moved and the pins
+/// below are reading the wrong thing.
+fn ship_sections(ship: &SpaceshipConfig) -> &[SpaceshipSectionConfig] {
+    match &ship.hull {
+        ShipSource::Inline(hull) => &hull.sections,
+        ShipSource::Prototype(id) => panic!("expected an inline hull, got ship '{id}'"),
+    }
 }
 
 fn on_start(scenario: &ScenarioConfig) -> &ScenarioEventConfig {
@@ -397,8 +409,7 @@ fn on_start_stages_the_course() {
     let ScenarioObjectKind::Spaceship(ship) = &player.kind else {
         panic!("player is a spaceship");
     };
-    let racer_parts = ship
-        .sections
+    let racer_parts = ship_sections(ship)
         .iter()
         .filter(|s| matches!(&s.source, SectionSource::Prototype(p) if p.starts_with("racer_")))
         .count();
@@ -407,8 +418,7 @@ fn on_start_stages_the_course() {
         "the player flies the seven-section racer (got {racer_parts} parts)"
     );
     assert!(
-        !ship
-            .sections
+        !ship_sections(ship)
             .iter()
             .any(|s| matches!(&s.source, SectionSource::Prototype(p) if p.contains("turret"))),
         "the gauntlet racer carries no guns - the course has no combat"

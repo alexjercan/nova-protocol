@@ -4,7 +4,7 @@
 //! section prototypes, semantic craft assemblies, and path-based asset refs.
 //! Generic authoring helpers, lint, and serialization tooling stay outside it.
 
-use nova_scenario::prelude::{CampaignConfig, ScenarioConfig};
+use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipConfig};
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 
 pub(crate) mod assets;
@@ -19,6 +19,7 @@ use assets::BaseContentAssets;
 /// Complete built-in content before it is wrapped and serialized as mod items.
 pub(crate) struct BaseContent {
     pub(crate) sections: Vec<SectionConfig>,
+    pub(crate) ships: Vec<ShipConfig>,
     pub(crate) scenarios: Vec<ScenarioConfig>,
     pub(crate) campaigns: Vec<CampaignConfig>,
     pub(crate) styles: Vec<ShipStyleConfig>,
@@ -29,6 +30,7 @@ pub(crate) fn build() -> BaseContent {
     let assets = BaseContentAssets::from_paths();
     BaseContent {
         sections: sections::section_catalog(&assets),
+        ships: ships::ship_catalog(),
         scenarios: scenarios::catalog(&assets),
         campaigns: campaigns::catalog(),
         styles: styles::style_catalog(&assets),

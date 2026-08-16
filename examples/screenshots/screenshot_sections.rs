@@ -115,50 +115,51 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     // thruster) along -/+Z, with the turret and the torpedo bay mounted on the
     // left/right flanks rather than stacked in front.
     let ship = SpaceshipConfig {
-        collapse_threshold: None,
-        skin: false,
-        style: None,
         allegiance: None,
         controller: SpaceshipController::None,
-        sections: vec![
-            at(
-                "controller",
-                "basic_controller_section",
-                Vec3::new(0.0, 0.0, 0.0),
-                Quat::IDENTITY,
-            ),
-            at(
-                "hull_front",
-                "reinforced_hull_section",
-                Vec3::new(0.0, 0.0, -1.0),
-                Quat::IDENTITY,
-            ),
-            at(
-                "hull_rear",
-                "reinforced_hull_section",
-                Vec3::new(0.0, 0.0, 1.0),
-                Quat::IDENTITY,
-            ),
-            at(
-                "thruster",
-                "basic_thruster_section",
-                Vec3::new(0.0, 0.0, 2.0),
-                Quat::IDENTITY,
-            ),
-            // Turret on the right flank, torpedo bay on the left - both upright.
-            at(
-                "turret",
-                "better_turret_section",
-                Vec3::new(1.0, 0.0, 0.0),
-                turret_rot,
-            ),
-            at(
-                "torpedo",
-                "torpedo_section",
-                Vec3::new(-1.0, 0.0, 0.0),
-                upright,
-            ),
-        ],
+        hull: ShipSource::Inline(ShipHull {
+            sections: vec![
+                at(
+                    "controller",
+                    "basic_controller_section",
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Quat::IDENTITY,
+                ),
+                at(
+                    "hull_front",
+                    "reinforced_hull_section",
+                    Vec3::new(0.0, 0.0, -1.0),
+                    Quat::IDENTITY,
+                ),
+                at(
+                    "hull_rear",
+                    "reinforced_hull_section",
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Quat::IDENTITY,
+                ),
+                at(
+                    "thruster",
+                    "basic_thruster_section",
+                    Vec3::new(0.0, 0.0, 2.0),
+                    Quat::IDENTITY,
+                ),
+                // Turret on the right flank, torpedo bay on the left - both upright.
+                at(
+                    "turret",
+                    "better_turret_section",
+                    Vec3::new(1.0, 0.0, 0.0),
+                    turret_rot,
+                ),
+                at(
+                    "torpedo",
+                    "torpedo_section",
+                    Vec3::new(-1.0, 0.0, 0.0),
+                    upright,
+                ),
+            ],
+            ..default()
+        }),
+        ..default()
     };
 
     ScenarioConfig {

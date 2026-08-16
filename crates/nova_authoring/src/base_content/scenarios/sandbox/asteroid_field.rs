@@ -5,7 +5,7 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
-use crate::base_content::scenarios::SCATTER_SEED;
+use crate::base_content::{scenarios::SCATTER_SEED, ships};
 
 pub(crate) fn asteroid_field(
     cubemap: AssetRef<Image>,
@@ -75,9 +75,6 @@ pub(crate) fn asteroid_field(
     });
 
     let spaceship = SpaceshipConfig {
-        collapse_threshold: None,
-        skin: false,
-        style: None,
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             // Translation is no longer a per-section binding: the flight
@@ -97,7 +94,7 @@ pub(crate) fn asteroid_field(
             // The sandbox scenario keeps the authored finite magazines.
             infinite_ammo: false,
         }),
-        sections: vec![
+        hull: ships::inline_hull(vec![
             SpaceshipSectionConfig {
                 id: "controller".to_string(),
                 position: Vec3::ZERO,
@@ -133,7 +130,8 @@ pub(crate) fn asteroid_field(
                 source: SectionSource::Prototype("better_turret_section".to_string()),
                 modifications: vec![],
             },
-        ],
+        ]),
+        ..Default::default()
     };
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -146,12 +144,9 @@ pub(crate) fn asteroid_field(
     });
 
     let spaceship = SpaceshipConfig {
-        collapse_threshold: None,
-        skin: false,
-        style: None,
         controller: SpaceshipController::None,
         allegiance: None,
-        sections: vec![
+        hull: ships::inline_hull(vec![
             SpaceshipSectionConfig {
                 id: "controller".to_string(),
                 position: Vec3::ZERO,
@@ -187,7 +182,8 @@ pub(crate) fn asteroid_field(
                 source: SectionSource::Prototype("better_turret_section".to_string()),
                 modifications: vec![],
             },
-        ],
+        ]),
+        ..Default::default()
     };
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {

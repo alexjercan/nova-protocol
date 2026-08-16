@@ -165,6 +165,13 @@ const WIKI_DOC_PAGES = [
         toc: true,
     },
     {
+        slug: "modding/ships",
+        md: "modding/ships.md",
+        title: "Ships for mods",
+        crumbParent: MOD_FILES_CRUMB,
+        toc: true,
+    },
+    {
         slug: "modding/mod-files",
         md: "modding/mod-files.md",
         title: "Mod files",

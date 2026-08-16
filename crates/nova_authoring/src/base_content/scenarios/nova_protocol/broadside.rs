@@ -41,8 +41,7 @@ use nova_ship::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, RUST_TALLY},
     pacing::{self, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
-    ships::{self, ShipGrade},
-    SCATTER_SEED, SCENARIO_ELAPSED_VAR,
+    ships, SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
 
@@ -134,9 +133,6 @@ fn player_ship() -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 // Both corvette turret cubes fire on LMB / right trigger.
                 input_mapping: ships::CARGOA_TURRET_IDS
@@ -161,10 +157,11 @@ fn player_ship() -> ScenarioObjectConfig {
             allegiance: None,
             // The cargoa corvette. RCS is off in the mainline campaign until
             // the rework; no other verb is gated this chapter.
-            sections: ships::cargoa_sections(
-                ShipGrade::Player,
+            hull: ships::hull(ships::CARGOA_SHIP_ID),
+            modifications: vec![ships::on_section(
+                ships::FUSELAGE_SECTION_ID,
                 vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
-            ),
+            )],
         }),
     }
 }
@@ -182,14 +179,12 @@ fn yacht_ship() -> ScenarioObjectConfig {
             rotation: Quat::from_rotation_y(0.6),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Neutral),
             // The Ceres Queen is the racer hull - a sleek, unarmed pleasure
             // yacht caught in the crossfire, the client the chapter protects.
-            sections: ships::racer_sections(),
+            hull: ships::hull(ships::RACER_SHIP_ID),
+            ..Default::default()
         }),
     }
 }
@@ -205,9 +200,6 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
             rotation: facing_the_fight(),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: vec![spawn_pos, HAULER_POS + Vec3::new(0.0, 40.0, 60.0)],
                 leash: Some(420.0),
@@ -218,7 +210,8 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
             }),
             allegiance: None,
             // A scavenger-grade corvette: weaker turrets, squishier hull.
-            sections: ships::cargoa_sections(ShipGrade::Enemy, vec![]),
+            hull: ships::hull(ships::CARGOA_RAIDER_SHIP_ID),
+            ..Default::default()
         }),
     }
 }
@@ -239,12 +232,10 @@ fn gunship() -> ScenarioObjectConfig {
             rotation: facing_the_fight(),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             allegiance: None,
-            sections: ships::cargob_sections(),
+            hull: ships::hull(ships::CARGOB_SHIP_ID),
+            ..Default::default()
         }),
     }
 }

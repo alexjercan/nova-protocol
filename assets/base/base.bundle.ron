@@ -6,6 +6,9 @@
     content: [
         "sections/base.content.ron",
         "styles/base.content.ron",
+        // After the sections it is built from: a ship references section
+        // prototypes by id, so the catalog it reads must merge first.
+        "ships/base.content.ron",
         "campaigns/nova_protocol.content.ron",
         "scenarios/asteroid_field.content.ron",
         "scenarios/broadside.content.ron",

@@ -1,7 +1,7 @@
 //! The content MERGE: flatten every enabled bundle's `Content` in dependency
 //! order and overlay it by id into the game's registries (`GameSections`,
-//! `GameScenarios`, `GameCampaigns`, `GameStyles`), linting the result as it
-//! goes.
+//! `GameShips`, `GameScenarios`, `GameCampaigns`, `GameStyles`), linting the
+//! result as it goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
 /// public API of this module.
@@ -13,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog};
-use nova_scenario::prelude::{GameCampaigns, GameScenarios, NewGameStart};
+use nova_scenario::prelude::{GameCampaigns, GameScenarios, GameShips, NewGameStart, ShipConfig};
 use nova_ship::prelude::*;
 
 use crate::{
@@ -227,6 +227,7 @@ pub fn register_bundles(
                         Content::Scenario(cfg) => cfg.id.clone(),
                         Content::Campaign(cfg) => cfg.id.clone(),
                         Content::Style(cfg) => cfg.id.clone(),
+                        Content::Ship(cfg) => cfg.id.clone(),
                     };
                     undeclared_ref_issues.push((id, message));
                 }
@@ -285,12 +286,36 @@ pub fn register_bundles(
     // out of the backdrop draw.
     let merged_sections =
         nova_scenario::prelude::KnownSections::from_configs(outcome.sections.iter());
+    let merged_ships = nova_scenario::prelude::KnownShips::from_configs(outcome.ships.iter());
     let merged_scenarios: std::collections::HashSet<String> =
         outcome.scenarios.keys().cloned().collect();
     let mut content_issues = nova_scenario::prelude::ContentIssues::default();
+    // Every MERGED ship, checked where it is authored: a scenario referencing
+    // one only checks that the id resolves, so this is the pass that sees the
+    // hull's own geometry. Findings key on the ship id in the shared channel.
+    for ship in &outcome.ships {
+        let found = nova_scenario::prelude::lint_ship_config(ship, &merged_sections, &ship.id);
+        for issue in &found {
+            warn!(
+                "register_bundles: content lint [{:?}] ship '{}': {}",
+                issue.severity, issue.scenario, issue.message
+            );
+        }
+        if !found.is_empty() {
+            content_issues
+                .0
+                .entry(ship.id.clone())
+                .or_default()
+                .extend(found);
+        }
+    }
     for scenario in outcome.scenarios.values() {
-        let found =
-            nova_scenario::prelude::lint_scenario(scenario, &merged_sections, &merged_scenarios);
+        let found = nova_scenario::prelude::lint_scenario(
+            scenario,
+            &merged_sections,
+            &merged_ships,
+            &merged_scenarios,
+        );
         for issue in &found {
             warn!(
                 "register_bundles: content lint [{:?}] scenario '{}': {}",
@@ -340,6 +365,7 @@ pub fn register_bundles(
     commands.insert_resource(outcome.scenarios);
     commands.insert_resource(outcome.campaigns);
     commands.insert_resource(GameStyles(outcome.styles));
+    commands.insert_resource(GameShips(outcome.ships));
 }
 
 /// The result of merging an ordered list of bundles: the id-keyed registries plus
@@ -355,6 +381,9 @@ pub struct MergeOutcome {
     /// Skin styles in registration order, overlaid last-wins by id - so a mod
     /// restyles a base look by declaring the same id.
     pub styles: Vec<ShipStyleConfig>,
+    /// Ships in registration order, overlaid last-wins by id - so a mod
+    /// rebuilds a base hull by declaring the same id.
+    pub ships: Vec<ShipConfig>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -383,6 +412,7 @@ where
     let mut scenarios = GameScenarios::default();
     let mut campaigns = GameCampaigns::default();
     let mut styles: Vec<ShipStyleConfig> = Vec::new();
+    let mut ships: Vec<ShipConfig> = Vec::new();
     let mut conflicts: Vec<String> = Vec::new();
 
     for bundle in bundles {
@@ -392,6 +422,7 @@ where
         let mut seen_scenarios: HashSet<&str> = HashSet::new();
         let mut seen_campaigns: HashSet<&str> = HashSet::new();
         let mut seen_styles: HashSet<&str> = HashSet::new();
+        let mut seen_ships: HashSet<&str> = HashSet::new();
 
         for item in bundle {
             match item {
@@ -410,6 +441,7 @@ where
                         &mut scenarios,
                         &mut campaigns,
                         &mut styles,
+                        &mut ships,
                     );
                 }
                 Content::Scenario(cfg) => {
@@ -427,6 +459,7 @@ where
                         &mut scenarios,
                         &mut campaigns,
                         &mut styles,
+                        &mut ships,
                     );
                 }
                 Content::Campaign(cfg) => {
@@ -444,6 +477,7 @@ where
                         &mut scenarios,
                         &mut campaigns,
                         &mut styles,
+                        &mut ships,
                     );
                 }
                 Content::Style(cfg) => {
@@ -461,6 +495,25 @@ where
                         &mut scenarios,
                         &mut campaigns,
                         &mut styles,
+                        &mut ships,
+                    );
+                }
+                Content::Ship(cfg) => {
+                    if !seen_ships.insert(cfg.id.as_str()) {
+                        conflicts.push(format!(
+                            "ship id '{}' appears more than once in one bundle; \
+                             keeping the first, skipping the duplicate",
+                            cfg.id
+                        ));
+                        continue;
+                    }
+                    merge_content_item(
+                        item,
+                        &mut sections,
+                        &mut scenarios,
+                        &mut campaigns,
+                        &mut styles,
+                        &mut ships,
                     );
                 }
             }
@@ -472,6 +525,7 @@ where
         scenarios,
         campaigns,
         styles,
+        ships,
         conflicts,
     }
 }
@@ -489,6 +543,7 @@ fn merge_content_item(
     scenarios: &mut GameScenarios,
     campaigns: &mut GameCampaigns,
     styles: &mut Vec<ShipStyleConfig>,
+    ships: &mut Vec<ShipConfig>,
 ) {
     match item {
         Content::Section(cfg) => match sections.iter_mut().find(|s| s.base.id == cfg.base.id) {
@@ -507,6 +562,13 @@ fn merge_content_item(
         Content::Style(cfg) => match styles.iter_mut().find(|s| s.id == cfg.id) {
             Some(existing) => *existing = cfg.clone(),
             None => styles.push(cfg.clone()),
+        },
+        // A Vec for the same reason again: the ship catalog has an order a
+        // picker reads, and overlaying in place keeps a mod's rebuild where the
+        // base hull stood.
+        Content::Ship(cfg) => match ships.iter_mut().find(|s| s.id == cfg.id) {
+            Some(existing) => *existing = cfg.clone(),
+            None => ships.push(cfg.clone()),
         },
     }
 }
@@ -540,6 +602,7 @@ mod tests {
         let mut scenarios = GameScenarios::default();
         let mut campaigns = GameCampaigns::default();
         let mut styles: Vec<ShipStyleConfig> = Vec::new();
+        let mut ships: Vec<ShipConfig> = Vec::new();
 
         // Base bundle: two sections in palette order.
         merge_content_item(
@@ -548,6 +611,7 @@ mod tests {
             &mut scenarios,
             &mut campaigns,
             &mut styles,
+            &mut ships,
         );
         merge_content_item(
             &Content::Section(Box::new(section("thruster", 50.0))),
@@ -555,6 +619,7 @@ mod tests {
             &mut scenarios,
             &mut campaigns,
             &mut styles,
+            &mut ships,
         );
 
         // Mod bundle: overlays "hull" with a new health, leaves "thruster".
@@ -564,6 +629,7 @@ mod tests {
             &mut scenarios,
             &mut campaigns,
             &mut styles,
+            &mut ships,
         );
 
         // No duplicate appended: still two sections, original order kept.
@@ -582,6 +648,7 @@ mod tests {
         let mut scenarios = GameScenarios::default();
         let mut campaigns = GameCampaigns::default();
         let mut styles: Vec<ShipStyleConfig> = Vec::new();
+        let mut ships: Vec<ShipConfig> = Vec::new();
 
         let id = "shakedown_run".to_string();
         let base = ScenarioConfig::new(
@@ -598,6 +665,7 @@ mod tests {
             &mut scenarios,
             &mut campaigns,
             &mut styles,
+            &mut ships,
         );
         merge_content_item(
             &Content::Scenario(modded),
@@ -605,6 +673,7 @@ mod tests {
             &mut scenarios,
             &mut campaigns,
             &mut styles,
+            &mut ships,
         );
 
         assert_eq!(scenarios.len(), 1, "overlay must replace, not add");
@@ -644,6 +713,37 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![("industrial", "Rusted"), ("raider", "Raider")],
             "the mod's style must win in place, and its new one must be added",
+        );
+    }
+
+    /// A mod rebuilds a base hull by declaring a ship with the same id, and
+    /// adds a hull of its own by declaring a new one.
+    ///
+    /// The overlay is what makes a ship CONTENT rather than a copy: every
+    /// scenario that names the corvette by id flies whatever won.
+    #[test]
+    fn a_mod_overlays_a_base_ship_by_id_and_adds_its_own() {
+        let ship = |id: &str, name: &str| {
+            Content::Ship(nova_scenario::prelude::ShipConfig {
+                id: id.to_string(),
+                name: name.to_string(),
+                ..Default::default()
+            })
+        };
+        let base = [ship("cargoa", "CargoA")];
+        let modded = [ship("cargoa", "Rusted CargoA"), ship("raider", "Raider")];
+
+        let outcome = merge_bundles([base.iter(), modded.iter()]);
+
+        assert!(outcome.conflicts.is_empty(), "{:?}", outcome.conflicts);
+        assert_eq!(
+            outcome
+                .ships
+                .iter()
+                .map(|ship| (ship.id.as_str(), ship.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("cargoa", "Rusted CargoA"), ("raider", "Raider")],
+            "the mod's hull must win in place, and its new one must be added",
         );
     }
 

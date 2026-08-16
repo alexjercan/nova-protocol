@@ -49,8 +49,8 @@ pub mod prelude {
     pub use super::{
         audit_bundles_to_audits, audit_content_tree, audit_scenario, partition_findings,
         ship_stats, shipped_acks, BalanceAck, BalanceFinding, BalanceSeverity, CoverAudit,
-        FindingKind, HostileAudit, ScenarioAudit, SectionCatalog, ShipStats, SpawnGroupAudit,
-        EFFECTIVE_RANGE_MARGIN, TORPEDO_ENVELOPE,
+        FindingKind, HostileAudit, ScenarioAudit, SectionCatalog, ShipCatalog, ShipStats,
+        SpawnGroupAudit, EFFECTIVE_RANGE_MARGIN, TORPEDO_ENVELOPE,
     };
 }
 
@@ -92,6 +92,29 @@ impl SectionCatalog {
     /// The resolved prototype for a section id, or `None` if unknown.
     pub fn get(&self, id: &str) -> Option<&SectionConfig> {
         self.0.get(id)
+    }
+}
+
+/// The ship view a scenario's spawns resolve against: the last-wins overlay of
+/// base -> declared dependencies -> the bundle's own ships, joined exactly like
+/// [`SectionCatalog`] beside it and for the same reason.
+pub struct ShipCatalog(HashMap<String, ShipConfig>);
+
+impl ShipCatalog {
+    /// Join the layers last-wins by ship id, base first.
+    pub fn resolve(layers: &[&[ShipConfig]]) -> Self {
+        let mut map = HashMap::new();
+        for layer in layers {
+            for ship in *layer {
+                map.insert(ship.id.clone(), ship.clone());
+            }
+        }
+        Self(map)
+    }
+
+    /// The hull one ship id resolves to, or `None` if unknown.
+    pub fn get(&self, id: &str) -> Option<&ShipHull> {
+        self.0.get(id).map(|ship| &ship.hull)
     }
 }
 
@@ -141,27 +164,47 @@ fn turret_total_fire_rate(joint: &nova_ship::prelude::TurretJoint) -> f32 {
         .sum::<f32>()
 }
 
-/// Sum a ship's stats through the catalog. Unknown prototypes contribute
-/// nothing (content_lint already errors on them; the audit stays total).
-pub fn ship_stats(ship: &SpaceshipConfig, catalog: &SectionCatalog) -> ShipStats {
+/// Sum a ship's stats through the catalogs. An unknown ship or section
+/// prototype contributes nothing (content_lint already errors on them; the
+/// audit stays total).
+pub fn ship_stats(
+    ship: &SpaceshipConfig,
+    catalog: &SectionCatalog,
+    ships: &ShipCatalog,
+) -> ShipStats {
     let mut stats = ShipStats {
         hp: 0.0,
         dps: 0.0,
         max_effective_range: 0.0,
         torpedo_tubes: 0,
     };
-    for section in &ship.sections {
+    let hull = match &ship.hull {
+        ShipSource::Inline(hull) => Some(hull),
+        ShipSource::Prototype(id) => ships.get(id),
+    };
+    let Some(hull) = hull else {
+        return stats;
+    };
+    for section in &hull.sections {
         let resolved: Option<&SectionConfig> = match &section.source {
             SectionSource::Prototype(id) => catalog.get(id),
             SectionSource::Inline(config) => Some(config),
         };
         let Some(config) = resolved else { continue };
         // An authored SetHealth override wins over the prototype (last one
-        // wins, like the runtime observers applying the list in order).
-        let hp_override = section.modifications.iter().rev().find_map(|m| match m {
-            SectionModification::SetHealth(hp) => Some(*hp),
-            _ => None,
-        });
+        // wins, like the runtime observers applying the list in order), and a
+        // SPAWN override wins over the hull's own for the same reason.
+        let hp_override = ship
+            .modifications
+            .iter()
+            .filter(|m| m.section == section.id)
+            .flat_map(|m| m.modifications.iter())
+            .chain(section.modifications.iter())
+            .rev()
+            .find_map(|m| match m {
+                SectionModification::SetHealth(hp) => Some(*hp),
+                _ => None,
+            });
         stats.hp += hp_override.unwrap_or(config.base.health);
         match &config.kind {
             SectionKind::Turret(turret) => {
@@ -462,6 +505,7 @@ fn trigger_label(event: &ScenarioEventConfig) -> String {
 pub fn audit_scenario(
     scenario: &ScenarioConfig,
     catalog: &SectionCatalog,
+    ships: &ShipCatalog,
 ) -> Option<ScenarioAudit> {
     let mut player: Option<(Vec3, ShipStats)> = None;
     for event in &scenario.events {
@@ -469,7 +513,7 @@ pub fn audit_scenario(
             if let EventActionConfig::SpawnScenarioObject(config) = action {
                 if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
                     if matches!(ship.controller, SpaceshipController::Player(_)) {
-                        player = Some((config.base.position, ship_stats(ship, catalog)));
+                        player = Some((config.base.position, ship_stats(ship, catalog, ships)));
                     }
                 }
             }
@@ -494,7 +538,7 @@ pub fn audit_scenario(
                         hostiles.push(HostileAudit {
                             id: config.base.id.clone(),
                             distance: config.base.position.distance(player_spawn),
-                            stats: ship_stats(ship, catalog),
+                            stats: ship_stats(ship, catalog, ships),
                         });
                     }
                     ScenarioObjectKind::Asteroid(rock) if rock.invulnerable => {
@@ -557,6 +601,7 @@ pub fn audit_bundles_to_audits(
         .get("base")
         .map(|b| b.sections.as_slice())
         .unwrap_or(&[]);
+    let base_ships: &[ShipConfig] = by_id.get("base").map(|b| b.ships.as_slice()).unwrap_or(&[]);
 
     let mut audits = Vec::new();
     for bundle in bundles {
@@ -572,8 +617,19 @@ pub fn audit_bundles_to_audits(
         }
         layers.push(bundle.sections.as_slice());
         let catalog = SectionCatalog::resolve(&layers);
+        // The same overlay again for the ships a scenario spawns by id.
+        let mut ship_layers: Vec<&[ShipConfig]> = vec![base_ships];
+        for dep in &bundle.dependencies {
+            if dep != "base" {
+                if let Some(dep_bundle) = by_id.get(dep.as_str()) {
+                    ship_layers.push(dep_bundle.ships.as_slice());
+                }
+            }
+        }
+        ship_layers.push(bundle.ships.as_slice());
+        let ships = ShipCatalog::resolve(&ship_layers);
         for scenario in &bundle.scenarios {
-            if let Some(audit) = audit_scenario(scenario, &catalog) {
+            if let Some(audit) = audit_scenario(scenario, &catalog, &ships) {
                 audits.push((bundle.id.clone(), audit));
             }
         }
@@ -635,22 +691,22 @@ mod tests {
 
     fn ship(controller: SpaceshipController, prototypes: &[&str]) -> SpaceshipConfig {
         SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             controller,
-            allegiance: None,
-            sections: prototypes
-                .iter()
-                .enumerate()
-                .map(|(i, p)| SpaceshipSectionConfig {
-                    id: format!("s{i}"),
-                    position: Vec3::ZERO,
-                    rotation: bevy::math::Quat::IDENTITY,
-                    source: SectionSource::Prototype(p.to_string()),
-                    modifications: vec![],
-                })
-                .collect(),
+            hull: ShipSource::Inline(ShipHull {
+                sections: prototypes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| SpaceshipSectionConfig {
+                        id: format!("s{i}"),
+                        position: Vec3::ZERO,
+                        rotation: bevy::math::Quat::IDENTITY,
+                        source: SectionSource::Prototype(p.to_string()),
+                        modifications: vec![],
+                    })
+                    .collect(),
+                ..Default::default()
+            }),
+            ..Default::default()
         }
     }
 
@@ -712,7 +768,11 @@ mod tests {
     fn ship_stats_sum_the_resolved_sections() {
         let catalog =
             SectionCatalog::resolve(&[&[hull("h", 100.0), turret("t", 60.0, 25.0, 4.0, 60.0)]]);
-        let stats = ship_stats(&ship(ai_controller(), &["h", "t"]), &catalog);
+        let stats = ship_stats(
+            &ship(ai_controller(), &["h", "t"]),
+            &catalog,
+            &ShipCatalog::resolve(&[]),
+        );
         assert_eq!(stats.hp, 160.0);
         assert_eq!(stats.dps, 100.0);
         assert_eq!(stats.max_effective_range, 0.9 * 60.0 * 5.0);
@@ -743,14 +803,16 @@ mod tests {
         };
 
         // 175u inside a 450u effective range: the pre-rework shape.
-        let audit = audit_scenario(&build(-175.0), &catalog).expect("player present");
+        let audit = audit_scenario(&build(-175.0), &catalog, &ShipCatalog::resolve(&[]))
+            .expect("player present");
         let findings = audit.findings();
         assert_eq!(findings.len(), 1, "{findings:?}");
         assert_eq!(findings[0].severity, BalanceSeverity::Error);
         assert!(findings[0].message.contains("spawned-dead"));
 
         // The same hostile at 600u grades clean.
-        let audit = audit_scenario(&build(-600.0), &catalog).expect("player present");
+        let audit = audit_scenario(&build(-600.0), &catalog, &ShipCatalog::resolve(&[]))
+            .expect("player present");
         assert!(audit.findings().is_empty(), "{:?}", audit.findings());
     }
 
@@ -781,7 +843,8 @@ mod tests {
                 ship(ai_controller(), &["h", "tube"]),
             ),
         ])]);
-        let audit = audit_scenario(&scenario, &catalog).expect("player present");
+        let audit = audit_scenario(&scenario, &catalog, &ShipCatalog::resolve(&[]))
+            .expect("player present");
         let findings = audit.findings();
         assert_eq!(findings.len(), 1, "{findings:?}");
         assert_eq!(findings[0].severity, BalanceSeverity::Error);
@@ -818,7 +881,8 @@ mod tests {
             )]),
             triggered,
         ]);
-        let audit = audit_scenario(&scenario, &catalog).expect("player present");
+        let audit = audit_scenario(&scenario, &catalog, &ShipCatalog::resolve(&[]))
+            .expect("player present");
         let findings = audit.findings();
         assert_eq!(findings.len(), 1, "{findings:?}");
         assert_eq!(findings[0].severity, BalanceSeverity::Warn);
@@ -851,7 +915,8 @@ mod tests {
                 )],
             },
         ]);
-        let audit = audit_scenario(&scenario, &catalog).expect("player present");
+        let audit = audit_scenario(&scenario, &catalog, &ShipCatalog::resolve(&[]))
+            .expect("player present");
         assert!(
             audit.findings().is_empty(),
             "395u vs a 270u reach must grade clean: {:?}",
@@ -943,6 +1008,6 @@ mod tests {
             Vec3::ZERO,
             ship(ai_controller(), &["h"]),
         )])]);
-        assert!(audit_scenario(&scenario, &catalog).is_none());
+        assert!(audit_scenario(&scenario, &catalog, &ShipCatalog::resolve(&[])).is_none());
     }
 }

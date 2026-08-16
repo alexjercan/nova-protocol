@@ -449,7 +449,10 @@ mod tests {
     fn disable_verb_applies_through_the_real_ship_spawn() {
         use nova_ship::prelude::{GameSections, SectionKind};
 
-        use crate::objects::spaceship::{prelude::*, SectionSource};
+        use crate::objects::{
+            ship::prelude::{ShipHull, ShipSource},
+            spaceship::{prelude::*, SectionSource},
+        };
 
         let mut app = App::new();
         app.add_plugins(crate::objects::spaceship::SpaceshipPlugin);
@@ -460,27 +463,28 @@ mod tests {
             .spawn((
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
-                    collapse_threshold: None,
-                    skin: false,
-                    style: None,
-                    controller: SpaceshipController::None,
-                    allegiance: None,
-                    sections: vec![SpaceshipSectionConfig {
-                        id: "controller".to_string(),
-                        position: Vec3::ZERO,
-                        rotation: Quat::IDENTITY,
-                        source: SectionSource::Inline(nova_ship::prelude::SectionConfig {
-                            base: nova_ship::prelude::BaseSectionConfig {
-                                id: "controller".to_string(),
-                                health: 100.0,
-                                ..default()
-                            },
-                            kind: SectionKind::Controller(
-                                nova_ship::prelude::ControllerSectionConfig::default(),
-                            ),
-                        }),
-                        modifications: vec![SectionModification::DisableVerb(FlightVerb::Orbit)],
-                    }],
+                    hull: ShipSource::Inline(ShipHull {
+                        sections: vec![SpaceshipSectionConfig {
+                            id: "controller".to_string(),
+                            position: Vec3::ZERO,
+                            rotation: Quat::IDENTITY,
+                            source: SectionSource::Inline(nova_ship::prelude::SectionConfig {
+                                base: nova_ship::prelude::BaseSectionConfig {
+                                    id: "controller".to_string(),
+                                    health: 100.0,
+                                    ..default()
+                                },
+                                kind: SectionKind::Controller(
+                                    nova_ship::prelude::ControllerSectionConfig::default(),
+                                ),
+                            }),
+                            modifications: vec![SectionModification::DisableVerb(
+                                FlightVerb::Orbit,
+                            )],
+                        }],
+                        ..default()
+                    }),
+                    ..default()
                 }),
             ))
             .id();

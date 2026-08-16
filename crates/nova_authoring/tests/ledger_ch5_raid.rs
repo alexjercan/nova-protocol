@@ -46,9 +46,17 @@ fn scenario_from(ron_str: &str) -> ScenarioConfig {
         .into_iter()
         .find_map(|c| match c {
             Content::Scenario(s) => Some(s),
-            Content::Section(_) | Content::Campaign(_) | Content::Style(_) => None,
+            Content::Section(_) | Content::Campaign(_) | Content::Style(_) | Content::Ship(_) => {
+                None
+            }
         })
         .expect("content contains a Scenario")
+}
+
+/// The sections a spawn flies, joined through the built-in ship catalog: a
+/// scenario may reference a whole hull by id instead of carrying one.
+fn ship_sections(ship: &SpaceshipConfig) -> Vec<SpaceshipSectionConfig> {
+    nova_authoring::generation::spawned_ship_sections(ship)
 }
 
 fn on_start(scenario: &ScenarioConfig) -> &ScenarioEventConfig {
@@ -305,8 +313,8 @@ fn the_player_flies_a_torpedo_gunship() {
 
     // The whole point of the reward: unlike every prior chapter, the player's
     // ship actually CARRIES torpedo bays (and guns).
-    let torpedo_ids: Vec<&str> = player
-        .sections
+    let player_sections = ship_sections(player);
+    let torpedo_ids: Vec<&str> = player_sections
         .iter()
         .filter(|s| matches!(section_kind(s, &catalog), Some(SectionKind::Torpedo(_))))
         .map(|s| s.id.as_str())
@@ -316,8 +324,7 @@ fn the_player_flies_a_torpedo_gunship() {
         "the reward gunship carries torpedo bays (found {torpedo_ids:?})"
     );
     assert!(
-        player
-            .sections
+        player_sections
             .iter()
             .any(|s| matches!(section_kind(s, &catalog), Some(SectionKind::Turret(_)))),
         "the gunship also carries guns"
@@ -408,8 +415,9 @@ fn the_base_holds_station_thrusterless() {
     let base = spaceship_at(start, "magpie_base");
     let catalog = nova_authoring::generation::build_section_catalog();
 
+    let base_sections = ship_sections(base);
     let count = |pred: fn(&SectionKind) -> bool| {
-        base.sections
+        base_sections
             .iter()
             .filter(|s| {
                 section_kind(s, &catalog)

@@ -169,42 +169,43 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
     };
 
     let player = SpaceshipConfig {
-        collapse_threshold: None,
-        skin: false,
-        style: None,
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),
             speed_cap: None,
             infinite_ammo: true,
         }),
-        sections: vec![
-            at(
-                "player_controller",
-                "basic_controller_section",
-                Vec3::new(0.0, 0.0, 0.0),
-            ),
-            at(
-                "player_hull",
-                "reinforced_hull_section",
-                Vec3::new(0.0, 0.0, 1.0),
-            ),
-            at(
-                "player_thruster",
-                "basic_thruster_section",
-                Vec3::new(0.0, 0.0, 2.0),
-            ),
-            at(
-                "player_turret",
-                "better_turret_section",
-                Vec3::new(1.0, 0.0, 1.0),
-            ),
-            at(
-                "player_torpedo",
-                "torpedo_section",
-                Vec3::new(-1.0, 0.0, 1.0),
-            ),
-        ],
+        hull: ShipSource::Inline(ShipHull {
+            sections: vec![
+                at(
+                    "player_controller",
+                    "basic_controller_section",
+                    Vec3::new(0.0, 0.0, 0.0),
+                ),
+                at(
+                    "player_hull",
+                    "reinforced_hull_section",
+                    Vec3::new(0.0, 0.0, 1.0),
+                ),
+                at(
+                    "player_thruster",
+                    "basic_thruster_section",
+                    Vec3::new(0.0, 0.0, 2.0),
+                ),
+                at(
+                    "player_turret",
+                    "better_turret_section",
+                    Vec3::new(1.0, 0.0, 1.0),
+                ),
+                at(
+                    "player_torpedo",
+                    "torpedo_section",
+                    Vec3::new(-1.0, 0.0, 1.0),
+                ),
+            ],
+            ..default()
+        }),
+        ..default()
     };
 
     let events = vec![ScenarioEventConfig {

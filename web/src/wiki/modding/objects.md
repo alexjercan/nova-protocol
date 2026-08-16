@@ -84,19 +84,21 @@ id and `"asteroid"`.
 
 ## Spaceship
 
-A ship: a root entity plus a list of SECTION children. This is the most
-involved kind - a hand-authored ship with a full loadout runs to hundreds of
-lines, so copy a shipped block or build from
-[prototype ids](../base-content/#section-prototypes) rather than typing one.
+A spawn of a SHIP: where it sits, who flies it, which side it is on. What it
+IS - its section layout, its cladding - is a [ship](../ships/), named here by
+id or authored inline.
 
 | field | type | default | meaning |
 |---|---|---|---|
+| `hull` | hull source | required | `Prototype("cargoa")` names a [ship](../ships/) by id; `Inline((..))` carries a one-off hull (below) |
 | `controller` | controller | required | who flies it (below) |
 | `allegiance` | `Option` side | `None` | side override, strict RON `Some(Neutral)`. Omitted = the controller default: Player ships fight for the player, AI ships are hostile |
-| `collapse_threshold` | `Option` number | `None` | structural collapse: the fraction of the health the ship was BUILT with below which whatever is left comes apart and the ship is destroyed. Strict RON `Some(0.1)`; omitted = the engine default `0.25`. Lower = the ship must be dismantled further (a capital), `Some(0.0)` = strip every last section. Clamped to `0..=1` |
-| `sections` | list | `[]` | the hull/thruster/gun/controller layout (below) |
-| `skin` | bool | `false` | clad the ship: the game DERIVES an outer skin from the sections at spawn - destructible plates, nothing authored, no id to reference (see [Cladding](../base-content/#cladding-not-a-prototype)). For hulls built out of the unit-cell sections; the modelled semantic parts do not stand on that lattice |
-| `style` | `Option` string | `None` | the LOOK the cladding wears, by [style](../styles/) id: plate materials plus the destructible decoration scattered over them. Strict RON `Some("raider")`; omitted = built-in plate colours and no decoration. An id nothing authored leaves the ship clad and bare rather than falling back to another look |
+| `modifications` | list | `[]` | per-spawn deltas over the shared hull: `(section: "fuselage", modifications: [SetHealth(500.0)])`. Applied AFTER the section's own list, so the spawn wins. A section id the hull does not carry is a lint error |
+
+`hull: Inline((..))` carries the same fields a [ship](../ships/)'s own `hull`
+does - `sections`, `collapse_threshold`, `skin`, `style`. Author one for a
+genuine one-off (a scripted battery that is a single torpedo tube); anything a
+second scenario would spawn belongs in the ship catalog.
 
 An abbreviated player ship:
 
@@ -111,18 +113,34 @@ SpawnScenarioObject((
     kind: Spaceship((
         controller: Player((
             input_mapping: {
-                "turret": [Mouse(Left)],
+                "turret_port": [Mouse(Left)],
             },
             infinite_ammo: false,
         )),
+        // The shipped corvette, by id.
+        hull: Prototype("cargoa"),
+        // This spawn's own flight computer is hardened; every other cargoa
+        // is untouched.
+        modifications: [
+            (section: "fuselage", modifications: [SetHealth(500.0)]),
+        ],
+    )),
+)),
+```
+
+A one-off hull, authored inline:
+
+```ron
+kind: Spaceship((
+    controller: None,
+    hull: Inline((
         sections: [
             (
-                id: "controller",
+                id: "bay",
                 position: (0.0, 0.0, 0.0),
                 rotation: (0.0, 0.0, 0.0, 1.0),
-                source: Prototype("basic_controller_section"),
+                source: Prototype("torpedo_section"),
             ),
-            // ... hull, thruster, and turret sections ...
         ],
     )),
 )),
@@ -143,22 +161,13 @@ SpawnScenarioObject((
             patrol: [(0.0, 0.0, -300.0), (80.0, 0.0, -220.0)],
             engage_delay: Some(8.0),
         )),
-        sections: [
-            (
-                id: "controller",
-                position: (0.0, 0.0, 0.0),
-                rotation: (0.0, 0.0, 0.0, 1.0),
-                source: Prototype("basic_controller_section"),
-            ),
-            // ... hull, thruster, and weapon sections ...
-        ],
+        hull: Prototype("cargoa_raider"),
     )),
 )),
 ```
 
-The comments replace required sections, so these examples show the shape rather
-than complete flyable ships. Copy the full player or AI section list from
-`assets/mods/example/example.content.ron` or a shipped scenario.
+A ship id nothing authored spawns an empty root and logs an error rather than
+crashing, so a missing dependency is visible instead of fatal.
 
 ### The controller
 

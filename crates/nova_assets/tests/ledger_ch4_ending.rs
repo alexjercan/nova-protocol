@@ -44,7 +44,9 @@ fn scenario_from(ron_str: &str) -> ScenarioConfig {
         .into_iter()
         .find_map(|c| match c {
             Content::Scenario(s) => Some(s),
-            Content::Section(_) | Content::Campaign(_) | Content::Style(_) => None,
+            Content::Section(_) | Content::Campaign(_) | Content::Style(_) | Content::Ship(_) => {
+                None
+            }
         })
         .expect("content contains a Scenario")
 }

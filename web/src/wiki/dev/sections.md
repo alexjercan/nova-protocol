@@ -115,7 +115,7 @@ damage pipeline.
 
 ### The derived skin
 
-`skin: true` asks the game to CLAD the ship. Nothing authors a plate:
+`skin: true` on a ship's hull asks the game to CLAD it. Nothing authors a plate:
 `spawn_ship_skin` (`sections/shell_skin.rs`) reads the finished section batch on
 the same `Added<SectionLinkPoints>` edge the integrity graph is built off,
 buckets the sections into cells (the lattice is read off the sections, so a hull

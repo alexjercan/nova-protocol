@@ -1,6 +1,16 @@
-//! Shipped semantic craft assemblies and their section prototypes.
+//! Shipped semantic craft assemblies, their section prototypes, and the ship
+//! CONTENT entries a scenario spawns them by.
+//!
+//! A grade is a build-time knob, not a spawn-time one: the raider corvette
+//! carries thinner plating and scavenger-grade guns, which is a different ship
+//! to fight and to read about, so it is a second CATALOG entry rather than a
+//! flag a scenario flips. Two entries cost one line each here and no machinery
+//! anywhere else.
 
-use nova_scenario::prelude::{SectionModification, SpaceshipSectionConfig};
+use nova_scenario::prelude::{
+    SectionModification, ShipConfig, ShipHull, ShipSectionModification, ShipSource,
+    SpaceshipSectionConfig,
+};
 use nova_ship::prelude::SectionConfig;
 
 use super::assets::BaseContentAssets;
@@ -11,7 +21,21 @@ mod racer;
 mod shared;
 
 pub(crate) use cargo_a::CARGOA_TURRET_IDS;
-pub(crate) use shared::ShipGrade;
+use shared::ShipGrade;
+
+/// The id the player-grade CargoA corvette is spawned by.
+pub(crate) const CARGOA_SHIP_ID: &str = "cargoa";
+/// The id the scavenger-grade CargoA corvette is spawned by: thinner plating,
+/// light turrets, a softer flight computer.
+pub(crate) const CARGOA_RAIDER_SHIP_ID: &str = "cargoa_raider";
+/// The id the CargoB torpedo hauler is spawned by.
+pub(crate) const CARGOB_SHIP_ID: &str = "cargob";
+/// The id the unarmed Racer yacht is spawned by.
+pub(crate) const RACER_SHIP_ID: &str = "racer";
+
+/// The section id every shipped craft's flight computer carries - what a
+/// scenario aims a spawn-time controller modification at.
+pub(crate) const FUSELAGE_SECTION_ID: &str = "fuselage";
 
 /// Semantic Racer, CargoB, and CargoA part prototypes in generated-content order.
 pub(crate) fn semantic_part_prototypes(assets: &BaseContentAssets) -> Vec<SectionConfig> {
@@ -21,19 +45,61 @@ pub(crate) fn semantic_part_prototypes(assets: &BaseContentAssets) -> Vec<Sectio
     sections
 }
 
-pub(crate) fn racer_sections() -> Vec<SpaceshipSectionConfig> {
-    racer::sections()
+/// Every shipped ship, in stable generated-content order.
+pub(crate) fn ship_catalog() -> Vec<ShipConfig> {
+    vec![
+        ship(RACER_SHIP_ID, "Racer Yacht", racer::sections()),
+        ship(CARGOB_SHIP_ID, "CargoB Hauler", cargo_b::sections()),
+        ship(
+            CARGOA_SHIP_ID,
+            "CargoA Corvette",
+            cargo_a::sections(ShipGrade::Player),
+        ),
+        ship(
+            CARGOA_RAIDER_SHIP_ID,
+            "CargoA Raider Corvette",
+            cargo_a::sections(ShipGrade::Enemy),
+        ),
+    ]
 }
 
-pub(crate) fn cargob_sections() -> Vec<SpaceshipSectionConfig> {
-    cargo_b::sections()
+/// A spawn of one CATALOG ship, by id.
+pub(crate) fn hull(id: &str) -> ShipSource {
+    ShipSource::Prototype(id.to_string())
 }
 
-pub(crate) fn cargoa_sections(
-    grade: ShipGrade,
-    controller_modifications: Vec<SectionModification>,
-) -> Vec<SpaceshipSectionConfig> {
-    cargo_a::sections(grade, controller_modifications)
+/// A ONE-OFF hull, authored inline: a scripted battery that is a single tube, a
+/// derelict that is five plates. Anything a second scenario would want gets a
+/// catalog entry instead.
+pub(crate) fn inline_hull(sections: Vec<SpaceshipSectionConfig>) -> ShipSource {
+    ShipSource::Inline(ShipHull {
+        sections,
+        ..Default::default()
+    })
+}
+
+/// One spawn-time delta aimed at a named section of the resolved hull.
+pub(crate) fn on_section(
+    section: &str,
+    modifications: Vec<SectionModification>,
+) -> ShipSectionModification {
+    ShipSectionModification {
+        section: section.to_string(),
+        modifications,
+    }
+}
+
+/// One catalog entry over a built section list. Every shipped ship takes the
+/// engine's collapse threshold and goes unclad, so the hull is its sections.
+fn ship(id: &str, name: &str, sections: Vec<SpaceshipSectionConfig>) -> ShipConfig {
+    ShipConfig {
+        id: id.to_string(),
+        name: name.to_string(),
+        hull: ShipHull {
+            sections,
+            ..Default::default()
+        },
+    }
 }
 
 #[cfg(test)]

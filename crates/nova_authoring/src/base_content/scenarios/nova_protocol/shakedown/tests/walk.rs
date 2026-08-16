@@ -38,6 +38,9 @@ fn scripted_app() -> App {
             &crate::base_content::assets::BaseContentAssets::from_paths(),
         ),
     ));
+    // The spawns reference a whole hull by id, so the ship catalog has to be
+    // there too (production loads it from the ships RON).
+    app.insert_resource(GameShips(crate::generation::build_ships()));
     app.add_plugins(ScenarioObjectsPlugin { render: false });
     app.finish();
 
@@ -898,16 +901,25 @@ fn the_new_game_player_starts_with_goto_withheld() {
             .find(|c| c.base.id == *id)
             .is_some_and(|c| matches!(c.kind, SectionKind::Controller(_))),
     };
-    let controller = config
-        .sections
+    let sections = crate::generation::spawned_ship_sections(&config);
+    let controller = sections
         .iter()
         .find(|section| is_controller(section))
         .expect("the player ship has a controller cube");
 
+    // The gate is authored on the SPAWN now, aimed at the shared hull's flight
+    // computer, so both layers count.
     let disables_verb = |verb: FlightVerb| {
         controller
             .modifications
             .iter()
+            .chain(
+                config
+                    .modifications
+                    .iter()
+                    .filter(|m| m.section == controller.id)
+                    .flat_map(|m| m.modifications.iter()),
+            )
             .any(|m| matches!(m, SectionModification::DisableVerb(v) if *v == verb))
     };
     assert!(

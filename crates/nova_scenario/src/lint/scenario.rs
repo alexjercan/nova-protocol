@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use super::{ship::check_object_prototypes, KnownSections, LintIssue};
+use super::{ship::check_object_prototypes, KnownSections, KnownShips, LintIssue};
 use crate::prelude::*;
 
 /// Everything a scenario's actions can DECLARE, collected in one pass:
@@ -58,11 +58,13 @@ pub fn lint_campaign(
 
 /// Lint one scenario against the identifier sets the caller knows about:
 /// `sections` (the section-prototype catalog visible to this scenario's
-/// bundle) and `known_scenarios` (every scenario id a `NextScenario` may
-/// target, normally base + all installed bundles).
+/// bundle), `ships` (the ship catalog it may spawn by id) and
+/// `known_scenarios` (every scenario id a `NextScenario` may target, normally
+/// base + all installed bundles).
 pub fn lint_scenario(
     scenario: &ScenarioConfig,
     sections: &KnownSections,
+    ships: &KnownShips,
     known_scenarios: &HashSet<String>,
 ) -> Vec<LintIssue> {
     let id = scenario.id.as_str();
@@ -215,6 +217,7 @@ pub fn lint_scenario(
                 action,
                 id,
                 sections,
+                ships,
                 known_scenarios,
                 &satisfiable,
                 &declared.timer_keys,
@@ -363,6 +366,7 @@ fn check_action(
     action: &EventActionConfig,
     scenario: &str,
     sections: &KnownSections,
+    ships: &KnownShips,
     known_scenarios: &HashSet<String>,
     satisfiable: &dyn Fn(&str) -> bool,
     timer_keys: &HashSet<String>,
@@ -371,12 +375,12 @@ fn check_action(
 ) {
     match action {
         EventActionConfig::SpawnScenarioObject(config) => {
-            check_object_prototypes(config, scenario, sections, issues);
+            check_object_prototypes(config, scenario, sections, ships, issues);
         }
         EventActionConfig::ScatterObjects(config) => {
             // The template is a full object config too - a scattered ship with
             // a bad prototype is the same bug one wrapper deeper.
-            check_object_prototypes(&config.template, scenario, sections, issues);
+            check_object_prototypes(&config.template, scenario, sections, ships, issues);
             // The runtime clamps rather than OOMs, but a clamped field is not
             // the field the author wrote - say so before it ships.
             if config.count > MAX_SCATTER_COUNT {
@@ -786,7 +790,7 @@ mod tests {
                 key: String::new(),
             })],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&[]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert_eq!(
             issues
                 .iter()
@@ -815,7 +819,7 @@ mod tests {
                 key: "oribt_hold".to_string(),
             })],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&[]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
             issues.iter().any(|issue| {
                 issue.severity == LintSeverity::Error
@@ -926,6 +930,7 @@ mod tests {
         let issues = lint_scenario(
             &s,
             &sections(&["known_proto"]),
+            &ships(&[]),
             &known(&["test_scenario", "next_chapter"]),
         );
         assert!(issues.is_empty(), "clean scenario flagged: {issues:?}");
@@ -941,7 +946,7 @@ mod tests {
             })],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("gone"));
@@ -962,7 +967,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("ghost"));
@@ -976,7 +981,12 @@ mod tests {
     fn a_backdrop_without_a_camera_pose_is_an_error() {
         let mut poseless = scenario(vec![], vec![]);
         poseless.menu_backdrop = true;
-        let issues = lint_scenario(&poseless, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &poseless,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("SetCamera"));
@@ -989,12 +999,22 @@ mod tests {
             vec![],
         );
         posed.menu_backdrop = true;
-        let issues = lint_scenario(&posed, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &posed,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         assert!(errors(&issues).is_empty(), "{issues:?}");
 
         // Non-backdrop scenarios owe no camera.
         let plain = scenario(vec![], vec![]);
-        let issues = lint_scenario(&plain, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &plain,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
 
@@ -1011,7 +1031,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
         assert!(errs[0].message.contains("ghost_battery"));
@@ -1022,7 +1042,7 @@ mod tests {
     #[test]
     fn duplicate_spawn_ids_in_one_handler_are_an_error() {
         let s = scenario(vec![spawn_object("twin"), spawn_object("twin")], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("twin"));
@@ -1038,7 +1058,7 @@ mod tests {
             filters: vec![],
             actions: vec![spawn_object("boss")],
         });
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("mutually exclusive"));
@@ -1070,7 +1090,7 @@ mod tests {
             })],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(
             errors(&issues)
                 .iter()
@@ -1111,7 +1131,7 @@ mod tests {
                 }),
             ],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "only the ghost flags: {issues:?}");
         assert!(errs[0].message.contains("ghost"));
@@ -1136,7 +1156,7 @@ mod tests {
                 ),
             ))],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
         assert!(issues.iter().any(|i| i.message.contains("never_set")));
@@ -1164,16 +1184,16 @@ mod tests {
         };
 
         let s = scenario(vec![outcome(), next(false, None)], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("non-lingering"));
 
         let s = scenario(vec![outcome(), next(false, Some(4.0))], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "delayed is the same trap: {issues:?}");
 
         let s = scenario(vec![outcome(), next(true, None)], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(
             issues.is_empty(),
             "the lingering pair is the good shape: {issues:?}"
@@ -1201,17 +1221,19 @@ mod tests {
         };
 
         let s = scenario(vec![line("one"), line("two")], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("one line per beat"));
 
         let s = scenario(vec![line("dead"), outcome()], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("never read"));
 
         let s = scenario(vec![line("solo")], vec![]);
-        assert!(lint_scenario(&s, &sections(&[]), &known(&["test_scenario"])).is_empty());
+        assert!(
+            lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"])).is_empty()
+        );
     }
 
     /// Pacing-field ranges: absurd/non-finite delays warn, a delay on a
@@ -1236,7 +1258,7 @@ mod tests {
         // Range/dead-field warns, isolated from the same-handler swallow
         // trap (which is its own test): switches only.
         let s = scenario(vec![next(false, Some(1e30)), next(true, Some(4.0))], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
         assert!(issues.iter().any(|i| i.message.contains("outside (0, 60]")));
@@ -1244,7 +1266,7 @@ mod tests {
 
         // The outcome range warn, without a hard switch in the handler.
         let s = scenario(vec![outcome_adv(Some(f64::INFINITY))], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("auto_advance_secs"));
 
@@ -1252,19 +1274,23 @@ mod tests {
         // Timer that finishes on tick one, so the banner never shows. Both
         // fields, since both read as "omit the field instead".
         let s = scenario(vec![outcome_adv(Some(0.0))], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("auto_advance_secs"));
         let s = scenario(vec![next(false, Some(0.0))], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("outside (0, 60]"));
 
         // Sane values, trap-free shapes: clean.
         let s = scenario(vec![next(false, Some(4.0))], vec![]);
-        assert!(lint_scenario(&s, &sections(&[]), &known(&["test_scenario"])).is_empty());
+        assert!(
+            lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"])).is_empty()
+        );
         let s = scenario(vec![outcome_adv(Some(6.0))], vec![]);
-        assert!(lint_scenario(&s, &sections(&[]), &known(&["test_scenario"])).is_empty());
+        assert!(
+            lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"])).is_empty()
+        );
     }
 
     /// StoryMessage dwell range: out-of-range warns, in-range and omitted stay
@@ -1288,7 +1314,7 @@ mod tests {
                 actions: vec![l],
             });
         }
-        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("120"));
@@ -1320,7 +1346,12 @@ mod tests {
                 property: ScenarioProperty::Elapsed,
             }),
         });
-        let issues = lint_scenario(&read_only, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &read_only,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         assert!(
             issues.is_empty(),
             "gating on the engine clock is the intended pattern: {issues:?}"
@@ -1337,7 +1368,12 @@ mod tests {
             vec![],
         );
         stomp.watches = read_only.watches.clone();
-        let issues = lint_scenario(&stomp, &sections(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &stomp,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         assert_eq!(
             errors(&issues).len(),
             1,
@@ -1375,7 +1411,12 @@ mod tests {
                 property: EntityProperty::Speed,
             }),
         });
-        let issues = lint_scenario(&read_only, &sections(&["hull"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &read_only,
+            &sections(&["hull"]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         assert!(
             issues.is_empty(),
             "gating on a watched speed is the intended pattern: {issues:?}"
@@ -1395,7 +1436,12 @@ mod tests {
             vec![],
         );
         stomp.watches = read_only.watches.clone();
-        let issues = lint_scenario(&stomp, &sections(&["hull"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &stomp,
+            &sections(&["hull"]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
         assert_eq!(
             errors(&issues).len(),
             1,

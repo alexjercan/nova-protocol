@@ -125,9 +125,6 @@ pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
     prototypes(&CARGOA_PARTS, &CARGOA_EDGES, "CargoA", assets, true)
 }
 
-pub(crate) fn sections(
-    grade: ShipGrade,
-    controller_modifications: Vec<SectionModification>,
-) -> Vec<SpaceshipSectionConfig> {
-    ship_sections(&CARGOA_PARTS, grade, &controller_modifications)
+pub(super) fn sections(grade: ShipGrade) -> Vec<SpaceshipSectionConfig> {
+    ship_sections(&CARGOA_PARTS, grade)
 }

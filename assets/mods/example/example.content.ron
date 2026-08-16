@@ -332,40 +332,42 @@
                                 speed_cap: Some(25.0),
                                 infinite_ammo: false,
                             )),
-                            sections: [
-                                (
-                                    id: "controller",
-                                    position: (0.0, 0.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_controller_section"),
-                                ),
-                                (
-                                    id: "hull_front",
-                                    position: (0.0, 0.0, 1.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    // the OVERRIDDEN base section (id 1 above)
-                                    source: Prototype("reinforced_hull_section"),
-                                ),
-                                (
-                                    id: "hull_rear",
-                                    position: (0.0, 0.0, 2.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    // the NEW section this mod adds (id 2 above)
-                                    source: Prototype("example_plated_hull_section"),
-                                ),
-                                (
-                                    id: "thruster",
-                                    position: (0.0, 0.0, 3.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_thruster_section"),
-                                ),
-                                (
-                                    id: "turret",
-                                    position: (0.0, 0.0, -1.0),
-                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
-                                    source: Prototype("better_turret_section"),
-                                ),
-                            ],
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "controller",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "hull_front",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        // the OVERRIDDEN base section (id 1 above)
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_rear",
+                                        position: (0.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        // the NEW section this mod adds (id 2 above)
+                                        source: Prototype("example_plated_hull_section"),
+                                    ),
+                                    (
+                                        id: "thruster",
+                                        position: (0.0, 0.0, 3.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "turret",
+                                        position: (0.0, 0.0, -1.0),
+                                        rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                        source: Prototype("better_turret_section"),
+                                    ),
+                                ],
+                            )),
                         )),
                     )),
                     // A lit beacon centrepiece the rocks sit in front of. Purely
@@ -751,26 +753,28 @@
                             controller: AI((
                                 orbit: Some("menu_planetoid"),
                             )),
-                            sections: [
-                                (
-                                    id: "controller",
-                                    position: (0.0, 0.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_controller_section"),
-                                ),
-                                (
-                                    id: "hull_front",
-                                    position: (0.0, 0.0, 1.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("reinforced_hull_section"),
-                                ),
-                                (
-                                    id: "thruster",
-                                    position: (0.0, 0.0, 2.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_thruster_section"),
-                                ),
-                            ],
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "controller",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "hull_front",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "thruster",
+                                        position: (0.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("basic_thruster_section"),
+                                    ),
+                                ],
+                            )),
                         )),
                     )),
                 ],

@@ -191,25 +191,27 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "bay",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("torpedo_section"),
+                                    ),
+                                ],
+                            )),
                             controller: r#None,
                             allegiance: Some(Enemy),
-                            sections: [
-                                (
-                                    id: "bay",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("torpedo_section"),
-                                ),
-                            ],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -229,25 +231,27 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "bay",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("torpedo_section"),
+                                    ),
+                                ],
+                            )),
                             controller: r#None,
                             allegiance: Some(Enemy),
-                            sections: [
-                                (
-                                    id: "bay",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("torpedo_section"),
-                                ),
-                            ],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -267,25 +271,27 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "bay",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("torpedo_section"),
+                                    ),
+                                ],
+                            )),
                             controller: r#None,
                             allegiance: Some(Enemy),
-                            sections: [
-                                (
-                                    id: "bay",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("torpedo_section"),
-                                ),
-                            ],
                         )),
                     )),
                     SpawnScenarioObject((
@@ -305,25 +311,27 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "bay",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("torpedo_section"),
+                                    ),
+                                ],
+                            )),
                             controller: r#None,
                             allegiance: Some(Enemy),
-                            sections: [
-                                (
-                                    id: "bay",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("torpedo_section"),
-                                ),
-                            ],
                         )),
                     )),
                     SetCamera((
@@ -400,6 +408,7 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Prototype("cargoa"),
                             controller: AI((
                                 patrol: [
                                     (
@@ -439,144 +448,15 @@
                                 pd_range: Some(130.0),
                             )),
                             allegiance: Some(Player),
-                            sections: [
+                            modifications: [
                                 (
-                                    id: "engine_starboard",
-                                    position: (
-                                        1.205,
-                                        0.6,
-                                        1.975,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_engine_starboard"),
-                                ),
-                                (
-                                    id: "engine_port",
-                                    position: (
-                                        -1.205,
-                                        0.6,
-                                        1.975,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_engine_port"),
-                                ),
-                                (
-                                    id: "pod_starboard",
-                                    position: (
-                                        1.205,
-                                        0.7,
-                                        0.47500002,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_pod_starboard"),
-                                ),
-                                (
-                                    id: "pod_port",
-                                    position: (
-                                        -1.205,
-                                        0.7,
-                                        0.47500002,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_pod_port"),
-                                ),
-                                (
-                                    id: "nose",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_nose"),
-                                ),
-                                (
-                                    id: "tail",
-                                    position: (
-                                        0.0,
-                                        0.5875,
-                                        1.975,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_tail"),
-                                ),
-                                (
-                                    id: "fuselage",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        0.17500001,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_fuselage"),
-                                ),
-                                (
-                                    id: "turret_starboard",
-                                    position: (
-                                        0.95,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargoa_turret_starboard"),
+                                    section: "turret_port",
                                     modifications: [
                                         SetAmmo(400),
                                     ],
                                 ),
                                 (
-                                    id: "turret_port",
-                                    position: (
-                                        -0.95,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargoa_turret_port"),
+                                    section: "turret_starboard",
                                     modifications: [
                                         SetAmmo(400),
                                     ],

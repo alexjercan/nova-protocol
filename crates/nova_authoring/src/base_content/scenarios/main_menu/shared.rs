@@ -57,10 +57,10 @@ pub(super) fn backdrop_orbiter(
     // waystation freighters), `false` the unarmed racer (the scrapyard tug).
     cargo: bool,
 ) -> ScenarioObjectConfig {
-    let sections = if cargo {
-        ships::cargoa_sections(ships::ShipGrade::Player, vec![])
+    let hull = if cargo {
+        ships::CARGOA_SHIP_ID
     } else {
-        ships::racer_sections()
+        ships::RACER_SHIP_ID
     };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -70,15 +70,13 @@ pub(super) fn backdrop_orbiter(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 orbit: Some("menu_planetoid".to_string()),
                 ..Default::default()
             }),
-            sections,
+            hull: ships::hull(hull),
+            ..Default::default()
         }),
     }
 }

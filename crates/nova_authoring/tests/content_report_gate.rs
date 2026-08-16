@@ -50,21 +50,25 @@ fn broken_mod() -> (tempfile::TempDir, &'static str) {
                                 },
                                 infinite_ammo: false,
                             )),
-                            sections: [
-                                (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
-                                (id: "guns", position: (0.0, 0.0, -1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("better_turret_section")),
-                                (id: "bad", position: (0.0, 0.0, 1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("imaginary_hull")),
-                            ],
+                            hull: Inline((
+                                sections: [
+                                    (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
+                                    (id: "guns", position: (0.0, 0.0, -1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("better_turret_section")),
+                                    (id: "bad", position: (0.0, 0.0, 1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("imaginary_hull")),
+                                ],
+                            )),
                         )),
                     )),
                     SpawnScenarioObject((
                         base: (id: "ambush", name: "Ambush", position: (0.0, 0.0, 3.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
                             controller: AI(()),
-                            sections: [
-                                (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
-                                (id: "turret", position: (0.0, 0.0, -1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("better_turret_section")),
-                            ],
+                            hull: Inline((
+                                sections: [
+                                    (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
+                                    (id: "turret", position: (0.0, 0.0, -1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("better_turret_section")),
+                                ],
+                            )),
                         )),
                     )),
                 ],

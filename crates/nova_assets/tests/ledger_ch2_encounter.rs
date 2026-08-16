@@ -57,9 +57,21 @@ fn scenario_from(ron_str: &str) -> ScenarioConfig {
         .into_iter()
         .find_map(|c| match c {
             Content::Scenario(s) => Some(s),
-            Content::Section(_) | Content::Campaign(_) | Content::Style(_) => None,
+            Content::Section(_) | Content::Campaign(_) | Content::Style(_) | Content::Ship(_) => {
+                None
+            }
         })
         .expect("content contains a Scenario")
+}
+
+/// The sections a spawn flies. Every ship in this mod authors its hull inline,
+/// so a `Prototype` reference here would mean the content moved and the pins
+/// below are reading the wrong thing.
+fn ship_sections(ship: &SpaceshipConfig) -> &[SpaceshipSectionConfig] {
+    match &ship.hull {
+        ShipSource::Inline(hull) => &hull.sections,
+        ShipSource::Prototype(id) => panic!("expected an inline hull, got ship '{id}'"),
+    }
 }
 
 fn on_start(scenario: &ScenarioConfig) -> &ScenarioEventConfig {
@@ -117,14 +129,14 @@ fn rocks(event: &ScenarioEventConfig) -> Vec<(&str, Vec3, &AsteroidConfig)> {
 
 /// Count sections whose semantic-part prototype id starts with `prefix`.
 fn prototype_prefix_count(ship: &SpaceshipConfig, prefix: &str) -> usize {
-    ship.sections
+    ship_sections(ship)
         .iter()
         .filter(|s| matches!(&s.source, SectionSource::Prototype(p) if p.starts_with(prefix)))
         .count()
 }
 
 fn light_turret_count(ship: &SpaceshipConfig) -> usize {
-    ship.sections
+    ship_sections(ship)
         .iter()
         .filter(|section| {
             matches!(&section.source, SectionSource::Prototype(id) if id.ends_with("_light"))

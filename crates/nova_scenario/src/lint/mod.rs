@@ -23,14 +23,14 @@ mod scenario;
 mod ship;
 
 pub use scenario::{lint_campaign, lint_scenario};
-pub use ship::lint_section_config;
+pub use ship::{lint_section_config, lint_ship_config};
 
 /// Glob-import surface: `use nova_scenario::lint::prelude::*` brings the
 /// content-lint entry points and result types into scope.
 pub mod prelude {
     pub use super::{
-        lint_campaign, lint_scenario, lint_section_config, KnownSection, KnownSections, LintIssue,
-        LintSeverity,
+        lint_campaign, lint_scenario, lint_section_config, lint_ship_config, KnownSection,
+        KnownSections, KnownShips, LintIssue, LintSeverity,
     };
 }
 
@@ -73,6 +73,31 @@ impl KnownSections {
     /// Whether one prototype ID resolves in this catalog.
     pub fn contains(&self, id: &str) -> bool {
         self.entries.contains_key(id)
+    }
+}
+
+/// Last-wins ship view used by scenario lint: the hull each visible ship id
+/// resolves to, so a spawn's `Prototype` reference and its per-section
+/// modifications can both be checked against a real section list.
+#[derive(Clone, Debug, Default)]
+pub struct KnownShips {
+    entries: HashMap<String, ShipHull>,
+}
+
+impl KnownShips {
+    /// Resolve full ship configs in iterator order; later duplicate ids replace
+    /// earlier ones.
+    pub fn from_configs<'a>(configs: impl IntoIterator<Item = &'a ShipConfig>) -> Self {
+        let mut entries = HashMap::new();
+        for config in configs {
+            entries.insert(config.id.clone(), config.hull.clone());
+        }
+        Self { entries }
+    }
+
+    /// The hull one ship id resolves to, or `None` if nothing authored it.
+    pub fn get(&self, id: &str) -> Option<&ShipHull> {
+        self.entries.get(id)
     }
 }
 

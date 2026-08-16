@@ -1,11 +1,13 @@
-//! The spaceship scenario object: its section list, where those sections come
+//! The spaceship scenario object: which hull it spawns, where that hull comes
 //! from, and whether the player or the AI flies it.
 //!
 //! [`SectionSource`] is the seam that lets an authored ship reference the
-//! shipped catalog by id or carry its own inline config.
+//! shipped catalog by id or carry its own inline config;
+//! [`ShipSource`](crate::objects::ship::prelude::ShipSource) is the same seam
+//! one level up, over the whole hull.
 //!
-//! Touch this module when changing how an authored ship is described or
-//! assembled.
+//! Touch this module when changing how a ship is SPAWNED. What a ship IS lives
+//! in [`ship`](crate::objects::ship).
 
 use avian3d::prelude::*;
 use bevy::{platform::collections::HashMap, prelude::*};
@@ -14,15 +16,18 @@ use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
-use crate::objects::modification::prelude::SectionModification;
+use crate::objects::{
+    modification::prelude::SectionModification,
+    ship::prelude::{GameShips, ShipHull, ShipSectionModification, ShipSource},
+};
 
 /// The spaceship scenario object, its config and section sources, the player and AI controller
 /// configs, and `SpaceshipPlugin`.
 pub mod prelude {
     pub use super::{
-        spaceship_scenario_object, AIControllerConfig, PlayerControllerConfig, SectionSource,
-        SpaceshipConfig, SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig,
-        SpaceshipSectionsConfig, SPACESHIP_TYPE_NAME,
+        spaceship_scenario_object, AIControllerConfig, PlayerControllerConfig, SectionId,
+        SectionSource, SpaceshipConfig, SpaceshipController, SpaceshipHull, SpaceshipModifications,
+        SpaceshipPlugin, SpaceshipSectionConfig, SPACESHIP_TYPE_NAME,
     };
 }
 
@@ -33,10 +38,11 @@ pub const SPACESHIP_TYPE_NAME: &str = "spaceship";
 /// player, or an [`AIControllerConfig`] bot. Authored in [`SpaceshipConfig`] and
 /// carried on the ship root; `insert_spaceship_sections` reads it at spawn to
 /// wire input bindings or AI directives and to tag the player/AI marker.
-#[derive(Component, Clone, Debug, Reflect)]
+#[derive(Component, Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SpaceshipController {
     /// Nobody drives this ship; it station-keeps with no bindings or AI.
+    #[default]
     None,
     /// A human player drives this ship, with the given input/config.
     Player(PlayerControllerConfig),
@@ -221,20 +227,32 @@ pub struct SpaceshipSectionConfig {
     pub modifications: Vec<SectionModification>,
 }
 
-/// The ship's authored section list, carried on the ship root from
-/// [`SpaceshipConfig::sections`]. `insert_spaceship_sections` reads it on
-/// `Add<SpaceshipRootMarker>` to spawn each [`SpaceshipSectionConfig`] as a
-/// child section entity.
+/// The hull a spawned ship flies, carried on the ship root from
+/// [`SpaceshipConfig::hull`]. `insert_spaceship_sections` reads it on
+/// `Add<SpaceshipRootMarker>`, resolves it against [`GameShips`], and spawns
+/// each [`SpaceshipSectionConfig`] as a child section entity.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect)]
-pub struct SpaceshipSectionsConfig(pub Vec<SpaceshipSectionConfig>);
+pub struct SpaceshipHull(pub ShipSource);
 
-/// The scenario/modding RON surface for a spaceship object: its
-/// [`SpaceshipController`], optional [`Allegiance`] override, structural
-/// collapse threshold, and section list. Passed to `spaceship_scenario_object`
-/// to build the ship-root bundle.
-#[derive(Clone, Debug)]
+/// The per-spawn deltas this ship applies over its resolved hull, carried on
+/// the ship root from [`SpaceshipConfig::modifications`].
+#[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect)]
+pub struct SpaceshipModifications(pub Vec<ShipSectionModification>);
+
+/// The scenario/modding RON surface for a spaceship object: WHICH hull it
+/// spawns, who drives it, which side it is on, and the deltas this one spawn
+/// applies over the shared hull. Passed to `spaceship_scenario_object` to build
+/// the ship-root bundle.
+///
+/// The split is the point: everything reusable lives in the
+/// [`ShipHull`](crate::objects::ship::prelude::ShipHull) this names, so eleven
+/// scenarios spawning the corvette reference one ship instead of carrying
+/// eleven copies of its section list.
+#[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipConfig {
+    /// The hull: a catalog ship by id, or one authored inline.
+    pub hull: ShipSource,
     /// Who drives the ship: nobody, a player, or an AI bot.
     pub controller: SpaceshipController,
     /// Which side the ship fights for. `None` (the authored default - omit
@@ -249,76 +267,33 @@ pub struct SpaceshipConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub allegiance: Option<Allegiance>,
-    /// Structural collapse: the fraction of the hull the ship was BUILT with
-    /// (its pinned maximum health) below which what is left comes apart and
-    /// the whole ship is destroyed. `None` (the authored default - omit the
-    /// field) uses [`DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD`]. Lower means the
-    /// ship must be dismantled further before it goes, which is how a capital
-    /// takes more killing than a fighter; `Some(0.0)` is "strip every last
-    /// section". In strict RON the `Option` keeps its variant:
-    /// `collapse_threshold: Some(0.1)`.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub collapse_threshold: Option<f32>,
+    /// Data-only deltas this spawn applies to named sections of the resolved
+    /// hull, applied AFTER each section's own list so the spawn wins. Empty by
+    /// default; authored files may omit the field.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Vec::is_empty")
     )]
-    /// The ship's sections (hull, thrusters, weapons, controller) and their
-    /// placement. Empty by default; each is spawned as a child at load.
-    pub sections: Vec<SpaceshipSectionConfig>,
-    /// Whether the ship wears a DERIVED skin: cladding computed from the
-    /// structure above at spawn, with nothing authored and nothing saved. See
-    /// [`ShipSkin`].
-    ///
-    /// `false` by default, and off for every shipped ship: the derivation reads
-    /// a hull as unit cells, which the catalog's cube sections are and the
-    /// modelled semantic parts are not.
-    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
-    pub skin: bool,
-    /// The LOOK the derived skin wears, by style id: the material of each
-    /// surface role plus the decoration scattered over it. See
-    /// [`ShipStyleConfig`].
-    ///
-    /// `None` (omit the field) is the undressed derivation - built-in plate
-    /// colours and no greebles. A style named here but authored by nobody leaves
-    /// the ship bare rather than falling back to another look, so a missing mod
-    /// is visible instead of silently substituted.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub style: Option<String>,
+    pub modifications: Vec<ShipSectionModification>,
 }
 
-/// `skip_serializing_if` predicate for a `bool` that defaults to false, so an
-/// unclad ship keeps the field out of its RON entirely.
-#[cfg(feature = "serde")]
-fn is_false(flag: &bool) -> bool {
-    !*flag
-}
-
-/// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type name,
-/// controller, collapse threshold, and section list the `insert_spaceship_sections`
-/// observer reads to spawn the section children and wire the driver at spawn.
+/// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type
+/// name, controller, and the hull reference the `insert_spaceship_sections`
+/// observer resolves to spawn the section children and wire the driver at
+/// spawn.
+///
+/// The hull's own components (collapse threshold, skin, style) are inserted by
+/// that observer rather than here: a `Prototype` hull is not known until the
+/// catalog is read, and the catalog is a resource only a system can see.
 pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
     debug!("spaceship_scenario_object: config {:?}", config);
-
-    let collapse_threshold = match config.collapse_threshold {
-        Some(fraction) => StructuralCollapseThreshold::new(fraction),
-        None => StructuralCollapseThreshold::default(),
-    };
 
     (
         SpaceshipRootMarker,
         EntityTypeName::new(SPACESHIP_TYPE_NAME),
         config.controller,
-        SpaceshipSectionsConfig(config.sections),
-        collapse_threshold,
-        ShipSkin(config.skin),
-        ShipStyle(config.style),
+        SpaceshipHull(config.hull),
+        SpaceshipModifications(config.modifications),
         RigidBody::Dynamic,
         // Physics advances Transform only on fixed ticks (64 Hz by default);
         // everything watched by the render-rate camera must interpolate between
@@ -330,11 +305,11 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
     )
 }
 
-/// Spawns spaceship scenario objects: resolves each ship's section list into
-/// child section entities and wires the player/AI controller.
-/// Adds the `Add<SpaceshipRootMarker>` section-insert observer, seeds an empty
-/// [`GameSections`] prototype catalog, and registers the section-modification
-/// components and their apply-on-add observers.
+/// Spawns spaceship scenario objects: resolves each ship's hull and section
+/// list into child section entities and wires the player/AI controller.
+/// Adds the `Add<SpaceshipRootMarker>` section-insert observer, seeds empty
+/// [`GameSections`] and [`GameShips`] catalogs, and registers the
+/// section-modification components and their apply-on-add observers.
 pub struct SpaceshipPlugin;
 
 impl Plugin for SpaceshipPlugin {
@@ -342,11 +317,13 @@ impl Plugin for SpaceshipPlugin {
         debug!("SpaceshipPlugin: build");
 
         // `insert_spaceship_sections` resolves Prototype sources against
-        // `GameSections`, so the plugin self-provides an (empty) default: production
-        // and the editor overwrite it with the loaded catalog, and Inline-only spawns
-        // (examples, previews) then need no catalog wiring. Makes the `Res<GameSections>`
-        // dependency self-satisfying instead of a spawn-order footgun.
+        // `GameSections` and `GameShips`, so the plugin self-provides (empty)
+        // defaults: production and the editor overwrite them with the loaded
+        // catalogs, and Inline-only spawns (examples, previews) then need no
+        // catalog wiring. Makes both resource dependencies self-satisfying
+        // instead of a spawn-order footgun.
         app.init_resource::<GameSections>();
+        app.init_resource::<GameShips>();
 
         app.add_observer(insert_spaceship_sections);
 
@@ -360,15 +337,23 @@ fn insert_spaceship_sections(
     add: On<Add, SpaceshipRootMarker>,
     mut commands: Commands,
     game_sections: Res<GameSections>,
+    game_ships: Res<GameShips>,
     q_spaceship: Query<
-        (&SpaceshipSectionsConfig, &SpaceshipController, &Transform),
+        (
+            &SpaceshipHull,
+            &SpaceshipModifications,
+            &SpaceshipController,
+            &Transform,
+        ),
         With<SpaceshipRootMarker>,
     >,
 ) {
     let entity = add.entity;
     trace!("insert_spaceship_sections: entity {:?}", entity);
 
-    let Ok((sections_config, controller_config, transform)) = q_spaceship.get(entity) else {
+    let Ok((hull_source, spawn_modifications, controller_config, transform)) =
+        q_spaceship.get(entity)
+    else {
         error!(
             "insert_spaceship_sections: entity {:?} not found in q_spaceship",
             entity
@@ -376,6 +361,36 @@ fn insert_spaceship_sections(
         return;
     };
     let spawn_position = transform.translation;
+
+    // A prototype naming no catalog ship flies as an empty root (error + empty
+    // hull, no panic) - the same log-and-carry-on contract a missing section
+    // prototype gets below, one level up.
+    let empty = ShipHull::default();
+    let hull = match hull_source.resolve(&game_ships) {
+        Some(hull) => hull,
+        None => {
+            error!(
+                "insert_spaceship_sections: entity {:?} references unknown ship {:?}; \
+                 spawning an empty hull",
+                entity, hull_source.0
+            );
+            &empty
+        }
+    };
+
+    // The hull's own components. Inserted here rather than in the spawn bundle
+    // because a Prototype hull is not known until the catalog is read; they
+    // land in the same command flush as the sections below, which is the batch
+    // the skin derivation and the integrity graph both key off.
+    let collapse_threshold = match hull.collapse_threshold {
+        Some(fraction) => StructuralCollapseThreshold::new(fraction),
+        None => StructuralCollapseThreshold::default(),
+    };
+    commands.entity(entity).insert((
+        collapse_threshold,
+        ShipSkin(hull.skin),
+        ShipStyle(hull.style.clone()),
+    ));
 
     // A player ship flagged for infinite ammo has its weapons built without a
     // magazine: overriding `ammo_capacity` to None means `insert_turret_section`
@@ -408,7 +423,7 @@ fn insert_spaceship_sections(
     let mut has_weapon = false;
 
     commands.entity(entity).with_children(|parent| {
-        for section in sections_config.iter() {
+        for section in hull.sections.iter() {
             // Resolve the section's source to an owned SectionConfig: an inline
             // config is used as-is; a prototype is looked up in the catalog
             // (missing -> error + skip this section, no panic).
@@ -504,8 +519,16 @@ fn insert_spaceship_sections(
             }
 
             // Insert the authored modification components; their observers apply
-            // each delta where relevant (and are inert elsewhere).
-            SectionModification::insert_all(&section.modifications, &mut section_entity);
+            // each delta where relevant (and are inert elsewhere). The hull's
+            // own list first, then this spawn's overrides for the section - a
+            // later component insert replaces an earlier one, so the spawn wins.
+            let mut modifications = section.modifications.clone();
+            for override_ in spawn_modifications.iter() {
+                if override_.section == section.id {
+                    modifications.extend(override_.modifications.iter().cloned());
+                }
+            }
+            SectionModification::insert_all(&modifications, &mut section_entity);
         }
     });
 
@@ -587,6 +610,7 @@ fn insert_spaceship_sections(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::objects::{modification::prelude::SectionHealthOverride, ship::prelude::ShipConfig};
 
     /// The AI controller config maps to the per-entity directive components
     /// exactly: patrol -> AIPatrolRoute, orbit -> AIOrbitDirective, absent
@@ -594,9 +618,10 @@ mod tests {
     #[test]
     fn ai_config_maps_to_directive_components() {
         let mut world = World::new();
-        // The observer resolves each section's source against the catalog; these
-        // tests use Inline sources, so an empty catalog is fine.
+        // The observer resolves each source against a catalog; these tests use
+        // Inline hulls and sections, so empty catalogs are fine.
         world.init_resource::<GameSections>();
+        world.init_resource::<GameShips>();
         world.add_observer(insert_spaceship_sections);
 
         let spawn = |world: &mut World, config: AIControllerConfig| {
@@ -607,12 +632,8 @@ mod tests {
                     // scenario bundle.
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
-                        collapse_threshold: None,
-                        skin: false,
-                        style: None,
-                        allegiance: None,
                         controller: SpaceshipController::AI(config),
-                        sections: vec![],
+                        ..default()
                     }),
                 ))
                 .id();
@@ -712,34 +733,35 @@ mod tests {
         fn turret_ammo_capacity(infinite_ammo: bool) -> Option<u32> {
             let mut world = World::new();
             world.init_resource::<GameSections>();
+            world.init_resource::<GameShips>();
             world.add_observer(insert_spaceship_sections);
             world.spawn((
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
-                    collapse_threshold: None,
-                    skin: false,
-                    style: None,
-                    allegiance: None,
                     controller: SpaceshipController::Player(PlayerControllerConfig {
                         infinite_ammo,
                         ..default()
                     }),
-                    sections: vec![SpaceshipSectionConfig {
-                        id: "turret".to_string(),
-                        position: Vec3::ZERO,
-                        rotation: Quat::IDENTITY,
-                        source: SectionSource::Inline(SectionConfig {
-                            base: BaseSectionConfig {
-                                id: "turret".to_string(),
-                                ..default()
-                            },
-                            kind: SectionKind::Turret(TurretSectionConfig {
-                                ammo_capacity: Some(10),
-                                ..default()
+                    hull: ShipSource::Inline(ShipHull {
+                        sections: vec![SpaceshipSectionConfig {
+                            id: "turret".to_string(),
+                            position: Vec3::ZERO,
+                            rotation: Quat::IDENTITY,
+                            source: SectionSource::Inline(SectionConfig {
+                                base: BaseSectionConfig {
+                                    id: "turret".to_string(),
+                                    ..default()
+                                },
+                                kind: SectionKind::Turret(TurretSectionConfig {
+                                    ammo_capacity: Some(10),
+                                    ..default()
+                                }),
                             }),
-                        }),
-                        modifications: vec![],
-                    }],
+                            modifications: vec![],
+                        }],
+                        ..default()
+                    }),
+                    ..default()
                 }),
             ));
             world.flush();
@@ -776,6 +798,7 @@ mod tests {
     fn an_unarmed_ai_ship_is_flagged_non_combatant() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
+        world.init_resource::<GameShips>();
         world.add_observer(insert_spaceship_sections);
 
         let turret_section = || SpaceshipSectionConfig {
@@ -796,12 +819,12 @@ mod tests {
                 .spawn((
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
-                        collapse_threshold: None,
-                        skin: false,
-                        style: None,
-                        allegiance: None,
                         controller,
-                        sections,
+                        hull: ShipSource::Inline(ShipHull {
+                            sections,
+                            ..default()
+                        }),
+                        ..default()
                     }),
                 ))
                 .id();
@@ -844,18 +867,15 @@ mod tests {
     fn engage_delay_inserts_the_grace_only_when_positive() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
+        world.init_resource::<GameShips>();
         world.add_observer(insert_spaceship_sections);
         let spawn = |world: &mut World, config: AIControllerConfig| {
             let entity = world
                 .spawn((
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
-                        collapse_threshold: None,
-                        skin: false,
-                        style: None,
                         controller: SpaceshipController::AI(config),
-                        allegiance: None,
-                        sections: vec![],
+                        ..default()
                     }),
                 ))
                 .id();
@@ -895,18 +915,18 @@ mod tests {
     fn the_collapse_threshold_is_authored_per_ship() {
         let mut world = World::new();
         world.init_resource::<GameSections>();
+        world.init_resource::<GameShips>();
         world.add_observer(insert_spaceship_sections);
         let spawn = |world: &mut World, collapse_threshold| {
             let entity = world
                 .spawn((
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
-                        collapse_threshold,
-                        skin: false,
-                        style: None,
-                        allegiance: None,
-                        controller: SpaceshipController::None,
-                        sections: vec![],
+                        hull: ShipSource::Inline(ShipHull {
+                            collapse_threshold,
+                            ..default()
+                        }),
+                        ..default()
                     }),
                 ))
                 .id();
@@ -939,24 +959,122 @@ mod tests {
     }
 
     /// The documented strict-RON syntax parses, omitted defaults to None, and
-    /// an unauthored ship does not serialize the field at all.
+    /// an unauthored hull does not serialize the field at all.
     #[cfg(feature = "serde")]
     #[test]
     fn collapse_threshold_ron_parses_defaults_and_stays_unserialized() {
         let authored: SpaceshipConfig =
-            ron::from_str(r#"(controller: None, collapse_threshold: Some(0.1))"#)
+            ron::from_str(r#"(controller: None, hull: Inline((collapse_threshold: Some(0.1))))"#)
                 .expect("the documented syntax parses");
-        assert_eq!(authored.collapse_threshold, Some(0.1));
+        let ShipSource::Inline(hull) = &authored.hull else {
+            panic!("an inline hull");
+        };
+        assert_eq!(hull.collapse_threshold, Some(0.1));
 
         let omitted: SpaceshipConfig =
-            ron::from_str(r#"(controller: None)"#).expect("omitted field parses");
-        assert_eq!(omitted.collapse_threshold, None);
+            ron::from_str(r#"(controller: None, hull: Inline(()))"#).expect("omitted field parses");
+        let ShipSource::Inline(hull) = &omitted.hull else {
+            panic!("an inline hull");
+        };
+        assert_eq!(hull.collapse_threshold, None);
 
         let written = ron::to_string(&omitted).expect("a config serializes");
         assert!(
             !written.contains("collapse_threshold"),
-            "an unauthored ship must not gain the field on a round trip: {written}"
+            "an unauthored hull must not gain the field on a round trip: {written}"
         );
+    }
+
+    /// A ship referenced by id spawns the CATALOG hull - its sections, its
+    /// skin, its collapse threshold - and the spawn's own modifications land on
+    /// the named section on top of the hull's own. This is the whole point of
+    /// the split: eleven scenarios name one corvette and each still gets to
+    /// harden its own.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn a_ship_referenced_by_id_spawns_the_catalog_hull_with_spawn_overrides() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.insert_resource(GameShips(vec![ShipConfig {
+            id: "corvette".to_string(),
+            name: "Corvette".to_string(),
+            hull: ShipHull {
+                collapse_threshold: Some(0.25),
+                sections: vec![SpaceshipSectionConfig {
+                    id: "fuselage".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Inline(SectionConfig {
+                        base: BaseSectionConfig {
+                            id: "fuselage".to_string(),
+                            health: 100.0,
+                            ..default()
+                        },
+                        kind: SectionKind::Hull(HullSectionConfig::default()),
+                    }),
+                    modifications: vec![SectionModification::SetHealth(200.0)],
+                }],
+                ..default()
+            },
+        }]));
+        world.add_observer(insert_spaceship_sections);
+
+        let entity = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    hull: ShipSource::Prototype("corvette".to_string()),
+                    modifications: vec![ShipSectionModification {
+                        section: "fuselage".to_string(),
+                        modifications: vec![SectionModification::SetHealth(500.0)],
+                    }],
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+
+        assert_eq!(
+            world.entity(entity).get::<StructuralCollapseThreshold>(),
+            Some(&StructuralCollapseThreshold(0.25)),
+            "the catalog hull's threshold reaches the spawned root"
+        );
+        let children = world.entity(entity).get::<Children>().expect("sections");
+        assert_eq!(children.len(), 1, "the catalog hull's one section spawned");
+        assert_eq!(
+            world
+                .entity(children[0])
+                .get::<SectionHealthOverride>()
+                .map(|health| health.0),
+            Some(500.0),
+            "the spawn's override is applied after the hull's own, so it wins"
+        );
+    }
+
+    /// A hull id nothing authored spawns an EMPTY root rather than panicking -
+    /// the same log-and-carry-on contract a missing section prototype gets.
+    #[test]
+    fn an_unknown_ship_id_spawns_an_empty_hull() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.init_resource::<GameShips>();
+        world.add_observer(insert_spaceship_sections);
+
+        let entity = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    hull: ShipSource::Prototype("no_such_ship".to_string()),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+
+        assert!(world.entity(entity).get::<Children>().is_none());
+        assert!(world
+            .entity(entity)
+            .contains::<StructuralCollapseThreshold>());
     }
 
     /// The documented strict-RON syntax parses, omitted defaults to None.

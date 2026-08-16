@@ -1,8 +1,8 @@
 # Ship skin styles for mods
 
 A `Style` is the LOOK a ship's derived cladding wears: what its plates are made
-of, and the decoration scattered over them. A ship names one by id
-(`style: Some("raider")` on a [Spaceship](../objects/#spaceship)) and wears it.
+of, and the decoration scattered over them. A [ship](../ships/) names one by id
+(`style: Some("raider")` on its hull) and wears it.
 
 Styles are content like sections and scenarios. Create a new id to add a look,
 or reuse a base id to restyle every ship that already names it. A style ships
@@ -264,16 +264,19 @@ A ship wears a style by naming it, alongside the `skin` flag that asks for
 cladding in the first place:
 
 ```ron
-kind: Spaceship((
-    controller: AI(...),
-    skin: true,
-    style: Some("my_raider_look"),
-    sections: [ ... ],
+Ship((
+    id: "my_raider",
+    name: "My Raider",
+    hull: (
+        skin: true,
+        style: Some("my_raider_look"),
+        sections: [ ... ],
+    ),
 )),
 ```
 
-Both fields are per SHIP, so one scenario can put a raider look on its enemies
-and a clean one on the civilians. A style id nothing authored leaves the ship
+Both fields are per HULL, so a raider hull and a civilian hull wear different
+looks and every scenario spawning them gets the right one. A style id nothing authored leaves the ship
 clad and BARE rather than falling back to another look - a missing mod is
 visible, not silently substituted.
 

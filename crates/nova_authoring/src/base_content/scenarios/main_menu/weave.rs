@@ -70,9 +70,6 @@ pub(crate) fn menu_weave(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            collapse_threshold: None,
-            skin: false,
-            style: None,
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: WEAVE_LOOP.to_vec(),
@@ -85,7 +82,8 @@ pub(crate) fn menu_weave(
                 arrival_standoff: Some(10.0),
                 ..Default::default()
             }),
-            sections: ships::racer_sections(),
+            hull: ships::hull(ships::RACER_SHIP_ID),
+            ..Default::default()
         }),
     });
 

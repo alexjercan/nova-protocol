@@ -20,6 +20,8 @@ pub mod binding_input;
 pub mod light;
 pub mod modification;
 pub mod salvage;
+/// The ship CONTENT kind: a hull authored once and spawned by id.
+pub mod ship;
 /// Spaceship scenario object: player/AI ships built from a section list.
 pub mod spaceship;
 
@@ -28,7 +30,7 @@ pub mod prelude {
     pub use super::{
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, beacon::prelude::*,
         binding_input::prelude::*, light::prelude::*, modification::prelude::*,
-        salvage::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
+        salvage::prelude::*, ship::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
     };
 }
 

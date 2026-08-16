@@ -356,9 +356,6 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     };
 
     let ship = SpaceshipConfig {
-        collapse_threshold: None,
-        skin: false,
-        style: None,
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),
@@ -374,21 +371,25 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // beside `hull2` it carries a single connection and dies properly,
         // while the spine keeps its ends - the controller and the thruster -
         // for round 2 to strip from the front.
-        sections: vec![
-            at(
-                "controller",
-                "basic_controller_section",
-                Vec3::new(0.0, 0.0, 0.0),
-            ),
-            at("hull1", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
-            at("hull2", "reinforced_hull_section", Vec3::new(0.0, 0.0, 2.0)),
-            at(
-                "thruster",
-                "basic_thruster_section",
-                Vec3::new(0.0, 0.0, 3.0),
-            ),
-            at("hull3", "reinforced_hull_section", Vec3::new(1.0, 0.0, 2.0)),
-        ],
+        hull: ShipSource::Inline(ShipHull {
+            sections: vec![
+                at(
+                    "controller",
+                    "basic_controller_section",
+                    Vec3::new(0.0, 0.0, 0.0),
+                ),
+                at("hull1", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
+                at("hull2", "reinforced_hull_section", Vec3::new(0.0, 0.0, 2.0)),
+                at(
+                    "thruster",
+                    "basic_thruster_section",
+                    Vec3::new(0.0, 0.0, 3.0),
+                ),
+                at("hull3", "reinforced_hull_section", Vec3::new(1.0, 0.0, 2.0)),
+            ],
+            ..default()
+        }),
+        ..default()
     };
 
     ScenarioConfig {

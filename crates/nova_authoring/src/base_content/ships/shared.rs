@@ -14,7 +14,7 @@ use crate::base_content::{
 };
 
 #[derive(Clone, Copy, PartialEq)]
-pub(crate) enum ShipGrade {
+pub(super) enum ShipGrade {
     Player,
     Enemy,
 }
@@ -386,11 +386,7 @@ pub(super) fn prototypes(
     output
 }
 
-pub(super) fn ship_sections(
-    specs: &[PartSpec],
-    grade: ShipGrade,
-    controller_modifications: &[SectionModification],
-) -> Vec<SpaceshipSectionConfig> {
+pub(super) fn ship_sections(specs: &[PartSpec], grade: ShipGrade) -> Vec<SpaceshipSectionConfig> {
     specs
         .iter()
         .map(|&spec| {
@@ -410,9 +406,6 @@ pub(super) fn ship_sections(
                     PartRole::Turret => prototype.push_str("_light"),
                     PartRole::Torpedo => {}
                 }
-            }
-            if matches!(spec.role, PartRole::Controller) {
-                modifications.extend_from_slice(controller_modifications);
             }
             SpaceshipSectionConfig {
                 id: spec.id.to_string(),
