@@ -411,14 +411,14 @@ mod tests {
             .spawn((
                 ScenarioScopedMarker,
                 SpaceshipRootMarker,
-                EntityId::new("magpie".to_string()),
+                EntityId::new("spaceship_1".to_string()),
                 Allegiance::Neutral,
             ))
             .id();
 
         // Provoke: flip the neutral ship to Enemy.
         let flip = SetAllegianceActionConfig {
-            id: "magpie".to_string(),
+            id: "spaceship_1".to_string(),
             allegiance: Allegiance::Enemy,
         };
         let mut event_world = world.resource_mut::<NovaEventWorld>();

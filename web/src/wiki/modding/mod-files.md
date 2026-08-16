@@ -79,6 +79,41 @@ travels with that image automatically and is not listed separately.
 The full packaging, catalog, local installation, and publishing flow is in
 [Publish a mod](../publish-a-mod/).
 
+## Balance acknowledgments
+
+`content lint` grades every combat scenario for fairness. A `close-spawn`
+warning says a hostile arrives inside its own weapon envelope of the player
+spawn. When that is the point - a boss entrance, a scripted ambush - declare it
+in a `balance_acks.ron` beside the manifest. The linter reads the file from the
+bundle it lints, so the justification travels with the mod:
+
+```ron
+[
+    (
+        scenario: "my_first_mission",
+        hostile: "boss_1",
+        kind: "close-spawn",
+        reason: "The finale entrance. It telegraphs with an 8s engage_delay and a warning line.",
+        task: "2026-08-16",
+    ),
+]
+```
+
+The file is optional and is not listed in `content`. An acknowledged finding
+still prints, tagged `ACK` with its reason, but stops counting as an open
+warning.
+
+| field | meaning |
+|---|---|
+| `scenario` | The scenario id the finding sits in. |
+| `hostile` | The scenario object id of the hostile the finding names. |
+| `kind` | `close-spawn`. A `spawned-dead` finding is an ERROR and can never be acknowledged. |
+| `reason` | Why this one is intended. Written for the next reader, not for the linter. |
+| `task` | Whatever records the decision - a ticket id, a date. |
+
+An ack that matches no live finding is STALE and fails the lint: once the
+content is rebalanced, prune the entry.
+
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the

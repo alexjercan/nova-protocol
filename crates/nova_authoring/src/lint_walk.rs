@@ -18,8 +18,9 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{binding_source, flight_rig_reserved_sources, InputSource, SectionConfig};
 
-use crate::content_report::{
-    AckedFinding, Category, ContentReport, Finding, Severity as ReportSeverity,
+use crate::{
+    balance::{BalanceAck, BALANCE_ACKS_FILE},
+    content_report::{AckedFinding, Category, ContentReport, Finding, Severity as ReportSeverity},
 };
 
 /// The two report walks (`collect_*`), the two issue-only walks (`lint_*`),
@@ -27,7 +28,7 @@ use crate::content_report::{
 pub mod prelude {
     pub use super::{
         audit_bundles, collect_target, collect_tree, lint_content_tree, lint_target,
-        resolve_target, AuditBundle,
+        resolve_target, tree_acks, AuditBundle,
     };
 }
 
@@ -45,6 +46,10 @@ struct WalkedBundle {
     /// mod-relative `self://` resource-ref check can see every kind, and so
     /// the unified report can point each finding at its source file.
     content: Vec<(String, Content)>,
+    /// The balance findings this bundle's author declared intended, read from
+    /// its own [`BALANCE_ACKS_FILE`]. Empty when the file is absent - most
+    /// bundles ack nothing.
+    acks: Vec<BalanceAck>,
 }
 
 impl WalkedBundle {
@@ -124,7 +129,19 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         scenarios,
         campaigns,
         content,
+        acks: read_acks(dir),
     }
+}
+
+/// A bundle's declared balance acknowledgments. Absent file = no acks; an
+/// unparsable one panics like every other malformed bundle file, because a
+/// silently dropped ack turns an intended exception back into a warning.
+fn read_acks(dir: &Path) -> Vec<BalanceAck> {
+    let path = dir.join(BALANCE_ACKS_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    ron::de::from_str(&text).unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
 }
 
 /// Every mod directory under `parent` (one bundle per subdirectory).
@@ -338,6 +355,9 @@ pub struct AuditBundle {
     pub ships: Vec<ShipConfig>,
     /// The bundle's parsed scenario configs.
     pub scenarios: Vec<ScenarioConfig>,
+    /// The balance findings this bundle DECLARES intended, read from its own
+    /// [`BALANCE_ACKS_FILE`].
+    pub acks: Vec<BalanceAck>,
 }
 
 /// Every bundle in the repo tree for the balance audit, base first.
@@ -349,7 +369,21 @@ pub fn audit_bundles() -> Vec<AuditBundle> {
             sections: bundle.sections,
             ships: bundle.ships,
             scenarios: bundle.scenarios,
+            acks: bundle.acks,
             id: bundle.id,
+        })
+        .collect()
+}
+
+/// Every declared ack in the repo tree, paired with the bundle that declares
+/// it - the [`partition_findings`](crate::balance::partition_findings) input
+/// matching [`crate::balance::audit_content_tree`]'s findings.
+pub fn tree_acks() -> Vec<(String, BalanceAck)> {
+    audit_bundles()
+        .into_iter()
+        .flat_map(|bundle| {
+            let id = bundle.id;
+            bundle.acks.into_iter().map(move |ack| (id.clone(), ack))
         })
         .collect()
 }
@@ -500,6 +534,7 @@ fn build_report(
             sections: b.sections.clone(),
             ships: b.ships.clone(),
             scenarios: b.scenarios.clone(),
+            acks: b.acks.clone(),
         })
         .collect();
     let audits = crate::balance::audit_bundles_to_audits(&audit_bundles);
@@ -520,9 +555,10 @@ fn build_report(
     // Only acks in the reported scope: a whole-tree lint prunes every ack,
     // a --target lint only the target's, so another mod's ack is not
     // falsely stale against a single-mod walk.
-    let acks: Vec<crate::balance::BalanceAck> = crate::balance::shipped_acks()
-        .into_iter()
-        .filter(|ack| report_ids.contains(&ack.bundle))
+    let acks: Vec<(String, BalanceAck)> = all
+        .iter()
+        .filter(|b| report_ids.contains(&b.id))
+        .flat_map(|b| b.acks.iter().map(|ack| (b.id.clone(), ack.clone())))
         .collect();
     let (active, acked, stale) = crate::balance::partition_findings(balance_findings, &acks);
     for (bundle, finding) in active {
@@ -534,8 +570,8 @@ fn build_report(
                 finding.hostile
             )),
             crate::balance::FindingKind::CloseSpawn => Some(format!(
-                "distance or delay '{}', or record it in balance_acks.ron if the close \
-                 reinforcement is intended",
+                "distance or delay '{}', or record it in this mod's {BALANCE_ACKS_FILE} if \
+                 the close reinforcement is intended",
                 finding.hostile
             )),
         };
@@ -555,19 +591,20 @@ fn build_report(
     // A stale ack fails the build (it names an exception the content moved
     // past), so it is an Error-grade finding here - the exit code keys on
     // error count and this preserves the "non-zero on stale ack" rule.
-    for ack in stale {
+    for (bundle, ack) in stale {
         findings.push(Finding {
-            bundle: ack.bundle.clone(),
-            file: file_of(&ack.bundle, &ack.scenario),
+            bundle: bundle.to_string(),
+            file: file_of(bundle, &ack.scenario),
             severity: ReportSeverity::Error,
             category: Category::Balance,
             element: format!("{} > {}", ack.scenario, ack.hostile),
             message: format!(
                 "stale ack ({}): task {} acknowledged a {} finding for '{}' that no live \
-                 audit raises - the content was rebalanced; prune it from balance_acks.ron",
+                 audit raises - the content was rebalanced; prune it from the mod's \
+                 {BALANCE_ACKS_FILE}",
                 ack.kind, ack.task, ack.kind, ack.hostile
             ),
-            suggestion: Some("remove the dead entry from balance_acks.ron".to_string()),
+            suggestion: Some(format!("remove the dead entry from {BALANCE_ACKS_FILE}")),
         });
     }
     let acked_findings: Vec<AckedFinding> = acked
@@ -734,6 +771,7 @@ mod tests {
                 .into_iter()
                 .map(|c| ("content.ron".to_string(), c))
                 .collect(),
+            acks: Vec::new(),
         }
     }
 

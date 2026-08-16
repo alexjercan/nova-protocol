@@ -825,9 +825,9 @@ mod tests {
             events: [
                 ( name: OnStart, filters: [], actions: [
                     StoryMessage((
-                        speaker: "Okono",
+                        speaker: "Alpha",
                         text: "Own icon.",
-                        icon: Some("self://icons/okono.png"),
+                        icon: Some("self://icons/alpha.png"),
                     )),
                     StoryMessage((
                         speaker: "Relay",
@@ -841,7 +841,7 @@ mod tests {
         let declared: HashSet<String> = HashSet::new();
         let self_resources = vec![
             "textures/sky.png".to_string(),
-            "icons/okono.png".to_string(),
+            "icons/alpha.png".to_string(),
         ];
         let base_resources = vec!["icons/comms.png".to_string()];
         let mut deps = HashMap::new();
@@ -875,7 +875,7 @@ mod tests {
         };
         assert_eq!(
             own.icon.as_ref().and_then(|icon| icon.path()),
-            Some("mods/comms/icons/okono.png")
+            Some("mods/comms/icons/alpha.png")
         );
         assert_eq!(
             shared.icon.as_ref().and_then(|icon| icon.path()),
@@ -893,7 +893,7 @@ mod tests {
         assert!(
             violations
                 .iter()
-                .any(|v| v.contains("self://icons/okono.png")),
+                .any(|v| v.contains("self://icons/alpha.png")),
             "missing icon resource is reported: {violations:?}"
         );
 
@@ -908,7 +908,7 @@ mod tests {
         };
         assert_eq!(
             own.icon.as_ref().and_then(|icon| icon.path()),
-            Some("self://icons/okono.png"),
+            Some("self://icons/alpha.png"),
             "an undeclared self:// ref stays literal"
         );
     }

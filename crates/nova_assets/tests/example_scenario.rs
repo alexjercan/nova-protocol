@@ -160,6 +160,42 @@ fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
     (sections, scenarios)
 }
 
+/// The DEEP loader gate: every bundle the installed catalog names loads through
+/// the REAL loaders - manifest, every content file, every config tree - to a
+/// recursive `Loaded`. The publish tooling (`scripts/gen-portal.py`)
+/// deliberately validates only what a manifest gate can, so this is the "does
+/// the content actually load" half, and it runs on the bundles this repository
+/// OWNS: an installed mod's own authors and linters cover theirs.
+#[test]
+fn every_installed_bundle_loads_recursively() {
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        catalog.id().untyped(),
+        "the mods catalog",
+    );
+
+    let bundles: Vec<(String, UntypedAssetId)> = {
+        let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
+        let installed = catalogs.get(&catalog).expect("catalog loaded");
+        installed
+            .entries
+            .iter()
+            .map(|entry| (entry.decl.id.clone(), entry.bundle.id().untyped()))
+            .collect()
+    };
+    assert!(
+        !bundles.is_empty(),
+        "the catalog must name at least one bundle"
+    );
+    for (id, bundle) in bundles {
+        wait_recursive_loaded(&mut app, &asset_server, bundle, &format!("bundle '{id}'"));
+    }
+}
+
 /// `build_mod_catalog` fills the PLAYER-FACING `ModCatalog` with the installed
 /// mods, in catalog order (base first), composing each entry with the `meta`
 /// block AUTHORED IN ITS OWN BUNDLE - the thin catalog carries no metadata, so

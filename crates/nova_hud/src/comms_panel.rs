@@ -500,16 +500,16 @@ mod tests {
     fn a_burst_stacks_visible_lines_newest_at_bottom() {
         let mut app = comms_app();
         app.update();
-        push_line(&mut app, "Okono", "First.", None);
-        push_line(&mut app, "Vesh", "Second.", None);
+        push_line(&mut app, "Alpha", "First.", None);
+        push_line(&mut app, "Bravo", "Second.", None);
         push_line(&mut app, "Relay", "Third.", None);
         app.update();
 
         assert_eq!(
             visible_texts(&mut app),
             vec![
-                "OKONO > First.".to_string(),
-                "VESH > Second.".to_string(),
+                "ALPHA > First.".to_string(),
+                "BRAVO > Second.".to_string(),
                 "RELAY > Third.".to_string(),
             ],
             "child order is top-to-bottom, so newest is the bottom card"
@@ -521,14 +521,14 @@ mod tests {
     fn dismiss_hides_a_visible_line_without_touching_the_log() {
         let mut app = comms_app();
         app.update();
-        push_line(&mut app, "Okono", "First.", None);
-        push_line(&mut app, "Vesh", "Second.", None);
+        push_line(&mut app, "Alpha", "First.", None);
+        push_line(&mut app, "Bravo", "Second.", None);
         app.update();
 
         press_key(&mut app, KeyCode::KeyV);
         assert_eq!(
             visible_texts(&mut app),
-            vec!["VESH > Second.".to_string()],
+            vec!["BRAVO > Second.".to_string()],
             "dismiss removes the oldest visible card"
         );
         assert_eq!(
@@ -543,7 +543,7 @@ mod tests {
         let mut app = comms_app();
         app.update();
         for i in 0..6 {
-            push_line(&mut app, "Okono", &format!("Line {i}."), None);
+            push_line(&mut app, "Alpha", &format!("Line {i}."), None);
         }
         app.update();
         assert_eq!(
@@ -557,7 +557,7 @@ mod tests {
         assert_eq!(texts.len(), COMMS_VISIBLE_CAP);
         assert_eq!(
             texts.last().map(String::as_str),
-            Some("OKONO > Line 5."),
+            Some("ALPHA > Line 5."),
             "skip advances the next queued card to the bottom immediately"
         );
     }
@@ -568,10 +568,10 @@ mod tests {
         app.update();
         push_line_with_icon(
             &mut app,
-            "Okono",
+            "Alpha",
             "Face.",
             None,
-            Some(AssetRef::from("icons/okono.png")),
+            Some(AssetRef::from("icons/alpha.png")),
         );
         push_line(&mut app, "Unknown", "Fallback.", None);
         app.update();
@@ -596,13 +596,13 @@ mod tests {
     fn a_burst_shows_lines_in_arrival_order() {
         let mut app = comms_app();
         app.update();
-        push_line(&mut app, "Okono", "First.", None);
-        push_line(&mut app, "Okono", "Second.", None);
+        push_line(&mut app, "Alpha", "First.", None);
+        push_line(&mut app, "Alpha", "Second.", None);
         app.update();
         app.update();
         assert_eq!(
             visible_texts(&mut app),
-            vec!["OKONO > First.".to_string(), "OKONO > Second.".to_string(),],
+            vec!["ALPHA > First.".to_string(), "ALPHA > Second.".to_string(),],
             "arrival order: the burst's FIRST line shows first"
         );
         assert_eq!(panel_visibility(&mut app), Visibility::Inherited);
@@ -615,7 +615,7 @@ mod tests {
     fn a_solo_line_holds_the_full_dwell() {
         let mut app = comms_app();
         app.update();
-        push_line(&mut app, "Okono", "Take your time.", None);
+        push_line(&mut app, "Alpha", "Take your time.", None);
         app.update();
         app.update();
         assert_eq!(panel_visibility(&mut app), Visibility::Inherited);
@@ -643,7 +643,7 @@ mod tests {
     fn per_line_dwell_is_clamped_and_respected() {
         let mut app = comms_app();
         app.update();
-        push_line(&mut app, "Okono", "Blink and gone.", Some(0.5));
+        push_line(&mut app, "Alpha", "Blink and gone.", Some(0.5));
         app.update();
         app.update();
         assert_eq!(panel_visibility(&mut app), Visibility::Inherited);
@@ -668,7 +668,7 @@ mod tests {
         let mut app = comms_app();
         app.update();
         for i in 0..6 {
-            push_line(&mut app, "Okono", &format!("Line {i}."), None);
+            push_line(&mut app, "Alpha", &format!("Line {i}."), None);
         }
         app.update();
         app.update();
@@ -678,9 +678,9 @@ mod tests {
         assert_eq!(
             visible_texts(&mut app),
             vec![
-                "OKONO > Line 2.".to_string(),
-                "OKONO > Line 3.".to_string(),
-                "OKONO > Line 4.".to_string(),
+                "ALPHA > Line 2.".to_string(),
+                "ALPHA > Line 3.".to_string(),
+                "ALPHA > Line 4.".to_string(),
             ],
         );
         let pending: Vec<String> = app
@@ -703,8 +703,8 @@ mod tests {
     fn emptied_feed_resets_the_comms_stack_immediately() {
         let mut app = comms_app();
         app.update();
-        push_line(&mut app, "Okono", "Heads up.", None);
-        push_line(&mut app, "Okono", "Backlog.", None);
+        push_line(&mut app, "Alpha", "Heads up.", None);
+        push_line(&mut app, "Alpha", "Backlog.", None);
         app.update();
         assert_eq!(panel_visibility(&mut app), Visibility::Inherited);
 
@@ -740,7 +740,7 @@ mod tests {
                 .scale()
         };
 
-        push_line(&mut app, "OKONO", "Strip it clean.", None);
+        push_line(&mut app, "ALPHA", "Strip it clean.", None);
         // MEASURED cadence for this rig (manual-time-rig lesson): the first
         // frame advances 0.0 and each later one 0.25 s (the max_delta clamp),
         // so the card appears at age 0 - the pop GROWS in over its 0.2 s ease

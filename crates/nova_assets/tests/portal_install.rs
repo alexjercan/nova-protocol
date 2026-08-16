@@ -241,11 +241,11 @@ fn assert_nothing_committed(app: &App, guard: &CacheRootGuard, id: &str, paths: 
 // EhttpTransport.
 // ---------------------------------------------------------------------------
 
-/// The synthetic portal mod the wire test installs (: core tests must not
-/// depend on any REAL mod, so mods can be renamed or removed without touching
-/// CI). Same shape as a webmods/ source: one dir per mod, flat files, and a
-/// real Scenario so the enable step can assert registration through the actual
-/// merge machinery.
+/// The synthetic portal mod the wire test installs: core tests must not depend
+/// on any REAL mod, so mods can be renamed or removed without touching CI. Same
+/// shape as any portal source: one dir per mod, flat files, and a real Scenario
+/// so the enable step can assert registration through the actual merge
+/// machinery.
 const FIXTURE_ID: &str = "fixture-slalom";
 const FIXTURE_SCENARIO_ID: &str = "fixture_slalom_run";
 
@@ -325,8 +325,8 @@ fn serve_portal_tree(root: std::path::PathBuf) -> String {
 /// entry all gone, the scenario unregisters). Deleting any stage of the
 /// portal client fails this test: no fetch -> no Ready; no commit -> no
 /// cached files; no DownloadedMods push -> no merge; no EnabledMods strip ->
-/// the last assert. (Whether the real webmods/ tree publishes is
-/// gen_portal_gate.rs's real-webmods-publishes test, not this one.)
+/// the last assert. (The generator's own publish gates are
+/// gen_portal_gate.rs's, not this test's.)
 #[test]
 fn portal_fetch_install_enable_uninstall_over_the_wire() {
     let guard = cache_root_guard();

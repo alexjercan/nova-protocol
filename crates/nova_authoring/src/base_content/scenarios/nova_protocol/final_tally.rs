@@ -189,9 +189,8 @@ fn claim_anchor(asteroid_texture: &AssetRef<Image>) -> ScenarioObjectConfig {
     }
 }
 
-/// An anchorage hull section: a big invulnerable rock (the Ledger's
-/// Ceres-Matron set-dressing trick) - hard cover in the well, and the bow
-/// carries the survey signature.
+/// An anchorage hull section: a big invulnerable rock as set dressing - hard
+/// cover in the well, and the bow carries the survey signature.
 fn anchorage_wreck(
     id: &str,
     name: &str,

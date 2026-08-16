@@ -891,7 +891,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_story_message(StoryMessageActionConfig {
-                speaker: "Okono".to_string(),
+                speaker: "Alpha".to_string(),
                 text: "Strip it clean.".to_string(),
                 dwell: None,
                 icon: None,
@@ -902,7 +902,7 @@ mod tests {
         {
             let feed = app.world().resource::<StoryFeed>();
             assert_eq!(feed.0.len(), 1, "the pushed line synced into the feed");
-            assert_eq!(feed.0[0].speaker, "Okono");
+            assert_eq!(feed.0[0].speaker, "Alpha");
             assert_eq!(feed.0[0].text, "Strip it clean.");
         }
         let after_first = app.world().resource::<FeedChanges>().0;
@@ -927,7 +927,7 @@ mod tests {
         bare.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_story_message(StoryMessageActionConfig {
-                speaker: "Okono".to_string(),
+                speaker: "Alpha".to_string(),
                 text: "No HUD here.".to_string(),
                 dwell: None,
                 icon: None,
@@ -946,7 +946,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_story_message(StoryMessageActionConfig {
-                speaker: "Okono".to_string(),
+                speaker: "Alpha".to_string(),
                 text: "Read this slowly.".to_string(),
                 dwell: Some(12.0),
                 icon: None,
@@ -975,10 +975,10 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_story_message(StoryMessageActionConfig {
-                speaker: "Okono".to_string(),
+                speaker: "Alpha".to_string(),
                 text: "Look at me.".to_string(),
                 dwell: None,
-                icon: Some(AssetRef::from("self://icons/okono.png")),
+                icon: Some(AssetRef::from("self://icons/alpha.png")),
             });
         for _ in 0..5 {
             app.update();
@@ -987,7 +987,7 @@ mod tests {
         assert_eq!(feed.0.len(), 1);
         assert_eq!(
             feed.0[0].icon.as_ref().and_then(|icon| icon.path()),
-            Some("self://icons/okono.png"),
+            Some("self://icons/alpha.png"),
             "the sync must carry the authored icon to the panel"
         );
     }

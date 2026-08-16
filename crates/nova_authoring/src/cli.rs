@@ -19,7 +19,8 @@
 //!   prototypes, dangling NextScenario targets, unspawnable filter targets,
 //!   duplicate ids, mount-base adjacency, resource-ref membership, canonical
 //!   schemes), the combat balance/fairness audit (spawned-dead ERROR,
-//!   close-spawn WARN, graded against `balance_acks.ron`; a stale ack is an
+//!   close-spawn WARN, graded against the `balance_acks.ron` each bundle
+//!   declares beside its own manifest; a stale ack is an
 //!   ERROR), and the flight-rig input-overlap check (a content
 //!   `input_mapping` section reusing a key the always-on flight rig binds
 //!   silently double-drives flight). `--target` lints one mod: a mod

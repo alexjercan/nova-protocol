@@ -1,11 +1,8 @@
 //! The base campaign's recurring comms voices.
 //!
-//! The base chain had NO StoryMessage speakers before the voice pass - all
-//! narrative rode objective text and outcome banners; the only voiced cast in
-//! shipped content was the Ledger mod's (Foreman Okono, Broker Vesh). These are
-//! the BASE chain's voices, one constant per speaker so a rename is a one-line
-//! change. Names are working placeholders from the arc spike (Open questions)
-//! pending the owner's nod at the flow Finish gate.
+//! One constant per speaker, so a rename is a one-line change. Names are
+//! working placeholders from the arc spike (Open questions) pending the
+//! owner's nod at the flow Finish gate.
 
 /// Captain of the hauler Ceres Queen - the distress call the story hangs
 /// on, and the friendly voice of chapters two and three.

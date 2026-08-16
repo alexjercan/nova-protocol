@@ -2,8 +2,8 @@
 //! reference/geometry AND balance findings in one report, and every finding
 //! names the file + element it is about. A deliberately broken fixture mod
 //! plants one of each finding class and this test asserts the report pinpoints
-//! each; a second test walks the SHIPPED mods and confirms every located
-//! finding points at a file that actually exists in the mod. See
+//! each; a second test walks the bundles this repository ships and confirms
+//! every located finding points at a file that actually exists. See
 //! `nova_authoring::content_report` for the model and
 //! `nova_authoring::lint_walk::{collect_tree, collect_target}` for the walk.
 
@@ -143,12 +143,12 @@ fn report_pinpoints_reference_balance_and_input_findings() {
     assert!(md.contains("fix:"), "every class carries a suggested fix");
 }
 
-/// Provenance holds on real content: for each shipped mod, every finding that
-/// claims a file names a content file that the mod actually ships. Proves the
-/// report on the-ledger / gauntlet / example points where it says (DoD step).
+/// Provenance holds on real content: for each bundle this repository ships,
+/// every finding that claims a file names a content file that the bundle
+/// actually ships. Installed mods are the mod authors' own to lint.
 #[test]
-fn shipped_mod_reports_locate_findings_in_real_files() {
-    for id in ["the-ledger", "gauntlet", "example"] {
+fn shipped_bundle_reports_locate_findings_in_real_files() {
+    for id in ["base", "example"] {
         let dir = resolve_target(id).unwrap_or_else(|| panic!("{id} resolves"));
         let report = collect_target(&dir);
         assert_eq!(report.target.as_deref(), Some(id));

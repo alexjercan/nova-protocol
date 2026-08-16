@@ -103,6 +103,10 @@ Open `/tmp/my-mod-report.html`. Fix every error and review every warning. The
 report checks references, duplicate ids, asset membership, ship geometry,
 scenario flow, and other content rules.
 
+A fairness warning you INTEND belongs in the mod's own
+[`balance_acks.ron`](../mod-files/#balance-acknowledgments). The linter reads
+that file from the bundle it lints, so the reason travels with the mod.
+
 ## 4. Generate the portal
 
 Generate a local portal tree:

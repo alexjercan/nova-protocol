@@ -1,12 +1,12 @@
-// Acknowledged balance-audit findings: WARN-grade
-// findings a human decided are INTENDED, kept here so the audit stays
-// honest (the finding still prints, tagged ACK with its reason) without
-// counting as an open warning. ERRORs are never ackable, and an ack that
-// stops matching a live finding surfaces as stale - rebalance the content,
-// then prune the ack.
+// This mod's acknowledged balance-audit findings: WARN-grade findings THIS
+// mod's author decided are INTENDED, kept beside the manifest so the
+// justification travels with the mod. The finding still prints, tagged ACK
+// with its reason, and stops counting as an open warning. ERRORs are never
+// ackable, and an ack that stops matching a live finding surfaces as stale -
+// rebalance the content, then prune the ack. Every entry names content this
+// bundle ships; `content lint --target the-ledger` reads this file.
 [
     (
-        bundle: "the-ledger",
         scenario: "ledger_ch4_the_buyer",
         hostile: "auditor",
         kind: "close-spawn",

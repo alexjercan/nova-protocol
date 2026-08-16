@@ -9,8 +9,10 @@
 //! crate is gone (`deleted-content-tests-carry-engine-coverage`).
 //!
 //! The rejection cases are TABLE-DRIVEN off a single fixture builder so each new
-//! case is one row. Positives (real webmods/ publishes, a synthetic mod
-//! publishes, determinism) are individual tests.
+//! case is one row. Positives (a single mod publishes, a multi-mod tree
+//! publishes, determinism) are individual tests. Every fixture is SYNTHETIC:
+//! the gates are properties of the generator, not of anybody's shipped mod, and
+//! a mod tree that lives outside this repository cannot hold them hostage.
 //!
 //! The script needs `python3` on PATH and is invoked from the repo root. We
 //! resolve the script and repo paths from `CARGO_MANIFEST_DIR`
@@ -360,29 +362,50 @@ fn rejection_gates_all_fail_nonzero() {
 // Positives.
 // ---------------------------------------------------------------------------
 
-/// The REAL webmods/ tree publishes: exit 0 and catalog.json names both mods.
+/// A MULTI-mod source publishes every mod in it: exit 0, and catalog.json names
+/// each id. Run against the real shipped catalog so the id-collision gate stays
+/// exercised on the accepting path too.
 #[test]
-fn real_webmods_publishes_and_lists_both_mods() {
+fn a_multi_mod_source_publishes_and_lists_every_mod() {
     if python3_missing() {
         return;
     }
-    let webmods = repo_root().join("webmods");
-    let out = tempfile::tempdir().expect("out tempdir");
-    let output = run_gen(&webmods, Some(&shipped_catalog()), out.path());
+    let (source, out) = multi_mod_source();
+    let output = run_gen(source.path(), Some(&shipped_catalog()), out.path());
     assert!(
         output.status.success(),
-        "the real webmods tree must publish. stderr:\n{}",
+        "a well-formed multi-mod tree must publish. stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
     let json = fs::read_to_string(out.path().join("catalog.json")).expect("catalog.json written");
-    assert!(
-        json.contains("\"gauntlet\""),
-        "catalog names gauntlet:\n{json}"
-    );
-    assert!(
-        json.contains("\"the-ledger\""),
-        "catalog names the-ledger:\n{json}"
-    );
+    for id in ["mod-one", "mod-two"] {
+        assert!(
+            json.contains(&format!("\"{id}\"")),
+            "catalog names {id}:\n{json}"
+        );
+    }
+}
+
+/// Two mods, one carrying an extra nested file, so the published tree is deep
+/// enough for the determinism check to mean something.
+fn multi_mod_source() -> (tempfile::TempDir, tempfile::TempDir) {
+    let one = valid_bundle("0.1.0");
+    let two = valid_bundle("2.3.4");
+    synthetic_source(&[
+        (
+            "mod-one",
+            one.as_str(),
+            &[("mod.content.ron", VALID_CONTENT)],
+        ),
+        (
+            "mod-two",
+            two.as_str(),
+            &[
+                ("mod.content.ron", VALID_CONTENT),
+                ("docs/README.md", "# Mod Two\n"),
+            ],
+        ),
+    ])
 }
 
 /// A well-formed synthetic mod publishes (exit 0, catalog lists it). Proves the
@@ -414,17 +437,16 @@ fn generation_is_deterministic() {
     if python3_missing() {
         return;
     }
-    let webmods = repo_root().join("webmods");
-    let out_a = tempfile::tempdir().expect("out a");
+    let (source, out_a) = multi_mod_source();
     let out_b = tempfile::tempdir().expect("out b");
     assert!(
-        run_gen(&webmods, Some(&shipped_catalog()), out_a.path())
+        run_gen(source.path(), Some(&shipped_catalog()), out_a.path())
             .status
             .success(),
         "first run publishes"
     );
     assert!(
-        run_gen(&webmods, Some(&shipped_catalog()), out_b.path())
+        run_gen(source.path(), Some(&shipped_catalog()), out_b.path())
             .status
             .success(),
         "second run publishes"

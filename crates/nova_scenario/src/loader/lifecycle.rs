@@ -806,7 +806,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_story_message(StoryMessageActionConfig {
-                speaker: "Okono".to_string(),
+                speaker: "Alpha".to_string(),
                 text: "alpha".to_string(),
                 dwell: None,
                 icon: None,
@@ -815,7 +815,7 @@ mod tests {
             .resource_mut::<StoryFeed>()
             .0
             .push(StoryLine {
-                speaker: "Okono".to_string(),
+                speaker: "Alpha".to_string(),
                 text: "alpha".to_string(),
                 dwell: None,
                 icon: None,
@@ -840,7 +840,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
             .push_story_message(StoryMessageActionConfig {
-                speaker: "Vesh".to_string(),
+                speaker: "Speaker One".to_string(),
                 text: "beta".to_string(),
                 dwell: None,
                 icon: None,

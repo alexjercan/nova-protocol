@@ -1206,7 +1206,7 @@ mod tests {
     fn beat_sheet_arms_warn() {
         let line = |text: &str| {
             EventActionConfig::StoryMessage(StoryMessageActionConfig {
-                speaker: "Okono".to_string(),
+                speaker: "Alpha".to_string(),
                 text: text.to_string(),
                 dwell: None,
                 icon: None,
@@ -1299,7 +1299,7 @@ mod tests {
     fn story_dwell_out_of_range_warns() {
         let line = |dwell| {
             EventActionConfig::StoryMessage(StoryMessageActionConfig {
-                speaker: "Okono".to_string(),
+                speaker: "Alpha".to_string(),
                 text: "test".to_string(),
                 dwell,
                 icon: None,

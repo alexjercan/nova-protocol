@@ -42,9 +42,9 @@ impl EventAction<NovaEventWorld> for ObjectiveActionConfig {
 /// One speaker-attributed story line for the HUD comms panel. Appends to the
 /// event world's story log; the log is scenario-scoped (cleared at teardown
 /// with the rest of the event world), so a line can never leak into the next
-/// scenario or the menu. RON: `StoryMessage((speaker: "Foreman Okono", text:
+/// scenario or the menu. RON: `StoryMessage((speaker: "Alpha", text:
 /// "Strip it clean."))`. Optionally add `dwell: Some(12.0)` for a longer hold
-/// and `icon: Some("self://icons/okono.png")` for a speaker image. Strict RON
+/// and `icon: Some("self://icons/alpha.png")` for a speaker image. Strict RON
 /// uses `Some`; omit the field for the HUD fallback icon.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -112,7 +112,7 @@ impl From<HudReadoutFormatConfig> for HudReadoutFormat {
 /// already exists: `scenario_elapsed` (and any authored variable) lives on the
 /// event world; this action is what finally puts one on the HUD. Generic on
 /// purpose (per the spike): any mod can surface any variable (a score, a
-/// countdown, a lap time), not just the gauntlet clock.
+/// countdown, a lap time), not just a run clock.
 ///
 /// A readout is identified by its `slot`. Firing the action with `visible:
 /// true` shows or updates that slot; the HUD then tracks the bound variable's
@@ -392,16 +392,16 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn story_message_ron_round_trips() {
-        let authored = r#"StoryMessage((speaker: "Foreman Okono", text: "Quota's quota."))"#;
+        let authored = r#"StoryMessage((speaker: "Alpha", text: "Quota's quota."))"#;
         let parsed: EventActionConfig = ron::from_str(authored).expect("authored RON parses");
         let EventActionConfig::StoryMessage(config) = &parsed else {
             panic!("parsed the StoryMessage variant");
         };
-        assert_eq!(config.speaker, "Foreman Okono");
+        assert_eq!(config.speaker, "Alpha");
         assert_eq!(config.text, "Quota's quota.");
         assert_eq!(config.dwell, None, "omitted dwell defaults to None");
 
-        let with_dwell = r#"StoryMessage((speaker: "Okono", text: "Slowly.", dwell: Some(12.0)))"#;
+        let with_dwell = r#"StoryMessage((speaker: "Alpha", text: "Slowly.", dwell: Some(12.0)))"#;
         let parsed_dwell: EventActionConfig =
             ron::from_str(with_dwell).expect("the documented dwell syntax parses");
         let EventActionConfig::StoryMessage(config_dwell) = &parsed_dwell else {
@@ -423,14 +423,14 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn story_message_icon_ron_round_trips() {
-        let legacy = r#"StoryMessage((speaker: "Foreman Okono", text: "Quota's quota."))"#;
+        let legacy = r#"StoryMessage((speaker: "Alpha", text: "Quota's quota."))"#;
         let parsed: EventActionConfig = ron::from_str(legacy).expect("legacy RON parses");
         let EventActionConfig::StoryMessage(config) = &parsed else {
             panic!("parsed the StoryMessage variant");
         };
         assert_eq!(config.icon, None, "omitted icon defaults to None");
 
-        let with_self = r#"StoryMessage((speaker: "Okono", text: "Face.", icon: Some("self://icons/okono.png")))"#;
+        let with_self = r#"StoryMessage((speaker: "Alpha", text: "Face.", icon: Some("self://icons/alpha.png")))"#;
         let parsed_self: EventActionConfig =
             ron::from_str(with_self).expect("self icon syntax parses");
         let EventActionConfig::StoryMessage(config_self) = &parsed_self else {
@@ -438,7 +438,7 @@ mod tests {
         };
         assert_eq!(
             config_self.icon.as_ref().and_then(|icon| icon.path()),
-            Some("self://icons/okono.png")
+            Some("self://icons/alpha.png")
         );
 
         let with_dep = r#"StoryMessage((speaker: "Relay", text: "Shared.", icon: Some("dep://base/icons/comms.png")))"#;
@@ -454,7 +454,7 @@ mod tests {
 
         let ron = ron::to_string(&parsed_self).expect("serializes");
         assert!(
-            ron.contains("icon:Some(\"self://icons/okono.png\")"),
+            ron.contains("icon:Some(\"self://icons/alpha.png\")"),
             "ron: {ron}"
         );
         let back: EventActionConfig = ron::from_str(&ron).expect("round-trips");

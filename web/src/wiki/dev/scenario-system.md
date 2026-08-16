@@ -417,8 +417,9 @@ only the in-order entry fires:
 
 Because gate 2's handler filters `Equal(gate, 2.0)`, flying through gate 3
 early - or back through gate 1 again - matches no live handler and is inert. The
-`gauntlet_course` rig's `gates_advance_only_in_order` test pins exactly this:
-an out-of-order entry does not advance `gate`.
+`scenario_gate_course` rig's
+`gates_advance_only_in_order_and_only_for_the_named_ship` test pins exactly
+this on a synthetic course: an out-of-order entry does not advance `gate`.
 
 Use it whenever stages must be visited in sequence (a gate run, a guided tour, a
 tutorial's step chain). The base `shakedown_run` starter uses the same idiom
@@ -498,12 +499,14 @@ end to end:
   banner, `crash > 0` the plain finish. The final time is shown by the frozen
   readout behind the banner (the clock stops on the outcome pause), so the banner
   text only has to vary the clean-run line - no message interpolation needed.
-- The test rig `crates/nova_assets/tests/gauntlet_course.rs` - loads the ACTUAL
-  shipped content, drives the real handlers, and pins both invariants (gate
-  areas do not overlap; the racing line stays clear of every rock's worst-case
-  body past `ASTEROID_GEOMETRIC_FACTOR_MAX`) plus the ordered-gate and
-  act-gating behavior. Run it with
-  `cargo test -p nova_assets --test gauntlet_course`.
+- The test rig `crates/nova_assets/tests/scenario_gate_course.rs` - authors a
+  synthetic course as a RON string, drives the real handlers, and pins the
+  ordered-gate sequencing, the repeatable penalty zone, the two counter-keyed
+  win banners, the act-gating and the readout wiring. Run it with
+  `cargo test -p nova_assets --test scenario_gate_course`. Geometry invariants
+  (gate areas do not overlap; the racing line clears every rock's worst-case
+  body past `ASTEROID_GEOMETRIC_FACTOR_MAX`) are a CONTENT concern, checked per
+  bundle by `content lint`.
 - The [first-scenario guide's completed flow](../../modding/author-a-scenario/#3-plan-one-short-story)
   is the gentler, single-counter cousin of the gate-counter pattern.
 

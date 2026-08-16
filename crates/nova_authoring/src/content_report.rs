@@ -383,7 +383,7 @@ mod tests {
 
     fn finding(sev: Severity, cat: Category, file: &str, element: &str, msg: &str) -> Finding {
         Finding {
-            bundle: "the-ledger".to_string(),
+            bundle: "mod-one".to_string(),
             file: Some(file.to_string()),
             severity: sev,
             category: cat,
@@ -412,21 +412,21 @@ mod tests {
     fn markdown_pins_severity_file_element_and_fix() {
         let report = ContentReport {
             target: None,
-            bundles: vec!["the-ledger".to_string()],
+            bundles: vec!["mod-one".to_string()],
             scenarios_audited: 1,
             findings: vec![
                 finding(
                     Severity::Warn,
                     Category::InputOverlap,
-                    "ledger_ch1.content.ron",
-                    "chapter_one > guns",
+                    "one.content.ron",
+                    "scenario_1 > guns",
                     "binds Space",
                 ),
                 finding(
                     Severity::Error,
                     Category::Reference,
-                    "ledger_ch2.content.ron",
-                    "chapter_two",
+                    "two.content.ron",
+                    "scenario_2",
                     "unknown prototype 'imaginary_hull'",
                 ),
             ],
@@ -437,8 +437,8 @@ mod tests {
         let err_at = md.find("ERROR").expect("error present");
         let warn_at = md.find("WARN").expect("warn present");
         assert!(err_at < warn_at, "errors sort before warnings:\n{md}");
-        assert!(md.contains("ledger_ch2.content.ron"));
-        assert!(md.contains("chapter_two"));
+        assert!(md.contains("two.content.ron"));
+        assert!(md.contains("scenario_2"));
         assert!(md.contains("imaginary_hull"));
         assert!(md.contains("fix: do the thing"));
     }
@@ -446,7 +446,7 @@ mod tests {
     #[test]
     fn html_escapes_and_banners() {
         let mut report = ContentReport {
-            bundles: vec!["the-ledger".to_string()],
+            bundles: vec!["mod-one".to_string()],
             ..Default::default()
         };
         report.findings.push(finding(

@@ -1,8 +1,8 @@
 //! Racer semantic parts, prototype catalog entries, and assembly.
 //!
 //! The racer flies UNARMED: a fast, expensive civilian hull (the yacht the
-//! chapters protect). Its turret prototypes stay in the catalog - the ledger
-//! and gauntlet webmods mount them - but the base assembly skips them.
+//! chapters protect). Its turret prototypes stay in the catalog for mods to
+//! mount, but the base assembly skips them.
 
 use nova_scenario::prelude::*;
 use nova_ship::prelude::SectionConfig;

@@ -86,8 +86,10 @@ jobs:
       # scripts/gen-portal.py is THE static mod-portal generator (stdlib-only
       # Python; no toolchain, runs instantly). It
       # validates manifests and refuses ids that collide with the shipped
-      # catalog. Deep content validation (do the bundles actually load?) is the
-      # webmods_validation test on regular CI.
+      # catalog, and it is the ONLY thing in this repository that reads
+      # webmods/. Deeper content validation (do the bundles actually load, is
+      # the balance sane?) is each mod author's own `content lint --target`
+      # run: a mod is outside the engine, so no engine test may depend on one.
       - name: Generate mod portal
         run: |
           python3 scripts/gen-portal.py \

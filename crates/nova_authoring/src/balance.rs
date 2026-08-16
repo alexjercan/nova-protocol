@@ -17,7 +17,7 @@
 //!
 //! - ERROR `spawned-dead`: an armed hostile placed by OnStart INSIDE its
 //!   own effective weapon range of the player spawn - the player is under
-//!   accurate fire before they can move (the pre-rework ledger_ch2 shape).
+//!   accurate fire before they can move.
 //! - WARN `close-spawn`: the same inside-its-own-envelope predicate on a
 //!   TRIGGERED handler. Mid-fight player position is unknowable statically,
 //!   so the spawn point is the proxy; shipped arenas fight near their
@@ -25,15 +25,13 @@
 //!   keeps the rule honest at both ends: a light-turret mook 395u out
 //!   (135u outside its 270u reach) is an approach, not an ambush, while a
 //!   better-turret capital 301u out (inside its 450u reach) is on top of
-//!   the fight the frame it exists - the pre-rework "wave 2 on top of you"
-//!   shape.
+//!   the fight the frame it exists.
 //!
-//! The per-scenario invariant PINS for the reworked encounters live in their
-//! own tests (ledger_ch2_encounter.rs, broadside_assault.rs); this module is
-//! the repo-wide generalization that also covers content nobody hand-pinned
-//! (asteroid_field, the ledger's later chapters, future mods).
-//! `balance_audit_gate` runs it in CI; the `content` CLI's `lint` runs it in
-//! one pass with the reference checks (the balance audit was folded into
+//! The per-scenario invariant PINS for base's own encounters live in their own
+//! tests (broadside_assault.rs); this module is the repo-wide generalization
+//! that also covers content nobody hand-pinned (asteroid_field, installed
+//! mods). `balance_audit_gate` runs it in CI; the `content` CLI's `lint` runs
+//! it in one pass with the reference checks (the balance audit was folded into
 //! `lint`).
 
 use std::collections::HashMap;
@@ -48,9 +46,9 @@ use nova_ship::prelude::{SectionConfig, SectionKind};
 pub mod prelude {
     pub use super::{
         audit_bundles_to_audits, audit_content_tree, audit_scenario, partition_findings,
-        ship_stats, shipped_acks, BalanceAck, BalanceFinding, BalanceSeverity, CoverAudit,
-        FindingKind, HostileAudit, ScenarioAudit, SectionCatalog, ShipCatalog, ShipStats,
-        SpawnGroupAudit, EFFECTIVE_RANGE_MARGIN, TORPEDO_ENVELOPE,
+        ship_stats, BalanceAck, BalanceFinding, BalanceSeverity, CoverAudit, FindingKind,
+        HostileAudit, ScenarioAudit, SectionCatalog, ShipCatalog, ShipStats, SpawnGroupAudit,
+        BALANCE_ACKS_FILE, EFFECTIVE_RANGE_MARGIN, TORPEDO_ENVELOPE,
     };
 }
 
@@ -262,7 +260,7 @@ pub struct CoverAudit {
     /// Fixed destructible asteroids: chaff.
     pub destructible: usize,
     /// Rocks placed by ScatterObjects fields whose template is
-    /// invulnerable (the gauntlet's belt walls are exactly this).
+    /// invulnerable (a scattered belt wall is exactly this).
     pub scattered_hard: usize,
     /// Rocks placed by ScatterObjects fields with destructible templates.
     pub scattered_soft: usize,
@@ -313,16 +311,19 @@ pub struct BalanceFinding {
     pub message: String,
 }
 
-/// One ACKNOWLEDGED finding (crates/nova_authoring/balance_acks.ron): a
-/// WARN-grade finding a human decided is intended, with the reason and the
-/// deciding task on record. ERRORs are never ackable - an ack pointing at
-/// an error-grade finding simply does not match and surfaces as stale.
-/// Stale acks (matching no live finding) surface as findings themselves,
-/// so a rebalanced scenario cannot leave a dead exception rotting quietly.
+/// One ACKNOWLEDGED finding: a WARN-grade finding a human decided is intended,
+/// with the reason and the deciding task on record. ERRORs are never ackable -
+/// an ack pointing at an error-grade finding simply does not match and surfaces
+/// as stale. Stale acks (matching no live finding) surface as findings
+/// themselves, so a rebalanced scenario cannot leave a dead exception rotting
+/// quietly.
+///
+/// A mod DECLARES its own acks in a [`BALANCE_ACKS_FILE`] beside its manifest,
+/// so the justification for a mod's difficulty travels with the mod. There is
+/// no owning-bundle field: the walk supplies the id of the bundle the file was
+/// read from, and an ack can therefore only ever name its own content.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct BalanceAck {
-    /// The bundle owning the scenario.
-    pub bundle: String,
     /// The scenario the acked finding sits in.
     pub scenario: String,
     /// The acked finding's hostile object id.
@@ -335,33 +336,40 @@ pub struct BalanceAck {
     pub task: String,
 }
 
-/// The repo's shipped acknowledgment list.
-pub fn shipped_acks() -> Vec<BalanceAck> {
-    ron::de::from_str(include_str!("../balance_acks.ron")).expect("balance_acks.ron parses")
-}
+/// The bundle-relative file a mod declares its [`BalanceAck`]s in - a sibling
+/// of the `*.bundle.ron` manifest, read by the lint walk only.
+///
+/// A sibling file rather than a manifest field: the manifest is a RUNTIME asset
+/// the game loads for every installed mod, and an ack is authoring-time data
+/// with a paragraph of prose attached. Keeping it out of `BundleManifest` keeps
+/// the shipped build from carrying every mod's difficulty essay in memory, and
+/// keeps `nova_mod_format` free of lint vocabulary.
+pub const BALANCE_ACKS_FILE: &str = "balance_acks.ron";
 
 /// Split `(bundle, finding)` pairs into (active, acked) under `acks`, and
-/// return the stale acks (matched nothing). Only WARN-grade findings can
-/// match an ack; every stale ack must be surfaced by the caller.
+/// return the stale acks (matched nothing). Acks are `(owning bundle, ack)`
+/// pairs, the same shape as the findings. Only WARN-grade findings can match an
+/// ack; every stale ack must be surfaced by the caller.
 #[expect(
     clippy::type_complexity,
     reason = "the three partitions are the return contract"
 )]
 pub fn partition_findings(
     findings: Vec<(String, BalanceFinding)>,
-    acks: &[BalanceAck],
+    acks: &[(String, BalanceAck)],
 ) -> (
     Vec<(String, BalanceFinding)>,
     Vec<(String, BalanceFinding, &BalanceAck)>,
-    Vec<&BalanceAck>,
+    Vec<(&str, &BalanceAck)>,
 ) {
-    let matches = |ack: &BalanceAck, bundle: &str, finding: &BalanceFinding| {
-        finding.severity == BalanceSeverity::Warn
-            && ack.bundle == bundle
-            && ack.scenario == finding.scenario
-            && ack.hostile == finding.hostile
-            && ack.kind == finding.kind.as_str()
-    };
+    let matches =
+        |(ack_bundle, ack): &(String, BalanceAck), bundle: &str, finding: &BalanceFinding| {
+            finding.severity == BalanceSeverity::Warn
+                && ack_bundle == bundle
+                && ack.scenario == finding.scenario
+                && ack.hostile == finding.hostile
+                && ack.kind == finding.kind.as_str()
+        };
     let mut active = Vec::new();
     let mut acked = Vec::new();
     let mut used = vec![false; acks.len()];
@@ -371,7 +379,7 @@ pub fn partition_findings(
         match (0..acks.len()).find(|&i| !used[i] && matches(&acks[i], &bundle, &finding)) {
             Some(i) => {
                 used[i] = true;
-                acked.push((bundle, finding, &acks[i]));
+                acked.push((bundle, finding, &acks[i].1));
             }
             None => active.push((bundle, finding)),
         }
@@ -379,7 +387,7 @@ pub fn partition_findings(
     let stale = acks
         .iter()
         .zip(&used)
-        .filter_map(|(ack, used)| (!used).then_some(ack))
+        .filter_map(|((bundle, ack), used)| (!used).then_some((bundle.as_str(), ack)))
         .collect();
     (active, acked, stale)
 }
@@ -578,9 +586,8 @@ pub fn audit_scenario(
     })
 }
 
-/// Audit every combat scenario in the repo tree (base + assets/mods +
-/// webmods), each against ITS bundle's resolved section overlay. Returns
-/// `(bundle id, audit)` pairs in walk order.
+/// Audit every combat scenario in the walked tree, each against ITS bundle's
+/// resolved section overlay. Returns `(bundle id, audit)` pairs in walk order.
 pub fn audit_content_tree() -> Vec<(String, ScenarioAudit)> {
     audit_bundles_to_audits(&crate::lint_walk::audit_bundles())
 }
@@ -779,10 +786,9 @@ mod tests {
         assert_eq!(stats.torpedo_tubes, 0);
     }
 
-    /// The fail-first for the ERROR rule, permanently in-tree: the
-    /// pre-rework ledger_ch2 shape (an armed hostile opening inside its
-    /// own range) MUST grade as spawned-dead; pushing it outside its range
-    /// clears the finding (the delivery guard).
+    /// The fail-first for the ERROR rule, permanently in-tree: an armed
+    /// hostile opening inside its own range MUST grade as spawned-dead;
+    /// pushing it outside its range clears the finding (the delivery guard).
     #[test]
     fn an_armed_onstart_hostile_inside_its_range_is_spawned_dead() {
         let catalog =
@@ -934,15 +940,17 @@ mod tests {
         }
     }
 
-    fn ack_for(hostile: &str, kind: &str) -> BalanceAck {
-        BalanceAck {
-            bundle: "b".to_string(),
-            scenario: "s".to_string(),
-            hostile: hostile.to_string(),
-            kind: kind.to_string(),
-            reason: "test".to_string(),
-            task: "t".to_string(),
-        }
+    fn ack_for(hostile: &str, kind: &str) -> (String, BalanceAck) {
+        (
+            "b".to_string(),
+            BalanceAck {
+                scenario: "s".to_string(),
+                hostile: hostile.to_string(),
+                kind: kind.to_string(),
+                reason: "test".to_string(),
+                task: "t".to_string(),
+            },
+        )
     }
 
     /// An ack silences exactly its matching WARN; duplicate findings need
@@ -985,18 +993,6 @@ mod tests {
         let (active, acked, stale) = partition_findings(vec![], &acks);
         assert!(active.is_empty() && acked.is_empty());
         assert_eq!(stale.len(), 1);
-    }
-
-    /// The shipped ack file parses and every entry names a valid kind.
-    #[test]
-    fn shipped_acks_parse_with_valid_kinds() {
-        for ack in shipped_acks() {
-            assert!(
-                ["spawned-dead", "close-spawn"].contains(&ack.kind.as_str()),
-                "unknown finding kind '{}' in balance_acks.ron",
-                ack.kind
-            );
-        }
     }
 
     /// No player spawn = no audit (menu scenes are nobody's fight).

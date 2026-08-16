@@ -299,10 +299,10 @@ cargo run content lint --target <mod> --report r.md     # + write a per-mod repo
     (dangling `NextScenario` targets, unspawnable filter targets, duplicate ids,
     scenarios with no terminal `Outcome`, resource-ref membership, ...);
   - the combat balance/fairness audit - every combat scenario's derived sheet,
-    graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; deliberate
-    imbalances are acknowledged in `crates/nova_authoring/balance_acks.ron` (a
-    stale ack that matches no live finding is an ERROR, so the list stays
-    pruned);
+    graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; a bundle
+    acknowledges its OWN deliberate imbalances in a `balance_acks.ron` beside
+    its manifest, so the justification travels with the mod (a stale ack that
+    matches no live finding is an ERROR, so every list stays pruned);
   - the flight-rig input-overlap check - a content `input_mapping` section
     bound to a key the always-on flight rig also binds (W/Space/RightTrigger
     burn, autopilot, ...) silently double-drives flight and is flagged (WARN).

@@ -3,6 +3,13 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.24.0
+
+- The mod declares its own balance acknowledgments in `balance_acks.ron`, beside
+  the manifest. The Auditor's close-spawn exception moved out of the engine
+  repository and into this bundle, where its author owns it. Required: the
+  linter now resolves acks from the bundle it lints.
+
 ## 1.23.0
 
 - The whole campaign is flown on real ammunition. Every chapter dropped the

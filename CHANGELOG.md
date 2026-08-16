@@ -168,6 +168,9 @@ tagged **(breaking)**.
 
 ### Modding & Mod Portal
 
+- **(breaking)** A mod declares its own balance acknowledgments in a
+  `balance_acks.ron` beside its manifest; the linter reads them from the bundle
+  it lints. No list in this repository names a mod.
 - **(breaking)** A new content kind: `Ship`. A scenario spawns a hull by id and overrides sections per spawn; base scenario RON drops 36%.
 - A new content kind: `Style`. A mod can author the look a ship's derived
   cladding wears, and a scenario picks one per ship by id. Documented in the
@@ -262,6 +265,9 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- Engine tests stopped reading installed mods: seven rigs over `webmods/` are
+  rebuilt as four synthetic-scenario rigs with generic ids, so no mod can block
+  an engine change.
 - New probe capability: `NOVA_PERF_SNAPSHOT` dumps world state as JSONL - ships,
   sections, fixtures, weapons, ordnance - sorted and rounded so two snapshots of
   one frame diff clean.

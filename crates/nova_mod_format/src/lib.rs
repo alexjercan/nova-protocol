@@ -158,7 +158,7 @@ pub struct PortalFile {
 /// generator did, at publish time).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PortalEntry {
-    /// Stable mod id (the webmods/ source directory name).
+    /// Stable mod id (the mod's source directory name).
     pub id: String,
     /// The published version (from the bundle meta; non-empty - the generator
     /// rejects unversioned mods). Files live under `<id>/<version>/`.

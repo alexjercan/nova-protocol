@@ -839,7 +839,7 @@ fn the_sandbox_is_listed_and_its_relay_is_not() {
 #[test]
 fn hard_cover_anchors_both_threat_lanes() {
     // Distance from `p` to segment `a`->`b` plus the clamped progress of
-    // the closest point (mirrors ledger_ch2_encounter.rs).
+    // the closest point.
     fn point_to_segment(p: Vec3, a: Vec3, b: Vec3) -> (f32, f32) {
         let ab = b - a;
         let len2 = ab.length_squared();

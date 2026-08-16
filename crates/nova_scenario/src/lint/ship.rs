@@ -711,8 +711,8 @@ mod tests {
         assert!(errs[0].message.contains("no_such_proto"));
     }
     /// Section overlaps: strictly-inside-the-cube errors; flush spine/side
-    /// mounts pass (the fail-first is the shipped Auditor tube at z 0.5 this
-    /// check was born from).
+    /// mounts pass (the fail-first is a half-embedded spine tube at z 0.5,
+    /// the shape this check was born from).
     #[test]
     fn overlapping_sections_error_and_flush_sections_pass() {
         let ship_with = |tube_pos: Vec3| {
@@ -748,7 +748,7 @@ mod tests {
             })
         };
 
-        // The Auditor shape: half-embedded on the spine.
+        // The failing shape: half-embedded on the spine.
         let s = scenario(vec![ship_with(Vec3::new(0.0, 0.0, 0.5))], vec![]);
         let issues = lint_scenario(
             &s,

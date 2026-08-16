@@ -174,12 +174,12 @@ fn nova_os_wheel_scrolls_only_hovered_viewport_when_one_is_hovered() {
 #[test]
 fn flight_log_records_story_feed_comms() {
     let mut app = objectives_app();
-    push_story_line(&mut app, "Okono", "Strip it clean.");
+    push_story_line(&mut app, "Alpha", "Strip it clean.");
     app.update();
 
     assert_eq!(
         flight_log_entry_texts(&app),
-        vec!["COMMS OKONO > Strip it clean.".to_string()],
+        vec!["COMMS ALPHA > Strip it clean.".to_string()],
         "story feed lines append as comms entries in the combined log"
     );
     assert_eq!(
@@ -211,7 +211,7 @@ fn flight_log_records_objective_events_once() {
 #[test]
 fn flight_log_interleaves_comms_and_objective_entries() {
     let mut app = objectives_app();
-    push_story_line(&mut app, "Okono", "First transmission.");
+    push_story_line(&mut app, "Alpha", "First transmission.");
     app.update();
     set_objectives(&mut app, vec![Objective::new("b1", "Burn for Beacon 1")]);
     app.update();
@@ -223,7 +223,7 @@ fn flight_log_interleaves_comms_and_objective_entries() {
     assert_eq!(
         flight_log_entry_texts(&app),
         vec![
-            "COMMS OKONO > First transmission.".to_string(),
+            "COMMS ALPHA > First transmission.".to_string(),
             "OBJ + Burn for Beacon 1".to_string(),
             "COMMS RELAY > Telemetry locked.".to_string(),
             "OBJ x Burn for Beacon 1".to_string(),

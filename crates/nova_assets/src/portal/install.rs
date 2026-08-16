@@ -202,8 +202,8 @@ pub struct PendingRemovals(pub HashSet<String>);
 /// Anti-absurdity caps on a portal entry, NOT quotas: installs stage every
 /// verified file in memory, so a hostile catalog must not be able to command
 /// gigabytes of buffering (or tens of thousands of requests) before the
-/// commit. Generous against any real mod - the whole shipped webmods set is
-/// a few KiB. (A LYING server can still send an oversized body for one
+/// commit. Generous against any real mod - a content-only mod is a few KiB.
+/// (A LYING server can still send an oversized body for one
 /// request - ehttp buffers it before the size check rejects it - but these
 /// caps bound what the catalog can make the client do by design.)
 const MAX_FILE_SIZE: u64 = 32 * 1024 * 1024;

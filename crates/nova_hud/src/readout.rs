@@ -1,6 +1,6 @@
 //! The HUD readout strip: a generic surface for showing a SCENARIO VARIABLE on
-//! the HUD - the modding-surface piece the gauntlet
-//! time-trial needs and any mod can reuse. It is the display half of the
+//! the HUD - the modding-surface piece a time-trial mod needs and any mod can
+//! reuse. It is the display half of the
 //! scenario-variable vocabulary: `scenario_elapsed` (and any authored variable)
 //! already exists on the event world; nothing put one on screen until now.
 //!
