@@ -459,11 +459,15 @@ kind: Torpedo((
 - `ammo_capacity` (optional) - magazine size in torpedoes; `None` for unlimited.
 - `reload` (optional) - auto-reload for the bay (needs `ammo_capacity`); same
   `Some((reload_time, rounds_per_cycle, only_when_empty))` shape as the turret.
-  The shipped bays author **no reload at all**: a bay's torpedoes are a hard
-  magazine for the whole engagement. That is deliberate, and it is what makes
-  the torpedo-versus-point-defense exchange an attrition fight rather than a
-  waiting game - a regenerating bay is unlimited ordnance given time. Author a
-  reload only for a bay that is meant to be a rate limit rather than a budget.
+  The shipped bays author **continuous regen**: `reload_time` 10 s,
+  `rounds_per_cycle` 1, `only_when_empty` false - one torpedo back every ten
+  seconds, on top of a six-round rack. Ammunition here is a rate limit and not a
+  budget, so a spent bay comes back rather than taking its ship out of the
+  fight. The RATE is the balance, and it is derived rather than picked: one
+  point-defense mount sustains about 0.17 intercepts per second against a
+  weaving torpedo, so a bay that regrew faster than that would beat point
+  defense by waiting instead of by saturating it. Author a faster regen only
+  alongside the mounts that answer it.
 
 ## A section in a mod
 

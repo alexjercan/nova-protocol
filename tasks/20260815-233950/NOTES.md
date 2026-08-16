@@ -52,14 +52,96 @@ cruise. A bay fires along its +Y while the torpedo's nose is its -Z, so every
 real launch spends ~10 u of lateral excursion turning onto course - on both
 arms, monotone, and an order of magnitude wider than the weave under test.
 
-## 2. Hard torpedo magazines
+## 2. Torpedo magazines: a rack of six, refilling at 1 per 10 s
 
-`reload: None` on both shipped bay builders. The siege bay is deliberately left
-unlimited: it is dressing for a looping menu backdrop, not a combat participant.
+First landed as `reload: None` on both shipped bay builders - a HARD magazine.
+Reversed by owner direction: ammunition in this game is a RATE LIMIT, not a
+budget, and every other weapon pairs a magazine with an unlimited reload. A bay
+with no reload was the one exception, and a spent bay is a ship that has stopped
+participating in its own scenario.
 
-The `menu_gauntlet` batteries relaunch every 15-24 s, so a hard six-round
-magazine lasts 90-144 s - past the point the backdrop's corvette dies and the
-carousel turns. No content change needed there.
+The siege bay stays unlimited: it is dressing for a looping menu backdrop, not a
+combat participant.
+
+### Why NOT the old +1 per 4 s
+
+That rate was set when an intercept cost 116 rounds. Item 1 tripled it to 369
+and nobody re-derived the rate. Sustained arithmetic at the shipped numbers:
+
+| quantity | value |
+|---|---|
+| PDC magazine / fire rate / reload | 500 rounds, 100/s, 3.0 s discrete |
+| duty cycle | 5.0 s firing + 3.0 s reloading = 8.0 s |
+| sustained supply, per mount | 62.5 rounds/s |
+| intercept cost, weaving torpedo (measured) | 369 rounds |
+| **intercepts one mount sustains** | **0.169/s** (one per 5.9 s) |
+| bay regen at the OLD 4 s | 0.25/s per bay |
+
+So one bay at the old rate out-supplied one mount by 48%, and the attacker won
+by WAITING - the precise failure this bay's design exists to prevent. Break-even
+is a 5.9 s regen period.
+
+### The rate, and what it protects
+
+`+1 per 10 s` (0.1/s per bay). Two bays put up 0.20/s against the 0.34/s two
+mounts answer - 59% - and 118% of what one mount answers. So saturation still
+beats point defense and patience does not, which is the whole point of the
+weave: an attacker must out-CARRY the defender, not outlast it.
+
+10 s is also `AI_TORPEDO_COOLDOWN_SECS`. An AI bay already spaces its launches
+exactly that far apart, so the regen never gates an AI attacker: for every
+shipped AI ship, 10 s regen and the old 4 s regen are INDISTINGUISHABLE, and the
+campaign's torpedo pressure is back to what it was before the magazine was made
+hard. The six-round rack is a PLAYER burst allowance; the AI never gets to use
+one.
+
+The relation is now a test, not a comment:
+`no_torpedo_bay_out_sustains_a_point_defense_mount` (nova_authoring
+`base_content::sections`) derives both sides from the authored catalog - the
+mount's duty cycle from its magazine, joint-tree fire rate and reload, the bay's
+from its regen - and fails when a bay out-supplies the best mount in the
+catalog. `every_authored_magazine_refills` pins the rate-limit rule itself.
+
+### The player is not the AI here
+
+The AI intercepts perfectly and has no autonomous-PD gap; the PLAYER has no
+autonomous point defense at all and hand-aims every intercept. The rate above is
+therefore chosen on the AI-versus-AI arithmetic, which is the STRICTER side:
+where the player defends, the AI attacker is paced by its 10 s cadence and not
+by this regen, so nothing here made hand-defending harder than it was before the
+hard magazine. Where the player ATTACKS, the alpha strike is unchanged and the
+sustained rate is 2.5x slower than it was pre-weave.
+
+The player-attacks case is one shipped fight: **ledger ch5, the raid**. It is
+the only time the campaign hands the player a hull with bays (a cargo-B: two
+pods, two PDCs) and it puts that hull against six two-PDC corvettes - twelve
+mounts, 2.0 intercepts/s between them. The player's sustained 0.2/s is nothing
+against that, and the twelve-torpedo rack is everything, which is exactly the
+shape this rate is chosen to produce. Ch1-ch4 fly a cargo-A, whose pods are
+HULL, not bays - the player carries no ordnance in them at all.
+
+### Backdrop, and the live check
+
+The `menu_gauntlet` batteries relaunch every 15-24 s on scripted timers, slower
+than the regen, so they now never run dry - the corvette's own hard magazines
+(`SetAmmo`, scenario-level) still end the doomed stand on schedule.
+
+That is also what makes the backdrop the cheapest live proof. Run headless on
+Xvfb with the bay's ammo logged on each launch (`NOVA_MENU_BACKDROP=menu_gauntlet`,
+`RUST_LOG=info,nova_ship=debug`), battery w1 launched three times at exactly
+15.0 s apart and read `rounds left 5` on all three: the spent torpedo was back
+before the next trigger pull. A hard magazine reads 5, 4, 3 there. The act
+otherwise played as authored - each mount picked its own inbound, one torpedo
+was shot down, and the corvette fell at ~43 s with no errors.
+
+**Noticed, not fixed, and not caused by this change:** the gauntlet corvette
+carries 400 rounds per turret with the reload stripped, and
+`CORVETTE_ROUNDS_PER_TURRET` says that is "roughly a TEN-torpedo defense". At
+116 rounds an intercept it was 6.9; at the weave's 369 it is 2.2, and the live
+run bears that out - the stand fell after two intercepts. The stand still falls
+inside a menu visit, which is what the constant was cut to 400 for, so this is a
+stale claim rather than a broken scene. The number is a backdrop-pacing decision
+and wants a playtest, not a derivation.
 
 ## 3. Per-turret point defence
 

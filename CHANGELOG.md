@@ -23,10 +23,15 @@ tagged **(breaking)**.
   with nothing reachable goes back to the primary target rather than parking on
   a torpedo under its own hull, so a battery no longer dogpiles one torpedo
   while the rest of the salvo flies in unopposed.
-- **(breaking)** Torpedo bays no longer reload. A bay's six torpedoes are a HARD
-  magazine for the whole engagement; the old +1 every 4 s regen was unlimited
-  ordnance given time, which is a waiting game rather than an attrition fight.
-  A mod bay that wants the old behavior authors its own `reload`.
+- Torpedo bays regrow one torpedo every 10 s, up from the old every 4 s. A rack
+  of six is still the alpha strike, and saturation is still the only thing that
+  beats point defense - but the bay now refills like every other weapon in the
+  game, so a ship can never be left alive with nothing to fight with. The rate
+  is the balance: the terminal weave tripled what an intercept costs (116 -> 369
+  rounds), so a mount only answers 0.17 torpedoes/s, and at the old 4 s two bays
+  would have out-supplied two mounts outright. At 10 s two bays run two mounts
+  at 59% of capacity and overrun a single mount, so the attacker wins by
+  out-carrying the defender rather than by waiting.
 - Torpedoes fly a TERMINAL WEAVE: an armed torpedo corkscrews ~25 degrees off
   its guidance solution until the final approach, breaking the lead solution
   point defense fires on. Measured against one stock PDC across the 150 u

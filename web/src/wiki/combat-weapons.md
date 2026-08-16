@@ -84,12 +84,12 @@ train on them.
 
 Weapons carry a finite magazine, shown by a small diegetic gauge riding on the weapon: a **ring** on each turret that drains as it fires, and a **row of pips** on the torpedo bay, one per loaded torpedo. While a weapon is reloading the gauge fills back up as a **reload sweep** in a dimmer shade of the same color, so you can read at a glance how close it is to firing again. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)
 
-The two weapons treat running dry very differently, and the difference is the point:
+Every weapon in the game refills. A magazine is a **rate limit**, not a budget: no ship is ever left alive with nothing to fight with. What differs is the rhythm each weapon's refill imposes:
 
-- **Turrets reload.** A turret dumps its magazine, then reloads it to full after a few seconds. Magazine size is a firing-rhythm limit, not a way to be permanently disarmed - though sustained point-defense work will still outrun the reload, and a ship that spends its rounds swatting torpedoes has nothing left for the ship that fired them.
-- **Torpedo bays do not.** A bay's torpedoes are a **hard magazine**: six per pod for the whole engagement, and when they are gone that bay is gone. Ordnance is the scarce thing you spend, and spending it is a decision.
+- **Turrets dump and reload.** A turret empties its magazine, then reloads it to full after a few seconds. Sustained point-defense work still outruns that reload, and a ship that spends its rounds swatting torpedoes has nothing left for the ship that fired them.
+- **Torpedo bays trickle.** A bay holds six torpedoes and regrows one every ten seconds. The six are the real weapon - fired together they are a salvo the defender's guns cannot answer all of - and the trickle is only the floor under it. Empty the rack and you wait a long time for another one.
 
-That asymmetry is what makes a torpedo fight an attrition fight. A salvo costs the defender rounds whether or not it connects, and the defender's rounds are as finite as your torpedoes. Whoever runs out first loses the exchange.
+That is what makes a torpedo fight an attrition fight. A salvo costs the defender rounds whether or not it connects, and rounds come back at a rate too. Patience wins nothing for either side: torpedoes get through by arriving faster than the guns can answer, not by outlasting them.
 
 ## Damage types
 

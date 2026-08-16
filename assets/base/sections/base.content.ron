@@ -1026,6 +1026,11 @@
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
             detonation_sound: Some("self://sounds/explosion.wav"),
             ammo_capacity: Some(6),
+            reload: Some((
+                reload_time: 10.0,
+                rounds_per_cycle: 1,
+                only_when_empty: false,
+            )),
         )),
     )),
     Section((
@@ -2353,6 +2358,11 @@
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
             detonation_sound: Some("self://sounds/explosion.wav"),
             ammo_capacity: Some(6),
+            reload: Some((
+                reload_time: 10.0,
+                rounds_per_cycle: 1,
+                only_when_empty: false,
+            )),
         )),
     )),
     Section((
@@ -2446,6 +2456,11 @@
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
             detonation_sound: Some("self://sounds/explosion.wav"),
             ammo_capacity: Some(6),
+            reload: Some((
+                reload_time: 10.0,
+                rounds_per_cycle: 1,
+                only_when_empty: false,
+            )),
         )),
     )),
     Section((

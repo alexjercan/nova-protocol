@@ -288,11 +288,16 @@ fn torpedo_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
         // The catalog bay's terminal weave (see `sections::standard`).
         weave_angle: 0.44,
         weave_rate: 1.4,
-        // A hard magazine, like the catalog bay (see `sections::standard`): a
-        // craft's torpedoes are a finite budget for the whole engagement, not a
-        // rate limit that refills. The cargo-B carries two pods, so twelve.
+        // The catalog bay's rack and regen (see `sections::standard` for the
+        // rate's derivation): six for the alpha strike, then +1 every 10 s. The
+        // cargo-B carries two pods, so twelve away up front and 0.2
+        // torpedoes/s sustained - under the 0.34/s two PDC mounts answer.
         ammo_capacity: Some(6),
-        reload: None,
+        reload: Some(SectionReloadConfig {
+            reload_time: 10.0,
+            rounds_per_cycle: 1,
+            only_when_empty: false,
+        }),
     })
 }
 

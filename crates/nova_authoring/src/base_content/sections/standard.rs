@@ -592,16 +592,43 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // swings (~11 u, measured in-engine).
                 weave_angle: 0.44,
                 weave_rate: 1.4,
-                // A small salvo of torpedoes, and then the bay is spent for
-                // good. Playtest knob.
+                // The rack, and the alpha strike it buys: six away in six
+                // seconds at the fire rate above. Saturation is what beats
+                // point defense - attrition never does - so the burst is the
+                // attacker's weapon and the regen below is only its floor.
                 ammo_capacity: Some(6),
-                // NO reload. The bay used to regrow one torpedo every ~4 s,
-                // which is unlimited ordnance given time - and unlimited
-                // ordnance is not an attrition fight, it is a waiting game the
-                // defender always loses. A hard magazine is what makes the
-                // exchange real: the attacker spends torpedoes, the defender
-                // spends rounds, and whoever runs dry first loses.
-                reload: None,
+                // Regen, not a hard magazine. Ammunition in this game is a RATE
+                // LIMIT and not a budget: every other weapon pairs a magazine
+                // with an unlimited reload, which is why no fight can strand
+                // itself with a live enemy and nothing left to answer it. The
+                // bay was the one exception, and a spent bay is a ship that has
+                // stopped participating.
+                //
+                // The RATE is the whole balance, and the old +1 per 4 s is no
+                // longer it. That number was set when an intercept cost 116
+                // rounds; the terminal weave above tripled the price to 369
+                // (`point_defense_cost_tests`). A PDC sustains
+                // 500 / (500/100 + 3) = 62.5 rounds/s, so ONE mount answers
+                // 62.5 / 369 = 0.17 torpedoes/s. At +1 per 4 s two bays put up
+                // 0.50/s against the 0.34/s two mounts answer - the attacker
+                // wins by WAITING, which is the failure this bay's whole design
+                // is against. At +1 per 10 s two bays put up 0.20/s: 59% of
+                // what two mounts answer and 118% of what one does, so the
+                // attacker still wins by out-carrying the defender and never by
+                // outlasting it. The standing relation is pinned by
+                // `no_torpedo_bay_out_sustains_a_point_defense_mount`.
+                //
+                // 10 s is also AI_TORPEDO_COOLDOWN_SECS (nova_ship
+                // `input/ai/torpedo.rs`): an AI bay already spaces its launches
+                // exactly this far apart, so the regen never gates an AI
+                // attacker and the campaign's torpedo pressure is what it was
+                // before the magazine was made hard. The rack is the player's
+                // burst allowance; the AI never gets to use one.
+                reload: Some(SectionReloadConfig {
+                    reload_time: 10.0,
+                    rounds_per_cycle: 1,
+                    only_when_empty: false,
+                }),
             }),
         },
         SectionConfig {
