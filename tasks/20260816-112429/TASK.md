@@ -19,59 +19,131 @@ Design preference stated: **prefer a CONTINUOUS skin over spikes all over the
 place.** Ridges and spikes are liked, but they should not be the default texture
 of a hull.
 
-## What the code actually does
+## Scope: the skin is for BLOCK ships
 
-Read on master at `8cc8332e`:
+Owner: "I basically want to use skin only for the 'block' ships, the ones that we
+are using from kenney doesn't really make sense because they are already
+modeled".
+
+So the subject is the generated cube-built hulls - what `wfc_ships` and the
+editor produce - not the modelled cast (racer, cargoa, cargob). This matches
+what actually ships: `skin: true` occurs exactly once in the tree, in
+`crates/nova_editor/src/placement.rs`. No scenario is clad.
+
+Two consequences. Judge every render on a block hull, not on a cast ship. And the
+style cast mapping - raiders in salvage, racer in civilian - is NOT part of this
+work and has no effect while no scenario clads anything.
+
+## What the code does
+
+Read on master. The research round confirmed all of this from the source.
 
 1. **Every plate top is a cone, not a surface.** `ShellShape::surfaces`
    (shell_shape.rs:350) fans the top off ONE centre vertex at `centre_height()`,
    the mean of the eight boundary samples, into eight triangles. Unless all eight
-   samples are equal a plate has NO flat area at all. That is the decoration
-   problem: there is nowhere flat for anything to sit.
+   samples are equal a plate has NO flat area at all.
 
-2. **The saddle is forced.** `boundary_heights` (shell_skin.rs:412) votes each
-   corner three ways only - FULL, HALF or 0. Midpoints are then the mean of their
-   two corners (:420). Corners `[0,4,0,4]` therefore give midpoints all `2` and an
-   apex at the mean: a saddle, deterministically. A gable roof is not in the
-   vocabulary because nothing can ask for one.
+2. **The saddle comes from the INTERIOR INTERPOLANT, not the corner vote.** The
+   eight-sample mean is exactly the bilinear centre, so an alternating corner
+   pattern fans to a sagging apex. (An earlier reading blamed the three-way corner
+   vote in `boundary_heights`. That was wrong - the vote sets the corners, the fan
+   makes the saddle.)
 
-3. **The quarter cells bought no shape variety.** They were added to fix edge
-   stepping, and the code states why (:389): "Quarter cells are in the alphabet so
-   that mean always lands on a real sample." Corners never take them. The corner
-   alphabet is still ternary.
+3. **The boundary is the only contract.** shell_shape.rs:279: the boundary
+   polyline "is the whole contract with the neighbours". The plate INTERIOR is
+   free - it never affects seam matching, canonicalisation, or the alphabet.
 
-4. **Spikes have two named causes**, both deliberate and both revertible:
-   the `volume()` all-floor exception (shell_shape.rs:258) makes a lone clad cell
-   read as half a cell so it comes out a STUD rather than invisible; and the rim
-   taper makes a rim facing open space fall away, pinned by
+4. **Only four relief classes are actually broken.** Coplanarity is an exact
+   integer test - `c0+c2 == c1+c3` and `2*m_i == c_i + c_(i+1)`. `Flat` and
+   `Brink` already pass it and are correct today. `Bevel`, `Step`, `Spur` and
+   `Ridge` are the broken set.
+
+5. **`decor_pose` lifts every decoration to `volume()` at the plate centre.** So a
+   greeble is a flat-bottomed model balanced on a cone tip. That is the placement
+   complaint, in one line of code.
+
+6. **Spikes have two named causes**, both deliberate and both revertible: the
+   `volume()` all-floor exception (shell_shape.rs:258) makes a lone clad cell read
+   as half a cell so it comes out a STUD rather than invisible; and the rim taper
+   makes a rim facing open space fall away, pinned by
    `a_rim_that_faces_open_space_tapers_away`.
 
-## The cheap fix to try first
+## The brief's original hypothesis is REFUTED - do not build it
 
-The code states the invariant (:279): the boundary polyline "is the whole
-contract with the neighbours". Everything INSIDE the boundary is free - it never
-affects seam matching, canonicalisation, or the alphabet.
+An earlier version of this task proposed replacing the fan with an inset flat
+plateau. Round 2 of the market research disproves it as stated:
 
-So replace the single-apex fan with an inset flat PLATEAU chamfered out to the
-same boundary - the trapezoid the owner described, without adding samples. Pure
-mesh generation. Seams stay exact, shape ids and plate counts are unchanged, and
-every plate gains a flat top.
+- a horizontal plateau **staircases a ramp**
+- a least-squares plateau **tilts on a `Bevel`**
+- the modal rule that fixes one class flattens another
 
-Test rather than assume: an alternating-corner plate becomes a mesa with two
-chamfers up and two down, which may read better or worse; the plateau height must
-stay a deterministic function of the boundary samples; and the chamfer eats area,
-so a small plate may keep little flat. Scale is the real risk.
+There is no single formula. It needs a case table.
 
-## Placement, the second lever
+## What the research says to do instead
 
-Greebles should state a required FLAT AREA, not a relief class. Today they key
-off Flat/Step/Ridge/Peak/Bevel/Brink/Spur, which describes shape, not usable real
-estate. Contiguous-run length is already computed. Keep an exception path -
-salvage whips and industrial stacks WANT a high point.
+Full findings: `tasks/20260815-231945/PLATING-AND-GREEBLES.md`. Read the ranked
+recommendations section first, then section 1.0 and section 4.1a.
 
-Placement needs a pass regardless: the styles merge measured `near_fitting`
-losing most of its reach, `salvage_hook` absent from a third of the row, and
-industrial roughly doubling in density against the post-`44704438` skin.
+The technique nobody in the literature skips: **declare a REGION** - a
+constrained band round the boundary plus a free interior - rather than picking a
+better centre vertex. Lagae and Dutre section 7.1, Neyret and Cani, and
+omega-tiles all do it. **The band width is never guessed**: it is the reach of
+whatever could perturb the boundary, which for Nova is "how far inboard can a
+vertex move before it changes a triangle touching a boundary sample". Catlike
+Coding's hex map is a shipped precedent - solid core at 0.75 of radius, outer
+quarter carries all the matching.
+
+And two shapes are FREE: the gable and the true tent are exact interpolants of
+the same eight samples the skin already carries. The roof the owner asked for
+costs nothing - it is simply not the interpolant currently chosen.
+
+## Order of work
+
+Investigation first. Owner: "let's first use our knowledge to investigate this
+thing a bit more."
+
+- **R1. Render the A/B before building anything.** Matched pose, matched seeds,
+  `freeze_bodies` on. Two rules were adopted from reasoning on this project and
+  later disproved by rendering; this is the third chance to skip that step and it
+  should not be taken. Also measure the relief-class distribution over a real
+  hull - the research could not, because it wrote no Rust, and nobody yet knows
+  what share of a hull the four broken classes make up.
+- **R1b. Split the diagonal saddle out of `Spur` and refuse to decorate it.**
+  Cheapest lever available, needs no geometry change - `relief_of` already
+  isolates the mask. OpenTTD and Simutrans do exactly this with the same slope:
+  it stays as terrain, it stops carrying built geometry. Cost to check:
+  `PlateRelief` variants serialise BY NAME into `assets/base/styles/base.content.ron`,
+  so a new variant means a `content gen` regenerate.
+- **R2. Fix the tent.** Corners all 0 with two opposite midpoints up gets a true
+  ridge between crest points instead of a fan to a sagging apex. Exact
+  interpolant, and it improves a feature the owner LIKES.
+- **R3. Fix the saddle - a gable joining the HIGH corners.** Render the VALLEY at
+  the same time; it is the other exact interpolant and one extra branch.
+- **R4. A case table for the interior, with today's fan as the fallback.** The
+  fallback row is what makes it landable in pieces.
+- **R5. Fix `decor_pose` in the same commit as any of R2-R4.** Not optional and
+  not separable: once the interior is not the mean, `volume()` is neither the
+  surface height at the anchor nor the solid's volume, and greebles end up inside
+  the plating.
+- **R6. Recompute `volume()` per interior primitive.** The eight-sample mean
+  under-reads a gable by 25% and a tent by 50%, and collider height, health scale
+  and `PlateReading::height` all read it.
+- **R7. Classify structurally, then solve.** Do not threshold a residual - use
+  the fallen-corner mask and equality pattern `relief_of` already builds. Keeps
+  the interior a pure function of the canonical shape, which the mesh cache needs.
+- **R8. Expose flat SEAT SIZE to the style schema**, after R4. A style says "this
+  piece needs 0.4 cells of flat" instead of listing relief classes.
+- **R9. Render one chunky piece RECESSED beside one on a plateau.** Tests the one
+  source that contradicts the whole document: chunky detail may want a well rather
+  than a flat top, with only flat pieces going on the surface.
+
+Each carries a falsifier in the research file. Honour them.
+
+## Placement needs a pass regardless
+
+The styles merge measured `near_fitting` losing most of its reach,
+`salvage_hook` absent from a third of the row, and industrial roughly doubling in
+density against the post-`44704438` skin.
 
 ## The test bench (owner's design)
 
@@ -80,22 +152,11 @@ thrusters, PDCs and bays - clads them, and takes `--style` so a look can be
 swapped without a rebuild. Then compare how the shell is EXPECTED to look against
 what the debug dump says it is.
 
-## Order, and why
-
-Market research first (round 2 of task 20260815-231945), so the technique
-question is not re-derived. Then the skin debug dump, then this.
-
-The dump is the instrument. Today "the shapes are meh" is a picture; with the
-dump it is: how many plates come out saddles, mean flat area per plate, what
-fraction of greebles landed on non-flat relief. That matters here specifically
-because TWICE this sprint a skin rule was adopted from a render and later
-disproved - the corner-softening rule, and the top:wall panel-line claim.
-
 ## Depends on
 
-Skin debug dump.
+Skin debug dump (task 20260816-112405) for the measurements. R1 and R1b do not
+need it and can run first.
 
 ## Lane
 
-Not started. Queued behind the skin debug dump (task 20260816-112405) and the
-shape research (round 2 of task 20260815-231945).
+Not started.

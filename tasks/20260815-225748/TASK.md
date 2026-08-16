@@ -1,6 +1,6 @@
 # Ship skin styles: moddable looks with deterministic decoration fixtures
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 76
 - TAGS: v0.11.0, ship, render, modding, content
 
