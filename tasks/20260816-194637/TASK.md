@@ -1,6 +1,6 @@
 # Greeble design spike: a shared vocabulary across styles, more models
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.11.0,research,art,skin
 
@@ -54,3 +54,29 @@ The ask, in the owner's words:
 3. Spec for the bench expansion: a building-blocks roster of larger shapes
    worth judging as real ships.
 4. A recommended breakdown into follow-up tasks, effort-sized.
+
+## Closure
+
+Delivered 2026-08-16: GREEBLES.md (audit, class x style matrix, per-style art
+direction, primitives-first sourcing plan, faction brainstorm, specs for the
+catalog example and the bench blocks roster, ordered follow-up breakdown) plus
+four bench renders, one per style.
+
+Headline findings:
+- The brief's hypothesis was wrong usefully: no model sharing - all 27
+  fixtures own a generated mesh (scripts/gen-greebles.py recipes). The real
+  gaps are CLASS COVERAGE and RULE STARVATION.
+- Three signature pieces have zero reach on every hand-built bench subject:
+  civilian_windows, armoured_sensor (industrial_radiator nearly so). The most
+  characterful piece of each clean style never lands on what a player builds.
+- On a plain thick run all four styles collapse to one edge-line rule each -
+  the mechanical form of "not much variety".
+- Design keys: armoured clean = SUPPRESSION vs civilian clean = FINISH;
+  markings (ammo stripes) as the universal thin-shape carrier; a shared
+  5-class core all styles implement; kit-cap ordering 8<9<10<11 as the
+  tone-split test.
+- Licence: Kenney Space Kit and Quaternius Ultimate Space Kit verified CC0;
+  Kay Lousberg pack UNVERIFIED - check before use.
+
+Follow-ups are enumerated in GREEBLES.md section "task breakdown"; opening
+them is the owner's call.
