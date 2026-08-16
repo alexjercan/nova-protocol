@@ -21,6 +21,8 @@ Repository guidance. Global `~/AGENTS.md` applies.
   task; use network research only when local sources are insufficient.
 - Checks/records: use proof-bearing DoD and task-local NOTES, REVIEW, and RETRO;
   run only the affected checks below.
+- Changelog: one commit-title entry per change, 200 characters hard max; the
+  detail goes to `web/src/news/<version>.md`, the task folder, or `docs/`.
 
 ## Rules
 
