@@ -272,6 +272,9 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- A freshly spawned ship no longer swings off its spawn attitude before flying:
+  the helm command now initializes from the hull's spawn rotation instead of
+  identity.
 - A torpedo blast no longer survives Retry and destroys the reloaded scenario's
   rocks: a scenario now owns every transient it spawns, ordnance and cosmetics
   included.

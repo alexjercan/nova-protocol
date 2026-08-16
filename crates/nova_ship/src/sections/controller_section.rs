@@ -571,6 +571,7 @@ fn insert_controller_section_target(
     // Only real (live) controllers carry a `PDController`; a render-only preview controller
     // (`preview_controller_section`) does not, so it gets no target and stays inert.
     q_controller: Query<&ChildOf, (With<ControllerSectionMarker>, With<PDController>)>,
+    q_root: Query<&Transform>,
 ) {
     let entity = add.entity;
     trace!("insert_controller_section_target: entity {:?}", entity);
@@ -580,6 +581,20 @@ fn insert_controller_section_target(
     };
 
     commands.entity(entity).insert(PDControllerTarget(*root));
+
+    // Park the helm on the hull's spawn attitude. The bundle default is an
+    // identity command, so a hull spawned aimed anywhere else fought its own
+    // PD toward identity while the first writer (player, AI, autopilot) slewed
+    // the command from identity - freshly spawned ships visibly re-aimed
+    // before flying. Desired == current at t=0; every writer evolves the
+    // command from its own previous state, so this seed is the whole opening.
+    // Mirrors `on_autopilot_removed_cool_engines`, which parks the helm the
+    // same way on disengage.
+    if let Ok(transform) = q_root.get(*root) {
+        commands
+            .entity(entity)
+            .insert(ControllerSectionRotationInput(transform.rotation));
+    }
 }
 
 /// Marks the render-mesh child spawned for a controller section, so the render
@@ -999,6 +1014,95 @@ mod tests {
             app.world().get::<SectionRenderMeshTransform>(id).is_some(),
             "the preview controller must carry SectionRenderMeshTransform so the \
              render observer renders it"
+        );
+    }
+
+    /// A hull spawned aimed anywhere must hold that attitude: the target
+    /// observer parks the helm on the spawn rotation, so desired == current at
+    /// t=0 and the PD never issues a correction torque nothing asked for.
+    /// Regression: the identity-command default made freshly spawned AI ships
+    /// swing toward identity before flying their first leg.
+    #[test]
+    fn a_spawned_hull_holds_its_spawn_attitude() {
+        use std::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut app = App::new();
+        // NOTE: AssetPlugin + MeshPlugin are required even for primitive
+        // colliders - avian's collider cache reads `AssetEvent<Mesh>`.
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            bevy::asset::AssetPlugin::default(),
+            bevy::mesh::MeshPlugin,
+        ));
+        app.add_plugins(PhysicsPlugins::default());
+        app.add_plugins((
+            crate::physics::prelude::PDControllerPlugin,
+            ControllerSectionPlugin::default(),
+        ));
+        app.insert_resource(Gravity(Vec3::ZERO));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            1.0 / 60.0,
+        )));
+        app.finish();
+
+        // An arbitrary off-identity spawn attitude, like an arena slot aimed
+        // at its first patrol leg.
+        let spawn_rotation = Quat::from_axis_angle(Vec3::new(1.0, 2.0, -1.0).normalize(), 1.3);
+        let hull = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::from_rotation(spawn_rotation)))
+            .id();
+        for z in [-1.0, 0.0, 1.0] {
+            app.world_mut().spawn((
+                ChildOf(hull),
+                Transform::from_xyz(0.0, 0.0, z),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+            ));
+        }
+        let controller = app
+            .world_mut()
+            .spawn((
+                ChildOf(hull),
+                Transform::default(),
+                controller_section(ControllerSectionConfig {
+                    frequency: 4.0,
+                    damping_ratio: 4.0,
+                    max_torque: 40.0,
+                    ..Default::default()
+                }),
+            ))
+            .id();
+
+        // First updated frame: the helm command must already equal the spawn
+        // attitude - no synthetic identity command anywhere in the pipeline.
+        app.update();
+        let command = **app
+            .world()
+            .get::<ControllerSectionRotationInput>(controller)
+            .unwrap();
+        assert!(
+            command.angle_between(spawn_rotation) < 1e-5,
+            "the helm must park on the spawn attitude, got {command:?} vs {spawn_rotation:?}"
+        );
+
+        // With nothing writing the command, the hull sits still: no swing.
+        for _ in 0..120 {
+            app.update();
+        }
+        let rotation = app.world().get::<Rotation>(hull).unwrap().0;
+        let spin = app.world().get::<AngularVelocity>(hull).unwrap().length();
+        assert!(
+            rotation.angle_between(spawn_rotation) < 1e-2,
+            "an unattended hull must hold its spawn attitude, drifted {} rad",
+            rotation.angle_between(spawn_rotation)
+        );
+        assert!(
+            spin < 1e-2,
+            "an unattended hull must not pick up spin, at {spin} rad/s"
         );
     }
 
