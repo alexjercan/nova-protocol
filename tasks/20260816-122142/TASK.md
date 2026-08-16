@@ -1,6 +1,6 @@
 # Stop leaking webmods into the main codebase
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 64
 - TAGS: v0.11.0, modding, testing, tooling
 

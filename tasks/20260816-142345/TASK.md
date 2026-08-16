@@ -1,8 +1,8 @@
 # A crowded cell refuses cladding it could carry
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 63
-- TAGS: v0.11.0,ship,render,bug,skin
+- TAGS: v0.11.0, ship, render, bug, skin
 
 ## The bug
 
