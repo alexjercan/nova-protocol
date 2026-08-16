@@ -37,7 +37,7 @@ mod sfx;
 /// defined here while the cues themselves fire from `nova_os_ui`.
 pub mod prelude {
     pub use super::{
-        sounds_loaded, NovaAudioPlugin, PlaySfx, SfxCommandsExt, SfxListenerMarker,
+        sounds_loaded, NovaAudioPlugin, PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxListenerMarker,
         SfxMasterVolume, SfxPlugin, SoundBank, UiSfx, MENU_SELECT_VOLUME, NOVA_OS_BACK_VOLUME,
         NOVA_OS_BED_VOLUME, NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME,
         NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME, NOVA_OS_POWER_VOLUME,
@@ -53,7 +53,7 @@ pub use self::{
         SFX_NEAR_DISTANCE,
     },
     registry::{sounds_loaded, SoundBank},
-    sfx::{PlaySfx, SfxCommandsExt, SfxMasterVolume, SfxPlugin},
+    sfx::{PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxMasterVolume, SfxPlugin},
 };
 
 /// Keys for the game's UI/interface sound effects - engine chrome, like

@@ -255,6 +255,9 @@ tagged **(breaking)**.
 - A torpedo blast no longer survives Retry and destroys the reloaded scenario's
   rocks: a scenario now owns every transient it spawns, ordnance and cosmetics
   included.
+- A sound effect no longer plays into the next scenario: the SFX one-shot's
+  audio entity is scenario-scoped, so Retry and scenario switches silence it
+  with the teardown.
 - A neutralized hull stops shooting down torpedoes. Point defense was the one
   AI behaviour that never read the stand-down, so a wreck with nobody aboard
   kept working its mounts.

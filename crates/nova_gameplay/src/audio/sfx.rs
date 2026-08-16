@@ -72,6 +72,17 @@ impl PlaySfx {
     }
 }
 
+/// Marks the audio entity behind one [`PlaySfx`] one-shot.
+///
+/// Exists for owners OUTSIDE this crate: the entity's own despawn rides its
+/// audio sink (`PlaybackSettings::DESPAWN`), which plays on the wall clock and
+/// is never created without an output device, so nothing else can recognize a
+/// clip that outlived whoever asked for it. nova_scenario scopes on this
+/// marker so a one-shot spawned by a live scenario dies with the teardown
+/// instead of playing into the next scenario.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct SfxAudioMarker;
+
 /// Master linear volume applied to every sound effect (default 1.0).
 ///
 /// Set it to scale all SFX at once (a volume slider), or to 0.0 to mute.
@@ -113,6 +124,7 @@ impl Plugin for SfxPlugin {
 
         app.init_resource::<SfxMasterVolume>();
         app.register_type::<SfxMasterVolume>();
+        app.register_type::<SfxAudioMarker>();
         app.add_observer(on_play_sfx);
     }
 }
@@ -128,6 +140,7 @@ fn on_play_sfx(event: On<PlaySfx>, mut commands: Commands, master: Res<SfxMaster
 
     commands.spawn((
         Name::new("Sfx"),
+        SfxAudioMarker,
         AudioPlayer(event.handle.clone()),
         PlaybackSettings::DESPAWN
             .with_volume(Volume::Linear(volume))

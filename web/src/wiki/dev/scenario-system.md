@@ -43,10 +43,12 @@ event handlers; each pairs an event with filters (all must pass) and actions
   HUD hint emphasis.
 
 Cleanup contract: every entity spawned while a scenario is live must (1) carry
-`ScenarioScopedMarker` (all scenario objects do), (2) carry `TempEntity` -
-`register_scenario_scoping` tags every transient with `ScenarioScopedMarker` the
-moment it declares a lifetime, so projectiles, blasts, debris and blast
-cosmetics all die with their scenario, (3) be a child of a scoped entity, or
+`ScenarioScopedMarker` (all scenario objects do), (2) carry a lifetime
+component - `register_scenario_scoping` tags every transient with
+`ScenarioScopedMarker` the moment it declares one (`TempEntity` for countdown
+transients, `SfxAudioMarker` for SFX one-shots), so projectiles, blasts,
+debris, blast cosmetics and still-playing sounds all die with their scenario,
+(3) be a child of a scoped entity, or
 (4) be torn down by a `Remove` observer (the HUDs on `PlayerSpaceshipMarker`).
 Anything else leaks.
 

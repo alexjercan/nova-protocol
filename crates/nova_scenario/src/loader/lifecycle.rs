@@ -248,10 +248,11 @@ pub(super) fn on_load_scenario(
 /// Register what a live scenario CLAIMS: a TRANSIENT belongs to the scenario
 /// that spawned it, so teardown takes it.
 ///
-/// [`TempEntity`] is the whole rule. It is what every transient the game spawns
-/// already rides - torpedoes and their detonation blasts, turret rounds, debris,
-/// the blast cosmetics - and it is precisely the set that has no other owner: a
-/// projectile is parented to nothing, so nothing else can delete it. Scoping on
+/// [`TempEntity`] is the rule for timed transients. It is what every countdown
+/// transient the game spawns already rides - torpedoes and their detonation
+/// blasts, turret rounds, debris, the blast cosmetics - and it is precisely
+/// the set that has no other owner: a projectile is parented to nothing, so
+/// nothing else can delete it. Scoping on
 /// the LIFETIME rather than on a list of markers is what makes the leak class
 /// impossible instead of one-off closed. The list it replaced named three
 /// projectile/debris markers and missed the torpedo blast, which then outlived a
@@ -259,10 +260,18 @@ pub(super) fn on_load_scenario(
 /// a leaked lifetime is not even bounded by its own timer, because the outcome
 /// overlay pauses the clock that would have expired it.
 ///
+/// [`SfxAudioMarker`] is the same rule for the second lifetime class: an audio
+/// one-shot's despawn rides its audio sink (`PlaybackSettings::DESPAWN`),
+/// which plays on the WALL clock - no pause can pin it, but no teardown could
+/// reach it either, so a clip still sounding when the scenario died kept
+/// playing into the next one (audible on Retry and scenario switches). Same
+/// leak, different lifetime carrier.
+///
 /// Factored out so the tests exercise the production wiring, same as
 /// [`configure_scenario_gating`].
 pub(crate) fn register_scenario_scoping(app: &mut App) {
     app.add_observer(on_add_entity_with::<TempEntity>);
+    app.add_observer(on_add_entity_with::<SfxAudioMarker>);
 }
 
 pub(super) fn on_add_entity_with<T: Component>(
@@ -715,6 +724,82 @@ mod tests {
             app.world().get_entity(blast).is_err(),
             "the teardown must take the detonation blast with it - a scenario \
              must not leave a live damage volume in the world"
+        );
+    }
+
+    /// The audio flavour of the blast leak: an SFX one-shot's only self-owner
+    /// is its audio sink (`PlaybackSettings::DESPAWN`), which plays on the
+    /// wall clock and is never created headless, so a clip still sounding at
+    /// teardown kept playing into the next scenario (audible on Retry). The
+    /// rule this pins: the one-shot a live scenario spawns is a scenario
+    /// transient, so teardown takes it. The control pins the boundary: a
+    /// one-shot fired with NO scenario live belongs to the menu and is not
+    /// the scenario's to take.
+    #[test]
+    fn an_sfx_one_shot_cannot_play_into_the_next_scenario() {
+        use bevy::audio::AudioSource;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.init_asset::<AudioSource>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<GameObjectives>();
+        // The production spawner and the production scoping wiring.
+        app.add_plugins(SfxPlugin);
+        app.add_observer(on_load_scenario);
+        register_scenario_scoping(&mut app);
+        // The first manual-Time frame runs at dt 0; warm up before asserting.
+        app.update();
+
+        let handle = app
+            .world_mut()
+            .resource_mut::<Assets<AudioSource>>()
+            .reserve_handle();
+
+        // Menu control: fired before any scenario is live.
+        app.world_mut().trigger(PlaySfx::new(handle.clone()));
+        app.update();
+        let menu_sfx = app
+            .world_mut()
+            .query_filtered::<Entity, With<SfxAudioMarker>>()
+            .single(app.world())
+            .expect("delivery guard: the plugin spawned the menu one-shot");
+
+        app.world_mut()
+            .trigger(LoadScenario(scenario_with("sfx_scope", vec![])));
+        app.update();
+        assert!(
+            app.world().get_entity(menu_sfx).is_ok(),
+            "a menu one-shot is not the scenario's to take"
+        );
+
+        // Fired DURING the scenario. Headless there is no audio device, so no
+        // sink ever despawns it: the teardown is its only possible owner.
+        app.world_mut().trigger(PlaySfx::new(handle));
+        app.update();
+        let scenario_sfx = app
+            .world_mut()
+            .query_filtered::<Entity, With<SfxAudioMarker>>()
+            .iter(app.world())
+            .find(|entity| *entity != menu_sfx)
+            .expect("delivery guard: the plugin spawned the scenario one-shot");
+
+        // Retry: the same scenario loads again, tearing the old one down.
+        app.world_mut()
+            .trigger(LoadScenario(scenario_with("sfx_scope", vec![])));
+        app.update();
+
+        assert!(
+            app.world().get_entity(scenario_sfx).is_err(),
+            "the teardown must take the scenario's SFX one-shot - a clip must \
+             not keep playing into the next scenario"
+        );
+        assert!(
+            app.world().get_entity(menu_sfx).is_ok(),
+            "scoping claims only what a live scenario spawns"
         );
     }
 
