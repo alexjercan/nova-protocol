@@ -147,12 +147,13 @@ const SECTION_ROSTER: &[(&str, &[&str])] = &[
             "gate damaged",
             "launch chain holds in the crossing scene",
             "torpedo leads the crosser",
+            "the scene switch took the ordnance",
         ],
     ),
 ];
 
 /// How many invariants the five `sections/` ranges assert between them.
-const SECTION_INVARIANTS: usize = 27;
+const SECTION_INVARIANTS: usize = 28;
 
 /// Every `sections/` range names EXACTLY the invariants on its roster.
 ///
