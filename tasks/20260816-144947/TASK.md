@@ -1,8 +1,8 @@
 # A turret that cannot point at its target should not fire
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 61
-- TAGS: v0.11.0,combat,weapons,bug
+- TAGS: v0.11.0, combat, weapons, bug
 
 ## The complaint
 
