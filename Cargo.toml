@@ -194,6 +194,13 @@ path = "examples/screenshots/wfc_arena.rs"
 name = "shape_bench"
 path = "examples/screenshots/shape_bench.rs"
 
+# A named row of thruster looks - the shipped drive, the proposed shell size
+# family, and the CC0 candidate models under art/part-candidates - the
+# showcase half of the thruster-shell spike (task 20260816-200255).
+[[example]]
+name = "thruster_gallery"
+path = "examples/screenshots/thruster_gallery.rs"
+
 # The compare_* producers frame art candidates for human judgment (task
 # 20260812-100256) - the category's promise verbatim, with the owner's eyes on
 # the frames instead of the website's. Interactive when hand-run (number keys

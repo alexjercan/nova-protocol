@@ -293,6 +293,9 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- New `thruster_gallery` example: the shipped drive, the proposed thruster
+  shell size family and the CC0 candidate models in one named row, in the
+  fleet capture idiom.
 - New `wfc_arena` example: two collapsed hulls drafted from the seed stream
   fight under the campaign AI, clad, over a dressed arena; a scoreboard logs
   shots and damage both ways. `R` re-rolls.
