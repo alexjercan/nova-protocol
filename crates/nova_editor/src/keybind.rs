@@ -169,30 +169,22 @@ pub(crate) fn hide_section_keybind_labels(
     }
 }
 
-/// Why `binding` cannot be given to `section`, or `None` when it is free.
-/// Checks the same rule the content lint's input-overlap check applies to
-/// authored ships ([`flight_rig_reserved_sources`]) plus the editor's own
-/// sections - an editor-built ship is assembled at runtime and never linted, so
-/// this is the only place that catches it.
-fn binding_conflict(
-    config: &PlayerSpaceshipConfig,
-    section: Entity,
-    binding: &Binding,
-) -> Option<String> {
+/// Why `binding` cannot be given to a section, or `None` when it is free.
+/// Applies the one rule the content lint's input-overlap check applies to
+/// authored ships ([`flight_rig_reserved_sources`]) - an editor-built ship is
+/// assembled at runtime and never linted, so this is the only place that
+/// catches it.
+///
+/// Two SECTIONS may share a source. Every section action runs with
+/// `consume_input: false`, so both fire, and firing two turrets (or two
+/// thrusters) on one trigger is a loadout choice. The lint does not compare
+/// sections to each other either, so an editor export stays authorable.
+fn binding_conflict(binding: &Binding) -> Option<String> {
     let source = binding_source(binding)?;
-    if let Some((_, verb)) = flight_rig_reserved_sources()
+    flight_rig_reserved_sources()
         .into_iter()
         .find(|(reserved, _)| *reserved == source)
-    {
-        return Some(format!("the flight rig's {verb}"));
-    }
-    config
-        .inputs
-        .iter()
-        .find(|(other, binds)| {
-            **other != section && binds.iter().any(|b| binding_source(b) == Some(source))
-        })
-        .map(|(other, _)| format!("section {other}"))
+        .map(|(_, verb)| format!("the flight rig's {verb}"))
 }
 
 /// Consume the next key or mouse-button press to rebind the armed section (see
@@ -247,7 +239,7 @@ pub(crate) fn apply_section_rebind(
 
     // A conflicting key stays armed rather than being accepted: the chip keeps
     // prompting, so the player just presses another key.
-    if let Some(taken_by) = binding_conflict(&player_config, section, &new_binding) {
+    if let Some(taken_by) = binding_conflict(&new_binding) {
         warn!("editor: {new_binding:?} is already driven by {taken_by} - pick another key");
         return;
     }
@@ -446,9 +438,11 @@ mod tests {
         );
     }
 
-    /// F32: two sections must not end up on the same key either.
+    /// Two sections may hold one source - two turrets on one trigger, two
+    /// thrusters together. Section actions run with `consume_input: false`, so
+    /// both fire, and the content lint does not compare sections either.
     #[test]
-    fn rebind_refuses_a_key_another_section_already_holds() {
+    fn rebind_lets_two_sections_share_one_key() {
         let mut world = World::new();
         world.init_resource::<EditorRebind>();
         let taken = world
@@ -474,29 +468,6 @@ mod tests {
 
         world.run_system_once(apply_section_rebind).unwrap();
 
-        assert_eq!(
-            &world
-                .entity(section)
-                .get::<SpaceshipTurretInputBinding>()
-                .unwrap()
-                .0,
-            &vec![Binding::from(MouseButton::Left)],
-            "the taken key is refused"
-        );
-        assert_eq!(
-            world.resource::<EditorRebind>().target,
-            Some(section),
-            "still armed"
-        );
-
-        // Delivery guard: a free key on the same setup binds normally.
-        world
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .clear_just_pressed(KeyCode::KeyR);
-        world
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::KeyT);
-        world.run_system_once(apply_section_rebind).unwrap();
         assert!(
             world
                 .entity(section)
@@ -504,9 +475,36 @@ mod tests {
                 .unwrap()
                 .0
                 .iter()
-                .any(|b| matches!(b, Binding::Keyboard { key, .. } if *key == KeyCode::KeyT)),
-            "a free key still binds"
+                .any(|b| matches!(b, Binding::Keyboard { key, .. } if *key == KeyCode::KeyR)),
+            "the second section takes the shared key"
         );
+        assert_eq!(
+            world.resource::<EditorRebind>().target,
+            None,
+            "the rebind is consumed rather than left armed"
+        );
+        // The first section keeps it: sharing adds a holder, it does not move
+        // the key off the section that had it.
+        assert_eq!(
+            &world
+                .entity(taken)
+                .get::<SpaceshipThrusterInputBinding>()
+                .unwrap()
+                .0,
+            &vec![Binding::from(KeyCode::KeyR)],
+            "the first section keeps the key"
+        );
+        // Both holders reach the scenario: `input_mapping` is keyed by section,
+        // so one source can appear twice.
+        let config = world.resource::<PlayerSpaceshipConfig>();
+        let holders = [taken, section].map(|e| {
+            config.inputs.get(&e).is_some_and(|binds| {
+                binds
+                    .iter()
+                    .any(|b| matches!(b, Binding::Keyboard { key, .. } if *key == KeyCode::KeyR))
+            })
+        });
+        assert_eq!(holders, [true, true], "both sections hand off the key");
     }
 
     #[test]

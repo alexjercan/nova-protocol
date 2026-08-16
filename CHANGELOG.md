@@ -245,6 +245,8 @@ tagged **(breaking)**.
 - A gallery rebuild no longer flashes its parts across the middle of the
   screen: the preview bundle's `Visibility` overwrote the tile's own hidden
   one.
+- Two editor sections can share one keybind - two turrets on one trigger, two
+  thrusters together. Only a key the flight rig already drives is refused.
 
 - A mid-menu backdrop reload no longer crashes the UI layout: the menu
   interface renders through its OWN camera, so a camera swap cannot yank its
