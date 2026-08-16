@@ -94,3 +94,8 @@ disproved - the corner-softening rule, and the top:wall panel-line claim.
 ## Depends on
 
 Skin debug dump.
+
+## Lane
+
+Not started. Queued behind the skin debug dump (task 20260816-112405) and the
+shape research (task 20260816-112446).

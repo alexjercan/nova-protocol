@@ -41,3 +41,7 @@ input half. The dump itself can be built against a live ship first.
 - a dump of a real ship, read and attached
 - edge-case tests that would have caught defects found by render this sprint
 - shape and placement statistics emitted, because the shell-shape task needs them
+
+## Lane
+
+Not started. Queued behind `ship-content` (task 20260816-112330).

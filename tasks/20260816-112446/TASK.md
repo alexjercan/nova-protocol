@@ -49,3 +49,7 @@ scoped the first round. Record licence positions for anything reusable.
 
 Findings that let the shell-shape task START from a technique rather than invent
 one, with the counter-evidence recorded too.
+
+## Lane
+
+sprout `shape-research`.
