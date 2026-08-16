@@ -1,8 +1,8 @@
 # Skin debug dump and wfc edge-case tests
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 68
-- TAGS: v0.11.0,ship,render,debug,harness
+- TAGS: v0.11.0, ship, render, debug, harness
 
 ## Goal
 

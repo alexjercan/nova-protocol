@@ -1,8 +1,8 @@
 # Never block the main thread on a scenario transition
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 72
-- TAGS: v0.11.0,performance,scenario,ui
+- TAGS: v0.11.0, performance, scenario, ui
 
 ## Goal
 
