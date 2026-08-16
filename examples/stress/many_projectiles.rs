@@ -19,11 +19,11 @@
 //!   survive (task 20260804-094006, DECISION.md D3 - an in-example assertion,
 //!   not a probe check, because the subject is ECS entity counts).
 //!
-//! The drain is asserted BEFORE the teardown, on purpose: rounds are not
-//! scenario-scoped entities. They carry `TempEntity(projectile_lifetime)` and
-//! outlive an `UnloadScenario` until that expires, so "the volley cleared"
-//! is a claim about the projectile lifecycle itself, which unloading the
-//! scene would hide rather than prove.
+//! The drain is asserted BEFORE the teardown, on purpose: a round retires on
+//! its own `TempEntity(projectile_lifetime)`, so "the volley cleared" is a claim
+//! about the projectile lifecycle itself. The teardown ALSO takes every round -
+//! that lifetime is what scopes a transient to its scenario - so asserting only
+//! after the unload would hide a stuck round rather than prove it drained.
 //!
 //! The script is enrolled in capture looping, so probe measures spawn ->
 //! saturate -> drain -> teardown ACTIVITY rather than an idle tail.

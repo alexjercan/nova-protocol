@@ -25,9 +25,8 @@ mod trackers;
 use clock::register_clock_and_pulse;
 pub use lifecycle::ScenarioCameraMarker;
 use lifecycle::{
-    configure_scenario_gating, on_add_entity_with, on_load_scenario, on_next_input,
-    on_player_spaceship_destroyed, on_player_spaceship_spawned, unload_scenario,
-    ScenarioInputMarker,
+    configure_scenario_gating, on_load_scenario, on_next_input, on_player_spaceship_destroyed,
+    on_player_spaceship_spawned, register_scenario_scoping, unload_scenario, ScenarioInputMarker,
 };
 use trackers::{track_orbit_transitions, track_player_locks, LockEcho, OrbitEcho};
 
@@ -364,9 +363,7 @@ impl Plugin for ScenarioLoaderPlugin {
         app.init_resource::<ScenarioStartFailure>();
         app.add_observer(on_load_scenario);
 
-        app.add_observer(on_add_entity_with::<MeshFragmentMarker>);
-        app.add_observer(on_add_entity_with::<TurretBulletProjectileMarker>);
-        app.add_observer(on_add_entity_with::<TorpedoProjectileMarker>);
+        register_scenario_scoping(app);
 
         app.add_input_context::<ScenarioInputMarker>();
         app.add_observer(on_next_input);

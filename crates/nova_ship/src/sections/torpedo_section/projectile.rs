@@ -485,6 +485,48 @@ mod tests {
         );
     }
 
+    /// The blast is a TRANSIENT and must SAY so. `TempEntity` is not just its
+    /// self-cleanup: the scenario loader scopes transients on that component, so
+    /// a blast spawned without one belongs to nothing, survives a Retry teardown
+    /// and lands its damage in the NEXT scenario (task 20260816-103226). nova_ship
+    /// cannot see the loader that depends on this, so the contract is pinned at
+    /// the spawn.
+    #[test]
+    fn the_detonation_blast_is_a_transient() {
+        let mut app = App::new();
+        app.add_systems(Update, torpedo_detonate_system);
+
+        let part_of = app.world_mut().spawn_empty().id();
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
+        arming.tick(1.0, Vec3::ZERO);
+
+        app.world_mut().spawn((
+            TorpedoProjectileMarker,
+            Transform::from_translation(Vec3::ZERO),
+            TorpedoTargetPosition(Vec3::ZERO),
+            arming,
+            TorpedoBlast {
+                radius: 30.0,
+                damage: 100.0,
+            },
+            TorpedoSectionPartOf(part_of),
+        ));
+
+        app.update();
+
+        let mut q_blast = app
+            .world_mut()
+            .query_filtered::<&TempEntity, With<NovaBlast>>();
+        let lifetime = q_blast
+            .single(app.world())
+            .expect("the detonation blast carries a TempEntity");
+        assert!(
+            **lifetime > 0.0,
+            "the blast's lifetime must be a positive number of seconds, got {}",
+            **lifetime
+        );
+    }
+
     /// A torpedo that fuzes on the frame its lifetime expires gets two queued
     /// despawns in one flush - the fuze here and the generic `TempEntity` sweep.
     /// With the game's panic-on-command-error fallback, the loser of that race

@@ -38,6 +38,7 @@
 //! NOVA_AUTOPILOT=1 cargo run --example torpedo_section --features debug
 //! # look for: `nova harness: reached Playing`, `range: torpedo fired`,
 //! #           `range: torpedo ... armed`, `guidance: lead angle ...`,
+//! #           `range: the switch took all N transient(s) ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -85,6 +86,7 @@ fn main() -> bevy::app::AppExit {
     // it walks the two scenes and asserts the range's PURPOSE rather than its
     // survival (task 20260712-211352 - reach-Playing alone let a silently dud
     // torpedo pass): a torpedo fired, armed, detonated and damaged a gate, the
+    // scene switch took every transient the first scene left in the air, the
     // guidance LED a fast crosser, and the whole launch chain repeated in the
     // second scene. Under NOVA_SHOT it captures a PNG. The scene is built on
     // `GameAssetsStates::Loaded` (below) so the screenshot's forced Playing
@@ -93,6 +95,7 @@ fn main() -> bevy::app::AppExit {
     {
         app.init_resource::<RangeOutcome>();
         app.init_resource::<HeldInput>();
+        app.init_resource::<TransientsAtSwitch>();
         app.add_observer(
             |_: On<Add, TorpedoProjectileMarker>, mut outcome: ResMut<RangeOutcome>| {
                 outcome.fired = true;
@@ -139,6 +142,14 @@ struct RangeOutcome {
     detonated: bool,
     gate_damaged: bool,
 }
+
+/// Every transient alive at the instant the range switch was ordered - torpedoes
+/// in flight, detonation blasts and their cosmetics, gate debris. Recorded by
+/// [`load_crossing_range`] so [`assert_the_switch_took_the_ordnance`] can check
+/// the teardown against a real list rather than a hopeful query.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct TransientsAtSwitch(Vec<Entity>);
 
 fn custom_plugin(app: &mut App) {
     app.insert_resource(BestApproach(f32::INFINITY));
@@ -872,6 +883,9 @@ fn torpedo_script() -> Script {
             and(player_ship_present(), crosser_present()),
         ))
         .deadline(15.0)
+        .add()
+        .step("assert the switch took the ordnance")
+        .on_enter(assert_the_switch_took_the_ordnance)
         .add();
     fire_round(script, CROSSING_ROUND)
         // Keep the trigger down: the bay keeps launching, and each fresh
@@ -1002,8 +1016,69 @@ fn load_crossing_range(world: &mut World) {
     world
         .resource_mut::<ButtonInput<KeyCode>>()
         .release(KeyCode::Space);
+    // Snapshot what the gate round leaves in the air, for invariant 7 below.
+    let in_the_air: Vec<Entity> = world
+        .try_query_filtered::<Entity, With<TempEntity>>()
+        .map(|mut query| query.iter(world).collect())
+        .unwrap_or_default();
+    world.resource_mut::<TransientsAtSwitch>().0 = in_the_air;
     info!("range: loading the crossing range");
     world.trigger(LoadScenario(config));
+}
+
+/// Invariant 7: a scene switch takes every transient the old scene left in the
+/// air.
+///
+/// Ordnance and its cosmetics are parented to nothing, so scenario scoping is
+/// the ONLY thing that can delete them. A torpedo blast that outlives the
+/// teardown is a live damage volume in the next scene, and it applies to
+/// whatever spawns inside it - the reported Retry bug, where the blast that
+/// killed the player destroyed the RELOADED scenario's asteroid (task
+/// 20260816-103226). Checked here because this is the only harness that both
+/// detonates warheads and switches scenes.
+#[cfg(feature = "debug")]
+fn assert_the_switch_took_the_ordnance(world: &mut World) {
+    let at_switch = std::mem::take(&mut world.resource_mut::<TransientsAtSwitch>().0);
+    // Delivery guard: with the trigger held to the last frame there are
+    // torpedoes, blasts and gate debris alive at the switch. An empty list
+    // means the assert below proves nothing.
+    assert!(
+        !at_switch.is_empty(),
+        "range: the gate round left NOTHING in the air at the switch - the \
+         teardown check below would pass vacuously"
+    );
+    let leaked: Vec<Entity> = at_switch
+        .iter()
+        .copied()
+        .filter(|entity| world.get_entity(*entity).is_ok())
+        .collect();
+    let names: Vec<String> = leaked
+        .iter()
+        .map(|entity| {
+            world
+                .get::<Name>(*entity)
+                .map(|name| name.to_string())
+                .unwrap_or_else(|| format!("{entity:?}"))
+        })
+        .collect();
+    assert!(
+        leaked.is_empty(),
+        "range: {} of {} transient(s) survived the range switch ({}) - the old \
+         scene's ordnance is loose in the new one",
+        leaked.len(),
+        at_switch.len(),
+        names.join(", ")
+    );
+    info!(
+        "range: the switch took all {} transient(s) the gate round left in the air",
+        at_switch.len()
+    );
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    nova_probe::probe_marker(
+        world,
+        "outcome: the scene switch took the ordnance",
+        serde_json::json!({ "t": elapsed, "transients": at_switch.len() }),
+    );
 }
 
 /// The player ship's weapons safety has gone hot.

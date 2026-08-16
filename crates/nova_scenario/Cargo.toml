@@ -26,6 +26,10 @@ bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
 ron = { version = "0.12" }
 criterion = { version = "0.7", features = ["html_reports"] }
 serde_json = { version = "1" }
+# The headless avian app the teardown tests build on. Blast damage is
+# physics-driven, so proving that a torn-down scenario's ordnance cannot reach
+# the next one needs a real collision pipeline, not a hand-fired event.
+nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
 # Self dev-dep enabling `serde` so `cargo test -p nova_scenario` compiles
 # standalone. The loader RON round-trip tests use serde derives that are gated
 # behind the `serde` feature; a solo `-p` run has no sibling to unify the

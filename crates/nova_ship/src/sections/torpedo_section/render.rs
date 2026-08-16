@@ -174,14 +174,17 @@ pub(super) fn insert_torpedo_controller_render(
 /// `radius` made visible - the sphere grows from a point to exactly the blast
 /// radius while fading out, so the player sees how far the detonation reached.
 /// Being a mesh (no compute), it also stays visible if particles are ever off.
+///
+/// Its lifetime is a plain [`TempEntity`], not a hand-rolled despawn, because
+/// that is the component the scenario loader scopes transients on - a visual
+/// that timed itself out privately would outlive the scenario that spawned it
+/// (task 20260816-103226).
 #[derive(Component, Debug, Clone, Reflect)]
 pub(super) struct BlastRadiusVisual {
     /// Full blast radius the sphere expands to reach, in world units.
     radius: f32,
     /// Seconds elapsed since the detonation.
     elapsed: f32,
-    /// Total lifetime of the visual, in seconds.
-    duration: f32,
     /// This visual's own material, faded each frame and freed on despawn.
     material: Handle<StandardMaterial>,
 }
@@ -228,18 +231,37 @@ pub(super) fn insert_blast_radius_visual(
         BlastRadiusVisual {
             radius: config.radius,
             elapsed: 0.0,
-            duration: 0.4,
             material: material.clone(),
         },
         Mesh3d(mesh),
         MeshMaterial3d(material),
+        TempEntity(BLAST_VISUAL_DURATION),
         // Start at a point; `animate_blast_radius_visual` grows it to `radius`.
         Transform::from_translation(blast_transform.translation).with_scale(Vec3::ZERO),
     ));
 }
 
+/// Free a blast visual's one-off material when the visual goes, so the assets do
+/// not accumulate over a long session. An observer rather than a branch in the
+/// animator: the despawn is `TempEntity`'s, and it can also be the scenario
+/// teardown's.
+pub(super) fn free_blast_radius_visual_material(
+    remove: On<Remove, BlastRadiusVisual>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    q_visual: Query<&BlastRadiusVisual>,
+) {
+    if let Ok(visual) = q_visual.get(remove.entity) {
+        materials.remove(&visual.material);
+    }
+}
+
 /// Base alpha of the blast shell at the start of its life (before it fades out).
 const BLAST_VISUAL_BASE_ALPHA: f32 = 0.35;
+
+/// How long the expanding shell takes to grow to the full blast radius and fade
+/// out, in seconds. Also its `TempEntity` lifetime - the animation curve and the
+/// despawn are the same clock by construction.
+const BLAST_VISUAL_DURATION: f32 = 0.4;
 
 /// The blast visual's world radius and fade factor at normalized time `t` in `[0, 1]`.
 ///
@@ -252,23 +274,16 @@ fn blast_visual_step(radius: f32, t: f32) -> (f32, f32) {
     (radius * eased, 1.0 - t)
 }
 
-/// Expand each blast visual out to its radius while fading it, then despawn it (and
-/// free its one-off material so the assets do not accumulate over a long session).
+/// Expand each blast visual out to its radius while fading it. The despawn is
+/// [`TempEntity`]'s, on the same [`BLAST_VISUAL_DURATION`] this curve runs on.
 pub(super) fn animate_blast_radius_visual(
-    mut commands: Commands,
     time: Res<Time>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut q_visual: Query<(Entity, &mut Transform, &mut BlastRadiusVisual)>,
+    mut q_visual: Query<(&mut Transform, &mut BlastRadiusVisual)>,
 ) {
-    for (entity, mut transform, mut visual) in &mut q_visual {
+    for (mut transform, mut visual) in &mut q_visual {
         visual.elapsed += time.delta_secs();
-        let t = visual.elapsed / visual.duration;
-
-        if t >= 1.0 {
-            materials.remove(&visual.material);
-            commands.entity(entity).despawn();
-            continue;
-        }
+        let t = visual.elapsed / BLAST_VISUAL_DURATION;
 
         let (scale, fade) = blast_visual_step(visual.radius, t);
         transform.scale = Vec3::splat(scale);

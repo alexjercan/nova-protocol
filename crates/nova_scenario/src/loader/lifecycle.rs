@@ -245,6 +245,26 @@ pub(super) fn on_load_scenario(
     commands.fire::<OnStartEvent>(OnStartEventInfo);
 }
 
+/// Register what a live scenario CLAIMS: a TRANSIENT belongs to the scenario
+/// that spawned it, so teardown takes it.
+///
+/// [`TempEntity`] is the whole rule. It is what every transient the game spawns
+/// already rides - torpedoes and their detonation blasts, turret rounds, debris,
+/// the blast cosmetics - and it is precisely the set that has no other owner: a
+/// projectile is parented to nothing, so nothing else can delete it. Scoping on
+/// the LIFETIME rather than on a list of markers is what makes the leak class
+/// impossible instead of one-off closed. The list it replaced named three
+/// projectile/debris markers and missed the torpedo blast, which then outlived a
+/// Retry and destroyed the reloaded scenario's asteroid (task 20260816-103226);
+/// a leaked lifetime is not even bounded by its own timer, because the outcome
+/// overlay pauses the clock that would have expired it.
+///
+/// Factored out so the tests exercise the production wiring, same as
+/// [`configure_scenario_gating`].
+pub(crate) fn register_scenario_scoping(app: &mut App) {
+    app.add_observer(on_add_entity_with::<TempEntity>);
+}
+
 pub(super) fn on_add_entity_with<T: Component>(
     add: On<Add, T>,
     mut commands: Commands,
@@ -574,6 +594,127 @@ mod tests {
         assert!(
             app.world().get_entity(scoped).is_err(),
             "the scoped sweep still runs (the teardown grew a param, not a fork)"
+        );
+    }
+
+    /// THE reported bug (task 20260816-103226): a torpedo blast that kills the
+    /// player outlives Retry and applies its damage into the FRESH scenario.
+    ///
+    /// The whole chain runs on production pieces. The torpedo section plugin's
+    /// own fuze spawns the blast - a Static sensor sphere carrying a short
+    /// `TempEntity`. The Defeat overlay then freezes `Time<Virtual>` and
+    /// `Time<Physics>` (`nova_menu`'s `pause_clocks`), so the blast's
+    /// self-cleanup never ticks and its sensor never resolves. Retry re-triggers
+    /// `LoadScenario`, whose teardown despawns the scoped scene. The reloaded
+    /// scenario spawns its asteroid where the player died, the clocks resume,
+    /// and avian raises a fresh `CollisionStart` between the SURVIVING blast and
+    /// the brand-new rock - `on_nova_blast_collision` then destroys it.
+    ///
+    /// The rule this pins: a transient (anything carrying `TempEntity`) belongs
+    /// to the scenario that spawned it, so teardown takes it.
+    #[test]
+    fn a_detonation_blast_cannot_damage_the_next_scenario() {
+        use avian3d::{
+            prelude::{Collider, ColliderDensity, Physics, RigidBody},
+            schedule::PhysicsTime,
+        };
+        use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
+
+        /// Where the torpedo goes off, and where the reloaded scenario puts its
+        /// asteroid: dead centre of the blast, so a leaked volume deals its full
+        /// undiminished damage and the assert cannot pass on falloff.
+        const DETONATION: Vec3 = Vec3::new(0.0, 0.0, -40.0);
+
+        let mut app = unfinished_integrity_physics_app();
+        app.init_asset::<Image>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        // TempEntityPlugin owns the transient countdown; NovaDamagePlugin owns
+        // the blast collision observer. Neither comes with the integrity rig.
+        app.add_plugins((TempEntityPlugin, NovaDamagePlugin));
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<GameObjectives>();
+        // The real gate + the real fuze: the detonate system runs in
+        // SpaceshipSectionSystems, which only ticks while a scenario is live.
+        configure_scenario_gating(&mut app);
+        app.add_plugins(TorpedoSectionPlugin { render: false });
+        app.add_observer(on_load_scenario);
+        register_scenario_scoping(&mut app);
+        app.finish();
+
+        app.world_mut()
+            .trigger(LoadScenario(scenario_with("rust_tally", vec![])));
+        settle(&mut app);
+
+        // An armed torpedo sitting on its target: the production fuze detonates
+        // it this frame and spawns the blast.
+        let firing_ship = app.world_mut().spawn_empty().id();
+        app.world_mut().spawn((
+            TorpedoProjectileMarker,
+            Transform::from_translation(DETONATION),
+            TorpedoTargetPosition(DETONATION),
+            TorpedoArming::new(0.0, 0.0, DETONATION),
+            TorpedoBlast {
+                radius: 30.0,
+                damage: 500.0,
+            },
+            TorpedoSectionPartOf(firing_ship),
+            TempEntity(6.0),
+        ));
+        app.update();
+
+        let mut q_blast = app.world_mut().query_filtered::<Entity, With<NovaBlast>>();
+        let blast = q_blast
+            .single(app.world())
+            .expect("delivery guard: the production fuze spawned exactly one blast");
+
+        // The Defeat overlay freezes the sim, exactly as `pause_clocks` does.
+        // This is what keeps the blast alive across the retry: its `TempEntity`
+        // countdown runs on the virtual clock.
+        app.world_mut().resource_mut::<Time<Virtual>>().pause();
+        app.world_mut().resource_mut::<Time<Physics>>().pause();
+        app.update();
+
+        // Retry: the same scenario loads again, tearing the old one down.
+        app.world_mut()
+            .trigger(LoadScenario(scenario_with("rust_tally", vec![])));
+        app.update();
+
+        // The reloaded scenario spawns its asteroid where the player died.
+        let rock_body = app
+            .world_mut()
+            .spawn((
+                ScenarioScopedMarker,
+                RigidBody::Dynamic,
+                Transform::from_translation(DETONATION),
+            ))
+            .id();
+        let rock = app
+            .world_mut()
+            .spawn((
+                ChildOf(rock_body),
+                Collider::sphere(1.0),
+                ColliderDensity(1.0),
+                Health::new(100.0),
+            ))
+            .id();
+
+        app.world_mut().resource_mut::<Time<Virtual>>().unpause();
+        app.world_mut().resource_mut::<Time<Physics>>().unpause();
+        settle(&mut app);
+
+        // The reported symptom first, the ownership rule behind it second.
+        let left = app.world().get::<Health>(rock).map(|health| health.current);
+        assert_eq!(
+            left,
+            Some(100.0),
+            "the previous scenario's blast damaged the reloaded scenario's \
+             asteroid (health left: {left:?})"
+        );
+        assert!(
+            app.world().get_entity(blast).is_err(),
+            "the teardown must take the detonation blast with it - a scenario \
+             must not leave a live damage volume in the world"
         );
     }
 

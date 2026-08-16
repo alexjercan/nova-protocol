@@ -660,6 +660,7 @@ impl Plugin for TorpedoSectionPlugin {
             // Expanding-sphere blast-radius visual: a plain mesh + material, so unlike
             // the hanabi particle burst below it also renders on wasm.
             app.add_observer(insert_blast_radius_visual);
+            app.add_observer(free_blast_radius_visual_material);
             app.add_systems(Update, animate_blast_radius_visual);
 
             // Hanabi detonation burst: runs on wasm too now that the web build

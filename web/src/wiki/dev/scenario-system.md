@@ -43,11 +43,19 @@ event handlers; each pairs an event with filters (all must pass) and actions
   HUD hint emphasis.
 
 Cleanup contract: every entity spawned while a scenario is live must (1) carry
-`ScenarioScopedMarker` (all scenario objects do), (2) carry a marker
-registered with `on_add_entity_with` (`MeshFragmentMarker`,
-`TurretBulletProjectileMarker`, `TorpedoProjectileMarker`), (3) be a child of
-a scoped entity, (4) be a self-expiring `TempEntity`, or (5) be torn down by a
-`Remove` observer (the HUDs on `PlayerSpaceshipMarker`). Anything else leaks.
+`ScenarioScopedMarker` (all scenario objects do), (2) carry `TempEntity` -
+`register_scenario_scoping` tags every transient with `ScenarioScopedMarker` the
+moment it declares a lifetime, so projectiles, blasts, debris and blast
+cosmetics all die with their scenario, (3) be a child of a scoped entity, or
+(4) be torn down by a `Remove` observer (the HUDs on `PlayerSpaceshipMarker`).
+Anything else leaks.
+
+A `TempEntity` does NOT clean itself up reliably: its countdown runs on
+`Time<Virtual>`, which the pause menu and the outcome overlay STOP. A torpedo
+blast that fuzed on the frame the player died lived through the whole Defeat
+overlay, survived Retry, and destroyed the reloaded scenario's asteroid (task
+20260816-103226). Scoping ON the lifetime component, rather than trusting the
+lifetime to run out, is what closes that.
 
 ## Events (`EventConfig` -> `nova_events`)
 
