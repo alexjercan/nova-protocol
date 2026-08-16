@@ -37,7 +37,7 @@
 //! carries one hull each:
 //!
 //! ```text
-//! --ship TEAM[:STYLE[:SEED]]
+//! --ship TEAM[:STYLE[:SEED]][:player]
 //! ```
 //!
 //! - `TEAM` is a callsign, `amber` or `onyx` ([`TEAMS`]), and is the only
@@ -48,9 +48,24 @@
 //! - `SEED` pins that hull's collapse instead of drafting one off the stream.
 //!   A pin is an instruction: the hull spawns as rolled even under the
 //!   armament floor (the log says so), and `R` re-rolls the rest around it.
+//! - a trailing `player` field puts YOU in that hull (at most one slot; the
+//!   token wins over a style of the same name, which the content does not
+//!   have).
 //!
 //! With no `--ship` at all the roster is one hull per team, drafted off the
 //! stream - the two-ship duel this example started as.
+//!
+//! A `:player` slot spawns under the game's REAL player controller - the
+//! campaign's flight rig and HUD, every gun on the left mouse (the campaign's
+//! turret binding), every tube on `F` - and the example's own cameras STAND
+//! DOWN: no `Q`/`E`/`1-4` vantages, no idle orbit, the chase-camera authority
+//! owns the view, and the readout drops the camera help to match. The
+//! enemies still fly the cold approach ([`ENGAGE_RANGE`]); the player fires
+//! whenever they like. REFUSED under `NOVA_AUTOPILOT`: the driven walk
+//! proves an AI-vs-AI fight, and a hull waiting on human input would stall
+//! the fight predicate into its deadline - a run that asks for both is a
+//! contradiction and fails loudly rather than quietly drafting an AI where
+//! a player was requested.
 //!
 //! Hand-run (`R` re-rolls the roster on fresh seeds, `L` cycles the look, WASD
 //! and the mouse take the camera free):
@@ -60,6 +75,7 @@
 //! cargo run --example wfc_arena --features debug -- \
 //!     --ship amber --ship amber:salvage --ship onyx --ship onyx --ship onyx
 //! cargo run --example wfc_arena --features debug -- --ship amber::7 --ship onyx
+//! cargo run --example wfc_arena --features debug -- --ship amber:player --ship onyx
 //! ```
 //!
 //! The fight is MEASURED, not presumed, and measured PER TEAM rather than per
@@ -76,8 +92,23 @@
 //!
 //! The arena reads as a place, not a void: the standard three-point rig, a
 //! ring of rocks below the fight plane for depth parallax (the editor
-//! sandbox's dressing idiom), a sparser outer ring, and one distant pinned
-//! planetoid as a landmark.
+//! sandbox's dressing idiom), a sparser outer ring, one distant pinned
+//! planetoid as a landmark - and JUNK: many small wreckage fragments (a few
+//! catalog sections each, some clad, some keeping a torn-off drive nozzle),
+//! scattered into loose blobs on the flanks with debris rocks around them
+//! ([`DERELICT_BLOBS`]). No controller, no allegiance, so the AI never
+//! targets one; pinned static where the seed drops them ([`freeze_junk`] -
+//! scenery holds its pose, and a controller-less hull's massless body must
+//! never touch the physics the fight reads); they re-roll with `R` off the
+//! same stream head the fight does.
+//!
+//! The OPENING is an approach, not an ambush. The lines spawn ~305 u apart -
+//! well past the gun gate - and fly in COLD: an arrival grace holds both teams on
+//! their center-crossing patrols off the spawn, and the weapons-free gate
+//! ([`ENGAGE_RANGE`]) keeps them passive until the closing lines come inside
+//! it. Both knobs exist because from 280 u HOT, one torpedo alpha strike
+//! decided everything before a gun ever bore; cold until close is what makes
+//! the long spawn watchable AND keeps guns in the fight.
 //!
 //! The camera keys pose the view, and every pose is computed off the LIVE
 //! fight each frame - midpoint, spread and per-ship transforms - so a vantage
@@ -85,12 +116,32 @@
 //!
 //! - `Q` the auto-framing whole-fight view (the default and the capture frame),
 //! - `E` the tactical overview, high and wide enough to hold the engagement,
-//! - `1`/`2`/`3`/`4` follow one roster slot each, over the shoulder and along
-//!   the hull's own heading. A slot the roster never filled, or one whose ship
-//!   is dead, falls back to the frame pose rather than freezing.
+//! - `1`/`2`/`3`/`4` follow one roster slot each, over the shoulder: the
+//!   camera stands behind the hull ON THE THREAT AXIS and looks across it at
+//!   the mean position of the living enemy team, so the view holds both the
+//!   subject and what it is fighting. The aim point is smoothed - a kill moves
+//!   the mean, and a snap there would be jarring. With no living enemy the
+//!   follow falls back to chasing the hull's own heading; a slot the roster
+//!   never filled, or one whose ship is dead, falls back to the frame pose
+//!   rather than freezing.
 //!
 //! `Q` and `E` sit clear of the free-fly rig, which binds WASD, the mouse and
 //! Space/Shift and nothing else, so a mode key never doubles as camera input.
+//!
+//! Every combatant wears a TEAM CHEVRON: the HUD allegiance-marker's
+//! border-triangle visual language, redrawn by the example and tinted PER
+//! TEAM ([`Team::tint`] - amber for AMBER, the threat family red for ONYX)
+//! rather than per relation, floated over the hull through the same
+//! screen-indicator projection the HUD uses. Redrawn, not reused, for three
+//! reasons: the stock widget's colours are semantic ally/threat and its own
+//! recolour system owns them; it marks every non-player ship including the
+//! junk, which must stay unmarked; and it is instrument-tier, so a capture's
+//! cinematic HUD would hide it - the chevrons follow the READOUT's rule
+//! instead (grave/tilde in a hand-run, always present in a capture, where
+//! two identifiable sides are part of the evidence). The example tags the
+//! scenario camera as the indicator projector - the game only tags the
+//! player's chase camera, and this arena has no player - and retires the
+//! stock allegiance layers for every arena-spawned ship.
 //!
 //! The idle orbit belongs to `Q` and only `Q`: left alone there for six
 //! seconds the camera falls into a slow orbit around the fight's midpoint -
@@ -107,13 +158,23 @@
 //! damage - the step deadline makes a fight that never happens a loud failure,
 //! not a quiet pose - then shoot the brawl mid-swing.
 
-use bevy::prelude::*;
+// Only for freezing the junk: a controller-less hull spawns as a MASSLESS
+// dynamic body (avian warns it can go NaN), and twenty of them corrupted the
+// physics the combat queries read - see `freeze_junk`.
+use avian3d::prelude::RigidBody;
+use bevy::{platform::collections::HashMap, prelude::*};
+// The player slot's weapon bindings are authored in the game's own binding
+// type, exactly as the campaign scenarios author theirs.
+use bevy_enhanced_input::prelude::Binding;
 use clap::Parser;
 // Direct, not through `nova_protocol::nova_debug`: that path only exists under
 // the `debug` feature, and `capturing()` gates the idle orbit and the readout
 // in EVERY build.
 use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
+// Only for the derelicts' tumble: everything the fight depends on stays on the
+// generator's own seed stream.
+use rand::{rngs::StdRng, RngExt, SeedableRng};
 
 #[path = "shared/wfc.rs"]
 mod wfc;
@@ -128,10 +189,12 @@ struct Cli {
     /// the next viable seed past the last one.
     #[arg(long, default_value_t = DEFAULT_SEED)]
     seed: u64,
-    /// One hull of the roster, repeatable: `TEAM[:STYLE[:SEED]]`, where TEAM is
-    /// `amber` or `onyx`, STYLE is a style id (empty = the run's look) and SEED
-    /// pins the collapse. No `--ship` at all fields one hull per team.
-    #[arg(long = "ship", value_name = "TEAM[:STYLE[:SEED]]", value_parser = parse_ship)]
+    /// One hull of the roster, repeatable: `TEAM[:STYLE[:SEED]][:player]`,
+    /// where TEAM is `amber` or `onyx`, STYLE is a style id (empty = the
+    /// run's look), SEED pins the collapse and a trailing `player` puts you
+    /// in the hull (at most one). No `--ship` at all fields one hull per
+    /// team.
+    #[arg(long = "ship", value_name = "TEAM[:STYLE[:SEED]][:player]", value_parser = parse_ship)]
     ships: Vec<ShipSpec>,
     /// Start on this style id instead of the first the content offers. `L`
     /// cycles from wherever this leaves the roster.
@@ -151,8 +214,15 @@ struct Team {
     /// "player" would be a lie about who is driving.
     callsign: &'static str,
     allegiance: Allegiance,
-    /// Facing at spawn: toward the other line, so the opening move is a merge
-    /// rather than a search turn.
+    /// The team chevron's colour. TEAM identity, not relation semantics: the
+    /// HUD's ally-green would say "friend", and neither of these teams is the
+    /// viewer's friend. AMBER wears the HUD's amber family (the objective
+    /// accent), ONYX the hostile family red.
+    tint: Color,
+    /// The PLAYER slot's facing at spawn: toward the other line, so the
+    /// viewer's first frame holds the fight. AI slots ignore it and spawn
+    /// aligned with their first patrol leg instead - see [`combatant`] for
+    /// why (the autopilot's Align phase was eating the opening).
     yaw: f32,
     /// Passive patrol ring near the center, shared by every hull on the team.
     /// Its centroid anchors the leash, which is what keeps the fight over the
@@ -164,6 +234,7 @@ const TEAMS: [Team; 2] = [
     Team {
         callsign: "AMBER",
         allegiance: Allegiance::Player,
+        tint: nova_ui::theme::semantic::OBJECTIVE,
         yaw: -std::f32::consts::FRAC_PI_2,
         patrol: [
             Vec3::new(-70.0, 10.0, 50.0),
@@ -174,6 +245,7 @@ const TEAMS: [Team; 2] = [
     Team {
         callsign: "ONYX",
         allegiance: Allegiance::Enemy,
+        tint: nova_ui::theme::semantic::THREAT,
         yaw: std::f32::consts::FRAC_PI_2,
         patrol: [
             Vec3::new(70.0, -5.0, -50.0),
@@ -185,13 +257,35 @@ const TEAMS: [Team; 2] = [
 
 /// The two lines face each other across the arena with a vertical and lateral
 /// split, so the approach lines cross instead of meeting nose to nose.
-/// ~160 u apart, INSIDE the PDC fire gate (180 u = reach x 0.9): the guns bear
-/// from the opening frame, so both teams trade fire before the torpedo salvos
-/// land. The first cut spawned at 280 u and the fight was over before either
-/// ship closed to gun range - one 8-tube alpha strike, 11 seconds, no reply.
-const LINE_STANDOFF: f32 = 75.0;
+/// ~305 u apart - well past the 180 u PDC fire gate (reach x 0.9) - which
+/// only works because the approach is COLD (see [`ENGAGE_GRACE_SECS`] and
+/// [`ENGAGE_RANGE`]): hot from 280 u, one 8-tube alpha strike ended the fight
+/// in 11 seconds with no reply, which is why the last cut spawned at 163 u.
+/// Cold, the long spawn buys a real approach and the fight still opens near
+/// gun range. Not further: the passive closing rate is ~2.5-4 u/s (measured),
+/// so at 345 u the quiet leg ran 45 s and read as dead air, not tension.
+const LINE_STANDOFF: f32 = 150.0;
 const LINE_LIFT: f32 = 12.0;
 const LINE_OFFSET: f32 = 30.0;
+/// Seconds both teams hold their passive patrols after spawn, weapons cold
+/// (`AIControllerConfig::engage_delay`). The patrols cross the center, so the
+/// grace reads as two formations flying in, not two formations parked.
+const ENGAGE_GRACE_SECS: f32 = 10.0;
+/// The weapons-free gate (u, `AIControllerConfig::engage_range`): even past
+/// the grace a line stays passive until a hostile closes inside this. This
+/// gate, not the grace, is what actually times the first shot - the passive
+/// closing is slow, so the lines cross it long after the grace expires.
+///
+/// AT the 180 u gun gate (reach x 0.9), so the fight opens with guns and
+/// torpedoes TOGETHER. Wider gates all lost fights to the torpedo alpha:
+/// at 240 the gate opened one-sidedly (AMBER salvoed and wiped ONYX before
+/// ONYX ever fired), and at 220 the bout was a coin flip - the bigger
+/// battery intercepts the smaller salvo OUTRIGHT (6 torpedoes into 16
+/// turrets land nothing), so unless the loser's guns connect in the few
+/// seconds both sides are alive, it dies having dealt zero and the walk's
+/// both-sides-dealt predicate fails. Guns from the first second of the
+/// engagement are what keep the fight mutual.
+const ENGAGE_RANGE: f32 = 180.0;
 /// Centre-to-centre spacing along a line. Three times the widest hull the grid
 /// can grow, so a line is a formation rather than a pile-up, and short enough
 /// that the far end of one line still opens at gun range on the far end of the
@@ -201,6 +295,39 @@ const LINE_SPACING: f32 = 34.0;
 /// Combat breaks off past this distance from the patrol centroid. Wide enough
 /// for real chases, tight enough that the fight stays over the rock ring.
 const LEASH: f32 = 280.0;
+
+/// The junk blobs: where each debris cluster anchors, and how many wreckage
+/// FRAGMENTS it scatters. All three sit on the Z FLANKS (|z| >= 160), because
+/// the fight runs along X: the spawn lines stand at x = +/-[`LINE_STANDOFF`]
+/// with |z| <= ~80, and the approach corridor between them is the axis every
+/// torpedo flies down - junk there would eat ordnance and decide fights.
+/// Two blobs sit at negative z, which is the BACKGROUND of the capture frame
+/// (the frame camera stands on +Z); the third is on the south flank for the
+/// idle orbit and the follow cameras to sweep past.
+const DERELICT_BLOBS: [(Vec3, usize); 3] = [
+    (Vec3::new(40.0, -34.0, -190.0), 8),
+    (Vec3::new(-150.0, 30.0, -160.0), 7),
+    (Vec3::new(90.0, -25.0, 200.0), 5),
+];
+/// How many sections one fragment carries: a broken-off chunk of structure,
+/// never anything that could read as an intact vessel. The first cut spawned
+/// five FULL derelict hulls (912 sections) and the owner called it - junk is
+/// "multiple small things", so the blob budget went from hulls to fragments
+/// and the section total dropped by an order of magnitude.
+const FRAGMENT_MIN_SECTIONS: usize = 2;
+const FRAGMENT_MAX_SECTIONS: usize = 8;
+/// The scatter shell fragments land in around their blob anchor, and the
+/// closest two fragments may stand: ~3 u chunks 12+ u apart read as a drifted
+/// debris field, not a pile.
+const FRAGMENT_SHELL: (f32, f32) = (6.0, 40.0);
+const FRAGMENT_SEPARATION: f32 = 12.0;
+/// Salt on the roster's stream head for the fragment rolls: the junk re-rolls
+/// with `R` (the head advances) and never duplicates a combatant's seed (the
+/// draft scans at most [`DRAFT_SCAN_CAP`] past the head).
+const DERELICT_SEED_SALT: u64 = 0xDEAD;
+/// The scenario id prefix a fragment spawns under - distinct from
+/// [`FIGHTER_ID_PREFIX`], so the follow cameras can never latch onto junk.
+const DERELICT_ID_PREFIX: &str = "arena_derelict_";
 
 /// The distant landmark, well outside the leash + its own 400 u sphere of
 /// influence (`mu = soi_cutoff_accel * soi^2` at the shipped 0.25 cutoff), so
@@ -235,6 +362,21 @@ fn main() -> bevy::app::AppExit {
     } else {
         cli.ships.clone()
     };
+    let players = ships.iter().filter(|ship| ship.player).count();
+    assert!(
+        players <= 1,
+        "wfc_arena: {players} `:player` slots - one viewer, one hull, at most one"
+    );
+    // REFUSED, not ignored: the driven walk proves an AI-vs-AI fight, and a
+    // hull waiting on human input would stall the fight predicate into its
+    // deadline. Quietly drafting an AI where a player was asked for would
+    // make the run a lie about what it exercised. The env name is pinned by
+    // nova_autopilot's env-contract test; the const is not visible from here.
+    assert!(
+        players == 0 || std::env::var_os("NOVA_AUTOPILOT").is_none(),
+        "wfc_arena: a `:player` slot cannot run under NOVA_AUTOPILOT - drop the \
+         flag or the env"
+    );
     let roster = Roster {
         seed: cli.seed,
         ships,
@@ -275,6 +417,7 @@ fn arena_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
     app.insert_resource(roster);
     app.insert_resource(requested);
     app.init_resource::<Scoreboard>();
+    app.init_resource::<FollowAim>();
     // The frame vantage until a pose key or the free-fly rig says otherwise -
     // and under capture too, because framing the fight IS the capture framing.
     app.insert_resource(Vantage::Frame);
@@ -299,10 +442,31 @@ fn arena_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
             count_shots,
             report_score.run_if(in_state(GameStates::Playing)),
             update_readout,
-            select_vantage,
-            free_camera_on_input,
-            track_orbit_idle,
+            // The example's whole camera rig stands down in player mode: the
+            // game's chase-camera authority owns the view, and a vantage or
+            // orbit writing the scenario camera under it would fight it for
+            // every frame.
+            (select_vantage, free_camera_on_input, track_orbit_idle).run_if(ai_cameras),
+            freeze_junk,
+            (
+                // In player mode the game tags the chase camera itself
+                // (`SpaceshipCameraController` -> `ScreenIndicatorCamera`),
+                // and a second tagged camera would leave the projection on
+                // whichever it found first.
+                tag_indicator_camera.run_if(ai_cameras),
+                retire_stock_markers,
+                spawn_team_chevrons,
+                reap_team_chevrons,
+            ),
         ),
+    );
+    // After the projection, or the gate loses to its per-frame Visible write -
+    // see `gate_team_chevrons` for the ordering account.
+    app.add_systems(
+        PostUpdate,
+        gate_team_chevrons
+            .after(ScreenIndicatorSystems)
+            .before(bevy::ui::UiSystems::Layout),
     );
     // PostUpdate, after the free-fly rig's own write and before the transform
     // propagates, for wfc_ships' reason: the rig syncs in PostUpdate and an
@@ -313,9 +477,17 @@ fn arena_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
         PostUpdate,
         (pose_vantage_camera, orbit_idle_camera)
             .chain()
+            .run_if(ai_cameras)
             .after(WASDCameraSystems::Sync)
             .before(TransformSystems::Propagate),
     );
+}
+
+/// The example's cameras run only while every hull is AI-flown: a `:player`
+/// slot hands the view to the game's chase-camera authority, and the vantage
+/// poses, the idle orbit and the indicator-camera tag all stand down with it.
+fn ai_cameras(roster: Res<Roster>) -> bool {
+    roster.player_slot().is_none()
 }
 
 // ---------------------------------------------------------------------------
@@ -323,7 +495,8 @@ fn arena_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
 // ---------------------------------------------------------------------------
 
 /// One hull the roster asks for: which team it fights for, the look it insists
-/// on (if any), and the seed it insists on (if any). The `--ship` value.
+/// on (if any), the seed it insists on (if any), and whether the viewer flies
+/// it. The `--ship` value.
 #[derive(Clone)]
 struct ShipSpec {
     /// Index into [`TEAMS`].
@@ -334,6 +507,9 @@ struct ShipSpec {
     style: Option<String>,
     /// A pinned collapse seed, or `None` to take the next one the draft finds.
     seed: Option<u64>,
+    /// This slot is the PLAYER's: the hull spawns under the game's player
+    /// controller instead of the AI, and the example's cameras stand down.
+    player: bool,
 }
 
 /// One `--ship` field, trimmed, where an empty field reads as absent - so
@@ -342,15 +518,24 @@ fn field(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|field| !field.is_empty())
 }
 
-/// Parse one `--ship` value: `TEAM[:STYLE[:SEED]]`, colon separated, an empty
-/// field meaning "the default for that field".
+/// Parse one `--ship` value: `TEAM[:STYLE[:SEED]][:player]`, colon separated,
+/// an empty field meaning "the default for that field".
 ///
 /// Colons rather than `key=value` pairs because the common case is a bare team
 /// name and the whole grammar is three fields deep; the flag is repeated per
-/// hull, so it is typed more often than it is read.
+/// hull, so it is typed more often than it is read. The `player` token is
+/// positional-last rather than a field of its own, so `amber:player` and
+/// `amber:armoured:7:player` both read the way they are said; it shadows a
+/// style literally named "player", which the content does not ship.
 fn parse_ship(value: &str) -> Result<ShipSpec, String> {
-    let mut fields = value.split(':');
-    let name = fields.next().unwrap_or_default().trim();
+    let mut fields: Vec<&str> = value.split(':').collect();
+    let player = fields
+        .last()
+        .is_some_and(|last| last.trim().eq_ignore_ascii_case("player"));
+    if player {
+        fields.pop();
+    }
+    let name = fields.first().copied().unwrap_or_default().trim();
     let team = TEAMS
         .iter()
         .position(|team| team.callsign.eq_ignore_ascii_case(name))
@@ -364,20 +549,25 @@ fn parse_ship(value: &str) -> Result<ShipSpec, String> {
                     .join(" or "),
             )
         })?;
-    let style = field(fields.next()).map(str::to_string);
-    let seed = match field(fields.next()) {
+    let style = field(fields.get(1).copied()).map(str::to_string);
+    let seed = match field(fields.get(2).copied()) {
         Some(seed) => Some(
             seed.parse::<u64>()
                 .map_err(|error| format!("'{seed}' is not a seed: {error}"))?,
         ),
         None => None,
     };
-    if fields.next().is_some() {
+    if fields.len() > 3 {
         return Err(format!(
-            "'{value}' has more fields than TEAM[:STYLE[:SEED]]"
+            "'{value}' has more fields than TEAM[:STYLE[:SEED]][:player]"
         ));
     }
-    Ok(ShipSpec { team, style, seed })
+    Ok(ShipSpec {
+        team,
+        style,
+        seed,
+        player,
+    })
 }
 
 /// The roster a run with no `--ship` fields: one drafted hull per team, on the
@@ -388,6 +578,7 @@ fn default_roster() -> Vec<ShipSpec> {
             team,
             style: None,
             seed: None,
+            player: false,
         })
         .collect()
 }
@@ -409,6 +600,12 @@ impl Roster {
     /// How many hulls a team fields.
     fn strength(&self, team: usize) -> usize {
         self.ships.iter().filter(|ship| ship.team == team).count()
+    }
+
+    /// The roster slot the viewer flies, if any. `Some` is PLAYER MODE: the
+    /// example's cameras stand down and the readout drops their help.
+    fn player_slot(&self) -> Option<usize> {
+        self.ships.iter().position(|ship| ship.player)
     }
 }
 
@@ -686,8 +883,34 @@ fn spawn_position(team: usize, index: usize, strength: usize) -> Vec3 {
     )
 }
 
-/// One combatant: a drafted hull, clad, under the same AI pilot the campaign's
-/// raiders fly, on its team's colors and in its team's line.
+/// The player's weapon bindings for a drafted hull, by prototype: every gun
+/// the collapse mounted on the left mouse (the campaign's own turret binding,
+/// gamepad right trigger beside it) and every tube on `F` - the mouse's right
+/// button is the raise-weapons gesture and the reserved flight-rig sources
+/// (`flight_rig_reserved_sources`) are all keys the rig already spends.
+fn player_bindings(hull: &ShipHull) -> HashMap<String, Vec<Binding>> {
+    hull.sections
+        .iter()
+        .filter_map(|section| {
+            let SectionSource::Prototype(id) = &section.source else {
+                return None;
+            };
+            let bindings: Vec<Binding> = match id.as_str() {
+                KINETIC_MOUNT | PIERCE_MOUNT => vec![
+                    MouseButton::Left.into(),
+                    GamepadButton::RightTrigger2.into(),
+                ],
+                SERPENT_BAY | LANCE_BAY => vec![KeyCode::KeyF.into()],
+                _ => return None,
+            };
+            Some((section.id.clone(), bindings))
+        })
+        .collect()
+}
+
+/// One combatant: a drafted hull, clad, on its team's colors and in its
+/// team's line - under the same AI pilot the campaign's raiders fly, or
+/// under the VIEWER for the one slot `:player` names.
 fn combatant(
     slot: usize,
     seed: u64,
@@ -702,29 +925,64 @@ fn combatant(
     // loadout the arena chose is stated.
     let arms = armament(&hull);
     info!(
-        "wfc_arena: {} {} seed {}: {} sections - {}",
+        "wfc_arena: {} {} seed {}: {} sections - {}{}",
         team.callsign,
         slot,
         seed,
         hull.sections.len(),
         arms,
+        if ship.player { " - PLAYER" } else { "" },
     );
+    let position = spawn_position(ship.team, place.0, place.1);
+    // Spawn ALIGNED with the first thing the hull will do. The autopilot
+    // opens every GOTO in an Align phase - the nose has to swing onto the
+    // burn bearing before it burns - and these hulls turn slowly, so a spawn
+    // yaw that merely faced the other line spent the opening seconds visibly
+    // re-aiming at the first patrol leg instead of flying it. An AI slot
+    // therefore spawns LOOKING AT its first waypoint; the player slot keeps
+    // the team's toward-the-enemy yaw, because a viewer's opening frame
+    // should hold the fight they are about to join, not a patrol mark.
+    let rotation = if ship.player {
+        Quat::from_rotation_y(team.yaw)
+    } else {
+        Transform::from_translation(position)
+            .looking_at(team.patrol[0], Vec3::Y)
+            .rotation
+    };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: format!("{FIGHTER_ID_PREFIX}{slot}"),
             name: format!("{} {seed}", team.callsign),
-            position: spawn_position(ship.team, place.0, place.1),
-            rotation: Quat::from_rotation_y(team.yaw),
+            position,
+            rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: Some(team.allegiance),
-            controller: SpaceshipController::AI(AIControllerConfig {
-                patrol: team.patrol.to_vec(),
-                // Anchored on the center-hugging patrol centroid, so the
-                // fight gravitates to the dressed middle of the arena.
-                leash: Some(LEASH),
-                ..Default::default()
-            }),
+            controller: if ship.player {
+                // The game's REAL player controller, bindings derived off the
+                // drafted hull. No speed cap (the arena is open space) and
+                // real magazines - the AI ships fight with theirs.
+                SpaceshipController::Player(PlayerControllerConfig {
+                    input_mapping: player_bindings(&hull),
+                    speed_cap: None,
+                    infinite_ammo: false,
+                })
+            } else {
+                SpaceshipController::AI(AIControllerConfig {
+                    patrol: team.patrol.to_vec(),
+                    // Anchored on the center-hugging patrol centroid, so the
+                    // fight gravitates to the dressed middle of the arena.
+                    leash: Some(LEASH),
+                    // The cold opening: hold the patrol through the grace,
+                    // then keep holding until the lines close inside the
+                    // gate. See ENGAGE_GRACE_SECS / ENGAGE_RANGE for the
+                    // sizing. The player gets no such leash: they fire and
+                    // fly whenever they like.
+                    engage_delay: Some(ENGAGE_GRACE_SECS),
+                    engage_range: Some(ENGAGE_RANGE),
+                    ..Default::default()
+                })
+            },
             hull: ShipSource::Inline(hull),
             ..Default::default()
         }),
@@ -737,6 +995,7 @@ fn combatant(
 fn rock_ring(
     game_assets: &GameAssets,
     id_prefix: &str,
+    center: Vec3,
     seed: u64,
     count: u32,
     inner: f32,
@@ -750,7 +1009,7 @@ fn rock_ring(
         count,
         seed,
         region: ScatterRegion::Ring {
-            center: Vec3::ZERO,
+            center,
             inner,
             outer,
             y_min: y.0,
@@ -780,6 +1039,220 @@ fn rock_ring(
         asteroid_radius: Some(radius),
         min_separation: Some(separation),
     })
+}
+
+/// Pin every junk fragment static the moment it lands.
+///
+/// Two reasons, both real. A `SpaceshipController::None` hull spawns as a
+/// massless dynamic body (avian warns "no mass or inertia ... can cause NaN"
+/// per fragment), and at twenty fragments the driven fights DIED of it:
+/// three walks in a row had guns fall near-silent and the first salvo erase
+/// its victim, and the same build with the junk pinned fights normally - a
+/// NaN body poisons the spatial queries every aim and line-of-fire check
+/// reads. And junk is SCENERY: wreckage that holds its pose keeps the blobs
+/// composed the way the seed placed them. Same command-swap idiom as the
+/// harness `freeze_bodies`, scoped to the junk prefix; every frame because
+/// `R` respawns the junk with the fight.
+fn freeze_junk(
+    mut commands: Commands,
+    q_junk: Query<(Entity, &RigidBody, &EntityId), With<SpaceshipRootMarker>>,
+) {
+    for (entity, body, id) in &q_junk {
+        if matches!(body, RigidBody::Dynamic) && id.0.starts_with(DERELICT_ID_PREFIX) {
+            commands.entity(entity).insert(RigidBody::Static);
+        }
+    }
+}
+
+/// One wreckage fragment: a seeded random walk of catalog hull cubes,
+/// [`FRAGMENT_MIN_SECTIONS`]..=[`FRAGMENT_MAX_SECTIONS`] cells, sometimes
+/// keeping a drive nozzle on a broken-off end.
+///
+/// Built from the same shipped prototypes the collapse draws, but NOT through
+/// the collapse: a fragment is a chunk of ship, not a ship, and the full grid
+/// only makes vessels. The hull cube mates on all six faces, so any
+/// face-connected walk is one connected link-point graph by construction and
+/// passes the same `lint_scenario` gate every other inline hull does. The
+/// nozzle is legal on a LEAF cell only: the drive's one socket (its forward
+/// face, `NEG_Z * 0.5` in the catalog) is rotated onto the leaf's single
+/// neighbour, so it mates exactly and its exhaust points into vacuum.
+fn fragment_hull(seed: u64, clad: bool, style: StyleId) -> ShipHull {
+    let mut rng = StdRng::seed_from_u64(seed);
+    let target = rng.random_range(FRAGMENT_MIN_SECTIONS..=FRAGMENT_MAX_SECTIONS);
+    let directions = [
+        IVec3::X,
+        IVec3::NEG_X,
+        IVec3::Y,
+        IVec3::NEG_Y,
+        IVec3::Z,
+        IVec3::NEG_Z,
+    ];
+    let mut cells: Vec<IVec3> = vec![IVec3::ZERO];
+    // Bounded, not exact: a walk that keeps re-hitting itself simply yields a
+    // smaller chunk, which is still junk.
+    for _ in 0..64 {
+        if cells.len() >= target {
+            break;
+        }
+        let from = cells[rng.random_range(0..cells.len())];
+        let next = from + directions[rng.random_range(0..directions.len())];
+        if !cells.contains(&next) {
+            cells.push(next);
+        }
+    }
+
+    // A leaf (one neighbour) may keep a nozzle - the look of a drive assembly
+    // torn off with a cell of hull still bolted to it.
+    let neighbours = |cell: IVec3| {
+        directions
+            .iter()
+            .filter(|direction| cells.contains(&(cell + **direction)))
+            .count()
+    };
+    let nozzle = (cells.len() > 1 && rng.random_range(0..2) == 0)
+        .then(|| {
+            cells
+                .iter()
+                .position(|cell| neighbours(*cell) == 1)
+                .map(|leaf| {
+                    let toward = directions
+                        .iter()
+                        .find(|direction| cells.contains(&(cells[leaf] + **direction)))
+                        .expect("a leaf has its one neighbour");
+                    (leaf, toward.as_vec3())
+                })
+        })
+        .flatten();
+
+    // Recentred on the bounding-box middle (shape_bench's idiom: the offset
+    // stays on the half-cell phase the skin derivation buckets on), so the
+    // root's tumble turns the chunk about its own middle.
+    let (low, high) = cells
+        .iter()
+        .fold((IVec3::MAX, IVec3::MIN), |(low, high), cell| {
+            (low.min(*cell), high.max(*cell))
+        });
+    let centre = (low + high).as_vec3() * 0.5;
+    let sections = cells
+        .iter()
+        .enumerate()
+        .map(|(index, cell)| {
+            let (prototype, rotation) = match nozzle {
+                Some((leaf, toward)) if leaf == index => (
+                    "basic_thruster_section",
+                    // The drive bolts by its forward face: map that socket
+                    // onto the leaf's one neighbour and the exhaust faces
+                    // away from the chunk on its own.
+                    Quat::from_rotation_arc(Vec3::NEG_Z, toward),
+                ),
+                _ => ("reinforced_hull_section", Quat::IDENTITY),
+            };
+            SpaceshipSectionConfig {
+                id: format!("junk_{index}"),
+                position: cell.as_vec3() - centre,
+                rotation,
+                source: SectionSource::Prototype(prototype.to_string()),
+                modifications: vec![],
+            }
+        })
+        .collect();
+
+    ShipHull {
+        sections,
+        skin: clad,
+        style: clad.then_some(style).flatten().map(str::to_string),
+        ..default()
+    }
+}
+
+/// The junk: many SMALL wreckage fragments in loose blobs on the flanks, each
+/// blob under its own shell of small debris rocks.
+///
+/// Fragments carry no controller and no allegiance (so the AI never targets
+/// one and the scoreboard never counts one), and clad/bare alternate for
+/// variety - a skinned chunk next to a stripped frame is what a debris field
+/// reads as. Positions scatter in a seeded shell around the blob anchor with
+/// a minimum separation, tumbled per fragment. Everything derives from the
+/// salted stream head, so `R` re-rolls the junk with the fight and the run
+/// stays one-number reproducible.
+fn derelicts(
+    game_assets: &GameAssets,
+    styles: &GameStyles,
+    roster: &Roster,
+) -> Vec<EventActionConfig> {
+    let style = style_at(styles, roster.style);
+    let mut actions = Vec::new();
+    let mut index = 0usize;
+    let mut sections = 0usize;
+    for (blob, (anchor, count)) in DERELICT_BLOBS.iter().enumerate() {
+        let mut placed: Vec<Vec3> = Vec::new();
+        let mut rng = StdRng::seed_from_u64(
+            (roster.seed ^ DERELICT_SEED_SALT).wrapping_add((blob as u64) << 8),
+        );
+        for _ in 0..*count {
+            // Rejection-sampled scatter: fragments are ~3 u across, so a
+            // handful of retries always finds standing room in the shell.
+            let mut offset = Vec3::ZERO;
+            for _ in 0..32 {
+                let radius = rng.random_range(FRAGMENT_SHELL.0..FRAGMENT_SHELL.1);
+                let yaw = rng.random_range(0.0..std::f32::consts::TAU);
+                let lift = rng.random_range(-0.4..0.4f32);
+                offset = Vec3::new(yaw.cos() * radius, lift * radius, yaw.sin() * radius);
+                if placed
+                    .iter()
+                    .all(|other| other.distance(offset) >= FRAGMENT_SEPARATION)
+                {
+                    break;
+                }
+            }
+            placed.push(offset);
+            let seed = (roster.seed ^ DERELICT_SEED_SALT).wrapping_add(index as u64);
+            // Seeded tumble: wreckage holds no attitude, and a shared quat
+            // would read as a formation.
+            let mut angle = || rng.random_range(0.0..std::f32::consts::TAU);
+            let rotation = Quat::from_euler(EulerRot::XYZ, angle(), angle(), angle());
+            let hull = fragment_hull(seed, index % 2 == 0, style);
+            sections += hull.sections.len();
+            actions.push(EventActionConfig::SpawnScenarioObject(
+                ScenarioObjectConfig {
+                    base: BaseScenarioObjectConfig {
+                        id: format!("{DERELICT_ID_PREFIX}{index}"),
+                        name: format!("Wreckage {seed}"),
+                        position: *anchor + offset,
+                        rotation,
+                    },
+                    kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                        allegiance: None,
+                        controller: SpaceshipController::None,
+                        hull: ShipSource::Inline(hull),
+                        ..Default::default()
+                    }),
+                },
+            ));
+            index += 1;
+        }
+        // The debris shell: the ring dressing idiom shrunk onto the blob, so
+        // the fragments sit IN a field of junk instead of floating beside one.
+        actions.push(rock_ring(
+            game_assets,
+            &format!("arena_junk_{blob}_"),
+            *anchor,
+            roster.seed ^ DERELICT_SEED_SALT ^ ((blob as u64) << 8),
+            6,
+            16.0,
+            48.0,
+            (-14.0, 14.0),
+            (0.8, 2.4),
+            10.0,
+        ));
+    }
+    // The budget disclosure: the junk adds real sections (and skin on the clad
+    // fragments), and this line is where a heavy junkyard would say so.
+    info!(
+        "wfc_arena: {index} junk fragments in {} blobs, {sections} sections adrift",
+        DERELICT_BLOBS.len(),
+    );
+    actions
 }
 
 /// The landmark: one large, invulnerable, PINNED rock, far enough out to be
@@ -861,6 +1334,7 @@ fn arena(
             actions: ships
                 .into_iter()
                 .chain(ThreePointRig::around("arena", Vec3::ZERO, 8.0).actions())
+                .chain(derelicts(game_assets, styles, roster))
                 .chain([
                     planetoid(game_assets),
                     // Depth parallax under the fight plane, and a sparser far
@@ -868,6 +1342,7 @@ fn arena(
                     rock_ring(
                         game_assets,
                         "arena_rock_low_",
+                        Vec3::ZERO,
                         roster.seed ^ 0x0A11,
                         14,
                         160.0,
@@ -879,6 +1354,7 @@ fn arena(
                     rock_ring(
                         game_assets,
                         "arena_rock_far_",
+                        Vec3::ZERO,
                         roster.seed ^ 0x0FA2,
                         10,
                         320.0,
@@ -1141,13 +1617,21 @@ const CAMERA_PER_SPREAD: f32 = 0.85;
 const OVERVIEW_DIRECTION: Vec3 = Vec3::new(0.0, 1.0, 0.5);
 const OVERVIEW_STANDOFF: f32 = 1.9;
 
-/// How far a follow pose stands behind its ship, how far above it, and how far
-/// ahead of the hull it looks: close enough to read as attached, far enough
-/// that the widest roll's stern never fills the frame, and led enough that the
-/// hull sits low in shot with the space it is flying into above it.
+/// How far a follow pose stands behind its ship and how far above it: close
+/// enough to read as attached, far enough that the widest roll's stern never
+/// fills the frame. "Behind" is measured on the THREAT AXIS - the line from
+/// the hull to the living enemies' mean position - so the shot is over the
+/// shoulder: subject low in the foreground, the fight it is closing on ahead.
+/// [`FOLLOW_LEAD`] only matters in the no-enemies fallback, where the camera
+/// chases the hull's own heading and leads it by this much.
 const FOLLOW_BACK: f32 = 34.0;
 const FOLLOW_LIFT: f32 = 10.0;
 const FOLLOW_LEAD: f32 = 12.0;
+/// Exponential smoothing rate (1/s) on the follow pose's aim point. The mean
+/// enemy position JUMPS when a ship dies or a reroll lands; at 1.2 the camera
+/// crosses ~70% of such a swing in the first second and settles in about
+/// three - a deliberate pan, not a snap.
+const FOLLOW_AIM_RATE: f32 = 1.2;
 
 /// How many roster slots the number row can follow: `1` through `4`.
 const FOLLOW_SLOTS: usize = 4;
@@ -1164,7 +1648,8 @@ enum Vantage {
     /// `E`: the tactical overview, high and wide over the engagement, holding
     /// its bearing.
     Overview,
-    /// `1`..`4`: over the shoulder of one roster slot, along its heading.
+    /// `1`..`4`: over the shoulder of one roster slot, looking across it at
+    /// the living enemies' mean position.
     Follow(usize),
     /// The viewer took the camera; no pose writes until a camera key re-arms
     /// one.
@@ -1215,40 +1700,79 @@ fn free_camera_on_input(mut vantage: ResMut<Vantage>, q_input: Query<&WASDCamera
     }
 }
 
-/// The live fight as the camera reads it: the midpoint of every standing root,
-/// the spread-derived standoff that keeps the whole engagement in frame, and
-/// the transform of each followable roster slot whose ship still stands.
-/// Wrecks keep their root marker, so a pose holds the aftermath too instead of
-/// snapping away on the kill.
+/// The live fight as the camera reads it: the midpoint of every standing
+/// COMBATANT root, the spread-derived standoff that keeps the whole engagement
+/// in frame, the transform and team of each followable roster slot whose ship
+/// still stands, and each team's summed positions for the follow poses' enemy
+/// mean. Wrecks keep their root marker, so a pose holds the aftermath too
+/// instead of snapping away on the kill.
 struct FightRead {
     midpoint: Vec3,
     standoff: f32,
-    followed: [Option<Transform>; FOLLOW_SLOTS],
+    followed: [Option<(Transform, usize)>; FOLLOW_SLOTS],
+    team_sum: [Vec3; TEAMS.len()],
+    team_count: [usize; TEAMS.len()],
+}
+
+impl FightRead {
+    /// The mean position of every standing ship NOT on `team` - the point a
+    /// follow camera looks over its subject toward. `None` once the rival
+    /// team is gone, which is the heading-chase fallback's cue.
+    fn hostile_mean(&self, team: usize) -> Option<Vec3> {
+        let mut sum = Vec3::ZERO;
+        let mut count = 0;
+        for rival in 0..TEAMS.len() {
+            if rival != team {
+                sum += self.team_sum[rival];
+                count += self.team_count[rival];
+            }
+        }
+        (count > 0).then(|| sum / count as f32)
+    }
 }
 
 /// The camera-side ship query: transforms plus the scenario id that names a
-/// root's roster slot, shared by the poses and the idle orbit.
+/// root's roster slot and the allegiance that names its team, shared by the
+/// poses and the idle orbit.
 type ShipQuery<'w, 's> = Query<
     'w,
     's,
-    (&'static Transform, Option<&'static EntityId>),
+    (
+        &'static Transform,
+        Option<&'static EntityId>,
+        Option<&'static Allegiance>,
+    ),
     (With<SpaceshipRootMarker>, Without<ScenarioCameraMarker>),
 >;
 
 /// The roster slot a scenario id names, when it is one of the arena's own
-/// fighters and one the follow row can reach.
+/// fighters.
+fn fighter_slot(id: &EntityId) -> Option<usize> {
+    id.0.strip_prefix(FIGHTER_ID_PREFIX)?.parse().ok()
+}
+
+/// [`fighter_slot`], capped to the slots the follow row can reach.
 fn follow_slot(id: &EntityId) -> Option<usize> {
-    let slot: usize = id.0.strip_prefix(FIGHTER_ID_PREFIX)?.parse().ok()?;
-    (slot < FOLLOW_SLOTS).then_some(slot)
+    fighter_slot(id).filter(|slot| *slot < FOLLOW_SLOTS)
 }
 
 fn read_fight(q_ships: &ShipQuery) -> Option<FightRead> {
     let mut positions = Vec::new();
     let mut followed = [None; FOLLOW_SLOTS];
-    for (transform, id) in q_ships {
+    let mut team_sum = [Vec3::ZERO; TEAMS.len()];
+    let mut team_count = [0usize; TEAMS.len()];
+    for (transform, id, allegiance) in q_ships {
+        // No allegiance = a derelict: scenery, not a subject. Counting the
+        // junk blobs here would drag the auto-frame's midpoint (and the
+        // orbit's pivot) off the fight and toward the flanks.
+        let Some(team) = allegiance.and_then(team_of) else {
+            continue;
+        };
         positions.push(transform.translation);
+        team_sum[team] += transform.translation;
+        team_count[team] += 1;
         if let Some(slot) = id.and_then(follow_slot) {
-            followed[slot] = Some(*transform);
+            followed[slot] = Some((*transform, team));
         }
     }
     if positions.is_empty() {
@@ -1264,6 +1788,8 @@ fn read_fight(q_ships: &ShipQuery) -> Option<FightRead> {
         midpoint,
         standoff: CAMERA_BASE + spread * CAMERA_PER_SPREAD,
         followed,
+        team_sum,
+        team_count,
     })
 }
 
@@ -1285,10 +1811,54 @@ fn frame_pose(fight: &FightRead) -> Pose {
     }
 }
 
+/// The follow poses' smoothed aim point, and the slot it belongs to. The raw
+/// aim - the living enemies' mean - JUMPS when a ship dies; chasing it through
+/// an exponential lag turns the jump into a pan. Keyed by slot so switching
+/// subjects SNAPS instead of sweeping the camera through a stale bearing from
+/// the last hull followed.
+#[derive(Resource, Default)]
+struct FollowAim {
+    slot: Option<usize>,
+    point: Vec3,
+}
+
+/// The over-the-shoulder pose: stand behind the followed hull on the threat
+/// axis, look across it at the (smoothed) mean of the living enemies. With no
+/// living enemy there is no threat axis, so the pose chases the hull's own
+/// heading instead - the aftermath framing.
+fn follow_pose(slot: usize, fight: &FightRead, aim: &mut FollowAim, dt: f32) -> Option<Pose> {
+    let (ship, team) = fight.followed.get(slot).copied().flatten()?;
+    let Some(threat) = fight.hostile_mean(team) else {
+        aim.slot = None;
+        return Some(Pose {
+            stand: ship.translation + ship.back() * FOLLOW_BACK + Vec3::Y * FOLLOW_LIFT,
+            target: ship.translation + ship.forward() * FOLLOW_LEAD,
+            up: Vec3::Y,
+        });
+    };
+    let point = if aim.slot == Some(slot) {
+        aim.point.lerp(threat, 1.0 - (-dt * FOLLOW_AIM_RATE).exp())
+    } else {
+        threat
+    };
+    aim.slot = Some(slot);
+    aim.point = point;
+    // A threat directly overhead has no horizontal axis to stand back along;
+    // the hull's own stern is the one bearing that always exists.
+    let axis = (point - ship.translation)
+        .try_normalize()
+        .unwrap_or(*ship.back());
+    Some(Pose {
+        stand: ship.translation - axis * FOLLOW_BACK + Vec3::Y * FOLLOW_LIFT,
+        target: point,
+        up: Vec3::Y,
+    })
+}
+
 /// Resolve the armed vantage against the live fight. A pose that needs a ship
 /// the fight no longer has - a follow slot the roster never filled, or one
 /// whose hull is dead - falls back to the frame pose rather than freezing.
-fn vantage_pose(vantage: Vantage, fight: &FightRead) -> Option<Pose> {
+fn vantage_pose(vantage: Vantage, fight: &FightRead, aim: &mut FollowAim, dt: f32) -> Option<Pose> {
     match vantage {
         Vantage::Free => None,
         Vantage::Frame => Some(frame_pose(fight)),
@@ -1299,17 +1869,7 @@ fn vantage_pose(vantage: Vantage, fight: &FightRead) -> Option<Pose> {
             up: Vec3::Y,
         }),
         Vantage::Follow(slot) => {
-            let Some(ship) = fight.followed.get(slot).copied().flatten() else {
-                return Some(frame_pose(fight));
-            };
-            // The ship's OWN heading, not the line to a rival: a follow camera
-            // is bolted to the hull, so it swings with the hull and shows what
-            // the pilot is flying at.
-            Some(Pose {
-                stand: ship.translation + ship.back() * FOLLOW_BACK + Vec3::Y * FOLLOW_LIFT,
-                target: ship.translation + ship.forward() * FOLLOW_LEAD,
-                up: Vec3::Y,
-            })
+            follow_pose(slot, fight, aim, dt).or_else(|| Some(frame_pose(fight)))
         }
     }
 }
@@ -1317,13 +1877,21 @@ fn vantage_pose(vantage: Vantage, fight: &FightRead) -> Option<Pose> {
 /// Write the armed pose onto the scenario camera.
 fn pose_vantage_camera(
     vantage: Res<Vantage>,
+    time: Res<Time>,
+    mut aim: ResMut<FollowAim>,
     q_ships: ShipQuery,
     mut q_camera: Query<&mut Transform, With<ScenarioCameraMarker>>,
 ) {
+    if !matches!(*vantage, Vantage::Follow(_)) {
+        // Forget the aim whenever nothing is following: coming BACK to a
+        // follow after a spell on another pose should open on the live threat,
+        // not pan in from wherever the fight stood minutes ago.
+        aim.slot = None;
+    }
     let Some(fight) = read_fight(&q_ships) else {
         return;
     };
-    let Some(pose) = vantage_pose(*vantage, &fight) else {
+    let Some(pose) = vantage_pose(*vantage, &fight, &mut aim, time.delta_secs()) else {
         return;
     };
     for mut camera in &mut q_camera {
@@ -1500,9 +2068,15 @@ fn update_readout(
     hud: Res<HudVisibility>,
     mut q_readout: Query<(&mut Text, &mut Visibility), With<ScoreReadout>>,
 ) {
+    // Player mode has no vantage keys to advertise: the camera help would be
+    // a lie about who owns the view.
+    let help = if roster.player_slot().is_some() {
+        "[R] re-roll  [L] look"
+    } else {
+        "[R] re-roll  [L] look  [Q] frame  [E] overview  [1-4] follow"
+    };
     let line = format!(
-        "WFC arena - {} x{} vs {} x{} - seed {} - {} - fired {}/{} - dealt {:.0}/{:.0} - \
-         [R] re-roll  [L] look  [Q] frame  [E] overview  [1-4] follow",
+        "WFC arena - {} x{} vs {} x{} - seed {} - {} - fired {}/{} - dealt {:.0}/{:.0} - {help}",
         TEAMS[0].callsign,
         roster.strength(0),
         TEAMS[1].callsign,
@@ -1527,18 +2101,178 @@ fn update_readout(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Team chevrons: which side a hull flies for, at a glance.
+// ---------------------------------------------------------------------------
+
+/// The chevron's geometry: the HUD allegiance-marker triangle verbatim - a
+/// zero-content `ContentBox` node whose coloured top border renders as a
+/// filled down-pointing triangle - floated the same 40 px above the hull.
+/// The same numbers on purpose: this IS that visual language, re-tinted.
+const CHEVRON_HALF_WIDTH_PX: f32 = 7.0;
+const CHEVRON_HEIGHT_PX: f32 = 9.0;
+const CHEVRON_SIZE: Vec2 = Vec2::new(2.0 * CHEVRON_HALF_WIDTH_PX, CHEVRON_HEIGHT_PX);
+const CHEVRON_OFFSET: Vec2 = Vec2::new(0.0, -40.0);
+
+/// One team-chevron layer, and the fighter root it tracks.
+#[derive(Component)]
+struct TeamChevron(Entity);
+
+/// The chevron's projected indicator node - the one the visibility gate must
+/// overwrite, because the projection re-asserts `Visibility::Visible` on it
+/// every frame.
+#[derive(Component)]
+struct TeamChevronIndicator;
+
+/// Tag the scenario camera as the screen-indicator projector. The game only
+/// tags the player's chase camera and this arena has no player, so without
+/// this every indicator - the chevrons included - hides. `Added` re-fires per
+/// reroll: `LoadScenario` tears the camera down and spawns a fresh one.
+fn tag_indicator_camera(mut commands: Commands, q_new: Query<Entity, Added<ScenarioCameraMarker>>) {
+    for camera in &q_new {
+        commands.entity(camera).insert(ScreenIndicatorCamera);
+    }
+}
+
+/// Retire the stock HUD allegiance markers for every arena-spawned wfc ship:
+/// the fighters wear team chevrons instead (the stock triangle is semantic
+/// ally/threat, and its recolour system owns that tint), and the junk must
+/// wear nothing - twenty grey neutral triangles over the debris blobs would
+/// read as a contact swarm. Every frame rather than an observer, because the
+/// stock layers spawn from a deferred observer command on every (re)load.
+fn retire_stock_markers(
+    mut commands: Commands,
+    q_layers: Query<(Entity, &AllegianceMarkerTargetEntity), With<AllegianceMarkerHudMarker>>,
+    q_ids: Query<&EntityId>,
+) {
+    for (layer, target) in &q_layers {
+        let Ok(id) = q_ids.get(**target) else {
+            continue;
+        };
+        if id.0.starts_with(FIGHTER_ID_PREFIX) || id.0.starts_with(DERELICT_ID_PREFIX) {
+            commands.entity(layer).despawn();
+        }
+    }
+}
+
+/// Spawn a chevron over every fighter as it lands: an indicator anchored on
+/// the ship root with the border-triangle under it, tinted by team
+/// ([`Team::tint`]). Junk never matches [`FIGHTER_ID_PREFIX`], so it can
+/// never grow one. Fixed-size, so it reads the same at overview range and in
+/// a follow - that is the point of a screen-space marker.
+fn spawn_team_chevrons(
+    mut commands: Commands,
+    roster: Res<Roster>,
+    q_new: Query<(Entity, &EntityId, Option<&Allegiance>), Added<SpaceshipRootMarker>>,
+) {
+    for (ship, id, allegiance) in &q_new {
+        let Some(slot) = fighter_slot(id) else {
+            continue;
+        };
+        // The stock HUD skips the player's own marker (you know where you
+        // are); the team chevron skips the slot the viewer flies for the
+        // same reason.
+        if roster.player_slot() == Some(slot) {
+            continue;
+        }
+        let Some(team) = allegiance.and_then(team_of) else {
+            continue;
+        };
+        commands.spawn((
+            Name::new("TeamChevron"),
+            TeamChevron(ship),
+            screen_indicator_layer(),
+            children![(
+                TeamChevronIndicator,
+                screen_indicator(ScreenIndicatorConfig {
+                    anchor: Some(ScreenIndicatorAnchorKind::Entity(ship)),
+                    size: ScreenIndicatorSize::Fixed(CHEVRON_SIZE),
+                    offset: CHEVRON_OFFSET,
+                    offscreen: ScreenIndicatorOffscreen::Hide,
+                }),
+                children![(
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(0.0),
+                        top: Val::Px(0.0),
+                        // Zero CONTENT box: the borders below are the whole
+                        // visible shape, and the default BorderBox would
+                        // collapse them to nothing.
+                        width: Val::Px(0.0),
+                        height: Val::Px(0.0),
+                        box_sizing: BoxSizing::ContentBox,
+                        border: UiRect {
+                            left: Val::Px(CHEVRON_HALF_WIDTH_PX),
+                            right: Val::Px(CHEVRON_HALF_WIDTH_PX),
+                            top: Val::Px(CHEVRON_HEIGHT_PX),
+                            bottom: Val::Px(0.0),
+                        },
+                        ..default()
+                    },
+                    BorderColor {
+                        top: TEAMS[team].tint,
+                        left: Color::NONE,
+                        right: Color::NONE,
+                        bottom: Color::NONE,
+                    },
+                    Pickable::IGNORE,
+                )],
+            )],
+        ));
+    }
+}
+
+/// The chevrons follow the READOUT's visibility rule, not the HUD tiers: on
+/// with the HUD in a hand-run (grave/tilde round-trips them) and always on in
+/// a capture, where two identifiable sides are part of the frame's evidence.
+///
+/// PostUpdate, after the projection, because that is the only place the rule
+/// can land: `update_screen_indicators` re-asserts `Visibility::Visible` on
+/// every on-screen indicator each frame (ancestor visibility included), so a
+/// "hidden" chevron must be overwritten downstream - the same ordering the
+/// HUD's own `apply_hud_visibility` uses. While shown, the projection's
+/// on-screen/off-screen answer is left alone.
+fn gate_team_chevrons(
+    hud: Res<HudVisibility>,
+    mut q_indicators: Query<&mut Visibility, With<TeamChevronIndicator>>,
+) {
+    if capturing() || hud.shows() {
+        return;
+    }
+    for mut visibility in &mut q_indicators {
+        visibility.set_if_neq(Visibility::Hidden);
+    }
+}
+
+/// A chevron dies with its fighter: the kill, the wipe and the reroll
+/// teardown all land here as a vanished root.
+fn reap_team_chevrons(
+    mut commands: Commands,
+    q_layers: Query<(Entity, &TeamChevron)>,
+    q_ships: Query<(), With<SpaceshipRootMarker>>,
+) {
+    for (layer, chevron) in &q_layers {
+        if q_ships.get(chevron.0).is_err() {
+            commands.entity(layer).despawn();
+        }
+    }
+}
+
 /// Seconds a load step may sit before the run aborts naming it (llvmpipe
 /// headroom).
 #[cfg(feature = "debug")]
 const STEP_DEADLINE_SECS: f32 = 30.0;
 
 /// Seconds the fight gets to prove itself: both teams firing and both dealt
-/// damage. Sized UNDER the harness completion watchdog's 120 s default, so a
-/// fight that never happens fails naming THIS step - the honest failure mode
-/// - instead of the watchdog's anonymous laggard exit. A slow matchup can be
-/// given more room with `NOVA_AUTOPILOT_DEADLINE`.
+/// damage. The cold opening now sits IN FRONT of the predicate - grace plus
+/// the passive closing to [`ENGAGE_RANGE`] spends ~15-25 s before a shot is
+/// even legal - so this is sized for approach plus fight, still UNDER the
+/// harness completion watchdog's 120 s default: a fight that never happens
+/// fails naming THIS step - the honest failure mode - instead of the
+/// watchdog's anonymous laggard exit. A slow matchup can be given more room
+/// with `NOVA_AUTOPILOT_DEADLINE`.
 #[cfg(feature = "debug")]
-const FIGHT_DEADLINE_SECS: f32 = 90.0;
+const FIGHT_DEADLINE_SECS: f32 = 100.0;
 
 /// The driven walk: load the arena, hold until the scoreboard proves both
 /// teams fired and both dealt damage, then shoot the brawl. The auto-frame

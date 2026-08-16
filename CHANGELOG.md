@@ -319,6 +319,12 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- `wfc_arena` opens cold - lines spawn ~305 u out, weapons free at gun range -
+  follows look over their ship at the enemy mean, team chevrons mark the
+  sides, and small wreckage fragments form junk blobs.
+- `wfc_arena` takes a `:player` roster slot: fly a drafted hull with the
+  game's own controller and HUD while the example's cameras stand down.
+  Refused under the driven walk.
 - `wfc_arena` takes a repeatable `--ship TEAM[:STYLE[:SEED]]` roster, loads half
   of every hull's bays with Lances, draws both PDC mounts, and remaps the
   cameras: Q orbit, E overview, 1-4 follows.
