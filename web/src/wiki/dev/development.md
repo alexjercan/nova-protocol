@@ -192,11 +192,12 @@ What is on disk today, in reading order:
   The UI idiom: a beat NAMES its target (`click_named` / `hover_named` /
   `ui_node_centre` / `ui_node_rect` in `nova_autopilot::input`) so a layout move
   is survivable and only a rename breaks a run; nothing reaches a widget by
-  triggering its observer or inserting its state component. A driven run that
+  triggering its observer or inserting its state component. A target past the
+  fold is SCROLLED to (`scroll_lines` / `scroll_pixels` turn the wheel), so a
+  list taller than its box costs the run nothing. A driven run that still
   cannot reach a target says so and states its COVERAGE in the verdict -
-  `menu_picker` names the rows it skipped past the picker's fold and fails
-  outright below two measurements, since its property is a comparison across
-  selections. The simulation ranges deliberately do the opposite - their
+  `menu_picker` names any row it gave up on and fails outright below two
+  measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their
   subject is the outcome chain, so pixel coordinates would only add layout
   coupling.
 - `screenshots/` - the content producers. `screenshot_scene` (the "Drydock

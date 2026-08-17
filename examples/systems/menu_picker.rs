@@ -1,14 +1,13 @@
 //! menu_picker: drive the main menu's Scenarios picker and MEASURE it.
 //!
 //! Boots the exact app the `nova_protocol` binary runs (via the shared
-//! [`editor_app`]), clicks Scenarios, then selects every scenario row that lies
-//! inside the list's visible box, in turn. The picker does not scroll under the
-//! harness, so a row past the fold is warned about and skipped rather than
-//! faked - and the run FAILS if fewer than two rows were reached, because the
-//! split it measures is only testable ACROSS selections. Every click is a REAL
-//! gesture: the pointer is moved to the widget's
-//! own screen position, resolved from its `Name`, and pressed and released
-//! there (task 20260804-094021) - nothing is reached by triggering its
+//! [`editor_app`]), clicks Scenarios, then selects every scenario row in turn -
+//! including the ones past the fold, which it reaches with the wheel the way a
+//! player does (task 20260804-190142). The run FAILS if fewer than two rows
+//! were reached, because the split it measures is only testable ACROSS
+//! selections. Every gesture is a REAL one: the pointer is moved to the
+//! widget's own screen position, resolved from its `Name`, and pressed and
+//! released there (task 20260804-094021) - nothing is reached by triggering its
 //! observer. After each selection settles it logs the laid-out width of the two
 //! panes ("Scenarios List" and "Scenario Details Panel") and, at the end, a
 //! verdict line saying whether those widths held constant across selections.
@@ -127,15 +126,15 @@ struct ScenariosAutopilot {
     wait: u32,
 }
 
-/// Driven frames a row gets to lay out inside the list before the walk gives up
-/// on it.
+/// Attempts a row gets to become clickable - to lay out, or to be scrolled in -
+/// before the walk gives up on it.
 ///
 /// Every selection REBUILDS the list, so on the frames right after a rebuild
 /// the list - or the row - has no rect at all. A single-frame look read that as
 /// "below the fold" and skipped the row for good, which is why the measured
 /// count varied run to run (review R2.1). A row is only skipped once it has
-/// failed to settle for this many consecutive driven frames, so only a row that
-/// is genuinely past the fold is dropped.
+/// failed for this many consecutive attempts, which is also what bounds the
+/// scroll: a row the wheel cannot bring in is dropped instead of chased.
 #[cfg(feature = "debug")]
 const ROW_SETTLE_FRAMES: u32 = 10;
 
@@ -144,19 +143,32 @@ const ROW_SETTLE_FRAMES: u32 = 10;
 /// A row scrolled past the fold still LAYS OUT, so `ui_node_centre` happily
 /// returns a coordinate for it - one that points at whatever is actually on
 /// screen there. Clicking it would select nothing and the walk would measure the
-/// previous selection's panes. The picker does not scroll under the harness, so
-/// a row below the fold is skipped rather than faked.
+/// previous selection's panes. So a row below the fold is SCROLLED to instead,
+/// with the wheel, the way a player reaches it.
 ///
-/// The three not-yet-clickable cases are kept APART because they mean different
-/// things: two are transient and one is permanent, and collapsing them into one
-/// `false` is what made a settling list indistinguishable from a fold.
+/// The cases are kept APART because they mean different things: one is
+/// clickable now, one after a scroll, and one only after the list settles.
+/// Collapsing them into one `false` is what made a settling list
+/// indistinguishable from a fold.
 #[cfg(feature = "debug")]
 enum RowPlacement {
     /// Inside the list's box, at this logical-pixel centre. Click it.
     OnScreen(Vec2),
+    /// Laid out but past the fold: turn the wheel by this many logical pixels
+    /// to bring it in, then look again.
+    PastTheFold(f32),
     /// Not clickable this frame, for the reason named (for the warn).
     Unreached(&'static str),
 }
+
+/// How far INSIDE the list a scroll aims to put the row's centre.
+///
+/// A scroll that lands the centre exactly on the fold edge is a rounding error
+/// away from still reading as outside, and the walk would scroll again and
+/// oscillate. One row height clears the boundary and puts the whole row on
+/// screen, since the placement test only looks at the centre.
+#[cfg(feature = "debug")]
+const SCROLL_MARGIN_ROWS: f32 = 1.0;
 
 /// Locate `name` against the `Scenarios List` box.
 #[cfg(feature = "debug")]
@@ -168,9 +180,23 @@ fn row_placement(world: &mut World, name: &str) -> RowPlacement {
         return RowPlacement::Unreached("the row has not laid out yet");
     };
     if list.contains(row.center()) {
-        RowPlacement::OnScreen(row.center())
+        return RowPlacement::OnScreen(row.center());
+    }
+    // Only the VERTICAL fold is scrollable: the list scrolls on y alone, so a
+    // row outside on x is a layout the wheel cannot fix and must be reported as
+    // such rather than scrolled at forever.
+    let centre = row.center().y;
+    let margin = row.height() * SCROLL_MARGIN_ROWS;
+    // `scroll_viewports` SUBTRACTS the wheel delta from the scroll offset, and
+    // the offset moves the content the other way again - so a positive delta
+    // moves the content DOWN the screen, which is what a row above the box
+    // needs.
+    if centre > list.max.y {
+        RowPlacement::PastTheFold(list.max.y - centre - margin)
+    } else if centre < list.min.y {
+        RowPlacement::PastTheFold(list.min.y - centre + margin)
     } else {
-        RowPlacement::Unreached("the row's centre is outside the list's box")
+        RowPlacement::Unreached("the row's centre is outside the list's box on x")
     }
 }
 
@@ -314,26 +340,23 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
                 state.settling = None;
                 state.pending_release = true;
             }
-            RowPlacement::Unreached(reason) => {
-                // Give the rebuilt list room to settle before believing this.
-                // Only a row that stays unreachable for the whole budget is
-                // skipped, and the warn names WHICH of the three cases it was.
-                let waited = match &state.settling {
-                    Some((settling, waited)) if *settling == name => waited + 1,
-                    _ => 1,
-                };
-                if waited >= ROW_SETTLE_FRAMES {
-                    warn!(
-                        "scenarios: row `{name}` unreachable after {ROW_SETTLE_FRAMES} driven \
-                         frames ({reason}); skipping it"
-                    );
-                    state.visited.push(name.clone());
-                    state.skipped.push((name, reason));
-                    state.settling = None;
-                } else {
-                    state.settling = Some((name, waited));
+            RowPlacement::PastTheFold(delta) => {
+                // Aim the wheel first: it goes to the pane under the pointer,
+                // and after a selection the pointer is still sitting on the row
+                // that was clicked - which may itself have scrolled away.
+                if let Some(list) = ui_node_rect(world, "Scenarios List") {
+                    move_cursor(list.center())(world);
                 }
+                scroll_pixels(delta)(world);
+                info!("probe: scrolled {delta:.1}px to reach {name}");
+                // One driven frame for the wheel to land: the scroll is applied
+                // in `Update` and layout moves the rows in `PostUpdate`, so
+                // measuring the gap again on the very next frame would read the
+                // PRE-scroll rects and scroll a second time, overshooting.
+                state.wait = 1;
+                settle_or_skip(&mut state, name, "it stayed past the fold after scrolling");
             }
+            RowPlacement::Unreached(reason) => settle_or_skip(&mut state, name, reason),
         },
         None => {
             report(world, &state);
@@ -353,6 +376,32 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
     }
 
     world.insert_resource(state);
+}
+
+/// Give a row that is not clickable THIS frame another driven frame, or give up
+/// on it once the budget is spent.
+///
+/// Shared by both not-yet-clickable cases, because a scroll needs the same
+/// bounded patience a rebuild does: a row the wheel cannot actually reach - a
+/// list already at its end, a fold on the axis that does not scroll - would
+/// otherwise be scrolled at for the rest of the run.
+#[cfg(feature = "debug")]
+fn settle_or_skip(state: &mut ScenariosAutopilot, name: String, reason: &'static str) {
+    let waited = match &state.settling {
+        Some((settling, waited)) if *settling == name => waited + 1,
+        _ => 1,
+    };
+    if waited >= ROW_SETTLE_FRAMES {
+        warn!(
+            "scenarios: row `{name}` unreachable after {ROW_SETTLE_FRAMES} driven attempts \
+             ({reason}); skipping it"
+        );
+        state.visited.push(name.clone());
+        state.skipped.push((name, reason));
+        state.settling = None;
+    } else {
+        state.settling = Some((name, waited));
+    }
 }
 
 /// The row named `name` must be the selected one before its measurement counts.

@@ -28,6 +28,14 @@
 //! example fleet uses them, and [`move_cursor`] plus [`press_mouse`] /
 //! [`release_mouse`] compose a drag when something does.
 //!
+//! ## Reaching a row past the fold
+//!
+//! [`scroll_lines`] / [`scroll_pixels`] turn the wheel, so a driven run can move
+//! a scrolling pane instead of measuring only what the first layout happened to
+//! put on screen. Without them a list taller than its box costs the run every
+//! row past the fold, and the gap reads as a property of the UI rather than of
+//! the harness (task 20260804-190142).
+//!
 //! ## The driven pointer is authoritative
 //!
 //! A driven app runs on a real display, and a real pointer event - the window
@@ -53,7 +61,8 @@
 use bevy::{
     input::{
         keyboard::{Key, KeyboardInput, NativeKeyCode},
-        mouse::MouseButtonInput,
+        mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel},
+        touch::TouchPhase,
         ButtonState,
     },
     picking::PickingSystems,
@@ -119,6 +128,65 @@ pub fn press_mouse(button: MouseButton) -> impl Fn(&mut World) + Send + Sync + '
 /// Release mouse `button`.
 pub fn release_mouse(button: MouseButton) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| set_mouse_button(world, button, ButtonState::Released)
+}
+
+/// Turn the wheel by `lines`, the way a notched mouse reports it.
+///
+/// Positive scrolls the view UP, towards the top of the content - winit's own
+/// sign, and the one a reader like `nova_ui`'s `scroll_viewports` already
+/// subtracts. What a line is WORTH is the reader's business, not the driver's
+/// (`nova_ui` spends 20 logical pixels on one), so a beat that has measured how
+/// far it must travel wants [`scroll_pixels`] instead.
+///
+/// The wheel goes to whatever the pointer is over, so a script with two
+/// scrollable panes on screen aims first: [`hover_named`] then this.
+pub fn scroll_lines(lines: f32) -> impl Fn(&mut World) + Send + Sync + 'static {
+    move |world: &mut World| turn_wheel(world, MouseScrollUnit::Line, lines)
+}
+
+/// Scroll by `pixels`, the way a trackpad reports it - [`scroll_lines`] in the
+/// unit a caller can COMPUTE.
+///
+/// A beat that scrolls a named row into view knows the gap in logical pixels
+/// and must not have to guess the reader's line height to spend it.
+pub fn scroll_pixels(pixels: f32) -> impl Fn(&mut World) + Send + Sync + 'static {
+    move |world: &mut World| turn_wheel(world, MouseScrollUnit::Pixel, pixels)
+}
+
+/// The shared body of [`scroll_lines`] and [`scroll_pixels`].
+///
+/// Writes the concrete [`MouseWheel`] message AND the [`WindowEvent`] wrapper,
+/// because `bevy_winit` writes both for every real notch and they have
+/// different readers: a game system reads the message, and `bevy_picking`
+/// builds its `PointerAction::Scroll` from the wrapper alone. Unlike a button
+/// press there is no `ButtonInput`-style accumulator in between, so neither
+/// lands a frame late.
+///
+/// Horizontal scroll is left out with gamepad and touch: nothing in the fleet
+/// scrolls sideways.
+///
+/// A warn-and-continue no-op without a primary window, like the other pointer
+/// gestures.
+fn turn_wheel(world: &mut World, unit: MouseScrollUnit, y: f32) {
+    let mut query = world.query_filtered::<Entity, With<PrimaryWindow>>();
+    let window = match query.single(world) {
+        Ok(entity) => entity,
+        Err(error) => {
+            warn!("autopilot: a wheel scroll of {y} {unit:?} has no primary window ({error})");
+            return;
+        }
+    };
+    // What a mouse always reports. A trackpad's Started/Ended bracket belongs to
+    // the gesture synthesis this driver does not do.
+    let wheel = MouseWheel {
+        unit,
+        x: 0.0,
+        y,
+        window,
+        phase: TouchPhase::Moved,
+    };
+    world.write_message(wheel);
+    world.write_message(WindowEvent::MouseWheel(wheel));
 }
 
 /// Move the pointer to `position` (logical pixels in the primary window).
@@ -426,6 +494,10 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, InputPlugin));
         app.add_message::<CursorMoved>();
+        // `WindowPlugin` is what registers this in a real app. Without it the
+        // wrapper half of every gesture goes nowhere, and a test asserting on
+        // the wrapper alone would have nothing to read.
+        app.add_message::<WindowEvent>();
         app.world_mut().spawn((
             Window {
                 resolution: WindowResolution::new(800, 600),
@@ -440,6 +512,25 @@ mod tests {
         app.world_mut()
             .resource_mut::<Messages<CursorMoved>>()
             .drain()
+            .collect()
+    }
+
+    fn wheels(app: &mut App) -> Vec<MouseWheel> {
+        app.world_mut()
+            .resource_mut::<Messages<MouseWheel>>()
+            .drain()
+            .collect()
+    }
+
+    /// The wheel notches a `WindowEvent::MouseWheel` carries, in order.
+    fn wrapped_wheels(app: &mut App) -> Vec<MouseWheel> {
+        app.world_mut()
+            .resource_mut::<Messages<WindowEvent>>()
+            .drain()
+            .filter_map(|event| match event {
+                WindowEvent::MouseWheel(wheel) => Some(wheel),
+                _ => None,
+            })
             .collect()
     }
 
@@ -510,6 +601,60 @@ mod tests {
                 .just_pressed(MouseButton::Left),
             "the button edge is fresh, not merely held"
         );
+    }
+
+    /// A synthesized notch leaves BOTH halves a real one leaves: the concrete
+    /// message a game system reads, and the `WindowEvent` wrapper the picking
+    /// backend turns into `PointerAction::Scroll`. Writing only the message
+    /// scrolls the pane but never reaches picking; writing only the wrapper does
+    /// the reverse.
+    #[test]
+    fn a_wheel_scroll_writes_both_halves_a_real_notch_writes() {
+        let mut app = app();
+
+        scroll_lines(-3.0)(app.world_mut());
+
+        let wheels = wheels(&mut app);
+        assert_eq!(wheels.len(), 1, "one gesture is one notch");
+        assert_eq!(wheels[0].unit, MouseScrollUnit::Line);
+        assert_eq!(
+            wheels[0].y, -3.0,
+            "the delta passes through with its sign, which is what says \
+             which way the view moves"
+        );
+        assert_eq!(wheels[0].x, 0.0, "the driver does not scroll sideways");
+        assert_eq!(
+            wrapped_wheels(&mut app),
+            wheels,
+            "the wrapper carries the same notch, for the picking backend"
+        );
+    }
+
+    /// The two constructors must stay apart: a reader multiplies a LINE by its
+    /// own line height and takes a PIXEL as it stands, so a beat that measured
+    /// its gap in pixels and got lines would travel 20x too far.
+    #[test]
+    fn scroll_pixels_reports_the_pixel_unit() {
+        let mut app = app();
+
+        scroll_pixels(-96.0)(app.world_mut());
+
+        let wheels = wheels(&mut app);
+        assert_eq!(wheels.len(), 1);
+        assert_eq!(wheels[0].unit, MouseScrollUnit::Pixel);
+        assert_eq!(wheels[0].y, -96.0);
+    }
+
+    /// Like the other pointer gestures: a headless smoke run that turns the
+    /// wheel must not die on it.
+    #[test]
+    fn a_wheel_scroll_without_a_window_is_harmless() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin));
+
+        scroll_lines(1.0)(app.world_mut());
+
+        assert!(wheels(&mut app).is_empty());
     }
 
     /// `move_cursor` positions without clicking - the half of the pair a hover
@@ -802,11 +947,13 @@ mod tests {
     }
 }
 
-/// The synthesized input steps: key and mouse press/release, cursor moves, clicks
-/// by position or name, and the node-geometry helpers they resolve through.
+/// The synthesized input steps: key and mouse press/release, cursor moves,
+/// wheel scrolls, clicks by position or name, and the node-geometry helpers they
+/// resolve through.
 pub mod prelude {
     pub use super::{
         assert_named_visible, click_at, click_named, hover_named, move_cursor, press_key,
-        press_mouse, release_key, release_mouse, ui_node_centre, ui_node_rect,
+        press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels, ui_node_centre,
+        ui_node_rect,
     };
 }
