@@ -80,3 +80,13 @@ Headline findings:
 
 Follow-ups are enumerated in GREEBLES.md section "task breakdown"; opening
 them is the owner's call.
+
+## Owner re-ranking after the batches (2026-08-17)
+
+The verdict the whole arc aimed at, after the four vocabulary batches
+landed: "the new greeble kit looks good... I still think salvage >
+industrial, but now armoured and civilian are closer to them." The gap the
+original ranking named (armoured/civilian "pretty low kind of equal") has
+closed; the order itself was never the target. No tuning-pass task filed -
+the recorded tuning inputs stay in the batch task closures if a later pass
+wants them.
