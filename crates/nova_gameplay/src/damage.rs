@@ -23,7 +23,10 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::{
-    integrity::health::prelude::{Health, HealthApplyDamage, HealthZeroMarker},
+    integrity::{
+        carve::prelude::record_damage_mark,
+        health::prelude::{Health, HealthApplyDamage, HealthZeroMarker},
+    },
     markers::SectionMarker,
 };
 
@@ -255,13 +258,31 @@ pub fn damage_type_color(kind: DamageType) -> Color {
     }
 }
 
-/// Spend `amount` hit points on `target`, attributed to `source`.
+/// Spend `amount` hit points on `target`, attributed to `source`, landing at
+/// `at` in WORLD space.
 ///
 /// The single point at which a weapon enters the health store, so every weapon
-/// - turret, torpedo blast, ram - lands identically. It is a plain trigger:
-/// damage is one number now, and nothing between the weapon and
+/// - turret, torpedo blast, ram - lands identically. Damage is still one
+/// number, and nothing between the weapon and
 /// [`on_damage`](crate::integrity::health) reinterprets it.
-pub fn apply_damage(commands: &mut Commands, target: Entity, source: Option<Entity>, amount: f32) {
+///
+/// `at` goes to a different store, and that split is the point: health
+/// remembers how MUCH was spent, [`DamageMarks`] remembers WHERE, and a body
+/// that changes shape needs both. `None` is for damage that genuinely happened
+/// nowhere - a scripted `destroy`, a test rig - and costs the target nothing
+/// but its shape staying whole.
+///
+/// [`DamageMarks`]: crate::integrity::carve::DamageMarks
+pub fn apply_damage(
+    commands: &mut Commands,
+    target: Entity,
+    source: Option<Entity>,
+    amount: f32,
+    at: Option<Vec3>,
+) {
+    if let Some(at) = at {
+        record_damage_mark(commands, target, at, amount);
+    }
     commands.trigger(HealthApplyDamage {
         entity: target,
         source,
@@ -364,8 +385,15 @@ pub fn spend_piercing_damage(
     target_health: Option<&Health>,
     damage: ProjectileDamage,
     closing_speed: f32,
+    at: Option<Vec3>,
 ) -> Option<ProjectileDamage> {
-    apply_damage(commands, target, source, hit_bite(damage, closing_speed));
+    apply_damage(
+        commands,
+        target,
+        source,
+        hit_bite(damage, closing_speed),
+        at,
+    );
     pierce_remainder(damage, target_health, closing_speed)
 }
 
@@ -592,11 +620,17 @@ fn resolve_nova_blast_hits(
             )
         };
         if amount > f32::EPSILON {
+            // Marked at the BLAST's own centre rather than at the target: a
+            // blast is a sphere of material removed, and every body caught in
+            // one should be carved by the same sphere so the bite a warhead
+            // takes out of a hull is one crater and not a target's worth of
+            // unrelated dents.
             apply_damage(
                 &mut commands,
                 hit.target_collider,
                 Some(hit.blast_collider),
                 amount,
+                Some(blast_position.0),
             );
         }
     }

@@ -13,13 +13,17 @@
 //!   `OnDestroyedEvent`.
 //! - [`neutralize`] calls a ship combat-dead once its weapons are gone OR its
 //!   flight computer is.
+//! - [`erosion`] reads health as a level, for effects that grade a whole body.
+//! - [`carve`] remembers where the hits landed, for effects that change a
+//!   body's shape.
 //!
-//! [`NovaIntegrityPlugin`] bundles the five generic gameplay modules.
+//! [`NovaIntegrityPlugin`] bundles the generic gameplay modules.
 //!
 //! [`IntegrityDestroyMarker`]: components::IntegrityDestroyMarker
 
 use bevy::prelude::*;
 
+pub mod carve;
 pub mod components;
 pub mod core;
 pub mod erosion;
@@ -30,8 +34,8 @@ pub mod neutralize;
 /// Every integrity submodule's prelude plus `NovaIntegrityPlugin`.
 pub mod prelude {
     pub use super::{
-        components::prelude::*, core::prelude::*, erosion::prelude::*, explode::prelude::*,
-        health::prelude::*, neutralize::prelude::*, NovaIntegrityPlugin,
+        carve::prelude::*, components::prelude::*, core::prelude::*, erosion::prelude::*,
+        explode::prelude::*, health::prelude::*, neutralize::prelude::*, NovaIntegrityPlugin,
     };
 }
 
@@ -47,9 +51,13 @@ impl Plugin for NovaIntegrityPlugin {
         app.add_plugins(health::NovaHealthPlugin);
         app.add_plugins(core::IntegrityCorePlugin);
 
-        // How far gone a body LOOKS, read off the health above. Owns the
-        // number only; what it means visually is each damage effect's business.
+        // The two damage READINGS, and neither is a look of its own. The level
+        // says how far gone a body is (grading whole-body effects: scorch,
+        // sparks); the marks say where it was hit (driving anything that has to
+        // change a body's shape). See `carve` for why one number could never
+        // do both.
         app.add_plugins(erosion::DamageLevelPlugin);
+        app.add_plugins(carve::DamageMarksPlugin);
 
         // Nova's reaction to destruction: mesh slice, debris, OnDestroyedEvent.
         app.add_plugins(explode::ExplodablePlugin);

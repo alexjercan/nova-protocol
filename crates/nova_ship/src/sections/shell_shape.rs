@@ -60,6 +60,10 @@ use crate::sections::link_points::{unit_cube_link_points, LinkPoint};
 /// edge of a skin.
 pub const SAMPLE_HEIGHTS: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
 
+/// The gap between two neighbouring [`SAMPLE_HEIGHTS`], which is the quantum a
+/// carved height is rounded back onto.
+pub const SAMPLE_STEP: f32 = 0.25;
+
 /// The digit of a sample standing a full cell high, which is what it takes to
 /// close against structure a whole cell tall.
 pub const FULL: u8 = 4;
@@ -284,33 +288,69 @@ impl ShellShape {
         self.volume()
     }
 
-    /// This shape worn down by `level`, where `0.0` is untouched and `1.0` is
-    /// flat on the cell floor.
+    /// This shape with a set of spheres SUBTRACTED from it: `(centre, radius)`
+    /// pairs in the tile's own frame, where the cell floor is at `-REACH`.
     ///
     /// Battle damage with no new mesh generator and, more importantly, no new
-    /// shape LANGUAGE: every sample steps down toward the floor, so the answer
-    /// is always a shape the vocabulary already draws and already caches by id.
-    /// Erosion therefore cannot produce geometry nobody has ever looked at,
+    /// shape LANGUAGE. A sphere subtracted from a height field is exact
+    /// arithmetic - a boundary sample is pushed down to the sphere's underside
+    /// where the sphere reaches over it, and left alone where it does not - so
+    /// the answer is always a shape the vocabulary already draws and already
+    /// caches by id. Carving cannot produce geometry nobody has looked at,
     /// which is the whole reason the skin is a height field on five steps
     /// rather than free-form relief.
     ///
-    /// Proportional to each sample's own height rather than a flat subtraction:
-    /// what stands proudest of the hull is what a shot takes off first, and a
-    /// sample already on the floor has nothing left to lose. Rounded rather
-    /// than floored so a lightly damaged plate reads as dented instead of
-    /// dropping a whole step everywhere at once.
+    /// LOCATED, and that is the point. A tile's samples sit at eight different
+    /// places on its face, so one sphere lands on some and misses others: a hit
+    /// near a corner drops that corner and leaves the far one standing. What
+    /// comes out is a bite, where anything driven by a single per-body number
+    /// could only ever sag the whole tile at once and read as a smaller ship.
     ///
-    /// Shared boundary samples are NOT renegotiated with the neighbours: a worn
-    /// plate opens a seam against an intact one, which is what battle damage
-    /// looks like, and healing the seam would mean every neighbour agreeing on
-    /// one body's health.
-    pub fn eroded(&self, level: f32) -> Self {
-        let remaining = 1.0 - level.clamp(0.0, 1.0);
-        let wear =
-            |round: [u8; 4]| -> [u8; 4] { round.map(|h| (f32::from(h) * remaining).round() as u8) };
+    /// Shared boundary samples ARE still shared. Two neighbouring tiles
+    /// subtract the same sphere from the same sample position and get the same
+    /// answer, so a crater crosses the seam between them and stays watertight -
+    /// which is why marks are kept in the frame of the body that owns the skin
+    /// rather than per plate.
+    ///
+    /// Rounded rather than floored, and never allowed to ADD: a graze that
+    /// reaches an eighth of a cell reads as a scrape instead of gouging a whole
+    /// step, and no arrangement of spheres can grow a tile.
+    ///
+    /// A sphere big enough to floor every sample at once leaves the all-floor
+    /// shape, which [`is_stud`](Self::is_stud) lifts back into a pyramid. That
+    /// is unreachable in play - a mark that wide costs several times the health
+    /// of the cell it lands on, so the plate is destroyed and swept before it
+    /// could be drawn - and it is why nothing here special-cases it.
+    pub fn carved(&self, carves: &[(Vec3, f32)]) -> Self {
+        if carves.is_empty() {
+            return *self;
+        }
+        let boundary = self.boundary();
+        let cut = |slot: usize, digit: u8| -> u8 {
+            let sample = boundary[slot];
+            let mut height = sample.y;
+            for (centre, radius) in carves {
+                // How far the sphere's centre is from this sample ACROSS the
+                // face. Beyond its radius the sphere is not over the sample at
+                // all; inside it, the sphere's underside at that offset is
+                // exactly this far below its centre.
+                let across = Vec2::new(sample.x - centre.x, sample.z - centre.z).length();
+                if across >= *radius {
+                    continue;
+                }
+                height = height.min(centre.y - (radius * radius - across * across).sqrt());
+            }
+            if height >= sample.y {
+                return digit;
+            }
+            let step = ((height + REACH) / SAMPLE_STEP)
+                .round()
+                .clamp(0.0, f32::from(FULL)) as u8;
+            step.min(digit)
+        };
         Self {
-            corners: wear(self.corners),
-            midpoints: wear(self.midpoints),
+            corners: std::array::from_fn(|edge| cut(edge * 2, self.corners[edge])),
+            midpoints: std::array::from_fn(|edge| cut(edge * 2 + 1, self.midpoints[edge])),
         }
     }
 
@@ -671,94 +711,150 @@ mod tests {
         ShellShape::new(corners, midpoints).expect("a legal shape")
     }
 
-    /// The ends of the range are the two shapes a reader can predict: an
-    /// untouched plate, and one flat on the floor.
+    /// A tile the carve does not reach is the tile that was authored. The whole
+    /// of a ship's skin goes through this on every hit, so "nothing happened"
+    /// has to mean bit-for-bit nothing.
     #[test]
-    fn wear_runs_from_the_authored_shape_down_to_the_floor() {
+    fn a_carve_that_lands_elsewhere_changes_nothing() {
         let plate = shape([FULL, FULL, HALF, HALF], [FULL, HALF, HALF, FULL]);
 
-        assert_eq!(plate.eroded(0.0), plate, "an untouched plate is unchanged");
+        assert_eq!(plate.carved(&[]), plate, "no marks at all");
         assert_eq!(
-            plate.eroded(1.0),
-            shape([0, 0, 0, 0], [0, 0, 0, 0]),
-            "a fully worn plate is flat on the cell floor"
+            plate.carved(&[(Vec3::new(9.0, 0.0, 9.0), 1.0)]),
+            plate,
+            "a crater on the far side of the ship"
+        );
+        assert_eq!(
+            plate.carved(&[(Vec3::new(0.0, 4.0, 0.0), 1.0)]),
+            plate,
+            "a sphere passing overhead without reaching down"
         );
     }
 
-    /// Whatever wear does, it must land on a shape the vocabulary already
-    /// draws - that is the entire reason erosion can reuse the tile generator
+    /// THE claim the whole effect rests on: a hit takes a BITE. The sample
+    /// under it drops, the one across the tile does not, and what is between
+    /// them is between them.
+    ///
+    /// This is what a per-body number could never do - it can only move all
+    /// eight samples together, which sags the tile instead of biting it.
+    #[test]
+    fn a_carve_bites_where_it_lands_and_leaves_the_far_side_standing() {
+        let plate = shape([FULL; 4], [FULL; 4]);
+        // Centred on corner 0, sitting on the tile's own surface, reaching
+        // most of the way across one edge.
+        let bitten = plate.carved(&[(Vec3::new(REACH, REACH, REACH), 0.7)]);
+
+        assert!(
+            bitten.corners[0] < bitten.midpoints[0] && bitten.corners[0] < bitten.midpoints[3],
+            "the sample under the hit loses the most: {bitten:?}"
+        );
+        assert_eq!(
+            bitten.corners[2], FULL,
+            "the corner across the tile is untouched"
+        );
+        assert!(
+            bitten.midpoints[0] < FULL && bitten.midpoints[3] < FULL,
+            "the two edges running off the hit are dished"
+        );
+        assert_eq!(
+            [bitten.corners[1], bitten.corners[3]],
+            [FULL, FULL],
+            "and the corners the sphere never reached are left alone"
+        );
+    }
+
+    /// Whatever a carve does, it must land on a shape the vocabulary already
+    /// draws - that is the entire reason damage can reuse the tile generator
     /// and its cache instead of meshing anything new.
     #[test]
-    fn every_worn_shape_is_one_the_vocabulary_already_draws() {
+    fn every_carved_shape_is_one_the_vocabulary_already_draws() {
         let plate = shape([FULL, 3, HALF, 1], [3, HALF, 1, FULL]);
         for step in 0..=20 {
-            let level = step as f32 / 20.0;
-            let worn = plate.eroded(level);
+            let radius = step as f32 / 10.0;
+            let carved = plate.carved(&[(Vec3::new(0.2, 0.3, -0.1), radius)]);
             assert!(
-                ShellShape::new(worn.corners, worn.midpoints).is_some(),
-                "level {level} produced {worn:?}, which is not a legal shape"
+                ShellShape::new(carved.corners, carved.midpoints).is_some(),
+                "radius {radius} produced {carved:?}, which is not a legal shape"
             );
             // The id round-trip is the real test of "already drawn": the id IS
             // the mesh cache key.
             assert_eq!(
-                ShellShape::from_id(&worn.id()),
-                Some(worn),
-                "level {level} produced a shape whose own id does not spell it"
+                ShellShape::from_id(&carved.id()),
+                Some(carved),
+                "radius {radius} produced a shape whose own id does not spell it"
             );
         }
     }
 
-    /// Wear only ever takes material away, and it takes it off what stands
-    /// proudest first. A plate that grew back under fire would be a bug the
-    /// skin's derive-once rule exists to prevent.
-    ///
-    /// Asserted on the SAMPLES rather than on [`ShellShape::volume`], because
-    /// volume is not monotone across the whole range and should not be: the
-    /// all-floor shape is a stud, which reads as half a cell of solid on
-    /// purpose (see `volume`). Samples are what wear actually moves.
+    /// A carve only ever takes material away, however many spheres it is made
+    /// of and however they overlap. A plate that grew back under fire would be
+    /// a bug the skin's derive-once rule exists to prevent.
     #[test]
-    fn wear_only_removes_material_and_takes_the_tallest_first() {
+    fn a_carve_only_ever_removes_material() {
         let plate = shape([FULL, HALF, 1, 0], [FULL, HALF, 1, 0]);
+        let at = Vec3::new(0.1, REACH, 0.2);
 
         let mut previous = plate;
-        for step in 1..=10 {
-            let worn = plate.eroded(step as f32 / 10.0);
+        for step in 1..=12 {
+            // A growing sphere is the worst case for monotonicity: every step
+            // has to be at least as deep as the one before it everywhere.
+            let carved = plate.carved(&[(at, step as f32 / 8.0)]);
             for (before, after) in previous
                 .corners
                 .iter()
                 .chain(previous.midpoints.iter())
-                .zip(worn.corners.iter().chain(worn.midpoints.iter()))
+                .zip(carved.corners.iter().chain(carved.midpoints.iter()))
             {
                 assert!(
                     after <= before,
                     "a sample grew back at step {step}: {before} -> {after}"
                 );
             }
-            previous = worn;
+            previous = carved;
         }
+    }
 
-        // Proportional, so the tall corner loses more than the short one at the
-        // same level - a flat subtraction would take them down together.
-        let half_worn = plate.eroded(0.5);
+    /// The continuity claim, and the reason marks are kept in the frame of the
+    /// body that owns the skin rather than per plate: two tiles that share a
+    /// boundary sample subtract the SAME sphere from the SAME place and have to
+    /// arrive at the same height, or a crater cracks open along every seam it
+    /// crosses.
+    #[test]
+    fn neighbouring_tiles_agree_on_the_sample_they_share() {
+        let plate = shape([FULL; 4], [FULL; 4]);
+        // Two cells side by side along x. Their shared edge runs at x = +REACH
+        // in the left tile's frame and x = -REACH in the right one's, so the
+        // left tile's corners 0 and 3 are the right tile's corners 1 and 2.
+        let hit = Vec3::new(0.6, REACH, 0.1);
+        let left = plate.carved(&[(hit, 0.8)]);
+        let right = plate.carved(&[(hit - Vec3::X, 0.8)]);
+
+        assert_eq!(
+            left.corners[0], right.corners[1],
+            "the shared corner at +z has to be one height"
+        );
+        assert_eq!(
+            left.corners[3], right.corners[2],
+            "and so does the shared corner at -z"
+        );
         assert!(
-            i16::from(plate.corners[0]) - i16::from(half_worn.corners[0])
-                > i16::from(plate.corners[2]) - i16::from(half_worn.corners[2]),
-            "the tallest sample must lose the most"
+            left.corners[0] < FULL,
+            "delivery guard: the carve actually reached the shared edge"
         );
     }
 
-    /// The end of the range is the vocabulary's own floor case, and it is a
-    /// STUD rather than nothing: a plate worn flat still reads as a stub of
-    /// surviving material, which is what `volume`'s exception is there for. A
-    /// reader who expects a worn plate to vanish should find that here rather
-    /// than in a scene.
+    /// The vocabulary's floor case is a STUD rather than nothing: an all-floor
+    /// boundary still reads as a stub of surviving material, which is what
+    /// `volume`'s exception is there for. A carve wide enough to reach it costs
+    /// more health than the plate has, so a reader who expects to meet this in
+    /// a scene should find out here that they will not.
     #[test]
-    fn a_plate_worn_flat_becomes_the_vocabularys_stud() {
-        let worn = shape([FULL, FULL, FULL, FULL], [FULL, FULL, FULL, FULL]).eroded(1.0);
+    fn the_all_floor_shape_is_the_vocabularys_stud() {
+        let flat = shape([0; 4], [0; 4]);
 
-        assert!(worn.is_stud(), "the all-floor shape is the stud");
+        assert!(flat.is_stud(), "the all-floor shape is the stud");
         assert_eq!(
-            worn.volume(),
+            flat.volume(),
             SAMPLE_HEIGHTS[HALF as usize],
             "and a stud is half a cell of solid, not none"
         );

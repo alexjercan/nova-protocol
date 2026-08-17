@@ -39,7 +39,7 @@ use bevy::{
     prelude::*,
 };
 use nova_gameplay::prelude::{
-    destructible_body, DamageLevel, HealthZeroMarker, IntegritySystems, SectionMarker,
+    destructible_body, DamageMarks, HealthZeroMarker, IntegritySystems, SectionMarker,
     SpaceshipRootMarker,
 };
 
@@ -734,6 +734,12 @@ fn spawn_ship_skin(
             laid.push(Some(entity));
         }
 
+        // The ROOT remembers where the ship was hit, because the skin is one
+        // surface and a crater has to cross the seams between its plates. Put
+        // here rather than on the ship bundle so it exists exactly where it is
+        // read: an unclad ship has no shape to carve and records nothing.
+        commands.entity(root).insert(DamageMarks::default());
+
         let style = q_clad
             .get(root)
             .ok()
@@ -1044,17 +1050,26 @@ fn hang_surfaces(
     }
 }
 
-/// Wear every plate down to match the damage it has taken.
+/// Subtract every hit a ship remembers from the plates it landed on.
 ///
-/// THE first consumer of [`DamageLevel`], and the cheapest one there will ever
-/// be. A plate already carries its shape as eight samples on five steps, so
-/// wearing it down means choosing a different shape from the SAME vocabulary:
-/// no remesh, no generated geometry, and the mesh cache answers because a worn
-/// shape is a shape like any other.
+/// THE first consumer of [`DamageMarks`], and the cheapest carve there will
+/// ever be. A plate already carries its shape as eight samples on five steps,
+/// so taking a bite out of it means choosing a different shape from the SAME
+/// vocabulary: no remesh, no generated geometry, and the mesh cache answers
+/// because a carved shape is a shape like any other.
 ///
-/// Reads the plate's OWN level. Plates are `HealthIsolated`, so a raked patch
-/// of skin wears through while the hull under it still reads untouched - the
-/// honest picture of a ship that has lost paint but not structure.
+/// Driven by the SHIP'S mark list rather than by each plate's own health, and
+/// that is what makes the damage read. The marks are one list in one frame, so
+/// every plate a crater crosses subtracts the same spheres from the same
+/// places, agrees with its neighbours at the samples they share, and the bite
+/// comes out continuous across the seam instead of stopping at it. A plate's
+/// own health still decides when it comes OFF - see `despawn_dead_fixtures` -
+/// so a hard enough hit leaves a hole in the middle of the dish it carved.
+///
+/// Always re-derived from the PRISTINE shape, never from what the plate is
+/// wearing now. Marks only ever grow, so the carve is monotone by
+/// construction, and re-deriving means a compacted mark list cannot leave a
+/// plate carved by a mark that is no longer in it.
 ///
 /// The COLLIDER deliberately does not follow. It is sized from the pristine
 /// volume at spawn and stays there: a plate's job in physics is to be what a
@@ -1062,12 +1077,11 @@ fn hang_surfaces(
 /// job, and re-deriving mass under a flying ship for a visual reason would
 /// shove the body around.
 #[allow(clippy::too_many_arguments)]
-fn erode_skin_plates(
+fn carve_skin_plates(
     mut commands: Commands,
-    mut q_worn: Query<
-        (Entity, &ShipSkinMarker, &mut SkinPlateWear, &DamageLevel),
-        Changed<DamageLevel>,
-    >,
+    q_marked: Query<(Entity, &DamageMarks, &GlobalTransform), Changed<DamageMarks>>,
+    q_children: Query<&Children>,
+    mut q_plates: Query<(&ShipSkinMarker, &mut SkinPlateWear, &GlobalTransform)>,
     q_surfaces: Query<(Entity, &ChildOf), With<SkinSurfaceMarker>>,
     q_child_of: Query<&ChildOf>,
     q_style: Query<&ShipStyle>,
@@ -1076,34 +1090,85 @@ fn erode_skin_plates(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    for (plate, ShipSkinMarker(pristine), mut wear, level) in &mut q_worn {
-        let worn = pristine.eroded(level.0);
-        if worn == wear.0 {
-            // The reading moved, but not far enough to reach the next step
-            // down. Five steps means most hits land here, which is why this is
-            // a diff and not a rebuild.
+    let mut plates: Vec<Entity> = Vec::new();
+    let mut world: Vec<(Vec3, f32)> = Vec::new();
+    let mut local: Vec<(Vec3, f32)> = Vec::new();
+
+    for (owner, marks, frame) in &q_marked {
+        if marks.0.is_empty() {
             continue;
         }
-        wear.0 = worn;
-
-        for (surface, ChildOf(owner)) in &q_surfaces {
-            if *owner == plate {
-                commands.entity(surface).try_despawn();
-            }
-        }
-        let style = styles
-            .as_ref()
-            .zip(worn_style(plate, &q_child_of, &q_style))
-            .and_then(|(styles, style)| style.resolve(styles));
-        hang_surfaces(
-            &mut commands,
-            plate,
-            worn,
-            style,
-            &mut assets,
-            &mut meshes,
-            &mut materials,
+        // Into world space ONCE per body rather than once per plate: the marks
+        // are stored in the owner's frame and every plate wants them in its
+        // own, so this is the half of the conversion they can share.
+        world.clear();
+        world.extend(
+            marks
+                .0
+                .iter()
+                .map(|mark| (frame.transform_point(mark.at), mark.radius)),
         );
+
+        plates.clear();
+        collect_descendants(owner, &q_children, &mut plates);
+        for plate in plates.drain(..) {
+            let Ok((ShipSkinMarker(pristine), mut wear, pose)) = q_plates.get_mut(plate) else {
+                continue;
+            };
+            // Nothing in a ship's hierarchy is scaled, so the radius crosses
+            // frames untouched - see `record_damage_mark` for the same note on
+            // the way in.
+            let into_plate = pose.affine().inverse();
+            local.clear();
+            local.extend(
+                world
+                    .iter()
+                    .map(|(at, radius)| (into_plate.transform_point3(*at), *radius)),
+            );
+
+            let carved = pristine.carved(&local);
+            if carved == wear.0 {
+                // The mark landed, but not deep enough here to reach the next
+                // step down. Five steps means most plates a crater touches land
+                // here, which is why this is a diff and not a rebuild.
+                continue;
+            }
+            wear.0 = carved;
+
+            for (surface, ChildOf(owner)) in &q_surfaces {
+                if *owner == plate {
+                    commands.entity(surface).try_despawn();
+                }
+            }
+            let style = styles
+                .as_ref()
+                .zip(worn_style(plate, &q_child_of, &q_style))
+                .and_then(|(styles, style)| style.resolve(styles));
+            hang_surfaces(
+                &mut commands,
+                plate,
+                carved,
+                style,
+                &mut assets,
+                &mut meshes,
+                &mut materials,
+            );
+        }
+    }
+}
+
+/// Every descendant of `entity`, `entity` excluded.
+///
+/// A plate hangs two levels under a ship root (root, section, plate) and one
+/// under the editor's preview root, so this walks rather than reading
+/// `Children` once.
+fn collect_descendants(entity: Entity, q_children: &Query<&Children>, out: &mut Vec<Entity>) {
+    let Ok(children) = q_children.get(entity) else {
+        return;
+    };
+    for child in children.iter() {
+        out.push(child);
+        collect_descendants(child, q_children, out);
     }
 }
 
@@ -1205,7 +1270,7 @@ impl Plugin for ShipSkinPlugin {
             app.init_resource::<SkinAssets>();
             app.add_observer(dress_skin_plate);
             app.add_observer(dress_skin_decor);
-            app.add_systems(Update, erode_skin_plates);
+            app.add_systems(Update, carve_skin_plates);
         }
     }
 }
@@ -1214,7 +1279,7 @@ impl Plugin for ShipSkinPlugin {
 mod tests {
     use avian3d::prelude::{ColliderDensity, ComputeMassProperties3d};
     use nova_gameplay::prelude::{
-        DamageLevelPlugin, Health, HealthApplyDamage, HealthIsolated, NovaHealthPlugin,
+        apply_damage, mark_radius, Health, HealthApplyDamage, HealthIsolated, NovaHealthPlugin,
         SectionMarker,
     };
 
@@ -1277,22 +1342,66 @@ mod tests {
         ShellShape::new(corners, midpoints).expect("a legal shape")
     }
 
-    /// A skin app that also DRESSES, so wear can be read off the live tree
+    /// A skin app that also DRESSES, so a carve can be read off the live tree
     /// rather than off the component that asked for it.
+    ///
+    /// `TransformPlugin` is load-bearing and not scenery: marks are recorded in
+    /// the owning body's frame and subtracted in each plate's, so a test
+    /// without propagation would carve every plate at the origin and agree with
+    /// itself about nothing.
     fn dressed_skin_app() -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default(), NovaHealthPlugin));
-        app.add_plugins(DamageLevelPlugin);
+        app.add_plugins(bevy::transform::TransformPlugin);
         app.init_asset::<Mesh>();
         app.init_asset::<StandardMaterial>();
         app.init_resource::<SkinAssets>();
         app.add_observer(dress_skin_plate);
         app.add_systems(
             Update,
-            (spawn_ship_skin, despawn_dead_fixtures, erode_skin_plates),
+            (spawn_ship_skin, despawn_dead_fixtures, carve_skin_plates),
         );
         app.update();
         app
+    }
+
+    /// A ship root that remembers where it was hit, with one section under it.
+    fn hull_under_fire(app: &mut App) -> (Entity, Entity) {
+        let root = app
+            .world_mut()
+            .spawn((DamageMarks::default(), Transform::IDENTITY))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((SectionMarker, Transform::IDENTITY, ChildOf(root)))
+            .id();
+        (root, section)
+    }
+
+    /// Spawn one plate of `shape` at `at` in its section's frame.
+    fn spawn_plate_at(app: &mut App, parent: Entity, shape: ShellShape, at: Vec3) -> Entity {
+        let plate = SkinPlate {
+            cell: IVec3::ZERO,
+            anchor: IVec3::NEG_Y,
+            shape,
+            rotation: Quat::IDENTITY,
+        };
+        app.world_mut()
+            .spawn((
+                plate_body(&plate, Transform::from_translation(at)),
+                ChildOf(parent),
+            ))
+            .id()
+    }
+
+    /// Land a hit of `amount` at `at` in world space, through the one path a
+    /// weapon uses.
+    fn shoot(app: &mut App, target: Entity, at: Vec3, amount: f32) {
+        let mut commands = app.world_mut().commands();
+        apply_damage(&mut commands, target, None, amount, Some(at));
+        app.world_mut().flush();
+        app.update();
+        app.update();
     }
 
     /// The shape a plate is actually WEARING, read off the live tree: the mesh
@@ -1312,97 +1421,109 @@ mod tests {
             .count()
     }
 
-    /// THE first consumer of the level: damage a plate and its geometry steps
-    /// down with it, through the same dressing path a fresh plate uses.
+    /// THE claim: a hit takes a BITE out of the plate it landed on, at the
+    /// place it landed, through the same dressing path a fresh plate uses.
+    ///
+    /// The far corner is the load-bearing assertion. Anything driven by a
+    /// per-body number would drop all eight samples together, and a tile that
+    /// sags evenly reads as a smaller ship rather than a damaged one.
     #[test]
-    fn a_damaged_plate_wears_down_to_a_shallower_shape() {
+    fn a_hit_bites_the_plate_where_it_landed() {
         let mut app = dressed_skin_app();
-        let section = app.world_mut().spawn(SectionMarker).id();
+        let (_, section) = hull_under_fire(&mut app);
         let clad = shape([FULL; 4], [FULL; 4]);
-        let plate = spawn_plate_under(&mut app, section, clad);
+        let plate = spawn_plate_at(&mut app, section, clad, Vec3::ZERO);
         app.update();
 
         assert_eq!(drawn_shape(&mut app, plate), clad, "pristine to start");
         assert!(surface_count(&mut app, plate) > 0, "and drawn at all");
 
-        // Half its health, through the real damage path.
-        let health = app.world().get::<Health>(plate).expect("plate health").max;
-        app.world_mut().trigger(HealthApplyDamage {
-            entity: plate,
-            source: None,
-            amount: health * 0.5,
-        });
-        app.update();
-        app.update();
+        // Under the plate's own health, so it is carved rather than swept.
+        shoot(&mut app, plate, Vec3::new(REACH, REACH, REACH), 60.0);
 
-        let worn = drawn_shape(&mut app, plate);
-        assert_ne!(worn, clad, "a half-dead plate does not look pristine");
+        let carved = drawn_shape(&mut app, plate);
+        assert_ne!(carved, clad, "a hit plate does not look pristine");
         assert_eq!(
-            worn,
-            clad.eroded(0.5),
-            "and it wears exactly what its level says"
+            carved,
+            clad.carved(&[(Vec3::new(REACH, REACH, REACH), mark_radius(60.0))]),
+            "and it wears exactly the sphere the hit carved"
+        );
+        assert_eq!(
+            carved.corners[2], FULL,
+            "the corner across the tile from the hit still stands"
         );
         assert!(
             surface_count(&mut app, plate) > 0,
-            "a worn plate is still drawn, not stripped to nothing"
+            "a carved plate is still drawn, not stripped to nothing"
         );
     }
 
-    /// Wear reads the plate's OWN health. Plates are `HealthIsolated`, so
-    /// raking the skin must not make the hull under it look damaged, and vice
-    /// versa - that separation is the whole reason cladding exists.
+    /// A crater is one crater, not a plate's worth of unrelated dents: the
+    /// marks are one list in the ship's own frame, so two plates sharing a
+    /// boundary sample carve the same sphere at the same place and meet at the
+    /// same height.
+    ///
+    /// The spared plate is the other half of the claim - a carve reaches
+    /// exactly as far as its sphere does and no further.
     #[test]
-    fn wearing_a_plate_does_not_wear_its_neighbour() {
+    fn a_crater_crosses_the_seam_between_two_plates() {
         let mut app = dressed_skin_app();
-        let section = app.world_mut().spawn(SectionMarker).id();
+        let (_, section) = hull_under_fire(&mut app);
         let clad = shape([FULL; 4], [FULL; 4]);
-        let hit = spawn_plate_under(&mut app, section, clad);
-        let spared = spawn_plate_under(&mut app, section, clad);
-        app.update();
-
-        let health = app.world().get::<Health>(hit).expect("plate health").max;
-        app.world_mut().trigger(HealthApplyDamage {
-            entity: hit,
-            source: None,
-            amount: health * 0.75,
-        });
+        let left = spawn_plate_at(&mut app, section, clad, Vec3::ZERO);
+        let right = spawn_plate_at(&mut app, section, clad, Vec3::X);
+        let spared = spawn_plate_at(&mut app, section, clad, Vec3::X * 5.0);
         app.update();
         app.update();
 
-        assert_ne!(drawn_shape(&mut app, hit), clad, "the shot plate wore down");
+        // Straight down the seam the two share, so both have to answer for it.
+        shoot(&mut app, left, Vec3::new(REACH, REACH, 0.0), 60.0);
+
+        let left_shape = drawn_shape(&mut app, left);
+        let right_shape = drawn_shape(&mut app, right);
+        assert!(
+            left_shape.corners[0] < FULL,
+            "delivery guard: the hit plate was carved at the seam"
+        );
+        assert_eq!(
+            left_shape.corners[0], right_shape.corners[1],
+            "the shared corner at +z has to come out one height"
+        );
+        assert_eq!(
+            left_shape.corners[3], right_shape.corners[2],
+            "and so does the shared corner at -z"
+        );
         assert_eq!(
             drawn_shape(&mut app, spared),
             clad,
-            "its neighbour is untouched"
+            "a plate the sphere never reached is untouched"
         );
     }
 
     /// Re-dressing must replace the old meshes rather than pile new ones on
-    /// top: a plate re-hung on every step would end a fight wearing four
-    /// shapes at once, all of them intersecting.
+    /// top: a plate re-hung on every hit would end a fight wearing four shapes
+    /// at once, all of them intersecting.
     #[test]
-    fn wearing_a_plate_replaces_its_meshes_rather_than_stacking_them() {
+    fn carving_a_plate_replaces_its_meshes_rather_than_stacking_them() {
         let mut app = dressed_skin_app();
-        let section = app.world_mut().spawn(SectionMarker).id();
+        let (_, section) = hull_under_fire(&mut app);
         let clad = shape([FULL; 4], [FULL; 4]);
-        let plate = spawn_plate_under(&mut app, section, clad);
+        let plate = spawn_plate_at(&mut app, section, clad, Vec3::ZERO);
         app.update();
         let pristine_surfaces = surface_count(&mut app, plate);
 
-        let health = app.world().get::<Health>(plate).expect("plate health").max;
-        for _ in 0..3 {
-            app.world_mut().trigger(HealthApplyDamage {
-                entity: plate,
-                source: None,
-                amount: health * 0.2,
-            });
-            app.update();
-            app.update();
+        // Three separate corners, so each hit really does move the shape.
+        for corner in [
+            Vec3::new(REACH, REACH, REACH),
+            Vec3::new(-REACH, REACH, REACH),
+            Vec3::new(-REACH, REACH, -REACH),
+        ] {
+            shoot(&mut app, plate, corner, 20.0);
         }
 
         assert!(
             surface_count(&mut app, plate) <= pristine_surfaces,
-            "three steps of wear left {} meshes against a pristine {}",
+            "three hits left {} meshes against a pristine {}",
             surface_count(&mut app, plate),
             pristine_surfaces
         );

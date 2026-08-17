@@ -110,6 +110,14 @@ tagged **(breaking)**.
 
 ### Ships & Sections
 
+- **(breaking)** Hits are REMEMBERED where they land: a ship stores each one as
+  a sphere and its cladding subtracts them, so a shot bites a crater out of the
+  hull instead of wearing it evenly.
+- A crater crosses the seams between plates - the marks are one list in the
+  ship's own frame - and the plate that stopped the round dies and comes off,
+  leaving a hole in the dish.
+- Damage is TWO readings now: how far gone a body is (scorch, sparks) and where
+  it was hit (the carve). Turrets and thrusters still never lose geometry.
 - Make destroyed sections sever physical wreck fragments. **(breaking)**
 - **(breaking)** Ships collapse structurally: a hull below a fraction of its
   as-built health (0.05 by default) comes apart. Authorable as

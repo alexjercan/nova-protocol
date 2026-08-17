@@ -6,23 +6,31 @@
 //! those looks are any good is not a question a test can answer, so this stands
 //! them in a row and lets somebody decide.
 //!
-//! Five identical clad ships, left to right at levels 0.0, 0.25, 0.5, 0.75 and
-//! 0.9. Nothing shoots anything: each ship's health is SET to the fraction its
-//! column stands for, which is the honest way to show a derived look - if the
-//! picture is a function of health, then setting health has to be enough to
-//! produce it, and anything that needed a hit to happen would be a bug.
+//! Five identical clad ships, left to right, taking progressively worse
+//! punishment. Damage is TWO readings and this drives both, because the effects
+//! read different ones:
+//!
+//! - each ship's health is SET to the fraction its column stands for, which is
+//!   what the whole-body effects grade off;
+//! - and each ship past the first takes ONE real hit, through the same
+//!   `apply_damage` a turret uses, landing on the same place on its hull with a
+//!   bigger warhead each time. That is what the carve reads.
 //!
 //! What to judge, per effect:
 //!
-//! - EROSION, on the skin plates. Each plate's shape steps down through the
-//!   shell vocabulary as its own health falls, so the hull wears through where
-//!   it has been raked. Does a worn hull read as battle damage, or as mush? How
-//!   many of the five steps can you actually tell apart?
+//! - CARVING, on the skin plates. The hit records a sphere and every plate it
+//!   reaches subtracts that sphere from its own eight samples, so the crater
+//!   crosses the seams between plates instead of stopping at them, and the
+//!   plate it actually landed on dies and comes off. Does a carved hull read as
+//!   BROKEN? The previous attempt drove this off the per-body level instead,
+//!   which could only sag every plate by the same proportion at once - the hull
+//!   kept its outline, lost its relief, and came out looking like a smaller,
+//!   plainer ship. A crater is the fix; this row is where it is judged.
 //! - SCORCH, on the section materials. Reddening, darkening, then a burnt
 //!   endpoint. It has lost its allegiance split, so an enemy now shows this
 //!   too - is that too much information, or the right amount?
 //! - SPARKS, on the turret and thruster. These never lose geometry, because a
-//!   turret that has been eroded cannot convincingly still shoot. Does a
+//!   turret that has been carved open cannot convincingly still shoot. Does a
 //!   sparking turret read as failing without looking broken?
 //!
 //! The thing NOT here is SHED - expendable pieces coming off a section that
@@ -58,6 +66,15 @@ struct Cli;
 /// effect has fewer usable steps than the number suggests, and that is exactly
 /// what this row is for finding out.
 const LEVELS: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 0.9];
+
+/// The hit each column takes, in health, on the same place on its hull.
+///
+/// Authored as damage rather than as a radius because damage is what a weapon
+/// deals: `mark_radius` prices it into a sphere, and these five buy roughly
+/// nothing, half a cell, four fifths of one, one and a bit, and nearly two.
+/// That spread is the point - a scrape, a dent, a hole, and a bite that takes
+/// a corner off the ship.
+const HITS: [f32; 5] = [0.0, 21.0, 86.0, 290.0, 977.0];
 
 /// How far apart the ships stand, in units. Wide enough that debris and sparks
 /// from one column do not read as belonging to the next.
@@ -95,13 +112,14 @@ fn setup_gallery(
 
 /// Put every body in a column at that column's level, by SETTING health.
 ///
-/// The whole claim of the epic is that the look is a function of health, so
-/// this touches health and nothing else: no effect is poked directly, and
-/// anything that fails to change here is not actually reading the level.
+/// What the WHOLE-BODY effects read. Scorch and sparks grade off how far gone a
+/// body is, which is a reading of its own health and nothing else, so this
+/// touches health and pokes no effect directly: anything that fails to change
+/// here is not actually reading the level.
 ///
 /// Sections and plates are both walked, and for the same reason they are
 /// separate pools in the first place - a plate is `HealthIsolated`, so damaging
-/// the hull does not wear its cladding and this has to say what both are at.
+/// the hull does not scorch its cladding and this has to say what both are at.
 #[cfg(feature = "debug")]
 fn set_column_levels(world: &mut World) {
     let mut roots: Vec<(Entity, f32)> = Vec::new();
@@ -136,6 +154,62 @@ fn set_column_levels(world: &mut World) {
     }
 }
 
+/// Land one hit on the same place on every column's hull, bigger each time.
+///
+/// What the CARVE reads, and it goes through `apply_damage` - the one path a
+/// turret, a torpedo and a ram all use - rather than writing marks directly.
+/// That is the honest demonstration: if a scripted hit and a fired round do not
+/// produce the same crater, the seam is wrong and this row would be hiding it.
+///
+/// The target is whichever plate is nearest the aim point rather than a named
+/// one, because the skin is DERIVED and no column knows in advance which cell
+/// it grew there. Only that one plate spends health; every other plate the
+/// sphere reaches is carved without being damaged, which is exactly the claim -
+/// a crater belongs to the ship, not to the plate that happened to stop the
+/// round.
+#[cfg(feature = "debug")]
+fn carve_columns(world: &mut World) {
+    for (index, amount) in HITS.iter().enumerate() {
+        if *amount <= 0.0 {
+            continue;
+        }
+        let aim = column_aim(index);
+        let Some(target) = nearest_plate(world, aim) else {
+            warn!("damage levels: column {index} has no plate near {aim}");
+            continue;
+        };
+        // The plate's own centre, so the sphere bites into the hull rather than
+        // grazing the surface it was aimed at.
+        let at = world
+            .get::<GlobalTransform>(target)
+            .map_or(aim, |pose| pose.translation());
+        let mut commands = world.commands();
+        apply_damage(&mut commands, target, None, *amount, Some(at));
+        world.flush();
+        info!("damage levels: column {index} took {amount} at {at}");
+    }
+}
+
+/// Where a column is shot: the top of its hull cell, which is one cell forward
+/// of the controller and one cell up.
+fn column_aim(index: usize) -> Vec3 {
+    Vec3::new(index as f32 * COLUMN_PITCH, 1.0, 1.0)
+}
+
+/// The skin plate nearest `aim`, anywhere in the row.
+#[cfg(feature = "debug")]
+fn nearest_plate(world: &mut World, aim: Vec3) -> Option<Entity> {
+    let mut q_plates = world.query_filtered::<(Entity, &GlobalTransform), With<ShipSkinMarker>>();
+    q_plates
+        .iter(world)
+        .min_by(|(_, a), (_, b)| {
+            a.translation()
+                .distance_squared(aim)
+                .total_cmp(&b.translation().distance_squared(aim))
+        })
+        .map(|(plate, _)| plate)
+}
+
 /// Every descendant of `root`, root excluded.
 #[cfg(feature = "debug")]
 fn collect_descendants(world: &World, root: Entity, out: &mut Vec<Entity>) {
@@ -164,8 +238,11 @@ fn gallery_script() -> Script {
         .step("let the ships finish dressing")
         .until(elapsed(1.5))
         .add()
-        .step("damage the row")
+        .step("grade the row by health")
         .on_enter(set_column_levels)
+        .add()
+        .step("carve the row")
+        .on_enter(carve_columns)
         .add()
         // Long enough for the wear to re-dress and for the worst columns to
         // throw a few sparks, so the shot catches them mid-flight.
@@ -175,9 +252,12 @@ fn gallery_script() -> Script {
         .step("frame the whole row")
         .on_enter(|world: &mut World| {
             let centre = row_centre();
+            // High and looking down, for the same reason each column is: the
+            // craters are in the hulls' top faces and a broadside shot of the
+            // row shows five silhouettes and no damage.
             nova_protocol::nova_debug::harness::pose_camera(
                 world,
-                centre + Vec3::new(0.0, 5.0, 32.0),
+                centre + Vec3::new(0.0, 17.0, 22.0),
                 centre,
             );
         })
@@ -220,19 +300,22 @@ fn row_centre() -> Vec3 {
     Vec3::new((LEVELS.len() as f32 - 1.0) * COLUMN_PITCH * 0.5, 0.0, 0.0)
 }
 
-/// Point the scenario camera at one column, close in.
+/// Point the scenario camera at the place a column was SHOT, from above and
+/// off to one side.
+///
+/// Over the aim point rather than level with the ship, and that is not a taste
+/// call: the crater is a dish in the hull's top face, and a camera at eye level
+/// sees only the silhouette it leaves. The first cut of this row framed the
+/// ships broadside and the finding came back "it just looks like a smaller
+/// ship" - which was true of the effect at the time AND of the angle.
 ///
 /// Through `pose_camera` rather than by writing the transform: the scenario
 /// camera is free-fly by default and its controller would drive the pose
 /// straight back the next frame.
 #[cfg(feature = "debug")]
 fn frame_column(world: &mut World, index: usize) {
-    let centre = Vec3::new(index as f32 * COLUMN_PITCH, 0.0, 1.0);
-    nova_protocol::nova_debug::harness::pose_camera(
-        world,
-        centre + Vec3::new(0.0, 1.6, 5.0),
-        centre,
-    );
+    let aim = column_aim(index);
+    nova_protocol::nova_debug::harness::pose_camera(world, aim + Vec3::new(2.2, 3.0, 3.2), aim);
 }
 
 /// One clad ship: a hull cell to wear through, a turret and a thruster to

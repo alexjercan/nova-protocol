@@ -49,6 +49,7 @@ pub(super) fn resolve_bullet_hit(
     q_health: Query<&Health>,
     q_events: Query<(), With<CollisionEventsEnabled>>,
     q_velocity: Query<&LinearVelocity>,
+    q_where: Query<&GlobalTransform>,
 ) {
     // Avian raises one CollisionStart per EVENT-ENABLED collider, so a contact
     // with events on both sides - a production round, which carries its own,
@@ -100,6 +101,14 @@ pub(super) fn resolve_bullet_hit(
         // The bullet is the source, carrying ProjectileOwner for threat
         // attribution. A collider with no Health is a wall to either type.
         let health = q_health.get(other_collider).ok();
+        // The round's own position, which on the frame a contact is reported is
+        // the hit point: a bullet is small next to the cell the carve is
+        // quantized to, so refining it against the contact manifold would buy
+        // nothing anything downstream can draw.
+        let at = q_where
+            .get(body)
+            .ok()
+            .map(|transform| transform.translation());
         match spend_piercing_damage(
             &mut commands,
             other_collider,
@@ -107,6 +116,7 @@ pub(super) fn resolve_bullet_hit(
             health,
             *damage,
             closing,
+            at,
         ) {
             Some(remaining) => {
                 trace!(
