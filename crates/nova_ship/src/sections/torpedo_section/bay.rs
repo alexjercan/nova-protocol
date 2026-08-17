@@ -13,6 +13,15 @@ use super::*;
 /// defeating the warhead is the point of shooting a torpedo down - a
 /// shot-down torpedo dies quietly, only a detonation
 /// (torpedo_detonate_system) explodes.
+///
+/// The root goes on RAILS in the same insert. Its sections carried every
+/// collider it had and they are despawning, so between the marker and the
+/// reaper the root is a DYNAMIC body with no mass - which avian reports as
+/// "has no mass or inertia. This can cause NaN values", once per shot-down
+/// torpedo. Static states what is already true of a body awaiting removal: it
+/// is not simulated any more. It also keeps the warning meaningful, because a
+/// dynamic massless body is then always a defect rather than an expected
+/// frame (task 20260817-091716).
 pub(super) fn on_torpedo_body_destroyed(
     add: On<Add, HealthZeroMarker>,
     q_section: Query<&ChildOf>,
@@ -28,7 +37,9 @@ pub(super) fn on_torpedo_body_destroyed(
     };
     // try_insert: both body sections can die in the same burst, and the
     // root itself may already be despawning for another reason.
-    commands.entity(root).try_insert(TorpedoShotDownMarker);
+    commands
+        .entity(root)
+        .try_insert((TorpedoShotDownMarker, RigidBody::Static));
 }
 
 /// Remove shot-down torpedoes, one schedule pass after the marker landed -
@@ -728,6 +739,44 @@ mod tests {
             .iter(app.world())
             .count();
         assert_eq!(blasts, 0, "a shot-down torpedo must not detonate");
+    }
+
+    /// A shot-down torpedo stops being simulated the moment it is marked. Its
+    /// sections carried every collider it had, so a dynamic root in the
+    /// removal gap is a massless body avian warns about, once per kill
+    /// (task 20260817-091716).
+    #[test]
+    fn a_shot_down_torpedo_is_on_rails_before_the_reaper_runs() {
+        let mut app = App::new();
+        app.add_plugins(nova_gameplay::integrity::health::NovaHealthPlugin);
+        // Observer only: the reaper is deliberately NOT registered, so this
+        // reads the root exactly in the gap the warning was emitted from.
+        app.add_observer(on_torpedo_body_destroyed);
+        let root = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                Transform::default(),
+                RigidBody::Dynamic,
+            ))
+            .id();
+        let body = app
+            .world_mut()
+            .spawn((SectionMarker, Health::new(1.0), ChildOf(root)))
+            .id();
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: body,
+            source: None,
+            amount: 2.0,
+        });
+        app.update();
+
+        assert_eq!(
+            app.world().get::<RigidBody>(root),
+            Some(&RigidBody::Static),
+            "a torpedo awaiting the reaper must not be a dynamic body"
+        );
     }
 
     #[test]

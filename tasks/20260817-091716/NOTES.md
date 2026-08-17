@@ -103,13 +103,48 @@ so an unseeded rock is now stable per id instead of a fresh draw per spawn.
 Verified live: two unfrozen arena runs after the change, ZERO rock warnings
 (was 2-3 every run). Both runs completed the autopilot normally.
 
-STILL WARNING: torpedoes, 14-16 per run, one frame each at launch, `children=0`
-at that moment. They already spawn their collider children in the same
-`children!` batch, so the remaining gap is the spawn-to-child-effect hop taken
-inside the fixed-step loop, where the same step's physics prepare falls in the
-window. Option A does not reach that; it needs either the collider on the
-projectile root itself or an authored mass, and it is harmless per the NaN
-evidence above.
+## The torpedo half, measured (this corrects the first reading)
+
+The first reading of the torpedo warnings - "one frame each AT LAUNCH" - was
+wrong. Correlating every warning in two runs against the log's own parent map
+(`on_add_explodable_entity: entity C is child of B`):
+
+- 30 of 30 warnings fire 1.8-12.9 ms after THAT torpedo's own section died,
+  3.3-6.5 s after the torpedo spawned. None at launch.
+
+So it is the DEATH path, and the torpedo is not structurally special:
+
+- A torpedo is a two-section ship. Root: `RigidBody::Dynamic`, NO collider of
+  its own. Children: a controller section and a thruster section, each a
+  `base_section` with its own collider, density and health. Mass, inertia and
+  COM compose from those two exactly as a hull's do, PD drives the attitude,
+  the thruster applies impulse. Point defense kills it by destroying a
+  SECTION (`on_torpedo_body_destroyed` keys on a child's `HealthZeroMarker`),
+  so a collider on the root would both double-count the mass and break the
+  kill path. That option is dead.
+- `on_torpedo_body_destroyed` may only MARK the root: despawning inside that
+  observer raced the integrity pipeline's queued commands and crashed the live
+  game (20260710). `despawn_shot_down_torpedoes` reaps one pass later, and by
+  then the sections - every collider the torpedo had - are already despawned.
+  The physics tick in the gap sees a dynamic body with no mass.
+- The asteroid husk is the same shape for the same reason
+  (`on_asteroid_node_destroyed` -> `despawn_asteroid_husk`).
+
+## What landed for the death path
+
+Both husks go on rails in the same insert that marks them dead:
+`RigidBody::Static` beside `TorpedoShotDownMarker` / `AsteroidHuskDespawn`.
+`warn_invalid_mass` only looks at DYNAMIC bodies, so the line is gone;
+`RigidBodyDisabled` would NOT have worked, it is not in that system's filter.
+Static is also simply true - a body awaiting its reaper is not simulated.
+
+Verified: an arena run carried to a decided fight shot down 20 torpedoes with
+ZERO avian mass warnings, where the same fight logged 14-16 before. Both new
+tests are fail-first (they assert Static with the reaper deliberately
+unregistered, and go red without the insert).
+
+The warning now means what it says: a dynamic massless body is a defect, not
+an expected frame.
 
 ## Fix options, for the discussion
 

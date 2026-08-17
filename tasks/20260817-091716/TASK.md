@@ -1,6 +1,6 @@
 # Controller-less hulls spawn massless and NaN-poison physics
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.11.0,bug,physics,ship
 
@@ -52,15 +52,32 @@ unfrozen arena runs, was 2-3 every run. The arena's `freeze_junk` keeps its
 pin as a FRAMING choice and its comment no longer carries the disproven NaN
 story.
 
-Left open:
+## Closure (2026-08-17)
 
-- torpedoes still take the window at launch (14-16 one-frame warnings per
-  arena run). They already batch their collider children, so closing it needs
-  the collider on the projectile root or an authored mass.
-- the PERMANENT variant is the one worth an invariant: a dynamic body that
-  never gets a collider or loses its last one (the asteroid husk, already
-  reaped; a ship root outliving its sections). Owner has not decided whether
-  to pin it.
+Both families of the warning are closed, and neither was the bug this task was
+filed for - controller-less hulls compose their mass like any other hull, and
+zero mass is not NaN (avian reads inverse mass 0 as INFINITE mass; the contact
+solve stays finite). NOTES.md carries the evidence.
+
+- BIRTH: a rock's collider node came from a later observer, one command hop
+  after its body, so a physics tick could land in between. Asteroids now build
+  root and node in one batch (`asteroid_scenario_object` takes
+  `EntityCommands`), with the silhouette seed resolved by the caller. Zero rock
+  warnings after, was 2-3 every run.
+- DEATH: a shot-down torpedo and a broken rock are marked dead one pass before
+  their reaper runs, and by then their sections - every collider they had -
+  are gone. Both now take `RigidBody::Static` in the same insert as the death
+  marker. An arena fight that shot down 20 torpedoes logged zero warnings,
+  where it logged 14-16 before.
+
+Both fixes carry fail-first tests. The arena's `freeze_junk` pin stays as a
+FRAMING choice and its comment no longer repeats the disproven NaN story.
+
+Not taken, on purpose:
+
+- the invariant range (a dynamic body massless for more than one tick is a
+  defect). With both families closed the warning itself now carries that
+  meaning; worth revisiting only if a third family shows up.
 - one unfrozen arena run in five went bad (guns silent 45 s, both fleets
   erased within 0.1 s of the first torpedo salvo) with no NaN in the physics
-  state. Not a mass problem; worth its own look at the fight itself.
+  state. Not a mass problem. Left for whoever looks at the fight itself.

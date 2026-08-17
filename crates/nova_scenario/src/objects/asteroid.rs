@@ -298,9 +298,9 @@ impl Plugin for AsteroidPlugin {
 /// for despawn AND fire the scenario's OnDestroyed under the ROOT's id. An
 /// asteroid is a `RigidBody::Dynamic` parent whose `Collider` + `Health` live
 /// on a child node; once that node explodes and despawns, the parent is an
-/// empty dynamic body with no collider - avian then logs "has no mass or
-/// inertia" and the invisible husk lingers until the scenario unloads. Marking
-/// (rather than despawning here) defers the despawn to `despawn_asteroid_husk`
+/// empty body with no collider, and the invisible husk would linger until the
+/// scenario unloads. Marking (rather than despawning here) defers the despawn
+/// to `despawn_asteroid_husk`
 /// so the destruction observers - which spawn the explosion fragments and
 /// despawn the node - all run first.
 ///
@@ -325,7 +325,13 @@ fn on_asteroid_node_destroyed(
             "on_asteroid_node_destroyed: marking asteroid husk {:?}",
             parent
         );
-        commands.entity(*parent).try_insert(AsteroidHuskDespawn);
+        // On rails in the same insert: the node carried the rock's only
+        // collider, so from here until the reaper the root is a dynamic body
+        // with no mass, and avian says so once per rock. Static is what a
+        // body awaiting removal already is (task 20260817-091716).
+        commands
+            .entity(*parent)
+            .try_insert((AsteroidHuskDespawn, RigidBody::Static));
         // Editor previews carry no scenario id: husk cleanup still runs,
         // only the event is skipped.
         if let (Some(id), Some(type_name)) = (id, type_name) {
@@ -337,8 +343,9 @@ fn on_asteroid_node_destroyed(
     }
 }
 
-/// Despawn asteroid roots whose node was destroyed last frame, clearing the empty
-/// `RigidBody` husk (and silencing avian's mass/inertia warning).
+/// Despawn asteroid roots whose node was destroyed last frame, clearing the
+/// empty `RigidBody` husk. The husk is already on rails by then (see
+/// `on_asteroid_node_destroyed`); this is what actually removes it.
 fn despawn_asteroid_husk(mut commands: Commands, q_husk: Query<Entity, With<AsteroidHuskDespawn>>) {
     for husk in &q_husk {
         trace!("despawn_asteroid_husk: despawning {:?}", husk);
@@ -837,6 +844,34 @@ mod tests {
         app.add_observer(on_asteroid_node_destroyed);
         app.add_systems(Update, despawn_asteroid_husk);
         app
+    }
+
+    /// The husk stops being simulated the moment it is marked, not when it is
+    /// finally reaped: its only collider left with the node, so a dynamic
+    /// husk is a massless body avian warns about for the whole gap
+    /// (task 20260817-091716).
+    #[test]
+    fn a_marked_husk_is_on_rails_before_the_reaper_runs() {
+        let mut app = App::new();
+        // Observer only: the reaper is deliberately NOT registered, so this
+        // reads the husk exactly in the gap the warning was emitted from.
+        app.add_observer(on_asteroid_node_destroyed);
+        let asteroid = app
+            .world_mut()
+            .spawn((AsteroidMarker, RigidBody::Dynamic))
+            .id();
+        let node = app.world_mut().spawn(ChildOf(asteroid)).id();
+
+        app.world_mut()
+            .entity_mut(node)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+
+        assert_eq!(
+            app.world().get::<RigidBody>(asteroid),
+            Some(&RigidBody::Static),
+            "a husk awaiting the reaper must not be a dynamic body"
+        );
     }
 
     #[test]

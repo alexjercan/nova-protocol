@@ -277,6 +277,9 @@ tagged **(breaking)**.
 
 - Asteroids stop logging "no mass or inertia": a rock builds its collider in
   the same command batch as its body, so no physics tick sees it massless.
+- A shot-down torpedo and a broken rock go on rails the moment they die,
+  instead of drifting one frame as bodies with no mass left. The physics log
+  is quiet.
 - **(breaking)** An asteroid without an authored `seed` derives its silhouette
   from its object id: one rock per id still, but the same rock on every load
   instead of a fresh draw.
