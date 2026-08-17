@@ -89,7 +89,16 @@ fn handle_explosion(
     add: On<Add, ExplodeMesh>,
     mut commands: Commands,
     q_explode: Query<(&ExplodeMesh, Option<&Children>)>,
-    q_mesh: Query<(Entity, &Mesh3d), (With<Mesh3d>, With<MeshMaterial3d<StandardMaterial>>)>,
+    // GEOMETRY ONLY. This used to require `MeshMaterial3d<StandardMaterial>`
+    // as well, because the finale cloned the source material onto every
+    // fragment - so a body drawn with any other material type was invisible to
+    // the walk and fell through to the fallback burst. An asteroid moving to a
+    // triplanar material was enough to do it, and the same would happen to
+    // every section the moment one wears a shader of its own.
+    //
+    // What a fragment is DRAWN with is `FragmentMaterial`'s business now, and
+    // the walk asks about nothing but geometry.
+    q_mesh: Query<(Entity, &Mesh3d)>,
     q_children: Query<&Children>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {

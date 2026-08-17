@@ -37,9 +37,10 @@ use crate::{
     prelude::SpaceshipRootMarker,
 };
 
-/// `ExplodableEntity`, `MeshFragmentMarker` and the per-body fragment budget.
+/// `ExplodableEntity`, `FragmentMaterial`, `MeshFragmentMarker` and the
+/// per-body fragment budget.
 pub mod prelude {
-    pub use super::{ExplodableEntity, MeshFragmentMarker, BODY_FRAGMENT_BUDGET};
+    pub use super::{ExplodableEntity, FragmentMaterial, MeshFragmentMarker, BODY_FRAGMENT_BUDGET};
 }
 
 /// How long a sliced mesh fragment survives before it despawns.
@@ -87,6 +88,40 @@ pub struct ExplodableEntity;
 /// one piece of the sliced mesh, given physics and a fade-out lifetime.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct MeshFragmentMarker;
+
+/// What the pieces of this body should be DRAWN with when it comes apart.
+///
+/// Carried by a render entity whose own material its fragments must not
+/// inherit. Two reasons, and the second is the one that matters:
+///
+/// - the finale can only clone a `StandardMaterial`, so a body wearing any
+///   other material type had nothing to hand its fragments and fell through the
+///   geometry walk entirely;
+/// - and it should not hand them its own anyway. The rock and section shaders
+///   sample by the body's OWN LOCAL POSITION - which is what stops the pattern
+///   swimming as the body tumbles - so a fragment, being a new body with a new
+///   origin, would draw that pattern from the wrong place. A chunk is not a
+///   small copy of the thing it broke off.
+///
+/// Absent means the fragments inherit the entity's own `StandardMaterial`,
+/// which is what every plainly-materialled body already did and still does.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct FragmentMaterial(pub Handle<StandardMaterial>);
+
+/// Bare debris: what a piece is drawn with when nothing better is on offer.
+///
+/// The last resort of the MATERIAL question, which is a different question from
+/// the geometry one - a body can have perfectly good geometry to come apart
+/// into and still wear a material its fragments cannot inherit. Anonymous grey
+/// metal is a poor look and a much better one than an undrawn chunk.
+fn debris_material() -> StandardMaterial {
+    StandardMaterial {
+        base_color: Color::srgb(0.35, 0.35, 0.38),
+        perceptual_roughness: 0.9,
+        metallic: 0.4,
+        ..default()
+    }
+}
 
 pub(super) struct ExplodablePlugin;
 
@@ -383,7 +418,14 @@ fn handle_entity_explosion(
     add: On<Add, ExplodeFragments>,
     mut commands: Commands,
     q_explode: Query<(&ExplodeFragments, Option<&GlobalTransform>), With<ExplodableEntity>>,
-    q_mesh: Query<(&GlobalTransform, &MeshMaterial3d<StandardMaterial>), With<Mesh3d>>,
+    q_mesh: Query<
+        (
+            &GlobalTransform,
+            Option<&MeshMaterial3d<StandardMaterial>>,
+            Option<&FragmentMaterial>,
+        ),
+        With<Mesh3d>,
+    >,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
@@ -415,13 +457,31 @@ fn handle_entity_explosion(
         return;
     }
 
+    // Minted at most once for the whole body, and only if something actually
+    // needs it: a body wearing an exotic material that never named a fragment
+    // material still has to come apart as SOMETHING, and bare debris grey is a
+    // better answer than not drawing the piece at all.
+    let mut anonymous: Option<Handle<StandardMaterial>> = None;
+
     for fragment in fragments.iter() {
-        let Ok((transform, mesh_material)) = q_mesh.get(fragment.origin) else {
+        let Ok((transform, own_material, fragment_material)) = q_mesh.get(fragment.origin) else {
             error!(
                 "handle_entity_explosion: mesh_entity {:?} not found in q_mesh.",
                 fragment.origin,
             );
             continue;
+        };
+        // A named fragment material wins, then the entity's own standard one.
+        // See `FragmentMaterial` for why a body that names one is not just
+        // working around a type mismatch.
+        let mesh_material = match (fragment_material, own_material) {
+            (Some(FragmentMaterial(handle)), _) => MeshMaterial3d(handle.clone()),
+            (None, Some(material)) => material.clone(),
+            (None, None) => MeshMaterial3d(
+                anonymous
+                    .get_or_insert_with(|| materials.add(debris_material()))
+                    .clone(),
+            ),
         };
 
         let transform = transform.compute_transform();
@@ -466,7 +526,7 @@ fn handle_entity_explosion(
             MeshFragmentMarker,
             Name::new(format!("Explosion Fragment of {:?}", entity)),
             Mesh3d(fragment.mesh.clone()),
-            mesh_material.clone(),
+            mesh_material,
             transform,
             RigidBody::Dynamic,
             collider,
