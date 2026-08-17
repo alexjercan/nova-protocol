@@ -429,7 +429,12 @@ fn keep_interactive_screen_owned(
     mut physics_time: ResMut<Time<Physics>>,
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if flow.finishing.is_none() && *pause.get() != PauseStates::NovaOs {
+    let frozen = flow.finishing.is_some() || pause.get().is_frozen();
+    if !frozen {
+        if flow.active {
+            virtual_time.unpause();
+            physics_time.unpause();
+        }
         return;
     }
     virtual_time.pause();
@@ -741,6 +746,28 @@ mod tests {
         assert!(cursor.visible);
         assert!(world.resource::<Time<Virtual>>().is_paused());
         assert!(world.resource::<Time<Physics>>().is_paused());
+    }
+
+    #[test]
+    fn leaving_nova_os_resumes_match_clocks() {
+        let mut world = World::new();
+        world.insert_resource(MatchFlow {
+            active: true,
+            ..default()
+        });
+        world.insert_resource(State::new(PauseStates::Unpaused));
+        world.init_resource::<Time<Virtual>>();
+        world.init_resource::<Time<Physics>>();
+        world.resource_mut::<Time<Virtual>>().pause();
+        world.resource_mut::<Time<Physics>>().pause();
+        world.spawn((PrimaryWindow, CursorOptions::default()));
+
+        world
+            .run_system_once(keep_interactive_screen_owned)
+            .unwrap();
+
+        assert!(!world.resource::<Time<Virtual>>().is_paused());
+        assert!(!world.resource::<Time<Physics>>().is_paused());
     }
 
     #[test]

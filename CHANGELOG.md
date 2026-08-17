@@ -281,6 +281,7 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- Fixed: closing NOVA OS in the WFC arena resumes combat instead of leaving the match clocks paused.
 - Fixed: every ship section burst eight generic gray cubes instead of its own
   art - destruction looked for a mesh on the entity that dies, never on the
   descendants that draw it.
