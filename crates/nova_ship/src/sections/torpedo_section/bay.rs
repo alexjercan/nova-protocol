@@ -145,6 +145,7 @@ pub(super) fn shoot_spawn_projectile(
             &TorpedoSectionConfigHelper,
             &TorpedoSectionInput,
             Option<&mut SectionAmmo>,
+            Option<&mut SectionReload>,
         ),
         (With<TorpedoSectionMarker>, Without<SectionInactiveMarker>),
     >,
@@ -152,7 +153,9 @@ pub(super) fn shoot_spawn_projectile(
     q_chain: Query<(&Transform, &ChildOf)>,
     q_hot: Query<&WeaponsHot>,
 ) {
-    for (section, spawner, ChildOf(spaceship), config, input, mut ammo) in &mut q_section {
+    for (section, spawner, ChildOf(spaceship), config, input, mut ammo, mut reload) in
+        &mut q_section
+    {
         if !**input {
             continue;
         }
@@ -405,7 +408,11 @@ pub(super) fn shoot_spawn_projectile(
         // fires on a launch that actually happened. Unlimited bays carry no
         // `SectionAmmo` and are unaffected.
         if let Some(ammo) = ammo.as_deref_mut() {
-            ammo.try_consume();
+            if ammo.try_consume() {
+                if let Some(reload) = reload.as_deref_mut() {
+                    reload.on_shot();
+                }
+            }
         }
 
         // Start the next launch wait.
@@ -629,8 +636,8 @@ mod tests {
     }
 
     #[test]
-    fn a_regenerating_bay_rearms_and_launches_past_its_magazine() {
-        // End-to-end recovery for continuous regen (the torpedo tuning): a spent
+    fn an_idle_reloading_bay_rearms_and_launches_past_its_magazine() {
+        // End-to-end recovery for idle batch reload: a spent
         // 2-torpedo bay regrows rounds over time and launches MORE than its
         // magazine, versus the no-reload rig above which caps at 2 forever.
         let mut app = firing_app(2.0);
@@ -640,9 +647,8 @@ mod tests {
         app.world_mut()
             .entity_mut(section)
             .insert(SectionReload::from_config(SectionReloadConfig {
-                reload_time: 0.2,
-                rounds_per_cycle: 1,
-                only_when_empty: false,
+                delay: 0.2,
+                amount: 1,
             }));
 
         for _ in 0..12 {
@@ -651,7 +657,7 @@ mod tests {
 
         assert!(
             torpedo_count(&mut app) > 2,
-            "a regenerating bay must rearm and launch past its magazine, got {}",
+            "an idle-reloading bay must launch past its magazine, got {}",
             torpedo_count(&mut app)
         );
     }

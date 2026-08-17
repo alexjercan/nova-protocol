@@ -271,9 +271,8 @@ fn pdc_turret_prototype(
             dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
             ammo_capacity: Some(500),
             reload: Some(SectionReloadConfig {
-                reload_time: 3.0,
-                rounds_per_cycle: 500,
-                only_when_empty: true,
+                delay: 3.0,
+                amount: 200,
             }),
         }),
     }
@@ -416,13 +415,11 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // the player should feel the limit without running dry in a
                 // normal engagement. Playtest knob.
                 ammo_capacity: Some(500),
-                // Discrete auto-reload: dump the magazine, then a ~3s cycle
-                // refills it to full. Running dry is a brief cadence beat,
-                // never a death, so finite ammo is safe to turn on.
+                // Idle batch reload: each shot restarts the 3s delay, then 200
+                // rounds return. Immediate batch firing sustains 40 rounds/s.
                 reload: Some(SectionReloadConfig {
-                    reload_time: 3.0,
-                    rounds_per_cycle: 500,
-                    only_when_empty: true,
+                    delay: 3.0,
+                    amount: 200,
                 }),
             }),
         },
@@ -500,11 +497,10 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // ~6s of fire at 25 rounds/s. Scavenger grade: a shorter fight
                 // before the pirate's guns run dry. Playtest knob.
                 ammo_capacity: Some(150),
-                // Discrete auto-reload, ~2.5s to refill after running dry.
+                // Same 40% idle batch as the player-grade PDC.
                 reload: Some(SectionReloadConfig {
-                    reload_time: 2.5,
-                    rounds_per_cycle: 150,
-                    only_when_empty: true,
+                    delay: 3.0,
+                    amount: 60,
                 }),
             }),
         },
@@ -611,7 +607,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
 /// One assault torpedo bay, named for the ORDNANCE it loads.
 ///
 /// Everything a bay is - the tube art, the cadence, the warhead, the rack and
-/// its regen - is identical across both shipped bays, so the only argument
+/// its idle reload - is identical across both shipped bays, so the only argument
 /// between them is `torpedo_type` and the trade it carries. Keeping them one
 /// builder is what makes that true by construction rather than by review: a
 /// balance edit here lands on both types at once and cannot quietly become a
@@ -680,39 +676,21 @@ fn torpedo_bay_prototype(
             // The rack, and the alpha strike it buys: six away in six
             // seconds at the fire rate above. Saturation is what beats
             // point defense - attrition never does - so the burst is the
-            // attacker's weapon and the regen below is only its floor.
+            // attacker's weapon and the reload below is only its floor.
             ammo_capacity: Some(6),
-            // Regen, not a hard magazine. Ammunition in this game is a RATE
-            // LIMIT and not a budget: every other weapon pairs a magazine
-            // with an unlimited reload, which is why no fight can strand
-            // itself with a live enemy and nothing left to answer it. The
-            // bay was the one exception, and a spent bay is a ship that has
-            // stopped participating.
+            // Idle batch reload, not a hard magazine. Every launch resets the
+            // delay; ten quiet seconds return one torpedo. A six-round rack is
+            // therefore the alpha strike, followed by visible rearm cadence.
             //
-            // The RATE is the whole balance, and the old +1 per 4 s is no
-            // longer it. That number was set when an intercept cost 116
-            // rounds; the Serpent's terminal weave tripled the price to 369
-            // (`point_defense_cost_tests`). A PDC sustains
-            // 500 / (500/100 + 3) = 62.5 rounds/s, so ONE mount answers
-            // 62.5 / 369 = 0.17 torpedoes/s. At +1 per 4 s two bays put up
-            // 0.50/s against the 0.34/s two mounts answer - the attacker
-            // wins by WAITING, which is the failure this bay's whole design
-            // is against. At +1 per 10 s two bays put up 0.20/s: 59% of
-            // what two mounts answer and 118% of what one does, so the
-            // attacker still wins by out-carrying the defender and never by
-            // outlasting it. The standing relation is pinned by
-            // `no_torpedo_bay_out_sustains_a_point_defense_mount`.
-            //
-            // 10 s is also AI_TORPEDO_COOLDOWN_SECS (nova_ship
-            // `input/ai/torpedo.rs`): an AI bay already spaces its launches
-            // exactly this far apart, so the regen never gates an AI
-            // attacker and the campaign's torpedo pressure is what it was
-            // before the magazine was made hard. The rack is the player's
-            // burst allowance; the AI never gets to use one.
+            // One shipped PDC sustains 200 / (3 + 200/100) = 40 rounds/s when
+            // each returned batch is fired immediately. At 369 rounds per
+            // weaving intercept it answers 0.108 torpedoes/s, narrowly above
+            // this bay's 0.1/s idle supply. The attacker wins by mounting more
+            // bays than the defender has PDCs, never by waiting one mount out.
+            // `no_torpedo_bay_out_sustains_a_point_defense_mount` pins it.
             reload: Some(SectionReloadConfig {
-                reload_time: 10.0,
-                rounds_per_cycle: 1,
-                only_when_empty: false,
+                delay: 10.0,
+                amount: 1,
             }),
         }),
     }

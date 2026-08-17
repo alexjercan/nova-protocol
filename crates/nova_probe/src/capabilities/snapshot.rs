@@ -821,9 +821,8 @@ fn weapon(
         })),
         "reload": world.get::<SectionReload>(entity).map(|reload| serde_json::json!({
             "elapsed": num(reload.elapsed),
-            "reload_time": num(reload.reload_time),
-            "rounds_per_cycle": reload.rounds_per_cycle,
-            "only_when_empty": reload.only_when_empty,
+            "delay": num(reload.delay),
+            "amount": reload.amount,
         })),
         // A turret aims at a POINT, not an entity: `target` is the world-space
         // point it was told to hit, `aim_point` the lead solution it steers
@@ -1011,7 +1010,7 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     use nova_gameplay::prelude::DamageType;
-    use nova_ship::prelude::unit_cube_link_points;
+    use nova_ship::prelude::{unit_cube_link_points, SectionReloadConfig};
 
     use super::*;
 
@@ -1053,6 +1052,11 @@ mod tests {
                 WeaponsHot(true),
             ))
             .id();
+        let mut reload = SectionReload::from_config(SectionReloadConfig {
+            delay: 4.0,
+            amount: 5,
+        });
+        reload.elapsed = 1.5;
         let section = app
             .world_mut()
             .spawn((
@@ -1070,12 +1074,7 @@ mod tests {
                     rounds: 7,
                     capacity: 20,
                 },
-                SectionReload {
-                    reload_time: 4.0,
-                    rounds_per_cycle: 5,
-                    only_when_empty: false,
-                    elapsed: 1.5,
-                },
+                reload,
                 TurretSectionInput(true),
                 ChildOf(root),
             ))

@@ -38,13 +38,14 @@ pub struct HudSituations {
     pub firing: bool,
     /// Some player weapon group is at or below its low-ammo mark.
     pub low_ammo: bool,
+    /// Some player weapon is restoring an idle reload batch.
+    pub reloading: bool,
 }
 
 impl HudSituations {
-    /// Whether the ammo gauges are relevant: while shooting is on the table, or
-    /// whenever a group is nearly dry (which is news even in cruise).
+    /// Whether ammo gauges matter: weapons hot, low ammunition, or active reload.
     pub fn ammo_relevant(&self) -> bool {
-        self.weapons_hot || self.low_ammo
+        self.weapons_hot || self.low_ammo || self.reloading
     }
 
     /// Whether nothing is going on - the near-empty idle-cruise screen.
@@ -69,7 +70,12 @@ pub fn sense_hud_situations(
         With<PlayerSpaceshipMarker>,
     >,
     q_sections: Query<
-        (&ChildOf, Option<&SectionAmmo>, Option<&TurretSectionInput>),
+        (
+            &ChildOf,
+            Option<&SectionAmmo>,
+            Option<&SectionReload>,
+            Option<&TurretSectionInput>,
+        ),
         With<SectionMarker>,
     >,
 ) {
@@ -78,7 +84,8 @@ pub fn sense_hud_situations(
             let weapons_hot = hot.is_some_and(|hot| hot.0);
             let mut firing = false;
             let mut low_ammo = false;
-            for (&ChildOf(parent), ammo, trigger) in &q_sections {
+            let mut reloading = false;
+            for (&ChildOf(parent), ammo, reload, trigger) in &q_sections {
                 if parent != ship {
                     continue;
                 }
@@ -87,6 +94,9 @@ pub fn sense_hud_situations(
                 // reticle would be a lie.
                 firing |= weapons_hot && trigger.is_some_and(|trigger| trigger.0);
                 low_ammo |= ammo.is_some_and(super::ammo_readout::is_low_ammo);
+                reloading |= ammo
+                    .zip(reload)
+                    .is_some_and(|(ammo, reload)| reload.is_reloading(ammo));
             }
             HudSituations {
                 maneuver: autopilot.map(maneuver_verb),
@@ -94,6 +104,7 @@ pub fn sense_hud_situations(
                 weapons_hot,
                 firing,
                 low_ammo,
+                reloading,
             }
         }
         Err(_) => HudSituations::default(),
@@ -217,5 +228,36 @@ mod tests {
         });
         app.update();
         assert!(situations(&app).low_ammo, "my own group ran dry");
+    }
+
+    #[test]
+    fn reload_reads_the_players_incomplete_magazine() {
+        let mut app = sense_app();
+        let ship = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+        let section = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                SectionAmmo::new(10),
+                SectionReload::from_config(SectionReloadConfig {
+                    delay: 3.0,
+                    amount: 4,
+                }),
+                ChildOf(ship),
+            ))
+            .id();
+        app.update();
+        assert!(!situations(&app).reloading, "full magazine is at rest");
+
+        app.world_mut()
+            .entity_mut(section)
+            .get_mut::<SectionAmmo>()
+            .unwrap()
+            .rounds = 9;
+        app.update();
+        assert!(
+            situations(&app).reloading,
+            "missing ammo keeps the gauge up"
+        );
     }
 }

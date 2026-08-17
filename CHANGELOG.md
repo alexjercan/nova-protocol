@@ -18,6 +18,7 @@ tagged **(breaking)**.
 
 ### Combat & Weapons
 
+- Weapon reloads require a quiet interval: PDCs recover partial batches, torpedo launches restart rearming, and incoming rounds pulse on a persistent ammo gauge. **(breaking)**
 - Turrets fire only when the barrel is ON its aim point (0.92 deg, derived from
   what still hits a hull at 1 km), so a mount that cannot bear holds fire and
   the ones that can keep shooting.

@@ -168,6 +168,13 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
                     .ammo_capacity
                     .map_or_else(|| "unlimited".to_string(), |ammo| format!("{ammo}")),
             ),
+            (
+                "reload".to_string(),
+                turret.reload.map_or_else(
+                    || "none".to_string(),
+                    |reload| format!("+{} / {:.1} s idle", reload.amount, reload.delay),
+                ),
+            ),
         ],
         SectionKind::Torpedo(torpedo) => vec![
             (
@@ -186,6 +193,13 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
                 torpedo
                     .ammo_capacity
                     .map_or_else(|| "unlimited".to_string(), |ammo| format!("{ammo}")),
+            ),
+            (
+                "reload".to_string(),
+                torpedo.reload.map_or_else(
+                    || "none".to_string(),
+                    |reload| format!("+{} / {:.1} s idle", reload.amount, reload.delay),
+                ),
             ),
         ],
     }

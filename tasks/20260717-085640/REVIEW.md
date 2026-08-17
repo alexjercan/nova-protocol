@@ -50,3 +50,16 @@ re-derived, not read):
   Authored content always sets it positive, so this is defensive only.
   - Response: fixed - added a `debug_assert!(reload_time > 0.0)` in `from_config`
     and a doc note on the field that a non-positive value never refills.
+
+## Follow-up review: idle batch reload
+
+- DATE: 2026-08-17
+- VERDICT: APPROVE
+- CHANGES REQUESTED: none
+
+The owner completed code review after the breaking idle-batch redesign. The
+review accepted the `delay`/`amount` interface, fire-before-reload ordering,
+shipped batch tuning, validation, and incoming-batch HUD treatment as written.
+All affected crate tests, catalog drift, content lint, formatting, and web CI
+passed. Testing found and fixed one missing test-only import in the probe
+snapshot fixture; no runtime behavior changed.

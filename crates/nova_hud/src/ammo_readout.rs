@@ -16,11 +16,10 @@
 //! - a torpedo bay shows a `||||` row of one pip per round of capacity, the
 //!   remaining rounds lit.
 //!
-//! While a weapon is reloading (it carries a [`SectionReload`] mid-cycle) the
-//! pips above the live-round level fill as a reload sweep in the same hue at a
-//! dimmer `RELOAD_ALPHA`, proportional to cycle progress: a spent turret ring
-//! fills from empty back to full, and a rearming torpedo bar lights the rounds
-//! coming back above the ones still loaded.
+//! While a weapon reloads, only the next authored batch pulses above the live
+//! rounds. Its alpha rises with delay progress, then the pips become solid when
+//! the batch lands. A spent PDC previews its incoming ring segments; a torpedo
+//! bay previews exactly one returning torpedo.
 //!
 //! A weapon with no `SectionAmmo` fires without limit (the `infinite_ammo`
 //! path forces `ammo_capacity = None`, so the component is simply absent):
@@ -40,10 +39,9 @@
 //!
 //! CONTEXTUAL: the gauges are not on whenever a weapon
 //! has ammo - the layer carries a [`HudContextGate`] driven by
-//! `sync_ammo_gate`, so they surface while the weapons are hot or a group is
-//! nearly dry, and stay out of the way in idle cruise. Low ammo forces them
-//! visible on its own, because a dry magazine is news before you pull the
-//! trigger, not after.
+//! `sync_ammo_gate`, so they surface while weapons are hot, a group is nearly
+//! dry, or a batch is reloading. Reload keeps its gauge visible through the
+//! quiet interval; a full magazine lets it leave idle cruise again.
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
@@ -396,10 +394,11 @@ const WARN_PERIOD_SECS: f32 = 0.9;
 // reads (and still counts) as LIT at every phase of the breath.
 const WARN_ALPHA: (f32, f32) = (0.62, LIT_ALPHA);
 
-/// Alpha of a pip the reload sweep has filled - between dim and lit, so a
-/// reloading track reads as "coming back" without being mistaken for live
-/// rounds.
-const RELOAD_ALPHA: f32 = 0.5;
+/// Incoming-batch pulse. Both ends brighten with progress, but the peak stays
+/// below the live-pip threshold so incoming rounds never read as usable.
+const RELOAD_PERIOD_SECS: f32 = 0.65;
+const RELOAD_ALPHA_START: (f32, f32) = (0.24, 0.36);
+const RELOAD_ALPHA_END: (f32, f32) = (0.40, 0.54);
 
 /// Whether a weapon group is nearly dry (see [`LOW_AMMO_FRACTION`]). A group at
 /// zero rounds counts as low too: an empty gauge with a dark track is easy to
@@ -415,15 +414,14 @@ fn warn_alpha(elapsed: f32) -> f32 {
     lo + (hi - lo) * wave
 }
 
-/// How many pips above the `steady_lit` level the reload sweep has filled, given
-/// the cycle `progress` (0..=1). The sweep fills the remaining track - from the
-/// steady level up to full - as progress runs 0->1, so a discrete reload of an
-/// empty magazine fills the whole gauge and a continuous regen lights just the
-/// round being restored. Pure and gauge-agnostic (turret ring or torpedo bar):
-/// the caller passes the pip count and the steady lit count.
-fn reload_fill_segments(segment_count: usize, steady_lit: usize, progress: f32) -> usize {
-    let remaining = segment_count.saturating_sub(steady_lit);
-    ((progress.clamp(0.0, 1.0) * remaining as f32).round() as usize).min(remaining)
+/// Alpha for an incoming batch: a visible pulse whose whole band brightens as
+/// the delay approaches completion.
+fn reload_alpha(elapsed: f32, progress: f32) -> f32 {
+    let progress = progress.clamp(0.0, 1.0);
+    let lo = RELOAD_ALPHA_START.0 + (RELOAD_ALPHA_END.0 - RELOAD_ALPHA_START.0) * progress;
+    let hi = RELOAD_ALPHA_START.1 + (RELOAD_ALPHA_END.1 - RELOAD_ALPHA_START.1) * progress;
+    let wave = 0.5 + 0.5 * (elapsed * std::f32::consts::TAU / RELOAD_PERIOD_SECS).sin();
+    lo + (hi - lo) * wave
 }
 
 /// Light each readout's chunks from its section's current `rounds/capacity`, in
@@ -431,10 +429,9 @@ fn reload_fill_segments(segment_count: usize, steady_lit: usize, progress: f32) 
 /// readouts read the section's [`LoadedBullet`] slot; torpedo readouts are
 /// Explosive (a torpedo always detonates an Explosive `NovaBlast`).
 ///
-/// While the section is reloading (it carries a [`SectionReload`] mid-cycle) the
-/// pips above the steady lit level fill as a reload sweep in the same hue at
-/// [`RELOAD_ALPHA`], so a spent turret ring fills from empty to full and a
-/// rearming torpedo bar lights the round being restored.
+/// While the section reloads, the pips in its next batch pulse in the same hue
+/// and brighten with progress. Live rounds remain solid; later missing rounds
+/// remain dark.
 /// This is the single point that reads ammo/reload state, so growing to
 /// per-bullet-type magazines later stays a local change.
 fn drive_ammo_readouts(
@@ -451,9 +448,8 @@ fn drive_ammo_readouts(
         };
         // Total pips in this gauge: the fixed ring for a turret, one bar pip per
         // round of capacity for a torpedo bay.
-        let (segment_count, steady_lit, damage_type) = match kind {
+        let (steady_lit, damage_type) = match kind {
             AmmoReadoutKind::Turret => (
-                RING_SEGMENTS,
                 turret_lit_segments(ammo.rounds, ammo.capacity),
                 // The turret's loaded round; default Kinetic if the slot is
                 // somehow absent (production turrets always carry one).
@@ -462,26 +458,25 @@ fn drive_ammo_readouts(
                     .map(|loaded| loaded.kind)
                     .unwrap_or(DamageType::Kinetic),
             ),
-            AmmoReadoutKind::Torpedo => (
-                ammo.capacity as usize,
-                ammo.rounds as usize,
-                DamageType::Explosive,
-            ),
+            AmmoReadoutKind::Torpedo => (ammo.rounds as usize, DamageType::Explosive),
         };
-        // The reload sweep: pips filled above the steady level while a reload
-        // cycle is in flight. Absent/at-rest reload leaves this at `steady_lit`,
-        // so the steady lit/dim rendering is byte-identical to before.
-        let reload_end = match q_reload.get(**section) {
-            Ok(reload) if reload.is_reloading(ammo) => {
-                steady_lit + reload_fill_segments(segment_count, steady_lit, reload.progress())
+        // Preview only the next batch. Progress changes its pulse brightness,
+        // not its size, so the gauge says both how much is coming and how near.
+        let active_reload = q_reload
+            .get(**section)
+            .ok()
+            .filter(|reload| reload.is_reloading(ammo));
+        let reload_end = active_reload.map_or(steady_lit, |reload| match kind {
+            AmmoReadoutKind::Turret => {
+                turret_lit_segments(reload.incoming_rounds(ammo), ammo.capacity)
             }
-            _ => steady_lit,
-        };
+            AmmoReadoutKind::Torpedo => reload.incoming_rounds(ammo) as usize,
+        });
         // Nearly dry: the whole group goes amber and breathes, so a magazine
         // about to run out is visible without reading a number (demo 2
         // `.grp.low`). A group in a reload cycle is deliberately NOT warned -
         // it is already coming back.
-        let low = is_low_ammo(ammo) && reload_end == steady_lit;
+        let low = is_low_ammo(ammo) && active_reload.is_none();
         let hue = if low {
             nova_ui::theme::AMBER_NOVA
         } else {
@@ -493,7 +488,9 @@ fn drive_ammo_readouts(
             LIT_ALPHA
         };
         let lit_color = hue.with_alpha(lit_alpha);
-        let reload_color = hue.with_alpha(RELOAD_ALPHA);
+        let reload_color = hue.with_alpha(active_reload.map_or(DIM_ALPHA, |reload| {
+            reload_alpha(time.elapsed_secs(), reload.progress())
+        }));
         let dim_color = hue.with_alpha(DIM_ALPHA);
         for &child in children {
             if let Ok((pip, mut color)) = q_pips.get_mut(child) {
@@ -551,7 +548,7 @@ fn toggle_ammo_readout_debug(mut debug: ResMut<AmmoReadoutDebug>, keys: Res<Butt
 
 /// Draws the diegetic per-weapon ammo gauges (turret ring, torpedo bar) on
 /// each player weapon section that carries a finite [`SectionAmmo`], with a
-/// reload sweep and a debug-only numeric readout.
+/// incoming-batch pulse and a debug-only numeric readout.
 /// Registers the readout marker/kind/pip types, runs `sync_ammo_readouts` then
 /// `drive_ammo_readouts` (chained) in PostUpdate before `ScreenIndicatorSystems`;
 /// under the `debug` feature also inits `AmmoReadoutDebug` and adds the F11
@@ -969,42 +966,18 @@ mod tests {
         );
     }
 
-    // -- reload sweep --
+    // -- reload batch pulse --
 
     #[test]
-    fn reload_fill_segments_fills_the_remaining_track_with_progress() {
-        // Empty gauge fills whole with progress; clamps to the remaining track.
-        assert_eq!(
-            reload_fill_segments(8, 0, 0.0),
-            0,
-            "no progress fills nothing"
-        );
-        assert_eq!(
-            reload_fill_segments(8, 0, 0.5),
-            4,
-            "half fills half the ring"
-        );
-        assert_eq!(
-            reload_fill_segments(8, 0, 1.0),
-            8,
-            "full progress fills all"
-        );
-        // Above a partial steady level, only the gap fills.
-        assert_eq!(
-            reload_fill_segments(4, 1, 0.5),
-            2,
-            "fills the 3 remaining by half -> 2 (round)"
-        );
-        assert_eq!(
-            reload_fill_segments(4, 4, 1.0),
-            0,
-            "a full gauge has nothing to sweep"
-        );
-        // Progress is clamped, so an overshoot never exceeds the track.
-        assert_eq!(reload_fill_segments(8, 0, 5.0), 8);
+    fn reload_alpha_brightens_with_progress_and_pulses() {
+        let peak = RELOAD_PERIOD_SECS * 0.25;
+        let trough = RELOAD_PERIOD_SECS * 0.75;
+        assert!(reload_alpha(peak, 1.0) > reload_alpha(peak, 0.0));
+        assert!(reload_alpha(peak, 0.5) > reload_alpha(trough, 0.5));
+        assert!(reload_alpha(peak, 1.0) < (LIT_ALPHA + DIM_ALPHA) / 2.0);
     }
 
-    /// Count pips rendered in the reload-sweep alpha (between dim and lit).
+    /// Count pips rendered as incoming: brighter than missing, dimmer than live.
     fn reload_pip_count(world: &mut World, section: Entity) -> usize {
         let readout = world
             .query_filtered::<(Entity, &AmmoReadoutSection), With<AmmoReadoutMarker>>()
@@ -1012,71 +985,56 @@ mod tests {
             .find(|(_, s)| ***s == section)
             .map(|(entity, _)| entity)
             .expect("readout exists");
-        let children: Vec<Entity> = world
+        world
             .entity(readout)
             .get::<Children>()
-            .map(|children| children.iter().collect())
-            .unwrap_or_default();
-        children
+            .map(|children| children.iter().collect::<Vec<_>>())
+            .unwrap_or_default()
             .into_iter()
             .filter_map(|child| world.entity(child).get::<BackgroundColor>().copied())
-            .filter(|color| (color.0.alpha() - RELOAD_ALPHA).abs() < 1e-3)
+            .filter(|color| {
+                color.0.alpha() > DIM_ALPHA + 0.02
+                    && color.0.alpha() < (LIT_ALPHA + DIM_ALPHA) / 2.0
+            })
             .count()
     }
 
-    /// A reload state seeded from config with the cycle advanced to `progress`.
-    fn reload_at(reload_time: f32, only_when_empty: bool, progress: f32) -> SectionReload {
-        let mut reload = SectionReload::from_config(SectionReloadConfig {
-            reload_time,
-            rounds_per_cycle: 1,
-            only_when_empty,
-        });
-        reload.elapsed = reload_time * progress;
+    fn reload_at(delay: f32, amount: u32, progress: f32) -> SectionReload {
+        let mut reload = SectionReload::from_config(SectionReloadConfig { delay, amount });
+        reload.elapsed = delay * progress;
         reload
     }
 
     #[test]
-    fn driver_sweeps_the_ring_while_a_turret_reloads() {
-        // An empty, discretely-reloading turret shows a reload sweep proportional
-        // to cycle progress - no steady-lit rounds, half the ring in reload hue -
-        // which is visibly different from a plain empty magazine (nothing lit).
+    fn driver_pulses_only_the_next_pdc_batch() {
         let mut world = World::new();
         world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
-        let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
+        let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(500)));
         world
             .entity_mut(turret)
             .get_mut::<SectionAmmo>()
             .unwrap()
             .rounds = 0;
-        world.entity_mut(turret).insert(reload_at(2.0, true, 0.5));
+        world.entity_mut(turret).insert(reload_at(3.0, 200, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
-        assert_eq!(
-            lit_pip_count(&mut world, turret),
-            0,
-            "no live rounds while empty"
-        );
+        assert_eq!(lit_pip_count(&mut world, turret), 0);
         assert_eq!(
             reload_pip_count(&mut world, turret),
-            4,
-            "a half-done reload sweeps half the ring"
+            3,
+            "200 of 500 previews three coarse ring segments"
         );
 
-        // A/B: the same empty turret with NO reload shows nothing - the sweep is
-        // what makes reload visible.
         world.entity_mut(turret).remove::<SectionReload>();
         world.run_system_once(drive_ammo_readouts).unwrap();
         assert_eq!(reload_pip_count(&mut world, turret), 0);
-        assert_eq!(lit_pip_count(&mut world, turret), 0);
     }
 
     #[test]
-    fn driver_sweeps_the_torpedo_bar_above_the_live_rounds_while_rearming() {
-        // A bay with one live torpedo, continuously rearming: the live round stays
-        // lit and the sweep lights the rounds coming back above it.
+    fn driver_pulses_one_incoming_torpedo_above_live_rounds() {
         let mut world = World::new();
         world.init_resource::<Time>();
         world.spawn(ammo_readout_hud());
@@ -1087,21 +1045,12 @@ mod tests {
             .get_mut::<SectionAmmo>()
             .unwrap()
             .rounds = 1;
-        world.entity_mut(torpedo).insert(reload_at(4.0, false, 0.5));
+        world.entity_mut(torpedo).insert(reload_at(10.0, 1, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
-        assert_eq!(
-            lit_pip_count(&mut world, torpedo),
-            1,
-            "the live round stays lit"
-        );
-        // 3 remaining pips, half swept (round(1.5)) -> 2 in reload hue.
-        assert_eq!(
-            reload_pip_count(&mut world, torpedo),
-            2,
-            "the rearming rounds show in the reload hue above the live one"
-        );
+        assert_eq!(lit_pip_count(&mut world, torpedo), 1);
+        assert_eq!(reload_pip_count(&mut world, torpedo), 1);
     }
 
     /// A nearly-dry group goes AMBER and breathes (demo 2
@@ -1158,23 +1107,22 @@ mod tests {
             "a warning pip stays clearly lit at every phase"
         );
 
-        // A group that is rearming is NOT warned - it is already coming back.
-        // (A torpedo bay: its reload is continuous, so a partly-full magazine
-        // is genuinely mid-cycle; a turret's discrete reload only runs empty.)
+        // A group that is rearming is NOT warned - its incoming batch already
+        // communicates recovery.
         let torpedo = spawn_torpedo(&mut world, player, Some(SectionAmmo::new(4)));
         world
             .entity_mut(torpedo)
             .get_mut::<SectionAmmo>()
             .unwrap()
             .rounds = 1;
-        world.entity_mut(torpedo).insert(reload_at(4.0, false, 0.5));
+        world.entity_mut(torpedo).insert(reload_at(4.0, 1, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
         let reloading = lit_pip_color(&mut world, torpedo).expect("a lit pip");
         assert_ne!(
             reloading.to_srgba().to_vec3(),
             nova_ui::theme::AMBER_NOVA.to_srgba().to_vec3(),
-            "a rearming group shows the sweep, not the warning"
+            "a rearming group shows its batch pulse, not the warning"
         );
     }
 
@@ -1188,7 +1136,7 @@ mod tests {
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
-        world.entity_mut(turret).insert(reload_at(2.0, true, 0.0));
+        world.entity_mut(turret).insert(reload_at(2.0, 8, 0.0));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1200,7 +1148,7 @@ mod tests {
         assert_eq!(
             reload_pip_count(&mut world, turret),
             0,
-            "a rested reload sweeps nothing"
+            "a rested reload pulses nothing"
         );
     }
 
@@ -1249,5 +1197,16 @@ mod tests {
             gate(&mut world),
             "a nearly-dry group shows the gauges even with the safety on"
         );
+    }
+
+    #[test]
+    fn active_reload_alone_opens_the_ammo_gate() {
+        let mut world = World::new();
+        world.init_resource::<HudSituations>();
+        world.spawn(ammo_readout_hud());
+
+        world.resource_mut::<HudSituations>().reloading = true;
+        world.run_system_once(sync_ammo_gate).unwrap();
+        assert!(gate(&mut world), "an active reload keeps its gauge visible");
     }
 }

@@ -509,13 +509,12 @@ per contact. A symmetric rule - ram damage - wants both.
   The player `infinite_ammo` flag builds that ship's weapons without magazines,
   but only under the `debug` feature: a shipped build logs a warning and keeps
   the authored magazines, so unlimited fire is a dev cheat, never a player state.
-- `SectionReload` (`sections/ammo.rs`): optional auto-reload/regen on a magazine,
-  from the turret/torpedo config `reload`. `tick_section_reload` (FixedUpdate)
-  refills a spent magazine on a timer - discrete reload-to-full on empty
-  (`only_when_empty`, `rounds_per_cycle = capacity`) or continuous per-round
-  regen. Add-only vs the fire path's consume, so no ordering is needed. Only a
-  weapon that has a magazine can reload, so unlimited weapons never do. Its
-  `progress()` is what the diegetic ammo readout draws a reload state from.
+- `SectionReload` (`sections/ammo.rs`): optional idle batch reload on a
+  magazine, from the turret/torpedo config `reload: Some((delay, amount))`.
+  Every successful shot resets progress; every completed quiet delay restores
+  one batch until full. Fire runs before `tick_section_reload` in FixedUpdate so
+  a shot wins an exact completion tick. Unlimited weapons never reload. The HUD
+  reads `progress()` and `incoming_rounds()` to pulse only the next batch.
 - `LoadedBullet` (`sections/turret_section/mod.rs`): the turret's loaded-round slot
   (damage type + amount), seeded from the config. Fired bullets and the HUD ammo
   readout colors read this slot, so swapping ammo types is one component write.

@@ -211,10 +211,12 @@ impl Plugin for SpaceshipSectionPlugin {
         app.register_type::<ammo::SectionAmmo>();
         app.register_type::<ammo::SectionReload>();
         app.add_plugins(integrity::ShipIntegrityPlugin);
-        // NOTE: reload is add-only against the consume in
-        // `shoot_spawn_projectile`, so it needs no ordering versus the fire
-        // systems - only the same fixed clock.
-        app.add_systems(FixedUpdate, ammo::tick_section_reload);
+        // A successful shot resets reload progress. Run the reload pass after
+        // every section fire system so the shot wins an exact completion tick.
+        app.add_systems(
+            FixedUpdate,
+            ammo::tick_section_reload.after(SpaceshipSectionSystems),
+        );
         app.add_plugins((
             hull_section::HullSectionPlugin {
                 render: self.render,

@@ -73,6 +73,19 @@ every headless firing rig that never asked for ammo is unchanged.
 - Unchanged content parity: `content_ron_parity` + `content_lint_gate` green,
   so the Rust catalog and RON agree on the new `reload` fields.
 
+## Follow-up design: idle batch reload
+
+Accepted 2026-08-17.
+
+- Replace `reload_time`, `rounds_per_cycle`, and `only_when_empty` with `delay` and `amount`. No compatibility aliases.
+- Every successful shot resets reload progress. Empty trigger pulls do not.
+- After `delay` seconds without a shot, restore `amount`; repeat while idle until full.
+- Fire runs before reload. A shot on the completion tick wins and resets the timer without receiving a simultaneous batch.
+- Shipped 500-round PDCs restore 200 rounds every 3 seconds. Shipped 150-round light turrets restore 60 every 3 seconds. Both sustain 40 rounds/s when firing each batch immediately.
+- Shipped torpedo bays restore one torpedo after 10 seconds without a launch.
+- Validate that reload has a positive finite magazine, positive finite delay, and nonzero amount.
+- HUD stays visible during reload. Only the next batch pulses in the ammo hue and brightens with progress; live rounds stay solid and missing rounds stay dark.
+
 ## Self-reflection
 
 The one-timer/two-behaviors shape kept the surface small and made the readout
@@ -80,3 +93,19 @@ task purely additive (it reads `progress()`). Next time, reach for the
 `max_delta` clamp explanation immediately when a `ManualDuration` rig under-
 advances - it has bitten the repo before (the fire rigs carry a comment about
 it), so it should have been the first hypothesis, not the third.
+
+## Idle batch implementation verification
+
+- Owner code review: approved with no changes requested.
+- `nova_ship`: 648 passed.
+- `nova_hud`: 218 passed.
+- `nova_scenario`: 186 passed.
+- `nova_authoring`: 78 passed.
+- `nova_editor`: 66 passed.
+- `nova_probe`: 55 passed.
+- Probe catalog drift: 2 passed.
+- Web CI passed, including format, lint, tests, and build.
+- Content generation and lint passed. Rust format and diff checks passed.
+- The first `nova_probe` test compile found a missing test-only
+  `SectionReloadConfig` import in `snapshot.rs`; adding the explicit import
+  fixed it. No runtime code changed.

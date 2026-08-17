@@ -178,10 +178,9 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub ammo_capacity: Option<u32>,
-    /// Auto-reload for the bay. `None` = no reload (a spent bay stays empty).
-    /// `Some` attaches a [`SectionReload`] alongside the `SectionAmmo`, so it
-    /// only applies when `ammo_capacity` is also `Some`; an unlimited bay never
-    /// reloads.
+    /// Idle batch reload for the bay. Each successful launch resets its delay;
+    /// each completed delay restores the authored amount until full. Requires
+    /// `ammo_capacity`; an unlimited bay never reloads.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")

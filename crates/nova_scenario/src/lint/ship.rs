@@ -3,8 +3,8 @@
 use bevy::prelude::Vec3;
 use nova_ship::prelude::{
     derive_link_point_graph, ControllerSectionConfig, LinkPointGraphError, LinkPointRef,
-    PlacedSectionLinkPoints, SectionCollider, SectionConfig, SectionKind, TurretJoint,
-    TurretSectionConfig,
+    PlacedSectionLinkPoints, SectionCollider, SectionConfig, SectionKind, SectionReloadConfig,
+    TurretJoint, TurretSectionConfig,
 };
 
 use super::{KnownSections, KnownShips, LintIssue};
@@ -117,9 +117,9 @@ pub fn lint_ship_config(
 }
 
 /// Static well-formedness of one section's config that the RON parser cannot
-/// catch (a well-typed field can still be nonsense). Checks controller response
-/// values and the turret joint tree. Pure over the config, so every consumer - the author
-/// CLI's `lint`, the CI gate, the runtime merge - runs the SAME check on base +
+/// catch (a well-typed field can still be nonsense). Checks controller response,
+/// weapon reload, and the turret joint tree. Pure over the config, so every
+/// consumer - the author CLI's `lint`, the CI gate, the runtime merge - runs the SAME check on base +
 /// mod section catalogs, and `lint_scenario` runs it on inline turret sections.
 pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssue> {
     let mut issues = Vec::new();
@@ -128,7 +128,23 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
             check_controller_config(config.base.id.as_str(), controller, source, &mut issues);
         }
         SectionKind::Turret(turret) => {
+            check_reload_config(
+                config.base.id.as_str(),
+                turret.ammo_capacity,
+                turret.reload,
+                source,
+                &mut issues,
+            );
             check_turret_tree(config.base.id.as_str(), turret, source, &mut issues);
+        }
+        SectionKind::Torpedo(torpedo) => {
+            check_reload_config(
+                config.base.id.as_str(),
+                torpedo.ammo_capacity,
+                torpedo.reload,
+                source,
+                &mut issues,
+            );
         }
         _ => {}
     }
@@ -150,6 +166,37 @@ fn check_controller_config(
                  computable number of seconds, got {}",
                 controller.steering_lag
             ),
+        ));
+    }
+}
+
+fn check_reload_config(
+    section_id: &str,
+    capacity: Option<u32>,
+    reload: Option<SectionReloadConfig>,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let Some(reload) = reload else { return };
+    if capacity.is_none_or(|capacity| capacity == 0) {
+        issues.push(LintIssue::error(
+            source,
+            format!("section '{section_id}': reload requires a positive ammo_capacity"),
+        ));
+    }
+    if reload.delay <= 0.0 || !reload.delay.is_finite() {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': reload delay must be positive and finite, got {}",
+                reload.delay
+            ),
+        ));
+    }
+    if reload.amount == 0 {
+        issues.push(LintIssue::error(
+            source,
+            format!("section '{section_id}': reload amount must be greater than zero"),
         ));
     }
 }
@@ -649,6 +696,27 @@ mod tests {
         }
         assert!(lint_section_config(&controller(0.0001), "mod").is_empty());
         assert!(lint_section_config(&controller(0.5), "mod").is_empty());
+    }
+
+    #[test]
+    fn reload_requires_a_valid_magazine_delay_and_amount() {
+        let reload = |delay, amount| SectionReloadConfig { delay, amount };
+        let check = |capacity, reload| {
+            let mut issues = Vec::new();
+            check_reload_config("weapon", capacity, Some(reload), "mod", &mut issues);
+            issues
+        };
+
+        assert!(check(Some(500), reload(3.0, 200)).is_empty());
+        for issues in [
+            check(None, reload(3.0, 200)),
+            check(Some(0), reload(3.0, 200)),
+            check(Some(500), reload(0.0, 200)),
+            check(Some(500), reload(f32::NAN, 200)),
+            check(Some(500), reload(3.0, 0)),
+        ] {
+            assert_eq!(errors(&issues).len(), 1, "{issues:?}");
+        }
     }
 
     #[test]

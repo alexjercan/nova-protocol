@@ -47,3 +47,15 @@
   sharpened with the `max_delta` mechanism and the raise-max_delta fix.
 - [ ] Next in this flow: 20260716-123556 (reload-state on the diegetic readout),
   now unblocked - reads `SectionReload::progress()`.
+
+## Idle batch follow-up
+
+- The breaking `delay`/`amount` model removed mode flags and made turret and
+  torpedo behavior use one rule.
+- Explicit fire-before-reload ordering made the completion-tick result
+  deterministic. The old add-only ordering argument no longer applies.
+- Shared `incoming_rounds()` kept runtime refill and HUD batch preview aligned.
+- Affected tests found one missing test-only probe import. Fix: import
+  `SectionReloadConfig` explicitly in the snapshot test module.
+- Next time, compile optional/debug consumers before review. Content generation
+  did not compile the `nova_probe` test module that exposed the omission.

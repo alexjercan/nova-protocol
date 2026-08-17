@@ -305,6 +305,7 @@ kind: Turret((
     bullet_kind: Kinetic,
     fire_sound: Some("dep://base/sounds/turret_fire.wav"),
     ammo_capacity: Some(500),
+    reload: Some((delay: 3.0, amount: 200)),
 )),
 ```
 
@@ -384,12 +385,11 @@ Section-wide fields (once, alongside `root`):
   whatever the turret has loaded.
 - `ammo_capacity` (optional) - magazine size; `None` fires without a limit,
   `Some(n)` gives an ammo slot of `n` rounds.
-- `reload` (optional) - auto-reload for the magazine (needs `ammo_capacity`).
-  `Some((reload_time, rounds_per_cycle, only_when_empty))`: a completed
-  `reload_time` cycle restores `rounds_per_cycle` rounds (clamped to capacity).
-  `only_when_empty: true` with `rounds_per_cycle` = capacity is discrete
-  reload-on-empty; `only_when_empty: false` with `rounds_per_cycle: 1` is
-  continuous per-round regen. `None` = a spent magazine stays empty.
+- `reload` (optional) - idle batch reload for the magazine (needs
+  `ammo_capacity`). `Some((delay, amount))`: every successful shot resets the
+  timer; after `delay` quiet seconds, `amount` rounds return, clamped to
+  capacity. Batches repeat while the weapon stays idle. An empty trigger pull
+  does not reset the timer. `None` = a spent magazine stays empty.
 
 ## Torpedo
 
@@ -418,6 +418,7 @@ kind: Torpedo((
         weave_rate: 1.4,
     ),
     ammo_capacity: Some(6),
+    reload: Some((delay: 10.0, amount: 1)),
 )),
 ```
 
@@ -498,17 +499,11 @@ kind: Torpedo((
   total speed instead: a total-speed cap leaves the torpedo ballistic at cruise
   and unable to steer at all.
 - `ammo_capacity` (optional) - magazine size in torpedoes; `None` for unlimited.
-- `reload` (optional) - auto-reload for the bay (needs `ammo_capacity`); same
-  `Some((reload_time, rounds_per_cycle, only_when_empty))` shape as the turret.
-  The shipped bays author **continuous regen**: `reload_time` 10 s,
-  `rounds_per_cycle` 1, `only_when_empty` false - one torpedo back every ten
-  seconds, on top of a six-round rack. Ammunition here is a rate limit and not a
-  budget, so a spent bay comes back rather than taking its ship out of the
-  fight. The RATE is the balance, and it is derived rather than picked: one
-  point-defense mount sustains about 0.17 intercepts per second against a
-  weaving torpedo, so a bay that regrew faster than that would beat point
-  defense by waiting instead of by saturating it. Author a faster regen only
-  alongside the mounts that answer it.
+- `reload` (optional) - idle batch reload for the bay (needs `ammo_capacity`),
+  with the same `Some((delay, amount))` shape as a turret. The shipped bay
+  restores one torpedo after ten seconds without a launch. Another launch
+  resets that timer. Ammunition is a rate limit, not a permanent budget, but a
+  bay must win through its six-round salvo rather than by outwaiting one PDC.
 
 ## A section in a mod
 

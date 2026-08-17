@@ -399,9 +399,8 @@ mod tests {
 
         let reload = || {
             SectionReload::from_config(SectionReloadConfig {
-                reload_time: 3.0,
-                rounds_per_cycle: 500,
-                only_when_empty: true,
+                delay: 3.0,
+                amount: 500,
             })
         };
 

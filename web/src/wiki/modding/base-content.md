@@ -34,13 +34,13 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 | `reinforced_hull_section` | Hull | Reinforced Hull Section | 200 | the armor workhorse |
 | `basic_thruster_section` | Thruster | Basic Thruster Section | 70 | magnitude 1.0; one socket, on the `-Z` face it bolts by - the rest of the part is barrel, nozzle and plume |
 | `basic_controller_section` | Controller | Basic Controller Section | 100 | steering lag 0.5 s, turn acceleration 0.5 rad/s2 |
-| `better_turret_section` | Turret | Better Turret Section | 130 | Kinetic 4.0/hit at 100 rps, ammo 500 |
+| `better_turret_section` | Turret | Better Turret Section | 130 | Kinetic 4.0/hit at 100 rps, ammo 500, +200 after 3 s idle |
 | `light_hull_section` | Hull | Light Hull Section | 60 | scavenger-grade hull |
-| `light_turret_section` | Turret | Light Turret Section | 60 | Kinetic 3.825/hit at 25 rps, ammo 150 |
-| `pdc_kinetic_turret_section` | Turret | PDC Turret (Kinetic) | 130 | the better turret's gun on a 0.5 mount box; fits any hull face. Kinetic 4.0/hit at 100 rps, ammo 500 |
-| `pdc_pierce_turret_section` | Turret | PDC Turret (Pierce) | 130 | the same gun loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through |
-| `torpedo_section` | Torpedo | Torpedo Bay (Serpent) | 100 | blast 750 dmg / 30 u, ordnance 10 hp, ammo 6 regrowing +1 per 10 s; loads the WEAVING Serpent - 32 u/s, ~390 PDC rounds an intercept, killed ~40 u out |
-| `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same bay and warhead loading the straight-running Lance: no weave, 35 u/s, ~116 PDC rounds an intercept, killed ~114 u out |
+| `light_turret_section` | Turret | Light Turret Section | 60 | Kinetic 3.825/hit at 25 rps, ammo 150, +60 after 3 s idle |
+| `pdc_kinetic_turret_section` | Turret | PDC Turret (Kinetic) | 130 | the better turret's gun on a 0.5 mount box; fits any hull face. Kinetic 4.0/hit at 100 rps, ammo 500, +200 after 3 s idle |
+| `pdc_pierce_turret_section` | Turret | PDC Turret (Pierce) | 130 | the same 500-round, +200 after 3 s idle gun loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through |
+| `torpedo_section` | Torpedo | Torpedo Bay (Serpent) | 100 | blast 750 dmg / 30 u, ordnance 10 hp, ammo 6 restoring +1 after 10 s idle; loads the WEAVING Serpent - 32 u/s, ~390 PDC rounds an intercept, killed ~40 u out |
+| `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, 35 u/s, ~116 PDC rounds an intercept, killed ~114 u out |
 | `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; scene dressing, hidden in the editor |
 
 ### Cladding (not a prototype)

@@ -290,15 +290,13 @@ fn torpedo_kind(
         // What the pod LOADS, and the only thing the `_lance` variant of this
         // prototype changes (see `sections::ordnance`).
         torpedo_type,
-        // The catalog bay's rack and regen (see `sections::standard` for the
-        // rate's derivation): six for the alpha strike, then +1 every 10 s. The
-        // cargo-B carries two pods, so twelve away up front and 0.2
-        // torpedoes/s sustained - under the 0.34/s two PDC mounts answer.
+        // The catalog bay's idle reload: six for the alpha strike, then one
+        // after each quiet 10 s. Two pods sustain 0.2 torpedoes/s, below the
+        // 0.216/s that two player-grade PDCs can answer.
         ammo_capacity: Some(6),
         reload: Some(SectionReloadConfig {
-            reload_time: 10.0,
-            rounds_per_cycle: 1,
-            only_when_empty: false,
+            delay: 10.0,
+            amount: 1,
         }),
     })
 }
@@ -337,9 +335,8 @@ fn turret_kind(meshes: &BaseContentAssets, enemy: bool) -> SectionKind {
         dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
         ammo_capacity: Some(if enemy { 150 } else { 500 }),
         reload: Some(SectionReloadConfig {
-            reload_time: if enemy { 2.5 } else { 3.0 },
-            rounds_per_cycle: if enemy { 150 } else { 500 },
-            only_when_empty: true,
+            delay: 3.0,
+            amount: if enemy { 60 } else { 200 },
         }),
     })
 }

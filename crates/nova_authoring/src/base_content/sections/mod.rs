@@ -128,13 +128,7 @@ mod ordnance_tests {
                         bay.projectile_health,
                         bay.fire_rate,
                         bay.ammo_capacity,
-                        bay.reload.map(|reload| {
-                            (
-                                reload.reload_time,
-                                reload.rounds_per_cycle,
-                                reload.only_when_empty,
-                            )
-                        }),
+                        bay.reload.map(|reload| (reload.delay, reload.amount)),
                     )
                 };
                 assert_eq!(
@@ -199,23 +193,16 @@ mod ammunition_tests {
     /// by `point_defense_cost_tests` (nova_ship, torpedo projectile) against the
     /// real lead solve and the real fire-alignment gate across the shipped
     /// 150 u envelope. A straight torpedo costs 116; the terminal weave is what
-    /// makes it 369, and that tripling is why the bay's regen rate had to be
+    /// makes it 369, and that tripling is why the bay's reload rate had to be
     /// re-derived rather than restored to what it was before the weave.
     const ROUNDS_PER_WEAVING_INTERCEPT: f32 = 369.0;
 
-    /// Rounds per second a magazine sustains indefinitely.
-    ///
-    /// Continuous regen (`only_when_empty: false`) IS the refill rate - firing
-    /// faster only empties the rack sooner and then waits on it. A discrete
-    /// reload-on-empty is a duty cycle instead: `capacity` rounds spent at
-    /// `spend_rate`, then one `reload_time` with the weapon silent.
-    fn sustained_per_second(capacity: u32, spend_rate: f32, reload: &SectionReloadConfig) -> f32 {
-        let capacity = capacity as f32;
-        if reload.only_when_empty {
-            capacity / (capacity / spend_rate + reload.reload_time)
-        } else {
-            reload.rounds_per_cycle as f32 / reload.reload_time
-        }
+    /// Rounds per second when every returned batch is fired immediately: one
+    /// idle delay plus the time needed to spend that batch.
+    fn sustained_per_second(_capacity: u32, spend_rate: f32, reload: &SectionReloadConfig) -> f32 {
+        let amount = reload.amount as f32;
+        let batch_fire_time = reload.amount.saturating_sub(1) as f32 / spend_rate;
+        amount / (reload.delay + batch_fire_time)
     }
 
     /// Every muzzle in a turret's joint tree, summed: the rate the mount

@@ -157,6 +157,7 @@ pub(super) fn shoot_spawn_projectile(
             &TurretSectionInput,
             Option<&TurretSectionAimPoint>,
             Option<&mut SectionAmmo>,
+            Option<&mut SectionReload>,
         ),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
@@ -166,8 +167,17 @@ pub(super) fn shoot_spawn_projectile(
     q_defense: Query<(&PointDefenseMount, &TurretDefenseTarget)>,
 ) {
     let dt = time.delta_secs();
-    for (turret, muzzles, ChildOf(spaceship), config, loaded, input, aim_point, mut ammo) in
-        &mut q_turret
+    for (
+        turret,
+        muzzles,
+        ChildOf(spaceship),
+        config,
+        loaded,
+        input,
+        aim_point,
+        mut ammo,
+        mut reload,
+    ) in &mut q_turret
     {
         // The weapons safety is a LIVE predicate: a managed ship (player,
         // mirrored AI) cannot fire
@@ -311,6 +321,9 @@ pub(super) fn shoot_spawn_projectile(
                 if let Some(ammo) = ammo.as_deref_mut() {
                     if !ammo.try_consume() {
                         break;
+                    }
+                    if let Some(reload) = reload.as_deref_mut() {
+                        reload.on_shot();
                     }
                 }
 
@@ -972,14 +985,13 @@ mod tests {
         let mut app = firing_app(1.0);
         app.add_systems(Update, crate::sections::ammo::tick_section_reload);
         let turret = spawn_firing_turret(&mut app, Some(3));
-        // Discrete reload; ~0.2s is under the clock's 0.25s per-tick clamp so a
-        // spent magazine refills within a couple of updates.
+        // Idle batch reload; 0.2s is under the clock's 0.25s per-tick clamp so
+        // a spent magazine refills shortly after the final shot.
         app.world_mut()
             .entity_mut(turret)
             .insert(SectionReload::from_config(SectionReloadConfig {
-                reload_time: 0.2,
-                rounds_per_cycle: 3,
-                only_when_empty: true,
+                delay: 0.2,
+                amount: 3,
             }));
 
         for _ in 0..20 {
