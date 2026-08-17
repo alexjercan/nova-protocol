@@ -98,6 +98,7 @@ pub(super) fn register(app: &mut App) {
             show_boundary_warnings.after(detect_and_show_result),
         ),
     );
+    app.add_systems(PostUpdate, keep_interactive_cursor_released);
     app.add_observer(on_result_action);
 }
 
@@ -421,6 +422,19 @@ fn show_boundary_warnings(
         });
 }
 
+fn keep_interactive_cursor_released(
+    flow: Res<MatchFlow>,
+    pause: Res<State<PauseStates>>,
+    mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    if (flow.finishing.is_some() || *pause.get() == PauseStates::NovaOs)
+        && (cursor.grab_mode != CursorGrabMode::None || !cursor.visible)
+    {
+        cursor.grab_mode = CursorGrabMode::None;
+        cursor.visible = true;
+    }
+}
+
 fn result_text(text: impl Into<String>, size: f32, color: Color) -> impl Bundle {
     (
         UiText,
@@ -651,6 +665,8 @@ fn on_result_action(
 
 #[cfg(test)]
 mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+
     use super::*;
 
     #[test]
@@ -659,6 +675,59 @@ mod tests {
         assert_eq!(match_outcome([1, 0]), Some(MatchOutcome::Amber));
         assert_eq!(match_outcome([0, 1]), Some(MatchOutcome::Onyx));
         assert_eq!(match_outcome([0, 0]), Some(MatchOutcome::Draw));
+    }
+
+    #[test]
+    fn result_screen_reclaims_the_cursor_from_flight() {
+        let mut world = World::new();
+        world.insert_resource(MatchFlow {
+            finishing: Some((MatchEnd::Elimination(MatchOutcome::Amber), 0.0, 0.0)),
+            ..default()
+        });
+        world.insert_resource(State::new(PauseStates::Unpaused));
+        let window = world
+            .spawn((
+                PrimaryWindow,
+                CursorOptions {
+                    grab_mode: CursorGrabMode::Locked,
+                    visible: false,
+                    ..default()
+                },
+            ))
+            .id();
+
+        world
+            .run_system_once(keep_interactive_cursor_released)
+            .unwrap();
+
+        let cursor = world.get::<CursorOptions>(window).unwrap();
+        assert_eq!(cursor.grab_mode, CursorGrabMode::None);
+        assert!(cursor.visible);
+    }
+
+    #[test]
+    fn nova_os_reclaims_the_cursor_from_flight() {
+        let mut world = World::new();
+        world.init_resource::<MatchFlow>();
+        world.insert_resource(State::new(PauseStates::NovaOs));
+        let window = world
+            .spawn((
+                PrimaryWindow,
+                CursorOptions {
+                    grab_mode: CursorGrabMode::Locked,
+                    visible: false,
+                    ..default()
+                },
+            ))
+            .id();
+
+        world
+            .run_system_once(keep_interactive_cursor_released)
+            .unwrap();
+
+        let cursor = world.get::<CursorOptions>(window).unwrap();
+        assert_eq!(cursor.grab_mode, CursorGrabMode::None);
+        assert!(cursor.visible);
     }
 
     #[test]

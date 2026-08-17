@@ -57,8 +57,8 @@ use outcome::{
     sync_outcome_overlay, sync_outcome_pause, sync_start_failure_overlay,
 };
 use pause::{
-    force_unpause, pause_clocks, release_cursor, restore_cursor, setup_pause_ui, toggle_pause,
-    unpause_clocks,
+    force_unpause, keep_frozen_cursor_released, pause_clocks, release_cursor, restore_cursor,
+    setup_pause_ui, toggle_pause, unpause_clocks,
 };
 use portal::{drive_update_choreography, UpdateRequested};
 pub use scenarios::NewGameScenario;
@@ -193,6 +193,10 @@ impl Plugin for NovaMenuPlugin {
             (unpause_clocks, restore_cursor),
         );
         app.add_systems(OnExit(GameStates::Playing), force_unpause);
+        app.add_systems(
+            PostUpdate,
+            keep_frozen_cursor_released.run_if(in_state(GameStates::Playing)),
+        );
 
         // NOTE: resource_exists-gated - headless rigs without the scenario
         // loader have no CurrentOutcome.
