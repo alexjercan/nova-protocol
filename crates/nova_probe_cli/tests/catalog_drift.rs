@@ -161,6 +161,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "blast_penetration",
+        &[
+            "destroyed section attenuates pressure",
+            "surviving section stops pressure",
+            "simultaneous blasts share one health snapshot",
+            "fixtures do not consume penetration",
+            "sections shield fixtures behind them",
+        ],
+    ),
+    (
         "scenario_grammar",
         &[
             "onstart seeds variables and objectives",
@@ -304,7 +314,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 107;
+const SYSTEMS_INVARIANTS: usize = 112;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

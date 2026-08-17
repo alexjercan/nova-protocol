@@ -75,3 +75,18 @@
 - The menu UI camera pattern (IsDefaultUiCamera + alpha-blended output)
   could serve gameplay overlays too if scenario switches ever crash the
   HUD the same way.
+
+## Structural blast pressure follow-up
+
+- The arena exposed a scaling error that small-craft tests could not: radial
+  damage was applied once per section, so a large compound hull multiplied one
+  warhead into whole-ship deletion.
+- The first fix correctly shielded structural targets but still damaged every
+  outer cladding piece directly. The rendered arena made that semantic split
+  visible immediately. Fix: every Explosive target follows the centre ray;
+  only `SectionMarker` blockers consume penetration.
+- Avian's `ColliderTransform` was the correct world-position seam. The old body
+  transform assigned one distance to every collider on a compound ship.
+- Next time, include both target orderings in the first range: fixture before
+  section and fixture behind section. Testing only whether fixtures consume
+  pressure missed whether sections shield fixtures.

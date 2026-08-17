@@ -442,10 +442,11 @@ damage path branches on it.
 Turret bullets are given a near-zero physical mass (`NEUTRALIZED_BULLET_MASS`)
 so the impact path's mass-times-velocity damage
 (`on_impact_collision_deal_damage`, `integrity/core.rs`) is negligible and the
-authored amount is the only weapon damage. Torpedoes detonate a `NovaBlast`
-(linear falloff, `damage.rs`) which damages every overlapping collider - no
-occlusion, no layering: nothing gives cover against a blast, which is what
-makes torpedoes the counter to armour a bullet cannot rake through.
+authored amount is the only weapon damage. Torpedoes detonate a `NovaBlast`.
+`damage.rs` computes linear falloff from each collider's world centre. For a
+target it then walks the centre ray through closer live ship sections: a
+survivor stops pressure, while a destroyed section transmits 65 percent. All
+blasts collected in one fixed tick read one pre-damage health snapshot.
 
 ### Closing speed
 

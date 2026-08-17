@@ -275,10 +275,9 @@ fn torpedo_kind(
         nav_constant: 3.0,
         linear_damping: 0.8,
         blast_radius: 30.0,
-        // The standard torpedo's damage (see `sections::standard`): a
-        // connecting torpedo all but decides a small-craft fight, and the
-        // counter is point defense, not armor. The cargob's tubes are the
-        // campaign's torpedoes, so they hit like the catalog's.
+        // The standard torpedo's damage (see `sections::standard`): a hit can
+        // decide a small-craft fight, while structural depth attenuates it on a
+        // capital. The cargob's tubes hit like the catalog's.
         blast_damage: 750.0,
         blast_effect: None,
         launch_effect: None,

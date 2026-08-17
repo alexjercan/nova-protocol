@@ -22,7 +22,10 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::integrity::health::prelude::{Health, HealthApplyDamage};
+use crate::{
+    integrity::health::prelude::{Health, HealthApplyDamage, HealthZeroMarker},
+    markers::SectionMarker,
+};
 
 /// The damage types and colours, blast spawning, the closing-speed curves, the
 /// travel rule and `NovaDamagePlugin`.
@@ -56,9 +59,9 @@ pub enum DamageType {
     /// feeds its POWER instead - how much thickness it gets through - so it is
     /// the answer to something deep.
     Pierce,
-    /// Concussive area damage: the torpedo's blast. Not a bullet type - a blast
-    /// has no line of flight, so no closing speed and no travel rule. Its
-    /// identity is its radius and magnitude.
+    /// Concussive area damage: the torpedo's blast. Not a bullet type, so it
+    /// has no closing-speed term. Radial falloff sets its pressure; structural
+    /// sections stop or attenuate that pressure along centre rays.
     Explosive,
 }
 
@@ -383,15 +386,22 @@ pub fn representative_kinetic_damage(mass: f32, speed: f32) -> f32 {
     crate::integrity::core::impact_damage(mass, speed)
 }
 
+/// Fraction of explosive pressure left after it destroys one structural layer.
+///
+/// Explosive owns one global travel rule for now. Warhead composition can expose
+/// this later without binding it to torpedo guidance.
+const EXPLOSIVE_SECTION_TRANSMISSION: f32 = 0.65;
+
 /// A radial blast volume: a static sensor sphere that damages everything it
 /// overlaps, falling off linearly to zero at `radius`.
 ///
-/// The falloff IS the blast's shape: a torpedo detonates outside a hull, so the
-/// outer sections are nearer and take more, which buys an exterior-to-interior
-/// gradient without any occlusion rule. There is deliberately none - light plating
-/// gives no cover against a blast, and that is what makes torpedoes the counter
-/// to armour a bullet cannot rake through. Pair it with a short `TempEntity` so
-/// the volume cleans itself up after the frame it fires.
+/// Pressure follows the centre ray from the blast to every target, stops at the
+/// first ship section it cannot destroy, and retains
+/// [`EXPLOSIVE_SECTION_TRANSMISSION`] through each section it does destroy.
+/// Cladding and fixtures can be shielded but never consume penetration.
+/// Pair the volume with a short `TempEntity`; its collision shell supplies the
+/// overlap set while the resolver applies all hits from one fixed tick against
+/// one pre-damage health snapshot.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 pub struct NovaBlast {
     /// Bodies beyond this take no damage.
@@ -403,9 +413,8 @@ pub struct NovaBlast {
 }
 
 /// Bundle for a nova typed blast volume: a Static sensor sphere that owns its
-/// collision events, so it raises `CollisionStart` against every overlapped
-/// collider, and routes damage through `on_nova_blast_collision`. Spawn with a `Transform` at the centre
-/// and a short `TempEntity` so it cleans itself up.
+/// collision events. Spawn with a `Transform` at the centre and a short
+/// `TempEntity` so it cleans itself up after its overlap set is resolved.
 pub fn nova_blast(radius: f32, max_damage: f32, kind: DamageType) -> impl Bundle {
     (
         Name::new("NovaBlastArea"),
@@ -431,56 +440,173 @@ fn blast_falloff(distance: f32, radius: f32, max_damage: f32) -> f32 {
     }
 }
 
-/// Apply nova blast damage to every body a [`NovaBlast`] sensor overlaps.
-///
-/// The blast is the `body1`/self side of the event - it owns the collision
-/// events (see [`nova_blast`]), so avian raises `CollisionStart` against every
-/// collider it overlaps regardless of the target's own configuration. The
-/// swapped `{body1 = target}` ordering is ignored because `q_blast.get(blast)`
-/// fails on the target side, so each overlap deals damage exactly once and never
-/// double-dips. `source` is the blast collider, so the AI threat model resolves
-/// it to the shooter through the blast entity's `ProjectileOwner`.
-fn on_nova_blast_collision(
+/// Pressure left after `destroyed_layers` structural sections.
+fn transmitted_pressure(free_pressure: f32, destroyed_layers: i32) -> f32 {
+    free_pressure * EXPLOSIVE_SECTION_TRANSMISSION.powi(destroyed_layers)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct PendingBlastHit {
+    blast: Entity,
+    blast_collider: Entity,
+    target_collider: Entity,
+}
+
+#[derive(Resource, Default)]
+struct PendingBlastHits(Vec<PendingBlastHit>);
+
+/// Collect a blast overlap without applying it. Resolution waits until every
+/// collision from this physics tick is known, so same-tick blasts cannot use a
+/// hole another blast has only queued.
+fn collect_nova_blast_collision(
     collision: On<CollisionStart>,
-    mut commands: Commands,
-    q_blast: Query<(&Transform, &NovaBlast)>,
-    q_body: Query<&Transform, With<RigidBody>>,
+    q_blast: Query<(), With<NovaBlast>>,
+    mut pending: ResMut<PendingBlastHits>,
 ) {
-    let blast_collider = collision.collider1;
-    let target_collider = collision.collider2;
     let Some(blast) = collision.body1 else {
         return;
     };
-    let Some(target) = collision.body2 else {
-        return;
-    };
-
-    // Only act when this side of the event is the blast; the swapped ordering is
-    // handled by its own event (or ignored entirely).
-    let Ok((blast_transform, blast_config)) = q_blast.get(blast) else {
-        return;
-    };
-    let Ok(target_transform) = q_body.get(target) else {
-        return;
-    };
-
-    let distance = blast_transform
-        .translation
-        .distance(target_transform.translation);
-    let amount = blast_falloff(distance, blast_config.radius, blast_config.max_damage);
-    if amount <= f32::EPSILON {
+    if !q_blast.contains(blast) {
         return;
     }
-
-    apply_damage(&mut commands, target_collider, Some(blast_collider), amount);
+    pending.0.push(PendingBlastHit {
+        blast,
+        blast_collider: collision.collider1,
+        target_collider: collision.collider2,
+    });
 }
 
-/// Registers the typed-damage reflection types and the nova blast observer.
+/// World-space centre of one collider from Avian's current physics pose.
+fn collider_center(
+    collider: Entity,
+    q_collider: &Query<(&ColliderOf, &ColliderTransform)>,
+    q_body: &Query<(&Position, &Rotation), With<RigidBody>>,
+) -> Option<Vec3> {
+    let (collider_of, local) = q_collider.get(collider).ok()?;
+    let (position, rotation) = q_body.get(collider_of.body).ok()?;
+    Some(position.0 + rotation.0 * local.translation)
+}
+
+/// Pressure reaching one target through the live sections on its centre ray.
+/// Health is read-only: every call in the resolver sees the same pre-damage
+/// snapshot. The target need not itself be structural.
+fn pressure_at_target(
+    spatial: &SpatialQuery,
+    blast_collider: Entity,
+    blast_position: Vec3,
+    blast: NovaBlast,
+    target: Entity,
+    target_position: Vec3,
+    q_collider: &Query<(&ColliderOf, &ColliderTransform)>,
+    q_body: &Query<(&Position, &Rotation), With<RigidBody>>,
+    q_section: &Query<(&Health, Has<HealthZeroMarker>), With<SectionMarker>>,
+) -> f32 {
+    let to_target = target_position - blast_position;
+    let distance = to_target.length();
+    let Ok(direction) = Dir3::new(to_target) else {
+        return blast.max_damage;
+    };
+
+    let filter = SpatialQueryFilter::from_excluded_entities([blast_collider]);
+    let mut hits = spatial.ray_hits(blast_position, direction, distance, u32::MAX, true, &filter);
+    hits.sort_by(|left, right| {
+        left.distance
+            .total_cmp(&right.distance)
+            .then_with(|| left.entity.to_bits().cmp(&right.entity.to_bits()))
+    });
+
+    let mut destroyed_layers = 0i32;
+    let mut last = None;
+    for hit in hits {
+        if last == Some(hit.entity) || hit.entity == target {
+            continue;
+        }
+        last = Some(hit.entity);
+        let Ok((health, zero)) = q_section.get(hit.entity) else {
+            continue;
+        };
+        if zero || health.current <= 0.0 {
+            continue;
+        }
+        let Some(blocker_position) = collider_center(hit.entity, q_collider, q_body) else {
+            continue;
+        };
+        let free_pressure = blast_falloff(
+            blast_position.distance(blocker_position),
+            blast.radius,
+            blast.max_damage,
+        );
+        let incoming = transmitted_pressure(free_pressure, destroyed_layers);
+        if incoming < health.current {
+            return 0.0;
+        }
+        destroyed_layers += 1;
+    }
+
+    transmitted_pressure(
+        blast_falloff(distance, blast.radius, blast.max_damage),
+        destroyed_layers,
+    )
+}
+
+/// Resolve every blast overlap collected in this fixed tick.
+fn resolve_nova_blast_hits(
+    mut commands: Commands,
+    mut pending: ResMut<PendingBlastHits>,
+    spatial: SpatialQuery,
+    q_blast: Query<(&Position, &NovaBlast)>,
+    q_collider: Query<(&ColliderOf, &ColliderTransform)>,
+    q_body: Query<(&Position, &Rotation), With<RigidBody>>,
+    q_section: Query<(&Health, Has<HealthZeroMarker>), With<SectionMarker>>,
+) {
+    let mut hits = std::mem::take(&mut pending.0);
+    hits.sort_by_key(|hit| (hit.blast.to_bits(), hit.target_collider.to_bits()));
+    hits.dedup();
+
+    for hit in hits {
+        let Ok((blast_position, blast)) = q_blast.get(hit.blast) else {
+            continue;
+        };
+        let Some(target_position) = collider_center(hit.target_collider, &q_collider, &q_body)
+        else {
+            continue;
+        };
+
+        let amount = if blast.kind == DamageType::Explosive {
+            pressure_at_target(
+                &spatial,
+                hit.blast_collider,
+                blast_position.0,
+                *blast,
+                hit.target_collider,
+                target_position,
+                &q_collider,
+                &q_body,
+                &q_section,
+            )
+        } else {
+            blast_falloff(
+                blast_position.0.distance(target_position),
+                blast.radius,
+                blast.max_damage,
+            )
+        };
+        if amount > f32::EPSILON {
+            apply_damage(
+                &mut commands,
+                hit.target_collider,
+                Some(hit.blast_collider),
+                amount,
+            );
+        }
+    }
+}
+
+/// Registers typed damage plus atomic blast collection and resolution.
 ///
-/// The application HELPER ([`apply_damage`]) is called from the weapon-hit
-/// callsites in their own modules (turret `resolve_bullet_hit`, torpedo
-/// detonate); this plugin owns only the nova-blast observer and type
-/// registration.
+/// The application helper ([`apply_damage`]) is called from weapon-hit
+/// callsites in their own modules. This plugin owns the nova-blast overlap
+/// collector, fixed-tick pressure resolver and type registration.
 pub struct NovaDamagePlugin;
 
 impl Plugin for NovaDamagePlugin {
@@ -489,8 +615,13 @@ impl Plugin for NovaDamagePlugin {
         app.register_type::<DamageType>()
             .register_type::<ProjectileDamage>()
             .register_type::<SectionClass>()
-            .register_type::<NovaBlast>();
-        app.add_observer(on_nova_blast_collision);
+            .register_type::<NovaBlast>()
+            .init_resource::<PendingBlastHits>();
+        app.add_observer(collect_nova_blast_collision);
+        app.add_systems(
+            FixedPostUpdate,
+            resolve_nova_blast_hits.after(PhysicsSystems::Last),
+        );
     }
 }
 
@@ -872,29 +1003,52 @@ mod tests {
     }
 
     #[test]
-    fn nova_blast_deals_its_falloff_once() {
-        // A real sensor overlap fires the nova blast observer, which applies the
-        // linear falloff once. The typed blast is the only blast path in the
-        // app - so the drop is exactly the single falloff amount, not doubled.
+    fn destroyed_sections_multiply_explosive_pressure() {
+        assert!((transmitted_pressure(500.0, 1) - 325.0).abs() < 1e-6);
+        assert!((transmitted_pressure(500.0, 2) - 211.25).abs() < 1e-3);
+    }
+
+    #[test]
+    fn siege_pressure_stays_lethal_through_more_reinforced_layers() {
+        let standard = blast_falloff(5.0, 30.0, 750.0);
+        let siege = blast_falloff(5.0, 45.0, 2000.0);
+        assert!(transmitted_pressure(standard, 3) < 200.0);
+        assert!(transmitted_pressure(siege, 5) >= 200.0);
+        assert!(transmitted_pressure(siege, 6) < 200.0);
+    }
+
+    #[test]
+    fn nova_blast_uses_the_collider_centre_and_deals_its_falloff_once() {
+        // The rigid body stays at the blast centre while its child collider is
+        // 15 units away. Root-relative falloff deals 100; collider-relative
+        // falloff deals the intended 50 exactly once.
         let mut app = integrity_physics_app();
-        // `integrity_physics_app` deliberately does NOT include NovaDamagePlugin,
-        // so this is the ONLY registration of the blast observer. That matters:
-        // a second registration would fire the observer twice and double the
-        // damage, silently masking a real double-count regression this test
-        // exists to catch.
-        app.add_observer(on_nova_blast_collision);
+        app.init_resource::<PendingBlastHits>();
+        app.add_observer(collect_nova_blast_collision);
+        app.add_systems(
+            FixedPostUpdate,
+            resolve_nova_blast_hits.after(PhysicsSystems::Last),
+        );
         let radius = 30.0;
         let max_damage = 100.0;
-        // distance 15 of 30 -> falloff 0.5.
-        let (_body, target) = spawn_target(
-            &mut app,
-            Vec3::new(15.0, 0.0, 0.0),
-            1000.0,
-            Some(SectionClass::Turret),
-        );
+        let body = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::default()))
+            .id();
+        let target = app
+            .world_mut()
+            .spawn((
+                ChildOf(body),
+                Transform::from_xyz(15.0, 0.0, 0.0),
+                Collider::sphere(1.0),
+                ColliderDensity(1.0),
+                Health::new(1000.0),
+                SectionClass::Turret,
+            ))
+            .id();
         app.world_mut().spawn((
             nova_blast(radius, max_damage, DamageType::Explosive),
-            Transform::from_xyz(0.0, 0.0, 0.0),
+            Transform::default(),
         ));
         settle(&mut app);
         assert!(

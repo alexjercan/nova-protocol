@@ -370,8 +370,8 @@ Section-wide fields (once, alongside `root`):
     budget: crossing a section costs that section's `health` RATING (not its
     remaining health), and closing speed divides that cost (clamped
     0.5x..3.0x). A rake is bounded by its power and by a hard six-layer cap.
-  - `Explosive` on a bullet has no travel rule and is spent on its first hit;
-    it is the torpedo blast's type.
+  - `Explosive` on a bullet is spent on its first hit. A torpedo blast uses the
+    Explosive pressure rule described below.
 
   Both curves read exactly 1.0 when the round closes at 100 u/s (a stock PDC's
   `muzzle_speed`), so author `bullet_damage` for a station-keeping engagement
@@ -409,7 +409,7 @@ kind: Torpedo((
     nav_constant: 3.0,
     linear_damping: 0.8,
     blast_radius: 30.0,
-    blast_damage: 100.0,
+    blast_damage: 750.0,
     torpedo_type: (
         name: "Serpent",
         tint: Srgba((red: 0.95, green: 0.45, blue: 0.1, alpha: 1.0)),
@@ -445,10 +445,14 @@ kind: Torpedo((
   higher leads a moving target harder).
 - `linear_damping` - drag on the torpedo body (gives a real terminal velocity so
   the flight path follows guidance).
-- `blast_radius`, `blast_damage` - detonation radius and peak centre damage
-  (falls off to zero at the radius). A blast damages every collider inside the
-  radius at once, with no occlusion and no per-section multiplier, so cover
-  gives nothing against it: radius and magnitude ARE a torpedo's identity.
+- `blast_radius`, `blast_damage` - detonation radius and peak centre pressure.
+  The visible sphere is the damage radius; pressure falls linearly to zero at
+  its edge, measured from each collider's world centre. Ship sections shield
+  sections behind them along a centre ray. A surviving section stops pressure;
+  a destroyed section transmits 65 percent. Existing holes transmit freely.
+  This transmission is one global Explosive rule, not an authored bay field.
+  Structural sections can shield cladding and fixtures behind them, but those
+  non-structural targets do not consume penetration themselves.
 - `blast_effect`, `launch_effect` (both optional) - custom particle effects;
   omit for the built-in bursts.
 - `projectile_health` (optional, default `10.0`) - hit points on each of the

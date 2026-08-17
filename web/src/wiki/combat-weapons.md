@@ -139,7 +139,7 @@ Every round carries a damage type, and each turret has a loaded-ammo slot that s
 
 - **Kinetic** - the punch. The hardest single hit, and closing fast makes it harder still. It carries on only through what it **destroys**, spending its damage as it goes, and stops dead at anything it fails to kill.
 - **Pierce** - the rake. Lower damage per hit, but dealt **in full to every section it crosses**, alive or dead, and never worn down by depth. Closing fast buys it more **depth**, never more damage.
-- **Explosive** - the torpedo's blast. Area damage falling off from the centre; no line of flight, so no travel rule and no speed term. Its identity is its radius and its magnitude.
+- **Explosive** - the torpedo's blast. Area pressure falling off from the centre, with no speed term. Ship sections shield what is behind them; a destroyed section transmits 65 percent of the pressure that reached it.
 
 So the two guns answer different problems. Against one thin target the slug wins outright. Against something deep - a stack of sections, a ship you are shooting down its long axis - a rake puts damage into several sections at once, and its **total** can exceed what one round nominally carries. That is the trade, not a bug.
 
@@ -181,10 +181,14 @@ Every rake also has a hard ceiling on how many sections one round may cross, so 
 
 Nothing pierces an **indestructible** obstacle: an asteroid or a planetoid stops any round of any type at any speed. Torpedoes do not travel through anything either - they detonate.
 
-## Blast and armour
+## Blast pressure and structural depth
 
-A torpedo blast ignores all of this. It damages **everything inside its radius at once**, falling off with distance from the centre, with no line of fire and nothing to get through. Outer sections take more than inner ones simply because the warhead goes off outside the hull and is nearer to them.
+A torpedo blast reaches every collider inside its visible radius. Distance from the blast to that collider's centre sets the free pressure: full at the centre, falling linearly to zero at the edge.
 
-That is deliberate: armour that a bullet cannot rake through is exactly what a torpedo is for. Which weapon section fires which control is per-ship and rebindable in the editor (see [Keybinds](../keybinds/)).
+Ship structure then gives that pressure something to travel through. For each section, the game traces a line from the blast centre. A section that survives its incoming pressure stops the wave and shields every section behind it. A section the wave destroys lets 65 percent continue. Existing holes cost nothing, so repeated hits deepen a breach instead of repainting the whole ship with damage.
+
+Only actual ship sections consume penetration. Cladding and fixtures still take pressure, and sections can shield them, but a thin decorative plate does not attenuate pressure travelling toward something behind it. Several warheads detonating in one fixed tick see the same initial structure: they can combine to remove the outer layer, but cannot use the new hole until the next tick.
+
+The result scales through geometry rather than a ship-size bonus. A thin small craft can still be gutted by one direct hit. A deep capital loses a local crater and keeps fighting until later hits open it farther or push it below structural collapse. Which weapon section fires which control is per-ship and rebindable in the editor (see [Keybinds](../keybinds/)).
 
 Ordnance is not free to shoot down, either. A warhead now carries enough hit points that no single PDC round can swat it - an intercept costs a short burst, not one lucky tap - while the siege bay's armoured torpedoes take sustained fire across the whole closing window.

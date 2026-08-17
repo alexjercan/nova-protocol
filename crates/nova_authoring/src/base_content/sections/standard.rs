@@ -561,8 +561,9 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 collider: None,
                 // The same bay art at siege grade, so the same open muzzle.
                 link_points: unit_cube_link_points_without(Vec3::NEG_Z),
-                // Scene dressing, not player kit: one hit deletes a ship, so
-                // the editor gallery does not offer it.
+                // Scene dressing, not player kit: this armoured finisher cuts
+                // much deeper than standard ordnance, so the editor gallery
+                // does not offer it.
                 hide_in_editor: true,
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
@@ -580,11 +581,9 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 arm_distance: 5.0,
                 nav_constant: 4.0,
                 linear_damping: 0.4,
-                // One hit destroys every section of a corvette outright:
-                // 2000 at the centre with linear falloff over 45 u leaves
-                // >=1000 (before class multipliers) across a ship-sized
-                // target - past any shipped section's health, so the kill is
-                // a real full destruction, not a neutralized hulk.
+                // Siege pressure: the same 65% transmission rule as every
+                // Explosive blast, but 2000 at the centre stays lethal through
+                // more structural layers than the standard 750-point warhead.
                 blast_radius: 45.0,
                 blast_damage: 2000.0,
                 blast_effect: None,
@@ -649,13 +648,10 @@ fn torpedo_bay_prototype(
             nav_constant: 3.0,
             linear_damping: 0.8,
             blast_radius: 30.0,
-            // A torpedo that CONNECTS should all but decide the fight
-            // (owner direction, 2026-08-14: Expanse-style near-one-hit
-            // ordnance; the old 100 took ~7 hits to kill a corvette while a
-            // PDC sustains ~400 DPS). 750 with linear falloff over 30 u
-            // kills or guts every small-craft section on a direct hit;
-            // the counter is shooting the fragile (1 hp) torpedo down,
-            // not tanking it.
+            // Expanse-style nuclear pressure: a direct hit can decide a
+            // small-craft fight, while structural depth stops it from deleting
+            // a capital. Each destroyed section transmits 65% of the remaining
+            // pressure; a surviving section shields everything behind it.
             //
             // EQUAL ACROSS TYPES by owner direction: a torpedo type decides
             // how the ordnance flies, never how hard it lands.

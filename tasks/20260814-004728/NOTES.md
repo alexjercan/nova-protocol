@@ -250,6 +250,53 @@ Root causes and fixes:
   hit decides a small-craft fight; the counter is PD, and the ordnance
   stays 1 hp. Balance audit: clean.
 
+## Follow-up design: structural blast pressure
+
+Accepted 2026-08-17 after the arena exposed one torpedo deleting a large hull.
+
+- Preserve standard 750 damage / 30 u radius and siege 2000 / 45 u. The visible
+  sphere remains the damage radius. Preserve the centre-relative proximity fuze.
+- Fix radial falloff to use each target collider's world centre. The current
+  compound-body path incorrectly uses the shared rigid-body root for every
+  section.
+- Explosive pressure travels on one centre ray from the blast to each target
+  section. Only live `SectionMarker` colliders consume penetration.
+- A blocker that survives its incoming pressure stops the ray. A blocker that
+  is destroyed transmits 65 percent of the pressure. Existing holes transmit
+  without loss. Test blockers against current health; equality destroys.
+- Cladding and fixtures still take radial damage but do not count as structural
+  layers. Keep one global transmission constant; guidance + authored warhead
+  composition is separate future work.
+- Resolve every blast in one fixed tick against the same pre-damage health
+  snapshot. Same-tick warheads can combine to destroy a blocker but cannot use
+  the new hole until a later tick.
+- Keep ordinary section health, overkill clamping, and structural collapse. No
+  blast-specific ship cap or capital immunity.
+
+Implementation:
+
+- `NovaDamagePlugin` now collects blast overlaps during Avian's fixed physics
+  pass and resolves them after `PhysicsSystems::Last`. All damage triggers stay
+  deferred until every ray has read the same health snapshot.
+- Collider centres come from Avian's `ColliderOf` + `ColliderTransform` lifted
+  through the body's current `Position` and `Rotation`, not render transforms or
+  the compound root origin.
+- `examples/systems/blast_penetration.rs` reproduced the old path before the
+  fix: every child on a compound body received root-distance damage (300, or
+  400 from the double blast). It now proves attenuation, shielding, atomic
+  salvos, and fixture exclusion and exits cleanly under autopilot.
+- Verification: `nova_gameplay` 145 passed / 1 ignored; `nova_ship` 649 passed;
+  `nova_scenario` 187 passed; `nova_authoring` 78 passed; catalog drift 2
+  passed; the new rendered range passed; content lint, web CI, Rust format, and
+  diff checks passed.
+- First arena playtest found the visible shell taking damage around the whole
+  ship. Cause: only structural TARGETS ran the centre-ray traversal;
+  non-structural cladding and fixtures took direct radial damage even behind a
+  section. The resolver now traces every Explosive target through structural
+  blockers. Only sections consume penetration, unchanged. The range pins both
+  directions: a fixture cannot shield a section, while a section does shield a
+  fixture behind it.
+
 ## Round 5b (owner live-testing, 2026-08-14)
 
 Owner hit two regressions from the camera rework: the backdrop
