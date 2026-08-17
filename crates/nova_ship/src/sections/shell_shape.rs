@@ -284,6 +284,36 @@ impl ShellShape {
         self.volume()
     }
 
+    /// This shape worn down by `level`, where `0.0` is untouched and `1.0` is
+    /// flat on the cell floor.
+    ///
+    /// Battle damage with no new mesh generator and, more importantly, no new
+    /// shape LANGUAGE: every sample steps down toward the floor, so the answer
+    /// is always a shape the vocabulary already draws and already caches by id.
+    /// Erosion therefore cannot produce geometry nobody has ever looked at,
+    /// which is the whole reason the skin is a height field on five steps
+    /// rather than free-form relief.
+    ///
+    /// Proportional to each sample's own height rather than a flat subtraction:
+    /// what stands proudest of the hull is what a shot takes off first, and a
+    /// sample already on the floor has nothing left to lose. Rounded rather
+    /// than floored so a lightly damaged plate reads as dented instead of
+    /// dropping a whole step everywhere at once.
+    ///
+    /// Shared boundary samples are NOT renegotiated with the neighbours: a worn
+    /// plate opens a seam against an intact one, which is what battle damage
+    /// looks like, and healing the seam would mean every neighbour agreeing on
+    /// one body's health.
+    pub fn eroded(&self, level: f32) -> Self {
+        let remaining = 1.0 - level.clamp(0.0, 1.0);
+        let wear =
+            |round: [u8; 4]| -> [u8; 4] { round.map(|h| (f32::from(h) * remaining).round() as u8) };
+        Self {
+            corners: wear(self.corners),
+            midpoints: wear(self.midpoints),
+        }
+    }
+
     /// Whether the whole boundary is on the cell floor, which is the ONE shape
     /// whose middle is not read off its own samples.
     ///
@@ -639,6 +669,99 @@ mod tests {
 
     fn shape(corners: [u8; 4], midpoints: [u8; 4]) -> ShellShape {
         ShellShape::new(corners, midpoints).expect("a legal shape")
+    }
+
+    /// The ends of the range are the two shapes a reader can predict: an
+    /// untouched plate, and one flat on the floor.
+    #[test]
+    fn wear_runs_from_the_authored_shape_down_to_the_floor() {
+        let plate = shape([FULL, FULL, HALF, HALF], [FULL, HALF, HALF, FULL]);
+
+        assert_eq!(plate.eroded(0.0), plate, "an untouched plate is unchanged");
+        assert_eq!(
+            plate.eroded(1.0),
+            shape([0, 0, 0, 0], [0, 0, 0, 0]),
+            "a fully worn plate is flat on the cell floor"
+        );
+    }
+
+    /// Whatever wear does, it must land on a shape the vocabulary already
+    /// draws - that is the entire reason erosion can reuse the tile generator
+    /// and its cache instead of meshing anything new.
+    #[test]
+    fn every_worn_shape_is_one_the_vocabulary_already_draws() {
+        let plate = shape([FULL, 3, HALF, 1], [3, HALF, 1, FULL]);
+        for step in 0..=20 {
+            let level = step as f32 / 20.0;
+            let worn = plate.eroded(level);
+            assert!(
+                ShellShape::new(worn.corners, worn.midpoints).is_some(),
+                "level {level} produced {worn:?}, which is not a legal shape"
+            );
+            // The id round-trip is the real test of "already drawn": the id IS
+            // the mesh cache key.
+            assert_eq!(
+                ShellShape::from_id(&worn.id()),
+                Some(worn),
+                "level {level} produced a shape whose own id does not spell it"
+            );
+        }
+    }
+
+    /// Wear only ever takes material away, and it takes it off what stands
+    /// proudest first. A plate that grew back under fire would be a bug the
+    /// skin's derive-once rule exists to prevent.
+    ///
+    /// Asserted on the SAMPLES rather than on [`ShellShape::volume`], because
+    /// volume is not monotone across the whole range and should not be: the
+    /// all-floor shape is a stud, which reads as half a cell of solid on
+    /// purpose (see `volume`). Samples are what wear actually moves.
+    #[test]
+    fn wear_only_removes_material_and_takes_the_tallest_first() {
+        let plate = shape([FULL, HALF, 1, 0], [FULL, HALF, 1, 0]);
+
+        let mut previous = plate;
+        for step in 1..=10 {
+            let worn = plate.eroded(step as f32 / 10.0);
+            for (before, after) in previous
+                .corners
+                .iter()
+                .chain(previous.midpoints.iter())
+                .zip(worn.corners.iter().chain(worn.midpoints.iter()))
+            {
+                assert!(
+                    after <= before,
+                    "a sample grew back at step {step}: {before} -> {after}"
+                );
+            }
+            previous = worn;
+        }
+
+        // Proportional, so the tall corner loses more than the short one at the
+        // same level - a flat subtraction would take them down together.
+        let half_worn = plate.eroded(0.5);
+        assert!(
+            i16::from(plate.corners[0]) - i16::from(half_worn.corners[0])
+                > i16::from(plate.corners[2]) - i16::from(half_worn.corners[2]),
+            "the tallest sample must lose the most"
+        );
+    }
+
+    /// The end of the range is the vocabulary's own floor case, and it is a
+    /// STUD rather than nothing: a plate worn flat still reads as a stub of
+    /// surviving material, which is what `volume`'s exception is there for. A
+    /// reader who expects a worn plate to vanish should find that here rather
+    /// than in a scene.
+    #[test]
+    fn a_plate_worn_flat_becomes_the_vocabularys_stud() {
+        let worn = shape([FULL, FULL, FULL, FULL], [FULL, FULL, FULL, FULL]).eroded(1.0);
+
+        assert!(worn.is_stud(), "the all-floor shape is the stud");
+        assert_eq!(
+            worn.volume(),
+            SAMPLE_HEIGHTS[HALF as usize],
+            "and a stud is half a cell of solid, not none"
+        );
     }
 
     /// Every facet of a shape, across all of its surface meshes. The tile is

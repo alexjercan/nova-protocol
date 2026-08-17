@@ -39,7 +39,8 @@ use bevy::{
     prelude::*,
 };
 use nova_gameplay::prelude::{
-    destructible_body, HealthZeroMarker, IntegritySystems, SectionMarker, SpaceshipRootMarker,
+    destructible_body, DamageLevel, HealthZeroMarker, IntegritySystems, SectionMarker,
+    SpaceshipRootMarker,
 };
 
 use crate::sections::{
@@ -59,11 +60,12 @@ use crate::sections::{
 
 /// The prelude: `SkinStructure`, `SkinPlate`, `PlacedPart`, `derive_skin`,
 /// `read_structure`, `section_cell`, `plate_body`, `SkinAssets`, `ShipSkin`,
-/// `ShipSkinMarker` and `ShipSkinPlugin`.
+/// `ShipSkinMarker`, `SkinPlateWear`, `SkinSurfaceMarker` and `ShipSkinPlugin`.
 pub mod prelude {
     pub use super::{
         derive_skin, plate_body, read_structure, section_cell, PlacedPart, ShipSkin,
-        ShipSkinMarker, ShipSkinPlugin, SkinAssets, SkinPlate, SkinStructure,
+        ShipSkinMarker, ShipSkinPlugin, SkinAssets, SkinPlate, SkinPlateWear, SkinStructure,
+        SkinSurfaceMarker,
     };
 }
 
@@ -985,13 +987,123 @@ fn dress_skin_plate(
         .as_ref()
         .zip(worn_style(plate, &q_child_of, &q_style))
         .and_then(|(styles, worn)| worn.resolve(styles));
-    for (mesh, material) in assets.surfaces(*shape, style, &mut meshes, &mut materials) {
+    // Remembered so wear has something to diff against, and so re-dressing is
+    // a step change rather than a rebuild every frame of a fight.
+    commands.entity(plate).insert(SkinPlateWear(*shape));
+    hang_surfaces(
+        &mut commands,
+        plate,
+        *shape,
+        style,
+        &mut assets,
+        &mut meshes,
+        &mut materials,
+    );
+}
+
+/// The shape a plate is currently DRAWN as: its pristine [`ShipSkinMarker`]
+/// shape worn down by the damage it has taken.
+///
+/// Separate from the marker because the marker is the RECORD - what the
+/// derivation decided this cell should wear - and has to survive being shot at.
+/// Wearing the marker itself down would make a plate erode from wherever it had
+/// already got to, so damage would compound instead of reading off health.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[reflect(Component)]
+pub struct SkinPlateWear(pub ShellShape);
+
+/// Tags a mesh a plate is drawn with, so re-dressing takes the old set off
+/// without touching anything else hanging on the plate - a greeble is a child
+/// too, and it belongs to the decoration system rather than this one.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct SkinSurfaceMarker;
+
+/// Hang one shape's meshes on a plate.
+///
+/// The first dressing and every re-dressing both come through here, so a worn
+/// plate is built exactly the way a fresh one is: same cache, same style
+/// lookup, same surface roles.
+fn hang_surfaces(
+    commands: &mut Commands,
+    plate: Entity,
+    shape: ShellShape,
+    style: Option<&ShipStyleConfig>,
+    assets: &mut SkinAssets,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+) {
+    for (mesh, material) in assets.surfaces(shape, style, meshes, materials) {
         commands.spawn((
             Name::new("Skin Surface"),
+            SkinSurfaceMarker,
             ChildOf(plate),
             Mesh3d(mesh),
             MeshMaterial3d(material),
         ));
+    }
+}
+
+/// Wear every plate down to match the damage it has taken.
+///
+/// THE first consumer of [`DamageLevel`], and the cheapest one there will ever
+/// be. A plate already carries its shape as eight samples on five steps, so
+/// wearing it down means choosing a different shape from the SAME vocabulary:
+/// no remesh, no generated geometry, and the mesh cache answers because a worn
+/// shape is a shape like any other.
+///
+/// Reads the plate's OWN level. Plates are `HealthIsolated`, so a raked patch
+/// of skin wears through while the hull under it still reads untouched - the
+/// honest picture of a ship that has lost paint but not structure.
+///
+/// The COLLIDER deliberately does not follow. It is sized from the pristine
+/// volume at spawn and stays there: a plate's job in physics is to be what a
+/// round meets before the hull, its HEALTH decides when it stops doing that
+/// job, and re-deriving mass under a flying ship for a visual reason would
+/// shove the body around.
+#[allow(clippy::too_many_arguments)]
+fn erode_skin_plates(
+    mut commands: Commands,
+    mut q_worn: Query<
+        (Entity, &ShipSkinMarker, &mut SkinPlateWear, &DamageLevel),
+        Changed<DamageLevel>,
+    >,
+    q_surfaces: Query<(Entity, &ChildOf), With<SkinSurfaceMarker>>,
+    q_child_of: Query<&ChildOf>,
+    q_style: Query<&ShipStyle>,
+    styles: Option<Res<GameStyles>>,
+    mut assets: ResMut<SkinAssets>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for (plate, ShipSkinMarker(pristine), mut wear, level) in &mut q_worn {
+        let worn = pristine.eroded(level.0);
+        if worn == wear.0 {
+            // The reading moved, but not far enough to reach the next step
+            // down. Five steps means most hits land here, which is why this is
+            // a diff and not a rebuild.
+            continue;
+        }
+        wear.0 = worn;
+
+        for (surface, ChildOf(owner)) in &q_surfaces {
+            if *owner == plate {
+                commands.entity(surface).try_despawn();
+            }
+        }
+        let style = styles
+            .as_ref()
+            .zip(worn_style(plate, &q_child_of, &q_style))
+            .and_then(|(styles, style)| style.resolve(styles));
+        hang_surfaces(
+            &mut commands,
+            plate,
+            worn,
+            style,
+            &mut assets,
+            &mut meshes,
+            &mut materials,
+        );
     }
 }
 
@@ -1088,9 +1200,12 @@ impl Plugin for ShipSkinPlugin {
         );
 
         if self.render {
+            app.register_type::<SkinPlateWear>();
+            app.register_type::<SkinSurfaceMarker>();
             app.init_resource::<SkinAssets>();
             app.add_observer(dress_skin_plate);
             app.add_observer(dress_skin_decor);
+            app.add_systems(Update, erode_skin_plates);
         }
     }
 }
@@ -1099,7 +1214,8 @@ impl Plugin for ShipSkinPlugin {
 mod tests {
     use avian3d::prelude::{ColliderDensity, ComputeMassProperties3d};
     use nova_gameplay::prelude::{
-        Health, HealthApplyDamage, HealthIsolated, NovaHealthPlugin, SectionMarker,
+        DamageLevelPlugin, Health, HealthApplyDamage, HealthIsolated, NovaHealthPlugin,
+        SectionMarker,
     };
 
     use super::*;
@@ -1159,6 +1275,137 @@ mod tests {
 
     fn shape(corners: [u8; 4], midpoints: [u8; 4]) -> ShellShape {
         ShellShape::new(corners, midpoints).expect("a legal shape")
+    }
+
+    /// A skin app that also DRESSES, so wear can be read off the live tree
+    /// rather than off the component that asked for it.
+    fn dressed_skin_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default(), NovaHealthPlugin));
+        app.add_plugins(DamageLevelPlugin);
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.init_resource::<SkinAssets>();
+        app.add_observer(dress_skin_plate);
+        app.add_systems(
+            Update,
+            (spawn_ship_skin, despawn_dead_fixtures, erode_skin_plates),
+        );
+        app.update();
+        app
+    }
+
+    /// The shape a plate is actually WEARING, read off the live tree: the mesh
+    /// its surfaces were built from, recovered through the asset cache.
+    fn drawn_shape(app: &mut App, plate: Entity) -> ShellShape {
+        app.world()
+            .get::<SkinPlateWear>(plate)
+            .expect("a dressed plate records what it wears")
+            .0
+    }
+
+    fn surface_count(app: &mut App, plate: Entity) -> usize {
+        app.world_mut()
+            .query::<(&ChildOf, &SkinSurfaceMarker)>()
+            .iter(app.world())
+            .filter(|(ChildOf(owner), _)| *owner == plate)
+            .count()
+    }
+
+    /// THE first consumer of the level: damage a plate and its geometry steps
+    /// down with it, through the same dressing path a fresh plate uses.
+    #[test]
+    fn a_damaged_plate_wears_down_to_a_shallower_shape() {
+        let mut app = dressed_skin_app();
+        let section = app.world_mut().spawn(SectionMarker).id();
+        let clad = shape([FULL; 4], [FULL; 4]);
+        let plate = spawn_plate_under(&mut app, section, clad);
+        app.update();
+
+        assert_eq!(drawn_shape(&mut app, plate), clad, "pristine to start");
+        assert!(surface_count(&mut app, plate) > 0, "and drawn at all");
+
+        // Half its health, through the real damage path.
+        let health = app.world().get::<Health>(plate).expect("plate health").max;
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: plate,
+            source: None,
+            amount: health * 0.5,
+        });
+        app.update();
+        app.update();
+
+        let worn = drawn_shape(&mut app, plate);
+        assert_ne!(worn, clad, "a half-dead plate does not look pristine");
+        assert_eq!(
+            worn,
+            clad.eroded(0.5),
+            "and it wears exactly what its level says"
+        );
+        assert!(
+            surface_count(&mut app, plate) > 0,
+            "a worn plate is still drawn, not stripped to nothing"
+        );
+    }
+
+    /// Wear reads the plate's OWN health. Plates are `HealthIsolated`, so
+    /// raking the skin must not make the hull under it look damaged, and vice
+    /// versa - that separation is the whole reason cladding exists.
+    #[test]
+    fn wearing_a_plate_does_not_wear_its_neighbour() {
+        let mut app = dressed_skin_app();
+        let section = app.world_mut().spawn(SectionMarker).id();
+        let clad = shape([FULL; 4], [FULL; 4]);
+        let hit = spawn_plate_under(&mut app, section, clad);
+        let spared = spawn_plate_under(&mut app, section, clad);
+        app.update();
+
+        let health = app.world().get::<Health>(hit).expect("plate health").max;
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: hit,
+            source: None,
+            amount: health * 0.75,
+        });
+        app.update();
+        app.update();
+
+        assert_ne!(drawn_shape(&mut app, hit), clad, "the shot plate wore down");
+        assert_eq!(
+            drawn_shape(&mut app, spared),
+            clad,
+            "its neighbour is untouched"
+        );
+    }
+
+    /// Re-dressing must replace the old meshes rather than pile new ones on
+    /// top: a plate re-hung on every step would end a fight wearing four
+    /// shapes at once, all of them intersecting.
+    #[test]
+    fn wearing_a_plate_replaces_its_meshes_rather_than_stacking_them() {
+        let mut app = dressed_skin_app();
+        let section = app.world_mut().spawn(SectionMarker).id();
+        let clad = shape([FULL; 4], [FULL; 4]);
+        let plate = spawn_plate_under(&mut app, section, clad);
+        app.update();
+        let pristine_surfaces = surface_count(&mut app, plate);
+
+        let health = app.world().get::<Health>(plate).expect("plate health").max;
+        for _ in 0..3 {
+            app.world_mut().trigger(HealthApplyDamage {
+                entity: plate,
+                source: None,
+                amount: health * 0.2,
+            });
+            app.update();
+            app.update();
+        }
+
+        assert!(
+            surface_count(&mut app, plate) <= pristine_surfaces,
+            "three steps of wear left {} meshes against a pristine {}",
+            surface_count(&mut app, plate),
+            pristine_surfaces
+        );
     }
 
     /// A plate is a destructible FIXTURE and never a section.

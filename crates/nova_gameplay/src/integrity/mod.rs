@@ -22,6 +22,7 @@ use bevy::prelude::*;
 
 pub mod components;
 pub mod core;
+pub mod erosion;
 pub mod explode;
 pub mod health;
 pub mod neutralize;
@@ -29,8 +30,8 @@ pub mod neutralize;
 /// Every integrity submodule's prelude plus `NovaIntegrityPlugin`.
 pub mod prelude {
     pub use super::{
-        components::prelude::*, core::prelude::*, explode::prelude::*, health::prelude::*,
-        neutralize::prelude::*, NovaIntegrityPlugin,
+        components::prelude::*, core::prelude::*, erosion::prelude::*, explode::prelude::*,
+        health::prelude::*, neutralize::prelude::*, NovaIntegrityPlugin,
     };
 }
 
@@ -45,6 +46,10 @@ impl Plugin for NovaIntegrityPlugin {
         // The hit-point store the core spends, and the destruction pipeline.
         app.add_plugins(health::NovaHealthPlugin);
         app.add_plugins(core::IntegrityCorePlugin);
+
+        // How far gone a body LOOKS, read off the health above. Owns the
+        // number only; what it means visually is each damage effect's business.
+        app.add_plugins(erosion::DamageLevelPlugin);
 
         // Nova's reaction to destruction: mesh slice, debris, OnDestroyedEvent.
         app.add_plugins(explode::ExplodablePlugin);
