@@ -290,7 +290,9 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "reinforced_hull_section".to_string(),
-                damage_effects: DamageEffects::default(),
+                // Material and nothing else, so it can afford to lose some:
+                // scorch plus a real crater where it was hit.
+                damage_effects: DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Carve]),
                 name: "Reinforced Hull Section".to_string(),
                 description: "A reinforced hull section for spaceships.".to_string(),
                 mass: 1.0,

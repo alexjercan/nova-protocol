@@ -31,17 +31,17 @@
 //!
 //! The rule the vocabulary is kept honest by: ONLY NON-FUNCTIONAL MATERIAL IS
 //! REMOVED. A turret that has taken a beating still has to point and shoot, so
-//! it sparks rather than losing geometry. Where a section HAS expendable
-//! material the cladding already carries it - a plate is shot off and stays off
-//! - which is why there is no effect here for shedding pieces: the sections
-//! that could afford to shed are the ones already wearing skin.
+//! it sparks rather than losing geometry, while a hull is material and nothing
+//! else and can afford to be bitten into ([`DamageEffect::Carve`]). There is no
+//! effect for shedding whole pieces because the sections that could afford to
+//! shed are the ones already wearing skin - a plate is shot off and stays off.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::SectionMarker;
 
 use crate::sections::{
-    damage_plume::prelude::DamagePlume, damage_sparks::prelude::DamageSparks,
-    damage_tint::prelude::DamageScorch,
+    damage_carve::prelude::DamageCarve, damage_plume::prelude::DamagePlume,
+    damage_sparks::prelude::DamageSparks, damage_tint::prelude::DamageScorch,
 };
 
 /// `DamageEffect`, `DamageEffects` and `DamageEffectsPlugin`.
@@ -64,6 +64,14 @@ pub enum DamageEffect {
     Sparks,
     /// The section's exhaust plume guts and flickers.
     Plume,
+    /// The section loses real geometry where it was hit: a crater in the drawn
+    /// mesh, not a mark on it.
+    ///
+    /// The one effect that costs the section its authored silhouette - the
+    /// remesh draws it at the mesher's fidelity from then on - so it is for
+    /// sections that are MATERIAL. A hull is a slab and survives that; a turret
+    /// is a mechanism whose shape is the read, and it sparks instead.
+    Carve,
 }
 
 /// The damage looks a section wears, authored in its content.
@@ -162,6 +170,7 @@ fn fit_damage_effects(
             DamageEffect::Scorch => section.try_insert(DamageScorch),
             DamageEffect::Sparks => section.try_insert(DamageSparks::default()),
             DamageEffect::Plume => section.try_insert(DamagePlume),
+            DamageEffect::Carve => section.try_insert(DamageCarve),
         };
     }
 }

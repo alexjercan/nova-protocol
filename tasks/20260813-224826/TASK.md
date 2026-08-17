@@ -389,6 +389,45 @@ gates it.
   Only `project_local_point_and_get_location` runs that step. Nothing about the
   API says so, and the failure looks like a correct distance field.
 
+#### 6. Hull sections carve - DONE
+
+`sections/damage_carve.rs`, fitted from a new `DamageEffect::Carve`. Shipped on
+hull sections and on the cut-cube parts whose role is Hull; nothing else.
+
+- The field is read out of the section's own drawn mesh at 24^3 and DROPPED
+  never - unlike a rock's, it stays, because a section's art is authored and
+  cannot be regenerated from a seed. Built on the first hit, so an unhit ship
+  pays nothing.
+- Costs 10-16 ms to solidify one section mesh, measured live in the gallery.
+- Meshes that are not closed are refused ONCE and marked, so a section whose art
+  has open faces does not pay the weld-and-check every frame. In practice the
+  skin PLATES are the ones refused - a plate is an open shell - which is right:
+  they carve through their own path.
+- THE COLLIDER DOES NOT FOLLOW, deliberately. A section's mass comes from its
+  authored collider's volume and the link-point graph is built against the
+  authored shape, so a collider that changed under fire would move a ship's mass
+  and inertia every time it was shot and change which sections count as
+  attached. The visible cost is a round passing through the air inside a deep
+  crater and still being stopped - the same lie a shot-off plate already tells.
+- A mark is priced at the CLADDING's toughness (`DAMAGE_PER_UNIT_VOLUME`, 80 hp
+  a cubic unit) because one sphere is shared by everything it reaches. A hull
+  section is 200 hp to the cubic unit, so `bite_of` scales the radius by the
+  cube root of the ratio: without it, a hit that left a hull at half health
+  carved the whole thing away. Found by looking at the render, not by reasoning
+  about it.
+- FIXED on the way: `DamageMarks` was inserted by the SKIN builder, on the
+  theory that an unclad ship has no shape to carve. It became a requirement of
+  `SpaceshipRootMarker` instead - an unclad ship recorded no hits at all, so its
+  hull sections could not carve and the bare gallery column showed nothing.
+- The gallery gained a sixth, UNCLAD column at level 0.0 for exactly this: on a
+  clad ship the hull's crater is behind the plates until they are shot off,
+  which is correct behaviour and impossible to judge. It takes 150 of its 200
+  hit points - more would destroy the section rather than carve it.
+- HONEST about the look: a carved section loses the panel detail the artist put
+  in and the corners left standing around a deep crater read as spikes. It is
+  unmistakably a bite out of a hull and it is not authored art. That is the
+  trade the effect exists to make, and it is why turrets do not carry it.
+
 ### Phase 5 - the finale, and delete the slicer
 
 - What is left of a body at death comes apart into bounded debris with

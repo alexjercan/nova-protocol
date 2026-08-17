@@ -733,12 +733,10 @@ fn spawn_ship_skin(
             laid.push(Some(entity));
         }
 
-        // The ROOT remembers where the ship was hit, because the skin is one
-        // surface and a crater has to cross the seams between its plates. Put
-        // here rather than on the ship bundle so it exists exactly where it is
-        // read: an unclad ship has no shape to carve and records nothing.
-        commands.entity(root).insert(DamageMarks::default());
-
+        // The root already remembers where the ship was hit - `DamageMarks` is
+        // a requirement of `SpaceshipRootMarker`. It used to be inserted HERE,
+        // on the theory that an unclad ship has no shape to carve, and that
+        // stopped being true the moment hull sections started carving too.
         let style = q_clad
             .get(root)
             .ok()

@@ -77,7 +77,7 @@ struct Cli;
 /// together on purpose - if two neighbouring columns are indistinguishable, the
 /// effect has fewer usable steps than the number suggests, and that is exactly
 /// what this row is for finding out.
-const LEVELS: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 0.9];
+const LEVELS: [f32; 6] = [0.0, 0.25, 0.5, 0.75, 0.9, 0.0];
 
 /// The hit each column takes, in health, on the same place on its hull.
 ///
@@ -86,7 +86,23 @@ const LEVELS: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 0.9];
 /// nothing, half a cell, four fifths of one, one and a bit, and nearly two.
 /// That spread is the point - a scrape, a dent, a hole, and a bite that takes
 /// a corner off the ship.
-const HITS: [f32; 5] = [0.0, 21.0, 86.0, 290.0, 977.0];
+const HITS: [f32; 6] = [0.0, 21.0, 86.0, 290.0, 977.0, 150.0];
+
+/// Whether each column's ship wears cladding.
+///
+/// The last one does NOT, and it is there for the CARVE. A clad ship is covered
+/// in plates, and a plate is what a hit meets first - so the crater the hull
+/// itself takes is behind the skin until the skin is shot off, which is exactly
+/// how it should behave and exactly what makes it impossible to judge. The bare
+/// column shows the same hit landing on the hull with nothing over it.
+///
+/// It stands at level 0.0 and takes a smaller hit than the column before it,
+/// and both numbers are load-bearing. The level is zero so nothing is scorched
+/// and the only thing that has changed about the section is its SHAPE. The hit
+/// is 150 because a hull section holds 200 - one that spends more than its
+/// health bar is destroyed by the hit rather than carved by it, and there is
+/// nothing left to photograph.
+const CLAD: [bool; 6] = [true, true, true, true, true, false];
 
 /// How far apart the ships stand, in units. Wide enough that debris and sparks
 /// from one column do not read as belonging to the next.
@@ -236,15 +252,29 @@ fn carve_columns(world: &mut World) {
             continue;
         }
         let aim = column_aim(index);
-        let Some(target) = nearest_plate(world, aim) else {
-            warn!("damage levels: column {index} has no plate near {aim}");
-            continue;
+        // A bare column has no plates, so the hit lands on the hull section
+        // itself - which is the whole point of that column.
+        let (target, at) = match nearest_plate(world, aim) {
+            // The plate's own centre, so the sphere bites into the hull rather
+            // than grazing the surface it was aimed at.
+            Some(plate) => (
+                plate,
+                world
+                    .get::<GlobalTransform>(plate)
+                    .map_or(aim, |pose| pose.translation()),
+            ),
+            // On the section's top FACE, half a cell below the aim point. A
+            // crater centred on a section's middle would swallow a one-cell
+            // hull whole, and one centred where the plate would have been sits
+            // half a cell clear of the surface and only dishes it.
+            None => match nearest_section(world, aim) {
+                Some(section) => (section, aim - Vec3::Y * 0.5),
+                None => {
+                    warn!("damage levels: column {index} has nothing to hit near {aim}");
+                    continue;
+                }
+            },
         };
-        // The plate's own centre, so the sphere bites into the hull rather than
-        // grazing the surface it was aimed at.
-        let at = world
-            .get::<GlobalTransform>(target)
-            .map_or(aim, |pose| pose.translation());
         let mut commands = world.commands();
         apply_damage(&mut commands, target, None, *amount, Some(at));
         world.flush();
@@ -258,18 +288,47 @@ fn column_aim(index: usize) -> Vec3 {
     Vec3::new(index as f32 * COLUMN_PITCH, 1.0, 1.0)
 }
 
-/// The skin plate nearest `aim`, anywhere in the row.
+/// The skin plate nearest `aim`, IN ITS OWN COLUMN.
+///
+/// The reach is what makes it its own column's: the row is one world and a
+/// bare column has no plates at all, so an unbounded search happily answers
+/// with the neighbour's cladding four units away. That put the bare column's
+/// hit on the wrong ship entirely.
 #[cfg(feature = "debug")]
 fn nearest_plate(world: &mut World, aim: Vec3) -> Option<Entity> {
     let mut q_plates = world.query_filtered::<(Entity, &GlobalTransform), With<ShipSkinMarker>>();
-    q_plates
+    nearest_within(q_plates.iter(world), aim)
+}
+
+/// The nearest of `candidates` to `aim`, or `None` when the nearest belongs to
+/// another column.
+#[cfg(feature = "debug")]
+fn nearest_within<'a>(
+    candidates: impl Iterator<Item = (Entity, &'a GlobalTransform)>,
+    aim: Vec3,
+) -> Option<Entity> {
+    candidates
+        .filter(|(_, at)| at.translation().distance(aim) < COLUMN_PITCH * 0.5)
+        .min_by(|(_, a), (_, b)| {
+            a.translation()
+                .distance_squared(aim)
+                .total_cmp(&b.translation().distance_squared(aim))
+        })
+        .map(|(entity, _)| entity)
+}
+
+/// The section nearest `aim`, anywhere in the row: what a bare column is hit on.
+#[cfg(feature = "debug")]
+fn nearest_section(world: &mut World, aim: Vec3) -> Option<Entity> {
+    let mut q_sections = world.query_filtered::<(Entity, &GlobalTransform), With<SectionMarker>>();
+    q_sections
         .iter(world)
         .min_by(|(_, a), (_, b)| {
             a.translation()
                 .distance_squared(aim)
                 .total_cmp(&b.translation().distance_squared(aim))
         })
-        .map(|(plate, _)| plate)
+        .map(|(section, _)| section)
 }
 
 /// Every descendant of `root`, root excluded.
@@ -319,10 +378,11 @@ fn gallery_script() -> Script {
             let centre = row_centre();
             // High and looking down, for the same reason each column is: the
             // craters are in the hulls' top faces and a broadside shot of the
-            // row shows five silhouettes and no damage.
+            // row shows six silhouettes and no damage. Back far enough to hold
+            // the whole row - it is six columns wide now, not five.
             nova_protocol::nova_debug::harness::pose_camera(
                 world,
-                centre + Vec3::new(0.0, 17.0, 22.0),
+                centre + Vec3::new(0.0, 21.0, 28.0),
                 centre,
             );
         })
@@ -335,12 +395,17 @@ fn gallery_script() -> Script {
         .add();
 
     // One shot per column, so a level can be looked at on its own rather than
-    // squinting at a fifth of a wide frame.
+    // squinting at a sixth of a wide frame.
     LEVELS
         .iter()
         .enumerate()
         .fold(script, |script, (index, level)| {
-            let name = format!("damage-levels-{}.png", (level * 100.0).round() as u32);
+            // The bare column stands at the same level as the one before it,
+            // so it is named for what it IS rather than for what it is at.
+            let name = match CLAD[index] {
+                true => format!("damage-levels-{}.png", (level * 100.0).round() as u32),
+                false => "damage-levels-bare.png".to_string(),
+            };
             script
                 .step("frame the next column")
                 .on_enter(move |world: &mut World| frame_column(world, index))
@@ -425,8 +490,8 @@ fn column_ship(sections: &GameSections, level_index: usize) -> ScenarioObjectCon
                     Vec3::new(0.0, 0.0, 2.0),
                 ),
             ],
-            // Clad, which is the whole point: the plates are what erode.
-            skin: true,
+            // Clad in every column but the last - see `CLAD`.
+            skin: CLAD[level_index],
             // Nothing may collapse out from under the camera while it is being
             // looked at, and the worst column sits at 0.9 of its health gone.
             collapse_threshold: Some(0.0),

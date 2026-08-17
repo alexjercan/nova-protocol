@@ -88,6 +88,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
@@ -1567,6 +1571,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/parts/racer/wing_starboard.glb#Scene0"),
@@ -1636,6 +1644,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/parts/racer/wing_port.glb#Scene0"),
@@ -1679,6 +1691,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/parts/racer/nose.glb#Scene0"),
@@ -1748,6 +1764,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/parts/racer/tail.glb#Scene0"),
@@ -2953,6 +2973,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/parts/cargob/nose.glb#Scene0"),
@@ -2996,6 +3020,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/parts/cargob/tail.glb#Scene0"),
@@ -3542,6 +3570,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/parts/cargoa/pod_starboard.glb#Scene0"),
@@ -3598,6 +3630,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/parts/cargoa/pod_port.glb#Scene0"),
@@ -3667,6 +3703,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/parts/cargoa/nose.glb#Scene0"),
@@ -3710,6 +3750,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Scorch,
+                Carve,
+            ]),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/parts/cargoa/tail.glb#Scene0"),

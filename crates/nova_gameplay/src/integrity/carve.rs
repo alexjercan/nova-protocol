@@ -38,7 +38,9 @@ use bevy::prelude::*;
 /// `CarveSpew`, `DamageMark`, `DamageMarks`, `mark_radius` and
 /// `record_damage_mark`.
 pub mod prelude {
-    pub use super::{mark_radius, record_damage_mark, CarveSpew, DamageMark, DamageMarks};
+    pub use super::{
+        mark_radius, record_damage_mark, CarveSpew, DamageMark, DamageMarks, DAMAGE_PER_UNIT_VOLUME,
+    };
 }
 
 /// Hit points a hit has to spend to take one cubic unit of material off.
@@ -47,7 +49,15 @@ pub mod prelude {
 /// a hit big enough to kill one cell of skin is a hit that carves about one
 /// cell of skin, and a plate never survives a mark that has already swallowed
 /// it or vanishes under one that barely scratched it.
-const DAMAGE_PER_UNIT_VOLUME: f32 = 80.0;
+///
+/// PUBLIC because a body tougher than cladding has to say so. A mark is one
+/// sphere shared by everything it reaches, so it cannot be priced per body -
+/// what a tougher body does instead is take a smaller bite out of the same
+/// sphere, in proportion to `DAMAGE_PER_UNIT_VOLUME / its own toughness`. A
+/// hull section is 200 hit points to the cubic unit, two and a half times the
+/// cladding over it, and without that correction a hull would be carved away
+/// entirely by a hit that left it at half health.
+pub const DAMAGE_PER_UNIT_VOLUME: f32 = 80.0;
 
 /// The smallest mark worth keeping, in units.
 ///

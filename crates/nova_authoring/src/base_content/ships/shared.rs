@@ -224,9 +224,11 @@ fn base_config(
 /// that wants something else says so by not coming through here.
 fn role_damage_effects(role: PartRole) -> DamageEffects {
     match role {
-        // Hull is material and nothing else. It scorches, and where it wears
-        // cladding the cladding is what comes off.
-        PartRole::Hull => DamageEffects::default(),
+        // Hull is material and nothing else, which is exactly what can afford
+        // to be bitten into: it scorches and it CARVES. Where it wears cladding
+        // the plate comes off first and the crater carries on into the hull
+        // underneath, off the same mark list.
+        PartRole::Hull => DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Carve]),
         // Machinery whose shape has to survive to keep working: it sparks.
         PartRole::Controller | PartRole::Torpedo | PartRole::Turret => {
             DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Sparks])

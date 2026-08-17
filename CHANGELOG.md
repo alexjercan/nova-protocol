@@ -106,6 +106,9 @@ tagged **(breaking)**.
 - **(breaking)** No body ever bursts into generic grey cubes. A death with no
   art to break into now emits nothing and logs it, and a range asserts it never
   happens.
+- Hull sections CARVE: a hit takes a real crater out of the hull under the
+  cladding, not just off the plate over it. Authorable as `Carve` on any
+  section; the collider does not follow.
 - **(breaking)** A hull may carry several flight computers and steers better
   for it, on a curve capped at twice its strongest computer. Authority does
   not stack linearly.

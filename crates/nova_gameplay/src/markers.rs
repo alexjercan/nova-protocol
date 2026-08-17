@@ -16,7 +16,10 @@
 
 use bevy::prelude::*;
 
-use crate::{integrity::prelude::IntegrityRoot, relations::prelude::Allegiance};
+use crate::{
+    integrity::prelude::{DamageMarks, IntegrityRoot},
+    relations::prelude::Allegiance,
+};
 
 /// The whole module - every marker is part of the shared vocabulary.
 pub mod prelude {
@@ -29,8 +32,15 @@ pub mod prelude {
 
 /// The root component for an entire spaceship. Every section is a child of the
 /// entity carrying this.
+///
+/// Records WHERE it was hit by requirement. A ship's hits belong to the ship
+/// and not to whatever stopped them, because a crater has to cross the seams
+/// between the plates and sections it reaches - and every ship has SOMETHING
+/// that reads the list, whether or not it is wearing cladding. The skin builder
+/// used to insert this, which meant an unclad ship recorded nothing and its
+/// hull sections could not carve.
 #[derive(Component, Clone, Debug, Default, Reflect)]
-#[require(IntegrityRoot)]
+#[require(IntegrityRoot, DamageMarks)]
 pub struct SpaceshipRootMarker;
 
 /// Marks the player's spaceship root.
