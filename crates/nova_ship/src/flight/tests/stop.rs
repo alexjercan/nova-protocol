@@ -64,8 +64,7 @@ fn scratch_scenario_built_ship_autopilot_thrusts() {
             ChildOf(ship),
             base_section(base("controller")),
             controller_section(ControllerSectionConfig {
-                frequency: 4.0,
-                damping_ratio: 4.0,
+                steering_lag: 0.5,
                 // This test isolates scenario assembly and STOP plumbing, not
                 // production handling.
                 max_angular_acceleration: 100.0,

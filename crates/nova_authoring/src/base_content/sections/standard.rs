@@ -352,8 +352,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 hide_in_editor: false,
             },
             kind: SectionKind::Controller(ControllerSectionConfig {
-                frequency: 4.0,
-                damping_ratio: 4.0,
+                steering_lag: 0.5,
                 // 0.5 rad/s2 gives a bang-bang 180 an ideal 5.0 second turn:
                 // 2 * sqrt(pi / 0.5). The 0.9 command-rate trim leaves damping
                 // headroom and reproduces the established cast handling while

@@ -230,27 +230,32 @@ to fly.
 
 ```ron
 kind: Controller((
-    frequency: 4.0,
-    damping_ratio: 4.0,
+    steering_lag: 0.5,
     max_angular_acceleration: 0.5,
 )),
 ```
 
-- `frequency` - the PD controller frequency in Hz (how stiffly it chases the
-  commanded heading).
-- `damping_ratio` - the PD damping ratio (overshoot vs settle).
+- `steering_lag` - approximate time in seconds that the hull trails a
+  continuously moving steering command. Larger values make the computer feel
+  laggier and brake earlier; smaller values track more tightly. The value must
+  be positive and finite. Very small values are allowed but can make the
+  fixed-step controller unstable. This is not a startup delay or total turn
+  time: the computer reacts immediately, and acceleration still limits large
+  turns.
 - `max_angular_acceleration` - the maximum angular acceleration on each
   principal axis, in rad/s2. The controller derives the torque required for the
   live hull inertia.
 - `render_mesh` (optional) - custom mesh; omit for the default body.
 
 A hull may mount several controllers, but they do NOT each steer it: the ship
-derives one attitude loop and shares it out, so the three numbers above are
-what this section is worth to a hull carrying it alone. Stacking grows angular
+derives one attitude loop and shares it out, so the two numbers above are what
+this section is worth to a hull carrying it alone. Stacking grows angular
 acceleration authority on a curve capped at **twice** the strongest
 controller's value (1.5x at two, 1.9x at ten) and spends the rest of the gain on
-precision. Hull inertia does not change the authored handling; author a
-different acceleration when a prototype must turn faster or slower.
+precision. A mixed stack uses the smallest live `steering_lag` as its base, then
+adds braking margin for the larger authority budget. Hull inertia does not
+change the authored handling; author a different acceleration when a prototype
+must turn faster or slower.
 - `render_mesh_transform` (optional) - visual-only position, rotation and scale.
 - `lock_on_sound`, `lock_off_sound`, `radar_deny_sound`,
   `radar_retarget_sound`, `safety_on_sound`, `rcs_loop_sound` (all optional) - the computer's

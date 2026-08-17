@@ -11,6 +11,17 @@ Accepted 2026-08-17.
 - Extend the attitude system range with a 10x-inertia convergence invariant. Add physics integration coverage for the same property.
 - Update the editor, mod format docs, developer docs, changelog, and generated base content with the breaking unit and field change.
 
+# Follow-up design: steering lag
+
+Accepted 2026-08-17.
+
+- Replace author-facing `frequency` and `damping_ratio` with `steering_lag`, in seconds. No compatibility aliases.
+- Define lag as the approximate time a hull trails a continuously moving steering command. It does not delay initial acceleration or specify total turn time.
+- Preserve shipped handling at `steering_lag: 0.5`: internally derive `frequency = 2 / steering_lag` and use the current overdamped `damping_ratio = 4` profile.
+- Accept every computable, finite value greater than zero. Do not impose a gameplay minimum; warn through documentation that very small values can become unstable.
+- For mixed controller stacks, use the smallest live `steering_lag` as the ship-level base. Continue ranking acceleration authority independently.
+- Update lint, editor stats, generated content, ranges, tests, changelog, and mod/developer docs.
+
 # Verification
 
 - Code review: accepted with no requested changes.

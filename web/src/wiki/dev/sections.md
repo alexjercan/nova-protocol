@@ -21,7 +21,7 @@ A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 |--------------|--------------|
 | `Hull`       | Passive structure/armor. Just a `render_mesh`. |
 | `Thruster`   | Forward thrust (`magnitude`); drives the exhaust visual. |
-| `Controller` | PD attitude controller (`frequency`, `damping_ratio`, `max_angular_acceleration`). Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop (see below). |
+| `Controller` | Attitude controller (`steering_lag`, `max_angular_acceleration`); lag derives the internal PD gains. Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop (see below). |
 | `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
 | `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
 
@@ -48,7 +48,8 @@ first in `FixedUpdate` (`ControllerSectionSystems::SyncStack`), derives ONE
 ship-level attitude loop per root, and writes each live controller a share of
 it into its `PDController`. The authored numbers stay put in
 `ControllerSectionTuning`, which is what the pass re-derives from when a
-controller dies.
+controller dies. The smallest live `steering_lag` supplies the stack's base
+response; acceleration authority is ranked independently.
 
 The ship-level loop, for `n` live controllers on the curve
 `stack_curve(n, limit) = limit - (limit - 1) / n`:
@@ -59,10 +60,10 @@ The ship-level loop, for `n` live controllers on the curve
   / 2 / 4 / 10, with a hard ceiling of 2x. The PD converts each principal-axis
   acceleration into the torque required by the live inertia, so hull size does
   not change handling by default.
-- P gain: DIVIDED by `stack_curve(n, 1.5)`, which lowers the `kp / kd` ratio
-  the hull coasts down to its command on - the stack brakes the turn earlier
-  and lands on the commanded attitude instead of sailing past it.
-- D gain: held at exactly one controller's worth. This is not tuning: `kd * dt`
+- P gain: DIVIDED by `stack_curve(n, 1.5)`, which increases the effective
+  steering lag so the stack brakes earlier and lands on the commanded attitude
+  instead of sailing past it.
+- D gain: held at exactly one fastest computer's worth. This is not tuning: `kd * dt`
   crosses 2 at two controllers on the shipped tuning, and past that the PD
   limit-cycles instead of parking (the corkscrew that used to follow a
   released maneuver).

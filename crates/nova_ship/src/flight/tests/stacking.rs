@@ -111,8 +111,7 @@ fn spawn_stacked_ship(app: &mut App, hull_sections: usize, controllers: usize) -
             ControllerSectionMarker,
             ControllerSectionRotationInput::default(),
             ControllerSectionTuning {
-                frequency: 4.0,
-                damping_ratio: 4.0,
+                steering_lag: 0.5,
                 // The shipped budget (`basic_controller_section`).
                 max_angular_acceleration: 0.5,
             },

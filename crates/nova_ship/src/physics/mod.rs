@@ -4,7 +4,7 @@
 //! needs.
 //!
 //! Nova owns these because the PD controller is the ship's attitude authority -
-//! its frequency and damping ratio are flight-feel decisions, not engine ones -
+//! its derived gains are flight-feel decisions, not engine ones -
 //! and the point-velocity relation is what gives every torpedo and turret shot
 //! the swing of the hull it left. Nova's radial gravity lives in
 //! [`nova_gameplay::gravity`], not here.

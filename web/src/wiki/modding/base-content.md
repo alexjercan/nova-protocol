@@ -33,7 +33,7 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 |---|---|---|---|---|
 | `reinforced_hull_section` | Hull | Reinforced Hull Section | 200 | the armor workhorse |
 | `basic_thruster_section` | Thruster | Basic Thruster Section | 70 | magnitude 1.0; one socket, on the `-Z` face it bolts by - the rest of the part is barrel, nozzle and plume |
-| `basic_controller_section` | Controller | Basic Controller Section | 100 | freq 4.0, damping 4.0, max torque 40 |
+| `basic_controller_section` | Controller | Basic Controller Section | 100 | steering lag 0.5 s, turn acceleration 0.5 rad/s2 |
 | `better_turret_section` | Turret | Better Turret Section | 130 | Kinetic 4.0/hit at 100 rps, ammo 500 |
 | `light_hull_section` | Hull | Light Hull Section | 60 | scavenger-grade hull |
 | `light_turret_section` | Turret | Light Turret Section | 60 | Kinetic 3.825/hit at 25 rps, ammo 150 |

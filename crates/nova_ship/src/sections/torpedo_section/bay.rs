@@ -326,8 +326,7 @@ pub(super) fn shoot_spawn_projectile(
                     ),
                     ControllerSectionRenderMarker,
                     controller_section(ControllerSectionConfig {
-                        frequency: 4.0,
-                        damping_ratio: 4.0,
+                        steering_lag: 0.5,
                         max_angular_acceleration: 10.0,
                         render_mesh: None,
                         // A torpedo's guidance computer has no radar/safety

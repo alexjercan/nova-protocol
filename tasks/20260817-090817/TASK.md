@@ -62,3 +62,6 @@ Landed 2026-08-17.
 - A physics integration test and the `attitude_hold` systems range compare
   hulls at 10x inertia.
 - Owner playtest: the arena capital feels better and is controllable.
+- Follow-up: controller content now authors `steering_lag` in seconds instead of
+  PD frequency and damping. Shipped 0.5 s tuning preserves the same gains, and
+  mixed stacks use the smallest live lag.

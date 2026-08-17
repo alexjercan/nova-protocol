@@ -243,8 +243,7 @@ fn thruster_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
 
 fn controller_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
     SectionKind::Controller(ControllerSectionConfig {
-        frequency: 4.0,
-        damping_ratio: 4.0,
+        steering_lag: 0.5,
         max_angular_acceleration: 0.5,
         render_mesh: spec.mesh.map(mesh_ref),
         render_mesh_transform: render_transform(spec),

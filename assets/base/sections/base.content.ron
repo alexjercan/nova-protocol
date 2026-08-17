@@ -214,8 +214,7 @@
             ],
         ),
         kind: Controller((
-            frequency: 4.0,
-            damping_ratio: 4.0,
+            steering_lag: 0.5,
             max_angular_acceleration: 0.5,
             lock_on_sound: Some("self://sounds/lock_on.wav"),
             lock_off_sound: Some("self://sounds/lock_off.wav"),
@@ -1792,8 +1791,7 @@
             ],
         ),
         kind: Controller((
-            frequency: 4.0,
-            damping_ratio: 4.0,
+            steering_lag: 0.5,
             max_angular_acceleration: 0.5,
             render_mesh: Some("self://gltf/parts/racer/fuselage.glb#Scene0"),
             render_mesh_transform: Some((
@@ -3003,8 +3001,7 @@
             ],
         ),
         kind: Controller((
-            frequency: 4.0,
-            damping_ratio: 4.0,
+            steering_lag: 0.5,
             max_angular_acceleration: 0.5,
             render_mesh: Some("self://gltf/parts/cargob/fuselage.glb#Scene0"),
             render_mesh_transform: Some((
@@ -3698,8 +3695,7 @@
             ],
         ),
         kind: Controller((
-            frequency: 4.0,
-            damping_ratio: 4.0,
+            steering_lag: 0.5,
             max_angular_acceleration: 0.5,
             render_mesh: Some("self://gltf/parts/cargoa/fuselage.glb#Scene0"),
             render_mesh_transform: Some((

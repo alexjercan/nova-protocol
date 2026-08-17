@@ -343,7 +343,7 @@ fn draw_command_arrow(
     }
 }
 
-/// Tracking error tolerance, radians. A healthy PD (frequency 4, damping 4)
+/// Tracking error tolerance, radians. A healthy 0.5 s steering-lag controller
 /// tracks the slow sweep with a fraction of this; a dead or misfiring PD
 /// falls behind by the full swept angle. Well above the f32 quat noise
 /// floor (~1e-3 rad).

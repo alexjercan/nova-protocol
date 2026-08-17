@@ -2,8 +2,9 @@
 
 use bevy::prelude::Vec3;
 use nova_ship::prelude::{
-    derive_link_point_graph, LinkPointGraphError, LinkPointRef, PlacedSectionLinkPoints,
-    SectionCollider, SectionConfig, SectionKind, TurretJoint, TurretSectionConfig,
+    derive_link_point_graph, ControllerSectionConfig, LinkPointGraphError, LinkPointRef,
+    PlacedSectionLinkPoints, SectionCollider, SectionConfig, SectionKind, TurretJoint,
+    TurretSectionConfig,
 };
 
 use super::{KnownSections, KnownShips, LintIssue};
@@ -116,17 +117,41 @@ pub fn lint_ship_config(
 }
 
 /// Static well-formedness of one section's config that the RON parser cannot
-/// catch (a well-typed field can still be nonsense). Currently the turret joint
-/// tree; other kinds pass. Pure over the config, so every consumer - the author
+/// catch (a well-typed field can still be nonsense). Checks controller response
+/// values and the turret joint tree. Pure over the config, so every consumer - the author
 /// CLI's `lint`, the CI gate, the runtime merge - runs the SAME check on base +
 /// mod section catalogs, and `lint_scenario` runs it on inline turret sections.
 pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssue> {
     let mut issues = Vec::new();
-    if let SectionKind::Turret(turret) = &config.kind {
-        check_turret_tree(config.base.id.as_str(), turret, source, &mut issues);
+    match &config.kind {
+        SectionKind::Controller(controller) => {
+            check_controller_config(config.base.id.as_str(), controller, source, &mut issues);
+        }
+        SectionKind::Turret(turret) => {
+            check_turret_tree(config.base.id.as_str(), turret, source, &mut issues);
+        }
+        _ => {}
     }
     check_link_point_config(config, source, &mut issues);
     issues
+}
+
+fn check_controller_config(
+    section_id: &str,
+    controller: &ControllerSectionConfig,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    if !controller.has_valid_steering_lag() {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': controller steering_lag must be a positive, finite, \
+                 computable number of seconds, got {}",
+                controller.steering_lag
+            ),
+        ));
+    }
 }
 
 /// Walk a turret's joint tree and flag authoring mistakes the parser accepts but
@@ -600,6 +625,30 @@ mod tests {
         assert!(issues[0].message.contains("no_such_proto"));
 
         assert!(lint_ship_config(&ship("hull"), &sections(&["hull"]), "base").is_empty());
+    }
+
+    #[test]
+    fn controller_steering_lag_must_be_positive_finite_and_computable() {
+        use nova_ship::prelude::BaseSectionConfig;
+
+        let controller = |steering_lag| SectionConfig {
+            base: BaseSectionConfig {
+                id: "computer".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Controller(ControllerSectionConfig {
+                steering_lag,
+                ..default()
+            }),
+        };
+
+        for invalid in [0.0, -0.5, f32::NAN, f32::INFINITY, f32::MIN_POSITIVE] {
+            let issues = lint_section_config(&controller(invalid), "mod");
+            assert_eq!(errors(&issues).len(), 1, "{invalid}: {issues:?}");
+            assert!(issues[0].message.contains("steering_lag"));
+        }
+        assert!(lint_section_config(&controller(0.0001), "mod").is_empty());
+        assert!(lint_section_config(&controller(0.5), "mod").is_empty());
     }
 
     #[test]

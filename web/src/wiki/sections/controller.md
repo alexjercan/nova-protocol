@@ -31,7 +31,7 @@ A big hull can mount more than one, and steers better for it - with sharply dimi
 | 4 | 1.75x | ~1.32x |
 | 10 | 1.90x | ~1.38x |
 
-The budget can never pass **twice** what one controller is worth, no matter how many you bolt on. Controller authority is authored as angular acceleration, so hull inertia does not weaken it: a capital hull and a light craft carrying the same computer get the same baseline response.
+The budget can never pass **twice** what one controller is worth, no matter how many you bolt on. Controller authority is authored as angular acceleration, so hull inertia does not weaken it: a capital hull and a light craft carrying the same computer get the same baseline response. Steering lag describes how far the hull trails a moving command; a mixed stack uses its fastest live computer.
 
 Stacking adds authority and _precision_. A stacked hull starts arresting its turn earlier, so it stops on the heading you pointed at instead of sailing past and swinging back. The second controller gives most of the available gain; the tenth is nearly dead weight.
 

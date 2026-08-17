@@ -29,10 +29,8 @@ pub mod prelude {
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ControllerSectionConfig {
-    /// The frequency of the PD controller in Hz.
-    pub frequency: f32,
-    /// The damping ratio of the PD controller.
-    pub damping_ratio: f32,
+    /// Approximate time the hull trails a continuously moving steering command, in seconds.
+    pub steering_lag: f32,
     /// Maximum angular acceleration on each principal axis, in rad/s2.
     pub max_angular_acceleration: f32,
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
@@ -141,11 +139,17 @@ impl ControllerSectionSounds {
     }
 }
 
+impl ControllerSectionConfig {
+    /// Whether the authored lag can produce finite internal controller gains.
+    pub fn has_valid_steering_lag(&self) -> bool {
+        steering_lag_is_valid(self.steering_lag)
+    }
+}
+
 impl Default for ControllerSectionConfig {
     fn default() -> Self {
         Self {
-            frequency: 2.0,
-            damping_ratio: 2.0,
+            steering_lag: 0.5,
             max_angular_acceleration: 0.5,
             render_mesh: None,
             render_mesh_transform: None,
@@ -166,17 +170,17 @@ struct ControllerSectionRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset
 pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
     debug!("controller_section: config {:?}", config);
 
+    let frequency = frequency_from_steering_lag(config.steering_lag);
     (
         ControllerSectionMarker,
         SectionClass::Controller,
         ControllerSectionTuning {
-            frequency: config.frequency,
-            damping_ratio: config.damping_ratio,
+            steering_lag: config.steering_lag,
             max_angular_acceleration: config.max_angular_acceleration,
         },
         PDController {
-            frequency: config.frequency,
-            damping_ratio: config.damping_ratio,
+            frequency,
+            damping_ratio: INTERNAL_DAMPING_RATIO,
             max_angular_acceleration: config.max_angular_acceleration,
         },
         ControllerSectionRotationInput::default(),
@@ -186,19 +190,39 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
     )
 }
 
-/// The AUTHORED PD tuning of a controller section, kept apart from the live
+/// The AUTHORED steering tuning of a controller section, kept apart from the live
 /// [`PDController`] that [`update_controller_stack_tuning`] derives from it.
 /// The live component is a share of a ship-wide budget and changes whenever a
 /// sibling controller is added or dies, so the authored numbers must survive
 /// somewhere to re-derive from.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
 pub struct ControllerSectionTuning {
-    /// The frequency of the PD controller in Hz.
-    pub frequency: f32,
-    /// The damping ratio of the PD controller.
-    pub damping_ratio: f32,
+    /// Approximate time the hull trails a continuously moving steering command, in seconds.
+    pub steering_lag: f32,
     /// Maximum angular acceleration on each principal axis, in rad/s2.
     pub max_angular_acceleration: f32,
+}
+
+/// The hidden response profile. At the shipped 0.5 second lag this derives the
+/// former frequency 4 / damping 4 gains exactly.
+const INTERNAL_DAMPING_RATIO: f32 = 4.0;
+
+fn steering_lag_is_valid(steering_lag: f32) -> bool {
+    let frequency = 2.0 / steering_lag;
+    let proportional_gain = (6.0 * frequency).powi(2) * 0.25;
+    let damping_gain = 4.5 * frequency * INTERNAL_DAMPING_RATIO;
+    steering_lag > 0.0
+        && steering_lag.is_finite()
+        && proportional_gain.is_finite()
+        && damping_gain.is_finite()
+}
+
+fn frequency_from_steering_lag(steering_lag: f32) -> f32 {
+    if steering_lag_is_valid(steering_lag) {
+        2.0 / steering_lag
+    } else {
+        0.0
+    }
 }
 
 /// Ceiling on a stack's acceleration authority, as a multiple of its
@@ -259,13 +283,15 @@ fn authority_weight(rank: usize) -> f32 {
 /// - **Authority** (`max_angular_acceleration`) grows on [`stack_curve`] toward
 ///   [`STACK_AUTHORITY_LIMIT`]. It is size-independent because the PD converts
 ///   the acceleration limit to the torque each hull requires.
+/// - **Response** starts from the smallest authored `steering_lag`, independent
+///   of which controller supplies the most acceleration authority.
 /// - **Precision** (the P gain) is DIVIDED by [`stack_curve`] toward
 ///   [`STACK_PRECISION_LIMIT`], which lowers the ratio `kp / kd` the hull
 ///   coasts down to the command on. A shallower ratio means the stack starts
 ///   braking the turn earlier, so it lands on the commanded attitude instead
 ///   of sailing past and wobbling back.
-/// - **Damping** (the D gain) is held at exactly one computer's worth, which
-///   is what keeps the stack numerically stable at any size.
+/// - **Damping** (the D gain) stays at the fastest computer's single-controller
+///   value, which keeps the stack numerically stable at any size.
 ///
 /// The split leaves onset untouched: at rest the D term is zero, so the first
 /// tick still spends the full authority. Stacking makes a hull heavier-handed,
@@ -315,7 +341,12 @@ pub(crate) fn update_controller_stack_tuning(
         let stack = &stacks[start..end];
         start = end;
 
-        let base = stack[0].2;
+        let steering_lag = stack
+            .iter()
+            .map(|(_, _, tuning)| tuning.steering_lag)
+            .min_by(f32::total_cmp)
+            .unwrap_or(0.0);
+        let base_frequency = frequency_from_steering_lag(steering_lag);
         let budget: f32 = stack
             .iter()
             .enumerate()
@@ -335,8 +366,8 @@ pub(crate) fn update_controller_stack_tuning(
             // kp scales with frequency^2 and kd with frequency * damping
             // ratio, so a share of (kp / precision, kd) is this pair.
             let next = PDController {
-                frequency: base.frequency * (share / precision).sqrt(),
-                damping_ratio: base.damping_ratio * (share * precision).sqrt(),
+                frequency: base_frequency * (share / precision).sqrt(),
+                damping_ratio: INTERNAL_DAMPING_RATIO * (share * precision).sqrt(),
                 max_angular_acceleration: budget * share,
             };
             let Ok((_, _, mut controller, _)) = q_controller.get_mut(*entity) else {
@@ -731,8 +762,7 @@ mod tests {
 
     fn tuning() -> ControllerSectionTuning {
         ControllerSectionTuning {
-            frequency: 4.0,
-            damping_ratio: 4.0,
+            steering_lag: 0.5,
             max_angular_acceleration: 0.5,
         }
     }
@@ -847,6 +877,41 @@ mod tests {
             two / 0.5
         );
         assert!(two > 0.5, "two survivors still out-steer one computer");
+    }
+
+    #[test]
+    fn a_mixed_stack_uses_the_smallest_steering_lag() {
+        let mut app = stack_app();
+        let root = app.world_mut().spawn_empty().id();
+        for (steering_lag, max_angular_acceleration) in [(0.8, 0.5), (0.25, 0.125)] {
+            app.world_mut().spawn((
+                ChildOf(root),
+                ControllerSectionMarker,
+                ControllerSectionTuning {
+                    steering_lag,
+                    max_angular_acceleration,
+                },
+                PDController {
+                    frequency: 1.0,
+                    damping_ratio: 1.0,
+                    max_angular_acceleration,
+                },
+            ));
+        }
+        app.world_mut().run_schedule(FixedUpdate);
+
+        let controllers = app
+            .world()
+            .iter_entities()
+            .filter(|entity| entity.contains::<ControllerSectionMarker>())
+            .map(|entity| entity.id())
+            .collect::<Vec<_>>();
+        let (kp, kd, _) = stack_loop(&app, &controllers);
+        let effective_lag = 0.5 * kd / kp;
+        assert!(
+            (effective_lag - 0.25 * 1.25).abs() < 1e-4,
+            "the 0.25 s computer plus stack braking should set the loop lag, got {effective_lag}"
+        );
     }
 
     /// A weaker computer bolted onto a strong one is worth its own weight at
@@ -1070,8 +1135,7 @@ mod tests {
                 ChildOf(hull),
                 Transform::default(),
                 controller_section(ControllerSectionConfig {
-                    frequency: 4.0,
-                    damping_ratio: 4.0,
+                    steering_lag: 0.5,
                     max_angular_acceleration: 0.5,
                     ..Default::default()
                 }),
