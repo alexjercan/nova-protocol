@@ -167,7 +167,10 @@ What is on disk today, in reading order:
 - `systems/` - the correctness ranges. The section curriculum first:
   `attitude_hold` (PD attitude), `thrust_and_plume` (burn -> thrust + plume
   shader), `hull_damage` (damage -> destroy -> ship survives, and the mass
-  properties the losses move), `turret_gunnery` and `torpedo_launch` (the
+  properties the losses move), `destruction_finale` (every destructible body -
+  gltf section, procedural section, multi-part turret, asteroid - breaking into
+  its OWN art rather than generic cubes, on one budget), `turret_gunnery` and
+  `torpedo_launch` (the
   weapon ranges, the latter also the PN lead-a-crosser deep-dive). Then the
   cross-cutting systems, every fixture a `ScenarioConfig` written in Rust and
   loaded with `LoadScenario`: `scenario_grammar` (the scenario language -

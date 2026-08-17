@@ -280,6 +280,17 @@ generic pieces:
   sections, rolls section health up to the ship root, and collapses a root that
   falls below its `StructuralCollapseThreshold`.
 - `explode.rs` - reacts to destruction: debris, mesh fragments, `OnDestroyedEvent`.
+  Destructibility is SEMANTIC (`ExplodableEntity` plus the destroy marker), never
+  where a `Mesh3d` sits: a section keeps its gameplay components on a root and
+  draws through `SectionRenderOf` descendants, so the geometry walk in
+  `mesh/explode.rs` collects the whole subtree. That walk is also the only thing
+  that decides whether a body HAS geometry - it reports an empty
+  `ExplodeFragments` when it finds none, and the finale reads that one answer to
+  choose between real fragments and the generic cube burst, so one death can
+  never emit both. The fragment budget is per BODY
+  (`BODY_FRAGMENT_BUDGET`), so a multi-part turret costs no more than a hull
+  cube. A spaceship root is excluded from fragmenting: its descendants are whole
+  sections, each of which bursts as itself.
 - `neutralize.rs` - combat-death: fires `OnNeutralized` when a ship stops
   being a threat.
 

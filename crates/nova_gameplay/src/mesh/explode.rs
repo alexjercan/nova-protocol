@@ -73,9 +73,18 @@ impl Plugin for ExplodeMeshPlugin {
 
 /// Handle the explosion of an entity with `ExplodeMesh`.
 ///
-/// This function recursively collects all mesh entities, slices their meshes
-/// into fragments using random planes, and adds an `ExplodeFragments` component
-/// to store the resulting fragments.
+/// Recursively collects the entity's render geometry - its own mesh and every
+/// meshed descendant - slices it, and reports the result as `ExplodeFragments`.
+///
+/// THE ONLY PLACE that decides whether a destroyed body has geometry at all.
+/// The component is inserted on every path, EMPTY when the walk found nothing,
+/// because the integrity finale branches on that answer to choose between real
+/// fragments and its fallback burst. Returning early instead would leave the
+/// finale waiting on a component that never arrives and the wreck standing.
+///
+/// The walk is why the finale needs no `Mesh3d` on the gameplay entity: a ship
+/// section holds its health and collider on a root whose art hangs several
+/// levels below under a gltf `WorldAssetRoot`, and this reaches it.
 fn handle_explosion(
     add: On<Add, ExplodeMesh>,
     mut commands: Commands,
@@ -119,12 +128,33 @@ fn handle_explosion(
         }
     }
 
+    // The budget belongs to the BODY, not to each mesh it happens to draw
+    // with. An authored gltf section is many mesh entities and a procedural one
+    // is a single mesh, so charging it per mesh made a multi-part turret cost
+    // several times a hull cube for the same death - and a capital collapse
+    // multiplies that across every section at once.
+    //
+    // More meshes than budget is not an error: each simply comes off whole,
+    // which is what a turret parting at its joints should look like anyway.
+    // Meshes past the budget are dropped rather than emitted uncounted, so the
+    // cap is a real cap; they are the smallest detail on a body being
+    // destroyed.
+    let considered = mesh_entities.len().min(fragment_count.max(1));
+    if mesh_entities.len() > considered {
+        debug!(
+            "handle_explosion: entity {:?} draws with {} meshes, budget covers {}",
+            entity,
+            mesh_entities.len(),
+            considered
+        );
+    }
+    let per_mesh = (fragment_count / considered.max(1)).max(1);
+
     let mut fragment_meshes = Vec::new();
-    for (mesh_entity, mesh3d) in mesh_entities.into_iter() {
+    for (mesh_entity, mesh3d) in mesh_entities.into_iter().take(considered) {
         // One bad mesh among many must not abort the whole explosion: the
-        // fragment handler is the wreck's only despawn path
-        // (`integrity/explode.rs` skips anything `With<Mesh3d>`), so returning
-        // early left a zero-health wreck lingering with its collider live.
+        // fragment handler is the wreck's only despawn path, so returning early
+        // left a zero-health wreck lingering with its collider live.
         let Some(mesh) = meshes.get(&**mesh3d) else {
             error!(
                 "handle_explosion: mesh_entity {:?} has no mesh data.",
@@ -136,10 +166,10 @@ fn handle_explosion(
         trace!(
             "handle_explosion: mesh_entity {:?} fragment_count {}",
             mesh_entity,
-            fragment_count
+            per_mesh
         );
 
-        let Some(fragments) = explode_mesh(&mesh.clone(), fragment_count, MAX_ITERATIONS) else {
+        let Some(fragments) = explode_mesh(&mesh.clone(), per_mesh, MAX_ITERATIONS) else {
             error!(
                 "explode_mesh: mesh_entity {:?} failed to slice mesh into fragments.",
                 mesh_entity
@@ -293,6 +323,63 @@ mod test {
         );
 
         assert!(explode_mesh(&mesh, 4, MAX_ITERATIONS).is_none());
+    }
+
+    /// Spawn a body that draws with `parts` separate meshes, the way an
+    /// authored gltf section does, and explode it with `budget`.
+    fn fragments_of_a_body_with(parts: usize, budget: usize) -> usize {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(ExplodeMeshPlugin);
+
+        let mesh = app
+            .world_mut()
+            .resource_mut::<Assets<Mesh>>()
+            .add(TriangleMeshBuilder::new_octahedron(2).build());
+        let material = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+
+        let body = app.world_mut().spawn_empty().id();
+        for _ in 0..parts {
+            app.world_mut().spawn((
+                ChildOf(body),
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(material.clone()),
+            ));
+        }
+        app.world_mut().entity_mut(body).insert(ExplodeMesh {
+            fragment_count: budget,
+        });
+        app.update();
+
+        app.world()
+            .entity(body)
+            .get::<ExplodeFragments>()
+            .expect("the walk reports its result either way")
+            .len()
+    }
+
+    /// The budget belongs to the BODY. Charging it per mesh made a multi-part
+    /// turret cost several times a hull cube for the same death, and a capital
+    /// collapse multiplies that across every section at once.
+    #[test]
+    fn the_fragment_budget_is_spent_across_the_whole_body() {
+        // One mesh spends the whole budget on itself.
+        assert_eq!(fragments_of_a_body_with(1, 4), 4);
+        // Many meshes divide it rather than each claiming it: six parts at a
+        // budget of four used to yield twenty-four pieces.
+        assert!(
+            fragments_of_a_body_with(6, 4) <= 4,
+            "six parts must not out-spend the budget, got {}",
+            fragments_of_a_body_with(6, 4)
+        );
+        // And a body that draws with nothing reports so, rather than staying
+        // silent - the integrity finale needs that answer to run its fallback.
+        assert_eq!(fragments_of_a_body_with(0, 4), 0);
     }
 
     /// Drive the full `ExplodeMeshPlugin` observer path in a headless app -

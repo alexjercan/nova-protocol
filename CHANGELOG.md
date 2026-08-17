@@ -277,6 +277,13 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- Fixed: every ship section burst eight generic gray cubes instead of its own
+  art - destruction looked for a mesh on the entity that dies, never on the
+  descendants that draw it.
+- Fixed: the fragment budget was charged per mesh, so a multi-part turret cost
+  several times a hull cube for the same death. It is now per destroyed body.
+- Fixed: a destroyed section could crash the physics solver - flat art slices
+  into coplanar fragments, whose hulls have no volume and so no mass.
 - Asteroids stop logging "no mass or inertia": a rock builds its collider in
   the same command batch as its body, so no physics tick sees it massless.
 - A shot-down torpedo and a broken rock go on rails the moment they die,
@@ -338,6 +345,7 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- The `destruction_finale` range kills a gltf section, a procedural one, a multi-part turret and an asteroid, asserting each breaks into its own art on one per-body budget.
 - Controller mods author `steering_lag` in seconds instead of internal PD frequency and damping fields; mixed stacks use the fastest live computer. **(breaking)**
 - A driven run turns the wheel (`scroll_lines` / `scroll_pixels`), so a scripted beat reaches a row past the fold instead of skipping it.
 - `menu_picker` scrolls the picker and now measures every scenario row, none skipped.

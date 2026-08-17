@@ -68,6 +68,10 @@ name = "hull_damage"
 path = "examples/systems/hull_damage.rs"
 
 [[example]]
+name = "destruction_finale"
+path = "examples/systems/destruction_finale.rs"
+
+[[example]]
 name = "turret_gunnery"
 path = "examples/systems/turret_gunnery.rs"
 
