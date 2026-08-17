@@ -967,7 +967,7 @@ impl SkinAssets {
 /// simulation is already on it before this runs. One child per surface role,
 /// because one mesh carries one material.
 ///
-/// The style is found by walking UP from the plate, the same way `damage_tint`
+/// The style is found by walking UP from the plate, the same way `damage_cracks`
 /// finds a mesh's owning section. A plate hangs two levels under a live ship's
 /// root and one level under the editor's preview root, and neither is the
 /// plate's business to know about.

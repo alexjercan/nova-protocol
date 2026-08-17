@@ -275,7 +275,7 @@ pub struct BaseSectionConfig {
     pub hide_in_editor: bool,
     /// The damage looks this section wears, fitted into components by
     /// [`DamageEffectsPlugin`](super::damage_effects::DamageEffectsPlugin).
-    /// Omitted means `[Scorch]` - what every section did before this was
+    /// Omitted means `[Cracks]` - what every section wears unless it was
     /// authorable - so unchanged content and third-party sections keep their
     /// behaviour. Author the empty list for a section that should never show
     /// damage.

@@ -57,7 +57,7 @@ impl Plugin for NovaIntegrityPlugin {
         app.add_plugins(core::IntegrityCorePlugin);
 
         // The two damage READINGS, and neither is a look of its own. The level
-        // says how far gone a body is (grading whole-body effects: scorch,
+        // says how far gone a body is (grading whole-body effects: cracks,
         // sparks); the marks say where it was hit (driving anything that has to
         // change a body's shape). See `carve` for why one number could never
         // do both.

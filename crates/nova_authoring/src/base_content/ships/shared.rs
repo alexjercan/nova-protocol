@@ -225,17 +225,17 @@ fn base_config(
 fn role_damage_effects(role: PartRole) -> DamageEffects {
     match role {
         // Hull is material and nothing else, which is exactly what can afford
-        // to be bitten into: it scorches and it CARVES. Where it wears cladding
+        // to be bitten into: it cracks and it CARVES. Where it wears cladding
         // the plate comes off first and the crater carries on into the hull
         // underneath, off the same mark list.
-        PartRole::Hull => DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Carve]),
+        PartRole::Hull => DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Carve]),
         // Machinery whose shape has to survive to keep working: it sparks.
         PartRole::Controller | PartRole::Torpedo | PartRole::Turret => {
-            DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Sparks])
+            DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks])
         }
         // A drive adds its plume guttering to that.
         PartRole::Thruster => DamageEffects(vec![
-            DamageEffect::Scorch,
+            DamageEffect::Cracks,
             DamageEffect::Sparks,
             DamageEffect::Plume,
         ]),

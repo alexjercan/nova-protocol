@@ -113,10 +113,10 @@ const SOCKET_EPSILON: f32 = 1e-4;
 /// `.glb` tiles already do - one primitive per material. Vertex colours would
 /// be one mesh and one material for the whole family, but bevy's PBR fragment
 /// ASSIGNS `base_color` from the vertex colour instead of multiplying by it,
-/// and [`super::damage_tint`] grades a section by writing that same
+/// and [`super::damage_cracks`] grades a section by writing that same
 /// `base_color`. A vertex-coloured shell would quietly stop reading as damaged
 /// or destroyed, which is a gameplay signal and not just a look. Nor would it
-/// buy anything: `damage_tint` hands every section a private clone of its
+/// buy anything: `damage_cracks` hands every section a private clone of its
 /// material, so sections do not batch with each other whatever the mesh does.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

@@ -89,7 +89,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -122,7 +122,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
                 Plume,
             ]),
@@ -222,7 +222,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -327,7 +327,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -590,7 +590,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -701,7 +701,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -840,7 +840,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -1024,7 +1024,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -1148,7 +1148,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -1273,7 +1273,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -1361,7 +1361,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
                 Plume,
             ]),
@@ -1460,7 +1460,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
                 Plume,
             ]),
@@ -1572,7 +1572,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -1645,7 +1645,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -1692,7 +1692,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -1765,7 +1765,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -1851,7 +1851,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -1907,7 +1907,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -2019,7 +2019,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -2131,7 +2131,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -2243,7 +2243,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -2354,7 +2354,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
                 Plume,
             ]),
@@ -2440,7 +2440,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
                 Plume,
             ]),
@@ -2552,7 +2552,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -2664,7 +2664,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -2776,7 +2776,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -2888,7 +2888,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -2974,7 +2974,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -3021,7 +3021,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -3107,7 +3107,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -3163,7 +3163,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -3275,7 +3275,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -3386,7 +3386,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
                 Plume,
             ]),
@@ -3472,7 +3472,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
                 Plume,
             ]),
@@ -3571,7 +3571,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -3631,7 +3631,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -3704,7 +3704,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -3751,7 +3751,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Carve,
             ]),
         ),
@@ -3837,7 +3837,7 @@
                 ),
             ],
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -3893,7 +3893,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -4005,7 +4005,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -4117,7 +4117,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),
@@ -4229,7 +4229,7 @@
             ],
             hide_in_editor: true,
             damage_effects: ([
-                Scorch,
+                Cracks,
                 Sparks,
             ]),
         ),

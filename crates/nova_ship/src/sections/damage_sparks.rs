@@ -17,7 +17,7 @@
 //! and loses nothing at all.
 //!
 //! Sparks are their own entities rather than a change to the section's
-//! material, deliberately: [`SectionDamageTint`](super::damage_tint) already
+//! material, deliberately: [`SectionCracks`](super::damage_cracks) already
 //! owns that material, and two effects writing one material would fight over it
 //! every frame.
 

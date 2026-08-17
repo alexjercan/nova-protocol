@@ -1,7 +1,7 @@
 //! WHERE a body was hit, kept as spheres of material taken out of it.
 //!
 //! The other half of the damage picture. [`DamageLevel`](super::erosion) says
-//! how far gone a body is and every effect that grades a whole body - scorch,
+//! how far gone a body is and every effect that grades a whole body - cracks,
 //! sparks - reads that. This says where the hits LANDED, and it is what any
 //! effect that has to change a body's SHAPE reads instead.
 //!
@@ -63,7 +63,7 @@ pub const DAMAGE_PER_UNIT_VOLUME: f32 = 80.0;
 ///
 /// A sphere this small cannot reach a boundary sample of the cell it lands in,
 /// so it would cost a slot in the budget and change nothing. Grazing fire is
-/// the case: it should scorch, which is the level's job, not this one.
+/// the case: it should crack, which is the level's job, not this one.
 const MARK_MIN_RADIUS: f32 = 0.15;
 
 /// How many marks one body remembers.

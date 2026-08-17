@@ -487,7 +487,7 @@ pub struct ShipDecorMarker(#[reflect(ignore)] pub AssetRef<WorldAsset>);
 ///
 /// A [`SectionFixture`], so it is never structure, never in the integrity
 /// graph, never in the ship's health and - through the ancestor walk in
-/// `damage_tint` - never graded by the damage of the hull under it. Its damage
+/// `damage_cracks` - never graded by the damage of the hull under it. Its damage
 /// read is that it comes off.
 ///
 /// GAMEPLAY, all of it: a headless server builds this and never loads a mesh.

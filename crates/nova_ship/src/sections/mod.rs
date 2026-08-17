@@ -9,10 +9,10 @@ pub mod base_section;
 pub mod clearance;
 pub mod controller_section;
 pub mod damage_carve;
+pub mod damage_cracks;
 pub mod damage_effects;
 pub mod damage_plume;
 pub mod damage_sparks;
-pub mod damage_tint;
 pub mod fixture;
 pub mod hull_section;
 pub mod integrity;
@@ -32,8 +32,8 @@ pub mod turret_section;
 pub mod prelude {
     pub use super::{
         ammo::prelude::*, base_section::prelude::*, clearance::prelude::*,
-        controller_section::prelude::*, damage_carve::prelude::*, damage_effects::prelude::*,
-        damage_plume::prelude::*, damage_sparks::prelude::*, damage_tint::prelude::*,
+        controller_section::prelude::*, damage_carve::prelude::*, damage_cracks::prelude::*,
+        damage_effects::prelude::*, damage_plume::prelude::*, damage_sparks::prelude::*,
         fixture::prelude::*, hull_section::prelude::*, integrity::prelude::*,
         link_points::prelude::*, live_structure_anchor, shell_shape::prelude::*,
         shell_skin::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
@@ -257,7 +257,7 @@ impl Plugin for SpaceshipSectionPlugin {
         // The damage effects themselves: what a section's own damage LOOKS
         // like. Only meaningful when sections actually render.
         if self.render {
-            app.add_plugins(damage_tint::SectionDamageTintPlugin);
+            app.add_plugins(damage_cracks::SectionCracksPlugin);
             app.add_plugins(damage_sparks::DamageSparksPlugin);
             app.add_plugins(damage_plume::DamagePlumePlugin);
         }

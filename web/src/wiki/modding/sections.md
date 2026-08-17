@@ -53,7 +53,7 @@ shared `base` block and one kind-specific block:
 | `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
 | `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. |
 | `base.hide_in_editor` | bool | `false` | `true` hides the prototype from the editor palette. Ships can still reference it. |
-| `base.damage_effects` | effect list | `([Scorch])` | The damage looks this section wears. Omitted means it scorches, which is what every section did before this was authorable. |
+| `base.damage_effects` | effect list | `([Cracks])` | The damage looks this section wears. Omitted means its surface cracks, which is what every section does unless it says otherwise. |
 | `kind` | section kind | required | `Hull((...))`, `Thruster((...))`, `Controller((...))`, `Turret((...))`, or `Torpedo((...))`. |
 
 Collider forms:
@@ -74,17 +74,17 @@ is density.
 What a section LOOKS like as it takes damage, authored as a list:
 
 ```ron
-damage_effects: ([Scorch, Sparks, Plume]),
+damage_effects: ([Cracks, Sparks, Plume]),
 ```
 
 | effect | what it does |
 |---|---|
-| `Scorch` | The section's paint reddens, darkens, and finally burns out. |
+| `Cracks` | The section's surface fractures where it is failing, glows through the cracks when it is critical, and burns out cold when it dies. |
 | `Sparks` | The section throws sparks, faster the worse it is. |
 | `Plume` | The section's exhaust guts and flickers. Thrusters only - it grades the exhaust cone, so a section with none shows nothing. |
 | `Carve` | The section LOSES material where the ship was hit: a real crater in its drawn mesh, deeper the bigger the hit. |
 
-Omitting the field means `([Scorch])`. Author `([])` for a section that should
+Omitting the field means `([Cracks])`. Author `([])` for a section that should
 never show damage at all - saying "none" and saying nothing are different.
 
 The rule the list is kept honest by: only NON-FUNCTIONAL material comes off. A

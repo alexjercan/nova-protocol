@@ -424,7 +424,7 @@ fn main() -> bevy::app::AppExit {
                 // so the frame carries the player's incoming tracers, the impact
                 // flashes and the burnt-out section together. The destruction is
                 // a BURNT HULL, not a fireball: a dead section is graded to
-                // `DEAD_COLOR` in place (`sections/damage_tint.rs`) and the burst
+                // `DEAD_COLOR` in place (`sections/damage_cracks.rs`) and the burst
                 // is over in a frame or two, so the shot is the damage, shown
                 // while the rounds are still arriving.
                 .step("frame the raider")

@@ -428,6 +428,37 @@ hull sections and on the cut-cube parts whose role is Hull; nothing else.
   unmistakably a bite out of a hull and it is not authored art. That is the
   trade the effect exists to make, and it is why turrets do not carry it.
 
+#### 7. Cracks replace scorch - DONE
+
+`sections/damage_cracks.rs` + `assets/shaders/section_cracks.wgsl`.
+`sections/damage_tint.rs` is deleted and `DamageEffect::Scorch` is gone;
+`DamageEffect::Cracks` is the default in its place.
+
+- The tint said "this is damaged" by reddening and darkening a whole body. That
+  is information rather than a picture of anything - a hull at 60% looked like a
+  hull painted red - it fought every authored paint scheme, and it disagreed
+  with the geometry now that a section can be visibly bitten into.
+- The fracture field is three octaves of centred value noise sampled by LOCAL
+  position, and the crack is its ZERO SET: a surface through the volume, so it
+  draws continuous lines on a face and carries across a seam onto the next one.
+  Local space for the reason the rock shader is - a world-space pattern swims
+  across a ship as it flies.
+- TUNED BY LOOKING. The first width was a third of the field's RANGE, which
+  covered more than half the surface and drew orange blotches: the octaves
+  cluster tightly about zero. 0.09 puts a dead section at about a fifth cracked
+  and a half-dead one at a twentieth. Verified live: dark veins at 0.5, hot
+  glowing fractures at 0.9.
+- A cracked mesh keeps a `FragmentMaterial` pointing at its PRISTINE standard
+  material. The finale can only draw debris with a `StandardMaterial`, and a
+  section that swapped to an extended one would otherwise break into anonymous
+  grey.
+- The shipped effect table is now:
+  Hull = Cracks + Carve; Turret, Torpedo bay, Controller = Cracks + Sparks;
+  Thruster = Cracks + Sparks + Plume.
+- Sparks are UNCHANGED and were never the problem: at level 0.9 the interval is
+  ~0.21 s against a 0.35 s lifetime, so they are already continuous at low
+  health. The threshold is on `DamageLevel`, where 0.0 is pristine.
+
 ### Phase 5 - the finale, and delete the slicer
 
 - What is left of a body at death comes apart into bounded debris with

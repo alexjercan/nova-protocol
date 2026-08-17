@@ -109,6 +109,9 @@ tagged **(breaking)**.
 - Hull sections CARVE: a hit takes a real crater out of the hull under the
   cladding, not just off the plate over it. Authorable as `Carve` on any
   section; the collider does not follow.
+- **(breaking)** `Scorch` becomes `Cracks`: a damaged section fractures where it
+  is failing and glows through the cracks, instead of the whole body turning red.
+  Mods authoring `Scorch` must rename it.
 - **(breaking)** A hull may carry several flight computers and steers better
   for it, on a curve capped at twice its strongest computer. Authority does
   not stack linearly.

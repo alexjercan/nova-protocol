@@ -39,7 +39,7 @@
 //!
 //! Which of those a section wears is AUTHORED, in its content
 //! (`base.damage_effects`), so this row is also the check that the shipped
-//! catalog authored what it meant to: the hull scorches and nothing more, the
+//! catalog authored what it meant to: the hull cracks and carves, the
 //! turret sparks, the thruster sparks and gutters.
 //!
 //! The thing NOT here is SHED - expendable pieces coming off a section that
@@ -97,7 +97,7 @@ const HITS: [f32; 6] = [0.0, 21.0, 86.0, 290.0, 977.0, 150.0];
 /// column shows the same hit landing on the hull with nothing over it.
 ///
 /// It stands at level 0.0 and takes a smaller hit than the column before it,
-/// and both numbers are load-bearing. The level is zero so nothing is scorched
+/// and both numbers are load-bearing. The level is zero so nothing is cracked
 /// and the only thing that has changed about the section is its SHAPE. The hit
 /// is 150 because a hull section holds 200 - one that spends more than its
 /// health bar is destroyed by the hit rather than carved by it, and there is
@@ -190,14 +190,14 @@ fn setup_gallery(
 
 /// Put every body in a column at that column's level, by SETTING health.
 ///
-/// What the WHOLE-BODY effects read. Scorch and sparks grade off how far gone a
+/// What the WHOLE-BODY effects read. Cracks and sparks grade off how far gone a
 /// body is, which is a reading of its own health and nothing else, so this
 /// touches health and pokes no effect directly: anything that fails to change
 /// here is not actually reading the level.
 ///
 /// Sections and plates are both walked, and for the same reason they are
 /// separate pools in the first place - a plate is `HealthIsolated`, so damaging
-/// the hull does not scorch its cladding and this has to say what both are at.
+/// the hull does not crack its cladding and this has to say what both are at.
 #[cfg(feature = "debug")]
 fn set_column_levels(world: &mut World) {
     let mut roots: Vec<(Entity, f32)> = Vec::new();

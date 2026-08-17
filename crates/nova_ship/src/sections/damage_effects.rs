@@ -22,12 +22,12 @@
 //! `SectionKind` would put the decision in the engine, where a mod cannot reach
 //! it, and would force every new look to become a new kind.
 //!
-//! # The default is SCORCH, not nothing
+//! # The default is CRACKS, not nothing
 //!
-//! An omitted list means `[Scorch]`, which is what every section did before it
-//! was authorable. Nothing in the shipped catalog or in a third-party mod gets
-//! quieter for not knowing about this, and a section that genuinely wants no
-//! damage look at all authors the empty list and says so.
+//! An omitted list means `[Cracks]`, which is the surface effect every section
+//! wears unless it says otherwise. Nothing in the shipped catalog or in a
+//! third-party mod goes quiet for not knowing about this, and a section that
+//! genuinely wants no damage look at all authors the empty list and says so.
 //!
 //! The rule the vocabulary is kept honest by: ONLY NON-FUNCTIONAL MATERIAL IS
 //! REMOVED. A turret that has taken a beating still has to point and shoot, so
@@ -40,8 +40,8 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::SectionMarker;
 
 use crate::sections::{
-    damage_carve::prelude::DamageCarve, damage_plume::prelude::DamagePlume,
-    damage_sparks::prelude::DamageSparks, damage_tint::prelude::DamageScorch,
+    damage_carve::prelude::DamageCarve, damage_cracks::prelude::DamageCracks,
+    damage_plume::prelude::DamagePlume, damage_sparks::prelude::DamageSparks,
 };
 
 /// `DamageEffect`, `DamageEffects` and `DamageEffectsPlugin`.
@@ -57,8 +57,14 @@ pub mod prelude {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum DamageEffect {
-    /// The section's paint reddens, darkens and finally burns out.
-    Scorch,
+    /// The section's surface fractures where it is failing, glows through the
+    /// cracks when it is critical, and burns out cold when it dies.
+    ///
+    /// Replaced SCORCH, which reddened and darkened the WHOLE body. A tint is
+    /// information rather than a picture of anything, it fights every authored
+    /// paint scheme it is laid over, and it says nothing about where a section
+    /// is coming apart.
+    Cracks,
     /// The section throws sparks, faster the worse it is, and keeps every part
     /// of itself.
     Sparks,
@@ -81,7 +87,7 @@ pub enum DamageEffect {
 /// component, so what a section is wearing can be read straight off it rather
 /// than inferred from which components happen to be present.
 ///
-/// [`Default`] is `[Scorch]` and not the empty list - see the module docs.
+/// [`Default`] is `[Cracks]` and not the empty list - see the module docs.
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -89,7 +95,7 @@ pub struct DamageEffects(pub Vec<DamageEffect>);
 
 impl Default for DamageEffects {
     fn default() -> Self {
-        Self(vec![DamageEffect::Scorch])
+        Self(vec![DamageEffect::Cracks])
     }
 }
 
@@ -167,7 +173,7 @@ fn fit_damage_effects(
     for effect in &effects.0 {
         let mut section = commands.entity(section);
         match effect {
-            DamageEffect::Scorch => section.try_insert(DamageScorch),
+            DamageEffect::Cracks => section.try_insert(DamageCracks),
             DamageEffect::Sparks => section.try_insert(DamageSparks::default()),
             DamageEffect::Plume => section.try_insert(DamagePlume),
             DamageEffect::Carve => section.try_insert(DamageCarve),
@@ -187,15 +193,15 @@ mod tests {
     }
 
     /// The claim the default exists for: nothing gets quieter for not knowing
-    /// about this. A section built without an authored list still scorches,
-    /// exactly as every section did before.
+    /// about this. A section built without an authored list still shows its
+    /// damage on its surface.
     #[test]
-    fn an_unauthored_section_still_scorches() {
+    fn an_unauthored_section_still_shows_its_damage() {
         let mut app = effects_app();
         let section = app.world_mut().spawn(SectionMarker).id();
 
         assert!(
-            app.world().get::<DamageScorch>(section).is_some(),
+            app.world().get::<DamageCracks>(section).is_some(),
             "an unauthored section wears the default list"
         );
         assert!(app.world().get::<DamageSparks>(section).is_none());
@@ -210,11 +216,11 @@ mod tests {
             .world_mut()
             .spawn((
                 SectionMarker,
-                DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Sparks]),
+                DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
             ))
             .id();
 
-        assert!(app.world().get::<DamageScorch>(turret).is_some());
+        assert!(app.world().get::<DamageCracks>(turret).is_some());
         assert!(app.world().get::<DamageSparks>(turret).is_some());
         assert!(
             app.world().get::<DamagePlume>(turret).is_none(),
@@ -232,7 +238,7 @@ mod tests {
             .spawn((SectionMarker, DamageEffects::none()))
             .id();
 
-        assert!(app.world().get::<DamageScorch>(glass).is_none());
+        assert!(app.world().get::<DamageCracks>(glass).is_none());
         assert!(app.world().get::<DamageSparks>(glass).is_none());
         assert!(app.world().get::<DamagePlume>(glass).is_none());
     }
@@ -242,7 +248,7 @@ mod tests {
     #[test]
     fn saying_nothing_and_saying_none_are_different() {
         assert_ne!(DamageEffects::default(), DamageEffects::none());
-        assert!(DamageEffects::default().wears(DamageEffect::Scorch));
-        assert!(!DamageEffects::none().wears(DamageEffect::Scorch));
+        assert!(DamageEffects::default().wears(DamageEffect::Cracks));
+        assert!(!DamageEffects::none().wears(DamageEffect::Cracks));
     }
 }
