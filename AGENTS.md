@@ -32,8 +32,8 @@ Repository guidance. Global `~/AGENTS.md` applies.
 - Use crate preludes. Export new public items through the owning prelude.
 - Edit Rust content builders, then run `content -- gen`; never hand-edit
   `assets/base/**/*.content.ron`.
-- Reproduce bugs first. Features need player-path harness coverage; unit tests
-  do not replace it.
+- Reproduce bugs first, as an `examples/systems/` range (`CONVENTIONS.md`).
+  Features need player-path harness coverage; unit tests do not replace it.
 - Open rendered and generated output. Exit status alone is not proof.
 - Do not run full workspace test or clippy unless requested. CI owns both.
 - Use sprout for worktrees. Stage explicit paths. Never leave the index staged

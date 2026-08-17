@@ -67,7 +67,7 @@ pub mod prelude {
 ///
 /// The editor is [`AppBuilder`]'s default "game": `build()` adds `NovaEditorPlugin` when no
 /// custom game plugins were supplied. Factoring it here lets the binary and the harnessed editor
-/// example (`examples/ui/editor.rs`) launch the identical app instead of each open-coding it, so
+/// example (`examples/systems/ship_editor.rs`) launch the identical app instead of each open-coding it, so
 /// the example exercises the same editor the game ships.
 ///
 /// `startup_scenario` is the binary's `--scenario <id>` flag: `Some(id)` boots

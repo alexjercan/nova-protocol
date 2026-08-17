@@ -1,4 +1,4 @@
-//! torpedo_section: a focused test range for the torpedo bay section.
+//! torpedo_launch: the torpedo launch chain - fired, armed, guided, detonated.
 //!
 //! One player ship carrying a single torpedo bay fires across two scenes. In the
 //! GATE scene it sits at the origin facing a spread of asteroid "gates" - near,
@@ -35,7 +35,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example torpedo_section --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example torpedo_launch --features debug
 //! # look for: `nova harness: reached Playing`, `range: torpedo fired`,
 //! #           `range: torpedo ... armed`, `guidance: lead angle ...`,
 //! #           `range: the switch took all N transient(s) ...`,
@@ -52,7 +52,7 @@ use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "torpedo_section")]
+#[command(name = "torpedo_launch")]
 #[command(version = "1.0.0")]
 #[command(about = "A test range for the torpedo bay section in nova_protocol", long_about = None)]
 struct Cli;

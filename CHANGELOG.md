@@ -272,6 +272,9 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- `neutralized_quiet` no longer flakes: its control half latches the first
+  defending mount instead of re-reading a trigger that drops for a frame while
+  the barrel slews.
 - A freshly spawned ship no longer swings off its spawn attitude before flying:
   the helm command now initializes from the hull's spawn rotation instead of
   identity.
@@ -322,6 +325,18 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- The bug-to-range doctrine is written down (`CONVENTIONS.md`): reproduce a bug
+  as a `systems/` range before the fix, and name every claim on the invariant
+  roster.
+- Four single-file stress ranges replace the `many_*` sweeps: a thousand rounds,
+  a thousand torpedoes, a thousand sections on one hull, a hundred hulls - each
+  with exact counts and a drain to zero.
+- Examples are two categories now: `systems/` asserts (the former `sections/`,
+  `ui/` and stress ranges, renamed for what they prove) and `screenshots/`
+  captures. **(breaking)**
+- Every `systems/` range names its invariants as `outcome:` markers on the
+  `catalog_drift` roster, so a deleted assertion fails a test instead of
+  passing green.
 - `nova-protocol --scenario <id>` boots straight into that scenario, past the
   main menu; an unknown id refuses the launch and lists every registered id.
 - `wfc_arena` opens cold - lines spawn ~305 u out, weapons free at gun range -

@@ -177,20 +177,20 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    `content_ron_parity` test fails on drift.
 
 9. **Example.**
-   Add `examples/sections/<kind>_section.rs`, modelled on the existing
-   per-section examples (`controller_section.rs` and `thruster_section.rs` are
-   the most compact of the five), plus its
+   Add `examples/systems/<what it proves>.rs`, modelled on the existing
+   per-section ranges (`attitude_hold.rs` and `thrust_and_plume.rs` are the
+   most compact), plus its
    `[[example]]` block in the root Cargo.toml (auto-discovery is off; the
    catalog is the source of truth) - `catalog_matches_disk` in
    `crates/nova_probe_cli/tests/catalog_drift.rs` fails until disk and catalog
-   agree, and `sections_assert_their_invariant_roster` beside it fails until
-   the new range has a named invariant roster. The example builds a minimal
+   agree, and `systems_ranges_assert_their_invariant_roster` beside it fails
+   until the new range has a named invariant roster. The example builds a minimal
    `ScenarioConfig` (a controller + your section), triggers
    `LoadScenario(...)`, and under `--features debug` drives an autopilot probe
    that asserts the kind's behavior end to end. Run it:
 
    ```text
-   NOVA_AUTOPILOT=1 cargo run --example <kind>_section --features debug
+   NOVA_AUTOPILOT=1 cargo run --example <what it proves> --features debug
    ```
 
 ## Done

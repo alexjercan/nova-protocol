@@ -1,4 +1,4 @@
-//! hud_range: verify the screen-projected HUD indicators, live.
+//! hud_indicators: the screen-projected HUD indicators, verified live.
 //!
 //! Tasks 20260708-165700/165701/165702: the torpedo-lock reticle, the
 //! locked-target readout, the autopilot destination marker and the turret
@@ -18,7 +18,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example hud_range --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example hud_indicators --features debug
 //! # named beats, each one waiting on the world or on its own short dwell:
 //! # wait for the player ship to spawn, then perform the REAL radar gesture
 //! # (raise, hold CTRL, commit) - nothing locks passively in the
@@ -44,7 +44,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "hud_range")]
+#[command(name = "hud_indicators")]
 #[command(version = "1.0.0")]
 #[command(about = "A test range for the screen-projected HUD indicators", long_about = None)]
 struct Cli;
@@ -165,12 +165,15 @@ fn custom_plugin(app: &mut App) {
 }
 
 fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    commands.trigger(LoadScenario(hud_range(&game_assets, &sections)));
+    commands.trigger(LoadScenario(hud_indicators_scenario(
+        &game_assets,
+        &sections,
+    )));
 }
 
 /// Build the range scenario: a player ship at the origin and an uncontrolled
 /// target ship parked dead ahead.
-fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let section = |id: &str| {
         sections
             .get_section(id)
@@ -200,7 +203,7 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
     player_sections.push(SpaceshipSectionConfig {
         id: "player_turret".to_string(),
         position: Vec3::new(0.0, 0.0, -1.0),
-        // Matches the turret placement in turret_section so the base sits
+        // Matches the turret placement in turret_gunnery so the base sits
         // upright.
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
         source: SectionSource::Inline(section("better_turret_section")),
@@ -268,7 +271,7 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         description: "A test range for the screen-projected HUD indicators.".to_string(),
         events,
         ..ScenarioConfig::new(
-            "hud_range".to_string(),
+            "hud_indicators".to_string(),
             "HUD Range".to_string(),
             game_assets.cubemap.clone().into(),
         )
@@ -467,6 +470,11 @@ fn commit_lock(world: &mut World) {
         Visibility::Inherited,
         "hud range: the armed ticks must show while the weapons are hot"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the lock is live under the sweep",
+        serde_json::json!({}),
+    );
     info!("hud range: inset viewfinder up at lock time, frame armed");
     // Release: stick; lower the stance; set the travel designation for
     // the GOTO stage directly (its gesture is the same, already proven).
@@ -535,6 +543,11 @@ fn assert_focus_meter(world: &mut World) {
         ring_visibility,
         Visibility::Hidden,
         "hud range: the dwell ring lingered after the lock settled"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the focus meter fills during the dwell",
+        serde_json::json!({}),
     );
     info!("hud range: focus meter OK (fill {fill_percent:.0}%), dwell ring hidden");
 }
@@ -628,6 +641,11 @@ fn assert_dwell_ring(world: &mut World) {
     // Clean up so the downstream kill stage sees no stray RadarState.
     let player = player_root(world);
     world.entity_mut(player).remove::<RadarState>();
+    nova_probe::probe_marker(
+        world,
+        "outcome: the dwell ring rides the dwell",
+        serde_json::json!({}),
+    );
     info!("hud range: dwell ring visible + filled OK (progress {progress:.2})");
 }
 
@@ -675,6 +693,11 @@ fn assert_lock_indicators(world: &mut World) {
         "hud range: reticle width {} shrank below the 32 px minimum",
         size.x
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the reticle sits on the locked target",
+        serde_json::json!({}),
+    );
     info!("hud range: lock + reticle OK (drift {drift:.1} px, size {size:?})");
 
     // Readout: the distance line must match the actual separation, the
@@ -709,6 +732,11 @@ fn assert_lock_indicators(world: &mut World) {
         fill.width,
         Val::Percent(100.0),
         "hud range: the untouched target's health bar is not full"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the readout carries distance and health",
+        serde_json::json!({}),
     );
     info!("hud range: readout OK ('{distance_text}', '{closing_text}', bar full)");
 
@@ -752,6 +780,11 @@ fn assert_lock_indicators(world: &mut World) {
         "hud range: lead pip center {pip_center:?} is {pip_drift:.1} px \
              from the projected aim point {expected_pip:?}"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the lead pip sits on the aim point",
+        serde_json::json!({}),
+    );
     info!("hud range: turret lead pip OK (drift {pip_drift:.1} px)");
 
     // Dwell complete by now (lock held since ~+0s, FOCUS_TIME 1.5 s):
@@ -780,6 +813,11 @@ fn assert_lock_indicators(world: &mut World) {
         "hud range: expected one component marker per attached section"
     );
     assert_eq!(sections, 3, "hud range: the target ship has 3 sections");
+    nova_probe::probe_marker(
+        world,
+        "outcome: one component marker per section",
+        serde_json::json!({}),
+    );
     info!("hud range: component markers OK ({markers} of {sections} sections)");
 
     // The inset has been up since the LOCK (pinned at the commit stage);
@@ -803,6 +841,11 @@ fn assert_lock_indicators(world: &mut World) {
         Visibility::Visible,
         "hud range: the target-inset panel is not visible while focused"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the target inset films the lock",
+        serde_json::json!({}),
+    );
     info!("hud range: target inset OK (1 camera, panel visible)");
 
     // The weapons safety is OFF while the combat lock exists (lowered
@@ -810,6 +853,11 @@ fn assert_lock_indicators(world: &mut World) {
     assert!(
         world.entity(player).get::<WeaponsHot>().unwrap().0,
         "hud range: a combat lock must keep the weapons hot"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the safety is hot while combat-locked",
+        serde_json::json!({}),
     );
     info!("hud range: weapons hot while combat-locked OK");
 }
@@ -886,6 +934,11 @@ fn assert_goto_indicators(world: &mut World) {
         "hud range: closing speed '{closing_text}' is not positive while \
              burning toward the target"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the destination marker tracks the goto",
+        serde_json::json!({}),
+    );
     info!("hud range: GOTO destination marker OK (drift {drift:.1} px, '{closing_text}')");
 
     // Velocity sphere (folded in from the retired 05_directional, task
@@ -915,6 +968,11 @@ fn assert_goto_indicators(world: &mut World) {
             alignment > 0.95,
             "hud range: the velocity sphere direction {orbit_direction:?} does not follow the ship velocity {ship_velocity:?} (dot {alignment:.3})"
         );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the velocity sphere tracks the burn",
+        serde_json::json!({}),
+    );
     info!("hud range: velocity sphere tracks the burn (dot {alignment:.3})");
 
     // The pinned tail section's marker must carry the highlight style.
@@ -954,6 +1012,11 @@ fn assert_goto_indicators(world: &mut World) {
         others.iter().all(|px| *px < selected[0]),
         "hud range: the pinned marker {selected:?} is not larger than its \
              siblings {others:?}"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the pinned component marker is highlighted",
+        serde_json::json!({}),
     );
     info!(
         "hud range: component highlight OK (selected {:.0} px)",
@@ -1039,6 +1102,11 @@ fn assert_indicators_hid(world: &mut World) {
     assert!(
         !world.entity(player).get::<WeaponsHot>().unwrap().0,
         "hud range: the safety must re-engage once the lock dies lowered"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: every indicator hides when its anchor dies",
+        serde_json::json!({}),
     );
     info!("hud range: PASS - indicators track their anchors and hide when they die");
 }

@@ -473,6 +473,11 @@ fn open_fire(world: &mut World) {
         combat_id, "prey",
         "player_path: the combat lock must be on the prey"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the combat lock is on the prey",
+        serde_json::json!({ "combat_lock": combat_id.clone() }),
+    );
     let t = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(
         world,
@@ -522,6 +527,21 @@ fn report_flown_leg(round: usize) -> impl Fn(&mut World) + Send + Sync + 'static
         assert!(
             variable(world, "player_speed").is_some_and(|speed| speed >= 0.0),
             "round {round}: the typed entity-speed watch must publish a number"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: the scenario saw the kill",
+            serde_json::json!({ "round": round }),
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: the scenario saw the travel lock",
+            serde_json::json!({ "round": round }),
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: the entity speed watch publishes a number",
+            serde_json::json!({ "round": round }),
         );
         info!(
             "player_path: round {round} - prey destroyed, waypoint locked, GOTO closing at \

@@ -1,4 +1,4 @@
-//! menu_scenarios: drive the main menu's Scenarios picker and MEASURE it.
+//! menu_picker: drive the main menu's Scenarios picker and MEASURE it.
 //!
 //! Boots the exact app the `nova_protocol` binary runs (via the shared
 //! [`editor_app`]), clicks Scenarios, then selects every scenario row that lies
@@ -20,7 +20,7 @@
 //!
 //! Run (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example menu_scenarios --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example menu_picker --features debug
 //! # look for: `scenarios pane widths:` per row, then
 //! #           `scenarios pane widths HELD` / `... CHANGED`,
 //! #           then `nova harness: reached Playing` and
@@ -40,7 +40,7 @@ use nova_protocol::prelude::*;
 use nova_ui::widget::Selected;
 
 #[derive(Parser)]
-#[command(name = "menu_scenarios")]
+#[command(name = "menu_picker")]
 #[command(version = "1.0.0")]
 #[command(about = "Drive the Scenarios picker and measure its pane widths", long_about = None)]
 struct Cli;
@@ -336,7 +336,7 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
             }
         },
         None => {
-            report(&state);
+            report(world, &state);
             // Finish the way a player does: launch the scenario the picker has
             // selected. That also gives the smoke suite its reach-Playing
             // contract, and puts the details pane's Play button - the picker's
@@ -369,6 +369,11 @@ fn assert_selection_landed(world: &mut World, name: &str) {
         .iter(world)
         .any(|selected| selected.as_str() == name);
     if selected {
+        nova_probe::probe_marker(
+            world,
+            "outcome: the row click selects the row",
+            serde_json::json!({ "row": name }),
+        );
         return;
     }
     if std::env::var_os("NOVA_AUTOPILOT").is_some() {
@@ -394,7 +399,7 @@ fn assert_selection_landed(world: &mut World, name: &str) {
 /// the floor, and falling under it names the rows that were skipped, since a
 /// skip is the only way to get there.
 #[cfg(feature = "debug")]
-fn report(state: &ScenariosAutopilot) {
+fn report(world: &mut World, state: &ScenariosAutopilot) {
     let harnessed = std::env::var_os("NOVA_AUTOPILOT").is_some();
     // COVERAGE, stated on every verdict and not only when something goes wrong.
     // The rows the walk could not reach are the difference between "the split
@@ -428,6 +433,11 @@ fn report(state: &ScenariosAutopilot) {
         warn!("scenarios pane widths: TOO FEW measurements - {detail}");
         return;
     }
+    nova_probe::probe_marker(
+        world,
+        "outcome: two or more rows measured",
+        serde_json::json!({ "measured": state.measured.len() }),
+    );
     // At least two, per the floor above.
     let (_, first_list, first_details) = &state.measured[0];
     let spread = |pick: fn(&(String, f32, f32)) -> f32| -> f32 {
@@ -440,6 +450,11 @@ fn report(state: &ScenariosAutopilot) {
     let details_spread = spread(|m| m.2);
     // Sub-pixel spread is rounding, not a layout dependency.
     if list_spread <= 0.5 && details_spread <= 0.5 {
+        nova_probe::probe_marker(
+            world,
+            "outcome: the pane split holds across selections",
+            serde_json::json!({ "list_spread": list_spread, "details_spread": details_spread }),
+        );
         info!(
             "scenarios pane widths HELD across {} selections (list={first_list:.1} \
              details={first_details:.1}) - coverage: {coverage}",

@@ -1,4 +1,4 @@
-//! controller_section: the controller section's PD attitude control.
+//! attitude_hold: a flight computer holds and re-reaches a commanded attitude.
 //!
 //! One minimal ship (controller + hull, no player input) chases a slowly
 //! rotating attitude command written straight into
@@ -25,7 +25,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example controller_section --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example attitude_hold --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `attitude probe: rig a tracks the command`,
 //! #           `attitude probe: the reload tracks the command`,
@@ -43,7 +43,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "controller_section")]
+#[command(name = "attitude_hold")]
 #[command(version = "1.0.0")]
 #[command(about = "PD attitude control: a minimal ship chases a rotating attitude command", long_about = None)]
 struct Cli;

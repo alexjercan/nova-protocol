@@ -18,7 +18,7 @@
 //! error-exits naming itself.
 //!
 //! Building the `ScenarioConfig` in code (instead of loading a named one from
-//! `GameScenarios`, which menu_newgame's boot flow covers) is the modding
+//! `GameScenarios`, which menu_boot's boot flow covers) is the modding
 //! surface, and it is what keeps this fixture story-free.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
@@ -533,6 +533,11 @@ fn assert_seed(world: &mut World) {
             "OnStart must post objective '{id}'"
         );
     }
+    nova_probe::probe_marker(
+        world,
+        "outcome: onstart seeds variables and objectives",
+        serde_json::json!({}),
+    );
     info!("scenario probe: variables seeded");
 }
 
@@ -650,6 +655,11 @@ fn report_round(round: usize) -> impl Fn(&mut World) + Send + Sync + 'static {
             "round {round}: the expression filter must advance the beat (2) and the \
              OnUpdate pulse must promote it (3)"
         );
+        nova_probe::probe_marker(
+            world,
+            "outcome: the round arithmetic closes the round",
+            serde_json::json!({}),
+        );
         info!("scenario probe: round {round} ticked ({killed} rocks down)");
     }
 }
@@ -685,6 +695,26 @@ fn report_grammar(world: &mut World) {
             "objective '{id}' must be completed by the end of the run"
         );
     }
+    nova_probe::probe_marker(
+        world,
+        "outcome: the trigger volume fires on enter and exit",
+        serde_json::json!({}),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the disarmed escort fires the neutralized handler",
+        serde_json::json!({}),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: every kill reaches the tally",
+        serde_json::json!({}),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: both objectives complete",
+        serde_json::json!({}),
+    );
     info!("scenario probe: handlers, filters and expressions all ticked");
     let t = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(world, "beat: done", json_at(t));

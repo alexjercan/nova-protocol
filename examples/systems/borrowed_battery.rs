@@ -468,6 +468,11 @@ fn report_the_claim(world: &mut World) {
         "borrowed_battery: nobody touched the controls, so the battery must be COLD - \
          a hot hull would explain the shot without the computer"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the computer claims an idle mount",
+        serde_json::json!({}),
+    );
 
     let t = world.resource::<Time>().elapsed_secs();
     let turret = claimed.turret;
@@ -513,6 +518,11 @@ fn report_the_cold_shot(world: &mut World) {
         error <= gate,
         "borrowed_battery: the computer fired {error:.3} deg off, outside the {gate:.3} deg \
          bearing gate - fire discipline must be the SAME rule the AI trigger uses"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the cold hull fires inside the bearing gate",
+        serde_json::json!({}),
     );
 
     let t = world.resource::<Time>().elapsed_secs();
@@ -586,6 +596,11 @@ fn report_the_steal(world: &mut World) {
         "borrowed_battery: the steal must happen MID-ENGAGEMENT, with a torpedo still \
          inside the envelope, or it is only a quiet sky"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the player lock steals every mount",
+        serde_json::json!({}),
+    );
 
     let t = world.resource::<Time>().elapsed_secs();
     info!(
@@ -637,6 +652,11 @@ fn report_the_return(world: &mut World) {
         "borrowed_battery: the mount came back after {waited:.3} s, inside the \
          {POINT_DEFENSE_REGRASP_SECS} s grace - a release must not hand the battery \
          straight back"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the mount returns only after the regrasp grace",
+        serde_json::json!({}),
     );
 
     info!("borrowed_battery: the mount returned after {waited:.3} s of grace");

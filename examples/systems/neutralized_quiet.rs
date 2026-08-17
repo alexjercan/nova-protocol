@@ -98,6 +98,8 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
+        app.init_resource::<LiveIntercept>();
+        app.add_systems(Update, latch_the_live_intercept);
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // Both hulls up AND the neutralize latch re-seeded: on a looped
@@ -426,15 +428,52 @@ fn torpedoes_in_the_envelope(world: &World) -> Vec<(Entity, f32)> {
         .collect()
 }
 
-/// Advance once a mount on the LIVE raider is both assigned an inbound and
-/// firing at it. Both halves matter: an assignment alone would not prove the
-/// gun ever spoke.
+/// The control half, LATCHED: the first frame a mount on the LIVE raider was
+/// both assigned an inbound and firing at it, and what it was firing at.
+///
+/// A latch rather than a live reading, because the live reading is a RACE. The
+/// AI trigger is a per-frame decision - it drops for the frames the barrel is
+/// slewing onto its next bearing - so "assigned and firing" is true on some
+/// frames and false on others while the raider is defending perfectly well.
+/// A step that advanced on the live reading and a hook that re-read it a frame
+/// later disagreed on most runs (the run failed 2/2 on this box, 4/4 on the
+/// box that found it, task 20260816-114054): the step advanced, the trigger
+/// dropped, the hook found nothing and panicked. Both the gate and the report
+/// now read this, which is monotonic: once the range has shown its point
+/// defence working, it has shown it.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct LiveIntercept(Option<(Entity, Entity)>);
+
+/// Latch the first defending mount. Runs every frame, so the observation cannot
+/// fall between two steps; does nothing once latched, and nothing at all after
+/// the neutralization, whose whole point is that the mounts go quiet.
+#[cfg(feature = "debug")]
+fn latch_the_live_intercept(world: &mut World) {
+    if world.resource::<LiveIntercept>().0.is_some() {
+        return;
+    }
+    let defending = raider_mounts(world)
+        .into_iter()
+        .find_map(|(turret, assignment, firing)| {
+            assignment
+                .filter(|_| firing)
+                .map(|torpedo| (turret, torpedo))
+        });
+    if let Some(pair) = defending {
+        world.resource_mut::<LiveIntercept>().0 = Some(pair);
+    }
+}
+
+/// Advance once a mount on the LIVE raider has been both assigned an inbound
+/// and firing at it. Both halves matter: an assignment alone would not prove
+/// the gun ever spoke.
 #[cfg(feature = "debug")]
 fn the_raider_is_defending() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
     std::sync::Arc::new(|world: &World| {
-        raider_mounts(world)
-            .iter()
-            .any(|(_, assignment, firing)| assignment.is_some() && *firing)
+        world
+            .get_resource::<LiveIntercept>()
+            .is_some_and(|latched| latched.0.is_some())
     })
 }
 
@@ -495,14 +534,18 @@ fn kill_the_flight_computer(world: &mut World) {
 /// The control half, recorded where the step's predicate already held it.
 #[cfg(feature = "debug")]
 fn report_live_intercept(world: &mut World) {
-    let mounts = raider_mounts(world);
-    let (_, assignment, _) = mounts
-        .iter()
-        .find(|(_, assignment, firing)| assignment.is_some() && *firing)
-        .expect("neutralized_quiet: the step advanced on a defending mount");
+    let (turret, torpedo) = world
+        .resource::<LiveIntercept>()
+        .0
+        .expect("neutralized_quiet: the step advanced on the latched intercept");
+    nova_probe::probe_marker(
+        world,
+        "outcome: the live hull defends itself",
+        serde_json::json!({ "mount": format!("{turret:?}"), "torpedo": format!("{torpedo:?}") }),
+    );
     info!(
-        "neutralized_quiet: live hull defending - mount on torpedo {:?}, trigger down",
-        assignment
+        "neutralized_quiet: live hull defending - mount {turret:?} on torpedo \
+         {torpedo:?}, trigger down"
     );
     nova_probe::probe_snapshot(world, "live hull defending");
 }
@@ -528,6 +571,11 @@ fn assert_the_wreck_is_quiet(world: &mut World) {
         None,
         "neutralized_quiet: a wreck defends against nothing"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the wreck holds no defence target",
+        serde_json::json!({}),
+    );
 
     // The gun is still THERE - a silence explained by a dead turret would be
     // no proof at all.
@@ -543,6 +591,11 @@ fn assert_the_wreck_is_quiet(world: &mut World) {
         "neutralized_quiet: the turret must still be WORKING, or the silence is \
          disarmament rather than a stand-down"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the wreck still carries a working gun",
+        serde_json::json!({}),
+    );
 
     for (turret, assignment, firing) in &mounts {
         assert_eq!(
@@ -554,6 +607,11 @@ fn assert_the_wreck_is_quiet(world: &mut World) {
             "neutralized_quiet: mount {turret:?} is still firing on a wreck"
         );
     }
+    nova_probe::probe_marker(
+        world,
+        "outcome: no mount is firing on a wreck",
+        serde_json::json!({}),
+    );
 
     let inbound = torpedoes_in_the_envelope(world);
     let nearest = inbound
@@ -564,6 +622,11 @@ fn assert_the_wreck_is_quiet(world: &mut World) {
         !inbound.is_empty(),
         "neutralized_quiet: the range must stage a torpedo inside the {PD_ENVELOPE} u \
          envelope, or the silence proves nothing"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: a torpedo is inside the envelope",
+        serde_json::json!({}),
     );
     info!(
         "neutralized_quiet: the wreck is quiet with a torpedo {nearest:.0} u out \
@@ -599,12 +662,22 @@ fn assert_the_wreck_still_bleeds(world: &mut World) {
         "neutralized_quiet: a neutralized hull is still solid and must still take \
          damage ({before} -> {after})"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the wreck still takes damage",
+        serde_json::json!({}),
+    );
 
     let raider = object_by_id(world, RAIDER_ID)
         .expect("neutralized_quiet: a scratch must not despawn the wreck");
     assert!(
         world.get::<DefeatedMarker>(raider).is_some(),
         "neutralized_quiet: the wreck must still carry the unified defeat edge"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the wreck stays defeated once",
+        serde_json::json!({}),
     );
     info!("neutralized_quiet: the wreck still bleeds ({before} -> {after}), still defeated once");
     let t = world.resource::<Time>().elapsed_secs();
@@ -614,6 +687,9 @@ fn assert_the_wreck_still_bleeds(world: &mut World) {
 /// Reload the range for a looped capture cycle.
 #[cfg(feature = "debug")]
 fn respawn_the_range(world: &mut World) {
+    // The control half is per-cycle: a later cycle whose point defence never
+    // spoke must not pass on the first cycle's latch.
+    world.resource_mut::<LiveIntercept>().0 = None;
     nova_probe::capture_reload_begin(world);
     let scenario = {
         let game_assets = world.resource::<GameAssets>().clone();

@@ -12,7 +12,7 @@
 //! | `news-090-scenario-campaigns.png` | the Scenarios picker, a campaign chapter selected |
 //! | `feature-editor.png`             | the sandbox editor with a ship BUILT in it |
 //!
-//! Every gesture is a real pointer gesture, the way `examples/ui/menu_scenarios.rs`
+//! Every gesture is a real pointer gesture, the way `examples/systems/menu_picker.rs`
 //! does it: the pointer is moved to the widget's own screen position (resolved
 //! from its `Name`) and pressed and released there. Nothing is reached by
 //! triggering its observer, so a panel that stopped opening on a click fails the

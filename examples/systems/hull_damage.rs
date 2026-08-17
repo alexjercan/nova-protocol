@@ -1,4 +1,4 @@
-//! hull_section: hull sections through the damage pipeline, and the mass
+//! hull_damage: hull sections through the damage pipeline, and the mass
 //! properties that follow them.
 //!
 //! One player ship of five sections - a spine along +Z (controller, hull1,
@@ -41,7 +41,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example hull_section --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example hull_damage --features debug
 //! # look for: `hull probe: round 1 - damage lands, the section dies, the ship survives`,
 //! #           `hull probe: round 1 - the com follows the surviving sections`,
 //! #           `hull probe: every invariant held again after the reload`,
@@ -57,7 +57,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "hull_section")]
+#[command(name = "hull_damage")]
 #[command(version = "1.0.0")]
 #[command(about = "Hull sections: damage, destruction, and the mass properties that follow", long_about = None)]
 struct Cli;

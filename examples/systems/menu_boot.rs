@@ -1,4 +1,4 @@
-//! menu_newgame: the shipped boot flow, driven by a real pointer click.
+//! menu_boot: the shipped boot flow, driven by a real pointer click.
 //!
 //! Boots the exact app the `nova_protocol` binary runs (via the shared
 //! [`editor_app`]: main menu over the ambience backdrop) and clicks New Game
@@ -30,10 +30,10 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example menu_newgame --features debug
-//! # look for: `menu_newgame: clicked New Game`,
+//! NOVA_AUTOPILOT=1 cargo run --example menu_boot --features debug
+//! # look for: `menu_boot: clicked New Game`,
 //! #           `nova harness: reached Playing`,
-//! #           `menu_newgame: the menu tore down and gameplay state is up`,
+//! #           `menu_boot: the menu tore down and gameplay state is up`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -43,7 +43,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "menu_newgame")]
+#[command(name = "menu_boot")]
 #[command(version = "1.0.0")]
 #[command(about = "The shipped menu boot flow, driven by a real pointer click", long_about = None)]
 struct Cli;
@@ -92,30 +92,30 @@ const BOOT_SECS: f32 = 90.0;
 #[cfg(feature = "debug")]
 fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-        .step("menu_newgame: reach the main menu")
+        .step("menu_boot: reach the main menu")
         .until(state_is(GameStates::MainMenu))
         .add()
-        .step("menu_newgame: let the menu lay out")
+        .step("menu_boot: let the menu lay out")
         .until(frames(SETTLE))
         .add()
-        .step("menu_newgame: click New Game")
+        .step("menu_boot: click New Game")
         .on_enter(click_named("New Game Button"))
         .until(frames(SETTLE))
         .add()
         // The menu buttons act on `Activate`, which fires on RELEASE over the
         // same widget - so a click is two beats.
-        .step("menu_newgame: release New Game")
+        .step("menu_boot: release New Game")
         .on_enter(|world: &mut World| {
             release_mouse(MouseButton::Left)(world);
-            info!("menu_newgame: clicked New Game");
+            info!("menu_boot: clicked New Game");
         })
         .until(state_is(GameStates::Playing))
         .deadline(BOOT_SECS)
         .add()
-        .step("menu_newgame: let the teardown finish")
+        .step("menu_boot: let the teardown finish")
         .until(frames(SETTLE))
         .add()
-        .step("menu_newgame: the boot flow completed")
+        .step("menu_boot: the boot flow completed")
         .on_enter(|world: &mut World| {
             // The whole claim: gameplay state is up and the menu is GONE. What
             // the scenario then contains is deliberately not asserted.
@@ -123,6 +123,11 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
                 *world.resource::<State<GameStates>>().get(),
                 GameStates::Playing,
                 "New Game must reach gameplay state"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: new game reaches gameplay",
+                serde_json::json!({}),
             );
             let menu_buttons = world
                 .query::<&Name>()
@@ -134,7 +139,8 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
                 "the main menu must be torn down once gameplay is up; \
                  {menu_buttons} New Game button(s) survived"
             );
-            info!("menu_newgame: the menu tore down and gameplay state is up");
+            nova_probe::probe_marker(world, "outcome: the menu tore down", serde_json::json!({}));
+            info!("menu_boot: the menu tore down and gameplay state is up");
         })
         .until(frames(1))
         .add()

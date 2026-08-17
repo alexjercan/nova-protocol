@@ -580,6 +580,11 @@ fn activate_named(name: &'static str) -> impl Fn(&mut World) + Send + Sync + 'st
 fn report_defeat_overlay(world: &mut World) {
     let t = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(world, "beat: defeat overlay", serde_json::json!({ "t": t }));
+    nova_probe::probe_marker(
+        world,
+        "outcome: the defeat overlay comes up on death",
+        serde_json::json!({}),
+    );
     info!("outcomes: defeat overlay up, retrying");
 }
 
@@ -591,6 +596,11 @@ fn report_clean_reload(world: &mut World) {
     assert!(
         outcome_kind(world).is_none(),
         "outcomes: the Retry reload must clear the outcome"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the retry reload clears the outcome",
+        serde_json::json!({}),
     );
     info!("outcomes: reload is clean - fresh ship, hostile back, latch re-seeded");
 }
@@ -620,12 +630,32 @@ fn report_victory_checkpoint(world: &mut World) {
         next.linger,
         "outcomes: the queued switch must LINGER, or the overlay never shows"
     );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the kill completes the objective",
+        serde_json::json!({}),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the checkpoint queues the chain target",
+        serde_json::json!({}),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the queued switch lingers",
+        serde_json::json!({}),
+    );
     info!("outcomes: victory + checkpoint queued for '{SCENARIO_B}'");
 }
 
 /// The script's last beat: Continue actually loaded B.
 #[cfg(feature = "debug")]
 fn report_chain(world: &mut World) {
+    nova_probe::probe_marker(
+        world,
+        "outcome: continue loads the chained scenario",
+        serde_json::json!({}),
+    );
     info!("outcomes: chained into {SCENARIO_B}");
     let t = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(

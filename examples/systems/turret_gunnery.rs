@@ -1,4 +1,4 @@
-//! turret_section: a focused test range for the PDC turret section.
+//! turret_gunnery: a turret acquires, tracks, fires and hits at range.
 //!
 //! One player ship carrying a single turret sits at the origin. A spread of
 //! asteroid "gates" sits in the turret's firing arc, and one gate sweeps back and
@@ -32,12 +32,12 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example turret_section --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example turret_gunnery --features debug
 //! # look for: `nova harness: reached Playing`, `turret: aim error ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-#[path = "turret_section/slider.rs"]
+#[path = "turret_gunnery/slider.rs"]
 mod slider;
 
 #[cfg(feature = "debug")]
@@ -55,7 +55,7 @@ use nova_protocol::prelude::*;
 use slider::{slider, SliderWidgetPlugin};
 
 #[derive(Parser)]
-#[command(name = "turret_section")]
+#[command(name = "turret_gunnery")]
 #[command(version = "1.0.0")]
 #[command(about = "A test range for the PDC turret section in nova_protocol", long_about = None)]
 struct Cli;

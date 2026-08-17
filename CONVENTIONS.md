@@ -63,3 +63,11 @@ pub struct SpaceshipInputSystems;
    `clippy::wildcard_imports`, `clippy::redundant_pub_crate`,
    `clippy::needless_pass_by_value`, or `clippy::missing_docs_in_private_items`
    across the workspace.
+5. A bug becomes a RANGE. Reproduce it as an `examples/systems/` range before
+   the fix, so the fix is what turns the range green. Every claim a range makes
+   is named: a `nova_probe::probe_marker` reading `outcome: <slug>` beside the
+   assert it belongs to, and that slug on the roster in
+   `crates/nova_probe_cli/tests/catalog_drift.rs` - deleting an assertion then
+   fails a test instead of leaving a green run that proves less. `systems/` is
+   where correctness lives; `screenshots/` is where content does. There is no
+   third category, and a range that only measures is not a range.

@@ -132,11 +132,13 @@ example PROVES, not by what it happens to spawn.
 
 | Category | What it proves | What probe does with it | Disqualifies an example |
 |-|-|-|-|
-| `sections/` | one ship section's behavior, end to end | runtime contract decides; native trace is automatic | spans two sections |
-| `systems/` | a whole system's behavior on a code-built fixture | runtime contract decides; native trace is automatic | needs shipped content to stand up, or measures instead of asserting |
-| `stress/` | a frame-time claim: a steady-state scene built to be measured | runtime contract decides; native trace is automatic | ends on a script instead of holding a load (it cannot fill a capture window) |
-| `ui/` | a staged UI flow - layout, navigation, real text measure | runtime contract decides; native trace is automatic | its subject is the simulation, not the interface over it |
-| `screenshots/` | frames for the website and the wiki | runtime contract decides; native trace is automatic | asserts instead of capturing |
+| `systems/` | CORRECTNESS: a behavior, staged and asserted, every claim named on the invariant roster | runtime contract decides; native trace is automatic | its product is a frame for human eyes rather than a verdict |
+| `screenshots/` | CONTENT: frames for the website and the wiki, galleries a human judges, the frame-time baseline | runtime contract decides; native trace is automatic | its verdict is an assert |
+
+Two categories, not five: `sections/`, `ui/` and `stress/` were dissolved into
+these in v0.11.0 (task 20260817-013618). A per-section range and a staged UI
+flow are both correctness ranges, and a stress range is a correctness range
+that also happens to carry a number.
 
 The run-policy half of that table is no longer a table. What an example can
 be judged on is DECLARED by the example, at runtime, through the probe
@@ -152,105 +154,89 @@ category proves - is the table above and the per-block comments in the root
 `Cargo.toml`; review enforces it, because judging whether an example asserts
 enough is a reading task, not a test.
 
-`gameplay/` is gone: it was never a contract (it described how the examples
-ran, not what they proved). Its system coverage became `systems/`
-(`scenario_grammar`, `player_path`, `outcomes`), and the two story-scenario
-runs that outlived that move were retired rather than rehomed - story is
-tested by players, examples test systems.
+`gameplay/`, `sections/`, `ui/` and `stress/` are all gone. Each described how
+an example RAN, or what it happened to spawn, rather than what it proved: a
+per-section range, a staged UI flow and a scale sweep all stage a behavior and
+panic when it is wrong, so they are all `systems/` now, renamed for what they
+prove.
 
 ### The catalog and the harness
 
-What is on disk today, in curriculum reading order:
+What is on disk today, in reading order:
 
-- `sections/` - one test range per ship section: `controller_section` (PD
-  attitude), `thruster_section` (burn -> thrust + plume shader),
-  `hull_section` (damage -> destroy -> ship survives, and the mass properties
-  the losses move), `turret_section` and `torpedo_section` (the weapon test
-  ranges, the latter also the PN lead-a-crosser deep-dive). One range per
-  section family, each walking a named roster of invariants across several
-  rounds, and across as many scenes or rig layouts as its invariants need.
-- `systems/` - code-built fixtures for the cross-cutting systems, every one a
-  `ScenarioConfig` written in Rust and loaded with `LoadScenario`:
-  `scenario_grammar` (the scenario language - variables, events, filters,
-  actions - over repeated rounds, each gated on the scenario's own
-  variables), `player_path` (a scenario played through the real input
-  pipeline: lock, kill, travel-lock, GOTO - watched by its own handlers, and
-  repeated through the loop point) and `outcomes` (the composed outcome arc
-  in one live run: die -> the Defeat overlay -> Retry -> a clean reload ->
-  kill -> the objective and the CHECKPOINT -> Continue -> the chained
-  scenario). Nothing here reads `assets/base/scenarios`.
-- `ui/` - staged UI flows, five runs. Four of the five DRIVE the interface with
-  synthesized pointer input rather than asserting around it: `widget_zoo` (the
-  nova_ui widget set - hover, press, reskin, segmented select, check/toggle
-  flips and a slider drag, then the LIVE TREE checked after each rebuild),
-  `editor` (build a ship and inspect it: cards, placement clicks on the ship
-  itself, select and delete), `menu_newgame` (the shipped boot flow, and
-  nothing about the scenario it boots) and `menu_scenarios` (drives the
-  Scenarios picker and logs its laid-out pane widths per selection, so a
-  layout regression that only real text measure can show is caught). The fifth,
-  `hud_range` (screen-projected HUD indicators, velocity sphere included),
-  stays predicate-driven: it clicks no widget, because its subject is where an
-  indicator lands on screen, not what a pointer does to it.
-  The idiom: a beat NAMES its target (`click_named` / `hover_named` /
+- `systems/` - the correctness ranges. The section curriculum first:
+  `attitude_hold` (PD attitude), `thrust_and_plume` (burn -> thrust + plume
+  shader), `hull_damage` (damage -> destroy -> ship survives, and the mass
+  properties the losses move), `turret_gunnery` and `torpedo_launch` (the
+  weapon ranges, the latter also the PN lead-a-crosser deep-dive). Then the
+  cross-cutting systems, every fixture a `ScenarioConfig` written in Rust and
+  loaded with `LoadScenario`: `scenario_grammar` (the scenario language -
+  variables, events, filters, actions), `player_path` (a scenario played
+  through the real input pipeline: lock, kill, travel-lock, GOTO), `outcomes`
+  (die -> the Defeat overlay -> Retry -> a clean reload -> kill -> the
+  objective and the CHECKPOINT -> Continue -> the chained scenario),
+  `neutralized_quiet` (a wreck's point defence stands down) and
+  `borrowed_battery` (the Flight Computer works idle player PDCs). Then the
+  interface, driven by synthesized pointer input: `ship_editor` (build a ship
+  and inspect it, refusals included), `hud_indicators` (where a
+  screen-projected indicator lands), `menu_boot` (the shipped boot flow) and
+  `menu_picker` (the Scenarios picker, whose pane split must not depend on the
+  selection - real fonts, real taffy, which a headless unit rig cannot measure
+  at all). Finally the STRESS ranges, one file each: `stress_bullets`,
+  `stress_torpedoes`, `stress_one_structure` and `stress_many_structures` hold
+  a thousand rounds, a thousand guided torpedoes, a thousand sections on one
+  body and a hundred bodies, each asserting exact counts, a drain to zero and a
+  teardown that leaves nothing, with a frame-time capture riding along. Their
+  scale constants are named and carry the comment that they must NEVER reflect
+  real content.
+  The UI idiom: a beat NAMES its target (`click_named` / `hover_named` /
   `ui_node_centre` / `ui_node_rect` in `nova_autopilot::input`) so a layout move
   is survivable and only a rename breaks a run; nothing reaches a widget by
   triggering its observer or inserting its state component. A driven run that
   cannot reach a target says so and states its COVERAGE in the verdict -
-  `menu_scenarios` names the rows it skipped past the picker's fold and fails
+  `menu_picker` names the rows it skipped past the picker's fold and fails
   outright below two measurements, since its property is a comparison across
-  selections. `systems/` deliberately does the opposite - its subject is the
-  outcome chain, so pixel coordinates would only add layout coupling.
-- `screenshots/` - `screenshot_scene` (the "Drydock drift" beauty set),
-  `screenshot_combat` (the "Rock hollow" set: a real GOTO leg into an `OnEnter`
-  ambush and a torpedo salvo, so it carries the travel, combat, HUD and ordnance
-  frames and absorbed the old `screenshot_juice`), `screenshot_ui`, `screenshot_sections`,
+  selections. The simulation ranges deliberately do the opposite - their
+  subject is the outcome chain, so pixel coordinates would only add layout
+  coupling.
+- `screenshots/` - the content producers. `screenshot_scene` (the "Drydock
+  drift" beauty set), `screenshot_combat` (the "Rock hollow" set: a real GOTO
+  leg into an `OnEnter` ambush and a torpedo salvo, so it carries the travel,
+  combat, HUD and ordnance frames), `screenshot_ui`, `screenshot_sections`,
   `screenshot_flight` (the "The ring" set: the ORBIT verb flown around a real
-  well, with the holo ring and radius spoke up - it replaced `screenshot_orbit`)
-  (drive the scenes headless to capture the wiki and marketing frames),
-  `screenshot_nova_os` (the Tab ship-computer, captured for HTML fidelity
-  work against `web/design/nova_os_terminal_poc.html`), and
-  `render_scale_shot` (a real-GPU window capture proving the render-scale
-  lever draws a correct frame, including after a LIVE preset switch).
-- `stress/` - the only category that carries frame-time windows:
-  `scene_baseline` (the release-over-release measurement scene the probe sweep
-  runs), plus the scale sweeps `many_bodies` (N asteroids under physics +
-  gravity + render), `many_sections` (one ship with N sections: mass/COM
-  aggregation and the integrity graph at scale) and `many_projectiles`
-  (turret + torpedo saturation: collision, particles, despawn churn). Each
-  sweep takes a count knob (`NOVA_STRESS_COUNT`) and loops spawn -> hold ->
-  teardown so the capture window is filled by activity, and each asserts that
-  entity counts return to baseline after teardown. See
-  [Performance and run verification](#performance-and-run-verification).
+  well), `screenshot_nova_os` (the Tab ship-computer), and `render_scale_shot`
+  (a real-GPU window capture proving the render-scale lever draws a correct
+  frame). The galleries a human judges live here too - `parts_viewer`,
+  `widget_zoo` (every `nova_ui` widget factory, live and in both skins),
+  `wfc_ships`, `wfc_arena`, `shape_bench`, `block_bench`, `thruster_gallery`,
+  `greeble_catalog`, `compare_asteroids`, `compare_planets` - and so does
+  `scene_baseline`, the release-over-release measurement scene the probe sweep
+  runs: it asserts nothing about behavior, its product is a number for the perf
+  page. See [Performance and run verification](#performance-and-run-verification).
 
-When adding a substantial feature, add or extend the example that drives it.
-(Consolidated over time: 01_scene/03_scenario merged into scenario;
-02_thruster_shader into thruster_section; 05_directional into
-hud_range; 10_gameplay into hull_section + player_path; 07b_slicer's
-subject is the mesh toolkit's own tests; 04_asteroids' slider tuning tool was
-dropped.)
+When adding a substantial feature, add or extend the range that drives it. When
+fixing a bug, WRITE the range that reproduces it first: that is the doctrine in
+`CONVENTIONS.md`, and the invariant roster is what keeps it honest.
 
-Every example except `scene_baseline` is HARNESSED: it
-drives itself under `NOVA_AUTOPILOT=1`, and probe is the regression suite over
-all of them - `cargo run --features debug probe run sections` (or `systems`, `ui`,
-`stress`, `screenshots`) runs a single category alone, and `--all` is the whole
-catalog, which is what CI runs. Each
-example must reach
-`Playing` and exit without panic; the sections, systems, ui and stress examples
-additionally carry panic-on-failure behavior assertions with completion
-backstops (a stalled script fails instead of passing vacuously), except
-`editor`, which asserts at the reach-gameplay level. The `sections/` rosters
-are pinned by the display-free `sections_assert_their_invariant_roster`, so an
-invariant cannot be deleted into a still-green run. The screenshot examples
-carry no behavior assertions of their own - they drive the shipped scenes to
-capture frames - but every one walks an `AutopilotPlugin` step timeline, so a
-beat that never resolves is an error exit naming that step, and every one
-wires `nova_probe::nova_timeline()` + `nova_probe::nova_invariants()`, so a
-probe run grades the walk on the engine invariants. Disk and catalog cannot
-drift: the display-free `catalog_matches_disk` test
-(`crates/nova_probe_cli/tests/catalog_drift.rs`) fails
-`cargo test --workspace` when a new example misses its `[[example]]` block. That is
-the case nothing else catches - with auto-discovery off, an uncataloged example
-file does not build at all and no other tool says so.
+Every example except `scene_baseline` is HARNESSED: it drives itself under
+`NOVA_AUTOPILOT=1`, and probe is the regression suite over all of them -
+`cargo run --features debug probe run systems` (or `screenshots`) runs one
+category alone, and `--all` is the whole catalog, which is what CI runs. Each
+example must reach `Playing` and exit without panic; every `systems/` range
+additionally carries panic-on-failure behavior assertions with completion
+backstops (a stalled script fails instead of passing vacuously). The rosters
+are pinned by the display-free `systems_ranges_assert_their_invariant_roster`,
+so an invariant cannot be deleted into a still-green run. The screenshot
+producers carry no behavior assertions of their own - they drive the shipped
+scenes to capture frames - but every one walks an `AutopilotPlugin` step
+timeline, so a beat that never resolves is an error exit naming that step, and
+every one wires `nova_probe::nova_timeline()` + `nova_probe::nova_invariants()`,
+so a probe run grades the walk on the engine invariants. Disk and catalog
+cannot drift: the display-free `catalog_matches_disk` test
+(`crates/nova_probe_cli/tests/catalog_drift.rs`) fails `cargo test --workspace`
+when a new example misses its `[[example]]` block. That is the case nothing else
+catches - with auto-discovery off, an uncataloged example file does not build at
+all and no other tool says so.
 
 The drivers themselves - `AutopilotPlugin`, the screenshot capture,
 the completion protocol, and the full `NOVA_*` environment contract - live in
@@ -267,14 +253,16 @@ the mute). `NOVA_MUTE=0` forces sound through a harness run;
 
 ### Examples as bug pins
 
-When a bug is fixed, prefer pinning it where it lives: a unit/App test for a
-system-level mechanism, an example assertion when the bug only manifests in a
-composed scene (for example, `menu_newgame` runs the shipped boot flow with
-the ECS fallback error handler swapped to panic, so unhandled command errors on
-those transitions fail CI). An example pin is an autopilot-script assertion
-(a named step whose `on_enter` asserts, reached only once the steps before it
-have waited on the world - see `hull_section`/`hud_range` for the style); CI's
-probe sweep runs it on every push. Caveat: the handler swap
+A bug becomes a RANGE (`CONVENTIONS.md`): reproduce it in `examples/systems/`
+before the fix, and the fix is what turns the range green. A unit/App test
+still pins a system-level mechanism, but anything that only manifests in a
+composed scene belongs in a range (for example, `menu_boot` runs the shipped
+boot flow with the ECS fallback error handler swapped to panic, so unhandled
+command errors on those transitions fail CI). A range's pin is an
+autopilot-script assertion (a named step whose `on_enter` asserts, reached only
+once the steps before it have waited on the world - see
+`hull_damage`/`hud_indicators` for the style) carrying an `outcome: <slug>`
+marker on the roster; CI's probe sweep runs it on every push. Caveat: the handler swap
 does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
 at queue time).
 
@@ -663,8 +651,8 @@ contract and arms the separate capture only when declared. A program that
 wired no capture is inert, and its contract tells the report the frame-time
 section is empty because the program
 makes no frame-cost claim - not because a capture went missing. Frame-time
-claims still belong in `stress/`: that is what the category means, and it is
-now enforced by the wiring rather than by a table.
+claims are made by WIRING the capture, not by living in a directory: the four
+`stress_*` ranges and `scene_baseline` are what wire it today.
 
 The capture window is the capture crate's full 180/900 baseline for every run
 that captures at all, so probe numbers stay comparable with the sweep's; your

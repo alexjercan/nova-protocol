@@ -1,4 +1,4 @@
-//! editor: the ship editor, BUILT and INSPECTED through synthesized pointer input.
+//! ship_editor: the ship editor, BUILT and INSPECTED through synthesized pointer input.
 //!
 //! This runs the exact same editor the `nova_protocol` binary launches (via the shared
 //! [`editor_app`]), just with the autopilot + screenshot harness attached. Every beat is a real
@@ -32,7 +32,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example editor --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example ship_editor --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `editor: ...` verdict lines per beat,
 //! #           `autopilot: cycle complete, no panic`
@@ -45,7 +45,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "editor")]
+#[command(name = "ship_editor")]
 #[command(version = "1.0.0")]
 #[command(about = "The nova_protocol ship editor, wired to the smoke-test harness", long_about = None)]
 struct Cli;
@@ -161,6 +161,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "New Ship must create a ship carrying its controller section"
             );
             let hull = hull_section_name(world).expect("the catalog lists a hull section");
+            nova_probe::probe_marker(
+                world,
+                "outcome: new ship carries its controller",
+                serde_json::json!({}),
+            );
             info!("editor: ship created, will build with `{hull}`");
             world.resource_mut::<EditorProbe>().hull = hull;
         })
@@ -188,6 +193,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 before + 2,
                 "two pointer clicks on the ship must place two sections"
             );
+            nova_probe::probe_marker(
+                world,
+                "outcome: two clicks place two sections",
+                serde_json::json!({}),
+            );
             info!("editor: placed 2 sections ({before} -> {now})");
             stamp_sections(world);
         })
@@ -210,6 +220,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 now, before,
                 "select mode must not place anything; the same click built a \
                  section a moment ago"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: select mode places nothing",
+                serde_json::json!({}),
             );
             info!("editor: select mode is inert for placement ({now} sections)");
         })
@@ -234,6 +249,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "a click in delete mode must remove exactly the section under \
                  the pointer"
             );
+            nova_probe::probe_marker(
+                world,
+                "outcome: delete removes the section clicked",
+                serde_json::json!({}),
+            );
             info!("editor: deleted a section ({before} -> {now})");
         })
         .until(frames(1))
@@ -256,6 +276,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             assert!(
                 tiles > 0,
                 "opening the gallery must list the browsable prototypes"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the gallery lists the catalog",
+                serde_json::json!({}),
             );
             info!("editor: gallery is up with {tiles} tiles");
             world.resource_mut::<EditorProbe>().tiles = tiles;
@@ -301,6 +326,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 ui_node_rect(world, &format!("{GALLERY_TILE}{hull}")).is_some(),
                 "the filtered grid must still list `{hull}`"
             );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the filter narrows the gallery",
+                serde_json::json!({}),
+            );
             info!("editor: filter narrowed the gallery ({before} -> {now} tiles)");
         })
         .until(frames(1))
@@ -330,6 +360,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                     "the focus card must read `{stat}`; it read {lines:?}"
                 );
             }
+            nova_probe::probe_marker(
+                world,
+                "outcome: the focus card names the part",
+                serde_json::json!({}),
+            );
             info!("editor: focus card reads `{hull}`");
         })
         .until(frames(1))
@@ -369,6 +404,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 before + 1,
                 "the part selected in the gallery must be the one a click builds"
             );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the gallery pick builds",
+                serde_json::json!({}),
+            );
             info!("editor: placed the gallery's pick ({before} -> {now})");
             stamp_sections(world);
         })
@@ -406,6 +446,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 mates >= now - 1,
                 "a connected ship of {now} sections needs at least {} mates, derived {mates}",
                 now - 1
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the build derives one connected graph",
+                serde_json::json!({}),
             );
             info!("editor: {now} sections, {mates} mates, one connected structure");
             world.resource_mut::<EditorProbe>().mates = mates;
@@ -468,6 +513,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 before + 1,
                 "hover + Q must arm the hovered part, so the next click builds it"
             );
+            nova_probe::probe_marker(
+                world,
+                "outcome: hover and Q arm the part",
+                serde_json::json!({}),
+            );
             info!("editor: placed the part Q took ({before} -> {now})");
         })
         .until(frames(1))
@@ -513,6 +563,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "the toggle must clad the ship on the stage, derived from the \
                  structure the builder assembled"
             );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the skin clads the build",
+                serde_json::json!({}),
+            );
             info!("editor: the skin laid {plates} plates over the build");
             world.resource_mut::<EditorProbe>().plates = plates;
             stamp_sections(world);
@@ -547,6 +602,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 world.resource::<EditorProbe>().sections,
                 "and it must reflow without anything being BUILT - the click \
                  has not happened yet"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the skin reflows around the held part",
+                serde_json::json!({}),
             );
             info!("editor: the ghost reflowed the skin ({settled} -> {now} plates)");
             shoot(world, "editor-skin-drag.png");
@@ -589,6 +649,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "a mount authored at its own size must mate onto a unit-cube \
                  hull face - one turret for every craft is the whole point"
             );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the shared mount fits a hull face",
+                serde_json::json!({}),
+            );
             info!("editor: mounted the shared PDC ({before} -> {now})");
         })
         .until(frames(1))
@@ -628,6 +693,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 now, before,
                 "a refused placement must not build; the same gesture built a \
                  section a moment ago"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: an occupied socket refuses",
+                serde_json::json!({}),
             );
             info!("editor: the occupied socket refused the click ({now} sections)");
 
@@ -711,6 +781,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "a drive with nowhere to fire must not be built; the editor and \
                  the generator hold one rule between them"
             );
+            nova_probe::probe_marker(
+                world,
+                "outcome: a blocked drive lane refuses",
+                serde_json::json!({}),
+            );
             info!("editor: the blocked exit refused the click ({now} sections)");
 
             // The tower moved the graph on, so the figure the flown ship is
@@ -747,6 +822,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 flown, built,
                 "the flown ship must re-derive the mate graph the editor built"
             );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the flown ship re-derives the graph",
+                serde_json::json!({}),
+            );
             info!("editor: the flown ship carries the same {flown} mates");
 
             // What you see is what you fly: the toggle rides the hand-off, so
@@ -755,6 +835,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             assert!(
                 plates > 0,
                 "the ship was built with its skin on, so the flown one wears it"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the flown ship wears the skin",
+                serde_json::json!({}),
             );
             info!("editor: the flown ship came up in {plates} plates");
         })

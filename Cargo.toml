@@ -31,58 +31,54 @@ path = "src/lib.rs"
 # opt-out from claim grading, no skip list - but it is still spawned by
 # `probe run --all`, so it MUST exit cleanly under NOVA_AUTOPILOT within the
 # deadline with a clean log (a hang or panic is a FAIL, opted out or not).
-# The five settled categories:
+# TWO categories, split by PURPOSE (task 20260817-013618):
 #
-#   sections/    proves one ship section's behavior end to end.
-#                probe: correctness passes only.
-#                not this category: anything spanning two sections.
-#   systems/     proves a whole system's behavior on a code-built fixture.
-#                probe: correctness passes only.
-#                not this category: anything that needs shipped content to
-#                stand up, or that measures rather than asserts.
-#   stress/      the ONLY home for frame-time claims: a steady-state scene
-#                built to be measured and compared against a baseline.
-#                probe: correctness + an automatic frame-time pass.
-#                not this category: anything that ends on a script rather
-#                than holding a load (it cannot fill a capture window).
-#   ui/          proves a staged UI flow: layout, navigation, real text
-#                measure.
-#                probe: correctness passes only.
-#                not this category: anything whose subject is simulation
-#                rather than the interface over it.
-#   screenshots/ produces frames for the website and the wiki.
+#   systems/     CORRECTNESS. A range that asserts: it stages a behavior and
+#                panics when the behavior is wrong. Every claim it makes is
+#                named as an `outcome: <slug>` probe marker beside its assert
+#                and listed on the roster in
+#                crates/nova_probe_cli/tests/catalog_drift.rs, so a deleted
+#                assertion fails a test instead of quietly passing.
+#                probe: correctness passes; a range that wires the capture
+#                also gets an automatic frame-time pass.
+#                not this category: anything whose product is a frame for
+#                human eyes rather than a verdict.
+#   screenshots/ CONTENT. A producer that captures: website and wiki frames,
+#                galleries a human judges, and the release-over-release
+#                frame-time baseline.
 #                probe: correctness passes only - the WALK is graded like any
-#                other autopilot script; the FRAME it captures is judged by
-#                human eyes, which is a claim probe never makes.
-#                not this category: anything that asserts, rather than
-#                captures.
+#                other autopilot script; what it produced is judged by human
+#                eyes (or by the perf page), which is a claim probe never
+#                makes.
+#                not this category: anything whose verdict is an assert.
 #
-# Blocks are listed in curriculum reading order within each category.
-# sections/ - one example per ship section, the correctness curriculum.
+# Blocks are listed in reading order within each category.
+# systems/ - the section curriculum first: one range per ship section, each
+# walking a named roster of invariants across several rounds.
 [[example]]
-name = "controller_section"
-path = "examples/sections/controller_section.rs"
+name = "attitude_hold"
+path = "examples/systems/attitude_hold.rs"
 
 [[example]]
-name = "thruster_section"
-path = "examples/sections/thruster_section.rs"
+name = "thrust_and_plume"
+path = "examples/systems/thrust_and_plume.rs"
 
 [[example]]
-name = "hull_section"
-path = "examples/sections/hull_section.rs"
+name = "hull_damage"
+path = "examples/systems/hull_damage.rs"
 
 [[example]]
-name = "turret_section"
-path = "examples/sections/turret_section.rs"
+name = "turret_gunnery"
+path = "examples/systems/turret_gunnery.rs"
 
 [[example]]
-name = "torpedo_section"
-path = "examples/sections/torpedo_section.rs"
+name = "torpedo_launch"
+path = "examples/systems/torpedo_launch.rs"
 
-# systems/ - code-built fixtures for the cross-cutting gameplay systems, at a
-# coarser grain than sections/. Every fixture is a `ScenarioConfig` built in
-# Rust and loaded with `LoadScenario`, so the compiler catches scenario-grammar
-# changes and no shipped story content is reachable from here.
+# Then the cross-cutting systems, at a coarser grain. Every fixture is a
+# `ScenarioConfig` built in Rust and loaded with `LoadScenario`, so the compiler
+# catches scenario-grammar changes and no shipped story content is reachable
+# from here.
 [[example]]
 name = "scenario_grammar"
 path = "examples/systems/scenario_grammar.rs"
@@ -103,48 +99,58 @@ path = "examples/systems/neutralized_quiet.rs"
 name = "borrowed_battery"
 path = "examples/systems/borrowed_battery.rs"
 
-# ui/ - staged UI flows with their own autopilot timelines.
+# Then the interface, staged and driven by synthesized pointer input. The
+# subject is still a behavior with a verdict (a build refusal, an indicator's
+# screen position, a boot transition, a pane width held across selections) -
+# a UI flow whose product were a frame would belong in screenshots/.
 [[example]]
-name = "widget_zoo"
-path = "examples/ui/widget_zoo.rs"
+name = "ship_editor"
+path = "examples/systems/ship_editor.rs"
 
 [[example]]
-name = "editor"
-path = "examples/ui/editor.rs"
+name = "hud_indicators"
+path = "examples/systems/hud_indicators.rs"
 
 [[example]]
-name = "hud_range"
-path = "examples/ui/hud_range.rs"
+name = "menu_boot"
+path = "examples/systems/menu_boot.rs"
 
 [[example]]
-name = "menu_newgame"
-path = "examples/ui/menu_newgame.rs"
+name = "menu_picker"
+path = "examples/systems/menu_picker.rs"
+
+# And the STRESS ranges: the same correctness shape - exact counts, a
+# clear-and-drain assertion, a teardown that leaves nothing - staged at a scale
+# no content will ever reach, with a frame-time capture riding along. One file
+# per range, one subject each: rounds, ordnance, one huge body, many bodies.
+[[example]]
+name = "stress_bullets"
+path = "examples/systems/stress_bullets.rs"
 
 [[example]]
-name = "menu_scenarios"
-path = "examples/ui/menu_scenarios.rs"
+name = "stress_torpedoes"
+path = "examples/systems/stress_torpedoes.rs"
 
-# stress/ - the ONLY home for frame-time claims: steady-state scenes built to be
-# measured and compared against a baseline (probe run stress). Each run
-# also asserts, so a scale sweep proves "nothing breaks at scale" alongside its
-# number.
+[[example]]
+name = "stress_one_structure"
+path = "examples/systems/stress_one_structure.rs"
+
+[[example]]
+name = "stress_many_structures"
+path = "examples/systems/stress_many_structures.rs"
+
+# screenshots/ - capture producers for the website (gen-web-screenshots.py),
+# the galleries a human judges, and the frame-time baseline.
+#
+# The measurement rig behind the release-over-release frame-time baseline: it
+# boots a SHIPPED scenario and hands the running app to the capture. It asserts
+# nothing about behavior - its product is a number for the perf page - so it
+# sits with the other producers rather than with the ranges (task
+# 20260817-013618).
 [[example]]
 name = "scene_baseline"
-path = "examples/stress/scene_baseline.rs"
+path = "examples/screenshots/scene_baseline.rs"
 
-[[example]]
-name = "many_bodies"
-path = "examples/stress/many_bodies.rs"
-
-[[example]]
-name = "many_sections"
-path = "examples/stress/many_sections.rs"
-
-[[example]]
-name = "many_projectiles"
-path = "examples/stress/many_projectiles.rs"
-
-# screenshots/ - capture producers for the website (gen-web-screenshots.py).
 [[example]]
 name = "screenshot_scene"
 path = "examples/screenshots/screenshot_scene.rs"
@@ -213,6 +219,14 @@ path = "examples/screenshots/block_bench.rs"
 name = "thruster_gallery"
 path = "examples/screenshots/thruster_gallery.rs"
 
+# The widget gallery: every `nova_ui::widget` factory, live and interactive, in
+# both skins, captured one frame per skin. It checks its own live tree as it
+# goes, but what it EXISTS for is the pair of frames a human reads the skins
+# off, so it is a producer, not a range (task 20260817-013618).
+[[example]]
+name = "widget_zoo"
+path = "examples/screenshots/widget_zoo.rs"
+
 # Every fixture model the merged styles own, stood in named rows grouped by
 # style on pedestal plates, with an idle orbit and a focus turntable - the
 # catalog a greeble is judged on as an object before placement rules touch it
@@ -257,7 +271,7 @@ nova_probe_cli = { path = "crates/nova_probe_cli", optional = true }
 [dev-dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
-# The stress/ examples use the frame-time capture harness, and the
+# The stress ranges and the baseline use the frame-time capture harness, and the
 # autopilot examples push run-timeline markers - both live in nova_probe (the
 # in-game half of the run-harness, not shipped with the game binary; the host
 # half is nova_probe_cli, which nothing here links). serde_json builds the
