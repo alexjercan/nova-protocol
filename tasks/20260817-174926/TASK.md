@@ -87,8 +87,8 @@ build a general match framework or an embedded hull preview in this task.
   runtime binding component.
 - `B Rebind` captures one keyboard key or mouse button. Escape cancels.
 - Replace only the selected section's complete binding list.
-- Reject a binding used by another section on the same ship and identify the
-  conflict.
+- Allow several sections on one ship to share a binding. Reject reserved flight
+  controls.
 - Emit a generic binding-change message. The arena stores overrides by roster
   slot and stable section id, preserving them through restart and return.
 - No disk persistence, same-type group edit, gamepad capture, or general control
@@ -114,5 +114,5 @@ it.
 - Pause and result screens restart or return without stale scenario entities.
 - Result rows adapt to the projectile ammunition types observed in the match.
 - A Player ship can rebind one selected bindable section through NOVA OS, with
-  conflict and restart-retention coverage.
+  shared-binding, flight-conflict, and restart-retention coverage.
 - Existing CLI and driven probe paths remain deterministic.

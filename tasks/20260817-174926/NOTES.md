@@ -27,7 +27,7 @@
 - A result freezes the match, then reports dynamic ammunition labels, team
   damage and remaining structure, and one outcome row per configured ship.
 - The selected bindable section in the NOVA OS ship app can replace its input
-  with `B`. Flight-control and same-ship conflicts are refused. Arena overrides
+  with `B`. Sections can share inputs; reserved flight controls are refused. Arena overrides
   survive exact restart and return to lobby; changing a ship seed clears that
   slot's overrides.
 - Deadlocks use two example-level breakers. Each ship outside a 20 km sphere

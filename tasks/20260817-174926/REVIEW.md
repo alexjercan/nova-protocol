@@ -17,7 +17,7 @@ Implementation review completed. No open correctness finding. Ready to ship.
 - Ammunition labels remain data-driven. No result schema names a fixed round or
   torpedo type.
 - Rebinding replaces one section's complete list, rebuilds one enhanced-input
-  action tree, and rejects flight-control and same-ship conflicts.
+  action tree, allows shared section inputs, and rejects reserved flight controls.
 - Seed changes clear only that roster slot's binding overrides. Exact restart
   and an unchanged return through the lobby retain them.
 

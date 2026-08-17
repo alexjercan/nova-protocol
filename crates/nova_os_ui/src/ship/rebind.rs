@@ -3,51 +3,13 @@ use bevy_enhanced_input::prelude::Binding;
 use nova_events::prelude::EntityId;
 use nova_ship::prelude::*;
 
-use super::{SectionCode, ShipRuntime};
+use super::ShipRuntime;
 
-fn section_bindings<'a>(
-    thruster: Option<&'a SpaceshipThrusterInputBinding>,
-    turret: Option<&'a SpaceshipTurretInputBinding>,
-    torpedo: Option<&'a SpaceshipTorpedoInputBinding>,
-) -> Option<&'a [Binding]> {
-    thruster
-        .map(|bindings| bindings.0.as_slice())
-        .or_else(|| turret.map(|bindings| bindings.0.as_slice()))
-        .or_else(|| torpedo.map(|bindings| bindings.0.as_slice()))
-}
-
-fn conflict_for(
-    source: InputSource,
-    target: Entity,
-    ship: Entity,
-    sections: &Query<(
-        Entity,
-        &ChildOf,
-        Option<&SectionCode>,
-        Option<&SpaceshipThrusterInputBinding>,
-        Option<&SpaceshipTurretInputBinding>,
-        Option<&SpaceshipTorpedoInputBinding>,
-    )>,
-) -> Option<String> {
-    if let Some((_, verb)) = flight_rig_reserved_sources()
+fn reserved_conflict(source: InputSource) -> Option<String> {
+    flight_rig_reserved_sources()
         .into_iter()
         .find(|(reserved, _)| *reserved == source)
-    {
-        return Some(format!("flight control: {verb}"));
-    }
-    sections
-        .iter()
-        .filter(|(entity, parent, ..)| *entity != target && parent.parent() == ship)
-        .find_map(|(_, _, code, thruster, turret, torpedo)| {
-            section_bindings(thruster, turret, torpedo)?
-                .iter()
-                .filter_map(binding_source)
-                .any(|occupied| occupied == source)
-                .then(|| {
-                    code.map(|code| code.0.clone())
-                        .unwrap_or_else(|| "another section".to_string())
-                })
-        })
+        .map(|(_, verb)| format!("flight control: {verb}"))
 }
 
 #[allow(clippy::type_complexity)]
@@ -59,14 +21,6 @@ pub(crate) fn apply_ship_rebind(
     targets: Query<(
         &ChildOf,
         &EntityId,
-        Option<&SpaceshipThrusterInputBinding>,
-        Option<&SpaceshipTurretInputBinding>,
-        Option<&SpaceshipTorpedoInputBinding>,
-    )>,
-    sections: Query<(
-        Entity,
-        &ChildOf,
-        Option<&SectionCode>,
         Option<&SpaceshipThrusterInputBinding>,
         Option<&SpaceshipTurretInputBinding>,
         Option<&SpaceshipTorpedoInputBinding>,
@@ -107,7 +61,7 @@ pub(crate) fn apply_ship_rebind(
         return;
     };
     let ship = parent.parent();
-    if let Some(conflict) = conflict_for(source, target, ship, &sections) {
+    if let Some(conflict) = reserved_conflict(source) {
         runtime.note = Some((
             format!("{} is already used by {conflict}", source.label()),
             2.5,
@@ -147,6 +101,7 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+    use crate::ship::SectionCode;
 
     fn rebind_world() -> (World, Entity) {
         let mut world = World::new();
@@ -168,7 +123,7 @@ mod tests {
     }
 
     #[test]
-    fn another_section_on_the_same_ship_is_a_conflict() {
+    fn sections_on_the_same_ship_can_share_one_binding() {
         let (mut world, target) = rebind_world();
         let ship = world.get::<ChildOf>(target).unwrap().parent();
         world.spawn((
@@ -186,12 +141,34 @@ mod tests {
 
         world.run_system_once(apply_ship_rebind).unwrap();
 
-        let runtime = world.resource::<ShipRuntime>();
-        assert_eq!(runtime.rebinding, Some(target));
-        assert!(runtime
+        let target_bindings = &world.get::<SpaceshipTurretInputBinding>(target).unwrap().0;
+        assert_eq!(
+            binding_source(&target_bindings[0]),
+            Some(InputSource::Mouse(MouseButton::Left))
+        );
+        assert!(world.resource::<ShipRuntime>().rebinding.is_none());
+    }
+
+    #[test]
+    fn reserved_flight_control_remains_blocked() {
+        let (mut world, target) = rebind_world();
+        let key = flight_rig_reserved_sources()
+            .into_iter()
+            .find_map(|(source, _)| match source {
+                InputSource::Keyboard(key) => Some(key),
+                _ => None,
+            })
+            .expect("the flight rig reserves a keyboard input");
+        world.resource_mut::<ButtonInput<KeyCode>>().press(key);
+
+        world.run_system_once(apply_ship_rebind).unwrap();
+
+        assert_eq!(world.resource::<ShipRuntime>().rebinding, Some(target));
+        assert!(world
+            .resource::<ShipRuntime>()
             .note
             .as_ref()
-            .is_some_and(|(note, _)| note.contains("TRB-1")));
+            .is_some_and(|(note, _)| note.contains("flight control")));
     }
 
     #[test]
