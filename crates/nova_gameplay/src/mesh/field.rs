@@ -125,9 +125,15 @@ impl SignedField {
     ///
     /// Monotone by construction: a max can only raise a value, and raising a
     /// value can only remove material. A carve can never grow a body back.
-    pub fn subtract_sphere(&mut self, centre: Vec3, radius: f32) {
+    ///
+    /// Returns how much material this call actually took, in the grid's own
+    /// cubic units: one cell's worth per corner that changed from inside to
+    /// outside. That is the number a caller needs to tell a graze from a bite,
+    /// and it is not the sphere's own volume - a hit into an existing crater
+    /// flips nothing and removes nothing, however big the sphere was.
+    pub fn subtract_sphere(&mut self, centre: Vec3, radius: f32) -> f32 {
         if radius <= 0.0 {
-            return;
+            return 0.0;
         }
         let stride = self.resolution + 1;
         // One cell of slop, so the corners just outside the sphere - the ones
@@ -136,16 +142,171 @@ impl SignedField {
         let lower = self.corner_of(centre - Vec3::splat(reach));
         let upper = self.corner_of(centre + Vec3::splat(reach));
 
+        let mut flipped = 0u32;
         for z in lower[2]..=upper[2].min(stride - 1) {
             for y in lower[1]..=upper[1].min(stride - 1) {
                 for x in lower[0]..=upper[0].min(stride - 1) {
                     let at = self.corner_position(x, y, z);
                     let carved = radius - at.distance(centre);
                     let index = self.corner_index(x, y, z);
-                    self.corners[index] = self.corners[index].max(carved);
+                    let before = self.corners[index];
+                    self.corners[index] = before.max(carved);
+                    if before.is_sign_negative() && !self.corners[index].is_sign_negative() {
+                        flipped += 1;
+                    }
                 }
             }
         }
+
+        let cell = self.cell_size();
+        flipped as f32 * cell * cell * cell
+    }
+
+    /// Take every piece of the solid that is no longer joined to the biggest
+    /// one, leaving `self` holding only that biggest piece.
+    ///
+    /// What turns two craters meeting into a chunk flying off. A carve can cut
+    /// material FREE without removing it - eat through the neck between two
+    /// lobes and the far lobe is still drawn, still collided with, still part of
+    /// a body it is no longer attached to. That reads as a rock growing a
+    /// floating island.
+    ///
+    /// Connectivity is over the SOLID corners, 6-connected. Face adjacency and
+    /// not corner adjacency, deliberately: two lumps touching only at a grid
+    /// diagonal share no surface, so calling them joined would keep a piece
+    /// welded on by nothing a player can see.
+    ///
+    /// Each piece comes back as a field of its own, on the same grid, so it
+    /// meshes through exactly the same surface nets the parent does and lands
+    /// in the same space. The caller places them; this only decides what is
+    /// still attached.
+    pub fn split_off_islands(&mut self) -> Vec<Self> {
+        let labels = self.label_solid();
+        let Some(count) = labels.iter().filter_map(|label| *label).max() else {
+            // Nothing solid at all: carved away entirely.
+            return Vec::new();
+        };
+
+        let mut sizes = vec![0usize; count + 1];
+        for label in labels.iter().flatten() {
+            sizes[*label] += 1;
+        }
+        let biggest = sizes
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, size)| **size)
+            .map(|(label, _)| label)
+            .unwrap_or(0);
+
+        // How far outside a severed corner reads once its piece is gone. One
+        // cell: the piece is removed, not pushed away, so the value only has to
+        // carry the sign.
+        let outside = self.cell_size();
+        let mut islands = Vec::new();
+        for label in 0..=count {
+            if label == biggest || sizes[label] == 0 {
+                continue;
+            }
+            let mut island = self.clone();
+            for (index, corner) in labels.iter().enumerate() {
+                match *corner == Some(label) {
+                    // The island keeps its own corners and empties everywhere
+                    // else...
+                    false => island.corners[index] = outside,
+                    // ...and the parent loses exactly those.
+                    true => self.corners[index] = outside,
+                }
+            }
+            islands.push(island);
+        }
+        islands
+    }
+
+    /// Label every solid corner with the piece it belongs to, 1-based; `None`
+    /// where the corner is outside the solid.
+    ///
+    /// Iterative flood fill with an explicit stack. A recursive one would
+    /// descend as deep as the grid has solid corners - tens of thousands on a
+    /// whole rock - and blow the stack on the first uncarved body it met.
+    fn label_solid(&self) -> Vec<Option<usize>> {
+        let stride = self.resolution + 1;
+        let solid = |index: usize| self.corners[index].is_sign_negative();
+        let mut labels: Vec<Option<usize>> = vec![None; self.corners.len()];
+        let mut next = 0usize;
+        let mut stack: Vec<[usize; 3]> = Vec::new();
+
+        for z in 0..stride {
+            for y in 0..stride {
+                for x in 0..stride {
+                    let seed = self.corner_index(x, y, z);
+                    if !solid(seed) || labels[seed].is_some() {
+                        continue;
+                    }
+                    next += 1;
+                    labels[seed] = Some(next);
+                    stack.push([x, y, z]);
+                    while let Some(at) = stack.pop() {
+                        for axis in 0..3 {
+                            for step in [-1i32, 1] {
+                                let along = at[axis] as i32 + step;
+                                if along < 0 || along as usize >= stride {
+                                    continue;
+                                }
+                                let mut neighbour = at;
+                                neighbour[axis] = along as usize;
+                                let index =
+                                    self.corner_index(neighbour[0], neighbour[1], neighbour[2]);
+                                if !solid(index) || labels[index].is_some() {
+                                    continue;
+                                }
+                                labels[index] = Some(next);
+                                stack.push(neighbour);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        labels
+    }
+
+    /// How much solid the field holds, in the grid's own cubic units.
+    ///
+    /// One cell per corner that is inside, which is the same measure
+    /// [`subtract_sphere`](Self::subtract_sphere) reports removing - so a piece
+    /// and the bite that freed it are counted the same way and can be compared
+    /// against the same threshold.
+    pub fn solid_volume(&self) -> f32 {
+        let cell = self.cell_size();
+        let inside = self
+            .corners
+            .iter()
+            .filter(|value| value.is_sign_negative())
+            .count();
+        inside as f32 * cell * cell * cell
+    }
+
+    /// Where the solid's surface sits on average, in the grid's own space, or
+    /// `None` when there is no surface left.
+    ///
+    /// The average of the cell vertices, which is what the mesh is built from -
+    /// so a piece recentred on this draws about its own middle rather than about
+    /// the origin of the body it was cut out of.
+    pub fn surface_centre(&self) -> Option<Vec3> {
+        let cells = self.resolution;
+        let mut sum = Vec3::ZERO;
+        let mut count = 0u32;
+        for z in 0..cells {
+            for y in 0..cells {
+                for x in 0..cells {
+                    if let Some(vertex) = self.cell_vertex(x, y, z) {
+                        sum += vertex;
+                        count += 1;
+                    }
+                }
+            }
+        }
+        (count > 0).then(|| sum / count as f32)
     }
 
     /// The surface of the solid, as flat-shaded triangles in the grid's own
@@ -458,6 +619,108 @@ mod tests {
 
         assert!(triangles(&field.surface()).is_empty());
         assert_eq!(field.surface_radius(), 0.0);
+    }
+
+    /// THE claim severance rests on: a carve that cuts the body in two hands
+    /// back the piece that came off, and the parent keeps the bigger half. A
+    /// body that kept both would draw a chunk floating in place, attached to
+    /// nothing.
+    #[test]
+    fn a_cut_that_severs_a_piece_hands_the_piece_back() {
+        let mut field = SignedField::sample(40, 6.0, dumbbell());
+        assert!(
+            field.split_off_islands().is_empty(),
+            "delivery guard: the dumbbell starts as one piece"
+        );
+
+        // Eat the neck through, without cutting either lobe in half.
+        field.subtract_sphere(Vec3::new(0.45, 0.0, 0.0), 0.7);
+        let islands = field.split_off_islands();
+
+        assert_eq!(islands.len(), 1, "one piece came off");
+        let piece = &islands[0];
+        let centre = piece.surface_centre().expect("the piece has a surface");
+        assert!(
+            centre.x > 1.0,
+            "the piece that came off is the small right lobe, not the big left one: {centre}"
+        );
+        let kept = field.surface_centre().expect("the parent still has one");
+        assert!(kept.x < 0.0, "and the parent kept the bigger lobe: {kept}");
+    }
+
+    /// A severed piece is REMOVED from the parent, not copied out of it. Two
+    /// bodies drawing the same geometry in the same place is the bug this half
+    /// of the split exists to prevent.
+    #[test]
+    fn a_severed_piece_leaves_the_parent() {
+        let mut field = SignedField::sample(40, 6.0, dumbbell());
+        field.subtract_sphere(Vec3::new(0.45, 0.0, 0.0), 0.7);
+        let islands = field.split_off_islands();
+        assert_eq!(islands.len(), 1, "delivery guard: it severed");
+
+        let far = Vec3::new(2.2, 0.0, 0.0);
+        let nearest = triangles(&field.surface())
+            .iter()
+            .flatten()
+            .map(|vertex| vertex.distance(far))
+            .fold(f32::MAX, f32::min);
+        assert!(
+            nearest > 1.0,
+            "the parent still draws the piece it lost, {nearest} from its middle"
+        );
+    }
+
+    /// Two lobes joined by a thin neck: the shape a carve severs. The lobes are
+    /// deliberately different sizes, so which one the parent keeps is a claim
+    /// and not a coin toss.
+    fn dumbbell() -> impl Fn(Vec3) -> f32 {
+        |at: Vec3| {
+            let left = at.distance(Vec3::new(-2.0, 0.0, 0.0)) - 2.2;
+            let right = at.distance(Vec3::new(2.2, 0.0, 0.0)) - 1.6;
+            // A rod along X bridging the gap between them.
+            let radial = (at.y * at.y + at.z * at.z).sqrt() - 0.35;
+            let along = (at.x - 0.2).abs() - 1.2;
+            left.min(right).min(radial.max(along))
+        }
+    }
+
+    /// Corner adjacency is not attachment. Two lumps meeting at a grid diagonal
+    /// share no surface, so treating them as one body would weld a piece on by
+    /// nothing a player can see.
+    #[test]
+    fn pieces_touching_only_at_a_diagonal_are_two_pieces() {
+        // Hand-built: two solid corners meeting at a grid diagonal and nothing
+        // else. Too small a shape to write as a distance function.
+        let mut field = SignedField::sample(4, 2.0, |_| 1.0);
+        for corner in [[1, 1, 1], [2, 2, 2]] {
+            let index = field.corner_index(corner[0], corner[1], corner[2]);
+            field.corners[index] = -1.0;
+        }
+
+        assert_eq!(
+            field.split_off_islands().len(),
+            1,
+            "a diagonal is not attachment: two corners, two pieces, one handed back"
+        );
+    }
+
+    /// What a caller tells a graze from a bite with. Not the sphere's volume: a
+    /// hit into a crater that is already there takes nothing, however big.
+    #[test]
+    fn a_carve_reports_the_material_it_actually_took() {
+        let mut field = SignedField::sample(24, 4.0, ball(2.0));
+
+        let first = field.subtract_sphere(Vec3::new(2.0, 0.0, 0.0), 1.0);
+        assert!(first > 0.0, "a fresh crater takes material");
+        let again = field.subtract_sphere(Vec3::new(2.0, 0.0, 0.0), 1.0);
+        assert_eq!(again, 0.0, "the same crater again takes none");
+
+        let bigger =
+            SignedField::sample(24, 4.0, ball(2.0)).subtract_sphere(Vec3::new(2.0, 0.0, 0.0), 1.5);
+        assert!(
+            bigger > first,
+            "a bigger bite takes more: {bigger} vs {first}"
+        );
     }
 
     /// A carve reaches exactly as far as its sphere. The cost of a pinprick on

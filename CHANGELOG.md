@@ -98,6 +98,11 @@ tagged **(breaking)**.
   Seeds come from hashing a scenario id, so an unlucky name could hit it.
 - Every rock is meshed from its own carve field, so a hit changes the crater and
   nothing else; the field is dropped after meshing and rebuilt on the first hit.
+- Carve a rock apart and the piece FLIES OFF: anything a crater cuts free
+  becomes a rigid body of its own, carrying the drift and spin it had.
+- A carve big enough to matter throws real rubble you can fly into instead of
+  cosmetic chips. Small ones still throw dust. Debris drifts clear before it
+  starts colliding, so nothing kicks its own wreckage.
 - **(breaking)** A hull may carry several flight computers and steers better
   for it, on a curve capped at twice its strongest computer. Authority does
   not stack linearly.

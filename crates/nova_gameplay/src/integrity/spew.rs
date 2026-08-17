@@ -11,22 +11,41 @@
 //! was lost - [`mark_radius`](super::carve::mark_radius) already priced that
 //! out of the damage.
 //!
-//! # Why they are not physical debris
+//! # Dust, or a piece
+//!
+//! One decision, made here, on the VOLUME the carve announces: below
+//! [`CHUNK_MIN_VOLUME`] the material is pulverised and comes off as shards,
+//! above it there is enough of it to be worth simulating and it comes off as a
+//! body ([`chunk`](super::chunk)). A PDC round throws dust; a torpedo throws a
+//! piece of hull.
+//!
+//! Both answers arrive through the same event, and that is deliberate: a carve
+//! announces what it took and nothing about how it should look, so a mod that
+//! wants different thresholds - or no debris at all - replaces this observer
+//! rather than patching the carve.
+//!
+//! # Why shards are not physical debris
 //!
 //! Shards are `Kinematic` and carry NO collider, exactly as damage sparks do,
 //! and for a stronger reason. They are born INSIDE the body they came off - a
 //! crater's shards start in the hull's own collider - so a dynamic body with a
 //! collider would spawn interpenetrating and the solver would resolve that by
 //! shoving the two apart. A ship would kick itself sideways every time it was
-//! shot, which is a physics bug wearing a costume. The debris that IS physical
-//! is the kind that spawns when a body is destroyed and removed
-//! ([`explode`](super::explode)), where there is nothing left to push against.
+//! shot, which is a physics bug wearing a costume.
+//!
+//! A chunk has the same problem and solves it differently: it starts kinematic
+//! and grows its collider once it has drifted clear. It can afford to, because
+//! it is meant to still be there when it lands.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, RigidBody};
 use bevy::prelude::*;
 
-use super::carve::prelude::CarveSpew;
-use crate::prelude::TempEntity;
+use super::{
+    carve::prelude::CarveSpew,
+    chunk::prelude::{chunk_collider, spawn_carved_chunk, ChunkSpawn, CHUNK_MIN_VOLUME},
+    explode::prelude::FragmentMaterial,
+};
+use crate::{mesh::builder::TriangleMeshBuilder, prelude::TempEntity};
 
 /// `CarveSpewPlugin`.
 pub mod prelude {
@@ -70,6 +89,31 @@ const SPEW_SPIN: f32 = 7.0;
 /// How long a shard lives. Long enough to be seen leaving and to sell the
 /// direction, short enough that a long fight leaves no litter.
 const SHARD_LIFETIME_SECS: f32 = 2.5;
+
+/// How big a thrown piece is next to the crater it came out of.
+///
+/// Bigger than a shard and still well under the crater. The material a carve
+/// removes does not come off as one lump the size of the hole - most of it is
+/// pulverised - so a piece that looked half the crater wide would read as the
+/// body calving rather than as debris off a hit.
+const EJECTA_OF_CRATER: f32 = 0.3;
+
+/// The most real pieces one carve throws, however big it was.
+///
+/// Fewer than the dust it replaces, and for a different reason: every piece is
+/// a rigid body the solver carries for half a minute, so this is a budget and
+/// not a look. A carve throws two or three of them and the eye reads rubble.
+const EJECTA_MAX: usize = 3;
+
+/// How fast a thrown piece tumbles, in radians per second.
+const EJECTA_SPIN: f32 = 2.5;
+
+/// How far from round a thrown piece is drawn.
+///
+/// A lump scaled evenly is a die, however many facets it has. Squashing each
+/// piece differently on its own axes is what makes a handful of them read as
+/// broken rock rather than as a set of matching props.
+const EJECTA_SQUASH: f32 = 0.45;
 
 /// Marks a shard thrown by a carve, so a range can count them.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
@@ -155,7 +199,99 @@ fn shard_throw(outward: Vec3, at: Vec3, nth: usize) -> (Vec3, f32) {
     (direction, speed)
 }
 
-/// Throws shards out of a fresh crater.
+/// The one mesh and one hull every thrown lump is built from.
+///
+/// Shared for the reason the shard assets are, and scaled per lump on its own
+/// transform. An octahedron rather than a cube: the game is flat-shaded facets
+/// and a lump of rock or hull plating is angular but not square.
+type LumpAssets = (Handle<Mesh>, avian3d::prelude::Collider);
+
+/// Mint the shared lump mesh and its hull.
+fn lump_assets(meshes: &mut Assets<Mesh>) -> LumpAssets {
+    let mesh = TriangleMeshBuilder::new_octahedron(1).build();
+    // Hulled ONCE, off the unit lump, then scaled by each piece's transform.
+    // The unit octahedron has volume, so this never hits the degenerate case
+    // `chunk_collider` guards - but it goes through the same function anyway,
+    // because there should be one answer to "what collider does a piece get".
+    let collider = chunk_collider(&mesh).expect("a unit octahedron has bounds");
+    (meshes.add(mesh), collider)
+}
+
+/// How many real pieces a crater of `radius` throws.
+///
+/// The dust curve, capped harder: pieces cost a solver step each for as long as
+/// they live, so past a handful the count is a budget question rather than a
+/// look one.
+pub fn ejecta_count(radius: f32) -> usize {
+    shard_count(radius).min(EJECTA_MAX)
+}
+
+/// Throw real pieces of the body out of the crater.
+///
+/// Aimed the same way the dust is - the same deterministic cone, so the same
+/// hit throws the same rubble twice - and sized off the crater rather than off
+/// the exact volume: `radius` is already the cube root of what came off, so a
+/// torpedo's rubble is visibly bigger than a cannon shell's without a second
+/// number saying so.
+fn throw_ejected_pieces(
+    commands: &mut Commands,
+    spew: &CarveSpew,
+    outward: Vec3,
+    (mesh, collider): LumpAssets,
+    material: Handle<StandardMaterial>,
+) {
+    let size = spew.radius * EJECTA_OF_CRATER;
+    let count = ejecta_count(spew.radius);
+    trace!(
+        "spew_carved_material: {count} piece(s) of {size:.2} units off {:?} at {}",
+        spew.entity,
+        spew.at
+    );
+
+    for nth in 0..count {
+        let (direction, speed) = shard_throw(outward, spew.at, nth);
+        let piece = spawn_carved_chunk(
+            commands,
+            ChunkSpawn {
+                name: "Carve Ejecta".to_string(),
+                mesh: mesh.clone(),
+                // Started at the crater's LIP, so a piece is not drawn inside
+                // the material it just left. Turned to face the way it is
+                // going, so a handful of them are not all the same die.
+                transform: Transform::from_translation(spew.at + direction * spew.radius * 0.5)
+                    .with_rotation(Quat::from_rotation_arc(Vec3::Y, direction))
+                    .with_scale(squashed(size, spew.at, nth)),
+                velocity: direction * speed,
+                spin: direction.any_orthogonal_vector() * EJECTA_SPIN,
+                collider: collider.clone(),
+            },
+        );
+        commands
+            .entity(piece)
+            .insert(MeshMaterial3d(material.clone()));
+    }
+}
+
+/// A lump of `size`, squashed differently on each axis.
+///
+/// Deterministic on the crater and the piece's index, like everything else a
+/// carve throws, so the same hit produces the same rubble on a re-run.
+fn squashed(size: f32, at: Vec3, nth: usize) -> Vec3 {
+    let mut hash: u32 = 0x811c_9dc5 ^ (nth as u32).wrapping_mul(0x9e37_79b9);
+    for value in [at.x, at.y, at.z] {
+        hash ^= value.to_bits();
+        hash = hash.wrapping_mul(0x0100_0193);
+    }
+    let mut axis = || {
+        hash = hash.wrapping_mul(0x0100_0193);
+        hash ^= hash >> 15;
+        size * (1.0 - EJECTA_SQUASH * (hash >> 16) as f32 / 65_536.0)
+    };
+    Vec3::new(axis(), axis(), axis())
+}
+
+/// Throws what a carve took off: dust below [`CHUNK_MIN_VOLUME`], a real piece
+/// above it.
 pub struct CarveSpewPlugin;
 
 impl Plugin for CarveSpewPlugin {
@@ -167,13 +303,18 @@ impl Plugin for CarveSpewPlugin {
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the shared assets are minted lazily, so their stores ride along"
+)]
 fn spew_carved_material(
     spew: On<CarveSpew>,
     mut commands: Commands,
     mut cached: Local<Option<ShardAssets>>,
+    mut cached_lump: Local<Option<LumpAssets>>,
     meshes: Option<ResMut<Assets<Mesh>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
-    q_body: Query<&GlobalTransform>,
+    q_body: Query<(&GlobalTransform, Option<&FragmentMaterial>)>,
 ) {
     // A world with no asset stores has nothing to draw with and nothing that
     // could see the result: a headless server, or a test app that added the
@@ -182,17 +323,37 @@ fn spew_carved_material(
     let (Some(mut meshes), Some(mut materials)) = (meshes, materials) else {
         return;
     };
-    let (mesh, material) = cached
-        .get_or_insert_with(|| shard_assets(&mut meshes, &mut materials))
-        .clone();
 
+    let body = q_body.get(spew.entity).ok();
     // OUT of the body, which for a crater means away from the body's own
     // origin. A hit dead on the centre has no outward direction to speak of, so
     // it falls back to up rather than to a zero vector nothing can be built on.
-    let outward = q_body
-        .get(spew.entity)
-        .map(|frame| (spew.at - frame.translation()).normalize_or(Vec3::Y))
+    let outward = body
+        .map(|(frame, _)| (spew.at - frame.translation()).normalize_or(Vec3::Y))
         .unwrap_or(Vec3::Y);
+
+    if spew.volume >= CHUNK_MIN_VOLUME {
+        let (mesh, collider) = cached_lump
+            .get_or_insert_with(|| lump_assets(&mut meshes))
+            .clone();
+        let grey = cached
+            .get_or_insert_with(|| shard_assets(&mut meshes, &mut materials))
+            .1
+            .clone();
+        throw_ejected_pieces(
+            &mut commands,
+            &spew,
+            outward,
+            (mesh, collider),
+            body.and_then(|(_, material)| material)
+                .map_or(grey, |material| material.0.clone()),
+        );
+        return;
+    }
+
+    let (mesh, material) = cached
+        .get_or_insert_with(|| shard_assets(&mut meshes, &mut materials))
+        .clone();
 
     let size = (spew.radius * SHARD_OF_CRATER).max(SHARD_MIN_SIZE);
     let count = shard_count(spew.radius);
@@ -227,7 +388,10 @@ fn spew_carved_material(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::integrity::carve::prelude::{DamageMark, DamageMarks};
+    use crate::integrity::{
+        carve::prelude::{DamageMark, DamageMarks},
+        chunk::prelude::CarvedChunkMarker,
+    };
 
     fn spew_app() -> App {
         let mut app = App::new();
@@ -273,6 +437,7 @@ mod tests {
             entity: hull,
             at,
             radius: 1.0,
+            volume: CHUNK_MIN_VOLUME * 0.5,
         });
         app.update();
 
@@ -286,6 +451,73 @@ mod tests {
             assert!(
                 position.x >= at.x,
                 "a shard started inside the material it left: {position}"
+            );
+        }
+    }
+
+    /// THE line this module draws. A carve that took a hull plate's worth of
+    /// material has to leave something a ship can fly into; a carve that took a
+    /// PDC round's worth has to leave dust and nothing that has to be
+    /// simulated, or a long firefight would fill the field with rubble.
+    #[test]
+    fn a_big_bite_comes_off_as_a_body_and_a_small_one_as_dust() {
+        for (volume, chunks, shards_expected) in [
+            (CHUNK_MIN_VOLUME * 0.5, 0, true),
+            (CHUNK_MIN_VOLUME * 4.0, ejecta_count(1.0), false),
+        ] {
+            let mut app = spew_app();
+            let rock = app
+                .world_mut()
+                .spawn(GlobalTransform::from_translation(Vec3::ZERO))
+                .id();
+            app.world_mut().trigger(CarveSpew {
+                entity: rock,
+                at: Vec3::X * 3.0,
+                radius: 1.0,
+                volume,
+            });
+            app.update();
+
+            let thrown = app
+                .world_mut()
+                .query_filtered::<(), With<CarvedChunkMarker>>()
+                .iter(app.world())
+                .count();
+            assert_eq!(thrown, chunks, "volume {volume} threw {thrown} piece(s)");
+            assert_eq!(
+                !shards(&mut app).is_empty(),
+                shards_expected,
+                "volume {volume} threw the wrong kind of debris"
+            );
+        }
+    }
+
+    /// Real pieces are budgeted harder than dust: each one is a rigid body the
+    /// solver carries for half a minute, so a warhead must not be able to throw
+    /// as many of them as it throws chips.
+    #[test]
+    fn a_carve_throws_fewer_real_pieces_than_chips() {
+        for radius in [0.1f32, 0.5, 1.0, 3.0, 100.0] {
+            assert!(ejecta_count(radius) <= shard_count(radius));
+            assert!(ejecta_count(radius) <= EJECTA_MAX, "radius {radius}");
+        }
+        assert!(ejecta_count(3.0) > 0, "a big carve still throws something");
+    }
+
+    /// Rubble is rubble: no two pieces off one crater are the same shape, and
+    /// the same crater throws the same rubble twice.
+    #[test]
+    fn thrown_pieces_are_broken_rock_and_not_matching_props() {
+        let at = Vec3::new(1.0, 2.0, 3.0);
+        let first = squashed(1.0, at, 0);
+        let second = squashed(1.0, at, 1);
+
+        assert_ne!(first, second, "two pieces off one crater are not clones");
+        assert_eq!(first, squashed(1.0, at, 0), "and a re-run repeats them");
+        for piece in [first, second] {
+            assert!(
+                piece.max_element() <= 1.0 && piece.min_element() >= 1.0 - EJECTA_SQUASH,
+                "a piece is squashed, not resized: {piece}"
             );
         }
     }
@@ -321,6 +553,7 @@ mod tests {
             entity: rock,
             at: Vec3::Y * 2.0,
             radius: 0.8,
+            volume: CHUNK_MIN_VOLUME * 0.5,
         });
         app.update();
 

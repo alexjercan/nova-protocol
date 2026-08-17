@@ -39,14 +39,14 @@
 //! off a rock's surface was authored against a bigger rock than the one that is
 //! there now.
 
-use avian3d::prelude::{Collider, ColliderDensity};
+use avian3d::prelude::{AngularVelocity, Collider, ColliderDensity, LinearVelocity};
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::BodyRadius;
 
 use super::{
     asteroid::{AsteroidMarker, AsteroidRadius, AsteroidSeed},
-    asteroid_surface::prelude::RockHeight,
+    asteroid_surface::prelude::{AsteroidSurfaceMaterial, RockHeight},
 };
 
 /// `AsteroidField`, `AsteroidCarvePlugin` and the rock mesh they share with the
@@ -165,6 +165,114 @@ pub fn pristine_rock_mesh(seed: u32) -> Mesh {
     pristine_field(seed).surface().build()
 }
 
+/// Everything a piece needs to know about the body it is leaving.
+struct Parent {
+    /// The mesh node itself, which is the body a crumb is announced against.
+    node: Entity,
+    /// The mesh node's frame: what turns a point in the field's unit space into
+    /// a place in the world.
+    frame: GlobalTransform,
+    /// The body's own centre, which is what a piece's lever arm is measured
+    /// from.
+    centre: Vec3,
+    /// How the body is moving, in world units per second.
+    linear: Vec3,
+    /// How the body is turning, in radians per second.
+    angular: Vec3,
+    /// The rock's own material, which its pieces wear too.
+    ///
+    /// The triplanar shader samples by the body's own LOCAL position, and a
+    /// piece is a new body with a new origin - so a piece reads the rock's grain
+    /// from a different place than the rock does. For a rock that is invisible:
+    /// the grain is noise, and one patch of it looks like any other. What it
+    /// buys is that the piece keeps sampling in ITS own space as it tumbles,
+    /// which is what makes the texture sit still on it.
+    ///
+    /// `None` headless, where nothing is drawn at all.
+    material: Option<MeshMaterial3d<AsteroidSurfaceMaterial>>,
+}
+
+/// Put every severed piece into the world.
+///
+/// A piece big enough to be worth simulating becomes a body of its own, meshed
+/// by the SAME surface nets the rock is, off its own field - so it is exactly
+/// the geometry that left the rock, not an approximation of it and not a
+/// generic lump. Recentred on its own middle, because it is about to be a body
+/// and a body's origin should be inside it.
+///
+/// Velocity is `v + omega x r`: a piece off a tumbling rock carries the tumble,
+/// which is what makes it read as material that came loose rather than as
+/// something spawned nearby. The spin it inherits outright - a rigid body's
+/// pieces all turn at the body's rate.
+///
+/// A piece SMALLER than [`CHUNK_MIN_VOLUME`] is announced as a carve instead,
+/// which turns it into dust. A cut across a rock does not end at a clean line:
+/// it leaves crumbs all round the rim where the slab thinned out, and a run of
+/// the gallery produced eighteen of them off one cut. Eighteen rigid bodies of
+/// a few cells each is litter that costs a solver step; the same eighteen as
+/// puffs of dust is what a cut through rock looks like anyway.
+fn throw_severed_pieces(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    parent: &Parent,
+    islands: &[SignedField],
+) {
+    // Volumes are measured in the rock's own unit space, so they have to be
+    // scaled into world units before the world's threshold means anything.
+    let (scale, rotation, _) = parent.frame.to_scale_rotation_translation();
+    let cubic = scale.x * scale.y * scale.z;
+
+    for island in islands {
+        let Some(middle) = island.surface_centre() else {
+            continue;
+        };
+        let at = parent.frame.transform_point(middle);
+        let volume = island.solid_volume() * cubic;
+        if volume < CHUNK_MIN_VOLUME {
+            commands.trigger(CarveSpew {
+                entity: parent.node,
+                at,
+                // The crumb's own size, so the dust it becomes is the size of
+                // the thing that crumbled.
+                radius: (volume * 3.0 / (4.0 * std::f32::consts::PI)).cbrt(),
+                volume,
+            });
+            continue;
+        }
+
+        let mut mesh = island.surface().build();
+        // About its own middle: the field meshes in the ROCK's space, and a
+        // body drawn far from its own origin tumbles about a point outside
+        // itself.
+        mesh.translate_by(-middle);
+
+        let Some(collider) = chunk_collider(&mesh) else {
+            debug!("throw_severed_pieces: a piece had no usable bounds, dropped");
+            continue;
+        };
+
+        let piece = spawn_carved_chunk(
+            commands,
+            ChunkSpawn {
+                name: "Severed Rock".to_string(),
+                mesh: meshes.add(mesh),
+                transform: Transform {
+                    translation: at,
+                    rotation,
+                    scale,
+                },
+                velocity: parent.linear + parent.angular.cross(at - parent.centre),
+                spin: parent.angular,
+                collider,
+            },
+        );
+        // A chunk is handed back undressed - see `spawn_carved_chunk`.
+        if let Some(material) = parent.material.clone() {
+            commands.entity(piece).insert(material);
+        }
+    }
+}
+
 /// Give a rock its field the first time it is marked, then keep its mesh,
 /// collider and published radius in step with the marks.
 ///
@@ -185,7 +293,7 @@ pub fn pristine_rock_mesh(seed: u32) -> Mesh {
 /// rather than on the estimate that motivated the plan.
 #[expect(
     clippy::type_complexity,
-    reason = "the query carries the whole node: marks, field, parent and drawn mesh"
+    reason = "the query carries the whole node: marks, field, parent, frame and drawn art"
 )]
 fn carve_asteroid_fields(
     mut commands: Commands,
@@ -195,11 +303,18 @@ fn carve_asteroid_fields(
         &DamageMarks,
         Option<&mut AsteroidField>,
         &ChildOf,
+        &GlobalTransform,
         Option<&Mesh3d>,
+        Option<&MeshMaterial3d<AsteroidSurfaceMaterial>>,
     )>,
     q_asteroid: Query<(&AsteroidSeed, &AsteroidRadius, &BodyRadius), With<AsteroidMarker>>,
+    q_motion: Query<(
+        &GlobalTransform,
+        Option<&LinearVelocity>,
+        Option<&AngularVelocity>,
+    )>,
 ) {
-    for (node, marks, field, ChildOf(root), mesh) in &mut q_nodes {
+    for (node, marks, field, ChildOf(root), frame, mesh, chunk_material) in &mut q_nodes {
         if marks.0.is_empty() {
             continue;
         }
@@ -239,6 +354,42 @@ fn carve_asteroid_fields(
         // including the merge case, where a mark's radius grew in place.
         for mark in &marks.0 {
             field.field.subtract_sphere(mark.at, mark.radius);
+        }
+
+        // A carve can cut material FREE without removing it: eat through the
+        // neck between two lobes and the far lobe is drawn and collided with by
+        // a body it is no longer attached to. Split BEFORE remeshing, so the
+        // rock's new mesh, collider and radius are all of what is left of it.
+        let started = std::time::Instant::now();
+        let islands = field.field.split_off_islands();
+        let severed = started.elapsed();
+        if !islands.is_empty() {
+            debug!(
+                "carve_asteroid_fields: {node:?} severed {} piece(s) in {:.1} ms",
+                islands.len(),
+                severed.as_secs_f32() * 1000.0
+            );
+            let (centre, linear, angular) = match q_motion.get(*root) {
+                Ok((body, linear, angular)) => (
+                    body.translation(),
+                    linear.map_or(Vec3::ZERO, |velocity| velocity.0),
+                    angular.map_or(Vec3::ZERO, |velocity| velocity.0),
+                ),
+                Err(_) => (frame.translation(), Vec3::ZERO, Vec3::ZERO),
+            };
+            throw_severed_pieces(
+                &mut commands,
+                &mut meshes,
+                &Parent {
+                    node,
+                    frame: *frame,
+                    centre,
+                    linear,
+                    angular,
+                    material: chunk_material.cloned(),
+                },
+                &islands,
+            );
         }
 
         let started = std::time::Instant::now();
@@ -341,6 +492,86 @@ mod tests {
                 "a vertex sat at {radius} where the rock's surface is {expected}"
             );
         }
+    }
+
+    /// A severed piece has to land where it was, at the size it was, carrying
+    /// the motion it had. Everything about it is read off the rock's frame, so
+    /// a piece off a rock at the far end of a scenario must not appear at the
+    /// world origin at unit scale.
+    #[test]
+    fn a_severed_piece_carries_the_rock_it_left() {
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+
+        // A rock 100 units out, drawn at 4x, spinning about +Y.
+        let scale = 4.0;
+        let centre = Vec3::new(100.0, 0.0, 0.0);
+        let angular = Vec3::Y * 2.0;
+        // One island: a ball sitting off the rock's own middle in unit space.
+        let offset = Vec3::new(2.0, 0.0, 0.0);
+        let island = SignedField::sample(16, 4.0, move |at| at.distance(offset) - 1.0);
+        let cell = island.cell_size();
+
+        let rock = app.world_mut().spawn_empty().id();
+        app.world_mut()
+            .run_system_once(
+                move |mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>| {
+                    throw_severed_pieces(
+                        &mut commands,
+                        &mut meshes,
+                        &Parent {
+                            node: rock,
+                            frame: GlobalTransform::from(
+                                Transform::from_translation(centre).with_scale(Vec3::splat(scale)),
+                            ),
+                            centre,
+                            linear: Vec3::Z * 5.0,
+                            angular,
+                            material: None,
+                        },
+                        std::slice::from_ref(&island),
+                    );
+                },
+            )
+            .expect("the throw runs");
+
+        let mut q_pieces = app
+            .world_mut()
+            .query_filtered::<(&Transform, &LinearVelocity), With<CarvedChunkMarker>>();
+        let pieces: Vec<(Transform, Vec3)> = q_pieces
+            .iter(app.world())
+            .map(|(transform, velocity)| (*transform, velocity.0))
+            .collect();
+
+        assert_eq!(pieces.len(), 1, "the island became a body");
+        let (transform, velocity) = pieces[0];
+        let expected = centre + offset * scale;
+        assert!(
+            transform.translation.distance(expected) < cell * scale,
+            "the piece landed at {} rather than {expected}",
+            transform.translation
+        );
+        assert_eq!(
+            transform.scale,
+            Vec3::splat(scale),
+            "and is drawn at the rock's own scale, not at unit scale"
+        );
+        // v + omega x r: the rock's drift plus the speed the spin was already
+        // carrying that point at. Dropping the second term is what makes a
+        // piece off a tumbling rock look spawned rather than shed.
+        let expected = Vec3::Z * 5.0 + angular.cross(expected - centre);
+        assert!(
+            velocity.distance(expected) < 1.0,
+            "the piece left at {velocity} rather than {expected}"
+        );
+        assert!(
+            expected.distance(Vec3::Z * 5.0) > 1.0,
+            "delivery guard: the spin contributes something to measure"
+        );
     }
 
     /// The rule that keeps gravity and navigation valid without recomputing

@@ -31,7 +31,7 @@ use rand::RngExt;
 
 use super::components::prelude::*;
 use crate::{
-    integrity::neutralize::prelude::DefeatedMarker,
+    integrity::{chunk::prelude::chunk_collider, neutralize::prelude::DefeatedMarker},
     lifetime::TempEntity,
     mesh::prelude::{ExplodeFragments, ExplodeMesh},
     prelude::SpaceshipRootMarker,
@@ -65,20 +65,6 @@ const MESH_FRAGMENT_LIFETIME_SECS: f32 = 30.0;
 /// `destruction_finale` range asserts real deaths against it rather than
 /// against a copy that could drift.
 pub const BODY_FRAGMENT_BUDGET: usize = 4;
-
-/// The thinnest a fragment's collider may be, in the mesh's own units.
-///
-/// Ship art is full of FLAT panels, and a cut across one leaves coplanar
-/// vertices. parry hulls those into a shape with no volume, avian gives a
-/// volumeless dynamic body zero mass AND zero inertia, and the solver divides
-/// by it: the body's swept AABB comes back NaN and avian asserts on it frames
-/// later, deep inside `update_solver_body_aabbs`
-/// (`assertion failed: b.min.cmple(b.max).all()`). That took down a
-/// capital-scale fight the first time sections fragmented for real.
-///
-/// Asteroids never found this. A rock is a blob and every piece of one has
-/// volume; it took section art to produce a flat shard.
-const FRAGMENT_MIN_THICKNESS: f32 = 0.02;
 
 /// Marker component to indicate that an entity can be exploded.
 #[derive(Component, Clone, Debug, Default, Reflect)]
@@ -197,65 +183,6 @@ fn spawn_fallback_burst(
             TempEntity(2.0),
         ));
     }
-}
-
-/// A collider avian can actually simulate for a fragment of `mesh`, or `None`
-/// when the mesh has no bounds to work from and there is nothing to spawn.
-///
-/// Prefers the true convex hull, and falls back to the mesh's own bounding box
-/// padded to [`FRAGMENT_MIN_THICKNESS`] whenever that hull would leave the body
-/// without mass. MASS is the property tested rather than the vertex layout,
-/// because it is the one the solver divides by - a hull can be judged
-/// non-degenerate by its bounds and still come back with none.
-///
-/// A slightly boxy shard inside a debris burst that lasts a few seconds is not
-/// something a player can see. A NaN rigid body is a crash.
-fn fragment_collider(mesh: &Mesh) -> Option<Collider> {
-    let (centre, half) = mesh_bounds(mesh)?;
-
-    if half.min_element() > FRAGMENT_MIN_THICKNESS {
-        if let Some(hull) = Collider::convex_hull_from_mesh(mesh) {
-            if hull.mass_properties(1.0).mass > 0.0 {
-                return Some(hull);
-            }
-        }
-    }
-
-    // Offset by the bounds' centre: a fragment is a piece cut off a bigger
-    // mesh, so its geometry sits wherever it sat in the original and a box
-    // centred on the entity would not cover it.
-    let padded = half.max(Vec3::splat(FRAGMENT_MIN_THICKNESS));
-    Some(Collider::compound(vec![(
-        centre,
-        Quat::IDENTITY,
-        Collider::cuboid(padded.x * 2.0, padded.y * 2.0, padded.z * 2.0),
-    )]))
-}
-
-/// A mesh's local centre and half extents, or `None` when it carries no finite
-/// positions to measure.
-///
-/// Read straight off the position attribute rather than through bevy's
-/// `compute_aabb`, so the finite check is on the numbers this module is about
-/// to hand to the physics engine.
-fn mesh_bounds(mesh: &Mesh) -> Option<(Vec3, Vec3)> {
-    use bevy::mesh::VertexAttributeValues;
-    let VertexAttributeValues::Float32x3(positions) = mesh.attribute(Mesh::ATTRIBUTE_POSITION)?
-    else {
-        return None;
-    };
-
-    let mut min = Vec3::splat(f32::INFINITY);
-    let mut max = Vec3::splat(f32::NEG_INFINITY);
-    for position in positions {
-        let point = Vec3::from_array(*position);
-        if !point.is_finite() {
-            return None;
-        }
-        min = min.min(point);
-        max = max.max(point);
-    }
-    (min.cmple(max).all()).then(|| ((min + max) * 0.5, (max - min) * 0.5))
 }
 
 /// Despawn a destroyed entity that the finale does not own.
@@ -498,7 +425,7 @@ fn handle_entity_explosion(
         let transform = transform.with_translation(transform.translation + offset);
         // A collider is scaled by the entity's transform, so a degenerate scale
         // flattens even a good hull back to no volume - the same NaN body
-        // FRAGMENT_MIN_THICKNESS exists to prevent. Authored art is the source
+        // `chunk_collider` exists to prevent. Authored art is the source
         // of this scale, so it is not this module's to trust.
         if !transform.scale.is_finite() || transform.scale.min_element() <= f32::EPSILON {
             debug!(
@@ -514,7 +441,7 @@ fn handle_entity_explosion(
             );
             continue;
         };
-        let Some(collider) = fragment_collider(mesh) else {
+        let Some(collider) = chunk_collider(mesh) else {
             debug!(
                 "handle_entity_explosion: fragment of {:?} has no usable bounds",
                 fragment.origin

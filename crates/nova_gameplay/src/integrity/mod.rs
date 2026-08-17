@@ -16,6 +16,8 @@
 //! - [`erosion`] reads health as a level, for effects that grade a whole body.
 //! - [`carve`] remembers where the hits landed, for effects that change a
 //!   body's shape.
+//! - [`spew`] throws the dust a carve knocked off; [`chunk`] puts the PIECES
+//!   into the world as bodies of their own.
 //!
 //! [`NovaIntegrityPlugin`] bundles the generic gameplay modules.
 //!
@@ -24,6 +26,7 @@
 use bevy::prelude::*;
 
 pub mod carve;
+pub mod chunk;
 pub mod components;
 pub mod core;
 pub mod erosion;
@@ -35,9 +38,9 @@ pub mod spew;
 /// Every integrity submodule's prelude plus `NovaIntegrityPlugin`.
 pub mod prelude {
     pub use super::{
-        carve::prelude::*, components::prelude::*, core::prelude::*, erosion::prelude::*,
-        explode::prelude::*, health::prelude::*, neutralize::prelude::*, spew::prelude::*,
-        NovaIntegrityPlugin,
+        carve::prelude::*, chunk::prelude::*, components::prelude::*, core::prelude::*,
+        erosion::prelude::*, explode::prelude::*, health::prelude::*, neutralize::prelude::*,
+        spew::prelude::*, NovaIntegrityPlugin,
     };
 }
 
@@ -62,8 +65,11 @@ impl Plugin for NovaIntegrityPlugin {
         app.add_plugins(carve::DamageMarksPlugin);
 
         // What a carve took off, seen leaving. A crater that opened in silence
-        // reads as a rendering glitch rather than as a hit.
+        // reads as a rendering glitch rather than as a hit. Dust from `spew`,
+        // and real pieces from `chunk` once there is enough material to be
+        // worth simulating.
         app.add_plugins(spew::CarveSpewPlugin);
+        app.add_plugins(chunk::CarvedChunkPlugin);
 
         // Nova's reaction to destruction: mesh slice, debris, OnDestroyedEvent.
         app.add_plugins(explode::ExplodablePlugin);

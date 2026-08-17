@@ -295,6 +295,56 @@ breaks into rigid pieces. Eight steps, in order.
   costs a hundred times what displacing an octahedron did, and the analytic
   sweep in `asteroid_surface` still covers the noise across seeds at full width.
 
+#### 2 and 3. Severed pieces, and ejecta by volume - DONE
+
+Landed together: they are one question - what comes off a carve, and is it worth
+simulating - answered in two places that have to agree on the threshold.
+
+- `SignedField::split_off_islands` flood-fills the solid corners 6-CONNECTED
+  (face adjacency; two lumps meeting at a grid diagonal share no surface and are
+  not attached), keeps the biggest piece on the parent and hands the rest back
+  as fields of their own. Each is then meshed by the same surface nets the rock
+  is, so a piece is exactly the geometry that left it.
+- `integrity/chunk.rs` is where a piece becomes a body. A chunk spends
+  `CHUNK_GRACE_SECS` (0.5) KINEMATIC and colliderless, then goes dynamic and
+  grows its collider: it is born inside the collider it came off, and a dynamic
+  body spawned interpenetrating another gets shoved out hard enough to read as
+  the parent kicking its own debris. Matters most for SHIPS - a section's convex
+  collider has an inside - and costs an asteroid nothing, its collider being a
+  hollow trimesh.
+- A chunk is handed back UNDRESSED and the caller inserts the material, because
+  there is no one type to take: a rock's pieces want its triplanar
+  `ExtendedMaterial`, a section's want a plain `StandardMaterial`.
+- Severed rock pieces DO wear the parent's triplanar material, unlike death
+  fragments. The shader samples by the body's own local position and a piece has
+  a new origin, so it reads the rock's grain from a different place - which for
+  noise is invisible, and what it buys is the texture sitting still on a
+  tumbling piece.
+- `CHUNK_MIN_VOLUME` (1.0 cubic units = 80 hp at the cladding's toughness) is
+  the dust/debris line, and the shipped weapons sit far from it rather than near
+  it: a PDC round spends 4 and throws dust, a torpedo spends 750-2000 and throws
+  rubble. `CarveSpew` carries the volume so ships and rocks read the same rule.
+- Ejecta is sized off the crater (`EJECTA_OF_CRATER` 0.3) and capped at
+  `EJECTA_MAX` 3, each piece squashed differently by a hash of the crater. The
+  first attempt threw ONE lump holding the whole removed volume, which came out
+  as a 4.6-unit ball beside a 7-unit rock - the material a carve takes is mostly
+  pulverised, and a lump the size of the hole reads as the body calving.
+- Islands BELOW the threshold are announced as carves instead, so they become
+  dust. A cut does not end at a clean line: the gallery's cut left eighteen
+  crumbs round the rim where the slab thinned out, and eighteen rigid bodies of
+  a few cells each is litter with a solver cost.
+- `fragment_collider` moved to `chunk_collider` and is shared with the finale.
+  One answer to "what collider does a piece get", including the coplanar
+  zero-mass guard that took down a capital fight.
+- `carve_asteroids` gained a sixth column: a rock CUT IN TWO. A ring of surface
+  craters cannot do it - cutting deep enough to reach the axis makes each crater
+  nearly as wide as the rock, and their union swallows the caps it was supposed
+  to leave, so the rock does not come apart, it goes away. The cut is a salvo
+  walked across ONE PLANE through the body, which is what a torpedo does: a
+  blast resolves at a point in space, not on a surface.
+- MEASURED: the connectivity pass is 0.3-1.6 ms per carve on a 32^3 field, on
+  top of the 2-4 ms remesh. It runs on every carve, not only on ones that sever.
+
 ### Phase 5 - the finale, and delete the slicer
 
 - What is left of a body at death comes apart into bounded debris with
@@ -308,8 +358,9 @@ breaks into rigid pieces. Eight steps, in order.
 - ~~Located craters and any hit-point plumbing.~~ PULLED IN (2026-08-17). See
   "The level" above for why the gate forced it.
 - SHED, as an effect. Cut in Phase 3 for want of art, not deferred.
-- Island severing on a carved rock: a chunk cut free by two craters meeting is
-  still part of the body. `DESIGN-round3.md` B2 stage 3.
+- ~~Island severing on a carved rock: a chunk cut free by two craters meeting is
+  still part of the body. `DESIGN-round3.md` B2 stage 3.~~ PULLED IN
+  (2026-08-18) - see Phase 4b.
 - Repair, welding, or adding material back.
 - Health derived from geometry, volume-authoritative health, or any
   rebalancing of authored damage.

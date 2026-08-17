@@ -1,15 +1,16 @@
-//! carve_asteroids: one rock, shot progressively to bits, five times over.
+//! carve_asteroids: one rock, shot progressively to bits, and one cut in two.
 //!
 //! THE GATE for phase 4 of the erosion epic (task 20260813-224826). A ship's
 //! cladding carves one cell deep and then stops on the glTF hull underneath; a
 //! rock is solid all the way down, so this is where a carve gets to be as deep
 //! as the hit deserves and where the representation is really on trial.
 //!
-//! Five copies of the SAME fixed-seed rock, left to right, having taken 0, 1,
-//! 3, 6 and 12 hits at points scattered over their own surfaces. Nothing is
-//! poked directly: each hit goes through `apply_damage` with a world hit point,
-//! exactly as a turret round does, so what the row shows is what a fight would
-//! do.
+//! Six copies of the SAME fixed-seed rock, left to right. Five have taken 0, 1,
+//! 3, 6 and 12 hits at points scattered over their own surfaces; the sixth is
+//! CUT IN TWO by a salvo walked across one plane through it. Nothing is poked
+//! directly: each hit goes through `apply_damage` with a world hit point,
+//! exactly as a turret round and a torpedo blast do, so what the row shows is
+//! what a fight would do.
 //!
 //! What to judge:
 //!
@@ -25,6 +26,10 @@
 //!   smoother than its neighbours, the resolution is too high, not too low.
 //! - The SPEW: every carve throws shards out of the crater. Do they read as
 //!   material coming off, or as sparks?
+//! - The CUT column: the half the slab severs is a rigid body of its own from
+//!   the moment it comes free, drifting away on the motion it inherited. If it
+//!   sits welded in place, connectivity is not being checked; if it appears
+//!   somewhere else or at the wrong size, its frame is wrong.
 //!
 //! Costs are logged rather than guessed - run with
 //! `RUST_LOG=nova_scenario=debug` to see the seeding, remesh and collider-build
@@ -38,7 +43,8 @@
 //! Harnessed, the fleet's capture idiom:
 //! - `NOVA_AUTOPILOT=1`: load the row, shoot it, frame it, exit clean.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot `carve-asteroids.png` (the
-//!   whole row) and one `carve-asteroids-<hits>.png` per rock.
+//!   whole row), one `carve-asteroids-<hits>.png` per scattered rock, and
+//!   `carve-asteroids-cut.png` for the severed one.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -47,21 +53,125 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "carve_asteroids")]
 #[command(version = "1.0.0")]
-#[command(about = "One rock at five levels of being shot to bits", long_about = None)]
+#[command(about = "One rock at five levels of being shot to bits, and one cut in two", long_about = None)]
 struct Cli;
 
-/// How many hits each rock in the row has taken.
-///
-/// Ends at 12 and not at the mark budget (24): past a dozen craters the
-/// silhouette is mostly crater and the row stops telling anybody anything new.
-const HITS: [usize; 5] = [0, 1, 3, 6, 12];
+/// What is done to each rock in the row, left to right.
+#[derive(Clone, Copy)]
+enum Shot {
+    /// Craters scattered over the whole surface: what a firefight does to a
+    /// rock it is not trying to break.
+    Scatter(usize),
+    /// Craters walked across ONE PLANE through the rock, so their union is a
+    /// slab and what is above it comes free. A torpedo resolves its blast at a
+    /// point in space rather than on a surface, so a salvo walked across a rock
+    /// is what this is - and it is the only thing in the row that severs.
+    ///
+    /// A ring of surface craters cannot do it. Cutting deep enough to reach the
+    /// axis means each crater is nearly as wide as the rock, and their union
+    /// then swallows the caps it was supposed to leave behind: the rock does not
+    /// come apart, it goes away.
+    Cut(usize),
+}
 
-/// What one hit costs, in health.
+impl Shot {
+    /// How many hits this column takes.
+    fn hits(self) -> usize {
+        match self {
+            Shot::Scatter(hits) | Shot::Cut(hits) => hits,
+        }
+    }
+
+    /// What one of its hits costs, in health.
+    fn damage(self) -> f32 {
+        match self {
+            Shot::Scatter(_) => HIT_DAMAGE,
+            Shot::Cut(_) => CUT_DAMAGE,
+        }
+    }
+
+    /// What the column is called in the shot.
+    fn name(self) -> String {
+        match self {
+            Shot::Scatter(hits) => format!("{hits} hit(s)"),
+            Shot::Cut(hits) => format!("cut, {hits} hit(s)"),
+        }
+    }
+
+    /// The capture this column is shot into.
+    fn shot_name(self) -> String {
+        match self {
+            Shot::Scatter(hits) => format!("carve-asteroids-{hits}.png"),
+            Shot::Cut(_) => "carve-asteroids-cut.png".to_string(),
+        }
+    }
+
+    /// Where its `nth` hit lands, relative to the rock's own centre, in world
+    /// units.
+    fn hit_at(self, nth: usize) -> Vec3 {
+        match self {
+            // The golden-angle spiral over the rock's own surface, so hits land
+            // all over it rather than bunching.
+            Shot::Scatter(count) => {
+                let height = 1.0 - 2.0 * (nth as f32 + 0.5) / count.max(1) as f32;
+                let ring = (1.0 - height * height).max(0.0).sqrt();
+                let turn = nth as f32 * 2.399_963_2;
+                let direction =
+                    Vec3::new(ring * turn.cos(), height, ring * turn.sin()).normalize_or(Vec3::Y);
+                surface_point(direction)
+            }
+            // One blast on the axis and the rest in a ring around it, all in the
+            // y = 0 plane: the craters overlap into a slab wider than the rock.
+            Shot::Cut(count) => {
+                let at = match nth {
+                    0 => Vec3::ZERO,
+                    _ => {
+                        let turn =
+                            (nth - 1) as f32 / (count - 1).max(1) as f32 * std::f32::consts::TAU;
+                        Vec3::new(turn.cos(), 0.0, turn.sin()) * CUT_SPACING
+                    }
+                };
+                at * ROCK_RADIUS
+            }
+        }
+    }
+}
+
+/// The row, left to right.
+///
+/// The scatter columns end at 12 and not at the mark budget (24): past a dozen
+/// craters the silhouette is mostly crater and the row stops telling anybody
+/// anything new. The cut column is the sixth because severance is a different
+/// claim from cratering - the piece that comes off is a body of its own.
+const ROW: [Shot; 6] = [
+    Shot::Scatter(0),
+    Shot::Scatter(1),
+    Shot::Scatter(3),
+    Shot::Scatter(6),
+    Shot::Scatter(12),
+    Shot::Cut(7),
+];
+
+/// What one scattering hit costs, in health.
 ///
 /// Sized so `mark_radius` prices it into a crater about one and a half world
 /// units across - a bite a rock this size visibly loses, rather than the
 /// pockmark a PDC round would leave.
 const HIT_DAMAGE: f32 = 600.0;
+
+/// What one hit of the cut costs.
+///
+/// Prices a crater of 2.44 in the rock's own unit space, just over
+/// [`CUT_SPACING`], so the seven overlap into a solid slab about four units
+/// thick rather than a row of holes with material between them.
+const CUT_DAMAGE: f32 = 4200.0;
+
+/// How far apart the cut's craters sit, in the rock's own unit space.
+///
+/// The centre blast plus six at this radius covers a disk 4.8 across, which is
+/// wider than the rock's furthest reach - so the slab goes all the way through
+/// rather than leaving a rim holding the two halves together.
+const CUT_SPACING: f32 = 2.4;
 
 /// One noise seed for every rock: the row varies the damage only.
 const ROCK_SEED: u32 = 20260817;
@@ -108,18 +218,6 @@ fn setup_gallery(mut commands: Commands, game_assets: Res<GameAssets>) {
     commands.trigger(LoadScenario(gallery(&game_assets)));
 }
 
-/// The `nth` of `count` directions spread evenly over the sphere.
-///
-/// The golden-angle spiral, so a rock's hits land all over it rather than
-/// bunching, and DETERMINISTICALLY, so the row is the same row on every run.
-fn hit_direction(nth: usize, count: usize) -> Vec3 {
-    let height = 1.0 - 2.0 * (nth as f32 + 0.5) / count as f32;
-    let ring = (1.0 - height * height).max(0.0).sqrt();
-    // The golden angle, which is what keeps successive points from lining up.
-    let turn = nth as f32 * 2.399_963_2;
-    Vec3::new(ring * turn.cos(), height, ring * turn.sin()).normalize_or(Vec3::Y)
-}
-
 /// Where a rock's surface actually is along `direction`, in world units.
 ///
 /// Computed from the SAME sampler the mesh is built with rather than from
@@ -141,7 +239,7 @@ fn surface_point(direction: Vec3) -> Vec3 {
 fn shoot_the_row(world: &mut World) {
     // The carvable node is the CHILD that carries the marks, not the asteroid
     // root: the root is the rigid body, the child is the mesh and collider.
-    let mut nodes: Vec<(Entity, Vec3, usize)> = Vec::new();
+    let mut nodes: Vec<(Entity, Vec3, Shot)> = Vec::new();
     {
         let mut q_nodes = world.query_filtered::<(Entity, &ChildOf), With<DamageMarks>>();
         let mut roots = world.query::<&EntityId>();
@@ -153,21 +251,24 @@ fn shoot_the_row(world: &mut World) {
             let Ok(id) = roots.get(world, root) else {
                 continue;
             };
-            let Some(index) = (0..HITS.len()).find(|index| column_id(*index) == id.as_str()) else {
+            let Some(index) = (0..ROW.len()).find(|index| column_id(*index) == id.as_str()) else {
                 continue;
             };
-            nodes.push((node, column_position(index), HITS[index]));
+            nodes.push((node, column_position(index), ROW[index]));
         }
     }
 
-    for (node, centre, hits) in nodes {
-        for nth in 0..hits {
-            let at = centre + surface_point(hit_direction(nth, hits.max(1)));
+    for (node, centre, shot) in nodes {
+        for nth in 0..shot.hits() {
+            let at = centre + shot.hit_at(nth);
             let mut commands = world.commands();
-            apply_damage(&mut commands, node, None, HIT_DAMAGE, Some(at));
+            apply_damage(&mut commands, node, None, shot.damage(), Some(at));
             world.flush();
         }
-        info!("carve asteroids: rock at {centre} took {hits} hit(s)");
+        info!(
+            "carve asteroids: rock at {centre} took {} hit(s)",
+            shot.hits()
+        );
     }
 }
 
@@ -214,10 +315,10 @@ fn gallery_script() -> Script {
         .until(elapsed(0.5))
         .add();
 
-    HITS.iter()
+    ROW.iter()
         .enumerate()
-        .fold(script, |script, (index, hits)| {
-            let name = format!("carve-asteroids-{hits}.png");
+        .fold(script, |script, (index, shot)| {
+            let name = shot.shot_name();
             script
                 .step("frame the next rock")
                 .on_enter(move |world: &mut World| frame_column(world, index))
@@ -238,7 +339,7 @@ fn gallery_script() -> Script {
 
 /// The middle of the row, which the establishing shot is centred on.
 fn row_centre() -> Vec3 {
-    Vec3::new((HITS.len() as f32 - 1.0) * COLUMN_PITCH * 0.5, 0.0, 0.0)
+    Vec3::new((ROW.len() as f32 - 1.0) * COLUMN_PITCH * 0.5, 0.0, 0.0)
 }
 
 /// Point the scenario camera at one rock, close in.
@@ -253,10 +354,11 @@ fn frame_column(world: &mut World, index: usize) {
 }
 
 fn rock(game_assets: &GameAssets, index: usize) -> ScenarioObjectConfig {
+    let shot = ROW[index];
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: column_id(index),
-            name: format!("{} hit(s)", HITS[index]),
+            name: shot.name(),
             position: column_position(index),
             rotation: Quat::IDENTITY,
         },
@@ -277,7 +379,7 @@ fn rock(game_assets: &GameAssets, index: usize) -> ScenarioObjectConfig {
 }
 
 fn gallery(game_assets: &GameAssets) -> ScenarioConfig {
-    let rocks: Vec<EventActionConfig> = (0..HITS.len())
+    let rocks: Vec<EventActionConfig> = (0..ROW.len())
         .map(|index| EventActionConfig::SpawnScenarioObject(rock(game_assets, index)))
         .collect();
 
