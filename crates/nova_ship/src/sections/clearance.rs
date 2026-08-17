@@ -177,8 +177,8 @@ pub fn blocked_exits(structure: &SkinStructure, exits: &[ShipExit]) -> Vec<Block
                     reason: BlockedExitReason::Structure,
                 });
             }
-            for face in 0..FACES.len() {
-                let beside = cell + FACES[face];
+            for (face, direction) in FACES.iter().copied().enumerate() {
+                let beside = cell + direction;
                 if structure.offers(beside, face ^ 1) == Some(true) {
                     blocked.push(BlockedExit {
                         part: exit.cell,

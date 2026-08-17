@@ -26,9 +26,10 @@ pub mod prelude {
         badge, button, button_on_setting, checkbox, checkbox_colors, checkbox_glyph, list_row,
         list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, segmented,
         segmented_container, segmented_option, separator, slider_meter_color, slider_track,
-        themed_button, toggle, BadgeKind, ButtonSpec, ButtonValue, ButtonVariant, ListRow,
-        PanelSkin, SegmentedSkin, Selected, SliderBlock, SliderFill, SliderTrackSkin, ThemedButton,
-        UiText, SLIDER_SEGMENTS,
+        text_field, themed_button, toggle, BadgeKind, ButtonSpec, ButtonValue, ButtonVariant,
+        ListRow, PanelSkin, SegmentedSkin, Selected, SliderBlock, SliderFill, SliderTrackSkin,
+        TextField, TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted,
+        TextFieldValue, ThemedButton, UiText, SLIDER_SEGMENTS,
     };
 }
 
@@ -39,11 +40,13 @@ mod paint;
 mod panel;
 mod segmented;
 mod slider;
+mod text_field;
 
 #[cfg(test)]
 mod fixtures;
 
 use bevy::{
+    input::keyboard::KeyboardInput,
     picking::hover::Hovered,
     prelude::*,
     text::FontSource,
@@ -55,6 +58,7 @@ pub use list_row::*;
 pub use panel::*;
 pub use segmented::*;
 pub use slider::*;
+pub use text_field::*;
 
 use self::{
     button::{button_on_interaction, reconcile_button_skins},
@@ -62,6 +66,7 @@ use self::{
     panel::reconcile_panel_skins,
     segmented::reconcile_segmented_skins,
     slider::{reconcile_slider_track_skins, sync_slider_tracks},
+    text_field::{paint_text_fields, text_field_keyboard, text_field_on_pointer},
 };
 use crate::{font::UiFont, skin::UiSkin};
 
@@ -80,6 +85,8 @@ pub(crate) fn build(app: &mut App) {
     // widget layer self-contained for tests and slim apps even though settings
     // is what persists it.
     app.init_resource::<UiSkin>();
+    app.add_message::<KeyboardInput>();
+    app.add_message::<TextFieldSubmitted>();
 
     app.add_observer(button_on_interaction::<Add, Pressed>)
         .add_observer(button_on_interaction::<Remove, Pressed>)
@@ -91,7 +98,8 @@ pub(crate) fn build(app: &mut App) {
 
     app.add_observer(list_row_on_interaction::<Insert, Hovered>)
         .add_observer(list_row_on_interaction::<Add, Selected>)
-        .add_observer(list_row_on_interaction::<Remove, Selected>);
+        .add_observer(list_row_on_interaction::<Remove, Selected>)
+        .add_observer(text_field_on_pointer);
 
     app.add_systems(
         Update,
@@ -107,6 +115,8 @@ pub(crate) fn build(app: &mut App) {
             // this same frame.
             reconcile_slider_track_skins,
             sync_slider_tracks.after(reconcile_slider_track_skins),
+            text_field_keyboard,
+            paint_text_fields,
         ),
     );
     // NOTE: route the font BEFORE UI text is measured/laid out (PostUpdate,

@@ -55,6 +55,7 @@ struct Cli;
 /// guidance at once is a load the code has to survive, not an engagement anyone
 /// will fly. Read it as a ceiling the ordnance lifecycle is proven under, never
 /// as a balance figure.
+#[cfg(feature = "debug")]
 const TORPEDOES_IN_FLIGHT: usize = 1000;
 
 /// ABSURD SCALE (see [`TORPEDOES_IN_FLIGHT`]): two hundred tubes on one hull.
@@ -72,6 +73,7 @@ const TORPEDO_BAYS: usize = 200;
 
 /// The sections the hull carries: the flight computer, plus the rack. The
 /// exact-count invariant reads this.
+#[cfg(feature = "debug")]
 const SECTIONS_ON_THE_HULL: usize = 1 + TORPEDO_BAYS;
 
 /// The bay content id every tube is built from: the shipped Serpent bay, so the

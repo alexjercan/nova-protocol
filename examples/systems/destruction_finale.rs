@@ -226,6 +226,7 @@ fn finale_script() -> Script {
 }
 
 /// The player ship root, if it exists.
+#[cfg(feature = "debug")]
 fn player_root(world: &World) -> Option<Entity> {
     world
         .try_query_filtered::<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>()?

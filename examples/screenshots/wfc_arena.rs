@@ -42,12 +42,13 @@
 //!
 //! - `TEAM` is a callsign, `amber` or `onyx` ([`TEAMS`]), and is the only
 //!   field a ship must carry.
-//! - `STYLE` is a style id out of the merged content, for a hull that wears
-//!   its own look. Empty means the run's look - what `--style` sets and `L`
-//!   cycles - so `amber::7` is a default-look ship on a pinned seed.
+//! - `STYLE` is a style id out of the merged content. The lobby owns one style
+//!   per side: `--style` initializes both sides, then explicit ship styles apply
+//!   in command order, so the last explicit style for a side wins.
 //! - `SEED` pins that hull's collapse instead of drafting one off the stream.
 //!   A pin is an instruction: the hull spawns as rolled even under the
-//!   armament floor (the log says so), and `R` re-rolls the rest around it.
+//!   armament floor (the log says so). The lobby reroll button replaces it with
+//!   another combat-viable seed.
 //! - a trailing `player` field puts YOU in that hull (at most one slot; the
 //!   token wins over a style of the same name, which the content does not
 //!   have).
@@ -59,16 +60,16 @@
 //! campaign's flight rig and HUD, every gun on the left mouse (the campaign's
 //! turret binding), every tube on `F` - and the example's own cameras STAND
 //! DOWN: no `Q`/`E`/`1-4` vantages, no idle orbit, the chase-camera authority
-//! owns the view, and the readout drops the camera help to match. The
-//! enemies still fly the cold approach ([`ENGAGE_RANGE`]); the player fires
+//! owns the view. The enemies still fly the cold approach ([`ENGAGE_RANGE`]); the player fires
 //! whenever they like. REFUSED under `NOVA_AUTOPILOT`: the driven walk
 //! proves an AI-vs-AI fight, and a hull waiting on human input would stall
 //! the fight predicate into its deadline - a run that asks for both is a
 //! contradiction and fails loudly rather than quietly drafting an AI where
 //! a player was requested.
 //!
-//! Hand-run (`R` re-rolls the roster on fresh seeds, `L` cycles the look, WASD
-//! and the mouse take the camera free):
+//! A hand-run opens the match configurator. Choose each side's style, edit or
+//! reroll exact ship seeds, add up to four ships per side, and choose at most
+//! one player slot. WASD and the mouse take the in-match spectator camera free:
 //! ```text
 //! cargo run --example wfc_arena --features debug
 //! cargo run --example wfc_arena --features debug -- --seed 7 --style salvage
@@ -78,17 +79,23 @@
 //! cargo run --example wfc_arena --features debug -- --ship amber:player --ship onyx
 //! ```
 //!
+//! Escape freezes a live match and opens Resume, exact Restart, Return to Lobby
+//! and Quit. A player can open NOVA OS, select a bindable section in `ship`, and
+//! press `B` to replace that section's complete keyboard/mouse binding. Conflicts
+//! with flight controls or another section are refused; accepted overrides
+//! survive match restart and a return to the lobby.
+//!
 //! The fight is MEASURED, not presumed, and measured PER TEAM rather than per
-//! hull: a scoreboard counts every round and torpedo each team fires, BY
-//! FLAVOUR (`ProjectileOwner` resolves the shooter, which wears its team's
-//! allegiance; the projectile names its own kind), which is what turns "all
-//! four flavours were in this fight" into a reading of the run rather than a
-//! claim about the draft. It also counts every point of section health the
-//! other team takes (per-team pool
-//! deltas, which sees plate damage the isolated-cladding rule keeps off the
-//! roots). The readout wears the score and the log restates it every few
-//! seconds, so a frame or a log line is evidence the fight happened rather than
-//! a picture of some hulls parked near each other.
+//! hull: a scoreboard counts every round and torpedo each team fires. Its rows
+//! come from projectile-carried `DamageType` variants and authored torpedo
+//! names, so a new ammunition type needs no arena edit. It also counts every
+//! point of section health the other team takes through per-team pool deltas,
+//! which see plate damage the isolated-cladding rule keeps off the roots. The
+//! log restates the live score. Losing every live flight computer freezes the
+//! fight and opens the final team, ammunition and per-ship result board. A
+//! 180-second global inactivity window resolves a deadlock by remaining team
+//! structure percentage. Ships outside the 20 km arena sphere show a 30-second
+//! warning, then lose their flight computers if they do not return.
 //!
 //! The arena reads as a place, not a void: the standard three-point rig, a
 //! ring of rocks below the fight plane for depth parallax (the editor
@@ -99,8 +106,8 @@
 //! ([`DERELICT_BLOBS`]). No controller, no allegiance, so the AI never
 //! targets one; pinned static where the seed drops them ([`freeze_junk`] -
 //! scenery holds its pose, and a controller-less hull's massless body must
-//! never touch the physics the fight reads); they re-roll with `R` off the
-//! same stream head the fight does.
+//! never touch the physics the fight reads); their seeds follow the lobby's
+//! resolved roster stream.
 //!
 //! The OPENING is an approach, not an ambush. The lines spawn ~305 u apart -
 //! well past the gun gate - and fly in COLD: an arrival grace holds both teams on
@@ -136,8 +143,8 @@
 //! reasons: the stock widget's colours are semantic ally/threat and its own
 //! recolour system owns them; it marks every non-player ship including the
 //! junk, which must stay unmarked; and it is instrument-tier, so a capture's
-//! cinematic HUD would hide it - the chevrons follow the READOUT's rule
-//! instead (grave/tilde in a hand-run, always present in a capture, where
+//! cinematic HUD would hide it - the chevrons follow the arena's visibility
+//! rule instead (grave/tilde in a hand-run, always present in a capture, where
 //! two identifiable sides are part of the evidence). The example tags the
 //! scenario camera as the indicator projector - the game only tags the
 //! player's chase camera, and this arena has no player - and retires the
@@ -150,8 +157,7 @@
 //! free camera included, parks and STAYS parked; press `Q` to get the
 //! turntable back. `E` is the one that never turns at all: it holds its
 //! bearing over the fight and only re-centres, so it reads as a tactical plot
-//! rather than a sweep. Grave/tilde cycles the game HUD and the scoreboard
-//! readout follows it in a hand-run.
+//! rather than a sweep. Grave/tilde cycles the game HUD.
 //!
 //! Harnessed (`NOVA_AUTOPILOT=1`, plus `NOVA_CAPTURE=1` to stage the shot):
 //! wait for the arena, hold until BOTH teams have fired and BOTH have dealt
@@ -159,6 +165,8 @@
 //! not a quiet pose - then shoot the brawl mid-swing.
 
 // Only for freezing the junk, which is a FRAMING choice - see `freeze_junk`.
+use std::collections::BTreeMap;
+
 use avian3d::prelude::RigidBody;
 use bevy::{platform::collections::HashMap, prelude::*};
 // The player slot's weapon bindings are authored in the game's own binding
@@ -166,7 +174,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_enhanced_input::prelude::Binding;
 use clap::Parser;
 // Direct, not through `nova_protocol::nova_debug`: that path only exists under
-// the `debug` feature, and `capturing()` gates the idle orbit and the readout
+// the `debug` feature, and `capturing()` gates the idle orbit and chevrons
 // in EVERY build.
 use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
@@ -174,6 +182,12 @@ use nova_protocol::prelude::*;
 // generator's own seed stream.
 use rand::{rngs::StdRng, RngExt, SeedableRng};
 
+#[path = "wfc_arena/lobby.rs"]
+mod lobby;
+#[path = "wfc_arena/pause.rs"]
+mod pause;
+#[path = "wfc_arena/result.rs"]
+mod result;
 #[path = "shared/wfc.rs"]
 mod wfc;
 use wfc::{refuse_broken_ships, style_at, tile_set, wfc_hull, StyleId};
@@ -188,14 +202,13 @@ struct Cli {
     #[arg(long, default_value_t = DEFAULT_SEED)]
     seed: u64,
     /// One hull of the roster, repeatable: `TEAM[:STYLE[:SEED]][:player]`,
-    /// where TEAM is `amber` or `onyx`, STYLE is a style id (empty = the
-    /// run's look), SEED pins the collapse and a trailing `player` puts you
+    /// where TEAM is `amber` or `onyx`, STYLE initializes that side's style,
+    /// SEED pins the collapse and a trailing `player` puts you
     /// in the hull (at most one). No `--ship` at all fields one hull per
     /// team.
     #[arg(long = "ship", value_name = "TEAM[:STYLE[:SEED]][:player]", value_parser = parse_ship)]
     ships: Vec<ShipSpec>,
-    /// Start on this style id instead of the first the content offers. `L`
-    /// cycles from wherever this leaves the roster.
+    /// Initialize both sides with this style id instead of the first style.
     #[arg(long)]
     style: Option<String>,
 }
@@ -208,7 +221,7 @@ const DEFAULT_SEED: u64 = 20_260_816;
 /// so an AI-vs-AI fight needs one team flying the player's colors - the same
 /// trick every AI-vs-AI backdrop uses.
 struct Team {
-    /// Callsign for the readout, the log and the `--ship` argument, since
+    /// Callsign for the result board, log and `--ship` argument, since
     /// "player" would be a lie about who is driving.
     callsign: &'static str,
     allegiance: Allegiance,
@@ -319,8 +332,8 @@ const FRAGMENT_MAX_SECTIONS: usize = 8;
 /// debris field, not a pile.
 const FRAGMENT_SHELL: (f32, f32) = (6.0, 40.0);
 const FRAGMENT_SEPARATION: f32 = 12.0;
-/// Salt on the roster's stream head for the fragment rolls: the junk re-rolls
-/// with `R` (the head advances) and never duplicates a combatant's seed (the
+/// Salt on the roster's stream head for the fragment rolls: the junk follows
+/// the lobby's resolved seed head and never duplicates a combatant's seed (the
 /// draft scans at most [`DRAFT_SCAN_CAP`] past the head).
 const DERELICT_SEED_SALT: u64 = 0xDEAD;
 /// The scenario id prefix a fragment spawns under - distinct from
@@ -341,11 +354,6 @@ const PLANETOID_SEED: u32 = 20_260_816;
 /// the arena names them, it does not author them.
 const SERPENT_BAY: &str = "torpedo_section";
 const LANCE_BAY: &str = "lance_torpedo_section";
-/// The NAME the Lance type wears in flight (`TorpedoType`), which is how the
-/// scoreboard tells the two ordnances apart once they have left the tube. The
-/// one content string this file has to know: a projectile carries its type,
-/// not the id of the bay that launched it.
-const LANCE_TYPE: &str = "Lance";
 const KINETIC_MOUNT: &str = "pdc_kinetic_turret_section";
 const PIERCE_MOUNT: &str = "pdc_pierce_turret_section";
 
@@ -380,6 +388,7 @@ fn main() -> bevy::app::AppExit {
         ships,
         drafted: Vec::new(),
         style: 0,
+        binding_overrides: BTreeMap::new(),
     };
     let requested = cli.style.clone();
     let mut app = AppBuilder::new()
@@ -396,9 +405,7 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         // Clean frames at the fleet's 16:9, dev overlays out of shot. The HUD
         // drops to cinematic only under capture: a hand-run keeps the level On
-        // so grave/tilde round-trips the readout with the rest of the HUD.
-        // The scoreboard readout is the example's own UI and STAYS in every
-        // capture - it is what makes a frame evidence.
+        // so grave/tilde still controls the combat instruments and chevrons.
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
         if capturing() {
             app.add_systems(Startup, hide_hud);
@@ -422,24 +429,15 @@ fn arena_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
     // Enabled only for a hand-run: a capture composes its own frame, and an
     // orbit under it would photograph a different bearing every run.
     app.insert_resource(IdleOrbit::new(!capturing()));
-    app.add_systems(OnEnter(GameAssetsStates::Loaded), load_arena);
+    lobby::register(app);
+    pause::register(app);
+    result::register(app);
     app.add_systems(
         Update,
         (
-            // The tracker runs BEFORE the reroll so a reload can never leave
-            // a freshly-written pool behind: the reroll resets the score in
-            // the same frame it triggers the load, the ships only despawn at
-            // the flush, and a tracker running after the reset would read
-            // them alive and re-arm the pools - which the teardown would then
-            // cash in as a phantom mutual kill one frame later.
-            (
-                track_damage,
-                reroll_on_key.run_if(in_state(GameStates::Playing)),
-            )
-                .chain(),
+            track_damage,
             count_shots,
-            report_score.run_if(in_state(GameStates::Playing)),
-            update_readout,
+            report_score.run_if(in_state(GameStates::Playing).and_then(lobby::match_active)),
             // The example's whole camera rig stands down in player mode: the
             // game's chase-camera authority owns the view, and a vantage or
             // orbit writing the scenario camera under it would fight it for
@@ -592,6 +590,7 @@ struct Roster {
     ships: Vec<ShipSpec>,
     drafted: Vec<u64>,
     style: usize,
+    binding_overrides: BTreeMap<(usize, String), Vec<Binding>>,
 }
 
 impl Roster {
@@ -601,7 +600,7 @@ impl Roster {
     }
 
     /// The roster slot the viewer flies, if any. `Some` is PLAYER MODE: the
-    /// example's cameras stand down and the readout drops their help.
+    /// example's cameras stand down.
     fn player_slot(&self) -> Option<usize> {
         self.ships.iter().position(|ship| ship.player)
     }
@@ -610,70 +609,6 @@ impl Roster {
 /// The style id `--style` asked for, resolved to an index on the first load.
 #[derive(Resource)]
 struct StyleRequest(Option<String>);
-
-fn load_arena(
-    mut commands: Commands,
-    game_assets: Res<GameAssets>,
-    sections: Res<GameSections>,
-    styles: Res<GameStyles>,
-    requested: Res<StyleRequest>,
-    mut roster: ResMut<Roster>,
-) {
-    if let Some(id) = requested.0.as_deref() {
-        match styles.iter().position(|style| style.id == id) {
-            Some(index) => roster.style = index,
-            // Loud, not silent: a typo would otherwise dress the fight in the
-            // first look and read as the one that was asked for.
-            None => panic!("--style '{id}' is not in the merged content"),
-        }
-    }
-    commands.trigger(LoadScenario(arena(
-        &game_assets,
-        &sections,
-        &styles,
-        &mut roster,
-    )));
-    spawn_readout(&mut commands);
-}
-
-/// `R` re-rolls the roster from the seed stream past the last draft, `L` steps
-/// every ship to the next authored look. Either way the same roster comes back
-/// - same teams, same styles, same pinned seeds - and the scenario reloads
-/// through `LoadScenario` (which tears the old fight down, in-flight ordnance
-/// included) with the scoreboard starting over, since the score of a fight that
-/// no longer exists is not evidence of anything.
-fn reroll_on_key(
-    mut commands: Commands,
-    keyboard: Res<ButtonInput<KeyCode>>,
-    game_assets: Res<GameAssets>,
-    sections: Res<GameSections>,
-    styles: Res<GameStyles>,
-    mut roster: ResMut<Roster>,
-    mut score: ResMut<Scoreboard>,
-) {
-    if keyboard.just_pressed(KeyCode::KeyR) {
-        // Past the whole draft, so a re-roll never re-fields a hull the last
-        // one already stood up. A pinned ship keeps its seed either way.
-        roster.seed = roster
-            .drafted
-            .iter()
-            .copied()
-            .max()
-            .unwrap_or(roster.seed)
-            .wrapping_add(1);
-    } else if keyboard.just_pressed(KeyCode::KeyL) {
-        roster.style = roster.style.wrapping_add(1);
-    } else {
-        return;
-    }
-    *score = Scoreboard::default();
-    commands.trigger(LoadScenario(arena(
-        &game_assets,
-        &sections,
-        &styles,
-        &mut roster,
-    )));
-}
 
 // ---------------------------------------------------------------------------
 // The draft and the loadout.
@@ -886,7 +821,11 @@ fn spawn_position(team: usize, index: usize, strength: usize) -> Vec3 {
 /// gamepad right trigger beside it) and every tube on `F` - the mouse's right
 /// button is the raise-weapons gesture and the reserved flight-rig sources
 /// (`flight_rig_reserved_sources`) are all keys the rig already spends.
-fn player_bindings(hull: &ShipHull) -> HashMap<String, Vec<Binding>> {
+fn player_bindings(
+    hull: &ShipHull,
+    slot: usize,
+    overrides: &BTreeMap<(usize, String), Vec<Binding>>,
+) -> HashMap<String, Vec<Binding>> {
     hull.sections
         .iter()
         .filter_map(|section| {
@@ -901,7 +840,13 @@ fn player_bindings(hull: &ShipHull) -> HashMap<String, Vec<Binding>> {
                 SERPENT_BAY | LANCE_BAY => vec![KeyCode::KeyF.into()],
                 _ => return None,
             };
-            Some((section.id.clone(), bindings))
+            Some((
+                section.id.clone(),
+                overrides
+                    .get(&(slot, section.id.clone()))
+                    .cloned()
+                    .unwrap_or(bindings),
+            ))
         })
         .collect()
 }
@@ -915,6 +860,7 @@ fn combatant(
     hull: ShipHull,
     ship: &ShipSpec,
     place: (usize, usize),
+    binding_overrides: &BTreeMap<(usize, String), Vec<Binding>>,
 ) -> ScenarioObjectConfig {
     let team = &TEAMS[ship.team];
     // The armament roll, per ship: the draft floor bounds it from below but one
@@ -961,7 +907,7 @@ fn combatant(
                 // drafted hull. No speed cap (the arena is open space) and
                 // real magazines - the AI ships fight with theirs.
                 SpaceshipController::Player(PlayerControllerConfig {
-                    input_mapping: player_bindings(&hull),
+                    input_mapping: player_bindings(&hull, slot, binding_overrides),
                     speed_cap: None,
                     infinite_ammo: false,
                 })
@@ -1044,8 +990,8 @@ fn rock_ring(
 /// Junk is SCENERY: wreckage that holds its pose keeps the blobs composed the
 /// way the seed placed them, and a fight that drifts its own set is not the
 /// same capture twice. Same command-swap idiom as the harness
-/// `freeze_bodies`, scoped to the junk prefix; every frame because `R`
-/// respawns the junk with the fight.
+/// `freeze_bodies`, scoped to the junk prefix; every frame because scenario
+/// reloads respawn the junk with the fight.
 ///
 /// This used to claim a second reason - that a `SpaceshipController::None`
 /// hull spawns MASSLESS and NaN-poisons the spatial queries combat aims
@@ -1174,8 +1120,8 @@ fn fragment_hull(seed: u64, clad: bool, style: StyleId) -> ShipHull {
 /// variety - a skinned chunk next to a stripped frame is what a debris field
 /// reads as. Positions scatter in a seeded shell around the blob anchor with
 /// a minimum separation, tumbled per fragment. Everything derives from the
-/// salted stream head, so `R` re-rolls the junk with the fight and the run
-/// stays one-number reproducible.
+/// salted stream head, so a restarted match stays reproducible and a lobby
+/// reroll changes its dressing with its roster.
 fn derelicts(
     game_assets: &GameAssets,
     styles: &GameStyles,
@@ -1212,7 +1158,7 @@ fn derelicts(
             // would read as a formation.
             let mut angle = || rng.random_range(0.0..std::f32::consts::TAU);
             let rotation = Quat::from_euler(EulerRot::XYZ, angle(), angle(), angle());
-            let hull = fragment_hull(seed, index % 2 == 0, style);
+            let hull = fragment_hull(seed, index.is_multiple_of(2), style);
             sections += hull.sections.len();
             actions.push(EventActionConfig::SpawnScenarioObject(
                 ScenarioObjectConfig {
@@ -1323,6 +1269,7 @@ fn arena(
                 hull,
                 &roster.ships[slot],
                 places[slot],
+                &roster.binding_overrides,
             ))
         })
         .collect();
@@ -1381,35 +1328,35 @@ fn arena(
 // The scoreboard: proof the fight happened.
 // ---------------------------------------------------------------------------
 
-/// What a team has actually put in the air, by flavour.
-///
-/// Counted off the PROJECTILE rather than off the hull's section list, because
-/// a bay a ship carries is not a torpedo a ship launched: this is what makes
-/// "all four flavours were in this fight" a reading of the run instead of a
-/// claim about the draft. A round names its own flavour (`ProjectileDamage`'s
-/// damage type) and so does a torpedo (`TorpedoType`), so nothing here has to
-/// trace a projectile back to the section that fired it.
-#[derive(Clone, Copy, Default)]
-struct Salvo {
-    kinetic: u32,
-    pierce: u32,
-    serpents: u32,
-    lances: u32,
-}
+/// What one team has actually put in the air, keyed by projectile-carried
+/// ammunition identity. A new damage variant or authored torpedo name creates a
+/// new row without changing this example.
+#[derive(Clone, Default)]
+struct Salvo(BTreeMap<String, u32>);
 
 impl Salvo {
+    fn record(&mut self, ammunition: String) {
+        *self.0.entry(ammunition).or_default() += 1;
+    }
+
     /// Everything fired, which is what "did this team fight" asks.
     fn total(&self) -> u32 {
-        self.kinetic + self.pierce + self.serpents + self.lances
+        self.0.values().sum()
     }
 }
 
 impl std::fmt::Display for Salvo {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "{} kinetic + {} pierce rounds, {} serpent + {} lance torpedoes",
-            self.kinetic, self.pierce, self.serpents, self.lances,
+        if self.0.is_empty() {
+            return formatter.write_str("nothing");
+        }
+        formatter.write_str(
+            &self
+                .0
+                .iter()
+                .map(|(name, count)| format!("{count} {name}"))
+                .collect::<Vec<_>>()
+                .join(" + "),
         )
     }
 }
@@ -1424,7 +1371,7 @@ impl std::fmt::Display for Salvo {
 /// bubbles to the root, and most of what lands on a clad hull lands on
 /// plates. The pool sums every `Health` under every ship root on the team, so
 /// plate damage counts like any other. `pool` is `None` while a team has no
-/// live root (loading, rerolling, or wiped out), which is what keeps a
+/// live root (loading, restarting, or wiped out), which is what keeps a
 /// teardown from reading as a massacre.
 #[derive(Resource, Default)]
 struct Scoreboard {
@@ -1475,19 +1422,10 @@ fn count_shots(
             continue;
         };
         let salvo = &mut score.fired[team];
-        match round.map(|damage| damage.kind) {
-            Some(DamageType::Kinetic) => salvo.kinetic += 1,
-            Some(DamageType::Pierce) => salvo.pierce += 1,
-            _ => {}
-        }
         if let Some(torpedo) = torpedo {
-            // The ordnance names itself in flight, which is the only place the
-            // two bays are distinguishable once the tube is behind them.
-            if torpedo.name == LANCE_TYPE {
-                salvo.lances += 1;
-            } else {
-                salvo.serpents += 1;
-            }
+            salvo.record(format!("{} torpedoes", torpedo.name));
+        } else if let Some(round) = round {
+            salvo.record(format!("{:?} rounds", round.kind));
         }
     }
 }
@@ -1537,7 +1475,7 @@ fn track_damage(
             // camera - and under load BOTH sides of a mutual annihilation
             // land this way, seconds apart, so the credit cannot require the
             // rival to still be standing. A reload cannot reach this arm:
-            // the reroll resets the score before the teardown lands (see the
+            // match restart resets the score before the teardown lands (see the
             // ordering note in `arena_plugin`).
             (Some(previous), None) => {
                 score.dealt[rival] += previous;
@@ -1601,7 +1539,7 @@ fn report_score(
 }
 
 // ---------------------------------------------------------------------------
-// Framing and readout.
+// Framing.
 // ---------------------------------------------------------------------------
 
 /// How the frame vantage stands off the fight: direction (broadside to the
@@ -1629,7 +1567,7 @@ const FOLLOW_BACK: f32 = 34.0;
 const FOLLOW_LIFT: f32 = 10.0;
 const FOLLOW_LEAD: f32 = 12.0;
 /// Exponential smoothing rate (1/s) on the follow pose's aim point. The mean
-/// enemy position JUMPS when a ship dies or a reroll lands; at 1.2 the camera
+/// enemy position JUMPS when a ship dies or a reload lands; at 1.2 the camera
 /// crosses ~70% of such a swing in the first second and settles in about
 /// three - a deliberate pan, not a snap.
 const FOLLOW_AIM_RATE: f32 = 1.2;
@@ -1660,8 +1598,7 @@ enum Vantage {
 /// The camera bindings: the number row FOLLOWS, because the roster is a
 /// numbered list and the ships are what a viewer wants one key each for, with
 /// the two whole-fight vantages on `Q` and `E` beside them. All six are clear
-/// of the free-fly rig (WASD, mouse, Space/Shift) and of `R`/`L`, which
-/// already reroll and restyle.
+/// of the free-fly rig (WASD, mouse, Space/Shift).
 const VANTAGE_KEYS: [(KeyCode, Vantage); 6] = [
     (KeyCode::KeyQ, Vantage::Frame),
     (KeyCode::KeyE, Vantage::Overview),
@@ -2024,84 +1961,6 @@ fn orbit_idle_camera(
     }
 }
 
-/// Marks the scoreboard readout.
-#[derive(Component)]
-struct ScoreReadout;
-
-fn spawn_readout(commands: &mut Commands) {
-    commands
-        .spawn(Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(10.0),
-            width: Val::Percent(100.0),
-            justify_content: JustifyContent::Center,
-            ..default()
-        })
-        .with_children(|parent| {
-            parent.spawn((
-                ScoreReadout,
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(18.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-            ));
-        });
-}
-
-/// Written every frame for `wfc_ships`' reason: the readout spawns in the
-/// same command flush as the first resource change, so a change-gated write
-/// would land before the text exists and never run again.
-///
-/// The line carries the STREAM HEAD rather than every drafted seed: that one
-/// number plus the `--ship` flags reproduces the whole matchup, and a roster
-/// of five would otherwise spend the frame's width on seeds. The per-hull
-/// seeds and loadouts go to the log at the draft.
-///
-/// The readout follows the grave/tilde HUD cycle in a hand-run, so "no hud"
-/// clears the whole top of the frame. Captures are exempt: they run at
-/// cinematic from startup, and the readout is the frame's evidence.
-fn update_readout(
-    roster: Res<Roster>,
-    styles: Res<GameStyles>,
-    score: Res<Scoreboard>,
-    hud: Res<HudVisibility>,
-    mut q_readout: Query<(&mut Text, &mut Visibility), With<ScoreReadout>>,
-) {
-    // Player mode has no vantage keys to advertise: the camera help would be
-    // a lie about who owns the view.
-    let help = if roster.player_slot().is_some() {
-        "[R] re-roll  [L] look"
-    } else {
-        "[R] re-roll  [L] look  [Q] frame  [E] overview  [1-4] follow"
-    };
-    let line = format!(
-        "WFC arena - {} x{} vs {} x{} - seed {} - {} - fired {}/{} - dealt {:.0}/{:.0} - {help}",
-        TEAMS[0].callsign,
-        roster.strength(0),
-        TEAMS[1].callsign,
-        roster.strength(1),
-        roster.seed,
-        style_at(&styles, roster.style).unwrap_or("bare"),
-        score.fired[0].total(),
-        score.fired[1].total(),
-        score.dealt[0],
-        score.dealt[1],
-    );
-    let shown = capturing() || hud.shows();
-    for (mut text, mut visibility) in &mut q_readout {
-        visibility.set_if_neq(if shown {
-            Visibility::Inherited
-        } else {
-            Visibility::Hidden
-        });
-        if text.as_str() != line {
-            **text = line.clone();
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Team chevrons: which side a hull flies for, at a glance.
 // ---------------------------------------------------------------------------
@@ -2128,7 +1987,7 @@ struct TeamChevronIndicator;
 /// Tag the scenario camera as the screen-indicator projector. The game only
 /// tags the player's chase camera and this arena has no player, so without
 /// this every indicator - the chevrons included - hides. `Added` re-fires per
-/// reroll: `LoadScenario` tears the camera down and spawns a fresh one.
+/// reload: `LoadScenario` tears the camera down and spawns a fresh one.
 fn tag_indicator_camera(mut commands: Commands, q_new: Query<Entity, Added<ScenarioCameraMarker>>) {
     for camera in &q_new {
         commands.entity(camera).insert(ScreenIndicatorCamera);
@@ -2223,7 +2082,7 @@ fn spawn_team_chevrons(
     }
 }
 
-/// The chevrons follow the READOUT's visibility rule, not the HUD tiers: on
+/// The chevrons follow the arena visibility rule, not the HUD tiers: on
 /// with the HUD in a hand-run (grave/tilde round-trips them) and always on in
 /// a capture, where two identifiable sides are part of the frame's evidence.
 ///
@@ -2245,7 +2104,7 @@ fn gate_team_chevrons(
     }
 }
 
-/// A chevron dies with its fighter: the kill, the wipe and the reroll
+/// A chevron dies with its fighter: the kill, the wipe and the reload
 /// teardown all land here as a vanished root.
 fn reap_team_chevrons(
     mut commands: Commands,

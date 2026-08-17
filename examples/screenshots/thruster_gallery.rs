@@ -669,7 +669,9 @@ fn read_candidate_glb(path: &Path) -> Vec<CandidatePrimitive> {
     };
     let floats3 = |index: u64| -> Vec<[f32; 3]> {
         accessor_bytes(index)
-            .chunks_exact(12)
+            .as_chunks::<12>()
+            .0
+            .iter()
             .map(|chunk| {
                 [
                     f32::from_le_bytes(chunk[0..4].try_into().expect("f32")),
@@ -700,8 +702,10 @@ fn read_candidate_glb(path: &Path) -> Vec<CandidatePrimitive> {
                 positions: floats3(primitive["attributes"]["POSITION"].as_u64().expect("pos")),
                 normals: floats3(primitive["attributes"]["NORMAL"].as_u64().expect("nrm")),
                 indices: accessor_bytes(primitive["indices"].as_u64().expect("idx"))
-                    .chunks_exact(4)
-                    .map(|chunk| u32::from_le_bytes(chunk.try_into().expect("u32")))
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|chunk| u32::from_le_bytes(*chunk))
                     .collect(),
                 colour,
                 metallic: factor(material, "metallicFactor", 1.0),

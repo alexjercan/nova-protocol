@@ -290,8 +290,8 @@ pub fn derive_skin(structure: &SkinStructure) -> Vec<SkinPlate> {
 pub fn cladding_cells(structure: &SkinStructure) -> HashSet<IVec3> {
     let mut skin: HashSet<IVec3> = HashSet::new();
     for cell in structure.filled_cells() {
-        for face in 0..FACES.len() {
-            let candidate = cell + FACES[face];
+        for direction in FACES {
+            let candidate = cell + direction;
             if structure.filled(candidate) {
                 continue;
             }
@@ -484,8 +484,7 @@ pub fn plate_for(
             midpoints: [0; 4],
         };
         let mut legible = true;
-        for slot in 0..4 {
-            let (x, z) = FACE_CORNERS[slot];
+        for (slot, &(x, z)) in FACE_CORNERS.iter().enumerate() {
             let corner = corner_slot(out, rotation * Vec3::new(x as f32, 0.0, z as f32));
             let edge = edge_slot(out, rotation * local_edge(slot));
             match (corner, edge) {
@@ -1692,8 +1691,8 @@ mod tests {
         // Every hull face of this ship is covered. It is the whole claim: a
         // five-cell L is small enough to check exhaustively.
         for cell in structure.filled_cells() {
-            for face in 0..FACES.len() {
-                let outward = cell + FACES[face];
+            for (face, direction) in FACES.iter().copied().enumerate() {
+                let outward = cell + direction;
                 assert!(
                     structure.filled(outward) || skin.contains(&outward),
                     "face {face} of {cell:?} is structure looking at vacuum",

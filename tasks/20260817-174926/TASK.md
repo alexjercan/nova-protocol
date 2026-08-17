@@ -1,6 +1,6 @@
 # Turn wfc_arena into a configurable match loop
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: v0.11.0,example,ui,editor,nova-os,input
 
@@ -27,15 +27,29 @@ build a general match framework or an embedded hull preview in this task.
 - Each ship row has an AI/Player selector, one always-populated numeric seed text
   field, a button that replaces it with another combat-viable seed, and a remove
   button. The seed is exact and editable; there is no Draft/Pinned mode.
-- Initial values resolve from the existing CLI/default roster. Exact CLI pins
-  remain exact. Automatically filled and rerolled values pass the armament
-  floor.
+- Initial values resolve from the existing CLI/default roster. `--style`
+  initializes both sides; explicit per-ship CLI styles apply in command order,
+  so the last explicit style for each side wins. Exact CLI pins remain exact.
+  Automatically filled and rerolled values pass the armament floor.
 - Side controls add ships. Global controls start the match or quit.
 - No global draft-seed field, global default-style field, team-name editor,
   color editor, AI difficulty, composition editor, or live 3D preview.
 - The lobby demonstrates reusable text entry and validation, select lists,
   dynamic rows, buttons, keyboard focus, mouse activation, and disabled/invalid
   states.
+
+### Shared text field
+
+- Public API: `TextFieldSpec::new(value)`, `text_field(spec)`,
+  `TextFieldValue`, `TextFieldFocused`, `TextFieldError`, and
+  `TextFieldSubmitted`.
+- Values update on each edit. Enter and outside clicks submit. Escape restores
+  the focus-entry value and exits.
+- Support character input, Backspace, Delete, arrows, Home, and End. Default to
+  256 characters. Validation belongs to the caller.
+- No clipboard, selection range, undo stack, or IME composition in this slice.
+- Style selection composes the existing visible `ListRow` widgets instead of
+  adding an overlapping select-control API.
 
 ### Match and pause
 
@@ -47,9 +61,14 @@ build a general match framework or an embedded hull preview in this task.
 
 ### Result
 
-- A side wins when the opposing side has no live ship roots after all configured
-  combatants have spawned. Both sides reaching zero in one destruction batch is
-  a draw.
+- A side wins when the opposing side has no ship with a live flight computer
+  after all configured combatants have spawned. Both sides reaching zero in one
+  destruction batch is a draw.
+- A ship outside the 20 km arena sphere shows a 30-second disqualification
+  countdown. Re-entry resets it; expiry destroys its live flight computers.
+- Ammunition fired, damage, and non-zero fighter thrust are global activity.
+  After 180 seconds without activity, remaining team structure percentage
+  decides a stalemate advantage; exact equality is a draw.
 - Freeze combat and bodies at declaration, then show the result after a short
   finish delay.
 - Show result, duration, and per-team starting ships, survivors, remaining
@@ -90,6 +109,8 @@ it.
 
 - A hand-run configures both sides with reusable text fields, lists, and buttons,
   then starts a match.
+- Operational defeat, arena disqualification, and inactivity stalemate rules
+  prevent a match from blocking the result screen indefinitely.
 - Pause and result screens restart or return without stale scenario entities.
 - Result rows adapt to the projectile ammunition types observed in the match.
 - A Player ship can rebind one selected bindable section through NOVA OS, with

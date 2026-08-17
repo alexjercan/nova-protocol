@@ -259,7 +259,8 @@ pub fn damage_type_color(kind: DamageType) -> Color {
 ///
 /// The single point at which a weapon enters the health store, so every weapon
 /// - turret, torpedo blast, ram - lands identically. It is a plain trigger:
-/// damage is one number now, and nothing between the weapon and
+///
+/// Damage is one number now, and nothing between the weapon and
 /// [`on_damage`](crate::integrity::health) reinterprets it.
 pub fn apply_damage(commands: &mut Commands, target: Entity, source: Option<Entity>, amount: f32) {
     commands.trigger(HealthApplyDamage {
@@ -323,7 +324,7 @@ pub fn pierce_remainder(
                 return None;
             }
             let left = damage.amount - health.current / scale;
-            (left > 0.0).then(|| ProjectileDamage {
+            (left > 0.0).then_some(ProjectileDamage {
                 amount: left,
                 ..damage
             })
@@ -331,7 +332,7 @@ pub fn pierce_remainder(
         DamageType::Pierce => {
             let layers = damage.layers.saturating_sub(1);
             let power = damage.power - health.max / pierce_power_multiplier(closing_speed);
-            (layers > 0 && power > 0.0).then(|| ProjectileDamage {
+            (layers > 0 && power > 0.0).then_some(ProjectileDamage {
                 power,
                 layers,
                 ..damage

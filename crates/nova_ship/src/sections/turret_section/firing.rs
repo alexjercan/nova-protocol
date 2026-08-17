@@ -1734,8 +1734,8 @@ mod tests {
     /// Kinetic's identity under real physics: closing speed is DAMAGE. The same
     /// authored 20-point round hits for 30 on a charge, 20 at the anchor and 10
     /// in a stern chase, and the stern chase is driven by the TARGET's velocity
-    /// - the half of the relative-velocity term a muzzle-speed-only reading
-    /// would miss.
+    /// This is the half of the relative-velocity term a muzzle-speed-only
+    /// reading would miss.
     #[test]
     fn a_kinetic_round_closing_faster_deals_more_damage_per_hit() {
         use nova_gameplay::test_support::settle;

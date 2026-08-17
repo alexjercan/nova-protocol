@@ -76,6 +76,26 @@ fn tick(app: &mut App, updates: &mut usize) {
     );
 }
 
+/// Apply every queued scenario command against a bare [`World`], for a rig that
+/// drives [`NovaEventWorld::state_to_world_system`] directly instead of running
+/// an [`App`]. Returns the runs spent.
+///
+/// The `App`-free twin of [`settle_spawns`]: no schedule means no dispatcher to
+/// wait on, so this only empties the queue.
+pub fn drain_spawns(world: &mut World) -> usize {
+    let mut runs = 0;
+    while is_settling(world) {
+        NovaEventWorld::state_to_world_system(world);
+        runs += 1;
+        assert!(
+            runs < SETTLE_LIMIT,
+            "the spawn queue never drained in {SETTLE_LIMIT} runs; the drain is \
+             not making progress"
+        );
+    }
+    runs
+}
+
 #[cfg(test)]
 mod tests {
     use core::{
@@ -162,24 +182,4 @@ mod tests {
             "the build's three objects AND the released handler's three landed"
         );
     }
-}
-
-/// Apply every queued scenario command against a bare [`World`], for a rig that
-/// drives [`NovaEventWorld::state_to_world_system`] directly instead of running
-/// an [`App`]. Returns the runs spent.
-///
-/// The `App`-free twin of [`settle_spawns`]: no schedule means no dispatcher to
-/// wait on, so this only empties the queue.
-pub fn drain_spawns(world: &mut World) -> usize {
-    let mut runs = 0;
-    while is_settling(world) {
-        NovaEventWorld::state_to_world_system(world);
-        runs += 1;
-        assert!(
-            runs < SETTLE_LIMIT,
-            "the spawn queue never drained in {SETTLE_LIMIT} runs; the drain is \
-             not making progress"
-        );
-    }
-    runs
 }

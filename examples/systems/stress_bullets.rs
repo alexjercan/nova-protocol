@@ -55,6 +55,7 @@ struct Cli;
 /// air at once is a load the code has to survive, not a ship anyone will fly.
 /// Read it as a ceiling the lifecycle is proven under, never as a balance
 /// figure.
+#[cfg(feature = "debug")]
 const BULLETS_IN_FLIGHT: usize = 1000;
 
 /// ABSURD SCALE (see [`BULLETS_IN_FLIGHT`]): eight mounts on one small hull.
@@ -67,6 +68,7 @@ const TURRET_MOUNTS: usize = 8;
 
 /// The sections the hull carries: the controller, one hull block, and the
 /// battery. The exact-count invariant reads this.
+#[cfg(feature = "debug")]
 const SECTIONS_ON_THE_HULL: usize = 2 + TURRET_MOUNTS;
 
 /// The turret content id every mount is built from.

@@ -89,6 +89,7 @@ pub(crate) fn close_nova_os_from_menu_keys(
     mut commands: Commands,
     bank: Option<Res<SoundBank<UiSfx>>>,
     settings: Res<NovaOsMonitorSettings>,
+    ship: Option<Res<crate::ship::ShipRuntime>>,
 ) {
     if *current.get() != PauseStates::NovaOs {
         return;
@@ -106,6 +107,9 @@ pub(crate) fn close_nova_os_from_menu_keys(
     // Ctrl+C / Ctrl+[ exit a running app back to the terminal (PoC's chord).
     let ctrl_exit =
         ctrl && (keys.just_pressed(KeyCode::KeyC) || keys.just_pressed(KeyCode::BracketLeft));
+    if escape && ship.is_some_and(|ship| ship.rebinding.is_some()) {
+        return;
+    }
     if !(escape || ctrl_exit) {
         return;
     }

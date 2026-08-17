@@ -786,6 +786,7 @@ fn view_fixture(
         link_points: Vec::new(),
         health,
         ammo,
+        bindings: None,
         inactive: false,
         zero_health: false,
     }
@@ -1045,7 +1046,7 @@ fn panel_action_state_gates_repair_and_reload() {
 
 #[test]
 fn panel_detail_text_covers_live_fields() {
-    let turret = view_fixture(
+    let mut turret = view_fixture(
         SectionClass::Turret,
         Some(Health {
             current: 12.0,
@@ -1056,6 +1057,7 @@ fn panel_detail_text_covers_live_fields() {
             capacity: 6,
         }),
     );
+    turret.bindings = Some(vec![KeyCode::KeyK.into(), MouseButton::Left.into()]);
     let text = panel_detail_text(&turret);
     assert!(text.contains("kind: turret"), "{text}");
     assert!(
@@ -1065,6 +1067,7 @@ fn panel_detail_text_covers_live_fields() {
     assert!(text.contains("20%"), "12/60 -> 20%: {text}");
     assert!(text.contains("status: critical"), "{text}");
     assert!(text.contains("ammo: 2/6"), "{text}");
+    assert!(text.contains("bindings: K / LMB"), "{text}");
 }
 
 #[test]
@@ -1254,6 +1257,7 @@ fn rig_section_view(entity: Entity, code: &str) -> ShipSectionView {
         link_points: Vec::new(),
         health: None,
         ammo: None,
+        bindings: None,
         inactive: false,
         zero_health: false,
     }

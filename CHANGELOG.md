@@ -213,6 +213,7 @@ tagged **(breaking)**.
 
 ### Interface & HUD
 
+- Add a configurable WFC arena lobby, match pause and result screens, reusable text fields, dynamic ammunition scores, and live NOVA OS section rebinding.
 - A scenario swap draws an animated LOADING SCENARIO panel over the stall, and
   rocks build 25x faster: a chapter load was 11 s in one frozen frame, now
   ~0.3 s.
