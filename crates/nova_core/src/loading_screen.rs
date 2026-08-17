@@ -314,7 +314,7 @@ fn animate_loading_screen(
 ) {
     let elapsed = time.elapsed_secs();
 
-    let cursor_on = (elapsed / CURSOR_BLINK_SECS) as u32 % 2 == 0;
+    let cursor_on = ((elapsed / CURSOR_BLINK_SECS) as u32).is_multiple_of(2);
     let vis = if cursor_on {
         Visibility::Visible
     } else {

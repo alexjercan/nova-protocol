@@ -14,6 +14,19 @@ use crate::prelude::*;
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct SpaceshipThrusterInputBinding(pub Vec<Binding>);
 
+/// A live player-ship section changed its complete input binding list.
+#[derive(Message, Clone, Debug)]
+pub struct SectionInputBindingChanged {
+    /// Player spaceship root that owns the section.
+    pub spaceship: Entity,
+    /// Live section entity.
+    pub section: Entity,
+    /// Stable authored section id.
+    pub section_id: String,
+    /// Complete replacement binding list.
+    pub bindings: Vec<Binding>,
+}
+
 #[derive(Component, Debug, Clone)]
 pub(super) struct ThrusterInputMarker;
 
@@ -22,9 +35,10 @@ pub(super) struct ThrusterInputMarker;
 pub(super) struct ThrusterInput;
 
 pub(super) fn on_thruster_input_binding(
-    add: On<Add, SpaceshipThrusterInputBinding>,
+    add: On<Insert, SpaceshipThrusterInputBinding>,
     mut commands: Commands,
     q_binding: Query<&SpaceshipThrusterInputBinding>,
+    q_actions: Query<&Actions<ThrusterInputMarker>>,
 ) {
     let entity = add.entity;
     trace!("on_thruster_input_binding: entity {:?}", entity);
@@ -37,6 +51,11 @@ pub(super) fn on_thruster_input_binding(
         return;
     };
 
+    if let Ok(actions) = q_actions.get(entity) {
+        for action in actions {
+            commands.entity(action).despawn();
+        }
+    }
     commands.entity(entity).insert((
         ThrusterInputMarker,
         actions!(
@@ -112,9 +131,10 @@ pub(super) struct TurretInputMarker;
 pub(super) struct TurretInput;
 
 pub(super) fn on_turret_input_binding(
-    add: On<Add, SpaceshipTurretInputBinding>,
+    add: On<Insert, SpaceshipTurretInputBinding>,
     mut commands: Commands,
     q_binding: Query<&SpaceshipTurretInputBinding>,
+    q_actions: Query<&Actions<TurretInputMarker>>,
 ) {
     let entity = add.entity;
     trace!("on_turret_input_binding: entity {:?}", entity);
@@ -122,6 +142,11 @@ pub(super) fn on_turret_input_binding(
     let Ok(binding) = q_binding.get(entity) else {
         return;
     };
+    if let Ok(actions) = q_actions.get(entity) {
+        for action in actions {
+            commands.entity(action).despawn();
+        }
+    }
 
     commands.entity(entity).insert((
         TurretInputMarker,
@@ -205,9 +230,10 @@ pub(super) struct TorpedoInputMarker;
 pub(super) struct TorpedoInput;
 
 pub(super) fn on_torpedo_input_binding(
-    add: On<Add, SpaceshipTorpedoInputBinding>,
+    add: On<Insert, SpaceshipTorpedoInputBinding>,
     mut commands: Commands,
     q_binding: Query<&SpaceshipTorpedoInputBinding>,
+    q_actions: Query<&Actions<TorpedoInputMarker>>,
 ) {
     let entity = add.entity;
     trace!("on_torpedo_input_binding: entity {:?}", entity);
@@ -215,6 +241,11 @@ pub(super) fn on_torpedo_input_binding(
     let Ok(binding) = q_binding.get(entity) else {
         return;
     };
+    if let Ok(actions) = q_actions.get(entity) {
+        for action in actions {
+            commands.entity(action).despawn();
+        }
+    }
 
     commands.entity(entity).insert((
         TorpedoInputMarker,
@@ -283,4 +314,49 @@ pub(super) fn on_torpedo_input_completed(
     };
 
     **input = false;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replacing_a_section_binding_rebuilds_one_live_action_tree() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, EnhancedInputPlugin));
+        app.add_input_context::<TurretInputMarker>();
+        app.add_observer(on_turret_input_binding);
+        app.finish();
+        app.cleanup();
+        app.update();
+        let section = app
+            .world_mut()
+            .spawn(SpaceshipTurretInputBinding(vec![KeyCode::KeyF.into()]))
+            .id();
+        app.update();
+        assert_eq!(
+            app.world_mut()
+                .query::<&Binding>()
+                .iter(app.world())
+                .count(),
+            1
+        );
+
+        app.world_mut()
+            .entity_mut(section)
+            .insert(SpaceshipTurretInputBinding(vec![KeyCode::KeyB.into()]));
+        app.update();
+
+        let bindings: Vec<Binding> = app
+            .world_mut()
+            .query::<&Binding>()
+            .iter(app.world())
+            .cloned()
+            .collect();
+        assert_eq!(bindings.len(), 1, "the replaced action tree was reaped");
+        assert_eq!(
+            binding_source(&bindings[0]),
+            Some(InputSource::Keyboard(KeyCode::KeyB))
+        );
+    }
 }

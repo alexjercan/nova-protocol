@@ -219,7 +219,8 @@ What is on disk today, in reading order:
   (a real-GPU window capture proving the render-scale lever draws a correct
   frame). The galleries a human judges live here too - `parts_viewer`,
   `widget_zoo` (every `nova_ui` widget factory, live and in both skins),
-  `wfc_ships`, `wfc_arena`, `shape_bench`, `block_bench`, `thruster_gallery`,
+  `wfc_ships`, `wfc_arena` (the reusable text-field/list/button reference plus
+  its lobby, match pause and dynamic result loop), `shape_bench`, `block_bench`, `thruster_gallery`,
   `greeble_catalog`, `compare_asteroids`, `compare_planets` - and so does
   `scene_baseline`, the release-over-release measurement scene the probe sweep
   runs: it asserts nothing about behavior, its product is a number for the perf

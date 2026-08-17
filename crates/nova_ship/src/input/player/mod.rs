@@ -47,7 +47,8 @@ pub use self::{
         FlightVerbHints, InputSource, VerbHint,
     },
     weapons::{
-        SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+        SectionInputBindingChanged, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
+        SpaceshipTurretInputBinding,
     },
 };
 
@@ -56,8 +57,8 @@ pub use self::{
 pub mod prelude {
     pub use super::{
         binding_label, binding_source, flight_rig_reserved_sources, FlightVerbHints, InputSource,
-        SpaceshipPlayerInputPlugin, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
-        SpaceshipTurretInputBinding, VerbHint,
+        SectionInputBindingChanged, SpaceshipPlayerInputPlugin, SpaceshipThrusterInputBinding,
+        SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding, VerbHint,
     };
 }
 
@@ -70,6 +71,7 @@ impl Plugin for SpaceshipPlayerInputPlugin {
     fn build(&self, app: &mut App) {
         debug!("SpaceshipPlayerInputPlugin: build");
 
+        app.add_message::<SectionInputBindingChanged>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_player_added_spawn_flight_input);
         app.add_observer(on_player_removed_despawn_flight_input);

@@ -32,9 +32,10 @@
 //! in-memory scenario containing a fresh raider and torpedo boat. The boat
 //! looses a salvo at the raider, guided and fuzed by the production torpedo
 //! path. Scenario replacement removes prior rounds, debris, and actors before
-//! this shot. It exists because the set's juice was one graded hull on one ship
-//! - a launch burst, a drive plume and a 30-unit blast sphere eating sections
-//! belong to a SECOND ship, which is what makes the hollow read as a fight. Two of its frames SHIP: `wiki-combat-torpedo` (the
+//! this shot. It exists because the set's juice was one graded hull on one ship.
+//! A launch burst, a drive plume, and a 30-unit blast sphere eating sections
+//! belong to a SECOND ship, which is what makes the hollow read as a fight. Two
+//! of its frames SHIP: `wiki-combat-torpedo` (the
 //! salvo in flight) and `wiki-combat-aftermath` (what the blast left), which the
 //! combat wiki page carries under Torpedoes and Damage types (owner's pick,
 //! 2026-08-05). The tight exchange and hollow neutralized-wreck marker stay
@@ -52,9 +53,9 @@
 //! off; since the v0.11.0 range pass it is 100 units against rounds that
 //! reach 200. Re-measured here 2026-08-15: the pairs open fire between 69 and
 //! 180 units, i.e. inside their own gate rather than at the edge of it. They
-//! are still only the set's live background - tracer streams and moving hulls
-//! - and every close beat stays authored: the lock subject is not AI-flown (it
-//! drifts on a nudged velocity), and the destruction is scripted through the
+//! are still only the set's live background: tracer streams and moving hulls.
+//! Every close beat stays authored. The lock subject is not AI-flown (it drifts
+//! on a nudged velocity), and the destruction is scripted through the
 //! real damage path, so the capture is deterministic instead of hostage to a
 //! fight.
 //!

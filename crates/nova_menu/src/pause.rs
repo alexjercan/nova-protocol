@@ -103,6 +103,18 @@ pub(crate) fn release_cursor(mut cursor: Single<&mut CursorOptions, With<Primary
     cursor.visible = true;
 }
 
+/// Keep frozen interactive surfaces in control if a later flight reconciler
+/// tries to reclaim the pointer after the state-transition hook ran.
+pub(crate) fn keep_frozen_cursor_released(
+    pause: Res<State<PauseStates>>,
+    mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    if pause.get().is_frozen() && (cursor.grab_mode != CursorGrabMode::None || !cursor.visible) {
+        cursor.grab_mode = CursorGrabMode::None;
+        cursor.visible = true;
+    }
+}
+
 /// Re-grab on resume, but only during scenario play: a live player ship is what
 /// distinguishes it (PlayerSpaceshipMarker is only inserted by the scenario spawn path;
 /// the editor's build-mode preview never carries it). Grabs unconditionally now, debug

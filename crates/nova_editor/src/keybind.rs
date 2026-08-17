@@ -156,8 +156,10 @@ pub(crate) fn position_section_keybind_labels(
 
 /// Take every chip off screen. The chips label the ship the builder is
 /// standing in front of, so a surface that COVERS that ship - the parts gallery
-/// - must not be read through them. Paired with the run condition that stops
-/// the positioner while the gallery is up: exactly one of the two writes the
+/// - must not be read through them.
+///
+/// Paired with the run condition that stops the positioner while the gallery is
+/// up: exactly one of the two writes the
 /// chips' visibility in any frame, so neither can fight the other.
 pub(crate) fn hide_section_keybind_labels(
     mut q_labels: Query<&mut Visibility, With<SectionKeybindLabel>>,

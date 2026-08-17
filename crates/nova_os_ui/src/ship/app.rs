@@ -115,6 +115,12 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, font: Handle<F
                             b.spawn(panel_button_label("L Reload", font.clone()));
                         });
                 });
+            panel
+                .spawn(panel_button_bundle(ShipPanelButton::Rebind))
+                .observe(on_ship_rebind_button)
+                .with_children(|button| {
+                    button.spawn(panel_button_label("B Rebind", font.clone()));
+                });
             panel.spawn((
                 ShipPanelField::Note,
                 Text::new(String::new()),
@@ -278,6 +284,7 @@ pub(crate) fn apply_ship_cli_commands(
                 link_points: Vec::new(),
                 health: q_health.get(entity).ok().cloned(),
                 ammo: q_ammo.get(entity).ok().copied(),
+                bindings: None,
                 inactive,
                 zero_health: zero,
             };

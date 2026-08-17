@@ -97,7 +97,7 @@ fn first_leg_blocker(
         if closest.distance_squared(center) >= clearance_sq {
             continue;
         }
-        if best.map_or(true, |(best_t, _)| t < best_t) {
+        if best.is_none_or(|(best_t, _)| t < best_t) {
             best = Some((t, (center, radius, closest)));
         }
     }
@@ -1235,7 +1235,8 @@ mod patrol_physics_tests {
     /// The physics half of avoidance: a rock dead on the first leg, and the
     /// real autopilot (align + burn + brake on real sections) must round it
     /// - the ship reaches the waypoint WITHOUT its center ever entering the
-    /// rock's geometric radius. Pins the menu "asteroid weave" backdrop's
+    ///
+    /// The rock's geometric radius. Pins the menu "asteroid weave" backdrop's
     /// acceptance: patrol routes survive rocks the author did not measure.
     #[test]
     fn a_patrol_ship_rounds_a_rock_on_its_leg() {

@@ -8,6 +8,7 @@
 //! Touch this module when adding a section fact the ship app displays.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
+use bevy_enhanced_input::prelude::Binding;
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_os::prelude::*;
@@ -168,11 +169,29 @@ pub(crate) struct ShipSectionView {
     pub(crate) link_points: Vec<LinkPoint>,
     pub(crate) health: Option<Health>,
     pub(crate) ammo: Option<SectionAmmo>,
+    pub(crate) bindings: Option<Vec<Binding>>,
     pub(crate) inactive: bool,
     pub(crate) zero_health: bool,
 }
 
 impl ShipSectionView {
+    pub(crate) fn binding_text(&self) -> Option<String> {
+        self.bindings.as_ref().map(|bindings| {
+            if bindings.is_empty() {
+                return "UNBOUND".to_string();
+            }
+            bindings
+                .iter()
+                .map(|binding| {
+                    binding_source(binding)
+                        .map(|source| source.label())
+                        .unwrap_or_else(|| format!("{binding:?}"))
+                })
+                .collect::<Vec<_>>()
+                .join(" / ")
+        })
+    }
+
     /// The integrity fraction in `0..=1`, or `None` when the section has no health
     /// component / zero max.
     pub(crate) fn integrity(&self) -> Option<f32> {
@@ -254,6 +273,7 @@ pub struct ShipSections<'w, 's> {
             Option<&'static SectionAmmo>,
             // Nested so the whole row stays under the 15-item query-tuple cap.
             SectionKindQuery,
+            SectionBindingQuery,
             (Has<SectionInactiveMarker>, Has<HealthZeroMarker>),
         ),
         With<SectionMarker>,
@@ -262,6 +282,12 @@ pub struct ShipSections<'w, 's> {
 
 /// The class + kind-marker columns needed to classify a section, grouped so the
 /// enclosing section query stays within the query-tuple size limit.
+pub(crate) type SectionBindingQuery = (
+    Option<&'static SpaceshipThrusterInputBinding>,
+    Option<&'static SpaceshipTurretInputBinding>,
+    Option<&'static SpaceshipTorpedoInputBinding>,
+);
+
 pub(crate) type SectionKindQuery = (
     Option<&'static SectionClass>,
     Has<HullSectionMarker>,
@@ -300,6 +326,7 @@ impl ShipSections<'_, '_> {
                     health,
                     ammo,
                     (class, hull, controller, thruster, turret, torpedo),
+                    (thruster_bindings, turret_bindings, torpedo_bindings),
                     (inactive, zero_health),
                 )| {
                     let kind = section_kind_from_markers(
@@ -319,6 +346,10 @@ impl ShipSections<'_, '_> {
                             .unwrap_or_default(),
                         health: health.cloned(),
                         ammo: ammo.copied(),
+                        bindings: thruster_bindings
+                            .map(|bindings| bindings.0.clone())
+                            .or_else(|| turret_bindings.map(|bindings| bindings.0.clone()))
+                            .or_else(|| torpedo_bindings.map(|bindings| bindings.0.clone())),
                         inactive,
                         zero_health,
                     })
@@ -405,6 +436,9 @@ pub(crate) fn panel_detail_text(view: &ShipSectionView) -> String {
     );
     if let Some(ammo) = view.ammo.as_ref() {
         text.push_str(&format!("\nammo: {}/{}", ammo.rounds, ammo.capacity));
+    }
+    if let Some(bindings) = view.binding_text() {
+        text.push_str(&format!("\nbindings: {bindings}"));
     }
     text
 }

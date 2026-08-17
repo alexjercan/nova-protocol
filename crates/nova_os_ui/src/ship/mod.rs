@@ -21,8 +21,8 @@
 //! blips); each blip carries a per-kind glyph + its code, an integrity bar
 //! (width = HP, colour = status) and, for weapons, ammo pips - that is where a
 //! section's status now shows. Orbit the camera with Q/E/R/F + drag + wheel;
-//! `[`/`]` cycle the selection; `G` toggles structural mates; `L` reloads and
-//! `P` repairs the selected section.
+//! `[`/`]` cycle the selection; `G` toggles structural mates; `L` reloads, `P`
+//! repairs, and `B` replaces the selected bindable section's input.
 //!
 //! Actions are instant and free for now, but they route through a single
 //! `ShipSectionCommand` seam (CLI verb -> [`NovaOsCommandInvocation`], in-app key
@@ -38,6 +38,7 @@
 //! | `scene` | The schematic 3D scene, its camera and the projected blips. |
 
 mod app;
+mod rebind;
 mod scene;
 mod sections;
 
@@ -49,7 +50,7 @@ use nova_gameplay::prelude::*;
 use nova_os::prelude::*;
 
 pub use self::sections::SectionCode;
-pub(crate) use self::{app::*, scene::*, sections::*};
+pub(crate) use self::{app::*, rebind::*, scene::*, sections::*};
 
 /// Glob-import surface: `use nova_os_ui::ship::prelude::*`.
 pub mod prelude {
@@ -87,6 +88,7 @@ const SHIP_HINTS: &[&str] = &[
     "G: MATES",
     "L: RELOAD",
     "P: REPAIR",
+    "B: REBIND",
     "T: RESET",
     "ESC: BACK",
 ];
@@ -121,6 +123,7 @@ impl Plugin for NovaOsShipPlugin {
                 apply_ship_section_commands,
                 manage_ship_scene,
                 reconcile_ship_target,
+                apply_ship_rebind,
                 ship_input,
                 drive_ship_camera,
                 update_ship_blocks,

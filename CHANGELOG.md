@@ -240,6 +240,10 @@ tagged **(breaking)**.
 
 ### Interface & HUD
 
+- Keep WFC arena combat frozen while its NOVA OS is open.
+- Let several ship sections share one input when rebinding through NOVA OS.
+- Keep the mouse visible and free while NOVA OS and WFC arena result screens are open.
+- Add a configurable WFC arena lobby, match pause and result screens, reusable text fields, dynamic ammunition scores, and live NOVA OS section rebinding.
 - A scenario swap draws an animated LOADING SCENARIO panel over the stall, and
   rocks build 25x faster: a chapter load was 11 s in one frozen frame, now
   ~0.3 s.

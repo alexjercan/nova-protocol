@@ -250,11 +250,15 @@ fn attitude_rig(
             .clone()
     };
     let at = |id: &str, kind: &str, position: Vec3| {
-        let mut config = section(kind);
+        let config = section(kind);
         #[cfg(feature = "debug")]
-        if matches!(layout, Layout::B) {
-            config.base.mass *= 10.0;
-        }
+        let config = {
+            let mut config = config;
+            if matches!(layout, Layout::B) {
+                config.base.mass *= 10.0;
+            }
+            config
+        };
         SpaceshipSectionConfig {
             id: id.to_string(),
             position,

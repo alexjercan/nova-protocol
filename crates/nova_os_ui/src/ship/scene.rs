@@ -47,6 +47,7 @@ pub(crate) enum ShipPanelField {
 pub(crate) enum ShipPanelButton {
     Repair,
     Reload,
+    Rebind,
 }
 #[derive(Component)]
 pub(crate) struct ShipCameraMarker;
@@ -135,6 +136,11 @@ pub(crate) struct ShipRuntime {
     /// disabled action without re-deriving the section's validity.
     pub(crate) panel_repair_enabled: bool,
     pub(crate) panel_reload_enabled: bool,
+    pub(crate) panel_rebind_enabled: bool,
+    /// Section waiting for a replacement keyboard or mouse binding.
+    pub(crate) rebinding: Option<Entity>,
+    /// Skips the key or click that armed the capture.
+    pub(crate) rebind_just_armed: bool,
     /// Whether the structural mate overlay is visible.
     pub(crate) show_mates: bool,
 }
@@ -171,6 +177,8 @@ pub(crate) fn manage_ship_scene(
         runtime.image = None;
         runtime.selected = None;
         runtime.note = None;
+        runtime.rebinding = None;
+        runtime.rebind_just_armed = false;
         runtime.show_mates = false;
         return;
     }
@@ -379,6 +387,9 @@ pub(crate) fn ship_input(
             runtime.note = None;
         }
     }
+    if runtime.rebinding.is_some() {
+        return;
+    }
 
     if let Ok(mut orbit) = q_camera.single_mut() {
         let turn = 1.6 * dt;
@@ -465,9 +476,20 @@ pub(crate) fn ship_input(
         }
     }
 
-    // Actions on the selected section: L reload, P repair. Route through the same
-    // message the panel buttons raise and the mutation handler applies.
+    // Actions on the selected section: L reload, P repair, B rebind. Route
+    // mutation actions through their shared seams.
     if let Some(sel) = runtime.selected {
+        if input.just_pressed(KeyCode::KeyB)
+            && list
+                .iter()
+                .find(|view| view.entity == sel)
+                .is_some_and(|view| view.bindings.is_some())
+        {
+            runtime.rebinding = Some(sel);
+            runtime.rebind_just_armed = true;
+            runtime.note = None;
+            return;
+        }
         if input.just_pressed(KeyCode::KeyL) {
             commands.write(ShipSectionCommand {
                 target: sel,
@@ -712,6 +734,15 @@ pub(crate) fn on_ship_repair_button(
 
 /// Raise a Reload on the selected section when the panel button is clicked, unless
 /// the panel marked reload disabled for it.
+pub(crate) fn on_ship_rebind_button(_activate: On<Activate>, mut runtime: ResMut<ShipRuntime>) {
+    if !runtime.panel_rebind_enabled {
+        return;
+    }
+    runtime.rebinding = runtime.selected;
+    runtime.rebind_just_armed = runtime.rebinding.is_some();
+    runtime.note = None;
+}
+
 pub(crate) fn on_ship_reload_button(
     _activate: On<Activate>,
     runtime: Res<ShipRuntime>,
@@ -765,15 +796,26 @@ pub(crate) fn update_ship_panel(
 
     runtime.panel_repair_enabled = actions.repair_enabled;
     runtime.panel_reload_enabled = actions.reload_enabled;
+    runtime.panel_rebind_enabled = selected
+        .as_ref()
+        .is_some_and(|view| view.bindings.is_some());
 
     // Note line: a transient action result wins; else the disabled reason; else a
     // key hint when a section is selected.
-    let (note, note_color) = if let Some((note, _)) = &runtime.note {
+    let (note, note_color) = if runtime.rebinding.is_some() {
+        (
+            "PRESS A KEY OR MOUSE BUTTON - ESC CANCELS".to_string(),
+            NOVA_OS_AMBER,
+        )
+    } else if let Some((note, _)) = &runtime.note {
         (note.clone(), NOVA_OS_AMBER)
     } else if let Some(reason) = &actions.reason {
         (reason.clone(), NOVA_OS_PHOSPHOR_MUTED)
     } else if selected.is_some() {
-        ("P repair   L reload".to_string(), NOVA_OS_PHOSPHOR_MUTED)
+        (
+            "P repair   L reload   B rebind".to_string(),
+            NOVA_OS_PHOSPHOR_MUTED,
+        )
     } else {
         (String::new(), NOVA_OS_PHOSPHOR_MUTED)
     };
@@ -794,6 +836,7 @@ pub(crate) fn update_ship_panel(
         let enabled = match button {
             ShipPanelButton::Repair => actions.repair_enabled,
             ShipPanelButton::Reload => actions.reload_enabled,
+            ShipPanelButton::Rebind => runtime.panel_rebind_enabled,
         };
         let (border_color, background_color) = if enabled {
             (NOVA_OS_PHOSPHOR, NOVA_OS_PHOSPHOR.with_alpha(0.14))

@@ -64,6 +64,7 @@ const SECTIONS_PER_SHIP: usize = 10;
 
 /// Every section in the sky, across the whole fleet. The exact-count invariant
 /// reads this.
+#[cfg(feature = "debug")]
 const SECTIONS_IN_THE_SKY: usize = SHIPS_IN_THE_SKY * SECTIONS_PER_SHIP;
 
 /// Radius of the shell the fleet sits on. Fixed rather than count-scaled, so
@@ -199,7 +200,7 @@ fn hull(sections: &GameSections, index: usize) -> SpaceshipConfig {
         // Half the fleet answers to the other half: hostility comes from the
         // relation model, so opposing allegiances are what give the
         // acquisition pass something to find.
-        allegiance: Some(if index % 2 == 0 {
+        allegiance: Some(if index.is_multiple_of(2) {
             Allegiance::Player
         } else {
             Allegiance::Enemy

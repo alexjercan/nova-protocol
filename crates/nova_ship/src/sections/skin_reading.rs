@@ -583,9 +583,8 @@ pub fn fallen_corners(shape: &ShellShape) -> u8 {
 /// [`Ridge`]: PlateRelief::Ridge
 fn fall_of(plate: &SkinPlate) -> IVec3 {
     let mut local = Vec3::ZERO;
-    for slot in 0..4 {
+    for (slot, &(x, z)) in FACE_CORNERS.iter().enumerate() {
         if plate.shape.corners[slot] == 0 {
-            let (x, z) = FACE_CORNERS[slot];
             local += Vec3::new(x as f32, 0.0, z as f32);
         }
     }

@@ -148,6 +148,7 @@ pub(crate) fn solve(
 /// That socket is the one whose mate leaves the part in the orientation it was
 /// AUTHORED in - an engine keeps its nozzle aft, a bay keeps its doors forward
 /// - because opposing two already-opposed normals asks for no rotation at all.
+///
 /// It is the answer a builder means nine times in ten, so it is where the
 /// socket cycle starts rather than somewhere the cycle has to reach.
 fn natural_source(part_link_points: &[LinkPoint], target_normal: Vec3) -> usize {

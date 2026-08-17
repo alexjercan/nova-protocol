@@ -190,6 +190,17 @@ fn entering_nova_os_freezes_clocks_frees_cursor_and_shows_no_pause_menu() {
     );
     assert!(cursor.visible, "the NOVA OS shows the cursor");
 
+    let mut cursor = app.world_mut().get_mut::<CursorOptions>(window).unwrap();
+    cursor.grab_mode = CursorGrabMode::Locked;
+    cursor.visible = false;
+    app.update();
+    let cursor = app.world().get::<CursorOptions>(window).unwrap();
+    assert_eq!(cursor.grab_mode, CursorGrabMode::None);
+    assert!(
+        cursor.visible,
+        "the NOVA OS keeps the cursor after reclamation"
+    );
+
     // The NOVA OS is NOT the pause menu: no pause overlay spawns.
     let mut q = app.world_mut().query::<(&Name,)>();
     let has_pause_overlay = q

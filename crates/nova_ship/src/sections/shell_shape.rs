@@ -878,7 +878,9 @@ mod tests {
             panic!("a generated shell carries float positions");
         };
         positions
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|corner| std::array::from_fn(|i| Vec3::from_array(corner[i])))
             .collect()
     }
