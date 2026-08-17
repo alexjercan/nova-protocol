@@ -2,8 +2,9 @@
 //!
 //! Change this module when ship structure publication or aggregate health semantics change.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use avian3d::prelude::{mass_properties::MassPropertySystems, *};
 use bevy::prelude::*;
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
@@ -13,17 +14,20 @@ use super::link_points::prelude::*;
 /// Ship graph publication, disabled-section behavior, and aggregate health.
 pub mod prelude {
     pub use super::{
-        ShipIntegrityPlugin, StructuralCollapseMarker, StructuralCollapseThreshold,
-        DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD,
+        ShipIntegrityPlugin, ShipWreckFragmentMarker, StructuralCollapseMarker,
+        StructuralCollapseThreshold, DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD,
     };
 }
 
 /// The structural-collapse fraction a ship gets when nothing is authored.
 ///
-/// A quarter of the hull left is a wreck, not a fighting ship: finishing one
-/// stops being a chore of hunting the last cladding panel. Ships that must be
-/// taken apart plate by plate (a capital) author a lower fraction.
-pub const DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD: f32 = 0.25;
+/// Five percent of the built hull is the final wreckage floor. Physical
+/// severing handles major hull loss without executing a still-capable half ship;
+/// this threshold only prevents a tiny command shard from lingering forever.
+pub const DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD: f32 = 0.05;
+
+/// Relative speed applied to each severed component before momentum balancing.
+const SEVER_SEPARATION_SPEED: f32 = 1.0;
 
 /// The fraction of a ship's PINNED maximum health below which the hull comes
 /// apart and the whole ship is destroyed - see [`aggregate_ship_health`].
@@ -65,6 +69,39 @@ pub struct StructuralCollapseMarker {
     standing: Option<usize>,
 }
 
+/// An inert, persistent compound body made from structure severed from a ship.
+/// It is not a spaceship and owns no control, allegiance, or scenario identity.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[reflect(Component)]
+pub struct ShipWreckFragmentMarker;
+
+#[derive(Clone, Debug)]
+struct PendingSeverCut {
+    cut_offsets_from_com: Vec<Vec3>,
+    old_origin_world: Vec3,
+    old_rotation: Quat,
+    old_com_local: Vec3,
+    old_linear_velocity: Vec3,
+    old_angular_velocity: Vec3,
+}
+
+#[derive(Resource, Default)]
+struct PendingSeverRoots(BTreeMap<Entity, PendingSeverCut>);
+
+#[derive(Clone, Debug)]
+struct PendingSeverBatch {
+    bodies: Vec<Entity>,
+    origin_world: Vec3,
+    rotation: Quat,
+    cut_origin_world: Vec3,
+    old_com_world: Vec3,
+    old_linear_velocity: Vec3,
+    old_angular_velocity: Vec3,
+}
+
+#[derive(Resource, Default)]
+struct PendingSeverMotion(Vec<PendingSeverBatch>);
+
 /// Adapts section-based ships to the generic gameplay integrity pipeline.
 pub struct ShipIntegrityPlugin;
 
@@ -76,7 +113,11 @@ impl Plugin for ShipIntegrityPlugin {
         app.register_type::<SectionLinkPoints>();
         app.register_type::<StructuralCollapseThreshold>();
         app.register_type::<StructuralCollapseMarker>();
+        app.register_type::<ShipWreckFragmentMarker>();
+        app.init_resource::<PendingSeverRoots>();
+        app.init_resource::<PendingSeverMotion>();
         app.add_observer(on_section_disable);
+        app.add_observer(queue_depleted_section_sever);
         app.add_systems(Update, build_ship_integrity_graph.before(IntegritySystems));
         // Chained: the cascade reads the collapse marker the aggregate writes,
         // and the ordering edge is what gets the marker applied in between.
@@ -86,34 +127,372 @@ impl Plugin for ShipIntegrityPlugin {
                 .chain()
                 .in_set(IntegritySystems),
         );
+        app.add_systems(
+            Update,
+            (sever_disconnected_structures, cleanup_empty_wreck_fragments)
+                .chain()
+                .after(IntegritySystems),
+        );
+        app.add_systems(
+            FixedPostUpdate,
+            (recompute_pending_sever_mass, apply_pending_sever_motion)
+                .chain()
+                .after(MassPropertySystems::UpdateComputedMassProperties)
+                .before(PhysicsSystems::StepSimulation),
+        );
     }
 }
 
-/// A disabled section that is not yet a leaf is deactivated but kept in place.
-/// A disabled leaf is destroyed by the generic integrity core instead.
+/// Directly depleted sections die regardless of graph degree. Healthy sections
+/// disabled by structural collapse retain the leaf-first peel.
 fn on_section_disable(
     add: On<Add, IntegrityDisabledMarker>,
     mut commands: Commands,
     q_section: Query<
-        Entity,
-        (
-            With<SectionMarker>,
-            With<IntegrityDisabledMarker>,
-            Without<IntegrityLeafMarker>,
-        ),
+        (Has<HealthZeroMarker>, Has<IntegrityLeafMarker>),
+        (With<SectionMarker>, With<IntegrityDisabledMarker>),
     >,
 ) {
     let entity = add.entity;
-    if !q_section.contains(entity) {
+    let Ok((depleted, leaf)) = q_section.get(entity) else {
+        return;
+    };
+
+    if depleted && !leaf {
+        debug!("on_section_disable: depleted interior section {entity:?} destroyed");
+        commands.entity(entity).try_insert(IntegrityDestroyMarker);
+    } else if !depleted && !leaf {
+        trace!("on_section_disable: collapse disabled interior section {entity:?}");
+        commands.entity(entity).try_insert(SectionInactiveMarker);
+    }
+}
+
+/// Remember the owning structure and cut point before destruction despawns the
+/// section. One later partition handles every section destroyed in the frame.
+fn queue_depleted_section_sever(
+    add: On<Add, HealthZeroMarker>,
+    mut pending: ResMut<PendingSeverRoots>,
+    q_section: Query<(&ChildOf, &ColliderTransform, &ColliderMassProperties), With<SectionMarker>>,
+    q_root: Query<(&Position, &Rotation, &LinearVelocity, &AngularVelocity)>,
+    q_fixtures: Query<
+        (&ColliderOf, &ColliderTransform, &ColliderMassProperties),
+        Without<SectionMarker>,
+    >,
+) {
+    let Ok((&ChildOf(root), collider_transform, mass_properties)) = q_section.get(add.entity)
+    else {
+        return;
+    };
+    let Ok((position, rotation, linear, angular)) = q_root.get(root) else {
+        return;
+    };
+    let mut total_mass = 0.0;
+    let mut weighted_center = Vec3::ZERO;
+    for (ChildOf(parent), transform, properties) in &q_section {
+        if *parent != root || properties.mass <= f32::EPSILON {
+            continue;
+        }
+        total_mass += properties.mass;
+        weighted_center += transform.transform_point(properties.center_of_mass) * properties.mass;
+    }
+    for (collider_of, transform, properties) in &q_fixtures {
+        if collider_of.body != root || properties.mass <= f32::EPSILON {
+            continue;
+        }
+        total_mass += properties.mass;
+        weighted_center += transform.transform_point(properties.center_of_mass) * properties.mass;
+    }
+    let old_com_local = if total_mass > f32::EPSILON {
+        weighted_center / total_mass
+    } else {
+        Vec3::ZERO
+    };
+    let cut_local = collider_transform.transform_point(mass_properties.center_of_mass);
+    let cut_offset = cut_local - old_com_local;
+    if let Some(cut) = pending.0.get_mut(&root) {
+        cut.cut_offsets_from_com.push(cut_offset);
         return;
     }
-
-    trace!(
-        "on_section_disable: entity {:?} integrity disabled, disabling section",
-        entity
+    pending.0.insert(
+        root,
+        PendingSeverCut {
+            cut_offsets_from_com: vec![cut_offset],
+            old_origin_world: position.0,
+            old_rotation: rotation.0,
+            old_com_local,
+            old_linear_velocity: **linear,
+            old_angular_velocity: **angular,
+        },
     );
+}
 
-    commands.entity(entity).insert(SectionInactiveMarker);
+/// Split a structure whose destroyed section disconnected its graph.
+#[allow(clippy::type_complexity)]
+fn sever_disconnected_structures(
+    mut commands: Commands,
+    mut pending: ResMut<PendingSeverRoots>,
+    mut pending_motion: ResMut<PendingSeverMotion>,
+    q_roots: Query<
+        (
+            Entity,
+            &Children,
+            &Position,
+            &Rotation,
+            &LinearVelocity,
+            &AngularVelocity,
+            Has<SpaceshipRootMarker>,
+            Has<StructuralCollapseMarker>,
+        ),
+        (
+            With<IntegrityRoot>,
+            Or<(With<SpaceshipRootMarker>, With<ShipWreckFragmentMarker>)>,
+        ),
+    >,
+    q_sections: Query<
+        (
+            &ConnectedTo,
+            &Transform,
+            &Health,
+            Has<ControllerSectionMarker>,
+            Has<SectionInactiveMarker>,
+            Has<IntegrityDestroyMarker>,
+        ),
+        With<SectionMarker>,
+    >,
+) {
+    let pending_roots = std::mem::take(&mut pending.0);
+    for (root, cut) in pending_roots {
+        let Ok((
+            _,
+            children,
+            position,
+            rotation,
+            linear_velocity,
+            angular_velocity,
+            is_spaceship,
+            collapsing,
+        )) = q_roots.get(root)
+        else {
+            continue;
+        };
+        if collapsing {
+            continue;
+        }
+
+        let mut sections: Vec<_> = children
+            .iter()
+            .filter(|child| {
+                q_sections
+                    .get(*child)
+                    .is_ok_and(|(_, _, _, _, _, destroying)| !destroying)
+            })
+            .collect();
+        sections.sort_by_key(|section| section.to_bits());
+        if sections.len() < 2 {
+            continue;
+        }
+        let section_set: BTreeSet<_> = sections.iter().copied().collect();
+
+        let mut unseen = section_set.clone();
+        let mut components = Vec::new();
+        while let Some(start) = unseen.pop_first() {
+            let mut component = vec![start];
+            let mut queue = VecDeque::from([start]);
+            while let Some(section) = queue.pop_front() {
+                let Ok((connected, ..)) = q_sections.get(section) else {
+                    continue;
+                };
+                for neighbor in connected.iter().copied() {
+                    if section_set.contains(&neighbor) && unseen.remove(&neighbor) {
+                        component.push(neighbor);
+                        queue.push_back(neighbor);
+                    }
+                }
+            }
+            component.sort_by_key(|section| section.to_bits());
+            components.push(component);
+        }
+        if components.len() <= 1 {
+            continue;
+        }
+
+        let rank = |component: &[Entity]| {
+            let mut live_controllers = 0usize;
+            let mut maximum_health = 0.0f32;
+            for section in component {
+                if let Ok((_, _, health, controller, inactive, _)) = q_sections.get(*section) {
+                    maximum_health += health.max;
+                    live_controllers +=
+                        usize::from(controller && !inactive && health.current > 0.0);
+                }
+            }
+            (live_controllers, maximum_health)
+        };
+        let retained = components
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| {
+                let (a_controllers, a_health) = rank(a);
+                let (b_controllers, b_health) = rank(b);
+                let controller_order = if is_spaceship {
+                    a_controllers.cmp(&b_controllers)
+                } else {
+                    std::cmp::Ordering::Equal
+                };
+                controller_order
+                    .then_with(|| a_health.total_cmp(&b_health))
+                    // `max_by` keeps the later equal item; reverse the stable
+                    // entity key so the lowest entity wins a complete tie.
+                    .then_with(|| b[0].to_bits().cmp(&a[0].to_bits()))
+            })
+            .map(|(index, _)| index)
+            .expect("a split has components");
+
+        let mut bodies = vec![root];
+        for (index, component) in components.iter().enumerate() {
+            if index == retained {
+                continue;
+            }
+            let fragment = commands
+                .spawn((
+                    Name::new("Severed Ship Wreck"),
+                    ShipWreckFragmentMarker,
+                    IntegrityRoot,
+                    RigidBody::Dynamic,
+                    Position(position.0),
+                    Rotation(rotation.0),
+                    Transform::from_translation(position.0).with_rotation(rotation.0),
+                    Visibility::default(),
+                    LinearVelocity(**linear_velocity),
+                    AngularVelocity(**angular_velocity),
+                    TransformInterpolation,
+                ))
+                .id();
+            bodies.push(fragment);
+            for section in component {
+                let Ok((_, transform, ..)) = q_sections.get(*section) else {
+                    continue;
+                };
+                commands.entity(*section).insert((
+                    ChildOf(fragment),
+                    *transform,
+                    SectionInactiveMarker,
+                ));
+            }
+        }
+
+        let cut_offset = cut.cut_offsets_from_com.iter().copied().sum::<Vec3>()
+            / cut.cut_offsets_from_com.len() as f32;
+        let old_com_world = cut.old_origin_world + cut.old_rotation * cut.old_com_local;
+        pending_motion.0.push(PendingSeverBatch {
+            bodies,
+            origin_world: cut.old_origin_world,
+            rotation: cut.old_rotation,
+            cut_origin_world: old_com_world + cut.old_rotation * cut_offset,
+            old_com_world,
+            old_linear_velocity: cut.old_linear_velocity,
+            old_angular_velocity: cut.old_angular_velocity,
+        });
+        debug!(
+            "sever_disconnected_structures: {root:?} split into {} bodies",
+            components.len()
+        );
+    }
+}
+
+/// Recompute immediately because hierarchy changes can miss Avian's current
+/// prepare pass when they land after its recomputation queue.
+fn recompute_pending_sever_mass(
+    pending: Res<PendingSeverMotion>,
+    mut mass_properties: MassPropertyHelper,
+) {
+    for batch in &pending.0 {
+        for body in &batch.bodies {
+            mass_properties.update_mass_properties(*body);
+        }
+    }
+}
+
+/// Restore each new body's rigid point velocity after Avian computes its new
+/// centre of mass, then add a momentum-neutral fracture kick.
+#[allow(clippy::type_complexity)]
+fn apply_pending_sever_motion(
+    mut pending: ResMut<PendingSeverMotion>,
+    mut bodies: ParamSet<(
+        Query<(&ComputedCenterOfMass, &ComputedMass)>,
+        Query<(
+            &mut Position,
+            &mut Rotation,
+            &mut LinearVelocity,
+            &mut AngularVelocity,
+        )>,
+    )>,
+) {
+    let mut waiting = Vec::new();
+    for batch in pending.0.drain(..) {
+        let samples: Option<Vec<_>> = {
+            let q_body = bodies.p0();
+            batch
+                .bodies
+                .iter()
+                .map(|body| {
+                    let (center, mass) = q_body.get(*body).ok()?;
+                    let com_world = batch.origin_world + batch.rotation * center.0;
+                    let direction = (com_world - batch.cut_origin_world)
+                        .try_normalize()
+                        .unwrap_or(Vec3::X);
+                    Some((*body, com_world, mass.value(), direction))
+                })
+                .collect()
+        };
+        let Some(samples) = samples else {
+            waiting.push(batch);
+            continue;
+        };
+        let total_mass: f32 = samples.iter().map(|(_, _, mass, _)| *mass).sum();
+        if total_mass <= f32::EPSILON {
+            waiting.push(batch);
+            continue;
+        }
+        let mean_kick = samples
+            .iter()
+            .map(|(_, _, mass, direction)| *direction * (*mass * SEVER_SEPARATION_SPEED))
+            .sum::<Vec3>()
+            / total_mass;
+
+        let mut q_motion = bodies.p1();
+        for (body, com_world, _, direction) in samples {
+            let Ok((mut position, mut rotation, mut linear, mut angular)) = q_motion.get_mut(body)
+            else {
+                continue;
+            };
+            **position = batch.origin_world;
+            **rotation = batch.rotation;
+            let point_velocity = batch.old_linear_velocity
+                + batch
+                    .old_angular_velocity
+                    .cross(com_world - batch.old_com_world);
+            **linear = point_velocity + direction * SEVER_SEPARATION_SPEED - mean_kick;
+            **angular = batch.old_angular_velocity;
+        }
+    }
+    pending.0 = waiting;
+}
+
+/// A fragment root has no aggregate health component, so remove it explicitly
+/// after its last section has gone.
+fn cleanup_empty_wreck_fragments(
+    mut commands: Commands,
+    q_fragments: Query<(Entity, Option<&Children>), With<ShipWreckFragmentMarker>>,
+    q_sections: Query<(), With<SectionMarker>>,
+) {
+    for (fragment, children) in &q_fragments {
+        let has_section = children
+            .is_some_and(|children| children.iter().any(|child| q_sections.contains(child)));
+        if !has_section {
+            commands.entity(fragment).try_despawn();
+        }
+    }
 }
 
 /// Build each ship's authoritative section graph after its section spawn batch is complete.
@@ -563,15 +942,15 @@ mod tests {
     #[test]
     fn a_ship_with_no_authored_threshold_collapses_at_the_default() {
         let mut app = aggregate_app();
-        let (root, sections) = spawn_ship(&mut app, None, &[(100.0, 100.0), (900.0, 900.0)]);
+        let (root, sections) = spawn_ship(&mut app, None, &[(40.0, 40.0), (960.0, 960.0)]);
         app.update();
 
         app.world_mut().entity_mut(sections[1]).despawn();
         app.update();
 
-        assert!(
-            DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD > 0.1,
-            "the default must be above the 10 percent this ship is left with"
+        assert_eq!(
+            DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD, 0.05,
+            "the default leaves only the final five percent to collapse"
         );
         assert!(collapsing(&app, root));
     }
@@ -796,14 +1175,34 @@ mod tests {
     }
 
     #[test]
-    fn a_disabled_leaf_section_is_not_deactivated() {
-        // A disabled leaf section is destroyed by the core, not merely deactivated.
+    fn a_depleted_non_leaf_section_is_destroyed() {
         let mut app = App::new();
         app.add_observer(on_section_disable);
 
         let section = app
             .world_mut()
-            .spawn((SectionMarker, IntegrityLeafMarker))
+            .spawn((SectionMarker, HealthZeroMarker))
+            .id();
+        app.world_mut()
+            .entity_mut(section)
+            .insert(IntegrityDisabledMarker);
+        app.update();
+
+        assert!(
+            app.world().get::<IntegrityDestroyMarker>(section).is_some(),
+            "graph degree cannot keep a depleted ship section alive"
+        );
+        assert!(app.world().get::<SectionInactiveMarker>(section).is_none());
+    }
+
+    #[test]
+    fn the_ship_adapter_leaves_a_depleted_leaf_to_the_generic_core() {
+        let mut app = App::new();
+        app.add_observer(on_section_disable);
+
+        let section = app
+            .world_mut()
+            .spawn((SectionMarker, IntegrityLeafMarker, HealthZeroMarker))
             .id();
         app.world_mut()
             .entity_mut(section)
@@ -811,13 +1210,16 @@ mod tests {
         app.update();
 
         assert!(app.world().get::<SectionInactiveMarker>(section).is_none());
+        assert!(
+            app.world().get::<IntegrityDestroyMarker>(section).is_none(),
+            "only the generic leaf observer may queue destruction"
+        );
     }
 }
 
 /// Physics-level tests for link-point graph publication at Avian's real `ColliderOf` seam.
 #[cfg(test)]
 mod physics_tests {
-    use avian3d::prelude::*;
     use bevy_rand::prelude::*;
     use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 
@@ -887,6 +1289,224 @@ mod physics_tests {
         assert!(mid_neighbors.contains(&left) && mid_neighbors.contains(&right));
         assert_eq!(neighbors(&app, left), vec![mid]);
         assert_eq!(neighbors(&app, right), vec![mid]);
+    }
+
+    #[test]
+    fn a_capital_scale_redundant_ring_stays_one_body_after_a_cut() {
+        const SECTION_COUNT: usize = 128;
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.finish();
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        let sections: Vec<_> = (0..SECTION_COUNT)
+            .map(|index| {
+                let angle = index as f32 * std::f32::consts::TAU / SECTION_COUNT as f32;
+                spawn_section(
+                    &mut app,
+                    root,
+                    Vec3::new(angle.cos(), angle.sin(), 0.0) * 25.0,
+                )
+            })
+            .collect();
+        settle(&mut app);
+        for (index, section) in sections.iter().copied().enumerate() {
+            app.world_mut().entity_mut(section).insert(ConnectedTo(vec![
+                sections[(index + SECTION_COUNT - 1) % SECTION_COUNT],
+                sections[(index + 1) % SECTION_COUNT],
+            ]));
+        }
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: sections[0],
+            source: None,
+            amount: 100.0,
+        });
+        for _ in 0..3 {
+            app.update();
+        }
+
+        assert!(!app.world().entities().contains(sections[0]));
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<Entity, With<ShipWreckFragmentMarker>>()
+                .iter(app.world())
+                .count(),
+            0,
+            "a redundant cut must not invent a wreck body"
+        );
+        for section in sections.into_iter().skip(1) {
+            assert_eq!(app.world().get::<ColliderOf>(section).unwrap().body, root);
+        }
+    }
+
+    #[test]
+    fn destroying_an_interior_bridge_severs_a_physical_wreck() {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.finish();
+
+        let old_linear = Vec3::new(5.0, 0.0, 0.0);
+        let old_angular = Vec3::new(0.0, 0.0, 2.0);
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+                LinearVelocity(old_linear),
+                AngularVelocity(old_angular),
+            ))
+            .id();
+        let left = spawn_section(&mut app, root, Vec3::ZERO);
+        app.world_mut()
+            .entity_mut(left)
+            .insert(ControllerSectionMarker);
+        let bridge = spawn_section(&mut app, root, Vec3::X);
+        let right = spawn_section(&mut app, root, Vec3::X * 2.0);
+        let second_bridge = spawn_section(&mut app, root, Vec3::X * 3.0);
+        let rear = spawn_section(&mut app, root, Vec3::X * 4.0);
+        settle(&mut app);
+        let old_com = app.world().get::<Position>(root).unwrap().0
+            + app.world().get::<Rotation>(root).unwrap().0
+                * app.world().get::<ComputedCenterOfMass>(root).unwrap().0;
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: bridge,
+            source: None,
+            amount: 100.0,
+        });
+        app.update();
+        // The production cube burst has colliders and intentionally adds chaos.
+        // Remove that separate VFX before the next fixed pass so this test
+        // isolates the sever motion contract itself.
+        let debris: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<MeshFragmentMarker>>()
+            .iter(app.world())
+            .collect();
+        for entity in debris {
+            app.world_mut().entity_mut(entity).despawn();
+        }
+        app.update();
+
+        assert!(
+            !app.world().entities().contains(bridge),
+            "the depleted non-leaf bridge must disappear"
+        );
+        let fragments: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<ShipWreckFragmentMarker>>()
+            .iter(app.world())
+            .collect();
+        assert_eq!(fragments.len(), 1, "one detached component makes one wreck");
+        let fragment = fragments[0];
+        assert_eq!(
+            app.world().get::<ColliderOf>(left).unwrap().body,
+            root,
+            "the controller component keeps ship identity"
+        );
+        assert_eq!(
+            app.world().get::<ColliderOf>(right).unwrap().body,
+            fragment,
+            "Avian must assign the detached collider to its new body"
+        );
+        assert!(
+            app.world().get::<SectionInactiveMarker>(right).is_some(),
+            "a wreck section is inert"
+        );
+        assert!(
+            app.world()
+                .get::<Health>(right)
+                .is_some_and(|health| health.current > 0.0),
+            "an inert wreck section remains healthy and damageable"
+        );
+
+        let left_velocity = **app.world().get::<LinearVelocity>(root).unwrap();
+        let right_velocity = **app.world().get::<LinearVelocity>(fragment).unwrap();
+        let left_com = app.world().get::<Position>(root).unwrap().0
+            + app.world().get::<Rotation>(root).unwrap().0
+                * app.world().get::<ComputedCenterOfMass>(root).unwrap().0;
+        let right_com = app.world().get::<Position>(fragment).unwrap().0
+            + app.world().get::<Rotation>(fragment).unwrap().0
+                * app.world().get::<ComputedCenterOfMass>(fragment).unwrap().0;
+        let expected_relative_rotation = old_angular.cross(right_com - left_com);
+        let fracture_relative = right_velocity - left_velocity - expected_relative_rotation;
+        assert!(
+            (fracture_relative.length() - 2.0 * SEVER_SEPARATION_SPEED).abs() < 0.2,
+            "each side receives the accepted 1 u/s kick: {fracture_relative:?}"
+        );
+        let left_mass = app.world().get::<ComputedMass>(root).unwrap().value();
+        let right_mass = app.world().get::<ComputedMass>(fragment).unwrap().value();
+        let balanced =
+            (left_velocity * left_mass + right_velocity * right_mass) / (left_mass + right_mass);
+        let surviving_com =
+            (left_com * left_mass + right_com * right_mass) / (left_mass + right_mass);
+        let pre_kick_survivor_velocity = old_linear + old_angular.cross(surviving_com - old_com);
+        assert!(
+            (balanced - pre_kick_survivor_velocity).length() < 0.2,
+            "the kick must preserve survivor momentum: balanced={balanced:?}, expected={pre_kick_survivor_velocity:?}, masses=({left_mass}, {right_mass}), velocities=({left_velocity:?}, {right_velocity:?})"
+        );
+
+        // A persistent wreck uses the same partition path on a later hit.
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: second_bridge,
+            source: None,
+            amount: 100.0,
+        });
+        app.update();
+        let debris: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<MeshFragmentMarker>>()
+            .iter(app.world())
+            .collect();
+        for entity in debris {
+            app.world_mut().entity_mut(entity).despawn();
+        }
+        for _ in 0..3 {
+            app.update();
+        }
+
+        let fragment_roots: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<ShipWreckFragmentMarker>>()
+            .iter(app.world())
+            .collect();
+        assert_eq!(fragment_roots.len(), 2, "a wreck can sever again");
+        let right_body = app.world().get::<ColliderOf>(right).unwrap().body;
+        let rear_body = app.world().get::<ColliderOf>(rear).unwrap().body;
+        assert_ne!(right_body, rear_body, "the cut made two wreck bodies");
+
+        // Removing the only section from the new wreck also removes its
+        // otherwise-healthless root. Stable tie resolution decides which side
+        // retained the first wreck identity.
+        let (single_section, empty_root) = if right_body == fragment {
+            (rear, rear_body)
+        } else {
+            (right, right_body)
+        };
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: single_section,
+            source: None,
+            amount: 100.0,
+        });
+        for _ in 0..3 {
+            app.update();
+        }
+        assert!(
+            !app.world().entities().contains(empty_root),
+            "an empty wreck root must not persist"
+        );
     }
 
     #[test]
@@ -1225,7 +1845,6 @@ mod physics_tests {
 /// pins (null-result-becomes-a-pin).
 #[cfg(test)]
 mod ghost_ship_tests {
-    use avian3d::prelude::*;
     use bevy_rand::prelude::*;
     use nova_events::prelude::{EntityTypeName, GameEvent};
     use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
@@ -1455,8 +2074,8 @@ mod ghost_ship_tests {
         );
     }
 
-    /// Structural collapse end to end: a ship down to a fifth of the hull it
-    /// was built with dies with that last section still ALIVE, through the same
+    /// Structural collapse end to end: a ship down to a twentieth of the hull
+    /// it was built with dies with that last section still ALIVE, through the same
     /// disable -> destroy chain (one OnDestroyed, no second death path).
     ///
     /// The section still alive at the collapse is DESTROYED - it bursts its
@@ -1465,9 +2084,9 @@ mod ghost_ship_tests {
     #[test]
     fn a_ship_below_its_collapse_threshold_dies_with_a_section_still_alive() {
         let mut app = ghost_app();
-        let (root, sections) = spawn_ship(&mut app, 5);
+        let (root, sections) = spawn_ship(&mut app, 20);
 
-        for section in &sections[..3] {
+        for section in &sections[..18] {
             hit(&mut app, *section, 100.0);
             for _ in 0..5 {
                 app.update();
@@ -1475,21 +2094,21 @@ mod ghost_ship_tests {
         }
         assert!(
             app.world().entities().contains(root),
-            "two fifths of a hull still flies"
+            "a tenth of a hull still flies"
         );
 
-        hit(&mut app, sections[3], 100.0);
+        hit(&mut app, sections[18], 100.0);
 
         assert!(
             root_dead(&mut app, root, 10),
-            "one fifth of a hull is wreckage, not a ship"
+            "five percent of a hull is wreckage, not a ship"
         );
         assert!(
-            !app.world().entities().contains(sections[4]),
+            !app.world().entities().contains(sections[19]),
             "the last living section goes with the hull it hung from"
         );
         assert!(
-            was_destroyed(&app, sections[4]),
+            was_destroyed(&app, sections[19]),
             "it is DESTROYED on the way out, not quietly despawned - that is \
              what makes it burst"
         );
@@ -1502,12 +2121,12 @@ mod ghost_ship_tests {
     #[test]
     fn a_collapsing_ship_peels_apart_over_several_frames() {
         let mut app = ghost_app();
-        // Six sections in a line, each shot down to a quarter: 144 of a pinned
+        // Six sections in a line, each shot down to four percent: 24 of a pinned
         // 600 is under the default threshold with the whole chain still
         // standing, so the remnant that collapses is the entire ship.
         let (root, sections) = spawn_ship(&mut app, 6);
         for section in &sections {
-            hit(&mut app, *section, 76.0);
+            hit(&mut app, *section, 96.0);
         }
 
         let mut destroyed_per_frame = Vec::new();
@@ -1586,9 +2205,9 @@ mod ghost_ship_tests {
     fn a_ring_shaped_remnant_still_collapses_completely() {
         let mut app = ghost_app();
         let (root, sections) = spawn_ring_ship(&mut app);
-        // 96 of a pinned 400 with all four sections alive and still mated.
+        // 16 of a pinned 400 with all four sections alive and still mated.
         for section in &sections {
-            hit(&mut app, *section, 76.0);
+            hit(&mut app, *section, 96.0);
         }
 
         assert!(
@@ -1620,10 +2239,10 @@ mod ghost_ship_tests {
             app.update();
         }
 
-        // 96 of a pinned 400, gun included: the ship collapses while it is
+        // 16 of a pinned 400, gun included: the ship collapses while it is
         // still armed.
         for section in &sections {
-            hit(&mut app, *section, 76.0);
+            hit(&mut app, *section, 96.0);
         }
 
         assert!(root_dead(&mut app, root, 20));

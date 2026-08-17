@@ -41,9 +41,11 @@
 //! load, so reading the root's allegiance at capture time is safe.
 
 use bevy::prelude::*;
+#[cfg(test)]
+use nova_gameplay::prelude::SectionInactiveMarker;
 use nova_gameplay::{
     integrity::health::prelude::Health,
-    prelude::{Allegiance, SectionInactiveMarker, SectionMarker},
+    prelude::{Allegiance, SectionMarker},
 };
 
 use crate::sections::fixture::prelude::SectionFixture;
@@ -262,13 +264,11 @@ fn resolve_pending_tints(
 fn grade_section_tints(
     mut materials: ResMut<Assets<StandardMaterial>>,
     q_tints: Query<&SectionDamageTint>,
-    q_health: Query<(&Health, Has<SectionInactiveMarker>), With<SectionMarker>>,
+    q_health: Query<&Health, With<SectionMarker>>,
 ) {
     for tint in &q_tints {
         let (base_color, emissive) = match q_health.get(tint.section) {
-            // Destroyed or disabled: burnt-black in both modes.
-            Ok((_, true)) => (DEAD_COLOR, tint.emissive),
-            Ok((health, false)) => {
+            Ok(health) => {
                 let ratio = if health.max > 0.0 {
                     (health.current / health.max).clamp(0.0, 1.0)
                 } else {
@@ -529,7 +529,8 @@ mod tests {
             "destroyed enemy section blacks out"
         );
 
-        // A disabled (but not yet zero-HP) section also reads burnt.
+        // Inactivity is capability state, not damage. A healthy severed
+        // fragment keeps its material instead of turning black.
         app.world_mut().get_mut::<Health>(section).unwrap().current = 50.0;
         app.world_mut()
             .entity_mut(section)
@@ -537,8 +538,8 @@ mod tests {
         app.update();
         assert_eq!(
             base_of(&app),
-            DEAD_COLOR,
-            "disabled enemy section blacks out even with residual HP"
+            pristine,
+            "an intact inactive section keeps its health-derived look"
         );
     }
 

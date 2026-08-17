@@ -7,7 +7,8 @@
 //! - a fast impact between two rigid bodies deals kinetic damage scaled by
 //!   relative velocity and effective mass (`on_impact_collision_deal_damage`);
 //! - a node whose health hits zero is disabled;
-//! - a disabled LEAF - or a disabled [`IntegrityRoot`] - is destroyed, which is
+//! - structure adapters may destroy it immediately (ships do); otherwise a
+//!   disabled LEAF - or a disabled [`IntegrityRoot`] - is destroyed, which is
 //!   the [`IntegrityDestroyMarker`] seam nova's [`explode`](super::explode)
 //!   reacts to;
 //! - destroying a node prunes it from its neighbours' [`ConnectedTo`] lists,
@@ -320,8 +321,8 @@ mod tests {
         );
     }
 
-    /// An INTERIOR node is disabled but not destroyed: a dead section still
-    /// holds the structure together until it is pruned into a leaf.
+    /// The generic core leaves an interior node disabled until it becomes a
+    /// leaf. Structure adapters can choose immediate destruction instead.
     #[test]
     fn a_depleted_interior_node_is_disabled_but_survives() {
         let mut app = integrity_core_app();

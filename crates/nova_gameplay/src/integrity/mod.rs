@@ -4,9 +4,11 @@
 //! - [`health`] is the hit-point store. Nova owns it because the typed-damage
 //!   layer must be the one subtracting - see that module's docs.
 //! - [`components`] is the graph a destructible structure describes itself with.
-//! - [`core`] drives the lifecycle over that graph: ram damage in, disable at
-//!   zero, destroy leaves, prune, cascade, [`IntegrityDestroyMarker`] out.
-//! - ship-specific adapters declare and build their graphs in their owning crates;
+//! - [`core`] drives the generic lifecycle over that graph: ram damage in,
+//!   disable at zero, destroy leaves, prune, cascade, [`IntegrityDestroyMarker`]
+//!   out.
+//! - ship-specific adapters declare their graphs and can promote direct
+//!   depletion to immediate destruction at any graph degree;
 //! - [`explode`] reacts to the destroy marker: slice meshes, spawn debris, fire
 //!   `OnDestroyedEvent`.
 //! - [`neutralize`] calls a ship combat-dead once its weapons are gone OR its

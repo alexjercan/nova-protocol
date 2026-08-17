@@ -260,6 +260,9 @@ pub(super) fn on_load_scenario(
 /// a leaked lifetime is not even bounded by its own timer, because the outcome
 /// overlay pauses the clock that would have expired it.
 ///
+/// [`ShipWreckFragmentMarker`] is the persistent counterpart: a severed hull
+/// has no timer but still belongs to the scenario whose ship produced it.
+///
 /// [`SfxAudioMarker`] is the same rule for the second lifetime class: an audio
 /// one-shot's despawn rides its audio sink (`PlaybackSettings::DESPAWN`),
 /// which plays on the WALL clock - no pause can pin it, but no teardown could
@@ -272,6 +275,7 @@ pub(super) fn on_load_scenario(
 pub(crate) fn register_scenario_scoping(app: &mut App) {
     app.add_observer(on_add_entity_with::<TempEntity>);
     app.add_observer(on_add_entity_with::<SfxAudioMarker>);
+    app.add_observer(on_add_entity_with::<ShipWreckFragmentMarker>);
 }
 
 pub(super) fn on_add_entity_with<T: Component>(
@@ -406,6 +410,21 @@ pub(super) fn on_player_spaceship_destroyed(
 mod tests {
     use super::*;
     use crate::loader::fixtures::*;
+
+    #[test]
+    fn a_persistent_wreck_fragment_is_scoped_to_its_scenario() {
+        let mut app = App::new();
+        app.insert_resource(CurrentScenario(Some(scenario_with("wreck_scope", vec![]))));
+        register_scenario_scoping(&mut app);
+
+        let fragment = app.world_mut().spawn(ShipWreckFragmentMarker).id();
+        app.world_mut().flush();
+
+        assert!(
+            app.world().get::<ScenarioScopedMarker>(fragment).is_some(),
+            "persistent wrecks must leave with the scenario despite having no timer"
+        );
+    }
 
     /// The runtime content gate: an Error-flagged scenario REFUSES to start -
     /// nothing scenario-scoped spawns, the failure report is set for the

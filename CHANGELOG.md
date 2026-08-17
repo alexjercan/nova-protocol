@@ -110,8 +110,9 @@ tagged **(breaking)**.
 
 ### Ships & Sections
 
+- Make destroyed sections sever physical wreck fragments. **(breaking)**
 - **(breaking)** Ships collapse structurally: a hull below a fraction of its
-  as-built health (0.25 by default) comes apart. Authorable as
+  as-built health (0.05 by default) comes apart. Authorable as
   `collapse_threshold`.
 - Ships can wear a DERIVED skin: `skin: true` clads the whole hull at spawn
   from the structure alone. Cladding is destructible and never counts toward

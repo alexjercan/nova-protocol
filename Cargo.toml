@@ -79,6 +79,10 @@ path = "examples/systems/torpedo_launch.rs"
 name = "blast_penetration"
 path = "examples/systems/blast_penetration.rs"
 
+[[example]]
+name = "section_severing"
+path = "examples/systems/section_severing.rs"
+
 # Then the cross-cutting systems, at a coarser grain. Every fixture is a
 # `ScenarioConfig` built in Rust and loaded with `LoadScenario`, so the compiler
 # catches scenario-grammar changes and no shipped story content is reachable

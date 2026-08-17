@@ -347,10 +347,12 @@ Damage flow:
    its observer subtracts the amount and adds `HealthZeroMarker` at zero. The amount also bubbles up `ChildOf`, clamped to
    what the section actually had left - so overkill on one section cannot kill
    the ship (a 1000 hit on a 100 hp section costs the root 100).
-2. Zero health -> `IntegrityDisabledMarker`. A disabled non-leaf section is only
-   deactivated (`SectionInactiveMarker`); a disabled **leaf** is destroyed.
-3. Destruction prunes the node from its neighbors' lists, which can create new
-   leaves and cascade: shooting off the structure collapses what hung from it.
+2. Zero health -> `IntegrityDisabledMarker`. A depleted ship section is destroyed
+   at any graph degree. The leaf rule remains for healthy sections disabled by
+   final structural collapse.
+3. Destruction prunes the node from its neighbors' lists. If surviving structure
+   becomes disconnected, the controller-bearing component keeps ship identity
+   and every other component becomes an inert dynamic wreck body.
 4. `aggregate_ship_health` keeps the root's `current` equal to the sum of its
    living sections, over a `max` that is PINNED - a running maximum, never
    re-derived from the survivors. A destroyed section despawns, so a live
@@ -358,8 +360,8 @@ Damage flow:
    reading 100/100) and would make any fraction of it rebound. It is a running
    maximum rather than a set-once pin because a ship's sections can land across
    several frames.
-5. Below its `StructuralCollapseThreshold` (`collapse_threshold` on the ship,
-   default 0.25) the root gets `StructuralCollapseMarker` and the ship starts
+5. At or below its `StructuralCollapseThreshold` (`collapse_threshold` on the ship,
+   default 0.05) the root gets `StructuralCollapseMarker` and the ship starts
    TEARING ITSELF APART, rather than dying on the spot: `cascade_structural_collapse`
    disables every section still standing and hands them to steps 2 and 3 above.
    The extremities are leaves, so they go first and burst their debris; the
@@ -389,6 +391,13 @@ resumes and the peel is kept everywhere it is possible. Progress is measured as
 that count FALLING rather than against a frame budget, because the cascade's own
 gaps are irregular while a count that fell is direct evidence a section died.
 
+A severed wreck fragment is persistent until scenario teardown. Its healthy
+sections remain damageable, but `SectionInactiveMarker` disconnects every
+controller, thruster and weapon from the lost command bus. Fragments inherit
+rigid point velocity and receive a momentum-balanced 1 u/s kick away from the
+cut. They are unsigned debris, not ships: no allegiance, control, defeat event,
+or scenario identity.
+
 A ship is disabled progressively, so a collapsing ship can keep shooting for a
 few frames; its weapons stop as their own sections go. That also means the
 unified defeat edge usually comes from `neutralize.rs` partway through the
@@ -407,15 +416,16 @@ flowchart TD
     A[Section takes damage] --> B[Integrity drops]
     B --> C{Zero health?}
     C -->|No| A
-    C -->|Yes| D{Leaf?}
-    D -->|No, non-leaf| E[Disabled: SectionInactiveMarker]
-    D -->|Yes| F[Destroyed]
+    C -->|Yes| F[Destroyed]
     F --> G[Pruned from neighbors]
-    G --> H[New leaves may cascade]
+    G --> H{Graph still connected?}
+    H -->|No| P[Detached components become wreck bodies]
     F --> I[Root current re-aggregated over a pinned max]
-    I --> J{Below the collapse threshold?}
+    I --> J{At or below the collapse threshold?}
     J -->|Yes| K[Every standing section disabled]
-    K --> D
+    K --> Q{Leaf?}
+    Q -->|Yes| F
+    Q -->|No| E[Inactive until pruning makes it a leaf]
     K --> L{Nothing destroyed this tick?}
     L -->|Stalled| M[Destroy the most leaf-like anyway]
     M --> G

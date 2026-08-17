@@ -3,9 +3,9 @@
 //!
 //! One player ship of five sections - a spine along +Z (controller, hull1,
 //! hull2, thruster) with hull3 mounted beside hull2 - takes scripted damage.
-//! The side mount is load-bearing, not decoration: destruction is leaf-gated,
-//! so only a singly-connected hull can be destroyed at all. This run
-//! absorbed the former COM range (task 20260709-140620): the per-section
+//! The side mount is load-bearing, not decoration. This range keeps its focused
+//! leaf-removal and COM checks; `section_severing` covers interior destruction
+//! and physical graph splits. This run absorbed the former COM range (task 20260709-140620): the per-section
 //! damage slice and the ship-wide "does avian's centre of mass follow a lost
 //! section?" deep-dive are the same rig, walked in one script.
 //!
@@ -363,14 +363,9 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             // Dev/tuning harness: fire freely.
             infinite_ammo: true,
         }),
-        // A four-section spine plus ONE side-mounted hull, not a five-section
-        // line. `hull3` has to be a graph LEAF for round 1 to destroy it:
-        // `destroy_a_disabled_leaf` is leaf-gated, so a hull with the thruster hanging
-        // off its rear is only ever DISABLED, never despawned, and the
-        // `section_gone` beat stalls out (integrity/glue.rs:118-124). Mounted
-        // beside `hull2` it carries a single connection and dies properly,
-        // while the spine keeps its ends - the controller and the thruster -
-        // for round 2 to strip from the front.
+        // A four-section spine plus one side-mounted hull. This established
+        // range keeps a simple leaf removal for its COM assertions; the
+        // `section_severing` range owns interior cuts and wreck-body motion.
         hull: ShipSource::Inline(ShipHull {
             sections: vec![
                 at(
