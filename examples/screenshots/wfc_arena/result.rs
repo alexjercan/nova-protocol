@@ -98,7 +98,7 @@ pub(super) fn register(app: &mut App) {
             show_boundary_warnings.after(detect_and_show_result),
         ),
     );
-    app.add_systems(PostUpdate, keep_interactive_cursor_released);
+    app.add_systems(PostUpdate, keep_interactive_screen_owned);
     app.add_observer(on_result_action);
 }
 
@@ -422,14 +422,19 @@ fn show_boundary_warnings(
         });
 }
 
-fn keep_interactive_cursor_released(
+fn keep_interactive_screen_owned(
     flow: Res<MatchFlow>,
     pause: Res<State<PauseStates>>,
+    mut virtual_time: ResMut<Time<Virtual>>,
+    mut physics_time: ResMut<Time<Physics>>,
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if (flow.finishing.is_some() || *pause.get() == PauseStates::NovaOs)
-        && (cursor.grab_mode != CursorGrabMode::None || !cursor.visible)
-    {
+    if flow.finishing.is_none() && *pause.get() != PauseStates::NovaOs {
+        return;
+    }
+    virtual_time.pause();
+    physics_time.pause();
+    if cursor.grab_mode != CursorGrabMode::None || !cursor.visible {
         cursor.grab_mode = CursorGrabMode::None;
         cursor.visible = true;
     }
@@ -685,6 +690,8 @@ mod tests {
             ..default()
         });
         world.insert_resource(State::new(PauseStates::Unpaused));
+        world.init_resource::<Time<Virtual>>();
+        world.init_resource::<Time<Physics>>();
         let window = world
             .spawn((
                 PrimaryWindow,
@@ -697,19 +704,23 @@ mod tests {
             .id();
 
         world
-            .run_system_once(keep_interactive_cursor_released)
+            .run_system_once(keep_interactive_screen_owned)
             .unwrap();
 
         let cursor = world.get::<CursorOptions>(window).unwrap();
         assert_eq!(cursor.grab_mode, CursorGrabMode::None);
         assert!(cursor.visible);
+        assert!(world.resource::<Time<Virtual>>().is_paused());
+        assert!(world.resource::<Time<Physics>>().is_paused());
     }
 
     #[test]
-    fn nova_os_reclaims_the_cursor_from_flight() {
+    fn nova_os_owns_the_cursor_and_match_clocks() {
         let mut world = World::new();
         world.init_resource::<MatchFlow>();
         world.insert_resource(State::new(PauseStates::NovaOs));
+        world.init_resource::<Time<Virtual>>();
+        world.init_resource::<Time<Physics>>();
         let window = world
             .spawn((
                 PrimaryWindow,
@@ -722,12 +733,14 @@ mod tests {
             .id();
 
         world
-            .run_system_once(keep_interactive_cursor_released)
+            .run_system_once(keep_interactive_screen_owned)
             .unwrap();
 
         let cursor = world.get::<CursorOptions>(window).unwrap();
         assert_eq!(cursor.grab_mode, CursorGrabMode::None);
         assert!(cursor.visible);
+        assert!(world.resource::<Time<Virtual>>().is_paused());
+        assert!(world.resource::<Time<Physics>>().is_paused());
     }
 
     #[test]
