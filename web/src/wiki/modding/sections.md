@@ -53,6 +53,7 @@ shared `base` block and one kind-specific block:
 | `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
 | `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. |
 | `base.hide_in_editor` | bool | `false` | `true` hides the prototype from the editor palette. Ships can still reference it. |
+| `base.damage_effects` | effect list | `([Scorch])` | The damage looks this section wears. Omitted means it scorches, which is what every section did before this was authorable. |
 | `kind` | section kind | required | `Hull((...))`, `Thruster((...))`, `Controller((...))`, `Turret((...))`, or `Torpedo((...))`. |
 
 Collider forms:
@@ -67,6 +68,32 @@ collider: Some(Cylinder(radius: 0.5, height: 1.0)),
 `Cuboid.size` is the full size on each axis. Capsules and cylinders extend
 along local Y. A larger collider also increases real mass because `base.mass`
 is density.
+
+### Damage effects
+
+What a section LOOKS like as it takes damage, authored as a list:
+
+```ron
+damage_effects: ([Scorch, Sparks, Plume]),
+```
+
+| effect | what it does |
+|---|---|
+| `Scorch` | The section's paint reddens, darkens, and finally burns out. |
+| `Sparks` | The section throws sparks, faster the worse it is. |
+| `Plume` | The section's exhaust guts and flickers. Thrusters only - it grades the exhaust cone, so a section with none shows nothing. |
+
+Omitting the field means `([Scorch])`. Author `([])` for a section that should
+never show damage at all - saying "none" and saying nothing are different.
+
+No effect removes geometry, and that is the rule the list is kept honest by:
+only NON-FUNCTIONAL material comes off. A turret that has taken a beating still
+has to point and shoot, so it sparks instead of eroding. Where a section does
+carry expendable material it wears cladding, and the cladding is what comes off
+(see [ships](./ships.md)).
+
+Effects compose freely and none of them changes what the section DOES: a
+damaged thruster delivers exactly the thrust it authored.
 
 ### Structural link points
 

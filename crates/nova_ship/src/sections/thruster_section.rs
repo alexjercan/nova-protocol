@@ -8,10 +8,14 @@ use bevy::{
     shader::ShaderRef,
 };
 use nova_gameplay::prelude::{
-    AssetRef, SectionClass, SectionInactiveMarker, ThrusterSectionMarker, TriangleMeshBuilder,
+    AssetRef, DamageLevel, SectionClass, SectionInactiveMarker, ThrusterSectionMarker,
+    TriangleMeshBuilder,
 };
 
-use crate::prelude::{RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf};
+use crate::{
+    prelude::{RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf},
+    sections::damage_plume::prelude::{plume_scale, DamagePlume},
+};
 
 /// The `thruster_section` spawner, its config, input and magnitude components, the exhaust
 /// configuration and `ThrusterSectionPlugin`.
@@ -100,9 +104,6 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
     (
         ThrusterSectionMarker,
         SectionClass::Thruster,
-        // The bell has to stay a bell to read as a drive, so a failing
-        // thruster sparks rather than losing its shape.
-        crate::sections::damage_sparks::prelude::DamageSparks::default(),
         ThrusterSectionMagnitude(config.magnitude),
         ThrusterSectionInput(0.0),
         ThrusterSectionLoopSound(config.loop_sound.clone()),
@@ -377,10 +378,15 @@ pub(crate) fn thruster_impulse_system(
 struct ThrusterSectionExhaustShaderMarker;
 
 fn thruster_shader_update_system(
+    time: Res<Time>,
     q_thruster: Query<
         (&ThrusterSectionInput, Has<SectionInactiveMarker>),
         With<ThrusterSectionMarker>,
     >,
+    // PLUME is graded HERE rather than in a system of its own, because two
+    // systems writing one material would fight over it every frame. The effect
+    // owns the curve; this owns the write.
+    q_plume: Query<&DamageLevel, With<DamagePlume>>,
     q_render: Query<
         (
             &MeshMaterial3d<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
@@ -391,8 +397,10 @@ fn thruster_shader_update_system(
     q_child: Query<&ChildOf>,
     mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>,
 ) {
+    let seconds = time.elapsed_secs();
     for (material, &ChildOf(parent)) in &q_render {
-        let Some((input, inactive)) = find_thruster_section(parent, &q_thruster, &q_child) else {
+        let Some((section, input, inactive)) = find_thruster_section(parent, &q_thruster, &q_child)
+        else {
             error!(
                 "thruster_shader_update_system: entity {:?} not found in q_thruster",
                 parent
@@ -410,9 +418,15 @@ fn thruster_shader_update_system(
 
         if inactive {
             material.extension.thruster_input = 0.0;
-        } else {
-            material.extension.thruster_input = *input;
+            continue;
         }
+        // A drive that wears no plume effect, or is not hurt enough to show
+        // one, scales by exactly 1.0 - so this line is what an undamaged
+        // thruster always did.
+        let damage = q_plume
+            .get(section)
+            .map_or(1.0, |level| plume_scale(level.0, seconds));
+        material.extension.thruster_input = *input * damage;
     }
 }
 
@@ -423,11 +437,14 @@ fn find_thruster_section(
         With<ThrusterSectionMarker>,
     >,
     q_child: &Query<&ChildOf>,
-) -> Option<(ThrusterSectionInput, bool)> {
+) -> Option<(Entity, ThrusterSectionInput, bool)> {
     let mut parent = parent;
     loop {
         if let Ok((input, inactive)) = q_thruster.get(parent) {
-            return Some((input.clone(), inactive));
+            // The ENTITY comes back too: the plume effect hangs on the section,
+            // not on the cone, so a caller that only got the input would have
+            // to walk the same chain again to find it.
+            return Some((parent, input.clone(), inactive));
         }
 
         let Ok(ChildOf(grandparent)) = q_child.get(parent) else {

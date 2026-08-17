@@ -58,9 +58,6 @@ pub fn turret_section(config: TurretSectionConfig) -> impl Bundle {
     (
         TurretSectionMarker,
         SectionClass::Turret,
-        // A turret is all function: the barrel has to point and the mount has
-        // to turn, so nothing here may erode. It fails by throwing sparks.
-        crate::sections::damage_sparks::prelude::DamageSparks::default(),
         loaded,
         TurretSectionTargetInput(None),
         TurretSectionTargetVelocity::default(),

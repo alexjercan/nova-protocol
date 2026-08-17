@@ -32,6 +32,15 @@
 //! - SPARKS, on the turret and thruster. These never lose geometry, because a
 //!   turret that has been carved open cannot convincingly still shoot. Does a
 //!   sparking turret read as failing without looking broken?
+//! - PLUME, on the thruster. Every drive in the row is held at full throttle,
+//!   so the cone is drawn and the damaged ones can be compared against the
+//!   clean one. Does a guttering plume read as a failing drive rather than as
+//!   a drive that is shutting down?
+//!
+//! Which of those a section wears is AUTHORED, in its content
+//! (`base.damage_effects`), so this row is also the check that the shipped
+//! catalog authored what it meant to: the hull scorches and nothing more, the
+//! turret sparks, the thruster sparks and gutters.
 //!
 //! The thing NOT here is SHED - expendable pieces coming off a section that
 //! keeps working. It needs art with separable pieces and the shipped turret has
@@ -48,6 +57,7 @@
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot `damage-levels.png` (the
 //!   whole row) and one `damage-levels-<level>.png` per column.
 
+use avian3d::prelude::RigidBody;
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -100,6 +110,56 @@ fn main() -> bevy::app::AppExit {
 
 fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_gallery);
+    app.add_systems(Update, hold_the_throttle_open);
+}
+
+/// Set once the row is bolted down, which is what lets the drives run.
+#[derive(Resource, Default)]
+struct RowIsPinned;
+
+/// Run every drive in the row at full throttle, forever.
+///
+/// PLUME grades the exhaust cone, and a cone is only drawn for a drive that is
+/// firing - so a row of parked ships would show "the effect is broken" and "the
+/// effect is not authored" as the same picture. These ships have no controller
+/// (`SpaceshipController::None`), so nothing else writes this.
+///
+/// Gated on the row being PINNED, and that gate is not paranoia: thrust is
+/// real. The first cut of this held the throttle open from the moment the ships
+/// spawned and every one of them accelerated clean out of frame, so all five
+/// captures came back black.
+fn hold_the_throttle_open(
+    pinned: Option<Res<RowIsPinned>>,
+    mut q_thrusters: Query<&mut ThrusterSectionInput>,
+) {
+    if pinned.is_none() {
+        return;
+    }
+    for mut input in &mut q_thrusters {
+        if input.0 != 1.0 {
+            input.0 = 1.0;
+        }
+    }
+}
+
+/// Bolt every ship in the row down, so it can be shot at and run its drives
+/// without leaving the frame.
+///
+/// A gallery is a row of specimens, not a scenario: nothing here should move at
+/// all. Static rather than locked axes because it also settles the debris a
+/// carve throws off, which would otherwise nudge the row apart.
+#[cfg(feature = "debug")]
+fn pin_the_row(world: &mut World) {
+    let roots: Vec<Entity> = world
+        .query_filtered::<Entity, With<SpaceshipRootMarker>>()
+        .iter(world)
+        .collect();
+    let pinned = roots.len();
+    for root in roots {
+        world.entity_mut(root).insert(RigidBody::Static);
+    }
+    world.insert_resource(RowIsPinned);
+    info!("damage levels: pinned {pinned} ships");
 }
 
 fn setup_gallery(
@@ -237,6 +297,9 @@ fn gallery_script() -> Script {
         // have to exist before their health is set.
         .step("let the ships finish dressing")
         .until(elapsed(1.5))
+        .add()
+        .step("bolt the row down")
+        .on_enter(pin_the_row)
         .add()
         .step("grade the row by health")
         .on_enter(set_column_levels)

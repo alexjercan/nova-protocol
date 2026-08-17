@@ -216,6 +216,10 @@ fn pdc_turret_prototype(
             health: TURRET_BASE_HEALTH,
             impact_sound: Some(meshes.section_impact_sound.clone()),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
+            // A turret is all function - the barrel has to point and the mount
+            // has to turn - so it fails by sparking and never by losing a
+            // piece of itself.
+            damage_effects: DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Sparks]),
             // The mount the shipped craft carry: a small box that sits ON a
             // hull face instead of standing in for one, which is what lets ONE
             // turret serve every craft. The per-craft copies
@@ -286,6 +290,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "reinforced_hull_section".to_string(),
+                damage_effects: DamageEffects::default(),
                 name: "Reinforced Hull Section".to_string(),
                 description: "A reinforced hull section for spaceships.".to_string(),
                 mass: 1.0,
@@ -304,6 +309,13 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "basic_thruster_section".to_string(),
+                // A drive is machinery and a bell: it sparks and its
+                // plume guts, and it never loses a piece of itself.
+                damage_effects: DamageEffects(vec![
+                    DamageEffect::Scorch,
+                    DamageEffect::Sparks,
+                    DamageEffect::Plume,
+                ]),
                 name: "Basic Thruster Section".to_string(),
                 description: "A basic thruster section for spaceships.".to_string(),
                 mass: 1.0,
@@ -339,6 +351,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "basic_controller_section".to_string(),
+                damage_effects: DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Sparks]),
                 name: "Basic Controller Section".to_string(),
                 description: "A basic controller section for spaceships.".to_string(),
                 mass: 1.0,
@@ -375,6 +388,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "better_turret_section".to_string(),
+                damage_effects: DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Sparks]),
                 name: "Better Turret Section".to_string(),
                 description: "A better turret section for spaceships.".to_string(),
                 mass: 1.0,
@@ -426,6 +440,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "light_hull_section".to_string(),
+                damage_effects: DamageEffects::default(),
                 name: "Light Hull Section".to_string(),
                 description: "A thin-walled hull section; scavenger grade.".to_string(),
                 mass: 1.0,
@@ -446,6 +461,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "light_turret_section".to_string(),
+                damage_effects: DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Sparks]),
                 name: "Light Turret Section".to_string(),
                 description: "A low-caliber turret; scavenger grade.".to_string(),
                 mass: 1.0,
@@ -550,6 +566,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "heavy_torpedo_section".to_string(),
+                damage_effects: DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Sparks]),
                 name: "Siege Torpedo Bay Section".to_string(),
                 description: "A capital-grade siege torpedo battery: slow salvo, \
                               armored ordnance, ship-killing blast."
@@ -633,6 +650,9 @@ fn torpedo_bay_prototype(
             // (`spawn_offset`), so the bow face is the open muzzle.
             link_points: unit_cube_link_points_without(Vec3::NEG_Z),
             hide_in_editor: false,
+            // A launcher is loading machinery: it arcs and sparks as it fails,
+            // and the tube it fires down stays a tube.
+            damage_effects: DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Sparks]),
         },
         kind: SectionKind::Torpedo(TorpedoSectionConfig {
             render_mesh: Some(meshes.torpedo_bay.clone()),

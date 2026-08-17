@@ -174,8 +174,6 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
     (
         ControllerSectionMarker,
         SectionClass::Controller,
-        // The flight computer: nothing about it is spare material.
-        crate::sections::damage_sparks::prelude::DamageSparks::default(),
         ControllerSectionTuning {
             steering_lag: config.steering_lag,
             max_angular_acceleration: config.max_angular_acceleration,

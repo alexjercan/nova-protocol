@@ -8,6 +8,8 @@ pub mod ammo;
 pub mod base_section;
 pub mod clearance;
 pub mod controller_section;
+pub mod damage_effects;
+pub mod damage_plume;
 pub mod damage_sparks;
 pub mod damage_tint;
 pub mod fixture;
@@ -29,13 +31,13 @@ pub mod turret_section;
 pub mod prelude {
     pub use super::{
         ammo::prelude::*, base_section::prelude::*, clearance::prelude::*,
-        controller_section::prelude::*, damage_sparks::prelude::*, damage_tint::prelude::*,
-        fixture::prelude::*, hull_section::prelude::*, integrity::prelude::*,
-        link_points::prelude::*, live_structure_anchor, shell_shape::prelude::*,
-        shell_skin::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
-        skin_report::prelude::*, skin_style::prelude::*, thruster_section::prelude::*,
-        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
-        SpaceshipSectionSystems,
+        controller_section::prelude::*, damage_effects::prelude::*, damage_plume::prelude::*,
+        damage_sparks::prelude::*, damage_tint::prelude::*, fixture::prelude::*,
+        hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
+        live_structure_anchor, shell_shape::prelude::*, shell_skin::prelude::*,
+        skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
+        skin_style::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
+        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -243,11 +245,19 @@ impl Plugin for SpaceshipSectionPlugin {
             },
         ));
 
-        // The damage effects: what a section's own level LOOKS like. Only
-        // meaningful when sections actually render.
+        // WHICH damage looks a section wears, authored in its content. Split
+        // from the effects themselves: the list is data a headless server loads
+        // and saves, the components it names are read only by render systems.
+        app.add_plugins(damage_effects::DamageEffectsPlugin {
+            render: self.render,
+        });
+
+        // The damage effects themselves: what a section's own damage LOOKS
+        // like. Only meaningful when sections actually render.
         if self.render {
             app.add_plugins(damage_tint::SectionDamageTintPlugin);
             app.add_plugins(damage_sparks::DamageSparksPlugin);
+            app.add_plugins(damage_plume::DamagePlumePlugin);
         }
     }
 }

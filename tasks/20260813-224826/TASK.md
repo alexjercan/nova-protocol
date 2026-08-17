@@ -46,11 +46,21 @@ covers the cladding only.
 ### The level
 
 - `level = 1 - health_fraction`, per destructible entity, off its own health.
-- ONE input. No hit point, no impact history, no accumulated volume. Located
-  craters are a later refinement and must not be designed for now.
-- Geometry is DERIVED from health, never the reverse. A body at half health
-  always shows the same half-eroded state, so save/reload restores it for free
-  (health is already persisted) and the visual cannot drift from the number.
+- SUPERSEDED (2026-08-17, by Phase 2's gate). This said ONE input - no hit
+  point, no impact history - with located craters as a later refinement that
+  must not be designed for now. That cannot work, and the gate is what proved
+  it: a single per-body number can only drive geometry that changes everywhere
+  at once, so a clad hull came out with every plate sagging by the same
+  proportion. It kept its outline, lost its relief, and read as a smaller,
+  plainer ship rather than a damaged one. Damage has to ADD detail - a rim, a
+  bite, a hole - and no scalar can put detail anywhere in particular. Hit
+  points are now plumbed through `apply_damage` and stored as `DamageMarks`.
+- So damage is TWO readings, and they drive different things: the LEVEL (how
+  far gone a body is) grades whole-body effects, and the MARKS (where it was
+  hit) drive anything that changes shape.
+- Geometry is DERIVED, never the reverse. Damage itself is still untouched: a
+  bullet, a blast and a ram deal exactly what they authored, and health is
+  still the kill gate.
 - Shown for every body regardless of allegiance. The `TintMode::Full` /
   `TintMode::DeadOnly` split goes away; enemies now show their damage.
 
@@ -178,12 +188,28 @@ Gate: the effect set is fixed HERE, from what the range shows. Each effect
 gates separately - a negative verdict on EROSION over glTF selects the
 additive fallback for those bodies and leaves every other effect standing.
 
-### Phase 3 - effects on real sections
+### Phase 3 - effects on real sections - DONE (2026-08-17)
 
 - Author the effect list per section in content, moddable, defaulting to
-  nothing so a third-party section is never worse than it is today.
-- SHED on whichever sections Phase 2 says can carry it.
+  `[Scorch]` and not to nothing. The phase originally said "defaulting to
+  nothing so a third-party section is never worse than it is today", which is
+  self-contradictory: scorch applied to EVERY section before it was authorable,
+  so an empty default is exactly what would make a third-party section worse.
+  `[Scorch]` is what preserves the behaviour the sentence was protecting. The
+  empty list stays sayable, because "I want none" and "I did not say" are
+  different statements.
 - SPARKS, PLUME and SCORCH on the sections whose geometry must stay whole.
+  PLUME is new here: it grades the exhaust cone `thruster_section` already
+  draws, cutting it back and guttering it, and never to nothing - a drive
+  showing no plume is a drive that has SHUT DOWN, which must not be confusable
+  with one that is failing.
+- SHED is CUT, not deferred. Its rule is that only non-functional material
+  comes off, and no shipped section has any: a turret is a mount and a barrel,
+  a thruster is a bell, and taking a piece off either means taking a working
+  part off. The sections that genuinely carry expendable material are the clad
+  ones, and cladding already sheds - a plate is shot off and stays off - so
+  SHED is delivered where it makes sense under another name. Reopening it needs
+  ART with separable pieces, not code.
 
 ### Phase 4 - asteroids
 
@@ -205,7 +231,9 @@ additive fallback for those bodies and leaves every other effect standing.
 
 ## Out of scope
 
-- Located craters and any hit-point plumbing.
+- ~~Located craters and any hit-point plumbing.~~ PULLED IN (2026-08-17). See
+  "The level" above for why the gate forced it.
+- SHED, as an effect. Cut in Phase 3 for want of art, not deferred.
 - Repair, welding, or adding material back.
 - Health derived from geometry, volume-authoritative health, or any
   rebalancing of authored damage.

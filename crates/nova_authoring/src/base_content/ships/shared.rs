@@ -212,6 +212,31 @@ fn base_config(
         // hiding it was waiting for. The one exception is the turret modules -
         // see `prototypes`.
         hide_in_editor: matches!(spec.role, PartRole::Turret),
+        damage_effects: role_damage_effects(spec.role),
+    }
+}
+
+/// The damage looks a cut-cube part wears, by what the part IS.
+///
+/// Derived from the role rather than authored per part because these are cut
+/// from whole craft by the hundred - the racer alone contributes dozens of hull
+/// tiles - and every one of them would otherwise repeat the same list. A part
+/// that wants something else says so by not coming through here.
+fn role_damage_effects(role: PartRole) -> DamageEffects {
+    match role {
+        // Hull is material and nothing else. It scorches, and where it wears
+        // cladding the cladding is what comes off.
+        PartRole::Hull => DamageEffects::default(),
+        // Machinery whose shape has to survive to keep working: it sparks.
+        PartRole::Controller | PartRole::Torpedo | PartRole::Turret => {
+            DamageEffects(vec![DamageEffect::Scorch, DamageEffect::Sparks])
+        }
+        // A drive adds its plume guttering to that.
+        PartRole::Thruster => DamageEffects(vec![
+            DamageEffect::Scorch,
+            DamageEffect::Sparks,
+            DamageEffect::Plume,
+        ]),
     }
 }
 

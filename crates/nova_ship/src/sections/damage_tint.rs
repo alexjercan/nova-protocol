@@ -50,12 +50,27 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::{Allegiance, DamageLevelPlugin, Health, SectionInactiveMarker};
 use nova_gameplay::prelude::{DamageLevel, SectionMarker};
 
+#[cfg(test)]
+use crate::sections::damage_effects::prelude::{DamageEffects, DamageEffectsPlugin};
 use crate::sections::fixture::prelude::SectionFixture;
 
-/// `SectionDamageTint` and `SectionDamageTintPlugin`.
+/// `DamageScorch`, `SectionDamageTint` and `SectionDamageTintPlugin`.
 pub mod prelude {
-    pub use super::{SectionDamageTint, SectionDamageTintPlugin};
+    pub use super::{DamageScorch, SectionDamageTint, SectionDamageTintPlugin};
 }
+
+/// Makes a section's paint redden, darken and finally burn out as its damage
+/// level rises.
+///
+/// Carried by the SECTION rather than by the meshes drawing it: one section
+/// owns one health pool and its whole rendered body grades together. Fitted
+/// from the authored
+/// [`DamageEffects`](super::damage_effects::DamageEffects), whose default
+/// carries it - so a section that never mentions effects scorches exactly as
+/// every section did before this was authorable.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct DamageScorch;
 
 /// Below this integrity ratio the section starts to visibly redden/darken.
 const WARN_BELOW: f32 = 0.85;
@@ -126,14 +141,20 @@ struct PendingSectionTint {
 }
 
 /// Walk up the `ChildOf` chain from `entity` to the nearest ancestor that is a
-/// section, returning that section entity. Returns `None` if the walk reaches a
-/// [`SectionFixture`], or leaves the tree without passing through a
-/// `SectionMarker`.
+/// section WEARING SCORCH, returning that section entity. Returns `None` if the
+/// walk reaches a [`SectionFixture`], or leaves the tree without passing
+/// through such a section.
+///
+/// A section that does not wear scorch ends the walk the same way a fixture
+/// does. It must not fall through to the section ABOVE it: grading a turret's
+/// meshes by the hull it is bolted to would report the wrong pool, which is
+/// worse than reporting nothing.
 fn owning_section(
     entity: Entity,
     q_child_of: &Query<&ChildOf>,
     q_is_section: &Query<(), With<SectionMarker>>,
     q_is_fixture: &Query<(), With<SectionFixture>>,
+    q_scorches: &Query<(), With<DamageScorch>>,
 ) -> Option<Entity> {
     let mut current = entity;
     loop {
@@ -145,7 +166,7 @@ fn owning_section(
             return None;
         }
         if q_is_section.get(current).is_ok() {
-            return Some(current);
+            return q_scorches.get(current).is_ok().then_some(current);
         }
         current = q_child_of.get(current).ok()?.0;
     }
@@ -173,10 +194,16 @@ fn mark_section_meshes(
     q_child_of: Query<&ChildOf>,
     q_is_section: Query<(), With<SectionMarker>>,
     q_is_fixture: Query<(), With<SectionFixture>>,
+    q_scorches: Query<(), With<DamageScorch>>,
 ) {
     for entity in &q_new {
-        let Some(section) = owning_section(entity, &q_child_of, &q_is_section, &q_is_fixture)
-        else {
+        let Some(section) = owning_section(
+            entity,
+            &q_child_of,
+            &q_is_section,
+            &q_is_fixture,
+            &q_scorches,
+        ) else {
             continue;
         };
 
@@ -312,6 +339,10 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.add_plugins(DamageLevelPlugin);
+        // The real fitting path, not a hand-inserted marker: scorch is an
+        // AUTHORED effect now, and these tests are only honest if a section
+        // gets it the way a spawned one does.
+        app.add_plugins(DamageEffectsPlugin { render: true });
         app.init_asset::<StandardMaterial>();
         app.add_systems(
             Update,
@@ -605,6 +636,106 @@ mod tests {
                 .id(),
             shared.id(),
             "a fixture mesh keeps the shared material rather than cloning one",
+        );
+    }
+
+    /// Scorch is AUTHORED, and a section that does not author it must stay the
+    /// colour it was painted.
+    ///
+    /// The load-bearing half is the material handle: a section left out of
+    /// grading must not be given a private clone either, or every unscorched
+    /// section in a fleet would still cost one material for nothing.
+    #[test]
+    fn a_section_that_authors_no_scorch_is_never_graded() {
+        let mut app = tint_app();
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+
+        let pristine = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                DamageEffects::none(),
+                Health {
+                    current: 10.0,
+                    max: 100.0,
+                },
+            ))
+            .id();
+        let mesh = app
+            .world_mut()
+            .spawn((MeshMaterial3d(shared.clone()), ChildOf(pristine)))
+            .id();
+
+        app.update();
+        app.update();
+
+        assert!(
+            app.world().get::<SectionDamageTint>(mesh).is_none(),
+            "a section that authors no scorch is not graded",
+        );
+        assert!(
+            app.world().get::<PendingSectionTint>(mesh).is_none(),
+            "and does not sit pending, retried every frame",
+        );
+        assert_eq!(
+            app.world()
+                .get::<MeshMaterial3d<StandardMaterial>>(mesh)
+                .expect("the mesh keeps its material")
+                .0
+                .id(),
+            shared.id(),
+            "it keeps the shared material rather than paying for a clone",
+        );
+    }
+
+    /// A section that does not scorch must not fall through to the section
+    /// ABOVE it: a turret authoring no scorch would otherwise have its meshes
+    /// graded by the hull it is bolted to, reporting a pool that is not its
+    /// own. Wrong information is worse than none.
+    #[test]
+    fn an_unscorched_section_does_not_borrow_its_parents_health() {
+        let mut app = tint_app();
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+
+        let hull = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                Health {
+                    current: 10.0,
+                    max: 100.0,
+                },
+            ))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                DamageEffects::none(),
+                Health {
+                    current: 100.0,
+                    max: 100.0,
+                },
+                ChildOf(hull),
+            ))
+            .id();
+        let mesh = app
+            .world_mut()
+            .spawn((MeshMaterial3d(shared.clone()), ChildOf(turret)))
+            .id();
+
+        app.update();
+        app.update();
+
+        assert!(
+            app.world().get::<SectionDamageTint>(mesh).is_none(),
+            "the walk stops at the unscorched section, it does not carry on up",
         );
     }
 

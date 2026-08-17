@@ -273,6 +273,17 @@ pub struct BaseSectionConfig {
     /// `hide_in_editor: true`.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
     pub hide_in_editor: bool,
+    /// The damage looks this section wears, fitted into components by
+    /// [`DamageEffectsPlugin`](super::damage_effects::DamageEffectsPlugin).
+    /// Omitted means `[Scorch]` - what every section did before this was
+    /// authorable - so unchanged content and third-party sections keep their
+    /// behaviour. Author the empty list for a section that should never show
+    /// damage.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "DamageEffects::is_default")
+    )]
+    pub damage_effects: DamageEffects,
 }
 
 /// `skip_serializing_if` predicate for a `bool` that defaults to false: omit it
@@ -365,6 +376,10 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         // destructible_body is the generic Health + density + visibility bundle;
         // ExplodableEntity is what puts the section into the explode pipeline.
         ExplodableEntity,
+        // The authored look list. Carried as data rather than fitted here,
+        // because the components it names live in the render half and a
+        // headless server builds this bundle too.
+        config.damage_effects,
         ImpactDestroySounds {
             impact: config.impact_sound.clone(),
             destroy: config.destroy_sound,
@@ -509,6 +524,7 @@ mod tests {
             }),
             link_points: Vec::new(),
             hide_in_editor: false,
+            damage_effects: DamageEffects::default(),
         };
         let ron = ron::ser::to_string(&authored).expect("serialize");
         let back: BaseSectionConfig = ron::from_str(&ron).expect("deserialize");
@@ -544,6 +560,7 @@ mod tests {
             collider: None,
             link_points: Vec::new(),
             hide_in_editor: false,
+            damage_effects: DamageEffects::default(),
         };
         let ron = ron::ser::to_string(&visible).expect("serialize");
         assert!(

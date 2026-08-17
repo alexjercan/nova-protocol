@@ -118,6 +118,11 @@ tagged **(breaking)**.
   leaving a hole in the dish.
 - Damage is TWO readings now: how far gone a body is (scorch, sparks) and where
   it was hit (the carve). Turrets and thrusters still never lose geometry.
+- Sections AUTHOR the damage looks they wear (`base.damage_effects`): `Scorch`,
+  `Sparks`, `Plume`. Omitted means `[Scorch]`, so unchanged content and mods
+  keep their behaviour; author `[]` for a section that never shows damage.
+- New PLUME effect: a damaged drive's exhaust guts and flickers without ever
+  reading as shut down, and delivers exactly the thrust it authored.
 - Make destroyed sections sever physical wreck fragments. **(breaking)**
 - **(breaking)** Ships collapse structurally: a hull below a fraction of its
   as-built health (0.05 by default) comes apart. Authorable as
