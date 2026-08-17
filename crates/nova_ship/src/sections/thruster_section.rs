@@ -100,6 +100,9 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
     (
         ThrusterSectionMarker,
         SectionClass::Thruster,
+        // The bell has to stay a bell to read as a drive, so a failing
+        // thruster sparks rather than losing its shape.
+        crate::sections::damage_sparks::prelude::DamageSparks::default(),
         ThrusterSectionMagnitude(config.magnitude),
         ThrusterSectionInput(0.0),
         ThrusterSectionLoopSound(config.loop_sound.clone()),

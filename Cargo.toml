@@ -264,6 +264,10 @@ path = "examples/screenshots/compare_asteroids.rs"
 name = "compare_planets"
 path = "examples/screenshots/compare_planets.rs"
 
+[[example]]
+name = "damage_levels"
+path = "examples/screenshots/damage_levels.rs"
+
 # Inherit the workspace clippy allows (type_complexity, too_many_arguments) for
 # the root package too, so the lib, binary and examples match the crates' policy.
 [lints]
