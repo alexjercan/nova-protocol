@@ -211,15 +211,37 @@ additive fallback for those bodies and leaves every other effect standing.
   SHED is delivered where it makes sense under another name. Reopening it needs
   ART with separable pieces, not code.
 
-### Phase 4 - asteroids
+### Phase 4 - asteroids - DONE (2026-08-17)
 
-- Analytic seed, subtract at level, surface nets with flat normals, trimesh
-  collider swap.
-- Triplanar material or an equivalent, because remeshed geometry has no usable
-  UVs (`DESIGN-round3.md` B1).
-- `BodyRadius` only ever shrinks, so gravity SOI and orbit bands stay valid.
-- Measure remesh and collider-build cost separately, native AND wasm. At most
-  one job in flight per body; a newer level supersedes a queued one.
+- Analytic seed, subtract at MARKS (not at level - see "The level"), naive
+  surface nets with flat normals, trimesh collider swap. `SignedField` in
+  `nova_gameplay/mesh/field.rs` is the representation; `asteroid_carve.rs` is
+  the glue.
+- Triplanar was NOT needed. The design assumed remeshed geometry has no usable
+  UVs, but the shipped rock's UVs are planar PER TRIANGLE, not spherical - so
+  emitting the surface through `TriangleMeshBuilder` gives a carved rock the
+  same UV convention, the same flat per-face normals and the same material as
+  an uncarved one, for free. `DESIGN-round3.md` B1 (the triplanar UV fix) is
+  still open and would improve both, but it is a texture task and not a
+  blocker for this one.
+- `BodyRadius` only ever shrinks: re-derived from the surviving surface and
+  written only when smaller, so gravity SOI and orbit bands stay valid without
+  recomputation.
+- MEASURED, native, at 32^3 (`carve_asteroids`, `RUST_LOG=nova_scenario=debug`):
+  seed 28-39 ms once per rock on its first hit, remesh 2.3-3.5 ms, collider
+  build 1.6-2.8 ms, ~4000 triangles out. Remesh and collider land inside the
+  design's estimates; SEEDING is the one the design did not budget for and is
+  the largest single cost.
+- NOT done, and deliberately: the async offload. It is worth doing on the
+  numbers above - the seeding spike especially - but it is a perf-hardening
+  step, the numbers had to come first, and a synchronous version that can be
+  measured is what produced them. Coalescing is already there for free: a
+  frame's worth of marks is one list and one list is one carve.
+- NOT measured: wasm. It cannot be run from here. The resolution is already
+  pinned at the design's wasm cap so the shape is identical on both, but the
+  timings are a native-only claim and must not be quoted as covering the web.
+- Island severing, chunk spawning and loot (`DESIGN-round3.md` B2 stage 3) stay
+  out. This phase never asked for them.
 
 ### Phase 5 - the finale, and delete the slicer
 
@@ -234,6 +256,8 @@ additive fallback for those bodies and leaves every other effect standing.
 - ~~Located craters and any hit-point plumbing.~~ PULLED IN (2026-08-17). See
   "The level" above for why the gate forced it.
 - SHED, as an effect. Cut in Phase 3 for want of art, not deferred.
+- Island severing on a carved rock: a chunk cut free by two craters meeting is
+  still part of the body. `DESIGN-round3.md` B2 stage 3.
 - Repair, welding, or adding material back.
 - Health derived from geometry, volume-authoritative health, or any
   rebalancing of authored damage.

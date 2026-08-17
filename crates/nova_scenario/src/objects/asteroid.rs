@@ -207,7 +207,18 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
             // destroyed. Health + ExplodableEntity is the rest of
             // `destructible_body`, whose density and visibility every node
             // above already carries.
-            node.insert((Health::new(config.health), ExplodableEntity));
+            //
+            // `DamageMarks` rides with them, on THIS node rather than on the
+            // root: the node is where the mesh and collider are, it is drawn in
+            // unit space, and a mark recorded here lands in that same space -
+            // which is the frame `AsteroidField` carves in. It also means an
+            // invulnerable rock is not carvable, which is the right answer for
+            // a body whose whole job is to still be there at the end.
+            node.insert((
+                Health::new(config.health),
+                ExplodableEntity,
+                DamageMarks::default(),
+            ));
         }
     });
 }

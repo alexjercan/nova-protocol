@@ -35,9 +35,10 @@
 
 use bevy::prelude::*;
 
-/// `DamageMark`, `DamageMarks`, `mark_radius` and `record_damage_mark`.
+/// `CarveSpew`, `DamageMark`, `DamageMarks`, `mark_radius` and
+/// `record_damage_mark`.
 pub mod prelude {
-    pub use super::{mark_radius, record_damage_mark, DamageMark, DamageMarks};
+    pub use super::{mark_radius, record_damage_mark, CarveSpew, DamageMark, DamageMarks};
 }
 
 /// Hit points a hit has to spend to take one cubic unit of material off.
@@ -114,21 +115,25 @@ impl DamageMarks {
     ///   hit therefore blows the crater it lands nearest out of proportion,
     ///   which is the honest failure - a ship that has been shot two dozen
     ///   separate times is a ship that should look comprehensively holed.
-    pub fn add(&mut self, mark: DamageMark) {
+    ///
+    /// Returns whether the body's shape actually changed, which is what tells
+    /// [`CarveSpew`] whether any material came off.
+    pub fn add(&mut self, mark: DamageMark) -> bool {
         if self.0.iter().any(|existing| existing.contains(&mark)) {
-            return;
+            return false;
         }
         if self.0.len() < MARK_BUDGET {
             self.0.push(mark);
-            return;
+            return true;
         }
         let Some(nearest) = self.0.iter_mut().min_by(|a, b| {
             a.at.distance_squared(mark.at)
                 .total_cmp(&b.at.distance_squared(mark.at))
         }) else {
-            return;
+            return false;
         };
         nearest.absorb(&mark);
+        true
     }
 }
 
@@ -159,8 +164,8 @@ pub fn mark_radius(amount: f32) -> f32 {
 /// and it is what keeps this off the critical path for everything that does not
 /// opt in.
 pub fn record_damage_mark(commands: &mut Commands, target: Entity, at: Vec3, amount: f32) {
-    let radius = mark_radius(amount);
-    if radius < MARK_MIN_RADIUS {
+    let world_radius = mark_radius(amount);
+    if world_radius < MARK_MIN_RADIUS {
         return;
     }
     commands.queue(move |world: &mut World| {
@@ -170,16 +175,54 @@ pub fn record_damage_mark(commands: &mut Commands, target: Entity, at: Vec3, amo
         let Some(frame) = world.get::<GlobalTransform>(owner).copied() else {
             return;
         };
-        // Into the owner's frame, so the mark rides with the body. Uniform
-        // scale is assumed and the radius passes through untouched: nothing in
-        // a ship's hierarchy is scaled, and a scaled one would need the mark to
-        // become an ellipsoid rather than just move.
+        // Into the owner's frame, so the mark rides with the body. UNIFORM
+        // scale is assumed: the position crosses on the affine, and the radius
+        // has to be divided by that same scale by hand or a body drawn in unit
+        // space (an asteroid's mesh node, scaled by its radius) would be carved
+        // by a sphere its own size. A non-uniform scale would need the mark to
+        // become an ellipsoid rather than just move, and nothing authors one.
+        let scale = frame.scale().max_element().max(f32::EPSILON);
         let local = frame.affine().inverse().transform_point3(at);
         let Some(mut marks) = world.get_mut::<DamageMarks>(owner) else {
             return;
         };
-        marks.add(DamageMark { at: local, radius });
+        if !marks.add(DamageMark {
+            at: local,
+            radius: world_radius / scale,
+        }) {
+            // Already inside a crater: no material came off, so nothing should
+            // be seen coming off.
+            return;
+        }
+        // Material was removed, so material has to go somewhere. Announced in
+        // WORLD terms because that is what a spectator sees; the mark itself
+        // stays in the body's frame.
+        world.trigger(CarveSpew {
+            entity: owner,
+            at,
+            radius: world_radius,
+        });
     });
+}
+
+/// Announces that a carve took material off `entity`, so something can be seen
+/// leaving.
+///
+/// Fired only when a mark actually changed the body's shape - a hit into an
+/// existing crater carves nothing and spews nothing. Both fields are in WORLD
+/// space: a spectator does not care what frame the body keeps its marks in.
+///
+/// An event rather than a direct spawn so the gameplay half stays free of
+/// meshes and the look is replaceable: a mod that wants sparks, a puff, or
+/// nothing at all observes this instead of patching the carve.
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct CarveSpew {
+    /// The body that lost the material.
+    pub entity: Entity,
+    /// Where the crater is, in world space.
+    pub at: Vec3,
+    /// The crater's radius, in world units.
+    pub radius: f32,
 }
 
 /// The nearest entity at or above `target` that remembers marks.

@@ -57,6 +57,8 @@
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot `damage-levels.png` (the
 //!   whole row) and one `damage-levels-<level>.png` per column.
 
+// Only the harness pins the row, and only the harness runs under `debug`.
+#[cfg(feature = "debug")]
 use avian3d::prelude::RigidBody;
 use bevy::prelude::*;
 use clap::Parser;

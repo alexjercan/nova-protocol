@@ -86,6 +86,11 @@ tagged **(breaking)**.
 
 ### Gameplay & Flight
 
+- Asteroids CARVE: a hit takes a real crater out of the rock, mesh and collider
+  both, so a shot rock is physically the shape it looks. Craters persist and a
+  rock's published radius only ever shrinks.
+- A rock's carvable field is built the first time it is actually hit, so a field
+  of untouched rocks costs exactly what it always did.
 - **(breaking)** A hull may carry several flight computers and steers better
   for it, on a curve capped at twice its strongest computer. Authority does
   not stack linearly.
@@ -123,6 +128,8 @@ tagged **(breaking)**.
   keep their behaviour; author `[]` for a section that never shows damage.
 - New PLUME effect: a damaged drive's exhaust guts and flickers without ever
   reading as shut down, and delivers exactly the thrust it authored.
+- Every carve THROWS the material it removed: shards come off the crater, sized
+  and counted by how big it is, on ships and rocks alike.
 - Make destroyed sections sever physical wreck fragments. **(breaking)**
 - **(breaking)** Ships collapse structurally: a hull below a fraction of its
   as-built health (0.05 by default) comes apart. Authorable as

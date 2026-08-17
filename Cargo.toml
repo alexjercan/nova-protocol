@@ -265,6 +265,10 @@ name = "compare_planets"
 path = "examples/screenshots/compare_planets.rs"
 
 [[example]]
+name = "carve_asteroids"
+path = "examples/screenshots/carve_asteroids.rs"
+
+[[example]]
 name = "damage_levels"
 path = "examples/screenshots/damage_levels.rs"
 

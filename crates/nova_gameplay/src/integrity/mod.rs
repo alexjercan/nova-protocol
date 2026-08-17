@@ -30,12 +30,14 @@ pub mod erosion;
 pub mod explode;
 pub mod health;
 pub mod neutralize;
+pub mod spew;
 
 /// Every integrity submodule's prelude plus `NovaIntegrityPlugin`.
 pub mod prelude {
     pub use super::{
         carve::prelude::*, components::prelude::*, core::prelude::*, erosion::prelude::*,
-        explode::prelude::*, health::prelude::*, neutralize::prelude::*, NovaIntegrityPlugin,
+        explode::prelude::*, health::prelude::*, neutralize::prelude::*, spew::prelude::*,
+        NovaIntegrityPlugin,
     };
 }
 
@@ -58,6 +60,10 @@ impl Plugin for NovaIntegrityPlugin {
         // do both.
         app.add_plugins(erosion::DamageLevelPlugin);
         app.add_plugins(carve::DamageMarksPlugin);
+
+        // What a carve took off, seen leaving. A crater that opened in silence
+        // reads as a rendering glitch rather than as a hit.
+        app.add_plugins(spew::CarveSpewPlugin);
 
         // Nova's reaction to destruction: mesh slice, debris, OnDestroyedEvent.
         app.add_plugins(explode::ExplodablePlugin);
