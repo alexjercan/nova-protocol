@@ -1,8 +1,8 @@
 # Sever destroyed interior sections into physical wreck fragments
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 49
-- TAGS: v0.11.0,ship,destruction,physics,combat
+- TAGS: v0.11.0, ship, destruction, physics, combat
 
 ## Goal
 
