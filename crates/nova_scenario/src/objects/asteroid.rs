@@ -14,6 +14,10 @@ use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
 use nova_ship::prelude::*;
 
+use super::asteroid_surface::prelude::{
+    AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt, RockHeight,
+};
+
 /// The asteroid scenario object and its config, the radius, mass, mesh and texture components, the
 /// geometric-factor bounds and `AsteroidPlugin`.
 pub mod prelude {
@@ -142,9 +146,13 @@ pub fn asteroid_seed_from_id(id: &str) -> u32 {
 pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidConfig, seed: u32) {
     debug!("asteroid_scenario_object: config {:?} seed {seed}", config);
 
-    let planet = PlanetHeight::default().with_seed(seed).sampler();
+    // The ROCK generator, not the planet one: signed, so the surface is cut
+    // into as well as grown out of, and stretched per seed so a rock has a long
+    // axis. See `asteroid_surface` for why a planet generator made every rock
+    // look like a ball with lumps on it.
+    let rock = RockHeight::default().with_seed(seed).sampler();
     let mesh = TriangleMeshBuilder::new_octahedron(3)
-        .apply_noise(&planet)
+        .apply_noise(&rock)
         .build();
     let collider = Collider::trimesh_from_mesh(&mesh).unwrap_or(Collider::sphere(1.0));
 
@@ -300,6 +308,9 @@ impl Plugin for AsteroidPlugin {
         app.add_observer(on_asteroid_node_destroyed);
         app.add_systems(Update, despawn_asteroid_husk);
         if self.render {
+            // The triplanar rock material, which is what a rock is drawn with
+            // whether or not it has ever been carved.
+            app.add_plugins(MaterialPlugin::<AsteroidSurfaceMaterial>::default());
             app.add_observer(insert_asteroid_render);
         }
     }
@@ -440,7 +451,7 @@ fn insert_asteroid_render(
     add: On<Add, AsteroidRenderMesh>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<AsteroidSurfaceMaterial>>,
     asset_server: Res<AssetServer>,
     q_render: Query<(&AsteroidRenderMesh, &ChildOf)>,
     q_asteroid: Query<&AsteroidTexture, With<AsteroidMarker>>,
@@ -465,9 +476,14 @@ fn insert_asteroid_render(
     };
 
     let mesh = (**render_mesh).clone();
-    let material = StandardMaterial {
-        base_color_texture: Some(texture.resolve(&asset_server)),
-        ..default()
+    // The texture goes to the EXTENSION, not to `base_color_texture`: the
+    // standard sampler would read it through the mesh UVs, and reading it
+    // through the mesh UVs is exactly what made a rock look quilted and made a
+    // carved rock wear a different texture scale from an uncarved one. The
+    // standard material keeps its tint, which the extension multiplies into.
+    let material = AsteroidSurfaceMaterial {
+        base: StandardMaterial::default(),
+        extension: AsteroidSurfaceMaterialExt::new(texture.resolve(&asset_server)),
     };
 
     commands.entity(entity).insert((

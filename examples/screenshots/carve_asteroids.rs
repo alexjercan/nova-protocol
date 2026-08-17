@@ -127,9 +127,8 @@ fn hit_direction(nth: usize, count: usize) -> Vec3 {
 /// placed there in a direction where the noise happens to be low would land in
 /// empty space and carve nothing.
 fn surface_point(direction: Vec3) -> Vec3 {
-    let planet = PlanetHeight::default().with_seed(ROCK_SEED).sampler();
-    let height = planet.get_point(direction) as f32;
-    direction * (1.0 + height) * ROCK_RADIUS
+    let rock = RockHeight::default().with_seed(ROCK_SEED).sampler();
+    direction * rock.radius(direction) * ROCK_RADIUS
 }
 
 /// Shoot every rock in the row the number of times its column stands for.
@@ -248,7 +247,7 @@ fn frame_column(world: &mut World, index: usize) {
     let centre = column_position(index);
     nova_protocol::nova_debug::harness::pose_camera(
         world,
-        centre + Vec3::new(4.0, 5.0, 11.0),
+        centre + Vec3::new(6.0, 7.5, 17.0),
         centre,
     );
 }

@@ -9,8 +9,8 @@
 //!
 //! # Seeded from the shipped silhouette, not from a fresh shape
 //!
-//! The field is `|p| - (1 + height(p/|p|))` on the asteroid's OWN
-//! [`PlanetHeight`] sampler and its OWN seed, which is the same function
+//! The field is `|p| - radius(p/|p|)` on the asteroid's OWN
+//! [`RockHeight`] sampler and its OWN seed, which is the same function
 //! `apply_noise` displaced the shipped mesh by. So the first remesh reproduces
 //! the rock that was already there rather than swapping in a different one:
 //! what changes is the crater, not the rock.
@@ -38,7 +38,10 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::BodyRadius;
 
-use super::asteroid::{AsteroidMarker, AsteroidRadius, AsteroidSeed, PlanetHeight};
+use super::{
+    asteroid::{AsteroidMarker, AsteroidRadius, AsteroidSeed},
+    asteroid_surface::prelude::{RockHeight, ROCK_SURFACE_MIN},
+};
 
 /// `AsteroidField` and `AsteroidCarvePlugin`.
 pub mod prelude {
@@ -113,31 +116,30 @@ impl AsteroidField {
 /// The pristine field of a rock with this `seed`: the analytic version of the
 /// silhouette `apply_noise` builds.
 ///
-/// `apply_noise` displaces a UNIT sphere's vertices outward by
-/// `height(vertex)`, and on a unit sphere the vertex and its direction are the
-/// same point - so the surface is `|p| = 1 + height(p/|p|)` and the signed
-/// distance is what this returns. Sampling the noise on the DIRECTION is the
-/// whole of the translation.
+/// The shipped mesh is a unit sphere whose vertices `apply_noise` pushes out
+/// to `radius(direction)`, so the surface is `|p| = radius(p/|p|)` and the
+/// signed distance is what this returns. The mesh and the field are two
+/// readings of ONE function rather than two shapes that have to be kept in
+/// step.
 ///
 /// The near/far shortcut is not an approximation of the surface, it is a bound
-/// on it. `PlanetHeight` is non-negative and capped, so the surface lies
-/// between radius 1 and `1 + max_height`: outside that shell the sign is known
-/// without asking the noise, and the noise is the only expensive part. It cuts
-/// the seeding cost roughly in half.
+/// on it: no rock's surface comes closer in than `ROCK_SURFACE_MIN` or reaches
+/// past the grid, so outside that shell the sign is settled without asking the
+/// noise. The noise is the only expensive part, and this halves how often it
+/// is asked.
 fn pristine_field(seed: u32, half_extent: f32) -> SignedField {
-    let planet = PlanetHeight::default().with_seed(seed).sampler();
+    let rock = RockHeight::default().with_seed(seed).sampler();
     SignedField::sample(FIELD_RESOLUTION, half_extent, |at| {
         let radius = at.length();
         // Inside the smallest the surface can be, or outside the largest: the
         // sign is settled and the exact value only has to be conservative.
-        if radius <= 1.0 {
-            return radius - 1.0;
+        if radius <= ROCK_SURFACE_MIN {
+            return radius - ROCK_SURFACE_MIN;
         }
         if radius >= half_extent {
             return radius - half_extent;
         }
-        let direction = at / radius;
-        radius - (1.0 + planet.get_point(direction) as f32)
+        radius - rock.radius(at / radius)
     })
 }
 
@@ -294,46 +296,33 @@ impl Plugin for AsteroidCarvePlugin {
 mod tests {
     use super::*;
 
-    /// The seeded field has to be the rock that is already on screen, not a
-    /// new one: the surface it meshes must sit where `apply_noise` put the
-    /// shipped mesh's vertices.
+    /// The seeded field has to be the rock that is already on screen, not a new
+    /// one. Both the shipped mesh and the field are read off the SAME
+    /// `RockHeight` sampler, so this pins the translation between them: the
+    /// meshed surface must sit within a cell of where the sampler says the
+    /// rock's surface is.
     #[test]
     fn the_seeded_field_reproduces_the_shipped_silhouette() {
         let seed = 4242;
-        let planet = PlanetHeight::default().with_seed(seed).sampler();
-        let field = pristine_field(seed, 6.5);
+        let rock = RockHeight::default().with_seed(seed).sampler();
+        let field = pristine_field(seed, 7.0);
+        let mesh = field.surface().build();
+        let Some(bevy::mesh::VertexAttributeValues::Float32x3(positions)) =
+            mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+        else {
+            panic!("a seeded field meshes");
+        };
 
-        for direction in [Vec3::X, Vec3::Y, Vec3::Z, Vec3::new(1.0, 1.0, 1.0)] {
-            let direction = direction.normalize();
-            let surface = 1.0 + planet.get_point(direction) as f32;
-            // The field is zero at the surface, negative inside, positive out.
+        assert!(!positions.is_empty(), "the rock has a surface");
+        for position in positions {
+            let at = Vec3::from_array(*position);
+            let radius = at.length();
+            let expected = rock.radius(at / radius);
             assert!(
-                field_at(&field, direction * (surface - 0.3)) < 0.0,
-                "just inside the surface should be solid"
-            );
-            assert!(
-                field_at(&field, direction * (surface + 0.3)) > 0.0,
-                "just outside the surface should be empty"
+                (radius - expected).abs() < field.cell_size(),
+                "a vertex sat at {radius} where the rock's surface is {expected}"
             );
         }
-    }
-
-    /// Sample the meshed surface's distance from the origin along `at` by
-    /// re-deriving the field value the analytic function would give. Kept
-    /// separate from `SignedField` because nothing in production interpolates
-    /// the grid - the mesher reads corners directly.
-    fn field_at(field: &SignedField, at: Vec3) -> f32 {
-        // Nearest corner is enough at this tolerance: the cell size at
-        // 32^3 over a 6.5 half-extent is ~0.4, and the assertions stand 0.3
-        // clear of the surface on a field whose gradient is ~1.
-        let step = field.cell_size();
-        let rounded = (at / step).round() * step;
-        let planet = PlanetHeight::default().with_seed(4242).sampler();
-        let radius = rounded.length();
-        if radius <= 1.0 {
-            return radius - 1.0;
-        }
-        radius - (1.0 + planet.get_point(rounded / radius) as f32)
     }
 
     /// The rule that keeps gravity and navigation valid without recomputing

@@ -89,6 +89,13 @@ tagged **(breaking)**.
 - Asteroids CARVE: a hit takes a real crater out of the rock, mesh and collider
   both, so a shot rock is physically the shape it looks. Craters persist and a
   rock's published radius only ever shrinks.
+- **(breaking)** Rocks are shaped by a ROCK generator, not the planet one: the
+  displacement is signed and per-seed stretched, so a rock is an irregular chunk
+  instead of a sphere with growths on it. Same size, new silhouette.
+- Rocks are textured by POSITION, not by mesh UVs. No more per-triangle quilting,
+  and a carved rock wears exactly the surface an uncarved one does.
+- Fixed: a rock whose seed landed near `u32::MAX` overflowed the noise generator.
+  Seeds come from hashing a scenario id, so an unlucky name could hit it.
 - A rock's carvable field is built the first time it is actually hit, so a field
   of untouched rocks costs exactly what it always did.
 - **(breaking)** A hull may carry several flight computers and steers better

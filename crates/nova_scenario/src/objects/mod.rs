@@ -15,6 +15,8 @@ pub mod area;
 pub mod asteroid;
 /// The signed field behind a carvable rock, and the remesh that follows a hit.
 pub mod asteroid_carve;
+/// How a rock is textured (triplanar, no UVs) and how its silhouette is shaped.
+pub mod asteroid_surface;
 pub mod beacon;
 pub mod binding_input;
 /// Light scenario object: the authored directional and point lights a scene
@@ -31,8 +33,9 @@ pub mod spaceship;
 pub mod prelude {
     pub use super::{
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
-        beacon::prelude::*, binding_input::prelude::*, light::prelude::*, modification::prelude::*,
-        salvage::prelude::*, ship::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
+        asteroid_surface::prelude::*, beacon::prelude::*, binding_input::prelude::*,
+        light::prelude::*, modification::prelude::*, salvage::prelude::*, ship::prelude::*,
+        spaceship::prelude::*, ScenarioObjectsPlugin,
     };
 }
 

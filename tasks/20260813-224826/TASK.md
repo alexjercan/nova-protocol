@@ -217,13 +217,27 @@ additive fallback for those bodies and leaves every other effect standing.
   surface nets with flat normals, trimesh collider swap. `SignedField` in
   `nova_gameplay/mesh/field.rs` is the representation; `asteroid_carve.rs` is
   the glue.
-- Triplanar was NOT needed. The design assumed remeshed geometry has no usable
-  UVs, but the shipped rock's UVs are planar PER TRIANGLE, not spherical - so
-  emitting the surface through `TriangleMeshBuilder` gives a carved rock the
-  same UV convention, the same flat per-face normals and the same material as
-  an uncarved one, for free. `DESIGN-round3.md` B1 (the triplanar UV fix) is
-  still open and would improve both, but it is a texture task and not a
-  blocker for this one.
+- TRIPLANAR, done here after all (`DESIGN-round3.md` B1). Emitting the carved
+  surface through `TriangleMeshBuilder` did give it the same UV CONVENTION as
+  the shipped mesh, which was enough to compile and not enough to look right:
+  those UVs are planar per TRIANGLE, so their scale follows the triangle's
+  size, and a surface-nets triangle is not a subdivision triangle. A carved
+  rock therefore wore a visibly finer texture than the uncarved one beside it.
+  `AsteroidSurfaceMaterial` samples by POSITION instead and consults no UV at
+  all, which fixes that mismatch and the per-triangle quilting every rock has
+  always had, in one move.
+- The SILHOUETTE was the other half of the same complaint and is fixed with it.
+  `PlanetHeight` is a planet generator whose output is NON-NEGATIVE, so
+  displacing a sphere by it could only add material and the base sphere showed
+  through wherever the noise bottomed out - every rock read as a ball with
+  growths on it. `RockHeight` replaces it: four octaves of plain fBm, SIGNED,
+  with a per-seed anisotropic stretch. Same size (the pinned
+  `ASTEROID_GEOMETRIC_FACTOR_MIN..MAX` is load-bearing for campaign clearances,
+  editor placement and orbit gates, and is re-pinned against the new
+  generator), new shape.
+- That also cut the seeding cost from 28-39 ms to 4.9-7.4 ms, because the
+  planet graph carried 25 permutation tables a rock never needed. Remesh
+  2.4-3.4 ms and collider 3.1-4.5 ms on a fuller surface (7.7k-10.7k tris).
 - `BodyRadius` only ever shrinks: re-derived from the surviving surface and
   written only when smaller, so gravity SOI and orbit bands stay valid without
   recomputation.
