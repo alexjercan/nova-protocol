@@ -32,6 +32,7 @@ use nova_hud::prelude::*;
 pub use nova_info;
 pub use nova_menu;
 use nova_menu::prelude::*;
+pub use nova_os_ui;
 pub use nova_scenario;
 use nova_scenario::prelude::*;
 pub use nova_ship;

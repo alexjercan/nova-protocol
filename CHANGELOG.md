@@ -340,6 +340,9 @@ tagged **(breaking)**.
 - Controller mods author `steering_lag` in seconds instead of internal PD frequency and damping fields; mixed stacks use the fastest live computer. **(breaking)**
 - A driven run turns the wheel (`scroll_lines` / `scroll_pixels`), so a scripted beat reaches a row past the fold instead of skipping it.
 - `menu_picker` scrolls the picker and now measures every scenario row, none skipped.
+- The `nova_os` range opens the ship computer with Tab and clicks a widget THROUGH the CRT glass, asserting the whole forwarded-pointer chain live.
+- Fixed: a synthesized click never reached the NOVA OS screen - the forwarded pointer read a button stream `bevy_picking` does not write.
+- Fixed: the NOVA OS glass was measured in physical pixels against a logical cursor, so every click missed by the display's scale factor.
 - Probe accepts `-h` and `--help` at the root, `run`, and `report` command levels.
 - The bug-to-range doctrine is written down (`CONVENTIONS.md`): reproduce a bug
   as a `systems/` range before the fix, and name every claim on the invariant

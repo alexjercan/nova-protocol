@@ -157,7 +157,13 @@ pub(crate) struct NovaOsRtt {
 }
 
 /// Stable id for the forwarded pointer (one NOVA OS at a time).
-pub(crate) fn nova_os_pointer_id() -> PointerId {
+///
+/// Public because it is the only handle on the pointer that reaches the
+/// offscreen tree: bevy's own [`HoverMap`] is keyed by [`PointerId`], so this is
+/// what lets a caller ask "did the click get THROUGH the glass?" rather than
+/// "did it land on the glass?" - two answers a run driving the monitor has to
+/// tell apart.
+pub fn nova_os_pointer_id() -> PointerId {
     PointerId::Custom(Uuid::from_u128(0x0BADC0DE_CAFE_1234_5678_9ABCDEF01234))
 }
 
@@ -253,10 +259,19 @@ pub(crate) fn reconcile_nova_os_target(
 /// displays with, fed the same uniforms - so the pointer lands on the thing the
 /// player sees under the cursor. NOTE: applying the barrel INVERSE, or skipping
 /// the overscan, puts clicks up to 27 px from their target at the screen corners.
+///
+/// The buttons are read off [`WindowEvent`], the same stream
+/// `bevy_picking::input::mouse_pick_events` builds the MOUSE pointer's presses
+/// from, so the two pointers cannot disagree about whether a button went down.
+/// `bevy_winit` also writes a concrete `MouseButtonInput` twin for every real
+/// click, which is close enough to be tempting and wrong: a SYNTHESIZED click
+/// writes only the half picking reads, so a forwarder reading the twin went
+/// dead under every driven run while looking perfectly correct by hand
+/// (task 20260804-134347).
 pub(crate) fn forward_nova_os_pointer(
     rtt: Option<Res<NovaOsRtt>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
-    mut mouse_buttons: MessageReader<bevy::input::mouse::MouseButtonInput>,
+    mut window_events: MessageReader<bevy::window::WindowEvent>,
     q_surface: Query<(&ComputedNode, &UiGlobalTransform), With<NovaOsSamplingSurfaceMarker>>,
     q_openness: Query<&NovaOsOpenness, With<NovaOsRootMarker>>,
     mut q_pointer: Query<&mut PointerLocation, With<NovaOsForwardedPointerMarker>>,
@@ -285,15 +300,10 @@ pub(crate) fn forward_nova_os_pointer(
     let surface = q_surface.single().ok();
     let in_image = match (cursor, surface) {
         (Some(cursor), Some((node, xf))) => {
-            let size = node.size();
-            let min = xf.translation - size * 0.5;
-            let local = (cursor - min) / size.max(Vec2::splat(1.0));
-            if local.x < 0.0 || local.x > 1.0 || local.y < 0.0 || local.y > 1.0 {
-                None
-            } else {
-                nova_os_crt_screen_to_image_uv(local, NOVA_OS_CRT_WARP, NOVA_OS_CRT_OVERSCAN, power)
+            nova_os_glass_local_uv(cursor, node, xf).and_then(|l| {
+                nova_os_crt_screen_to_image_uv(l, NOVA_OS_CRT_WARP, NOVA_OS_CRT_OVERSCAN, power)
                     .map(|uv| uv * image_size)
-            }
+            })
         }
         _ => None,
     };
@@ -308,7 +318,10 @@ pub(crate) fn forward_nova_os_pointer(
     // Mirror mouse buttons onto the forwarded pointer (only meaningful over the
     // panel; harmless otherwise since the position is parked off-image).
     let id = nova_os_pointer_id();
-    for ev in mouse_buttons.read() {
+    for ev in window_events.read().filter_map(|event| match event {
+        bevy::window::WindowEvent::MouseButtonInput(input) => Some(input),
+        _ => None,
+    }) {
         let button = match ev.button {
             MouseButton::Left => PointerButton::Primary,
             MouseButton::Right => PointerButton::Secondary,
@@ -377,6 +390,189 @@ pub(crate) fn nova_os_crt_screen_to_image_uv(
 pub(crate) fn nova_os_smoothstep(edge1: f32, x: f32) -> f32 {
     let t = (x / edge1).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
+}
+
+/// Which screen-local uv the CRT composite displays `uv` of the offscreen image
+/// at - the inverse of [`nova_os_crt_screen_to_image_uv`], and what a caller
+/// aiming at something it can only locate in IMAGE space needs.
+///
+/// The overscan pull and the collapse remap are plain scales, so both invert in
+/// closed form. The barrel is radial - `|bowed| = r * (1 + warp * r^2)` for
+/// `r = |centred|`, strictly increasing for a non-negative `warp` - so the
+/// radius is a Newton solve on that cubic, whose derivative `3*warp*r^2 + 1` is
+/// never below 1 and therefore converges from any start.
+///
+/// `None` when the CRT displays that image point nowhere. Two ways to earn
+/// that, and only two: the point is not part of the picture at all, or the
+/// barrel bowed it past the drawn rim and the overscan left it under the bezel -
+/// the outer few percent of the image, which the tube crops on purpose.
+///
+/// The raster collapse is NOT one of them. It squeezes where the picture is
+/// drawn toward the centre scan line without cropping it, so a half-powered tube
+/// still shows every image point, just crowded into a band - which is why the
+/// only gate here is on the pre-collapse `sample`.
+pub(crate) fn nova_os_crt_image_uv_to_screen(
+    uv: Vec2,
+    warp: f32,
+    overscan: f32,
+    power: f32,
+) -> Option<Vec2> {
+    if uv.cmplt(Vec2::ZERO).any() || uv.cmpgt(Vec2::ONE).any() {
+        return None;
+    }
+    let bowed = (uv - Vec2::splat(0.5)) / overscan;
+    let bowed_radius = bowed.length();
+    let centred = if bowed_radius <= f32::EPSILON {
+        Vec2::ZERO
+    } else {
+        bowed * (nova_os_unbow_radius(bowed_radius, warp) / bowed_radius)
+    };
+
+    // The rim gets slack because the unbow is a numeric solve: a point the
+    // forward mapping put EXACTLY on the picture's edge comes back a rounding
+    // step outside it, and an exact compare would make the outermost row of the
+    // terminal the one thing on the glass nobody can aim at.
+    let sample = centred + Vec2::splat(0.5);
+    if sample.cmplt(Vec2::splat(-NOVA_OS_RIM_SLACK)).any()
+        || sample.cmpgt(Vec2::splat(1.0 + NOVA_OS_RIM_SLACK)).any()
+    {
+        return None;
+    }
+    let open_h = nova_os_smoothstep(NOVA_OS_CRT_POWER_OPEN_H, power);
+    let open_w = nova_os_smoothstep(NOVA_OS_CRT_POWER_OPEN_W, power);
+    // No second gate: a `sample` inside the picture and an `open` of at most 1
+    // put this inside the glass by construction.
+    Some(Vec2::new(
+        centred.x * open_w.max(NOVA_OS_CRT_POWER_EPSILON) + 0.5,
+        centred.y * open_h.max(NOVA_OS_CRT_POWER_EPSILON) + 0.5,
+    ))
+}
+
+/// Slack on the picture's rim, in uv - a tenth of an image pixel at any size the
+/// monitor is ever rendered at, and far under the half-pixel the forwarded
+/// pointer is held to.
+const NOVA_OS_RIM_SLACK: f32 = 1e-4;
+
+/// Solve `r * (1 + warp * r^2) = bowed_radius` for `r >= 0` by Newton from
+/// `bowed_radius` itself - an over-estimate for `warp >= 0`, which is the only
+/// side the tube is ever tuned to.
+fn nova_os_unbow_radius(bowed_radius: f32, warp: f32) -> f32 {
+    let mut radius = bowed_radius;
+    for _ in 0..NOVA_OS_UNBOW_STEPS {
+        let error = radius * (1.0 + warp * radius * radius) - bowed_radius;
+        if error.abs() <= NOVA_OS_UNBOW_TOLERANCE {
+            break;
+        }
+        radius -= error / (1.0 + 3.0 * warp * radius * radius);
+    }
+    radius
+}
+
+/// Newton budget for [`nova_os_unbow_radius`]. The solve is quadratic and starts
+/// within a few percent, so it lands in a handful of steps; the cap is a
+/// non-convergence backstop, not the expected cost. The tolerance is in uv, i.e.
+/// well under a millionth of the picture's width.
+const NOVA_OS_UNBOW_STEPS: usize = 16;
+const NOVA_OS_UNBOW_TOLERANCE: f32 = 1e-7;
+
+/// Where in the WINDOW the point at screen-local uv `local` of the sampling
+/// surface sits, and the bounds-checked inverse that answers which `local` a
+/// window cursor is over.
+///
+/// One definition of the surface rect for both directions. A [`ComputedNode`]
+/// carries PHYSICAL pixels and [`Window::cursor_position`] reports LOGICAL ones,
+/// so the rect is scaled back through [`ComputedNode::inverse_scale_factor`]
+/// before either is compared with the other; skipping that reads right only at
+/// scale factor 1 - and puts every click a factor of two out on a HiDPI display.
+pub(crate) fn nova_os_glass_window_px(
+    local: Vec2,
+    node: &ComputedNode,
+    xf: &UiGlobalTransform,
+) -> Vec2 {
+    let (min, size) = nova_os_glass_rect(node, xf);
+    min + local * size
+}
+
+/// [`nova_os_glass_window_px`]'s inverse: `None` when the cursor is off the
+/// glass entirely, which parks the forwarded pointer instead of clamping it onto
+/// an edge nobody is pointing at.
+pub(crate) fn nova_os_glass_local_uv(
+    cursor: Vec2,
+    node: &ComputedNode,
+    xf: &UiGlobalTransform,
+) -> Option<Vec2> {
+    let (min, size) = nova_os_glass_rect(node, xf);
+    let local = (cursor - min) / size;
+    (!local.cmplt(Vec2::ZERO).any() && !local.cmpgt(Vec2::ONE).any()).then_some(local)
+}
+
+/// The sampling surface's top-left and size in LOGICAL window pixels. The size
+/// is floored at one pixel so an unlaid-out surface divides to a finite uv
+/// rather than a NaN that reads as "off the glass" only by luck of the compare.
+fn nova_os_glass_rect(node: &ComputedNode, xf: &UiGlobalTransform) -> (Vec2, Vec2) {
+    let scale = node.inverse_scale_factor();
+    let size = (node.size() * scale).max(Vec2::ONE);
+    (xf.translation * scale - size * 0.5, size)
+}
+
+/// Where to put the real cursor so the forwarded pointer lands on `image_px` of
+/// the NOVA OS's offscreen image - [`forward_nova_os_pointer`] run backwards,
+/// against the live surface rect, image size and CRT power.
+///
+/// A UI node behind the image camera reports its rect in IMAGE pixels, which is
+/// a space no window cursor can be placed in: something has to undo the warp
+/// before a caller can point at it. Without this, a driven run can only click
+/// what happens to sit in window space, and the whole terminal - every widget
+/// past the glass - is unreachable except by triggering its observer directly,
+/// which is precisely the shortcut that lets the pointer chain rot untested
+/// (task 20260804-134347).
+///
+/// `None` when there is no live monitor to aim at, or when the CRT displays that
+/// image point nowhere: off the picture, or swallowed by the raster collapse
+/// mid-power-on. A caller must treat that as "not clickable yet", never as a
+/// coordinate to clamp.
+pub fn nova_os_window_px_showing(world: &mut World, image_px: Vec2) -> Option<Vec2> {
+    let image = world.get_resource::<NovaOsRtt>()?.image.clone();
+    let image_size = world
+        .get_resource::<Assets<Image>>()
+        .and_then(|images| images.get(&image))
+        .map(|image| image.size().as_vec2())?;
+    // The forwarder's own fallback: a rig with no shell entity is a full raster.
+    let power = nova_os_openness(world).unwrap_or(1.0);
+    let (node, xf) = {
+        let mut query = world
+            .query_filtered::<(&ComputedNode, &UiGlobalTransform), With<NovaOsSamplingSurfaceMarker>>(
+            );
+        let (node, xf) = query.single(world).ok()?;
+        (*node, *xf)
+    };
+
+    let local = nova_os_crt_image_uv_to_screen(
+        image_px / image_size,
+        NOVA_OS_CRT_WARP,
+        NOVA_OS_CRT_OVERSCAN,
+        power,
+    )?;
+    Some(nova_os_glass_window_px(local, &node, &xf))
+}
+
+/// How far the monitor's raster has opened: 0 fully closed, 1 flush and drawing
+/// the whole picture. `None` when no NOVA OS shell exists (it is spawned with
+/// the player ship and despawned with it).
+///
+/// The advance condition a driven run needs between "the computer opened" and
+/// "a click on the glass means anything": the raster collapse is a live uniform,
+/// so until this reads 1 the CRT shows a squeezed window onto the image and
+/// [`nova_os_window_px_showing`] answers for a picture that is still moving. A
+/// dwell would only be a guess at the same moment.
+///
+/// Takes `&World`, so it can back a read-only predicate. That costs an entity
+/// walk - the openness lives on one entity and this cannot pre-build a query -
+/// which is a scripted run's price to pay, not a per-frame system's.
+pub fn nova_os_openness(world: &World) -> Option<f32> {
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<NovaOsOpenness>().map(|openness| openness.0))
 }
 
 /// Power levels at which the raster collapse finishes opening vertically and

@@ -182,7 +182,11 @@ What is on disk today, in reading order:
   screen-projected indicator lands), `menu_boot` (the shipped boot flow) and
   `menu_picker` (the Scenarios picker, whose pane split must not depend on the
   selection - real fonts, real taffy, which a headless unit rig cannot measure
-  at all). Finally the STRESS ranges, one file each: `stress_bullets`,
+  at all) and `nova_os` (the Tab ship computer, opened with a keystroke and
+  clicked THROUGH the CRT glass, so the whole forwarded-pointer chain - window
+  rect, screen-to-image mapping, offscreen UI stack, `Activate` - is asserted
+  live rather than one link at a time). Finally the STRESS ranges, one file
+  each: `stress_bullets`,
   `stress_torpedoes`, `stress_one_structure` and `stress_many_structures` hold
   a thousand rounds, a thousand guided torpedoes, a thousand sections on one
   body and a hundred bodies, each asserting exact counts, a drain to zero and a
@@ -194,7 +198,10 @@ What is on disk today, in reading order:
   is survivable and only a rename breaks a run; nothing reaches a widget by
   triggering its observer or inserting its state component. A target past the
   fold is SCROLLED to (`scroll_lines` / `scroll_pixels` turn the wheel), so a
-  list taller than its box costs the run nothing. A driven run that still
+  list taller than its box costs the run nothing, and a target behind a render
+  target is AIMED at by undoing the composite that displays it
+  (`nova_os_window_px_showing`), since a node laid out by an offscreen camera
+  reports a rect in a space no cursor can be placed in. A driven run that still
   cannot reach a target says so and states its COVERAGE in the verdict -
   `menu_picker` names any row it gave up on and fails outright below two
   measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their

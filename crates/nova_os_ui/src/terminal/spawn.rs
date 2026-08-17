@@ -370,6 +370,10 @@ pub(crate) fn spawn_nova_os_header(
                     // old per-app chrome bar is gone; this is the app's only
                     // on-screen close affordance besides the ESC keybind.
                     status.spawn((
+                        // Named because it is the widget a driven run aims at
+                        // through the glass: the resolve is by `Name`, so only a
+                        // RENAME breaks the run, not a move within the header.
+                        Name::new("NovaOsAppClose"),
                         NovaOsAppCloseMarker,
                         Button,
                         Visibility::Hidden,

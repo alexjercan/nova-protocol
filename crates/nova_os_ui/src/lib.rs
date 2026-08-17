@@ -24,6 +24,12 @@ pub mod map;
 pub mod ship;
 pub mod terminal;
 
+/// The pure terminal model this crate renders. Re-exported because the two are
+/// one API to a consumer: asking what the shell is showing, or registering a
+/// command on it, means naming `nova_os` types, and whoever already depends on
+/// the renderer should not have to name the model crate a second time.
+pub use nova_os;
+
 /// Live-tree rig for the forwarded CRT pointer, shared by the CRT mapping and
 /// the map/ship blip click tests.
 #[cfg(test)]

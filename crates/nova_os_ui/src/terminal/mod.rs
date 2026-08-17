@@ -62,13 +62,19 @@ use nova_os::prelude::{NovaOsCommandRegistry, NovaOsTerminal};
 
 /// Glob-import surface: `use nova_os_ui::terminal::prelude::*`.
 pub mod prelude {
-    pub use super::components::NovaOsMonitorSettings;
+    pub use super::{
+        components::NovaOsMonitorSettings,
+        crt::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
+    };
 }
 
 use nova_gameplay::{objectives::prelude::GameObjectives, GameStates, PauseStates};
 use nova_hud::prelude::StoryFeed;
 
-pub use self::components::NovaOsMonitorSettings;
+pub use self::{
+    components::NovaOsMonitorSettings,
+    crt::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
+};
 use self::{
     components::{NovaOsCloseTransition, NovaOsDegauss, NovaOsFlightLog},
     crt::{animate_nova_os_crt, mirror_nova_os_hover, reconcile_nova_os_target, NovaOsCrtMaterial},
@@ -104,9 +110,8 @@ pub(crate) use self::{
 #[cfg(test)]
 pub(crate) use self::{
     crt::{
-        nova_os_image_target, nova_os_new_target_image, nova_os_pointer_id,
-        NovaOsForwardedPointerMarker, NovaOsImageContentRootMarker, NovaOsSamplingSurfaceMarker,
-        NOVA_OS_RTT_LAYER,
+        nova_os_image_target, nova_os_new_target_image, NovaOsForwardedPointerMarker,
+        NovaOsImageContentRootMarker, NovaOsSamplingSurfaceMarker, NOVA_OS_RTT_LAYER,
     },
     style::{NOVA_OS_CRT_OVERSCAN, NOVA_OS_CRT_WARP},
 };

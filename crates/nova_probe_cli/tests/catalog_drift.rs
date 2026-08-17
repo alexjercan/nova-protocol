@@ -275,6 +275,17 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "nova_os",
+        &[
+            "tab opens the computer",
+            "the ship app owns the screen",
+            "the pointer reaches the offscreen subtree",
+            "the press lands on the widget behind the glass",
+            "the click through the glass closes the app",
+            "the app switch leaves one screen",
+        ],
+    ),
+    (
         "stress_bullets",
         &[
             "the battery assembled every mount",
@@ -314,7 +325,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 112;
+const SYSTEMS_INVARIANTS: usize = 118;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

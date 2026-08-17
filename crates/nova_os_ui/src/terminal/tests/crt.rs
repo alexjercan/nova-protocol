@@ -569,3 +569,191 @@ fn rtt_element_renders_its_subtree() {
          {strays:?} carry another"
     );
 }
+
+/// The aiming half of the pointer chain: every point the CRT displays can be
+/// aimed at from the glass, and aiming at it lands back where it is drawn.
+///
+/// A run driving the monitor knows where a widget is only in IMAGE pixels (that
+/// is the space the offscreen camera lays it out in), and can only place a
+/// cursor in WINDOW pixels. `nova_os_crt_image_uv_to_screen` is the step
+/// between, so what it has to prove is that it is the actual inverse of the
+/// mapping the pointer follows - not merely something self-consistent.
+///
+/// Swept across the same power levels as the shader-agreement test above: the
+/// collapse remap is the identity at a settled raster, so a round trip run only
+/// at full power would leave the divide it inverts unexercised.
+#[test]
+fn aiming_at_an_image_point_lands_where_the_crt_draws_it() {
+    use crate::pointer_rig::{crt_uv_grid, CRT_MAP_BUDGET_PX};
+
+    let image = Vec2::new(1280.0, 720.0);
+    for power in [0.15, 0.35, 0.65, 1.0] {
+        let mut worst = 0.0_f32;
+        let mut worst_at = Vec2::ZERO;
+        let mut round_trips = 0;
+        for uv in crt_uv_grid() {
+            // Only points the glass actually shows something at: the rest have
+            // no image pixel to aim back at, which the next test covers.
+            let Some(shown) =
+                nova_os_crt_screen_to_image_uv(uv, NOVA_OS_CRT_WARP, NOVA_OS_CRT_OVERSCAN, power)
+            else {
+                continue;
+            };
+            let aimed = nova_os_crt_image_uv_to_screen(
+                shown,
+                NOVA_OS_CRT_WARP,
+                NOVA_OS_CRT_OVERSCAN,
+                power,
+            )
+            .unwrap_or_else(|| {
+                panic!(
+                    "at power {power} the CRT displays image uv {shown:?} at \
+                             screen uv {uv:?}, yet nowhere on the glass shows it"
+                )
+            });
+            // Measured in IMAGE pixels, the units the miss would be felt in:
+            // a screen-uv error is only a click that landed on the wrong glyph
+            // once it is scaled by the picture.
+            let error = ((aimed - uv) * image).abs().max_element();
+            if error > worst {
+                worst = error;
+                worst_at = uv;
+            }
+            round_trips += 1;
+        }
+        assert!(
+            worst <= CRT_MAP_BUDGET_PX,
+            "at power {power} aiming at a displayed image point lands {worst} px \
+             from it (worst at screen uv {worst_at:?}), budget {CRT_MAP_BUDGET_PX} px",
+        );
+        // Guard the guard: a power that round-tripped nothing satisfies the
+        // budget vacuously.
+        assert!(
+            round_trips > 0,
+            "power {power} displayed nothing anywhere - the budget above asserted \
+             nothing"
+        );
+    }
+}
+
+/// An image point the tube does not draw has nowhere on the glass to aim at,
+/// and the helper says so instead of handing back the nearest lit pixel.
+///
+/// The failure this refuses is a run that clicks an edge it was clamped onto and
+/// reports a hit. Two ways an image point is undrawn, and the collapse is not
+/// one of them: the overscan crops the picture's outer rim under the bezel, and
+/// an image uv outside `[0, 1]` was never part of the picture. What a collapsed
+/// raster does instead is covered by the round trip above, which sweeps it.
+#[test]
+fn an_undrawn_image_point_has_nowhere_to_aim() {
+    // Under the bezel: the barrel bows the rim outward and the overscan pulls
+    // the bowed result back in, so the outermost ~2% of the image is never
+    // sampled by the glass - at any power, this one included.
+    let rim = Vec2::new(0.5, 0.005);
+    assert!(
+        nova_os_crt_image_uv_to_screen(rim, NOVA_OS_CRT_WARP, NOVA_OS_CRT_OVERSCAN, 1.0).is_none(),
+        "the overscan crops image uv {rim:?} under the bezel, so there is no \
+         point on the glass to aim at"
+    );
+    // ...and the centre, which it does draw, still resolves - or the assertion
+    // above would hold for a helper that answered `None` to everything.
+    assert!(
+        nova_os_crt_image_uv_to_screen(
+            Vec2::splat(0.5),
+            NOVA_OS_CRT_WARP,
+            NOVA_OS_CRT_OVERSCAN,
+            1.0
+        )
+        .is_some(),
+        "the centre of the picture is drawn and therefore aimable"
+    );
+    // Off the picture entirely is off the glass at any power.
+    assert!(
+        nova_os_crt_image_uv_to_screen(
+            Vec2::new(1.4, 0.5),
+            NOVA_OS_CRT_WARP,
+            NOVA_OS_CRT_OVERSCAN,
+            1.0
+        )
+        .is_none(),
+        "an image uv outside the picture is nowhere on the glass"
+    );
+}
+
+/// A collapsing raster moves where a point is drawn without cropping it: the
+/// whole picture stays aimable, crowded into a band around the centre scan line.
+///
+/// The half of the mapping a caller feels while the monitor is still opening. A
+/// helper that ignored `power` would put every aim at its settled position -
+/// off the lit band entirely, on a click that would land on tube-black.
+#[test]
+fn a_collapsing_raster_crowds_the_aim_toward_the_centre_line() {
+    let low = Vec2::new(0.5, 0.9);
+    let settled = nova_os_crt_image_uv_to_screen(low, NOVA_OS_CRT_WARP, NOVA_OS_CRT_OVERSCAN, 1.0)
+        .expect("a settled raster draws the lower picture");
+    // Vertically squeezed only: `open_w` is past its 0.28 edge at this power,
+    // `open_h` is not.
+    let collapsing =
+        nova_os_crt_image_uv_to_screen(low, NOVA_OS_CRT_WARP, NOVA_OS_CRT_OVERSCAN, 0.35)
+            .expect("a collapsing raster still draws every point, just crowded");
+    assert!(
+        (collapsing.y - 0.5).abs() < (settled.y - 0.5).abs(),
+        "at power 0.35 the point should be aimed at nearer the centre line than \
+         at a settled raster: {} vs {}",
+        collapsing.y,
+        settled.y
+    );
+    assert!(
+        (collapsing.x - settled.x).abs() < 1e-3,
+        "the horizontal collapse has already finished at power 0.35, so the aim \
+         must not move on x: {} vs {}",
+        collapsing.x,
+        settled.x
+    );
+}
+
+/// The surface rect is read in LOGICAL pixels, the units the window reports its
+/// cursor in.
+///
+/// A `ComputedNode` is PHYSICAL, so on a HiDPI display a rect taken as-is puts
+/// the glass at half its real size and at a quarter of the window it occupies -
+/// every click a factor of the scale factor out, in a direction that grows with
+/// distance from the origin. Scale factor 2 is the cheapest case that tells the
+/// two readings apart at all.
+#[test]
+fn the_glass_rect_is_measured_in_logical_pixels() {
+    let scale = 2.0;
+    // 640x360 logical at the origin-side corner (140, 80), i.e. centred at
+    // (460, 260) logical - doubled for the physical values the node carries.
+    let node = ComputedNode {
+        size: Vec2::new(640.0, 360.0) * scale,
+        inverse_scale_factor: 1.0 / scale,
+        ..default()
+    };
+    let xf = UiGlobalTransform::from_translation(Vec2::new(460.0, 260.0) * scale);
+
+    let centre = nova_os_glass_window_px(Vec2::splat(0.5), &node, &xf);
+    assert_eq!(
+        centre,
+        Vec2::new(460.0, 260.0),
+        "the centre of the glass is the node's logical centre"
+    );
+    assert_eq!(
+        nova_os_glass_local_uv(Vec2::new(140.0, 80.0), &node, &xf),
+        Some(Vec2::ZERO),
+        "the logical top-left corner is uv (0, 0)"
+    );
+    assert_eq!(
+        nova_os_glass_local_uv(Vec2::new(780.0, 440.0), &node, &xf),
+        Some(Vec2::ONE),
+        "the logical bottom-right corner is uv (1, 1)"
+    );
+    // A cursor inside the PHYSICAL rect but outside the logical one is off the
+    // glass: that is the exact reading the physical-pixel version got wrong,
+    // and it would have parked the pointer on live content.
+    assert_eq!(
+        nova_os_glass_local_uv(Vec2::new(1000.0, 600.0), &node, &xf),
+        None,
+        "a cursor past the logical rect is off the glass"
+    );
+}

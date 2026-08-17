@@ -123,6 +123,10 @@ path = "examples/systems/menu_boot.rs"
 name = "menu_picker"
 path = "examples/systems/menu_picker.rs"
 
+[[example]]
+name = "nova_os"
+path = "examples/systems/nova_os.rs"
+
 # And the STRESS ranges: the same correctness shape - exact counts, a
 # clear-and-drain assertion, a teardown that leaves nothing - staged at a scale
 # no content will ever reach, with a frame-time capture riding along. One file

@@ -36,7 +36,7 @@ use bevy::{
     text::TextPlugin,
     ui::UiPlugin,
     ui_widgets::ButtonPlugin,
-    window::{PrimaryWindow, Window, WindowResolution},
+    window::{PrimaryWindow, Window, WindowEvent, WindowResolution},
 };
 
 use crate::terminal::{
@@ -225,6 +225,10 @@ pub(super) fn nova_os_pointer_rig() -> NovaOsPointerRig {
         // `InputFocus` resource this rig has no window backend to supply.
         ButtonPlugin,
     ));
+    // `WindowPlugin` is what registers this in a real app; `MinimalPlugins` has
+    // no window backend, and without it the button half of every click here
+    // would go nowhere.
+    app.add_message::<WindowEvent>();
     app.init_asset::<Image>().init_asset::<TextureAtlasLayout>();
     // `VisibilityPlugin`'s bounds pass reads the mesh collections, which in the
     // game arrive with the render plugins this rig has no use for.
@@ -366,8 +370,14 @@ pub(super) fn move_cursor_to(rig: &mut NovaOsPointerRig, window_px: Vec2) {
 }
 
 /// Press and release the left mouse button at `window_px`, exactly as the player
-/// does: the cursor moves, then real `MouseButtonInput` messages arrive and
+/// does: the cursor moves, then button events arrive and
 /// `forward_nova_os_pointer` mirrors them onto the image-targeted pointer.
+///
+/// The `WindowEvent` wrapper ONLY - the half `bevy_picking` itself reads to
+/// press the mouse pointer. `bevy_winit` writes a concrete `MouseButtonInput`
+/// twin beside it for a real click, but a SYNTHESIZED one does not, so a rig
+/// writing both would pass a forwarder that reads the twin and goes dead under
+/// every driven run.
 pub(super) fn click_at(rig: &mut NovaOsPointerRig, window_px: Vec2) {
     move_cursor_to(rig, window_px);
     for state in [ButtonState::Pressed, ButtonState::Released] {
@@ -377,11 +387,13 @@ pub(super) fn click_at(rig: &mut NovaOsPointerRig, window_px: Vec2) {
             .query_filtered::<Entity, With<PrimaryWindow>>()
             .single(rig.app.world())
             .expect("the rig has a primary window");
-        rig.app.world_mut().write_message(MouseButtonInput {
-            button: MouseButton::Left,
-            state,
-            window,
-        });
+        rig.app
+            .world_mut()
+            .write_message(WindowEvent::MouseButtonInput(MouseButtonInput {
+                button: MouseButton::Left,
+                state,
+                window,
+            }));
         settle(&mut rig.app);
     }
 }
