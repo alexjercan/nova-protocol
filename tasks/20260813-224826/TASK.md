@@ -1,168 +1,232 @@
-# Carve asteroids by damage and investigate destructible ship geometry
+# Erode every destructible body by its own health
 
 - STATUS: OPEN
 - PRIORITY: 75
-- TAGS: v0.11.0,epic,destruction,asteroid,ship,physics,spike
+- TAGS: v0.11.0,epic,destruction,asteroid,ship,torpedo,render,physics,spike
 
 ## Goal
 
-Replace asteroid hit-to-death-only visuals with persistent geometric damage:
-weapons carve craters, impacts eject shards, and disconnected material becomes
-physical chunks. Then investigate the harder extension to semantic spaceship
-parts and correlate geometric loss with health and structural integrity.
+Replace three unrelated destruction paths with one. A body's visible geometry
+degrades as its own health falls, and HOW it degrades is authored per section
+rather than special-cased per code path.
 
-This is a large staged epic. Each phase has a kill gate. Do not commit the full
-runtime to a voxel representation before the prototype proves appearance,
-collision quality, native cost, and WASM cost.
+Absorbs task `20260817-154330` (representation-independent destruction
+visuals), closed as merged. That task's seam is this one's Phase 0: the two
+were one feature seen from opposite ends - 154330 asked how geometry reaches
+the destruction system, this asked what damage does to it, and neither is
+answerable alone.
 
-## Existing design
+Damage itself is UNCHANGED. Bullets, blast and ram keep dealing their authored
+amounts. Erosion takes the place the red damage tint holds today, not the place
+the damage numbers hold.
 
-Consume `tasks/20260812-100256/DESIGN-round3.md`, Topic B2. That completed spike
-already selected this first approach:
+## What is there now
 
-- Lazy per-asteroid local-space SDF grids derived from the analytic asteroid
-  shape.
-- Naive surface nets rather than marching cubes. It is simpler, avoids sliver
-  triangles, and fits Nova's low-resolution faceted style.
-- Spherical SDF subtraction per damage impact.
-- Flat-normal remeshing and triplanar materials, because carved geometry has no
-  stable UV unwrap.
-- Rebuilt trimesh collider for the remaining asteroid.
-- Six-connected flood fill for severed solid islands.
-- Convex-hull dynamic bodies for large detached chunks; temporary shards and
-  optional salvage for small islands.
-- Existing slicing remains the death fallback and the baseline for unsupported
-  objects.
+Three paths that share nothing:
 
-The design's performance estimates are hypotheses, not accepted budgets. The
-prototype must measure them on current native and WASM paths.
+- ASTEROID: no damage visual at all; death slices the mesh on random planes
+  into four convex chunks (`mesh/explode.rs`).
+- SHIP SECTION: a material tint while alive (`damage_tint.rs`); death spawns
+  eight generic gray cubes for two seconds. That fallback is a filter bug, not
+  a design - `on_explode_entity` requires `Mesh3d` on the gameplay entity, and
+  sections render through `SectionRenderOf` descendants carrying
+  `WorldAssetRoot`, so every section falls through to it.
+- TORPEDO: sliced only when the meshed child happens to die first, else cubes.
 
-## Phase 0 - Prerequisite surface pipeline
+And one thing that already works that nothing calls destruction: skin plates
+(`shell_skin.rs`) are per-cell `SectionFixture`s with their own health that
+come off when shot. Derived ONCE on the spawn batch; lost plates stay lost.
 
-- Implement or schedule the triplanar asteroid material and repeat sampler from
-  Topic B1. Carved meshes must not depend on generated UVs.
-- Add proof images for pristine and carved faceted asteroids under representative
-  scenario lighting.
+A clad hull section renders `WorldAssetRoot(meshes.hull)` UNDER its plates.
+Nothing hides the body, so ships need the general mesh path too - the lattice
+covers the cladding only.
 
-Gate: no carving integration until the material works on runtime-remeshed
-geometry and WebGPU.
+## Accepted design
 
-## Phase 1 - Asteroid carving prototype
+### The level
 
-Build an isolated, runnable example before touching production damage:
+- `level = 1 - health_fraction`, per destructible entity, off its own health.
+- ONE input. No hit point, no impact history, no accumulated volume. Located
+  craters are a later refinement and must not be designed for now.
+- Geometry is DERIVED from health, never the reverse. A body at half health
+  always shows the same half-eroded state, so save/reload restores it for free
+  (health is already persisted) and the visual cannot drift from the number.
+- Shown for every body regardless of allegiance. The `TintMode::Full` /
+  `TintMode::DeadOnly` split goes away; enemies now show their damage.
 
-- One analytic asteroid field at 32^3 and 48^3.
-- Inject repeatable local-space impact points and damage amounts.
-- Apply spherical subtraction and coalesce impacts per fixed tick.
-- Remesh with surface nets and flat normals.
-- Swap render mesh and trimesh collider after a completed job.
-- Record field update, remesh, collider-build, and swap times separately.
-- Show repeated craters, tunnel/near-sever cases, grazing hits, and complete
-  material removal.
-- Keep at most one job in flight per body. Define how queued impacts merge or
-  supersede stale output.
+### The level has many consumers, and they are not one system
 
-Gate: rendered output keeps the faceted art direction; collider follows the
-visible crater; no stale async result restores removed material; native and
-WASM measurements support an explicit update budget.
+- The level is ONE number. What reads it is any number of independent DAMAGE
+  EFFECTS, each a component a section carries, each turning the same scalar
+  into its own kind of "more or less". A section composes as many as its art
+  supports.
+- This is not an enum. There is no mode set to close, no `match` the engine
+  owns, and a mod adds a new look by adding a component rather than by
+  extending a variant list. `Intact` is not a mode - it is a section with no
+  geometry-consuming effect attached.
+- Effects known to be wanted. Names are provisional, the SHAPE is not:
+  - EROSION - material comes off the body itself; craters, then holes. Hull
+    sections, asteroids, props.
+  - SHED - expendable pieces leave with level. The core is untouched.
+    Turrets, thrusters. REQUIRES art with separable pieces; whether the
+    shipped turret and thruster have any is a Phase 3 content finding.
+  - SPARKS - emissive and particle damage that rises with level. The turret
+    and thruster answer, and the reason neither needs its geometry touched.
+  - PLUME - a damaged thruster's exhaust goes ragged before it fails.
+  - SCORCH - material darkening. What survives of `damage_tint.rs`, reduced
+    from a whole-section health readout to a local effect among others.
+- The rule that keeps it honest: ONLY NON-FUNCTIONAL MATERIAL IS REMOVED. The
+  fixture/section line (`fixture.rs`: "if shooting it off should cost the ship
+  a capability it is a section, not decoration") taken one step. A turret that
+  has lost most of its mass still shoots, because what it lost was cowling and
+  the barrel was never expendable. An effect that would remove functional
+  geometry is the wrong effect for that section.
+- Effects that both remove material (EROSION and SHED on one section) share
+  one budget rather than each spending the level in full, or a section at high
+  level has nothing left. Decide the split when a section first wants both.
 
-## Phase 2 - Detached chunks and impact debris
+Why this shape rather than one mode per section: it composes, it is moddable
+by addition, and each effect gates independently. If voxel remeshing turns out
+to wreck authored art, EROSION is dropped from glTF bodies and every other
+effect is unaffected - the verdict costs one component, not the plan.
 
-- Flood-fill solid cells after each accepted carve batch.
-- Keep the largest/root island as the asteroid body.
-- Mesh sufficiently large detached islands and spawn them as dynamic chunks.
-- Inherit point velocity: `v + omega x r`.
-- Use bounded convex-hull colliders for chunks.
-- Convert small islands into bounded temporary shards. Add salvage only after
-  defining deterministic ids or an id-less pickup path.
-- Cap chunk count, shard count, retained grids, and work per fixed tick.
+### Representations
 
-Gate: deterministic harness evidence proves conservation bounds, no duplicate
-islands, bounded entity growth, and valid collider generation.
+- SKIN PLATES: step the plate's own `ShellShape` samples down with level.
+  Every shape this can reach is one the vocabulary already draws, meshes are
+  already built on demand and cached by shape id, and collider and mass follow
+  from `ShellShape::volume` automatically. Health stays as spawned (it comes
+  off the PRISTINE volume); only the shape follows the level. Derive-once
+  holds: the generator picks the pristine skin at spawn and damage only ever
+  subtracts. Neighbouring plates share boundary samples, so a sagging plate
+  opens a seam against an intact one - acceptable, plates already die
+  individually and leave holes between intact neighbours.
+- SECTION BODIES AND PROPS: authored glTF, so the general mesh path.
+  Voxelize into a SCRATCH grid at first damage, subtract at level, remesh with
+  surface nets and flat normals, drop the grid.
+- ASTEROIDS: the pristine field is analytic
+  (`d(p) = |p| - (1 + PlanetHeight(p/|p|))`), so there is no voxelization step
+  - seed, subtract at level, remesh, drop.
+- NOTHING RETAINS A GRID. The damaged shape is a pure function of
+  `(pristine, seed, level)`, so `DESIGN-round3.md` B2's per-rock memory table,
+  lazy allocation and 32^3 wasm cap do not apply. The grid is a remesh scratch
+  buffer. This is the same idiom `shell_skin.rs` already uses: derive, do not
+  store.
 
-## Phase 3 - Production asteroid integration
+### Boundaries
 
-- Add explicit asteroid authoring controls such as `carvable`, field resolution,
-  carve scale, and optional debris/loot policy. Defaults preserve non-carvable
-  mod behavior unless a migration decision says otherwise.
-- Carry impact point, normal, source, and applied damage through the production
-  damage seam without creating a second health pipeline.
-- Keep scenario lifecycle exact: carving emits no destruction event;
-  `OnDefeated`/`OnDestroyed` still follow the existing exact-once rules.
-- Keep Health as the initial kill gate. Health zero destroys the current carved
-  body through the existing finale or a measured replacement.
-- Update mass properties and collider shape. Decide and test whether
-  `BodyRadius`, gravity-well reach, targeting signature, and HUD range use the
-  pristine envelope or remaining geometry.
-- Ensure save/reload either serializes carving state or explicitly resets it.
-  Do not leave persistence accidental.
+- The section graph (`ConnectedTo` / link points) is the SOLE structural
+  authority. Erosion never creates or destroys structural adjacency. A lump of
+  material that erosion disconnects is debris, never structure.
+- Ship severing belongs to task `20260817-154646` and is not touched here.
+  This task lands AFTER it and rewrites its "retain their health-derived
+  visual tint" line into the health-derived erosion level.
+- Proximity torpedo detonation stays direct consumption into its blast, never
+  a shard burst.
+- Repair is out of scope. Lost material stays lost. A future repair shop or
+  nova_os ship-app action may re-add it; nothing here anticipates that.
 
-Gate: a player-path harness shoots, craters, severs, reloads according to the
-chosen persistence contract, and destroys an asteroid with correct scenario
-outcomes.
+## Phases
 
-## Phase 4 - Geometry-derived health experiment
+ONE task, ONE landing. This is a build order, not a shipping order.
 
-Do not silently replace authored Health. Compare these models with a balance
-harness:
+### Phase 0 - the seam
 
-1. Health remains authoritative; geometry is visual and physical evidence.
-2. Remaining solid volume derives health fraction from authored maximum health.
-3. Hybrid: impacts apply health damage, while low remaining volume or loss of a
-   protected core forces destruction.
+- Resolve destruction geometry through `SectionRenderOf` and descendants, not
+  `Mesh3d` on the gameplay entity.
+- One finale contract: exact-once, never both fallback cubes and mesh
+  fragments for one death, and a deterministic fallback when render meshes
+  have not loaded.
+- Every section kind, procedural and glTF, articulated turret joints, clad
+  sections, and a torpedo through EITHER child produce the same result.
+- `ExplodableEntity` propagates to parent roots, so relaxing the mesh filter
+  must not slice a whole hierarchy or leave a meshless root alive.
 
-Measure tunneling, many-small-hit exploits, large-blast behavior, repair
-implications, deterministic replay, and scenario compatibility. Select one
-model explicitly. Any balance or content-schema break requires migration notes
-and bundled-mod updates.
+Gate: the eight-cube burst is no longer the default for anything; it survives
+only for unloaded or unsupported geometry.
 
-## Phase 5 - Semantic spaceship-parts spike
+### Phase 1 - the level
 
-Asteroid SDF generation does not transfer directly to authored GLB parts.
-Before implementation, compare:
+- `level = 1 - health_fraction` as one derived input, replacing the tint's
+  role. Pure function, unit- and snapshot-testable.
+- One consumer, to prove the wiring: skin plates are the cheapest, because
+  stepping a `ShellShape`'s samples down needs no new mesh generator at all.
+  A preference for the fastest signal, not a constraint - any model can carry
+  the first effect.
 
-- Offline voxel/SDF bake per semantic part, shipped as content.
-- Runtime voxelization of the render mesh.
-- Local mesh booleans or fracture cells without a persistent SDF.
-- Keeping part-level destruction authoritative while carving remains cosmetic.
+### Phase 2 - the prototype range (THE GATE)
 
-Required interactions:
+An `examples/systems/` range that walks a hull cube, a plate, a turret, a
+thruster and an asteroid through the level range and holds them there to be
+looked at.
 
-- Authored link-point mates remain the sole source of structural adjacency.
-- Carving cannot create mates.
-- Define when a carve destroys or disables a link point.
-- Re-derive connected components after lost link points; detached components
-  become independent debris bodies.
-- Preserve exact assembly through `render_mesh_transform`.
-- Correlate remaining part volume, per-part Health, aggregate ship health, and
-  controller/capability loss without double-counting damage.
-- Bound memory for repeated instances of the same part, preferably by sharing a
-  pristine baked field and allocating deltas only after damage.
+Two independent risks, so prototype two effects, not one:
 
-Gate: one semantic part can be carved and one mate can be severed in an isolated
-ship harness with deterministic integrity results and acceptable memory. Only
-then schedule production ship carving.
+- EROSION on material bodies - a plate, a hull cube, an asteroid. Does
+  health-driven material loss read as battle damage or as mush? Is voxel
+  remeshing acceptable on authored glTF, or does that art need the additive
+  fallback (pristine mesh kept, craters and scorch added, silhouette
+  unchanged)?
+- SPARKS and SHED on a turret and a thruster. Does a section read as
+  progressively wrecked WITHOUT its geometry being touched? Does the shipped
+  art have separable pieces at all?
 
-## Out of scope until a phase promotes it
+Also answer, for both: how many levels are actually perceptible? The useful
+number is likely far smaller than the scalar suggests.
 
-- Fully deformable planets.
-- Carvable detached chunks.
-- Repair, welding, or adding material.
-- Unbounded voxel resolution or per-projectile remesh jobs.
-- Replacing link-point structural adjacency with voxel contact.
-- Removing slicing before carving has a production-safe fallback.
+Gate: the effect set is fixed HERE, from what the range shows. Each effect
+gates separately - a negative verdict on EROSION over glTF selects the
+additive fallback for those bodies and leaves every other effect standing.
+
+### Phase 3 - effects on real sections
+
+- Author the effect list per section in content, moddable, defaulting to
+  nothing so a third-party section is never worse than it is today.
+- SHED on whichever sections Phase 2 says can carry it.
+- SPARKS, PLUME and SCORCH on the sections whose geometry must stay whole.
+
+### Phase 4 - asteroids
+
+- Analytic seed, subtract at level, surface nets with flat normals, trimesh
+  collider swap.
+- Triplanar material or an equivalent, because remeshed geometry has no usable
+  UVs (`DESIGN-round3.md` B1).
+- `BodyRadius` only ever shrinks, so gravity SOI and orbit bands stay valid.
+- Measure remesh and collider-build cost separately, native AND wasm. At most
+  one job in flight per body; a newer level supersedes a queued one.
+
+### Phase 5 - the finale, and delete the slicer
+
+- What is left of a body at death comes apart into bounded debris with
+  inherited `v + omega x r`.
+- Delete the random-plane slicer (`mesh/explode.rs`) once the replacement
+  covers the death case. Fragment budgets are per SECTION, not per primitive,
+  so a capital collapse cannot multiply one death into unbounded bodies.
+
+## Out of scope
+
+- Located craters and any hit-point plumbing.
+- Repair, welding, or adding material back.
+- Health derived from geometry, volume-authoritative health, or any
+  rebalancing of authored damage.
+- Persistent per-body fields, offline fracture bakes, per-level authored
+  models.
+- Carvable debris. Detached material is debris and is not itself erodible.
+- Replacing link-point structural adjacency with geometric contact.
 
 ## Definition of done
 
-This epic closes only when:
-
-- Asteroid carving is production-integrated with bounded native and WASM costs,
-  deterministic chunk severing, collision parity, lifecycle parity, and
-  player-path evidence.
-- The health model is explicitly selected and documented.
-- The spaceship-parts spike has a recorded go/no-go verdict. Production ship
-  carving may become a separate implementation task if the verdict is go.
-- Content schema, modding docs, gameplay docs, examples, screenshots, and
+- One documented finale contract covers every shipped and modded section
+  representation; destruction is keyed to semantic destructibility, not to
+  where a `Mesh3d` happens to sit.
+- Every destructible body shows its own health as geometry, for every
+  allegiance, and the damage tint's role is retired.
+- Damage effects are authored per section as a composable list, with the set
+  chosen from Phase 2's rendered evidence and recorded here.
+- The random-plane slicer is gone, or its survival as the single unsupported-
+  geometry fallback is documented with the reason.
+- Fragment budgets bound a capital-scale collapse; native and wasm costs are
+  measured, not estimated.
+- Player-path range evidence, rendered output opened and inspected.
+- Content schema, modding docs, gameplay docs, examples, screenshots and
   release notes match the shipped scope.
-- Affected Rust checks, content lint, correctness probes, and rendered-output
-  inspection pass.
