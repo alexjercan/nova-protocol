@@ -5,6 +5,16 @@
 //! Every entry point is total - a degenerate or parallel input yields a finite
 //! result rather than a panic or a NaN, because slicing runs on arbitrary
 //! game meshes (see [`super::explode`]).
+//!
+//! # Kept deliberately
+//!
+//! The erosion epic (task 20260813-224826) set out to delete this alongside the
+//! generic-cube fallback, and kept it. The CUBES were the fallback; this is not.
+//! It cuts a real mesh into convex chunks that reassemble the original, which is
+//! exactly what a body coming apart should look like - and it is the ONLY
+//! fragmenter that works on glTF art. A signed field can be carved and severed,
+//! but ship sections are authored models with no field behind them; when one
+//! dies, this is what breaks it up.
 
 use bevy::prelude::*;
 

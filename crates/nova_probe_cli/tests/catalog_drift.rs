@@ -147,7 +147,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the hull breaks into its own art",
             "the asteroid breaks into its own art",
             "no death spends more than its budget",
-            "no death emitted both fragments and cubes",
+            "no death came apart into nothing",
         ],
     ),
     (

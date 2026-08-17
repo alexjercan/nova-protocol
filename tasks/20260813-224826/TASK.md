@@ -345,6 +345,25 @@ simulating - answered in two places that have to agree on the threshold.
 - MEASURED: the connectivity pass is 0.3-1.6 ms per carve on a 32^3 field, on
   top of the 2-4 ms remesh. It runs on every carve, not only on ones that sever.
 
+#### 4. No fallback, and the slicer survives - DONE
+
+- `spawn_fallback_burst` is gone. An empty geometry walk emits NOTHING and logs
+  an error. The cubes were not bad because they looked bad; they were bad
+  because they looked like SOMETHING, so a body that had silently failed to come
+  apart was indistinguishable from one that had come apart badly - which is how
+  the bug Phase 0 fixed survived every playtest that saw it.
+- `destruction_finale`'s sixth invariant is renamed from "no death emitted both
+  fragments and cubes" to "no death came apart into nothing", and it is counted
+  at the BODY (`Add<ExplodeFragments>` with an empty list) rather than on the
+  field - an empty walk leaves nothing on the field to count. The roster in
+  `catalog_drift.rs` moved with it. Verified live: 16 fragments, 0 empty walks,
+  at most 4 from one body.
+- The random-plane slicer is KEPT, and its module now says why. It was never the
+  fallback - the cubes were. It cuts a real mesh into convex chunks that
+  reassemble the original, and it is the only fragmenter that works on glTF art:
+  a signed field can be carved and severed, but ship sections are authored models
+  with no field behind them.
+
 ### Phase 5 - the finale, and delete the slicer
 
 - What is left of a body at death comes apart into bounded debris with
@@ -378,8 +397,8 @@ simulating - answered in two places that have to agree on the threshold.
   allegiance, and the damage tint's role is retired.
 - Damage effects are authored per section as a composable list, with the set
   chosen from Phase 2's rendered evidence and recorded here.
-- The random-plane slicer is gone, or its survival as the single unsupported-
-  geometry fallback is documented with the reason.
+- The random-plane slicer is gone, or its survival is documented with the
+  reason. RESOLVED: kept, as the glTF fragmenter - see Phase 4b step 4.
 - Fragment budgets bound a capital-scale collapse; native and wasm costs are
   measured, not estimated.
 - Player-path range evidence, rendered output opened and inspected.

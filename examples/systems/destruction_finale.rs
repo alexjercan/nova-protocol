@@ -11,7 +11,8 @@
 //! `WorldAssetRoot` - so every section in the game fell through to a burst of
 //! eight generic gray cubes, whatever art it was wearing. The asteroid, whose
 //! mesh happens to sit on the entity that dies, was the only body that ever
-//! fragmented properly.
+//! fragmented properly. The cubes are gone now; an empty walk emits nothing at
+//! all, which is why this range is the thing that has to catch one.
 //!
 //! SIX named invariants:
 //!
@@ -22,12 +23,12 @@
 //! | 3 | `outcome: the hull breaks into its own art` | and so does the plainest one |
 //! | 4 | `outcome: the asteroid breaks into its own art` | the path that already worked is untouched |
 //! | 5 | `outcome: no death spends more than its budget` | the budget is per BODY, not per mesh |
-//! | 6 | `outcome: no death emitted both fragments and cubes` | one death, one finale |
+//! | 6 | `outcome: no death came apart into nothing` | every shipped body has art to break into |
 //!
-//! Invariant 6 is the whole-run claim and the reason the tally is cumulative:
-//! the fallback and the fragments used to be chosen by two separate observers
-//! that could each fire on the same death. Only one thing decides now, so a
-//! single fallback cube anywhere in this run is a failure.
+//! Invariant 6 is the whole-run claim. There is no fallback any more: a body
+//! whose geometry walk comes back empty emits NOTHING and logs it. That makes
+//! this range the only thing standing between a silent failure and a shipped
+//! build, so a single empty walk anywhere in the run is a failure.
 //!
 //! The turret goes first on purpose. It is the only section here that draws
 //! with SEVERAL meshes (yaw, pitch and barrel joints), so it is the one that
@@ -38,7 +39,7 @@
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example destruction_finale --features debug
 //! # look for: `finale probe: the turret broke into 4 pieces of its own art`,
-//! #           `outcome: no death emitted both fragments and cubes`,
+//! #           `outcome: no death came apart into nothing`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -96,16 +97,20 @@ fn custom_plugin(app: &mut App) {
 /// What each death left on the field, counted as it lands.
 ///
 /// Cumulative and `Added`-driven rather than a live census, because debris is
-/// `TempEntity` and the fallback's two-second lifetime is shorter than the gap
-/// between two beats - a census would call a burst that has already expired
-/// "no burst at all", which is the exact failure this range exists to catch.
+/// `TempEntity` and a beat is longer than some of it lives - a census would
+/// call debris that has already expired "no debris at all", which is the exact
+/// failure this range exists to catch.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct FinaleProbe {
     /// Real mesh fragments seen since the run started.
     fragments: usize,
-    /// Generic fallback cubes seen since the run started.
-    fallback: usize,
+    /// Deaths whose geometry walk came back EMPTY since the run started.
+    ///
+    /// Counted at the body rather than on the field, because an empty walk
+    /// leaves nothing on the field to count. That is the whole difficulty: the
+    /// failure this range guards against is now silent.
+    empty: usize,
     /// The two counts as of the current beat's start, so a beat reads its own
     /// death rather than the whole run's.
     mark: (usize, usize),
@@ -125,26 +130,20 @@ struct FinaleProbe {
 impl FinaleProbe {
     /// What has landed since the last [`FinaleProbe::mark`].
     fn since_mark(&self) -> (usize, usize) {
-        (self.fragments - self.mark.0, self.fallback - self.mark.1)
+        (self.fragments - self.mark.0, self.empty - self.mark.1)
     }
 }
 
-/// Sort every piece of debris the frame it appears into the two paths that can
-/// produce one. The name is the tell: the fallback burst names its cubes, the
-/// fragment path names its pieces after the body they came off.
+/// Count every piece of debris the frame it appears.
 #[cfg(feature = "debug")]
-fn tally_debris(q_new: Query<&Name, Added<MeshFragmentMarker>>, mut probe: ResMut<FinaleProbe>) {
-    for name in &q_new {
-        if name.as_str().starts_with("Fallback") {
-            probe.fallback += 1;
-        } else {
-            probe.fragments += 1;
-        }
-    }
+fn tally_debris(q_new: Query<(), Added<MeshFragmentMarker>>, mut probe: ResMut<FinaleProbe>) {
+    probe.fragments += q_new.iter().count();
 }
 
 /// Record what ONE body's geometry walk produced, at the body, before any of it
-/// reaches the field. This is the honest measurement of the per-body budget.
+/// reaches the field. This is the honest measurement of the per-body budget,
+/// and the only place an EMPTY walk can be seen at all - it leaves nothing on
+/// the field to find.
 #[cfg(feature = "debug")]
 fn watch_body_fragments(
     add: On<Add, ExplodeFragments>,
@@ -154,6 +153,9 @@ fn watch_body_fragments(
     let Ok(fragments) = q_body.get(add.entity) else {
         return;
     };
+    if fragments.is_empty() {
+        probe.empty += 1;
+    }
     probe.most_from_one_body = probe.most_from_one_body.max(fragments.len());
 }
 
@@ -303,7 +305,7 @@ fn kill_asteroid(world: &mut World) {
 #[cfg(feature = "debug")]
 fn mark_and_target(world: &mut World, entity: Entity) {
     let mut probe = world.resource_mut::<FinaleProbe>();
-    probe.mark = (probe.fragments, probe.fallback);
+    probe.mark = (probe.fragments, probe.empty);
     probe.target = Some(entity);
 }
 
@@ -321,23 +323,23 @@ fn target_is_gone() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 }
 
 /// Invariants 1-4, one per body: the death produced real fragments of the
-/// body's own art, and did NOT fall back to generic cubes.
+/// body's own art, and its geometry walk was not empty.
 ///
 /// `marker` is passed in as a literal from the call site because the
 /// catalog-drift roster reads invariant names straight out of this source.
 #[cfg(feature = "debug")]
 fn assert_broke_into_art(world: &mut World, body: &str, marker: &'static str) {
-    let (fragments, fallback) = world.resource::<FinaleProbe>().since_mark();
+    let (fragments, empty) = world.resource::<FinaleProbe>().since_mark();
 
     assert!(
         fragments > 0,
         "finale probe: the {body} died without leaving any of its own art behind \
-         ({fallback} fallback cubes) - the geometry walk found nothing"
+         - the geometry walk found nothing"
     );
     assert_eq!(
-        fallback, 0,
-        "finale probe: the {body} emitted {fallback} fallback cubes as well as \
-         {fragments} fragments - two finales ran for one death"
+        empty, 0,
+        "finale probe: {empty} of the {body}'s deaths came apart into nothing, \
+         alongside {fragments} fragments"
     );
 
     info!("finale probe: the {body} broke into {fragments} pieces of its own art");
@@ -349,16 +351,16 @@ fn assert_broke_into_art(world: &mut World, body: &str, marker: &'static str) {
     );
 }
 
-/// Invariants 5 and 6, over the whole run: nothing anywhere fell back, and no
-/// death out-spent the budget.
+/// Invariants 5 and 6, over the whole run: no death came apart into nothing,
+/// and no death out-spent the budget.
 #[cfg(feature = "debug")]
 fn assert_one_finale_per_death(world: &mut World) {
     let probe = world.resource::<FinaleProbe>();
     assert_eq!(
-        probe.fallback, 0,
-        "finale probe: {} fallback cubes across the run - a body with real art \
-         took the last-resort path",
-        probe.fallback
+        probe.empty, 0,
+        "finale probe: {} deaths across the run came apart into nothing - a \
+         shipped body reached the branch that emits no debris at all",
+        probe.empty
     );
     assert!(
         probe.fragments > 0,
@@ -374,9 +376,9 @@ fn assert_one_finale_per_death(world: &mut World) {
         probe.most_from_one_body
     );
 
-    let (fragments, fallback, most) = (probe.fragments, probe.fallback, probe.most_from_one_body);
+    let (fragments, empty, most) = (probe.fragments, probe.empty, probe.most_from_one_body);
     info!(
-        "finale probe: {fragments} fragments, {fallback} fallback cubes, \
+        "finale probe: {fragments} fragments, {empty} empty walks, \
          at most {most} from one body"
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
@@ -387,8 +389,8 @@ fn assert_one_finale_per_death(world: &mut World) {
     );
     nova_probe::probe_marker(
         world,
-        "outcome: no death emitted both fragments and cubes",
-        serde_json::json!({ "t": elapsed, "fragments": fragments, "fallback": fallback }),
+        "outcome: no death came apart into nothing",
+        serde_json::json!({ "t": elapsed, "fragments": fragments, "empty": empty }),
     );
 }
 

@@ -103,6 +103,9 @@ tagged **(breaking)**.
 - A carve big enough to matter throws real rubble you can fly into instead of
   cosmetic chips. Small ones still throw dust. Debris drifts clear before it
   starts colliding, so nothing kicks its own wreckage.
+- **(breaking)** No body ever bursts into generic grey cubes. A death with no
+  art to break into now emits nothing and logs it, and a range asserts it never
+  happens.
 - **(breaking)** A hull may carry several flight computers and steers better
   for it, on a curve capped at twice its strongest computer. Authority does
   not stack linearly.

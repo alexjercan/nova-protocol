@@ -11,13 +11,21 @@
 //! a collider and the marker on a gameplay root while its art hangs off
 //! `SectionRenderOf` descendants under a gltf `WorldAssetRoot`, so a finale
 //! gated on `Mesh3d` at the gameplay entity found nothing on every section ever
-//! shipped and sent all of them to the generic cube burst.
+//! shipped and sent all of them to a burst of generic cubes.
 //!
 //! The fix is not a wider filter. Two observers agreeing about whether geometry
 //! exists is what let one death emit both real fragments and fallback cubes, so
 //! the walk for geometry happens in exactly one place
 //! ([`handle_explosion`](crate::mesh::explode)) and its RESULT - a possibly
 //! empty [`ExplodeFragments`] - is the only thing the finale branches on.
+//!
+//! # There is no fallback
+//!
+//! An empty walk emits NOTHING and says so in the log. The generic cube burst
+//! that used to run there is gone, and its absence is the point: it made a body
+//! that had silently failed to come apart look like a body that had come apart
+//! badly, so the bug behind it survived every playtest that saw it. Every
+//! shipped body has art to break into, and `destruction_finale` asserts that.
 //!
 //! Touch this module to change how wrecks come apart (fragment count, spread,
 //! lifetime). Health, disable, and destroy bookkeeping lives in the generic
@@ -120,68 +128,6 @@ impl Plugin for ExplodablePlugin {
         app.add_observer(on_explode_entity);
         app.add_observer(handle_entity_explosion);
         app.add_observer(despawn_destroyed_without_finale);
-    }
-}
-
-/// Scatter a short-lived burst of generic cubes, for a body that had no render
-/// geometry to come apart into.
-///
-/// The LAST RESORT, not the section path. It runs when the geometry walk came
-/// back empty: art that has not finished loading (a gltf `WorldAssetRoot` scene
-/// instantiates asynchronously, and a section can die before it lands), a body
-/// that draws nothing, or a mesh the slicer could not interpret. Anything with
-/// real geometry breaks into that geometry instead.
-///
-/// Called from [`handle_entity_explosion`] rather than observing destruction on
-/// its own, because "no geometry" is only knowable AFTER the walk - and two
-/// observers each deciding it separately is how one death used to emit both
-/// cubes and fragments.
-fn spawn_fallback_burst(
-    commands: &mut Commands,
-    entity: Entity,
-    origin: Vec3,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    rng: &mut WyRand,
-) {
-    trace!(
-        "spawn_fallback_burst: bursting {:?} with no geometry",
-        entity
-    );
-
-    let mesh = meshes.add(Cuboid::new(0.25, 0.25, 0.25));
-    let material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.35, 0.35, 0.38),
-        perceptual_roughness: 0.9,
-        metallic: 0.4,
-        ..default()
-    });
-
-    for _ in 0..8 {
-        let direction = Vec3::new(
-            rng.random_range(-1.0..1.0),
-            rng.random_range(-1.0..1.0),
-            rng.random_range(-1.0..1.0),
-        )
-        .normalize_or_zero();
-        let velocity = direction * rng.random_range(3.0..7.0);
-
-        commands.spawn((
-            MeshFragmentMarker,
-            Name::new("Fallback Debris"),
-            Mesh3d(mesh.clone()),
-            MeshMaterial3d(material.clone()),
-            Transform::from_translation(origin + direction * 0.3),
-            RigidBody::Dynamic,
-            Collider::cuboid(0.25, 0.25, 0.25),
-            LinearVelocity(velocity),
-            AngularVelocity(Vec3::new(
-                rng.random_range(-6.0..6.0),
-                rng.random_range(-6.0..6.0),
-                rng.random_range(-6.0..6.0),
-            )),
-            TempEntity(2.0),
-        ));
     }
 }
 
@@ -333,10 +279,16 @@ fn on_explode_entity(
 ///
 /// Branches on what the geometry walk actually produced rather than on a
 /// predicate about what it might produce. A non-empty [`ExplodeFragments`]
-/// becomes physics debris; an empty one - unloaded art, a body that draws
-/// nothing, a mesh the slicer declined - becomes the fallback burst. One
-/// destroyed body therefore emits one or the other and never both, which two
-/// independent observers could not guarantee.
+/// becomes physics debris.
+///
+/// An empty one becomes NOTHING, and that is a deliberate refusal rather than a
+/// gap. There used to be a burst of eight generic cubes here, and the trouble
+/// with it was not that it looked bad - it was that it looked like SOMETHING, so
+/// a body that had silently failed to come apart was indistinguishable from a
+/// body that had come apart badly. Every shipped body has art to break into; a
+/// body that reaches this branch has a bug behind it (art still loading, a mesh
+/// the slicer declined), and the log line is the thing that gets it fixed. The
+/// `destruction_finale` range asserts this branch never runs on shipped content.
 ///
 /// Despawns the body either way, on every path including the error ones. It is
 /// the only thing that despawns a destroyed explodable, so an early return
@@ -353,7 +305,7 @@ fn handle_entity_explosion(
         ),
         With<Mesh3d>,
     >,
-    mut meshes: ResMut<Assets<Mesh>>,
+    meshes: Res<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
@@ -367,18 +319,14 @@ fn handle_entity_explosion(
         );
         return;
     };
-    // Where the body was, for the fallback burst and for aiming whole pieces
-    // away from the middle of the wreck.
+    // Where the body was, for aiming whole pieces away from the middle of the
+    // wreck.
     let centre = body.map(|transform| transform.translation());
 
     if fragments.is_empty() {
-        spawn_fallback_burst(
-            &mut commands,
-            entity,
-            centre.unwrap_or(Vec3::ZERO),
-            &mut meshes,
-            &mut materials,
-            &mut rng,
+        error!(
+            "handle_entity_explosion: {entity:?} died with no geometry to come \
+             apart into - nothing was emitted"
         );
         commands.entity(entity).despawn();
         return;
@@ -672,21 +620,12 @@ mod tests {
         root
     }
 
-    /// Debris on the ground, split by which path produced it: real mesh
-    /// fragments, and generic fallback cubes.
-    fn debris(app: &mut App) -> (usize, usize) {
-        let mut q_debris = app
-            .world_mut()
-            .query_filtered::<&Name, With<MeshFragmentMarker>>();
-        let names: Vec<String> = q_debris
+    /// How many pieces of real art are on the ground.
+    fn debris(app: &mut App) -> usize {
+        app.world_mut()
+            .query_filtered::<(), With<MeshFragmentMarker>>()
             .iter(app.world())
-            .map(|name| name.to_string())
-            .collect();
-        let fallback = names
-            .iter()
-            .filter(|name| name.starts_with("Fallback"))
-            .count();
-        (names.len() - fallback, fallback)
+            .count()
     }
 
     /// THE regression. Every section ever shipped holds its health and collider
@@ -703,23 +642,23 @@ mod tests {
             .insert(IntegrityDestroyMarker);
         app.update();
 
-        let (fragments, fallback) = debris(&mut app);
+        let fragments = debris(&mut app);
         assert!(
             fragments > 0,
             "a section's art must become its debris, got {fragments} fragments"
         );
-        assert_eq!(fallback, 0, "and the generic burst must not run as well");
         assert!(
             !app.world().entities().contains(body),
             "the wreck is despawned once its fragments exist"
         );
     }
 
-    /// The fallback is now exactly what it claims to be: what happens when
-    /// there was nothing to break. A section can die before its gltf scene has
-    /// finished instantiating, and that is the case this covers.
+    /// A body with nothing to break into emits NOTHING, and is still taken off
+    /// the field. There used to be a burst of generic cubes here; it made a
+    /// silent failure look like a working finale, which is how it survived
+    /// every playtest that saw it.
     #[test]
-    fn a_body_with_no_geometry_falls_back_to_the_generic_burst() {
+    fn a_body_with_no_geometry_emits_nothing_and_is_still_reaped() {
         let mut app = finale_app();
         let body = app
             .world_mut()
@@ -735,12 +674,10 @@ mod tests {
             .insert(IntegrityDestroyMarker);
         app.update();
 
-        let (fragments, fallback) = debris(&mut app);
-        assert_eq!(fragments, 0, "there was no art to fragment");
-        assert!(fallback > 0, "so the body still visibly comes apart");
+        assert_eq!(debris(&mut app), 0, "there was no art to fragment");
         assert!(
             !app.world().entities().contains(body),
-            "and is despawned rather than left standing at zero health"
+            "and it is despawned rather than left standing at zero health"
         );
     }
 
@@ -772,8 +709,8 @@ mod tests {
 
             assert_eq!(
                 debris(&mut app),
-                (0, 0),
-                "a root emits neither fragments nor cubes (spaceship: {ship})"
+                0,
+                "a root emits nothing of its own (spaceship: {ship})"
             );
             assert!(
                 !app.world().entities().contains(root),
@@ -887,6 +824,6 @@ mod tests {
         app.update();
 
         assert!(!app.world().entities().contains(plate));
-        assert_eq!(debris(&mut app), (0, 0), "and it does not burst");
+        assert_eq!(debris(&mut app), 0, "and it does not burst");
     }
 }
