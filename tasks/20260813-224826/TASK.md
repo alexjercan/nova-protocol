@@ -459,13 +459,27 @@ hull sections and on the cut-cube parts whose role is Hull; nothing else.
   ~0.21 s against a 0.35 s lifetime, so they are already continuous at low
   health. The threshold is on `DamageLevel`, where 0.0 is pristine.
 
-### Phase 5 - the finale, and delete the slicer
+#### 8. The finale inherits the body's motion - DONE
+
+- A death's fragments leave with `v + omega x r` now, read off the nearest
+  ancestor that has a velocity at all. A section carries none of its own - it is
+  a child of the ship's rigid body - so the inheritance is a walk rather than a
+  lookup. Without it a ship dying at speed left its debris hanging where it was
+  hit while the wreck flew out from under it, which reads as the pieces being
+  spawned rather than shed.
+- That closes the phase-5 bullet the epic opened with. The rest of phase 5 -
+  deleting the slicer - is RESOLVED THE OTHER WAY: see step 4.
+
+### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 
 - What is left of a body at death comes apart into bounded debris with
-  inherited `v + omega x r`.
-- Delete the random-plane slicer (`mesh/explode.rs`) once the replacement
-  covers the death case. Fragment budgets are per SECTION, not per primitive,
-  so a capital collapse cannot multiply one death into unbounded bodies.
+  inherited `v + omega x r`. Done in Phase 4b step 8.
+- ~~Delete the random-plane slicer~~ KEPT, with the reason recorded in its
+  module and in Phase 4b step 4: the cubes were the fallback, the slicer never
+  was, and it is the only fragmenter that works on glTF art. What was deleted is
+  `spawn_fallback_burst`.
+- Fragment budgets are per BODY, not per primitive, and `destruction_finale`
+  asserts a real death against `BODY_FRAGMENT_BUDGET` rather than a copy.
 
 ## Out of scope
 
@@ -485,17 +499,24 @@ hull sections and on the cut-cube parts whose role is Hull; nothing else.
 
 ## Definition of done
 
-- One documented finale contract covers every shipped and modded section
+- DONE. One documented finale contract covers every shipped and modded section
   representation; destruction is keyed to semantic destructibility, not to
-  where a `Mesh3d` happens to sit.
-- Every destructible body shows its own health as geometry, for every
-  allegiance, and the damage tint's role is retired.
-- Damage effects are authored per section as a composable list, with the set
-  chosen from Phase 2's rendered evidence and recorded here.
-- The random-plane slicer is gone, or its survival is documented with the
-  reason. RESOLVED: kept, as the glTF fragmenter - see Phase 4b step 4.
-- Fragment budgets bound a capital-scale collapse; native and wasm costs are
-  measured, not estimated.
-- Player-path range evidence, rendered output opened and inspected.
-- Content schema, modding docs, gameplay docs, examples, screenshots and
-  release notes match the shipped scope.
+  where a `Mesh3d` happens to sit. Phase 0, and step 4 removed the fallback that
+  was hiding its failures.
+- DONE. Every destructible body shows its own health as geometry, for every
+  allegiance, and the damage tint is GONE rather than merely retired - see step
+  7. Rocks carve and sever, hulls carve, cladding carves, and everything cracks.
+- DONE. Damage effects are authored per section as a composable list; the
+  shipped set is recorded in step 7 and in `web/src/wiki/modding/sections.md`.
+- DONE. The random-plane slicer is KEPT and its survival is documented with the
+  reason, in its own module and in step 4.
+- PARTLY. Fragment budgets bound a capital-scale collapse and
+  `destruction_finale` asserts it. Native costs are measured throughout (rock
+  mesh 6-9 ms, section solidify 10-16 ms, remesh 2-4 ms, connectivity 0.3-1.6
+  ms). WASM IS NOT MEASURED and cannot be from here: the field resolution is
+  pinned at the design's wasm cap so the SHAPE is identical on both, but every
+  timing in this record is a native claim.
+- DONE. Player-path range evidence, rendered output opened and inspected, on
+  every step that changed a look.
+- DONE. Content schema, modding docs and examples match the shipped scope.
+  Release notes are not written here - the per-version News post is.

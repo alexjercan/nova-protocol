@@ -131,6 +131,30 @@ impl Plugin for ExplodablePlugin {
     }
 }
 
+/// The centre, drift and spin of the nearest body at or above `entity` that is
+/// moving, or `None` when nothing in the chain is.
+///
+/// A section carries no velocity of its own: it is a child of the ship's rigid
+/// body, and avian keeps the velocity there. So a fragment's inheritance is a
+/// walk, not a lookup.
+fn moving_body(
+    entity: Entity,
+    q_parents: &Query<&ChildOf>,
+    q_motion: &Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
+) -> Option<(Vec3, Vec3, Vec3)> {
+    let mut current = entity;
+    loop {
+        if let Ok((frame, linear, angular)) = q_motion.get(current) {
+            return Some((
+                frame.translation(),
+                linear.0,
+                angular.map_or(Vec3::ZERO, |angular| angular.0),
+            ));
+        }
+        current = q_parents.get(current).ok()?.0;
+    }
+}
+
 /// Despawn a destroyed entity that the finale does not own.
 ///
 /// [`handle_entity_explosion`] despawns everything it runs on, which is every
@@ -293,6 +317,10 @@ fn on_explode_entity(
 /// Despawns the body either way, on every path including the error ones. It is
 /// the only thing that despawns a destroyed explodable, so an early return
 /// leaves a zero-health wreck standing with a live collider.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the walk for inherited motion brings its own two queries"
+)]
 fn handle_entity_explosion(
     add: On<Add, ExplodeFragments>,
     mut commands: Commands,
@@ -305,6 +333,8 @@ fn handle_entity_explosion(
         ),
         With<Mesh3d>,
     >,
+    q_parents: Query<&ChildOf>,
+    q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
     meshes: Res<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
@@ -322,6 +352,10 @@ fn handle_entity_explosion(
     // Where the body was, for aiming whole pieces away from the middle of the
     // wreck.
     let centre = body.map(|transform| transform.translation());
+    // And how it was moving, so its pieces leave with it. A section is a child
+    // of the rigid body, not the body itself, so this walks up for the nearest
+    // thing that has a velocity at all.
+    let motion = moving_body(entity, &q_parents, &q_motion);
 
     if fragments.is_empty() {
         error!(
@@ -369,7 +403,15 @@ fn handle_entity_explosion(
             .and_then(|centre| Dir3::new(transform.translation - centre).ok())
             .unwrap_or(fragment.direction);
         let offset = direction * 0.5;
-        let velocity = direction * rng.random_range(2.0..5.0);
+        // The kick the death gives it, PLUS whatever the body was already doing
+        // at that point: `v + omega x r`. Without the second term a ship dying
+        // at speed leaves its debris hanging where it was hit while the wreck
+        // flies out from under it, which reads as the pieces being spawned
+        // rather than shed.
+        let velocity = direction * rng.random_range(2.0..5.0)
+            + motion.map_or(Vec3::ZERO, |(at, linear, angular)| {
+                linear + angular.cross(transform.translation - at)
+            });
         let transform = transform.with_translation(transform.translation + offset);
         // A collider is scaled by the entity's transform, so a degenerate scale
         // flattens even a good hull back to no volume - the same NaN body
@@ -803,6 +845,49 @@ mod tests {
                 mass > 0.0,
                 "a fragment body with no mass makes the solver produce NaN, \
                  which avian asserts on frames later"
+            );
+        }
+    }
+
+    /// A body's pieces leave WITH it. Without the inherited motion a ship dying
+    /// at speed leaves its debris hanging where it was hit while the wreck
+    /// carries on out from under it, which reads as the pieces being spawned
+    /// rather than shed.
+    ///
+    /// The velocity is read at the SHIP, not at the section: a section is a
+    /// child of the rigid body and has none of its own.
+    #[test]
+    fn a_bodys_pieces_leave_with_the_body() {
+        let mut app = finale_app();
+        let ship = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                GlobalTransform::IDENTITY,
+                LinearVelocity(Vec3::Z * 40.0),
+            ))
+            .id();
+        let body = body_drawing_through_descendants(&mut app, 1);
+        app.world_mut().entity_mut(body).insert(ChildOf(ship));
+
+        app.world_mut()
+            .entity_mut(body)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+
+        let mut q_debris = app
+            .world_mut()
+            .query_filtered::<&LinearVelocity, With<MeshFragmentMarker>>();
+        let speeds: Vec<Vec3> = q_debris
+            .iter(app.world())
+            .map(|velocity| velocity.0)
+            .collect();
+
+        assert!(!speeds.is_empty(), "delivery guard: it came apart");
+        for velocity in speeds {
+            assert!(
+                velocity.z > 30.0,
+                "a piece must carry the ship's drift, not just its own kick: {velocity}"
             );
         }
     }

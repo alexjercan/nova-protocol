@@ -112,6 +112,8 @@ tagged **(breaking)**.
 - **(breaking)** `Scorch` becomes `Cracks`: a damaged section fractures where it
   is failing and glows through the cracks, instead of the whole body turning red.
   Mods authoring `Scorch` must rename it.
+- Wreck debris leaves with the wreck: a body's pieces inherit its drift and spin
+  instead of hanging where it died.
 - **(breaking)** A hull may carry several flight computers and steers better
   for it, on a curve capped at twice its strongest computer. Authority does
   not stack linearly.
