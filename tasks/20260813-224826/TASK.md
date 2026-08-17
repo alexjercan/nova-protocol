@@ -364,6 +364,31 @@ simulating - answered in two places that have to agree on the threshold.
   a signed field can be carved and severed, but ship sections are authored models
   with no field behind them.
 
+#### 5. Spike: a signed field off authored art - DONE, PASSES
+
+`mesh/solidify.rs`: `field_from_mesh` builds a parry `TriMesh` with
+`TriMeshFlags::ORIENTED` and samples the grid by point query. `is_closed`
+gates it.
+
+- WATERTIGHTNESS, measured on the shipped glTF: three of five models have no
+  boundary edge (`hull-01`, `torpedo-bay-01`, `turret-pitch-01`) and two do
+  (`turret-barrel-01` 48, `turret-yaw-01` 2). Only `turret-pitch-01` is a clean
+  2-manifold; `hull-01` (12) and `torpedo-bay-01` (4) carry non-manifold edges
+  where panels meet, which still separates space. The procedural cut-cube parts
+  most sections draw with are all closed.
+- So step 6 PASSES for the bodies it targets. HULL art is field-able; the two
+  meshes that are not are turret parts, and step 6 does not carve turrets.
+- COST: 5-20 ms to build a 32^3 field off a section mesh, native, measured live
+  against the `destruction_finale` rig. The same order as an asteroid's own
+  field (6-9 ms), so the same build-on-first-hit cadence carries it.
+- Vertices are WELDED by position first. A glTF index buffer describes the
+  render topology - split at every crease and UV seam - so an unwelded cube
+  reads as 24 vertices and every edge of it looks like a boundary.
+- parry trap: `project_local_point` does NOT apply the pseudo-normals, so
+  `is_inside` comes back false everywhere and the field has no interior at all.
+  Only `project_local_point_and_get_location` runs that step. Nothing about the
+  API says so, and the failure looks like a correct distance field.
+
 ### Phase 5 - the finale, and delete the slicer
 
 - What is left of a body at death comes apart into bounded debris with
