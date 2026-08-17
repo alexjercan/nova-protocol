@@ -50,6 +50,10 @@ pub fn main(args: &[String]) -> ExitCode {
             eprintln!("probe: {message}\n\n{USAGE}");
             ExitCode::FAILURE
         }
+        Ok(Cmd::Help) => {
+            println!("{USAGE}");
+            ExitCode::SUCCESS
+        }
         Ok(Cmd::RunSpec { tokens, all, base }) => match sweep::run_spec(&tokens, all, base) {
             Ok(code) => code,
             Err(message) => {

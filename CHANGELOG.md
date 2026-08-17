@@ -327,6 +327,7 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- Probe accepts `-h` and `--help` at the root, `run`, and `report` command levels.
 - The bug-to-range doctrine is written down (`CONVENTIONS.md`): reproduce a bug
   as a `systems/` range before the fix, and name every claim on the invariant
   roster.

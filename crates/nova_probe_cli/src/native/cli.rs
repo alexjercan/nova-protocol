@@ -5,6 +5,8 @@ use std::path::PathBuf;
 
 pub(crate) const USAGE: &str = "\
 usage: probe <subcommand>
+  -h, --help
+  print this help and exit successfully
   run <spec> [--all] [--out <dir>] [--correctness-only] [--samply]
   [--baseline <base-dir>] [--timeout <secs>] [--display <:N>]
   [--release] [--render gpu|sw] [--scenario <id>]... [--preset <p>]...
@@ -63,6 +65,8 @@ pub(crate) enum Platform {
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
 pub(crate) enum Cmd {
+    /// Print [`USAGE`] and exit successfully.
+    Help,
     /// A `probe run` spec, resolved against the example catalog at
     /// dispatch (parse stays pure/fs-free): `tokens` is the comma-split
     /// positional (possibly empty - resolution errors with the catalog
@@ -102,8 +106,21 @@ fn default_run(example: String) -> RunOptions {
 pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
     let mut iter = args.iter();
     match iter.next().map(String::as_str) {
-        Some("run") => parse_run(iter.cloned().collect::<Vec<_>>()),
+        Some("-h" | "--help") => Ok(Cmd::Help),
+        Some("run") => {
+            let args = iter.cloned().collect::<Vec<_>>();
+            if requests_help(&args) {
+                Ok(Cmd::Help)
+            } else {
+                parse_run(args)
+            }
+        }
         Some("report") => {
+            let args = iter.cloned().collect::<Vec<_>>();
+            if requests_help(&args) {
+                return Ok(Cmd::Help);
+            }
+            let mut iter = args.iter();
             let mut dirs: Vec<PathBuf> = Vec::new();
             let mut baseline: Option<PathBuf> = None;
             while let Some(arg) = iter.next() {
@@ -143,6 +160,11 @@ pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
         Some(other) => Err(format!("unknown subcommand {other}")),
         None => Err("a subcommand is required".into()),
     }
+}
+
+fn requests_help(args: &[String]) -> bool {
+    args.iter()
+        .any(|arg| matches!(arg.as_str(), "-h" | "--help"))
 }
 
 fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
@@ -298,6 +320,20 @@ mod tests {
 
         // But a spec AND --all contradict.
         assert!(parse(&s(&["run", "playable", "--all"])).is_err());
+    }
+
+    #[test]
+    fn help_is_available_at_every_command_level() {
+        for args in [
+            s(&["--help"]),
+            s(&["-h"]),
+            s(&["run", "--help"]),
+            s(&["run", "playable", "-h"]),
+            s(&["report", "--help"]),
+            s(&["report", "runs/x", "-h"]),
+        ] {
+            assert_eq!(parse(&args), Ok(Cmd::Help), "{args:?}");
+        }
     }
 
     #[test]
