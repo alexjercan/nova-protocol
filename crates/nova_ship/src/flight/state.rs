@@ -284,15 +284,13 @@ pub struct FlightSettings {
     /// trims use your retro/lateral thrusters); big burns still flip to the
     /// strongest drive.
     pub rotation_bias: f32,
-    /// Trim on the derived hull turn rate, dimensionless. The rate itself comes
-    /// from the ship's torque budget and live inertia (`hull_turn_rate`): the
-    /// average rate of a torque-limited 180 is `sqrt(pi * max_torque / inertia)
-    /// / 2`; 1.0 commands exactly that optimum, lower is more stately. This is
-    /// what makes mass legible - a stripped hull turns visibly faster than a
-    /// full build.
+    /// Trim on the derived hull turn rate, dimensionless. The rate comes from
+    /// the computer's angular-acceleration authority (`hull_turn_rate`): the
+    /// average rate of a bang-bang 180 is `sqrt(pi * alpha) / 2`. A value of
+    /// 1.0 commands that optimum; lower is more stately.
     pub turn_rate_scale: f32,
     /// Floor on the derived turn rate, degrees/second, so a crippled or
-    /// torque-starved hull still answers the helm.
+    /// low-authority hull still answers the helm.
     pub turn_rate_min_deg: f32,
     /// Ceiling on the derived turn rate, degrees/second, so a near-empty
     /// hull snaps hard but does not teleport.
@@ -364,13 +362,8 @@ impl Default for FlightSettings {
             stop_speed_epsilon: 0.2,
             min_approach_speed: 1.5,
             rotation_bias: 1.5,
-            // 0.9 of the bang-bang optimum: the PD tracks a slightly
-            // conservative command instead of riding saturation the whole
-            // flip. Ship-class feel then comes from max_torque vs inertia -
-            // at torque 40 the asteroid_field flagship (I ~10.8) commands
-            // ~88 deg/s while a bare remnant pins the 240 deg/s ceiling.
-            // These are command rates; the PD tracks the ramp with ~0.5*w
-            // rad of lag, so delivered flips run ~25-30% past the optimum.
+            // 0.9 of the bang-bang optimum: the PD tracks a conservative
+            // command instead of riding saturation through the whole flip.
             turn_rate_scale: 0.9,
             turn_rate_min_deg: 10.0,
             turn_rate_max_deg: 240.0,

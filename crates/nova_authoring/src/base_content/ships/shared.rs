@@ -245,7 +245,7 @@ fn controller_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
     SectionKind::Controller(ControllerSectionConfig {
         frequency: 4.0,
         damping_ratio: 4.0,
-        max_torque: 800.0,
+        max_angular_acceleration: 0.5,
         render_mesh: spec.mesh.map(mesh_ref),
         render_mesh_transform: render_transform(spec),
         lock_on_sound: Some(meshes.controller_lock_on_sound.clone()),

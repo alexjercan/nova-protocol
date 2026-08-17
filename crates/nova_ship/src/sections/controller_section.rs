@@ -33,8 +33,8 @@ pub struct ControllerSectionConfig {
     pub frequency: f32,
     /// The damping ratio of the PD controller.
     pub damping_ratio: f32,
-    /// The maximum torque that can be applied by the PD controller.
-    pub max_torque: f32,
+    /// Maximum angular acceleration on each principal axis, in rad/s2.
+    pub max_angular_acceleration: f32,
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
     #[reflect(ignore)]
     #[cfg_attr(
@@ -146,7 +146,7 @@ impl Default for ControllerSectionConfig {
         Self {
             frequency: 2.0,
             damping_ratio: 2.0,
-            max_torque: 1.0,
+            max_angular_acceleration: 0.5,
             render_mesh: None,
             render_mesh_transform: None,
             lock_on_sound: None,
@@ -172,12 +172,12 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
         ControllerSectionTuning {
             frequency: config.frequency,
             damping_ratio: config.damping_ratio,
-            max_torque: config.max_torque,
+            max_angular_acceleration: config.max_angular_acceleration,
         },
         PDController {
             frequency: config.frequency,
             damping_ratio: config.damping_ratio,
-            max_torque: config.max_torque,
+            max_angular_acceleration: config.max_angular_acceleration,
         },
         ControllerSectionRotationInput::default(),
         ControllerSectionSounds::from_config(&config),
@@ -197,20 +197,19 @@ pub struct ControllerSectionTuning {
     pub frequency: f32,
     /// The damping ratio of the PD controller.
     pub damping_ratio: f32,
-    /// The maximum torque that can be applied by the PD controller.
-    pub max_torque: f32,
+    /// Maximum angular acceleration on each principal axis, in rad/s2.
+    pub max_angular_acceleration: f32,
 }
 
-/// Ceiling on a stack's torque budget, as a multiple of its strongest
-/// controller's own budget. Deliberately small: rotation authority is what a
-/// hull's g-forces are made of, so a barge with ten computers may pull twice
-/// what one computer pulls and never more, whatever it bolts on.
+/// Ceiling on a stack's acceleration authority, as a multiple of its
+/// strongest controller. Deliberately small: a hull with ten computers may
+/// turn twice as hard as one with one computer and never more.
 ///
 /// Both limits are constants rather than authored fields on purpose. A curve
 /// a mod could raise is a curve a mod could flatten back into the linear
 /// stacking the ceiling exists to prevent, and per-hull handling is already
 /// authorable through the knob that should carry it - a controller's own
-/// `max_torque`. (There is a mechanical reason too: the section layer sits
+/// `max_angular_acceleration`. (There is a mechanical reason too: the section layer sits
 /// under the flight layer and must not read `FlightSettings`, where the rest
 /// of the flight-feel tunables live.)
 const STACK_AUTHORITY_LIMIT: f32 = 2.0;
@@ -235,10 +234,9 @@ fn stack_curve(n: f32, limit: f32) -> f32 {
     limit - (limit - 1.0) / n.max(1.0)
 }
 
-/// What the `rank`-th strongest controller (rank 0 = strongest) adds to the
-/// torque budget, as a fraction of its own authored `max_torque`. These are
-/// the marginal steps of [`stack_curve`], so `n` identical controllers sum to
-/// `stack_curve(n, STACK_AUTHORITY_LIMIT)` exactly.
+/// What the `rank`-th strongest controller adds to the acceleration authority,
+/// as a fraction of its authored limit. These are the marginal steps of
+/// [`stack_curve`], so identical controllers follow the curve exactly.
 fn authority_weight(rank: usize) -> f32 {
     match rank {
         0 => 1.0,
@@ -250,19 +248,17 @@ fn authority_weight(rank: usize) -> f32 {
 /// across the sections that provide it.
 ///
 /// Each controller runs its own PD and adds its own torque, so a naive stack
-/// multiplies gains AND torque by the section count: ten computers would turn
-/// a barge ten times harder, and - worse - ten times the damping gain is
+/// multiplies gains and acceleration authority by the section count. Ten times
+/// the damping gain is also
 /// numerically unstable at the fixed timestep (`kd * dt` passes 2 at two
 /// computers on the shipped tuning, which is the bang-bang limit cycle that
 /// used to corkscrew released hulls). So the pass derives ship-level totals
 /// and hands each controller a SHARE of them; because every controller sees
 /// the same hull state, the shares re-sum to exactly the totals:
 ///
-/// - **Authority** (`max_torque`, the saturated turn) grows on
-///   [`stack_curve`] toward [`STACK_AUTHORITY_LIMIT`]. Bounded against the
-///   strongest computer, never against the hull, so a bigger ship is always a
-///   slower ship: peak angular acceleration is `budget / inertia` and only the
-///   numerator is capped.
+/// - **Authority** (`max_angular_acceleration`) grows on [`stack_curve`] toward
+///   [`STACK_AUTHORITY_LIMIT`]. It is size-independent because the PD converts
+///   the acceleration limit to the torque each hull requires.
 /// - **Precision** (the P gain) is DIVIDED by [`stack_curve`] toward
 ///   [`STACK_PRECISION_LIMIT`], which lowers the ratio `kp / kd` the hull
 ///   coasts down to the command on. A shallower ratio means the stack starts
@@ -272,8 +268,8 @@ fn authority_weight(rank: usize) -> f32 {
 ///   is what keeps the stack numerically stable at any size.
 ///
 /// The split leaves onset untouched: at rest the D term is zero, so the first
-/// tick of a command still spends the whole (larger) torque budget. Stacking
-/// makes a hull heavier-handed, never slower to answer.
+/// tick still spends the full authority. Stacking makes a hull heavier-handed,
+/// never slower to answer.
 ///
 /// A single controller is the identity case - `stack_curve(1) = 1` - so
 /// small craft fly exactly as they did before stacking existed.
@@ -302,9 +298,11 @@ pub(crate) fn update_controller_stack_tuning(
     // series, so the budget must spend the biggest weight on the biggest
     // computer. Sorting by root also groups each hull into one contiguous run.
     stacks.sort_unstable_by(|(left_root, _, left), (right_root, _, right)| {
-        left_root
-            .cmp(right_root)
-            .then(right.max_torque.total_cmp(&left.max_torque))
+        left_root.cmp(right_root).then(
+            right
+                .max_angular_acceleration
+                .total_cmp(&left.max_angular_acceleration),
+        )
     });
 
     let mut start = 0;
@@ -321,16 +319,16 @@ pub(crate) fn update_controller_stack_tuning(
         let budget: f32 = stack
             .iter()
             .enumerate()
-            .map(|(rank, (_, _, tuning))| tuning.max_torque * authority_weight(rank))
+            .map(|(rank, (_, _, tuning))| tuning.max_angular_acceleration * authority_weight(rank))
             .sum();
         let precision = stack_curve(stack.len() as f32, STACK_PRECISION_LIMIT);
 
         for (rank, (_, entity, tuning)) in stack.iter().enumerate() {
             // Share of the ship-level loop this section carries. Weighting it
-            // by the section's own contribution keeps a live `max_torque`
-            // readable as "what this computer is worth to this hull".
+            // by the section's own contribution keeps the live value readable
+            // as what this computer is worth to this hull.
             let share = if budget > 0.0 {
-                tuning.max_torque * authority_weight(rank) / budget
+                tuning.max_angular_acceleration * authority_weight(rank) / budget
             } else {
                 1.0 / stack.len() as f32
             };
@@ -339,7 +337,7 @@ pub(crate) fn update_controller_stack_tuning(
             let next = PDController {
                 frequency: base.frequency * (share / precision).sqrt(),
                 damping_ratio: base.damping_ratio * (share * precision).sqrt(),
-                max_torque: budget * share,
+                max_angular_acceleration: budget * share,
             };
             let Ok((_, _, mut controller, _)) = q_controller.get_mut(*entity) else {
                 continue;
@@ -735,7 +733,7 @@ mod tests {
         ControllerSectionTuning {
             frequency: 4.0,
             damping_ratio: 4.0,
-            max_torque: 40.0,
+            max_angular_acceleration: 0.5,
         }
     }
 
@@ -751,7 +749,7 @@ mod tests {
                         PDController {
                             frequency: 4.0,
                             damping_ratio: 4.0,
-                            max_torque: 40.0,
+                            max_angular_acceleration: 0.5,
                         },
                     ))
                     .id()
@@ -768,11 +766,11 @@ mod tests {
         controllers
             .iter()
             .filter_map(|entity| app.world().get::<PDController>(*entity))
-            .fold((0.0, 0.0, 0.0), |(kp, kd, torque), pd| {
+            .fold((0.0, 0.0, 0.0), |(kp, kd, authority), pd| {
                 (
                     kp + pd.frequency * pd.frequency,
                     kd + pd.frequency * pd.damping_ratio,
-                    torque + pd.max_torque,
+                    authority + pd.max_angular_acceleration,
                 )
             })
     }
@@ -788,11 +786,11 @@ mod tests {
         let live = *app.world().get::<PDController>(controllers[0]).unwrap();
         assert_eq!(live.frequency, 4.0);
         assert_eq!(live.damping_ratio, 4.0);
-        assert_eq!(live.max_torque, 40.0);
+        assert_eq!(live.max_angular_acceleration, 0.5);
     }
 
-    /// Stacking splits ONE loop rather than running several: the torque
-    /// budget grows on the curve, the P gain drops by the precision curve,
+    /// Stacking splits ONE loop rather than running several: acceleration
+    /// authority grows on the curve, the P gain drops by the precision curve,
     /// and the D gain - the numerically dangerous one - does not move.
     #[test]
     fn a_stack_shares_one_attitude_loop() {
@@ -801,13 +799,13 @@ mod tests {
         let (_, four) = spawn_stack(&mut app, 4);
         app.world_mut().run_schedule(FixedUpdate);
 
-        let (kp_one, kd_one, torque_one) = stack_loop(&app, &one);
-        let (kp_four, kd_four, torque_four) = stack_loop(&app, &four);
+        let (kp_one, kd_one, authority_one) = stack_loop(&app, &one);
+        let (kp_four, kd_four, authority_four) = stack_loop(&app, &four);
 
         assert!(
-            (torque_four / torque_one - 1.75).abs() < 1e-3,
-            "four computers must carry the curve's budget, got {}",
-            torque_four / torque_one
+            (authority_four / authority_one - 1.75).abs() < 1e-3,
+            "four computers must carry the curve's authority, got {}",
+            authority_four / authority_one
         );
         assert!(
             (kp_four / kp_one - 1.0 / 1.375).abs() < 1e-3,
@@ -839,58 +837,61 @@ mod tests {
         let (_, _, two) = stack_loop(&app, &survivors);
 
         assert!(
-            (three / 40.0 - 5.0 / 3.0).abs() < 1e-3,
-            "three computers carry 1.667 budgets, got {}",
-            three / 40.0
+            (three / 0.5 - 5.0 / 3.0).abs() < 1e-3,
+            "three computers carry 1.667 shares, got {}",
+            three / 0.5
         );
         assert!(
-            (two / 40.0 - 1.5).abs() < 1e-3,
-            "the survivors must re-derive to the two-computer budget, got {}",
-            two / 40.0
+            (two / 0.5 - 1.5).abs() < 1e-3,
+            "the survivors must re-derive two-computer authority, got {}",
+            two / 0.5
         );
-        assert!(
-            two > 40.0,
-            "two survivors still out-steer a single computer"
-        );
+        assert!(two > 0.5, "two survivors still out-steer one computer");
     }
 
     /// A weaker computer bolted onto a strong one is worth its own weight at
-    /// the second rank, not the strong one's - the budget is built from each
-    /// section's authored torque, in strength order.
+    /// the second rank, not the strong one's. Rank uses authored acceleration.
     #[test]
-    fn a_mixed_stack_ranks_by_authored_torque() {
+    fn a_mixed_stack_ranks_by_authored_acceleration() {
         let mut app = stack_app();
         let root = app.world_mut().spawn_empty().id();
-        let spawn = |app: &mut App, max_torque: f32| {
+        let spawn = |app: &mut App, max_angular_acceleration: f32| {
             app.world_mut()
                 .spawn((
                     ChildOf(root),
                     ControllerSectionMarker,
                     ControllerSectionTuning {
-                        max_torque,
+                        max_angular_acceleration,
                         ..tuning()
                     },
                     PDController {
                         frequency: 4.0,
                         damping_ratio: 4.0,
-                        max_torque,
+                        max_angular_acceleration,
                     },
                 ))
                 .id()
         };
         // Weak one first, so a pass that trusted spawn order would rank wrong.
-        let weak = spawn(&mut app, 10.0);
-        let strong = spawn(&mut app, 40.0);
+        let weak = spawn(&mut app, 0.125);
+        let strong = spawn(&mut app, 0.5);
         app.world_mut().run_schedule(FixedUpdate);
 
         let (_, _, budget) = stack_loop(&app, &[weak, strong]);
         assert!(
-            (budget - 45.0).abs() < 1e-3,
-            "40 at full weight plus 10 at half, got {budget}"
+            (budget - 0.5625).abs() < 1e-3,
+            "0.5 at full weight plus 0.125 at half, got {budget}"
         );
         assert!(
-            app.world().get::<PDController>(strong).unwrap().max_torque
-                > app.world().get::<PDController>(weak).unwrap().max_torque,
+            app.world()
+                .get::<PDController>(strong)
+                .unwrap()
+                .max_angular_acceleration
+                > app
+                    .world()
+                    .get::<PDController>(weak)
+                    .unwrap()
+                    .max_angular_acceleration,
             "the strong computer must carry the larger share"
         );
     }
@@ -1071,7 +1072,7 @@ mod tests {
                 controller_section(ControllerSectionConfig {
                     frequency: 4.0,
                     damping_ratio: 4.0,
-                    max_torque: 40.0,
+                    max_angular_acceleration: 0.5,
                     ..Default::default()
                 }),
             ))

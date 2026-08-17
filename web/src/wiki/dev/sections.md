@@ -21,7 +21,7 @@ A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 |--------------|--------------|
 | `Hull`       | Passive structure/armor. Just a `render_mesh`. |
 | `Thruster`   | Forward thrust (`magnitude`); drives the exhaust visual. |
-| `Controller` | PD attitude controller (`frequency`, `damping_ratio`, `max_torque`). Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop (see below). |
+| `Controller` | PD attitude controller (`frequency`, `damping_ratio`, `max_angular_acceleration`). Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop (see below). |
 | `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
 | `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
 
@@ -40,7 +40,8 @@ section up with
 ### Stacked controllers share one loop
 
 Every live controller torques the hull in parallel, so a hull with several of
-them would multiply both its gains and its torque ceiling by the section count.
+them would multiply both its gains and acceleration authority by the section
+count.
 `update_controller_stack_tuning`
 (`crates/nova_ship/src/sections/controller_section.rs`) prevents that: it runs
 first in `FixedUpdate` (`ControllerSectionSystems::SyncStack`), derives ONE
@@ -52,11 +53,12 @@ controller dies.
 The ship-level loop, for `n` live controllers on the curve
 `stack_curve(n, limit) = limit - (limit - 1) / n`:
 
-- torque budget: each controller's authored `max_torque` at its rank weight,
-  summing to `stack_curve(n, 2.0)` of the strongest - 1.00 / 1.50 / 1.75 / 1.90
-  at n = 1 / 2 / 4 / 10, with a hard ceiling of 2x. Peak angular acceleration
-  is `budget / inertia`, and only the numerator is capped, so scale is still
-  what decides how a hull turns.
+- acceleration authority: each controller's authored
+  `max_angular_acceleration` at its rank weight, summing to
+  `stack_curve(n, 2.0)` of the strongest - 1.00 / 1.50 / 1.75 / 1.90 at n = 1
+  / 2 / 4 / 10, with a hard ceiling of 2x. The PD converts each principal-axis
+  acceleration into the torque required by the live inertia, so hull size does
+  not change handling by default.
 - P gain: DIVIDED by `stack_curve(n, 1.5)`, which lowers the `kp / kd` ratio
   the hull coasts down to its command on - the stack brakes the turn earlier
   and lands on the commanded attitude instead of sailing past it.
@@ -65,9 +67,9 @@ The ship-level loop, for `n` live controllers on the curve
   limit-cycles instead of parking (the corkscrew that used to follow a
   released maneuver).
 
-`ship_turn_rate` (`flight/guidance.rs`) then SUMS the live shares, which is why
-the flight layer is ordered after `SyncStack`. `n = 1` is the identity case, so
-single-controller ships - every shipped hull - are untouched.
+`ship_turn_rate` (`flight/guidance.rs`) then sums the live acceleration shares,
+which is why the flight layer is ordered after `SyncStack`. `n = 1` is the
+identity case.
 
 ### Meshes and colliders (authorable)
 

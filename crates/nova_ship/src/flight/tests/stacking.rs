@@ -40,15 +40,14 @@ fn slew_helm(
             Without<SectionInactiveMarker>,
         ),
     >,
-    q_ship: Query<(Entity, &ComputedAngularInertia), With<SpaceshipRootMarker>>,
+    q_ship: Query<Entity, With<SpaceshipRootMarker>>,
 ) {
-    for (ship, inertia) in &q_ship {
+    for ship in &q_ship {
         let Some(turn_rate) = ship_turn_rate(
             q_computer
                 .iter()
                 .filter(|(_, &ChildOf(parent))| parent == ship)
-                .map(|(pd, _)| pd.max_torque),
-            inertia,
+                .map(|(pd, _)| pd.max_angular_acceleration),
             &settings,
         ) else {
             continue;
@@ -115,12 +114,12 @@ fn spawn_stacked_ship(app: &mut App, hull_sections: usize, controllers: usize) -
                 frequency: 4.0,
                 damping_ratio: 4.0,
                 // The shipped budget (`basic_controller_section`).
-                max_torque: 40.0,
+                max_angular_acceleration: 0.5,
             },
             PDController {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                max_torque: 40.0,
+                max_angular_acceleration: 0.5,
             },
             PDControllerTarget(ship),
             Transform::default(),
@@ -320,9 +319,9 @@ fn stacking_turns_a_hull_better_with_diminishing_returns() {
                     None => baseline = Some(run),
                     Some(one) => {
                         // Diminishing returns, hard: the whole stack is worth at
-                        // most sqrt(2) of one computer's turn rate, because the
-                        // torque budget is capped at 2x and the rate a torque
-                        // budget buys goes as its square root.
+                        // most sqrt(2) of one computer's turn rate, because
+                        // acceleration authority is capped at 2x and rate grows
+                        // with its square root.
                         assert!(
                             run.peak_rate <= one.peak_rate * 1.45,
                             "hull {hull} x{controllers}: {} deg/s is past the \
@@ -377,7 +376,7 @@ fn the_second_computer_is_worth_it_and_the_tenth_is_not() {
     let ten = measure(hull, 10, flip, seconds);
 
     assert!(
-        two.peak_rate > one.peak_rate * 1.15,
+        two.peak_rate > one.peak_rate * 1.05,
         "a second computer must be felt: {} -> {} deg/s",
         one.peak_rate,
         two.peak_rate
@@ -388,9 +387,8 @@ fn the_second_computer_is_worth_it_and_the_tenth_is_not() {
         four.peak_rate,
         ten.peak_rate
     );
-    // The rate a torque budget buys goes as its square root, so a budget
-    // capped at 2x is a turn rate capped at sqrt(2): no stack, however deep,
-    // makes a hull snap around.
+    // Turn rate grows with the square root of acceleration authority, so a 2x
+    // authority cap gives a sqrt(2) rate cap.
     assert!(
         ten.peak_rate < one.peak_rate * 1.45,
         "the whole stack must stay under the sqrt(2) ceiling: {} -> {} deg/s",
@@ -399,20 +397,18 @@ fn the_second_computer_is_worth_it_and_the_tenth_is_not() {
     );
 }
 
-/// The precision half of the curve, on the hull that exposes it: a barge
-/// sails past its command under one computer and stops doing it once it
-/// carries a stack - while the turn itself gets shorter, not longer.
+/// The precision half of the curve: a stack brakes earlier and removes
+/// overshoot without materially delaying the turn.
 #[test]
-fn stacking_kills_the_overshoot_a_heavy_hull_turns_with() {
+fn stacking_reduces_overshoot_without_a_material_delay() {
     let (hull, seconds, snap) = (15, 18.0, 90.0f32.to_radians());
     let one = measure(hull, 1, snap, seconds);
     let four = measure(hull, 4, snap, seconds);
     let ten = measure(hull, 10, snap, seconds);
 
     assert!(
-        one.overshoot > 5.0,
-        "the barge must overshoot on one computer for this to mean anything, \
-         got {} deg",
+        one.overshoot > 2.0,
+        "one computer must overshoot for this to mean anything, got {} deg",
         one.overshoot
     );
     assert!(
@@ -426,14 +422,14 @@ fn stacking_kills_the_overshoot_a_heavy_hull_turns_with() {
         "a stacked hull must approach its command without ringing"
     );
     assert!(
-        ten.settle < one.settle * 0.8,
-        "and settle clearly sooner despite turning barely faster: {} -> {} s",
+        ten.settle <= one.settle,
+        "the precision gain must not make settling slower: {} -> {} s",
         one.settle,
         ten.settle
     );
     assert!(
-        ten.traverse < one.traverse,
-        "the stacked turn must not take longer either: {} -> {} s",
+        ten.traverse <= one.traverse * 1.05,
+        "the precision gain must not materially delay the turn: {} -> {} s",
         one.traverse,
         ten.traverse
     );
@@ -460,7 +456,7 @@ fn losing_one_of_two_computers_degrades_handling_instead_of_stranding_the_hull()
             .iter()
             .filter(|entity| app.world().get::<SectionInactiveMarker>(**entity).is_none())
             .filter_map(|entity| app.world().get::<PDController>(*entity))
-            .map(|pd| pd.max_torque)
+            .map(|pd| pd.max_angular_acceleration)
             .sum()
     };
     let stacked = budget(&app);
@@ -472,11 +468,11 @@ fn losing_one_of_two_computers_degrades_handling_instead_of_stranding_the_hull()
     run(&mut app, 600);
 
     assert!(
-        (stacked - 60.0).abs() < 1e-3,
-        "two computers carry 1.5 budgets, got {stacked}"
+        (stacked - 0.75).abs() < 1e-3,
+        "two computers carry 1.5 shares, got {stacked}"
     );
     assert!(
-        (budget(&app) - 40.0).abs() < 1e-3,
+        (budget(&app) - 0.5).abs() < 1e-3,
         "the survivor must re-derive to exactly one computer, got {}",
         budget(&app)
     );

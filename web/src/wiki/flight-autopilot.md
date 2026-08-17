@@ -27,11 +27,11 @@ You point the hull by mouse or stick - the controller section turns the ship tow
 
 Because thrusters sit wherever you bolted them, an off-center burn would spin the ship. The flight computer prevents that: it sets each engine's throttle to deliver the commanded forward thrust while cancelling the twist through the live center of mass, recruiting off-axis thrusters purely for counter-torque when the firing set cannot balance itself. An asymmetric or battle-damaged ship still flies straight (any tiny leftover spin is mopped up by the steering) - see [Thruster](../sections/thruster/).
 
-## Mass-legible handling
+## Size-independent handling
 
-Turn rate is derived from the ship's torque budget and its live rotational inertia, then clamped into a sane band (roughly 10 to 240 degrees per second). A stripped-down hull snaps around; a heavy, fully-built ship lumbers. Lose sections and the handling changes with the mass - so how a ship flies is legible from how it is built.
+A controller authors angular acceleration, so the flight computer applies the torque the live hull inertia requires. The same controller therefore gives a stripped craft and a capital hull the same baseline turn response. Ship classes differ only when their controller prototypes deliberately author different handling.
 
-That torque budget comes from the [controller](../sections/controller/) sections. A hull can mount several and steers better for it, but on a curve that tops out at twice one controller's worth - a bigger ship is always a slower ship. What stacking really buys a heavy hull is precision: it stops on the heading you pointed at instead of sailing past and swinging back.
+A hull can mount several [controllers](../sections/controller/) and steers better for it, but on a curve that tops out at twice one controller's authority. Stacking also adds precision: the hull starts braking its turn earlier and stops on the commanded heading instead of swinging back.
 
 ## The autopilot flies the hull
 

@@ -14,7 +14,7 @@
 //! | - | - | - |
 //! | 1 | `outcome: attitude command swept` | the command swept, and sits clear of the spawn attitude, so a frozen hull cannot pass |
 //! | 2 | `outcome: attitude tracks` | the hull is inside [`TRACK_TOLERANCE_RAD`] of it |
-//! | 3 | `outcome: attitude tracks on rig b` | it still is on a DIFFERENT inertia tensor |
+//! | 3 | `outcome: attitude response is inertia invariant` | a 10x-inertia copy tracks with comparable error |
 //! | 4 | `outcome: attitude reconverges after reload` | a fresh rig re-converges from identity |
 //!
 //! Every beat waits on a world value - the rig being up, the command having
@@ -37,7 +37,7 @@
 use std::sync::Arc;
 
 #[cfg(feature = "debug")]
-use avian3d::prelude::Rotation;
+use avian3d::prelude::{ComputedAngularInertia, Rotation};
 use bevy::{color::palettes::tailwind, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -51,16 +51,15 @@ struct Cli;
 /// How fast the commanded attitude sweeps, radians per second. Slow enough
 /// that a healthy PD tracks with a small lag; fast enough that a dead PD
 /// falls a full radian behind within the smoke window.
-const COMMAND_RAD_PER_SEC: f32 = 0.35;
+const COMMAND_RAD_PER_SEC: f32 = 0.15;
 
-/// Which rig layout a load builds. The two differ in their INERTIA TENSOR -
-/// layout B hangs a second hull off the roll axis - so a PD that only tracks
-/// because it was tuned for one specific mass distribution fails round three.
+/// Which rig layout a load builds. Layout B has the same geometry at 10x
+/// density, so every principal inertia is 10x while the command is unchanged.
 #[derive(Clone, Copy)]
 enum Layout {
     /// Controller + one hull, in a line along +Z.
     A,
-    /// Layout A plus a hull mounted beside the first one, off the +Z axis.
+    /// Layout A with every section at 10x density.
     #[cfg(feature = "debug")]
     B,
 }
@@ -194,6 +193,9 @@ struct RigEpoch {
     /// The root a reload is replacing; [`rig_reset`] waits for `root` to become
     /// something else.
     replacing: Option<Entity>,
+    /// Round A measurements used by the 10x-inertia comparison.
+    reference_inertia: Option<f32>,
+    reference_error: Option<f32>,
 }
 
 /// Stamp each freshly spawned rig root into [`RigEpoch`].
@@ -247,35 +249,25 @@ fn attitude_rig(
             .unwrap_or_else(|| panic!("section '{id}' not found"))
             .clone()
     };
-    let at = |id: &str, kind: &str, position: Vec3| SpaceshipSectionConfig {
-        id: id.to_string(),
-        position,
-        rotation: Quat::IDENTITY,
-        source: SectionSource::Inline(section(kind)),
-        modifications: vec![],
+    let at = |id: &str, kind: &str, position: Vec3| {
+        let mut config = section(kind);
+        #[cfg(feature = "debug")]
+        if matches!(layout, Layout::B) {
+            config.base.mass *= 10.0;
+        }
+        SpaceshipSectionConfig {
+            id: id.to_string(),
+            position,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Inline(config),
+            modifications: vec![],
+        }
     };
 
-    // Only layout B pushes onto this, and layout B is debug-only.
-    #[cfg_attr(
-        not(feature = "debug"),
-        expect(unused_mut, reason = "the only push is behind `debug`")
-    )]
-    let mut ship_sections = vec![
+    let ship_sections = vec![
         at("controller", "basic_controller_section", Vec3::ZERO),
         at("hull", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
     ];
-    #[cfg(feature = "debug")]
-    if matches!(layout, Layout::B) {
-        // Mounted BESIDE the first hull (adjacent, so the structure stays
-        // connected) rather than behind it: an off-axis mass moves the
-        // inertia tensor off the rig-A diagonal, which is the point of the
-        // second layout.
-        ship_sections.push(at(
-            "hull_offaxis",
-            "reinforced_hull_section",
-            Vec3::new(1.0, 0.0, 1.0),
-        ));
-    }
 
     let ship = SpaceshipConfig {
         allegiance: None,
@@ -386,6 +378,18 @@ fn tracking_error(world: &World) -> Option<f32> {
     Some(rotation.0.angle_between(command))
 }
 
+#[cfg(feature = "debug")]
+fn largest_principal_inertia(world: &mut World) -> f32 {
+    let mut query = world.query_filtered::<&ComputedAngularInertia, With<SpaceshipRootMarker>>();
+    query
+        .iter(world)
+        .next()
+        .expect("attitude probe: the rig must have computed inertia")
+        .principal_angular_inertia_with_local_frame()
+        .0
+        .max_element()
+}
+
 /// How far the command has swept since the live rig spawned - i.e. away from
 /// the identity attitude that rig started at.
 ///
@@ -448,8 +452,9 @@ const OFFSET_BEAT_MARGIN_SECS: f32 = 0.5;
 /// No settle clause: the sweep guard IS the PD's catch-up runway. A round's
 /// clock starts at the rig's spawn and the guard needs
 /// [`COMMAND_SWEEP_GUARD_RAD`] (1.2 rad) at [`COMMAND_RAD_PER_SEC`]
-/// (0.35 rad/s), so the beat cannot open until 3.4s of chasing have passed -
-/// longer than the transient, and longer than any fixed hold worth writing.
+/// (0.15 rad/s), so the beat cannot open until 8s of chasing have passed.
+/// That exceeds the measured 10x-inertia fixed-error convergence time while
+/// keeping the moving command well inside the baseline authority.
 #[cfg(feature = "debug")]
 fn command_delivered() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     Arc::new(|world: &World| {
@@ -504,6 +509,7 @@ fn assert_tracking(world: &mut World, round: &str) -> (f32, f32) {
 #[cfg(feature = "debug")]
 fn assert_rig_a_tracks(world: &mut World) {
     let (swept, error) = assert_tracking(world, "rig a");
+    let inertia = largest_principal_inertia(world);
     let elapsed = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(
         world,
@@ -515,6 +521,9 @@ fn assert_rig_a_tracks(world: &mut World) {
         "outcome: attitude tracks",
         serde_json::json!({ "t": elapsed, "error_rad": error }),
     );
+    let mut epoch = world.resource_mut::<RigEpoch>();
+    epoch.reference_inertia = Some(inertia);
+    epoch.reference_error = Some(error);
 }
 
 /// Round 2, same layout: invariant 4 - a FRESH rig, spawned at identity while
@@ -530,15 +539,38 @@ fn assert_reload_tracks(world: &mut World) {
     );
 }
 
-/// Round 3 on layout B: invariant 3 - the same PD gains hold on a different
-/// inertia tensor, so round 1 was not a fit to one mass distribution.
+/// Round 3: the same command and controller produce comparable tracking on a
+/// geometrically identical hull with 10x inertia.
 #[cfg(feature = "debug")]
 fn assert_rig_b_tracks(world: &mut World) {
     let (_, error) = assert_tracking(world, "rig b");
+    let inertia = largest_principal_inertia(world);
+    let (reference_inertia, reference_error) = {
+        let epoch = world.resource::<RigEpoch>();
+        (
+            epoch.reference_inertia.expect("round A inertia must exist"),
+            epoch.reference_error.expect("round A error must exist"),
+        )
+    };
+    let ratio = inertia / reference_inertia;
+    assert!(
+        (ratio - 10.0).abs() < 0.2,
+        "attitude probe: rig b must have 10x inertia, got {ratio:.2}x"
+    );
+    assert!(
+        error <= reference_error + 0.05,
+        "attitude probe: 10x inertia changed tracking error from \
+         {reference_error:.3} to {error:.3} rad"
+    );
     let elapsed = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(
         world,
-        "outcome: attitude tracks on rig b",
-        serde_json::json!({ "t": elapsed, "error_rad": error }),
+        "outcome: attitude response is inertia invariant",
+        serde_json::json!({
+            "t": elapsed,
+            "error_rad": error,
+            "reference_error_rad": reference_error,
+            "inertia_ratio": ratio,
+        }),
     );
 }

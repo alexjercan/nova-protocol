@@ -145,8 +145,8 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
         }
         SectionKind::Controller(controller) => vec![
             (
-                "torque".to_string(),
-                format!("{:.0}", controller.max_torque),
+                "turn accel".to_string(),
+                format!("{:.2} rad/s2", controller.max_angular_acceleration),
             ),
             (
                 "response".to_string(),

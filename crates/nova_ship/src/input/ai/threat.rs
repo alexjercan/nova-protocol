@@ -43,7 +43,7 @@ const AI_EVADE_SECS: f32 = 3.6;
 /// with it a fight reads as jink bursts with engage windows between them.
 const AI_EVADE_COOLDOWN_SECS: f32 = 1.5;
 /// Length (s) of one jink leg: long enough for the hull to swing onto the
-/// leg's heading (torque-budget slew) and burn, short enough to read as
+/// leg's heading (acceleration-authority slew) and burn, short enough to read as
 /// jinking. Playtest knob, paired with AI_EVADE_SECS.
 const AI_JINK_INTERVAL_SECS: f32 = 1.2;
 /// Thrust gate (dot) while evading: looser than [`AI_THRUST_ALIGNMENT`] so

@@ -116,12 +116,11 @@ pub(super) fn spawn_ship(app: &mut App) -> (Entity, Entity, Entity) {
             PDController {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                // Deliberately over-torqued: the generic rig pins the
-                // derived turn rate at the clamp ceiling so maneuver
-                // tests exercise outcomes, not tuning. The shipped 40.0
-                // regime is covered by the scratch-scenario and off-axis
-                // tests.
-                max_torque: 100.0,
+                // Deliberately high authority: the generic rig pins the
+                // command rate at its ceiling so maneuver tests exercise
+                // outcomes, not production handling. Baseline 0.5 coverage
+                // lives in the scratch-scenario and off-axis rigs.
+                max_angular_acceleration: 100.0,
             },
             PDControllerTarget(ship),
             Transform::from_xyz(0.0, 0.0, 0.0),
@@ -268,7 +267,7 @@ pub(super) fn spawn_damage_shifted_single_drive(
         PDController {
             frequency: 4.0,
             damping_ratio: 4.0,
-            max_torque: 40.0, // the shipped torque budget
+            max_angular_acceleration: 0.5, // shipped acceleration authority
         },
         PDControllerTarget(ship),
         Transform::from_xyz(0.0, 0.0, 0.0),
@@ -408,7 +407,7 @@ pub(super) fn diag_ship(app: &mut App) -> (Entity, Entity) {
         PDController {
             frequency: 4.0,
             damping_ratio: 4.0,
-            max_torque: 40.0,
+            max_angular_acceleration: 0.5,
         },
         PDControllerTarget(ship),
     ));

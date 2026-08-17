@@ -14,8 +14,8 @@ pub struct PDController {
     pub frequency: f32,
     /// The damping ratio of the PD controller.
     pub damping_ratio: f32,
-    /// The maximum torque that can be applied by the PD controller.
-    pub max_torque: f32,
+    /// The maximum angular acceleration on each principal axis, in rad/s2.
+    pub max_angular_acceleration: f32,
 }
 
 /// Input rotation for the PD controller.
@@ -90,7 +90,7 @@ fn update_controller_root_torque(
         let torque = compute_pd_torque(
             controller.frequency,
             controller.damping_ratio,
-            controller.max_torque,
+            controller.max_angular_acceleration,
             **rotation,
             **controller_input,
             **angular_velocity,
@@ -105,7 +105,7 @@ fn update_controller_root_torque(
 fn compute_pd_torque(
     frequency: f32,
     damping_ratio: f32,
-    max_torque: f32,
+    max_angular_acceleration: f32,
     from_rotation: Quat,
     to_rotation: Quat,
     angular_velocity: Vec3,
@@ -128,23 +128,20 @@ fn compute_pd_torque(
 
     let raw = axis * (kp * angle) - angular_velocity * kd;
 
-    // NOTE: the sandwich below scales the raw PD acceleration by the world-space inertia
-    // tensor I_world = Q diag(principal) Q^-1, with Q = from_rotation * inertia_local_frame.
-    // The composition order is load-bearing: `inertia_local_frame` maps the principal-axes
-    // frame into body-local (bevy_heavy's `new_with_local_frame` convention) and
-    // `from_rotation` maps body-local into world, so body rotation applies AFTER the local
-    // frame. Getting it backwards passes every identity-frame test and corkscrews on a
-    // skewed body.
+    // NOTE: clamp acceleration before inertia scaling. An absolute torque cap
+    // makes the same computer weaker as hull inertia grows. Principal-axis
+    // limits produce the authored acceleration on every hull while still
+    // applying the exact torque each axis requires.
+    //
+    // The composition order is load-bearing: `inertia_local_frame` maps the
+    // principal frame into body-local and `from_rotation` maps body-local into
+    // world, so body rotation applies after the local frame.
     let rot_inertia_to_world = from_rotation * inertia_local_frame;
-    let torque_local = rot_inertia_to_world.inverse() * raw;
-    let torque_scaled = torque_local * inertia_principal;
-    let final_torque = rot_inertia_to_world * torque_scaled;
-
-    if final_torque.length_squared() > max_torque * max_torque {
-        final_torque.normalize() * max_torque
-    } else {
-        final_torque
-    }
+    let acceleration_local = rot_inertia_to_world.inverse() * raw;
+    let limit = max_angular_acceleration.max(0.0);
+    let acceleration_clamped = acceleration_local.clamp(Vec3::splat(-limit), Vec3::splat(limit));
+    let torque_local = acceleration_clamped * inertia_principal;
+    rot_inertia_to_world * torque_local
 }
 
 #[cfg(test)]
@@ -216,38 +213,45 @@ mod tests {
         );
     }
 
-    /// When the raw demand exceeds max_torque the clamp must only shorten the
-    /// vector, never bend it.
     #[test]
-    fn clamp_preserves_torque_direction() {
-        let unclamped = compute_pd_torque(
+    fn clamp_limits_each_principal_axis_in_acceleration_units() {
+        let principal = Vec3::new(2.5, 4.0, 0.5);
+        let torque = compute_pd_torque(
             4.0,
             4.0,
-            1.0e6,
+            0.5,
             Quat::IDENTITY,
             Quat::from_axis_angle(Vec3::Y, 2.0),
             Vec3::new(0.0, 0.0, 1.5),
-            Vec3::new(2.5, 2.5, 0.5),
+            principal,
             Quat::IDENTITY,
         );
-        let clamped = compute_pd_torque(
-            4.0,
-            4.0,
-            10.0,
-            Quat::IDENTITY,
-            Quat::from_axis_angle(Vec3::Y, 2.0),
-            Vec3::new(0.0, 0.0, 1.5),
-            Vec3::new(2.5, 2.5, 0.5),
-            Quat::IDENTITY,
-        );
-        assert!(unclamped.length() > 10.0, "case must actually saturate");
-        assert!((clamped.length() - 10.0).abs() < 1.0e-3);
+        let acceleration = torque / principal;
         assert!(
-            clamped
-                .normalize()
-                .abs_diff_eq(unclamped.normalize(), 1.0e-4),
-            "clamp must preserve direction: {clamped} vs {unclamped}"
+            acceleration.abs().max_element() <= 0.5 + 1.0e-5,
+            "principal acceleration must stay inside the authored limit: {acceleration}"
         );
+        assert!((acceleration.y - 0.5).abs() < 1.0e-5);
+        assert!((acceleration.z + 0.5).abs() < 1.0e-5);
+    }
+
+    #[test]
+    fn saturated_acceleration_is_inertia_invariant() {
+        let torque = |principal| {
+            compute_pd_torque(
+                4.0,
+                4.0,
+                0.5,
+                Quat::IDENTITY,
+                Quat::from_rotation_y(1.0),
+                Vec3::ZERO,
+                principal,
+                Quat::IDENTITY,
+            )
+        };
+        let light = Vec3::splat(2.0);
+        let heavy = light * 10.0;
+        assert!((torque(light) / light).abs_diff_eq(torque(heavy) / heavy, 1.0e-5));
     }
 
     #[test]
@@ -373,13 +377,22 @@ mod tests {
     /// the inertia is a symmetric top with the smallest moment about z, the
     /// shape a ship-flight controller is tuned against. Returns (body, controller).
     fn spawn_spinning_ship(app: &mut App, spin: Vec3) -> (Entity, Entity) {
-        spawn_spinning_ship_with_torque(app, spin, 40.0)
+        spawn_spinning_ship_with_acceleration(app, spin, 0.5)
     }
 
-    fn spawn_spinning_ship_with_torque(
+    fn spawn_spinning_ship_with_acceleration(
         app: &mut App,
         spin: Vec3,
-        max_torque: f32,
+        max_angular_acceleration: f32,
+    ) -> (Entity, Entity) {
+        spawn_ship(app, spin, max_angular_acceleration, 1.0)
+    }
+
+    fn spawn_ship(
+        app: &mut App,
+        spin: Vec3,
+        max_angular_acceleration: f32,
+        density: f32,
     ) -> (Entity, Entity) {
         let body = app
             .world_mut()
@@ -390,7 +403,7 @@ mod tests {
                 ChildOf(body),
                 Transform::from_xyz(0.0, 0.0, z),
                 Collider::cuboid(1.0, 1.0, 1.0),
-                ColliderDensity(1.0),
+                ColliderDensity(density),
             ));
         }
         let controller = app
@@ -400,7 +413,7 @@ mod tests {
                 PDController {
                     frequency: 4.0,
                     damping_ratio: 4.0,
-                    max_torque,
+                    max_angular_acceleration,
                 },
                 PDControllerTarget(body),
                 Transform::default(),
@@ -432,13 +445,63 @@ mod tests {
             .unwrap_or(f32::NAN)
     }
 
+    #[test]
+    fn fixed_attitude_convergence_is_inertia_invariant() {
+        let mut app = physics_app();
+        let (light, light_controller) = spawn_ship(&mut app, Vec3::ZERO, 0.5, 1.0);
+        let (heavy, heavy_controller) = spawn_ship(&mut app, Vec3::ZERO, 0.5, 10.0);
+        let target = Quat::from_rotation_y(core::f32::consts::FRAC_PI_2);
+        app.world_mut()
+            .entity_mut(light_controller)
+            .insert(PDControllerInput(target));
+        app.world_mut()
+            .entity_mut(heavy_controller)
+            .insert(PDControllerInput(target));
+
+        let principal = |app: &App, body| {
+            app.world()
+                .get::<ComputedAngularInertia>(body)
+                .unwrap()
+                .principal_angular_inertia_with_local_frame()
+                .0
+                .max_element()
+        };
+        let ratio = principal(&app, heavy) / principal(&app, light);
+        assert!(
+            (ratio - 10.0).abs() < 0.1,
+            "test hull inertia ratio is {ratio}"
+        );
+
+        let mut settled: [Option<u32>; 2] = [None, None];
+        for tick in 1..=1800u32 {
+            app.update();
+            for (index, body) in [light, heavy].into_iter().enumerate() {
+                let rotation = app.world().get::<Rotation>(body).unwrap().0;
+                let speed = app.world().get::<AngularVelocity>(body).unwrap().length();
+                if rotation.angle_between(target) < 0.05 && speed < 0.1 {
+                    settled[index].get_or_insert(tick);
+                }
+            }
+            if settled.iter().all(Option::is_some) {
+                break;
+            }
+        }
+
+        let [Some(light_ticks), Some(heavy_ticks)] = settled else {
+            panic!("both hulls must settle, got {settled:?}");
+        };
+        assert!(
+            light_ticks.abs_diff(heavy_ticks) as f32 <= light_ticks as f32 * 0.15,
+            "10x inertia changed convergence: light {light_ticks} ticks, heavy {heavy_ticks} ticks"
+        );
+    }
+
     /// Pure damper: the command tracks the attitude every tick, so the PD is
     /// damping-only. A fast roll about the long axis must despin.
     #[test]
     fn fast_roll_despins_when_command_tracks_attitude() {
-        // NOTE: 1.5 rad/s is the "fast" roll for this rig -- past the rate where
-        // one tick's torque budget can cancel the spin, so the damper has to
-        // converge over many ticks rather than in one.
+        // NOTE: 1.5 rad/s is past what one tick of acceleration authority can
+        // cancel, so the damper must converge over many ticks.
         let mut app = physics_app();
         let (body, controller) = spawn_spinning_ship(&mut app, Vec3::new(0.0, 0.0, 1.5));
         app.world_mut().entity_mut(controller).insert(TrackAttitude);
@@ -501,7 +564,7 @@ mod tests {
             PDController {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                max_torque: 40.0,
+                max_angular_acceleration: 0.5,
             },
             PDControllerTarget(body),
             Transform::default(),
@@ -531,26 +594,19 @@ mod tests {
         );
     }
 
-    /// The release scenario at a torque budget high enough to saturate: the
-    /// regime where an under-damped corkscrew locked into a per-tick
-    /// flip-flop. Saturation coverage only: this configuration stays
-    /// in the z-commuting subspace, so it passes under either composition
-    /// order; the discriminating test remains the both-frames closed form.
+    /// Saturation coverage for a fast released roll.
     #[test]
-    fn fast_roll_despins_under_a_saturating_torque_budget() {
-        // NOTE: 100 is the test-rig torque budget, and it is what makes this
-        // case saturating: one tick's impulse (100 * dt / I_roll = 3.1 rad/s)
-        // exceeds twice the 1.5 rad/s spin, so a naive controller overshoots
-        // past rest every tick instead of converging.
+    fn fast_roll_despins_under_saturating_acceleration_authority() {
         let mut app = physics_app();
-        let (body, _) = spawn_spinning_ship_with_torque(&mut app, Vec3::new(0.0, 0.0, 1.5), 100.0);
+        let (body, _) =
+            spawn_spinning_ship_with_acceleration(&mut app, Vec3::new(0.0, 0.0, 1.5), 1.25);
 
         simulate_seconds(&mut app, 30.0);
 
         let rate = spin_rate(&app, body);
         assert!(
             rate < 0.1,
-            "a saturating torque budget must not limit-cycle: still at {rate} rad/s"
+            "saturating acceleration authority must not limit-cycle: still at {rate} rad/s"
         );
     }
 
@@ -558,9 +614,8 @@ mod tests {
     /// under a frozen command today.
     #[test]
     fn moderate_spin_despins_with_frozen_command() {
-        // NOTE: 0.7 rad/s is "moderate" because one tick's torque budget can
-        // cancel it outright -- below the saturating regime the fast-roll tests
-        // cover, which is the whole point of keeping this control case.
+        // NOTE: 0.7 rad/s is the moderate-spin control case below the fast-roll
+        // saturation regime.
         let mut app = physics_app();
         let (body, _) = spawn_spinning_ship(&mut app, Vec3::new(0.0, 0.0, 0.7));
 

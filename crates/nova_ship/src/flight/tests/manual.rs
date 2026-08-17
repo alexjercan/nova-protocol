@@ -11,9 +11,9 @@ use crate::prelude::*;
 /// stays held. This is the balancer's no-headroom floor: differential throttle
 /// scales an engine's magnitude, not its line of action, so a single engine
 /// cannot null its own torque - and a full-throttle demand pins it at 1.0 with
-/// nothing to trim against. The PD holds within its cap (break-even lever arm ~
-/// max_torque/64 per unit magnitude); past it the ship pulls. When there is
-/// more than one forward engine AND throttle headroom, the balancer holds the
+/// nothing to trim against. The PD holds only within the torque implied by its
+/// acceleration authority and the live inertia; past it the ship pulls. When
+/// there is more than one forward engine and throttle headroom, the balancer holds the
 /// heading instead - see
 /// `balanced_partial_burn_holds_an_off_center_twin_drive`.
 #[test]
@@ -24,7 +24,7 @@ fn off_center_burn_pulls_but_a_centered_drive_is_held() {
         app.world_mut()
             .get_mut::<PDController>(controller)
             .unwrap()
-            .max_torque = 40.0; // the shipped torque budget
+            .max_angular_acceleration = 0.5; // shipped acceleration authority
         app.world_mut()
             .get_mut::<Transform>(thruster)
             .unwrap()
@@ -107,7 +107,7 @@ fn balanced_partial_burn_holds_an_off_center_twin_drive() {
             PDController {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                max_torque: 40.0, // the shipped torque budget
+                max_angular_acceleration: 0.5, // shipped acceleration authority
             },
             PDControllerTarget(ship),
             Transform::from_xyz(0.0, 0.0, 0.0),
@@ -343,7 +343,7 @@ fn hold_reverse_decel_from_300_keeps_the_hull_steady() {
         PDController {
             frequency: 4.0,
             damping_ratio: 4.0,
-            max_torque: 40.0,
+            max_angular_acceleration: 0.5,
         },
         PDControllerTarget(ship),
     ));
@@ -368,7 +368,9 @@ fn hold_reverse_decel_from_300_keeps_the_hull_steady() {
         .unwrap()
         .0 = Quat::from_rotation_y(std::f32::consts::PI);
 
-    run(&mut app, 240);
+    // A 0.5 rad/s2 controller needs about five ideal seconds for a 180;
+    // the fixed setpoint also needs damping time before the burn starts.
+    run(&mut app, 900);
     // Delivery guard: the flip must actually have happened, or the
     // steady-burn bound below is vacuous.
     assert!(
@@ -435,7 +437,7 @@ fn high_speed_lateral_burn_through_the_com_adds_no_spin() {
 /// point, which only bites when the thrust has a component PERPENDICULAR to the
 /// travel (a decel path with drift correction), so the faithful rig is a full
 /// production stack burning across its own velocity: PD at the shipped 40
-/// torque budget, TransformInterpolation on the hull, centered drive, high
+/// acceleration authority, TransformInterpolation on the hull, centered drive, high
 /// cross velocity, zero rotation command. Against the pre-fix impulse code this
 /// rig's PD is overwhelmed by ~2.3 u of application-point error per tick and
 /// the max observed spin runs away past 1 rad/s; a steady hull must stay at
@@ -452,7 +454,7 @@ fn cross_velocity_burn_keeps_the_hull_steady_at_high_speed() {
     app.world_mut()
         .get_mut::<PDController>(controller)
         .unwrap()
-        .max_torque = 40.0; // the shipped torque budget
+        .max_angular_acceleration = 0.5; // shipped acceleration authority
     settle(&mut app);
 
     // Fast cross-travel (+X) under a full forward burn (-Z): thrust

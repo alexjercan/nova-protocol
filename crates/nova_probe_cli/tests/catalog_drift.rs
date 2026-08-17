@@ -113,7 +113,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "attitude command swept",
             "attitude tracks",
             "attitude reconverges after reload",
-            "attitude tracks on rig b",
+            "attitude response is inertia invariant",
         ],
     ),
     (

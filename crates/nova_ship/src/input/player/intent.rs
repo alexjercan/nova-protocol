@@ -32,7 +32,7 @@ pub(super) fn update_controller_target_rotation_torque(
         With<ControllerSectionMarker>,
     >,
     spaceship: Single<
-        (Entity, &ComputedAngularInertia),
+        Entity,
         (
             With<SpaceshipRootMarker>,
             With<PlayerSpaceshipMarker>,
@@ -51,22 +51,19 @@ pub(super) fn update_controller_target_rotation_torque(
     >,
 ) {
     let point_rotation = point_rotation.into_inner();
-    let (spaceship, inertia) = spaceship.into_inner();
+    let spaceship = spaceship.into_inner();
     // NOTE: slew the command toward the camera instead of jumping - a mouse 180 fed
-    // to the PD in one step drives it into torque saturation where its
-    // damping is swamped and the hull limit-cycles (the high-speed flip
-    // wobble). The camera stays instant; the hull's commanded target ramps
-    // at the hull's own torque-budget turn rate - the same one the autopilot
-    // plans with (see flight::ship_turn_rate) - so a heavy build swings
-    // slower than a stripped one. With no live computer the command FREEZES:
+    // to the PD in one step drives it into saturation where its damping is
+    // swamped and the hull limit-cycles. The camera stays instant; the hull's
+    // commanded target ramps at the computer's acceleration-derived turn rate,
+    // shared with autopilot planning. With no live computer the command FREEZES:
     // nothing consumes it, and slewing a dead helm would drift it so a later
     // re-activation snaps the hull.
     let Some(turn_rate) = crate::flight::ship_turn_rate(
         q_computer
             .iter()
             .filter(|(_, &ChildOf(parent))| parent == spaceship)
-            .map(|(pd, _)| pd.max_torque),
-        inertia,
+            .map(|(pd, _)| pd.max_angular_acceleration),
         &settings,
     ) else {
         return;
@@ -642,9 +639,8 @@ mod command_lag_tests {
     }
 
     /// A mouse 180 must NOT reach the rotation command in one frame: the
-    /// command slews at the hull's torque-budget turn rate, so the PD tracks
-    /// a small error instead of saturating (flip-wobble fix) and a heavy hull
-    /// audibly lags the camera (flight-feel retune).
+    /// command slews at the computer's acceleration-derived turn rate, so the
+    /// PD tracks a small error instead of saturating.
     #[test]
     fn a_camera_flip_reaches_the_command_over_many_frames() {
         let mut app = App::new();
@@ -661,7 +657,8 @@ mod command_lag_tests {
             SpaceshipCameraNormalInputMarker,
             PointRotationOutput(target),
         ));
-        // The stock ship's numbers: inertia ~2.3, computer torque 10.
+        // The inertia is irrelevant to command slew; it remains on the rig to
+        // match the production ship query surface.
         let ship = app
             .world_mut()
             .spawn((
@@ -679,7 +676,7 @@ mod command_lag_tests {
                 PDController {
                     frequency: 4.0,
                     damping_ratio: 4.0,
-                    max_torque: 10.0,
+                    max_angular_acceleration: 10.0,
                 },
                 ControllerSectionRotationInput::default(),
             ))
@@ -697,14 +694,12 @@ mod command_lag_tests {
         let remaining = command.angle_between(target);
         // One frame advances exactly one slew step of the DERIVED rate - this
         // pins hull_turn_rate's wiring, not just "some" slew.
-        let expected = crate::flight::hull_turn_rate(
-            10.0,
-            2.3,
-            &app.world().resource::<FlightSettings>().clone(),
-        ) / 60.0;
+        let expected =
+            crate::flight::hull_turn_rate(10.0, &app.world().resource::<FlightSettings>().clone())
+                / 60.0;
         assert!(
             (moved - expected).abs() < expected * 0.15,
-            "one frame must advance one torque-budget slew step \
+            "one frame must advance one acceleration-authority slew step \
              (moved {moved}, expected {expected})"
         );
         assert!(

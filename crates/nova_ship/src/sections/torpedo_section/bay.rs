@@ -328,7 +328,7 @@ pub(super) fn shoot_spawn_projectile(
                     controller_section(ControllerSectionConfig {
                         frequency: 4.0,
                         damping_ratio: 4.0,
-                        max_torque: 10.0,
+                        max_angular_acceleration: 10.0,
                         render_mesh: None,
                         // A torpedo's guidance computer has no radar/safety
                         // voice; the player-controller cue lookup never matches

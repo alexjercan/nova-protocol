@@ -161,7 +161,6 @@ pub(super) fn update_controller_target_rotation_torque(
             Entity,
             &Transform,
             &LinearVelocity,
-            &ComputedAngularInertia,
             Option<&ComputedCenterOfMass>,
             &AIBehaviorState,
             &AITarget,
@@ -171,7 +170,7 @@ pub(super) fn update_controller_target_rotation_torque(
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (entity, transform, velocity, inertia, com, state, target, evade) in &q_spaceship {
+    for (entity, transform, velocity, com, state, target, evade) in &q_spaceship {
         // A non-engaging state (Idle/Patrol) holds its helm: the command
         // freezes exactly like a dead helm, so re-engaging resumes from
         // where the hull actually points. No target freezes it the same way.
@@ -196,11 +195,10 @@ pub(super) fn update_controller_target_rotation_torque(
             ai_desired_direction(to_target, **velocity)
         };
 
-        // Slew the command at the hull's torque-budget turn rate instead of
-        // rewriting it every frame: a distant setpoint drives the PD into
-        // torque saturation where its damping is swamped and the hull limit-
-        // cycles - the regime the player path was fixed for in the flight-
-        // feel retune. Same derivation as the player path and the autopilot
+        // Slew the command at the computer's acceleration-derived turn rate
+        // instead of rewriting it every frame: a distant setpoint drives the
+        // PD into saturation where its damping is swamped and the hull limit-
+        // cycles. Same derivation as the player path and the autopilot
         // (flight::ship_turn_rate). With no live computer the command
         // FREEZES, matching the player path: nothing consumes it, and slewing
         // a dead helm would drift it so a later re-activation snaps the hull.
@@ -208,8 +206,7 @@ pub(super) fn update_controller_target_rotation_torque(
             q_computer
                 .iter()
                 .filter(|(_, &ChildOf(parent))| parent == entity)
-                .map(|(pd, _)| pd.max_torque),
-            inertia,
+                .map(|(pd, _)| pd.max_angular_acceleration),
             &settings,
         ) else {
             continue;
@@ -342,7 +339,7 @@ mod rotation_tests {
             PlayerSpaceshipMarker,
             Transform::from_translation(Vec3::new(0.0, 0.0, 800.0)),
         ));
-        // The stock ship's numbers: inertia ~2.3, computer torque 10.
+        // High authority keeps this command-slew test short.
         let ship = app
             .world_mut()
             .spawn((
@@ -360,7 +357,7 @@ mod rotation_tests {
                 PDController {
                     frequency: 4.0,
                     damping_ratio: 4.0,
-                    max_torque: 10.0,
+                    max_angular_acceleration: 10.0,
                 },
                 ControllerSectionRotationInput::default(),
             ))
@@ -383,16 +380,14 @@ mod rotation_tests {
             .get::<ControllerSectionRotationInput>(controller)
             .unwrap();
         let moved = command.angle_between(Quat::IDENTITY);
-        let expected = crate::flight::hull_turn_rate(
-            10.0,
-            2.3,
-            &app.world().resource::<FlightSettings>().clone(),
-        ) / 60.0;
+        let expected =
+            crate::flight::hull_turn_rate(10.0, &app.world().resource::<FlightSettings>().clone())
+                / 60.0;
         // One frame advances exactly one slew step of the DERIVED rate -
         // this pins hull_turn_rate's wiring, not just "some" slew.
         assert!(
             (moved - expected).abs() < expected * 0.15,
-            "one frame must advance one torque-budget slew step \
+            "one frame must advance one acceleration-authority slew step \
              (moved {moved}, expected {expected})"
         );
         let flip = Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::Z);
@@ -519,7 +514,7 @@ mod physics_tests {
             PDController {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                max_torque: 10.0,
+                max_angular_acceleration: 10.0,
             },
             PDControllerTarget(ship),
             Transform::from_xyz(0.0, 0.0, 0.0),
@@ -766,7 +761,7 @@ mod standoff_physics_tests {
             PDController {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                max_torque: 40.0,
+                max_angular_acceleration: 0.5,
             },
             PDControllerTarget(ship),
             Transform::from_xyz(0.0, 0.0, 0.0),

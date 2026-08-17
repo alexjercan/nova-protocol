@@ -1,9 +1,7 @@
 //! Pure flight math: the arrival rule a translation leg is planned with,
-//! the ORBIT plan and its desired velocity, and the hull's rotation
-//! budget. No queries, no world - every helper here is unit-testable in
-//! isolation, and the autopilot is the only caller.
-
-use avian3d::prelude::*;
+//! the ORBIT plan and its desired velocity, and rotation authority. No
+//! queries, no world - every helper here is unit-testable in isolation, and
+//! the autopilot is the only caller.
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
@@ -282,8 +280,8 @@ pub(super) fn orbit_ring_offset(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
 }
 
 /// Rotate `current` toward `target` by at most `max_step` radians. The PD's
-/// torque clamp caps the SUM of its P and D terms, so feeding it a distant
-/// setpoint (a 180 flip) drives it deep into saturation where the damping
+/// acceleration clamp caps the sum of its P and D terms, so feeding it a
+/// distant setpoint drives it deep into saturation where the damping
 /// contribution is swamped - the hull spins up unbraked, overshoots, and
 /// limit-cycles ("tweaks out"). Slewing the command keeps the PD's tracking
 /// error small, where its damping actually works. Reaching the target
@@ -299,17 +297,14 @@ pub(crate) fn slew_rotation(current: Quat, target: Quat, max_step: f32) -> Quat 
     }
 }
 
-/// The hull's achievable turn rate under its torque budget, radians/second.
+/// The hull's achievable turn rate under its angular-acceleration authority.
 ///
-/// A torque-limited bang-bang 180 at angular acceleration `alpha = max_torque /
-/// inertia` takes `2 * sqrt(pi / alpha)` seconds, an average rate of `sqrt(pi *
-/// alpha) / 2`. The command slew and the autopilot's rotation-time planning
-/// both run at this rate (trimmed by [`FlightSettings::turn_rate_scale`],
-/// clamped by the min/max), so the same stick input swings a stripped hull
-/// visibly faster than a fully built one. `inertia` is the largest principal
-/// component - the conservative axis. Pure for unit testing.
-pub(crate) fn hull_turn_rate(max_torque: f32, inertia: f32, settings: &FlightSettings) -> f32 {
-    let alpha = (max_torque / inertia.max(1e-6)).max(0.0);
+/// A bang-bang 180 at acceleration `alpha` takes `2 * sqrt(pi / alpha)`
+/// seconds, an average rate of `sqrt(pi * alpha) / 2`. The command slew and
+/// autopilot planning use this rate, trimmed and bounded by [`FlightSettings`].
+/// Pure for unit testing.
+pub(crate) fn hull_turn_rate(max_angular_acceleration: f32, settings: &FlightSettings) -> f32 {
+    let alpha = max_angular_acceleration.max(0.0);
     let optimum = (core::f32::consts::PI * alpha).sqrt() * 0.5;
     // Ordered defensively: both bounds are inspector-editable on the
     // reflected FlightSettings, and f32::clamp panics when min > max.
@@ -318,25 +313,18 @@ pub(crate) fn hull_turn_rate(max_torque: f32, inertia: f32, settings: &FlightSet
     (optimum * settings.turn_rate_scale).clamp(lo, hi)
 }
 
-/// The ship-level turn rate: the live computers' torque budget against the
-/// hull's largest principal inertia, through [`hull_turn_rate`]. `None` with
-/// no live computer - every caller's "adrift" case. Shared by the player
-/// command slew, the autopilot and the AI brain so the derivation cannot
-/// drift apart.
+/// The ship-level turn rate from the live computers' acceleration authority.
+/// `None` with no live computer - every caller's "adrift" case.
 ///
-/// The budget is the SUM of what the computers carry, because each one
-/// torques the hull in parallel. It is not the sum of what they were
-/// AUTHORED with: `update_controller_stack_tuning` has already split a
-/// diminishing ship-level budget across them, so summing here reads that
-/// budget back rather than paying a stack linearly.
+/// The budget is the sum of the live shares. The stack pass has already
+/// applied diminishing returns, so this reads one ship-level authority rather
+/// than paying a stack linearly.
 pub(crate) fn ship_turn_rate(
-    torques: impl Iterator<Item = f32>,
-    inertia: &ComputedAngularInertia,
+    accelerations: impl Iterator<Item = f32>,
     settings: &FlightSettings,
 ) -> Option<f32> {
-    let budget = torques.reduce(|budget, torque| budget + torque)?;
-    let (principal, _) = inertia.principal_angular_inertia_with_local_frame();
-    Some(hull_turn_rate(budget, principal.max_element(), settings))
+    let authority = accelerations.reduce(|sum, acceleration| sum + acceleration)?;
+    Some(hull_turn_rate(authority, settings))
 }
 
 #[cfg(test)]
@@ -393,25 +381,14 @@ mod tests {
     }
 
     #[test]
-    fn hull_turn_rate_makes_mass_legible() {
+    fn hull_turn_rate_respects_acceleration_authority_and_bounds() {
         let settings = FlightSettings::default();
-        // Same torque budget, less hull: the stripped ship turns visibly
-        // faster (stock 3-section ship ~2.3 inertia vs a ~0.9 remnant).
-        let full = hull_turn_rate(10.0, 2.3, &settings);
-        let stripped = hull_turn_rate(10.0, 0.9, &settings);
-        assert!(
-            stripped > full * 1.3,
-            "stripped {stripped} should clearly out-turn full {full}"
-        );
-        // A torque-starved barge still answers the helm at the floor...
-        let barge = hull_turn_rate(0.001, 1000.0, &settings);
-        assert!((barge - settings.turn_rate_min_deg.to_radians()).abs() < 1e-5);
-        // ...and an over-torqued skiff is capped at the ceiling.
-        let skiff = hull_turn_rate(1000.0, 0.01, &settings);
-        assert!((skiff - settings.turn_rate_max_deg.to_radians()).abs() < 1e-5);
-        // Degenerate inputs stay finite.
-        assert!(hull_turn_rate(10.0, 0.0, &settings).is_finite());
-        assert!(hull_turn_rate(0.0, 0.0, &settings).is_finite());
+        let weak = hull_turn_rate(0.001, &settings);
+        assert!((weak - settings.turn_rate_min_deg.to_radians()).abs() < 1e-5);
+        let strong = hull_turn_rate(1000.0, &settings);
+        assert!((strong - settings.turn_rate_max_deg.to_radians()).abs() < 1e-5);
+        assert!(hull_turn_rate(0.5, &settings) > weak);
+        assert!(hull_turn_rate(0.0, &settings).is_finite());
     }
 
     #[test]

@@ -354,15 +354,11 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
             kind: SectionKind::Controller(ControllerSectionConfig {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                // Torque budget: 40.0 keeps the asteroid_field flagship (max
-                // principal inertia ~10.8) at its familiar ~88 deg/s command
-                // rate while a hull+thruster remnant hits the 240 deg/s ceiling
-                // - weight becomes legible without regressing the baseline
-                // feel. 100.0 saturated nothing (every build turned identically
-                // at the old fixed slew). Flip-time optima per ship are tabled
-                // in docs/2026-07-09-flight-feel-retune.md; playtest owns the
-                // final number.
-                max_torque: 40.0,
+                // 0.5 rad/s2 gives a bang-bang 180 an ideal 5.0 second turn:
+                // 2 * sqrt(pi / 0.5). The 0.9 command-rate trim leaves damping
+                // headroom and reproduces the established cast handling while
+                // remaining independent of hull inertia.
+                max_angular_acceleration: 0.5,
                 // Full flight-verb loadout by default (no WithheldVerbs on the
                 // built controller). Scenarios withhold a verb via a
                 // `DisableVerb` section modification or the `SetControllerVerb`

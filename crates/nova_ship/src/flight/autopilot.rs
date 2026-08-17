@@ -56,7 +56,6 @@ pub(super) fn autopilot_system(
             &Rotation,
             &LinearVelocity,
             &ComputedMass,
-            &ComputedAngularInertia,
             Option<&ComputedCenterOfMass>,
             Option<&ManeuverTelemetry>,
             // The per-ship translation-arrival override (scenario-authored;
@@ -95,8 +94,8 @@ pub(super) fn autopilot_system(
         ),
     >,
     // A live flight computer is a controller section that still has its PD
-    // (preview controllers have none) and is not disabled. Its torque cap is
-    // the hull's rotation authority, so the planner reads it too.
+    // (preview controllers have none) and is not disabled. Its acceleration
+    // limit is the hull's rotation authority, so the planner reads it too.
     q_computer: Query<
         (&PDController, &ChildOf, Option<&WithheldVerbs>),
         (
@@ -133,7 +132,6 @@ pub(super) fn autopilot_system(
         rotation,
         velocity,
         mass,
-        inertia,
         com,
         prev_telemetry,
         standoff_override,
@@ -146,14 +144,11 @@ pub(super) fn autopilot_system(
         let arrival_standoff =
             standoff_override.map_or(settings.arrival_standoff, |standoff| **standoff);
         // No flight computer, no autopilot - the ship is adrift on manual.
-        // The turn-rate budget derives from the strongest live computer (see
-        // ship_turn_rate).
         let Some(turn_rate) = ship_turn_rate(
             q_computer
                 .iter()
                 .filter(|(_, &ChildOf(parent), _)| parent == ship)
-                .map(|(pd, _, _)| pd.max_torque),
-            inertia,
+                .map(|(pd, _, _)| pd.max_angular_acceleration),
             &settings,
         ) else {
             debug!("autopilot_system: ship {ship:?} lost its flight computer, disengaging");

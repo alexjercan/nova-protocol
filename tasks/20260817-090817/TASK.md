@@ -1,6 +1,6 @@
 # Torque authority is size-blind: big ships cannot turn
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.11.0,ship,combat,physics
 
@@ -50,3 +50,15 @@ limit (fights deliberate anti-stacking doctrine).
 - existing PD + flight lib tests green; a new test pins that two hulls of
   10x different inertia converge a fixed attitude error in comparable time
 - a hand-flown arena capital feels controllable (owner playtest)
+
+## Closure
+
+Landed 2026-08-17.
+
+- Controller authority is now `max_angular_acceleration` in rad/s2. The PD
+  clamps acceleration per principal axis and derives torque from live inertia.
+- Shipped controllers use 0.5 rad/s2. Controller stacking and turn planning use
+  acceleration authority directly.
+- A physics integration test and the `attitude_hold` systems range compare
+  hulls at 10x inertia.
+- Owner playtest: the arena capital feels better and is controllable.

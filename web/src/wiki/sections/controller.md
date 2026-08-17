@@ -31,8 +31,8 @@ A big hull can mount more than one, and steers better for it - with sharply dimi
 | 4 | 1.75x | ~1.32x |
 | 10 | 1.90x | ~1.38x |
 
-The budget can never pass **twice** what one controller is worth, no matter how many you bolt on - a thousand-section freighter is not allowed to pirouette. What keeps improving past that is _precision_: a stacked hull starts arresting its turn earlier, so it stops on the heading you pointed at instead of sailing past and swinging back. A heavy hull that overshot by nine degrees on one controller overshoots by one on ten, and finishes the turn sooner because it is not recovering from its own overshoot.
+The budget can never pass **twice** what one controller is worth, no matter how many you bolt on. Controller authority is authored as angular acceleration, so hull inertia does not weaken it: a capital hull and a light craft carrying the same computer get the same baseline response.
 
-So stacking is for hulls that wallow. A light ship already stops where it is pointed, and a second controller on a fighter buys it nothing but mass and a slightly heavier hand. Two controllers on a barge is the sweet spot; the tenth is dead weight.
+Stacking adds authority and _precision_. A stacked hull starts arresting its turn earlier, so it stops on the heading you pointed at instead of sailing past and swinging back. The second controller gives most of the available gain; the tenth is nearly dead weight.
 
 The other half of stacking is **redundancy**. Lose one of two and the ship does not go brain-dead - it drops to single-controller handling and keeps fighting. Only the last one is the ship's brain.

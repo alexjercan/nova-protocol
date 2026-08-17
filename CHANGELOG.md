@@ -85,8 +85,10 @@ tagged **(breaking)**.
 ### Gameplay & Flight
 
 - **(breaking)** A hull may carry several flight computers and steers better
-  for it, on a curve capped at twice its strongest computer. Torque no longer
-  stacks linearly.
+  for it, on a curve capped at twice its strongest computer. Authority does
+  not stack linearly.
+- **(breaking)** Controller `max_torque` becomes `max_angular_acceleration` in
+  rad/s2; equal controllers now turn hulls consistently at every size.
 - Losing one computer on a stacked hull degrades handling to the smaller stack
   instead of casting the ship adrift; autopilot and neutralization key on "no
   computer LEFT".

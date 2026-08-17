@@ -1361,7 +1361,7 @@ mod patrol_physics_tests {
             PDController {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                max_torque: 40.0,
+                max_angular_acceleration: 40.0,
             },
             PDControllerTarget(ship),
             Transform::from_xyz(0.0, 0.0, 0.0),
