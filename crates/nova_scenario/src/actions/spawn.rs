@@ -138,8 +138,16 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                 ScenarioObjectKind::Anchor(config) => {
                     entity_commands.insert(anchor_scenario_object(config.clone()));
                 }
-                ScenarioObjectKind::Asteroid(config) => {
-                    entity_commands.insert(asteroid_scenario_object(config.clone()));
+                ScenarioObjectKind::Asteroid(asteroid) => {
+                    // The rock builds its own collider node here, in this
+                    // batch, so the body never meets a physics tick without
+                    // it - see `asteroid_scenario_object`. The seed resolves
+                    // at the call site because a command has no RNG to draw
+                    // from: authored wins, else it derives from the id.
+                    let seed = asteroid
+                        .seed
+                        .unwrap_or_else(|| asteroid_seed_from_id(&config.base.id));
+                    asteroid_scenario_object(&mut entity_commands, asteroid.clone(), seed);
                 }
                 ScenarioObjectKind::Spaceship(config) => {
                     entity_commands.insert(spaceship_scenario_object(config.clone()));
@@ -532,8 +540,8 @@ mod tests {
         )));
         app.finish();
 
-        let body = app
-            .world_mut()
+        let world = app.world_mut();
+        let body = world
             .spawn((
                 base_scenario_object(&BaseScenarioObjectConfig {
                     id: "mover".to_string(),
@@ -541,7 +549,17 @@ mod tests {
                     position: Vec3::ZERO,
                     rotation: Quat::IDENTITY,
                 }),
-                asteroid_scenario_object(AsteroidConfig {
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+                LinearVelocity(Vec3::X * 10.0),
+            ))
+            .id();
+        {
+            let mut commands = world.commands();
+            let mut entity_commands = commands.entity(body);
+            asteroid_scenario_object(
+                &mut entity_commands,
+                AsteroidConfig {
                     impact_sound: None,
                     destroy_sound: None,
                     radius: 1.0,
@@ -551,12 +569,11 @@ mod tests {
                     invulnerable: false,
                     seed: None,
                     lock_signature: None,
-                }),
-                Collider::cuboid(1.0, 1.0, 1.0),
-                ColliderDensity(1.0),
-                LinearVelocity(Vec3::X * 10.0),
-            ))
-            .id();
+                },
+                5,
+            );
+        }
+        world.flush();
 
         // Warm up past two fixed ticks so the easing has start+end states.
         for _ in 0..10 {
@@ -1048,7 +1065,7 @@ mod tests {
             min_separation: None,
         };
 
-        let run = |config: &ScatterObjectsConfig| -> Vec<(String, Option<u32>)> {
+        let run = |config: &ScatterObjectsConfig| -> Vec<(String, u32)> {
             let mut world = World::new();
             world.init_resource::<NovaEventWorld>();
             world.init_resource::<GameObjectives>();
@@ -1059,7 +1076,7 @@ mod tests {
             drain(&mut world);
             let mut query =
                 world.query_filtered::<(&EntityId, &AsteroidSeed), With<AsteroidMarker>>();
-            let mut seeds: Vec<(String, Option<u32>)> = query
+            let mut seeds: Vec<(String, u32)> = query
                 .iter(&world)
                 .map(|(id, seed)| (id.0.clone(), **seed))
                 .collect();
@@ -1070,12 +1087,7 @@ mod tests {
         let derived = config(None);
         let first = run(&derived);
         assert_eq!(first.len(), 6);
-        assert!(
-            first.iter().all(|(_, seed)| seed.is_some()),
-            "every scattered rock gets a silhouette seed: {first:?}"
-        );
-        let distinct: std::collections::HashSet<_> =
-            first.iter().map(|(_, seed)| seed.unwrap()).collect();
+        let distinct: std::collections::HashSet<_> = first.iter().map(|(_, seed)| *seed).collect();
         assert!(
             distinct.len() > 1,
             "per-rock seeds differ; identical copies are the AUTHORED case"
@@ -1084,7 +1096,7 @@ mod tests {
 
         let authored = run(&config(Some(42)));
         assert!(
-            authored.iter().all(|(_, seed)| *seed == Some(42)),
+            authored.iter().all(|(_, seed)| *seed == 42),
             "an authored template seed is kept on every copy: {authored:?}"
         );
     }

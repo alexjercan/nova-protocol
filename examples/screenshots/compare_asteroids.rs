@@ -132,7 +132,7 @@ fn load_scene(
         "Asteroid Texture Compare",
     )));
 
-    // The exact mesh pipeline `insert_asteroid_collider` runs, at a pinned
+    // The exact mesh pipeline `asteroid_scenario_object` runs, at a pinned
     // seed so every subject is the same rock.
     let planet = PlanetHeight::default().with_seed(ROCK_SEED).sampler();
     let mesh = meshes.add(

@@ -64,7 +64,7 @@ default mass and radar signature together.
 | `impact_sound` | `Option` asset ref | `None` | played on hit (`Some("dep://base/sounds/impact.wav")`); omitted = silent |
 | `destroy_sound` | `Option` asset ref | `None` | played on destruction; omitted = silent |
 | `lock_signature` | `Option` number | `None` | radar signature override; `None` = the radius (big rocks lock far) |
-| `seed` | `Option` number | `None` | silhouette seed. `Some` pins the generated shape (and the derived geometric extent) across runs; `None` = a fresh silhouette per spawn. [`ScatterObjects`](../actions/#scatterobjects) fills it deterministically from its own seed |
+| `seed` | `Option` number | `None` | silhouette seed. `Some` pins the generated shape (and the derived geometric extent) across runs; `None` derives one from the object's own `id`, so a rock differs from its neighbours but keeps its shape on every load. [`ScatterObjects`](../actions/#scatterobjects) fills it deterministically from its own seed |
 
 ```ron
 SpawnScenarioObject((

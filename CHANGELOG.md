@@ -274,6 +274,11 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- Asteroids stop logging "no mass or inertia": a rock builds its collider in
+  the same command batch as its body, so no physics tick sees it massless.
+- **(breaking)** An asteroid without an authored `seed` derives its silhouette
+  from its object id: one rock per id still, but the same rock on every load
+  instead of a fresh draw.
 - `neutralized_quiet` no longer flakes: its control half latches the first
   defending mount instead of re-reading a trigger that drops for a frame while
   the barrel slews.

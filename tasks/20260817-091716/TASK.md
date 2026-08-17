@@ -36,3 +36,31 @@ nobody has found yet.
 
 - the repro exists and is green post-fix; the avian massless warning is
   gone from arena runs; workaround status decided and documented
+
+## Progress (2026-08-17)
+
+Investigated; see NOTES.md for the evidence. The premise above is WRONG - a
+controller-less hull composes its mass like any other, proven headless and
+across five instrumented arena runs, and zero mass is not NaN (avian reads
+inverse mass 0 as INFINITE mass and the contact solve stays finite). The
+warning marks the window between `Add<RigidBody>`, where avian computes mass
+with no collider linked, and the deferred `ColliderOf` link.
+
+Landed (option A1): asteroids build their collider node in the SAME command
+batch as the body, so the window closes for rocks - zero rock warnings in two
+unfrozen arena runs, was 2-3 every run. The arena's `freeze_junk` keeps its
+pin as a FRAMING choice and its comment no longer carries the disproven NaN
+story.
+
+Left open:
+
+- torpedoes still take the window at launch (14-16 one-frame warnings per
+  arena run). They already batch their collider children, so closing it needs
+  the collider on the projectile root or an authored mass.
+- the PERMANENT variant is the one worth an invariant: a dynamic body that
+  never gets a collider or loses its last one (the asteroid husk, already
+  reaped; a ship root outliving its sections). Owner has not decided whether
+  to pin it.
+- one unfrozen arena run in five went bad (guns silent 45 s, both fleets
+  erased within 0.1 s of the first torpedo salvo) with no NaN in the physics
+  state. Not a mass problem; worth its own look at the fight itself.

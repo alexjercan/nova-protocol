@@ -158,9 +158,7 @@
 //! damage - the step deadline makes a fight that never happens a loud failure,
 //! not a quiet pose - then shoot the brawl mid-swing.
 
-// Only for freezing the junk: a controller-less hull spawns as a MASSLESS
-// dynamic body (avian warns it can go NaN), and twenty of them corrupted the
-// physics the combat queries read - see `freeze_junk`.
+// Only for freezing the junk, which is a FRAMING choice - see `freeze_junk`.
 use avian3d::prelude::RigidBody;
 use bevy::{platform::collections::HashMap, prelude::*};
 // The player slot's weapon bindings are authored in the game's own binding
@@ -1043,16 +1041,19 @@ fn rock_ring(
 
 /// Pin every junk fragment static the moment it lands.
 ///
-/// Two reasons, both real. A `SpaceshipController::None` hull spawns as a
-/// massless dynamic body (avian warns "no mass or inertia ... can cause NaN"
-/// per fragment), and at twenty fragments the driven fights DIED of it:
-/// three walks in a row had guns fall near-silent and the first salvo erase
-/// its victim, and the same build with the junk pinned fights normally - a
-/// NaN body poisons the spatial queries every aim and line-of-fire check
-/// reads. And junk is SCENERY: wreckage that holds its pose keeps the blobs
-/// composed the way the seed placed them. Same command-swap idiom as the
-/// harness `freeze_bodies`, scoped to the junk prefix; every frame because
-/// `R` respawns the junk with the fight.
+/// Junk is SCENERY: wreckage that holds its pose keeps the blobs composed the
+/// way the seed placed them, and a fight that drifts its own set is not the
+/// same capture twice. Same command-swap idiom as the harness
+/// `freeze_bodies`, scoped to the junk prefix; every frame because `R`
+/// respawns the junk with the fight.
+///
+/// This used to claim a second reason - that a `SpaceshipController::None`
+/// hull spawns MASSLESS and NaN-poisons the spatial queries combat aims
+/// through. That was investigated and is not true (task 20260817-091716): a
+/// controller-less hull composes its mass from its sections like any other,
+/// no fragment was ever massless across five instrumented runs, and unfrozen
+/// runs fight exactly like frozen ones. The pin stays for the framing, not
+/// for the physics.
 fn freeze_junk(
     mut commands: Commands,
     q_junk: Query<(Entity, &RigidBody, &EntityId), With<SpaceshipRootMarker>>,

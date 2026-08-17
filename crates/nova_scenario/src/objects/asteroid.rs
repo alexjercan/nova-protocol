@@ -8,22 +8,20 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_rand::prelude::*;
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use nova_events::prelude::{CommandsGameEventExt, *};
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
 use nova_ship::prelude::*;
-use rand::Rng;
 
 /// The asteroid scenario object and its config, the radius, mass, mesh and texture components, the
 /// geometric-factor bounds and `AsteroidPlugin`.
 pub mod prelude {
     pub use super::{
-        asteroid_scenario_object, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,
-        AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidSeed,
-        AsteroidTexture, PlanetHeight, PlanetHeightNoise, ASTEROID_GEOMETRIC_FACTOR_MAX,
-        ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
+        asteroid_scenario_object, asteroid_seed_from_id, AsteroidConfig, AsteroidInvulnerable,
+        AsteroidMarker, AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh,
+        AsteroidSeed, AsteroidTexture, PlanetHeight, PlanetHeightNoise,
+        ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
     };
 }
 
@@ -90,10 +88,12 @@ pub struct AsteroidConfig {
     )]
     pub lock_signature: Option<f32>,
     /// Silhouette seed for the noise mesh. `Some` pins the generated shape -
-    /// and with it the derived geometric `BodyRadius` - across runs, so
-    /// content that authors clearances around this rock (patrol lanes, orbit
-    /// gates) holds on every load. `None` draws from the global RNG: a fresh
-    /// silhouette per spawn. `ScatterObjects` fills this deterministically
+    /// and with it the derived geometric `BodyRadius` - so content that
+    /// authors clearances around this rock (patrol lanes, orbit gates) holds
+    /// on every load. `None` derives one from the object's own id
+    /// ([`asteroid_seed_from_id`]): still a different silhouette per rock, but
+    /// the SAME one on every load, where it used to be a fresh draw from the
+    /// global RNG per spawn. `ScatterObjects` fills this deterministically
     /// from its own seed, so scattered fields are stable without authoring
     /// per-rock seeds.
     #[cfg_attr(
@@ -103,17 +103,67 @@ pub struct AsteroidConfig {
     pub seed: Option<u32>,
 }
 
-/// Build the asteroid-root bundle from an [`AsteroidConfig`]: the marker, type
-/// name, and the components the asteroid observers read to derive the collider,
-/// gravity well, sounds, and lock signature at spawn.
-pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
-    debug!("asteroid_scenario_object: config {:?}", config);
+/// The silhouette seed an asteroid gets when its config authors none: a stable
+/// hash (FNV-1a) of the scenario object's own id.
+///
+/// Derived rather than drawn from the global RNG so the rock is BUILT IN THE
+/// SAME COMMAND BATCH as its body - see [`asteroid_scenario_object`] for why
+/// that matters - and stable rather than fresh per spawn, which is what a
+/// re-run capture and a reloaded save both want. Ids are unique within a
+/// scenario, so rocks in a field still differ from each other.
+pub fn asteroid_seed_from_id(id: &str) -> u32 {
+    let mut hash: u32 = 0x811c_9dc5;
+    for byte in id.as_bytes() {
+        hash ^= *byte as u32;
+        hash = hash.wrapping_mul(0x0100_0193);
+    }
+    hash
+}
 
-    (
+/// Build the whole asteroid onto `entity`: the root (marker, radius, sounds,
+/// lock signature, body) AND its collider/health node, from one
+/// [`AsteroidConfig`] and a resolved silhouette `seed`.
+///
+/// Takes `EntityCommands` rather than returning a bundle, unlike its sibling
+/// scenario objects, because the collider node has to land in the SAME command
+/// batch as `RigidBody`. avian computes a body's mass twice: once from an
+/// `Add<RigidBody>` observer, when no collider is linked yet and the answer is
+/// therefore ZERO, and again when the collider link (`ColliderOf`, itself a
+/// deferred insert) arrives. A rock whose node was inserted by a LATER observer
+/// spent a whole extra command hop in between, and any physics tick that landed
+/// in that hop saw a dynamic body with no mass - which is exactly what avian's
+/// "has no mass or inertia" warning reports, and it is what the arena logged
+/// for a handful of its rocks every run (task 20260817-091716).
+///
+/// The seed is resolved by the CALLER because the mesh is generated here: an
+/// authored seed wins, and an unseeded rock derives one from its id through
+/// [`asteroid_seed_from_id`] rather than the global RNG, which a bundle built
+/// inside a command has no access to.
+pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidConfig, seed: u32) {
+    debug!("asteroid_scenario_object: config {:?} seed {seed}", config);
+
+    let planet = PlanetHeight::default().with_seed(seed).sampler();
+    let mesh = TriangleMeshBuilder::new_octahedron(3)
+        .apply_noise(&planet)
+        .build();
+    let collider = Collider::trimesh_from_mesh(&mesh).unwrap_or(Collider::sphere(1.0));
+
+    // The true geometric radius, from the collider volume itself: the
+    // noise displaces the unit sphere's vertices OUTWARD (PlanetHeight is
+    // non-negative), so the rock's real edge sits past the nominal radius
+    // - sometimes far past. Everything that measures from the surface
+    // (GOTO standoff, orbit clearance) reads this derived BodyRadius, not
+    // the designation radius (2026-07-10 playtest: "still stops too
+    // close"). The child mesh is unit-scale, scaled by `radius` on its
+    // Transform, so the world extent is radius * the outermost vertex.
+    let unit_extent = mesh_max_vertex_radius(&mesh).max(1.0);
+    let radius = config.radius;
+
+    entity.insert((
         AsteroidMarker,
         EntityTypeName::new(ASTEROID_TYPE_NAME),
         AsteroidTexture(config.texture),
-        AsteroidRadius(config.radius),
+        AsteroidRadius(radius),
         AsteroidHealth(config.health),
         ImpactDestroySounds {
             impact: config.impact_sound.clone(),
@@ -121,12 +171,12 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         },
         AsteroidInvulnerable(config.invulnerable),
         AsteroidMass(config.mass),
-        AsteroidSeed(config.seed),
+        AsteroidSeed(seed),
         // The lock scanner sees a rock in proportion to its size: field
         // rocks only lock up close, big bodies from afar (well sources
         // are range-free in the targeting gate anyway). An authored
         // override wins (the shakedown derelict).
-        LockSignature(config.lock_signature.unwrap_or(config.radius)),
+        LockSignature(config.lock_signature.unwrap_or(radius)),
         // Asteroids are worth scoping in the target inset (a physical combat
         // body, unlike a nav beacon), so flag them zoomable.
         InsetZoomable,
@@ -137,11 +187,29 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         // smoothed chase camera, so it needs this even though the well sources
         // insert_asteroid_gravity_well puts on rails do not.
         TransformInterpolation,
-        // BodyRadius (the surface the GOTO standoff and the orbit band
-        // measure from) is NOT authored here: the noise-displaced mesh
-        // reaches past the nominal radius, so insert_asteroid_collider
-        // derives it from the generated collider's outermost vertex.
-    )
+        // The DERIVED surface, not the designation radius. Its `Add` is also
+        // what sequences the gravity well after this build.
+        BodyRadius(radius * unit_extent),
+    ));
+
+    entity.with_children(|parent| {
+        let mut node = parent.spawn((
+            Transform::from_scale(Vec3::splat(radius)),
+            AsteroidRenderMesh(mesh),
+            collider,
+            ConnectedTo::default(),
+            ColliderDensity(1.0),
+            Visibility::Inherited,
+        ));
+        if !config.invulnerable {
+            // An invulnerable rock gets NO Health: the integrity pipeline has
+            // nothing to deplete, so the body (and its well) cannot be
+            // destroyed. Health + ExplodableEntity is the rest of
+            // `destructible_body`, whose density and visibility every node
+            // above already carries.
+            node.insert((Health::new(config.health), ExplodableEntity));
+        }
+    });
 }
 
 /// Marks an asteroid root (a `RigidBody` parent whose collider/health live on a
@@ -158,7 +226,7 @@ pub struct AsteroidMarker;
 pub struct AsteroidTexture(#[reflect(ignore)] pub AssetRef<Image>);
 
 /// The noise-generated asteroid mesh, placed on the collider child by
-/// `insert_asteroid_collider`; `insert_asteroid_render` keys on its `Add` to
+/// [`asteroid_scenario_object`]; `insert_asteroid_render` keys on its `Add` to
 /// build the rendered `Mesh3d` + material.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidRenderMesh(pub Mesh);
@@ -185,10 +253,12 @@ pub struct AsteroidInvulnerable(pub bool);
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidMass(pub Option<f32>);
 
-/// The authored silhouette seed (see [`AsteroidConfig::seed`]), carried on the
-/// root; `insert_asteroid_collider` uses it in place of the global RNG.
-#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-pub struct AsteroidSeed(pub Option<u32>);
+/// The RESOLVED silhouette seed this rock was generated from: the authored
+/// [`AsteroidConfig::seed`] when there is one, otherwise the id-derived
+/// [`asteroid_seed_from_id`]. Carried on the root so a reader can tell which
+/// silhouette it is looking at.
+#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+pub struct AsteroidSeed(pub u32);
 
 /// Marks an asteroid root whose collider/health node has been destroyed, so its
 /// now-empty `RigidBody` husk is despawned next frame (see `despawn_asteroid_husk`).
@@ -215,7 +285,6 @@ impl Plugin for AsteroidPlugin {
         // init here too so the asteroid observer works in scenario-only apps.
         app.init_resource::<GravitySettings>();
 
-        app.add_observer(insert_asteroid_collider);
         app.add_observer(insert_asteroid_gravity_well);
         app.add_observer(on_asteroid_node_destroyed);
         app.add_systems(Update, despawn_asteroid_husk);
@@ -319,78 +388,6 @@ fn insert_asteroid_gravity_well(
         GravityWell::from_mass(mu, **body_radius, &settings),
         RigidBody::Static,
     ));
-}
-
-fn insert_asteroid_collider(
-    add: On<Add, AsteroidMarker>,
-    mut commands: Commands,
-    q_asteroid: Query<
-        (
-            &AsteroidRadius,
-            &AsteroidHealth,
-            &AsteroidInvulnerable,
-            &AsteroidSeed,
-        ),
-        With<AsteroidMarker>,
-    >,
-    mut rng: Single<&mut WyRand, With<GlobalRng>>,
-) {
-    let entity = add.entity;
-    trace!("insert_asteroid_render: entity {:?}", entity);
-
-    let Ok((radius, health, invulnerable, seed)) = q_asteroid.get(entity) else {
-        error!(
-            "insert_asteroid_render: entity {:?} not found in q_asteroid",
-            entity
-        );
-        return;
-    };
-
-    let seed = (**seed).unwrap_or_else(|| rng.next_u32());
-    let planet = PlanetHeight::default().with_seed(seed).sampler();
-    let mesh = TriangleMeshBuilder::new_octahedron(3)
-        .apply_noise(&planet)
-        .build();
-    let collider = Collider::trimesh_from_mesh(&mesh).unwrap_or(Collider::sphere(1.0));
-
-    // The true geometric radius, from the collider volume itself: the
-    // noise displaces the unit sphere's vertices OUTWARD (PlanetHeight is
-    // non-negative), so the rock's real edge sits past the nominal radius
-    // - sometimes far past. Everything that measures from the surface
-    // (GOTO standoff, orbit clearance) reads this derived BodyRadius, not
-    // the designation radius (2026-07-10 playtest: "still stops too
-    // close"). The child mesh is unit-scale, scaled by `radius` on its
-    // Transform, so the world extent is radius * the outermost vertex.
-    let unit_extent = mesh_max_vertex_radius(&mesh).max(1.0);
-    commands
-        .entity(entity)
-        .insert(BodyRadius(**radius * unit_extent));
-
-    if **invulnerable {
-        // No Health on the node: the integrity pipeline has nothing to
-        // deplete, so the body (and its well) cannot be destroyed. The
-        // rest matches destructible_body minus the health.
-        commands.entity(entity).insert((children![(
-            Transform::from_scale(Vec3::splat(**radius)),
-            AsteroidRenderMesh(mesh.clone()),
-            collider,
-            ConnectedTo::default(),
-            ColliderDensity(1.0),
-            Visibility::Inherited,
-        )],));
-    } else {
-        commands.entity(entity).insert((children![(
-            Transform::from_scale(Vec3::splat(**radius)),
-            AsteroidRenderMesh(mesh.clone()),
-            collider,
-            ConnectedTo::default(),
-            destructible_body(**health, 1.0),
-            // destructible_body (nova_gameplay::integrity::health) is Health +
-            // density + visibility; add
-            // ExplodableEntity so the asteroid enters nova's explode pipeline on destruction.
-            ExplodableEntity,
-        )],));
-    }
 }
 
 /// Bounds on the unit-mesh geometric factor: how far the noise-displaced
@@ -554,7 +551,7 @@ const RIVER_DEPTH: f64 = 0.0234375;
 
 /// The parameter set for the Perlin-FBM terrain noise that displaces an
 /// asteroid's unit sphere (seed plus the continent/mountain/hills/etc tuning
-/// constants). Also a `NoiseFn`; `insert_asteroid_collider` builds a
+/// constants). Also a `NoiseFn`; [`asteroid_scenario_object`] builds a
 /// per-asteroid `PlanetHeight::default().with_seed(..)` to shape the mesh.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct PlanetHeight {
@@ -806,7 +803,7 @@ mod tests {
 
     /// Pin ASTEROID_GEOMETRIC_FACTOR_MIN/MAX against the real mesh
     /// generator: sweep the production noise + mesh path (the exact
-    /// pipeline insert_asteroid_collider runs) across a spread of seeds
+    /// pipeline asteroid_scenario_object runs) across a spread of seeds
     /// and require every factor inside the exported bounds. Content
     /// authored against the derived geometry (the shakedown orbit gate)
     /// cites these consts; a noise retune that widens the real range
@@ -930,6 +927,36 @@ mod tests {
         app
     }
 
+    /// Every rock, root AND collider node, in ONE command batch - the whole
+    /// point of the builder taking `EntityCommands`. A body that reached a
+    /// physics tick before its node landed spent that tick massless
+    /// (task 20260817-091716).
+    #[test]
+    fn the_collider_node_lands_in_the_same_batch_as_the_body() {
+        let mut app = App::new();
+        let asteroid = spawn_rock(&mut app, rock(20.0, None), 7);
+
+        // No update() anywhere: everything below is true the moment the
+        // spawning batch has been applied.
+        assert!(
+            app.world().get::<RigidBody>(asteroid).is_some(),
+            "the body is on the root"
+        );
+        let node = app
+            .world()
+            .get::<Children>(asteroid)
+            .and_then(|children| children.iter().next())
+            .expect("the collider node is a child of the root");
+        assert!(
+            app.world().get::<Collider>(node).is_some(),
+            "the collider is on the node, in the same batch as the body"
+        );
+        assert!(
+            app.world().get::<BodyRadius>(asteroid).is_some(),
+            "the derived surface lands with the body too"
+        );
+    }
+
     #[test]
     fn body_radius_derives_from_the_generated_collider() {
         // The noise-displaced mesh reaches past the nominal radius, so
@@ -938,20 +965,13 @@ mod tests {
         // GOTO "still stops too close" when measured from the nominal
         // sphere).
         let mut app = App::new();
-        app.add_plugins(EntropyPlugin::<WyRand>::default());
-        app.add_observer(insert_asteroid_collider);
-        // Let the entropy plugin spawn the global rng before the
-        // asteroid observer needs it.
-        app.update();
-
-        let asteroid = spawn_asteroid(&mut app, 20.0, None);
-        app.update();
+        let asteroid = spawn_rock(&mut app, rock(20.0, None), 4242);
 
         let derived = app
             .world()
             .get::<BodyRadius>(asteroid)
             .map(|r| **r)
-            .expect("the collider observer derives BodyRadius");
+            .expect("the builder derives BodyRadius");
         assert!(
             derived >= 20.0,
             "the noise only displaces outward, got {derived}"
@@ -963,36 +983,14 @@ mod tests {
     }
 
     #[test]
-    fn an_authored_seed_pins_the_silhouette() {
+    fn a_seed_pins_the_silhouette_and_a_different_one_moves_it() {
         // Same seed, same rock: the derived geometric BodyRadius is what
         // authored clearances (patrol lanes, orbit gates) are measured
-        // against, so it must not drift run to run. The global RNG advances
-        // between the two spawns; a seeded rock must not care.
+        // against, so it must not drift run to run.
         let mut app = App::new();
-        app.add_plugins(EntropyPlugin::<WyRand>::default());
-        app.add_observer(insert_asteroid_collider);
-        app.update();
-
-        let spawn_seeded = |app: &mut App| -> Entity {
-            app.world_mut()
-                .spawn(asteroid_scenario_object(AsteroidConfig {
-                    impact_sound: None,
-                    destroy_sound: None,
-                    radius: 10.0,
-                    texture: AssetRef::default(),
-                    health: 100.0,
-                    mass: None,
-                    invulnerable: false,
-                    seed: Some(7),
-                    lock_signature: None,
-                }))
-                .id()
-        };
-        let first = spawn_seeded(&mut app);
-        // An unseeded rock in between advances the global RNG stream.
-        spawn_asteroid(&mut app, 10.0, None);
-        let second = spawn_seeded(&mut app);
-        app.update();
+        let first = spawn_rock(&mut app, rock(10.0, None), 7);
+        let second = spawn_rock(&mut app, rock(10.0, None), 7);
+        let other = spawn_rock(&mut app, rock(10.0, None), 8);
 
         let radius_of = |app: &App, entity: Entity| -> f32 {
             app.world()
@@ -1003,26 +1001,43 @@ mod tests {
         assert_eq!(
             radius_of(&app, first),
             radius_of(&app, second),
-            "one seed, one silhouette, regardless of the global RNG"
+            "one seed, one silhouette"
+        );
+        assert_ne!(
+            radius_of(&app, first),
+            radius_of(&app, other),
+            "delivery guard: another seed is another rock"
+        );
+    }
+
+    /// An unseeded rock derives its silhouette from its own id, so it is a
+    /// different rock from its neighbour and the SAME rock on the next load.
+    #[test]
+    fn an_unseeded_rock_derives_a_stable_seed_from_its_id() {
+        assert_eq!(
+            asteroid_seed_from_id("field_rock_3"),
+            asteroid_seed_from_id("field_rock_3"),
+            "the same id is the same rock on every load"
+        );
+        assert_ne!(
+            asteroid_seed_from_id("field_rock_3"),
+            asteroid_seed_from_id("field_rock_4"),
+            "neighbours in a field are not clones"
         );
     }
 
     #[test]
     fn the_well_derives_from_the_geometric_radius() {
-        // The full observer chain: the collider observer derives
-        // BodyRadius from the mesh, and the well observer (triggered by
-        // that insert) sizes the well on the GEOMETRIC radius - a well
+        // The well observer, triggered by the BodyRadius the builder derives
+        // from the mesh, sizes the well on the GEOMETRIC radius - a well
         // sized on the nominal sphere cannot contain an orbit band above
         // the real surface (2026-07-10 "no stable band" regression).
         let mut app = App::new();
         app.init_resource::<GravitySettings>();
-        app.add_plugins(EntropyPlugin::<WyRand>::default());
-        app.add_observer(insert_asteroid_collider);
         app.add_observer(insert_asteroid_gravity_well);
-        app.update();
 
         let settings = GravitySettings::default();
-        let asteroid = spawn_asteroid_underived(&mut app, 20.0, Some(45_000.0));
+        let asteroid = spawn_rock(&mut app, rock(20.0, Some(45_000.0)), 11);
         app.update();
 
         let derived = app
@@ -1053,34 +1068,21 @@ mod tests {
     #[test]
     fn invulnerable_asteroids_get_no_health_node() {
         let mut app = App::new();
-        app.add_plugins(EntropyPlugin::<WyRand>::default());
-        app.add_observer(insert_asteroid_collider);
-        app.update();
 
         let spawn = |app: &mut App, invulnerable: bool| -> Entity {
-            app.world_mut()
-                .spawn(asteroid_scenario_object(AsteroidConfig {
-                    impact_sound: None,
-                    destroy_sound: None,
-                    radius: 20.0,
-                    texture: AssetRef::default(),
-                    health: 2000.0,
-                    mass: Some(45_000.0),
-                    invulnerable,
-                    seed: None,
-                    lock_signature: None,
-                }))
-                .id()
+            let mut config = rock(20.0, Some(45_000.0));
+            config.health = 2000.0;
+            config.invulnerable = invulnerable;
+            spawn_rock(app, config, 3)
         };
         let tough = spawn(&mut app, true);
         let normal = spawn(&mut app, false);
-        app.update();
 
         let child_of = |app: &mut App, root: Entity| -> Entity {
             app.world()
                 .get::<Children>(root)
                 .and_then(|children| children.iter().next())
-                .expect("the collider observer spawns the node child")
+                .expect("the builder spawns the node child")
         };
         let tough_node = child_of(&mut app, tough);
         let normal_node = child_of(&mut app, normal);
@@ -1099,24 +1101,6 @@ mod tests {
         );
     }
 
-    /// The raw scenario bundle without the test stand-in BodyRadius, for
-    /// tests that run the real collider derivation.
-    fn spawn_asteroid_underived(app: &mut App, radius: f32, mass: Option<f32>) -> Entity {
-        app.world_mut()
-            .spawn(asteroid_scenario_object(AsteroidConfig {
-                impact_sound: None,
-                destroy_sound: None,
-                radius,
-                texture: AssetRef::default(),
-                health: 100.0,
-                mass,
-                invulnerable: false,
-                seed: None,
-                lock_signature: None,
-            }))
-            .id()
-    }
-
     #[test]
     fn mesh_max_vertex_radius_finds_the_outermost_vertex() {
         let mesh = TriangleMeshBuilder::new_octahedron(1).build();
@@ -1127,45 +1111,57 @@ mod tests {
         );
     }
 
-    /// Spawn an asteroid the way the scenario does: the base bundle's
-    /// dynamic rigid body plus the asteroid components, minus render bits.
-    fn spawn_asteroid(app: &mut App, radius: f32, mass: Option<f32>) -> Entity {
-        app.world_mut()
-            .spawn((
-                asteroid_scenario_object(AsteroidConfig {
-                    impact_sound: None,
-                    destroy_sound: None,
-                    radius,
-                    texture: AssetRef::default(),
-                    health: 100.0,
-                    mass,
-                    invulnerable: false,
-                    seed: None,
-                    lock_signature: None,
-                }),
-                // In the real pipeline the collider observer derives this
-                // from the generated mesh; the well tests stand in with a
-                // unit extent so mu/SOI expectations stay exact.
-                BodyRadius(radius),
-            ))
-            .id()
+    /// The authored config every rock test starts from.
+    fn rock(radius: f32, mass: Option<f32>) -> AsteroidConfig {
+        AsteroidConfig {
+            impact_sound: None,
+            destroy_sound: None,
+            radius,
+            texture: AssetRef::default(),
+            health: 100.0,
+            mass,
+            invulnerable: false,
+            seed: None,
+            lock_signature: None,
+        }
+    }
+
+    /// Spawn a rock exactly as the scenario spawn action does: one entity,
+    /// one command batch, root and collider node together.
+    fn spawn_rock(app: &mut App, config: AsteroidConfig, seed: u32) -> Entity {
+        let world = app.world_mut();
+        let entity = world.spawn_empty().id();
+        {
+            let mut commands = world.commands();
+            let mut entity_commands = commands.entity(entity);
+            asteroid_scenario_object(&mut entity_commands, config, seed);
+        }
+        world.flush();
+        entity
+    }
+
+    /// The derived geometric surface the well is sized on.
+    fn body_radius(app: &App, entity: Entity) -> f32 {
+        app.world()
+            .get::<BodyRadius>(entity)
+            .map(|radius| **radius)
+            .expect("derived BodyRadius")
     }
 
     #[test]
     fn a_big_rock_gets_a_default_well_and_a_field_rock_gets_none() {
         let mut app = gravity_app();
         let settings = GravitySettings::default();
-        let big = spawn_asteroid(&mut app, 20.0, None);
-        let small = spawn_asteroid(&mut app, 2.0, None);
+        let big = spawn_rock(&mut app, rock(20.0, None), 21);
+        let small = spawn_rock(&mut app, rock(2.0, None), 22);
         app.update();
 
-        // The default mass, through the same constructor the observer uses:
-        // this stand-in's BodyRadius is the NOMINAL 20u (the real pipeline
-        // derives 70-120u from the mesh), small enough that the escapability
-        // cap trims the default mass - which is the wiring being pinned here,
-        // not the numbers.
+        // The default mass, through the same constructor the observer uses,
+        // measured against the rock's OWN derived surface: qualification is
+        // on the nominal radius, the well's numbers are not.
         let well = app.world().get::<GravityWell>(big).expect("big rock well");
-        let expected = GravityWell::from_mass(settings.default_mass, 20.0, &settings);
+        let expected =
+            GravityWell::from_mass(settings.default_mass, body_radius(&app, big), &settings);
         assert_eq!(well.mu, expected.mu);
         assert_eq!(well.soi_radius, expected.soi_radius);
         assert!(
@@ -1201,9 +1197,9 @@ mod tests {
         let mut app = gravity_app();
         let settings = GravitySettings::default();
         // Authored well on a rock below the threshold: still a well.
-        let small = spawn_asteroid(&mut app, 2.0, Some(4.0));
+        let small = spawn_rock(&mut app, rock(2.0, Some(4.0)), 31);
         // Authored mass beyond the guardrail: capped, not honored.
-        let hot = spawn_asteroid(&mut app, 20.0, Some(500_000.0));
+        let hot = spawn_rock(&mut app, rock(20.0, Some(500_000.0)), 32);
         app.update();
 
         let small_well = app
@@ -1212,7 +1208,13 @@ mod tests {
             .expect("authored well");
         assert_eq!(small_well.mu, 4.0);
         let hot_well = app.world().get::<GravityWell>(hot).expect("capped well");
-        assert_eq!(hot_well.mu, settings.max_surface_gravity * 400.0);
+        // The cap is surface gravity over the rock's real surface, so it
+        // reads the derived radius rather than the nominal one.
+        let surface = body_radius(&app, hot);
+        assert_eq!(
+            hot_well.mu,
+            settings.max_surface_gravity * surface * surface
+        );
     }
 
     #[test]
