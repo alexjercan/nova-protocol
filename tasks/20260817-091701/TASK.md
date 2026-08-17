@@ -1,8 +1,8 @@
 # CI actually runs the mesh generator checks
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 46
-- TAGS: v0.11.0,ci,art
+- TAGS: v0.11.0,ci,art,wontdo
 
 ## The gap
 
