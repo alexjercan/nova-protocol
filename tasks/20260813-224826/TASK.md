@@ -257,6 +257,44 @@ additive fallback for those bodies and leaves every other effect standing.
 - Island severing, chunk spawning and loot (`DESIGN-round3.md` B2 stage 3) stay
   out. This phase never asked for them.
 
+### Phase 4b - carving that throws real bodies (2026-08-18)
+
+Owner-approved after the Phase 4 review. Phase 4 made a crater; the review asked
+why the material that came out of it was cosmetic when a DESTROYED body already
+breaks into rigid pieces. Eight steps, in order.
+
+#### 1. Every rock is one shape - DONE
+
+- The pristine mesh is now `pristine_rock_mesh(seed)`, which is
+  `pristine_field(seed)` meshed. It used to be a subdivided octahedron displaced
+  by the same noise, and the two agreed only to within a cell: the first hit on
+  a rock moved its silhouette and changed the size of every facet on it, which
+  read as the rock being swapped rather than dented.
+- The field is DROPPED after meshing (140 KB a rock, and most rocks are never
+  touched) and rebuilt from the same seed on the first hit. Same function, same
+  grid, so the reseed reproduces the mesh exactly.
+- `RockHeightNoise::reach` replaces the fixed `ROCK_SURFACE_MIN` bound: it
+  measures where THIS rock's surface can be, which sizes the field's domain and
+  lets the sampler settle a point's sign outside that shell without paying for
+  the noise.
+- The reach is a BOUND, not an estimate, and getting that wrong is silent: a
+  rock reaching past its domain is clipped flat against the grid wall. Measured
+  against a 200k-direction spread over 64 seeds, a sampled peak falls short by
+  up to 6.4% at 512 directions and 2.3% at 2048, converging like one over the
+  root of the count. So: 2048 directions, widened 10% inward and 5% outward, and
+  a test that checks the bound holds against a 40x finer spread.
+- MEASURED, native (`carve_asteroids`, `RUST_LOG=nova_scenario=debug`): 6.0-9.3
+  ms to mesh a rock at spawn, against 4.9-7.4 ms to seed a field alone, so the
+  surface nets and the collider build are about a millisecond of it. The
+  largest shipped scatter is 40 rocks (`weave`), so the worst load cost is about
+  280 ms, once, behind a loading screen.
+- Retired with it: the `NoiseFn` adapter on `RockHeightNoise` (nothing displaces
+  a sphere by a rock any more) and `ROCK_SURFACE_MIN`.
+- `compare_asteroids` and the geometric-factor sweep both moved onto the
+  production mesh path. The sweep runs 24 seeds instead of 256: meshing a rock
+  costs a hundred times what displacing an octahedron did, and the analytic
+  sweep in `asteroid_surface` still covers the noise across seeds at full width.
+
 ### Phase 5 - the finale, and delete the slicer
 
 - What is left of a body at death comes apart into bounded debris with

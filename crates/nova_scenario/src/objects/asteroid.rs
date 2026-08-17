@@ -14,8 +14,9 @@ use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
 use nova_ship::prelude::*;
 
-use super::asteroid_surface::prelude::{
-    AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt, RockHeight,
+use super::{
+    asteroid_carve::pristine_rock_mesh,
+    asteroid_surface::prelude::{AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt},
 };
 
 /// The asteroid scenario object and its config, the radius, mass, mesh and texture components, the
@@ -146,24 +147,27 @@ pub fn asteroid_seed_from_id(id: &str) -> u32 {
 pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidConfig, seed: u32) {
     debug!("asteroid_scenario_object: config {:?} seed {seed}", config);
 
-    // The ROCK generator, not the planet one: signed, so the surface is cut
-    // into as well as grown out of, and stretched per seed so a rock has a long
-    // axis. See `asteroid_surface` for why a planet generator made every rock
-    // look like a ball with lumps on it.
-    let rock = RockHeight::default().with_seed(seed).sampler();
-    let mesh = TriangleMeshBuilder::new_octahedron(3)
-        .apply_noise(&rock)
-        .build();
+    // Meshed from the rock's own carve field, so an untouched rock and a
+    // cratered one are the same shape at the same facet density. See
+    // `asteroid_carve` for why building the shipped mesh a second way was a
+    // visible pop on the first hit, and `asteroid_surface` for why a planet
+    // generator made every rock look like a ball with lumps on it.
+    let started = std::time::Instant::now();
+    let mesh = pristine_rock_mesh(seed);
+    debug!(
+        "asteroid_scenario_object: meshed seed {seed} in {:.1} ms",
+        started.elapsed().as_secs_f32() * 1000.0
+    );
     let collider = Collider::trimesh_from_mesh(&mesh).unwrap_or(Collider::sphere(1.0));
 
-    // The true geometric radius, from the collider volume itself: the
-    // noise displaces the unit sphere's vertices OUTWARD (PlanetHeight is
-    // non-negative), so the rock's real edge sits past the nominal radius
-    // - sometimes far past. Everything that measures from the surface
-    // (GOTO standoff, orbit clearance) reads this derived BodyRadius, not
-    // the designation radius (2026-07-10 playtest: "still stops too
-    // close"). The child mesh is unit-scale, scaled by `radius` on its
-    // Transform, so the world extent is radius * the outermost vertex.
+    // The true geometric radius, from the meshed surface itself: a rock's
+    // shape function is based several times out from the unit sphere
+    // (`ROCK_BASE`), so its real edge sits far past the nominal radius.
+    // Everything that measures from the surface (GOTO standoff, orbit
+    // clearance) reads this derived BodyRadius, not the designation radius
+    // (2026-07-10 playtest: "still stops too close"). The child mesh is
+    // unit-scale, scaled by `radius` on its Transform, so the world extent is
+    // radius * the outermost vertex.
     let unit_extent = mesh_max_vertex_radius(&mesh).max(1.0);
     let radius = config.radius;
 
@@ -848,25 +852,27 @@ mod tests {
     }
 
     /// Pin ASTEROID_GEOMETRIC_FACTOR_MIN/MAX against the real mesh
-    /// generator: sweep the production noise + mesh path (the exact
-    /// pipeline asteroid_scenario_object runs) across a spread of seeds
-    /// and require every factor inside the exported bounds. Content
-    /// authored against the derived geometry (the shakedown orbit gate)
-    /// cites these consts; a noise retune that widens the real range
-    /// fails HERE instead of soft-locking a scenario in the field.
+    /// generator: sweep the production mesh path (the exact pipeline
+    /// asteroid_scenario_object runs) across a spread of seeds and require
+    /// every factor inside the exported bounds. Content authored against the
+    /// derived geometry (the shakedown orbit gate) cites these consts; a noise
+    /// retune that widens the real range fails HERE instead of soft-locking a
+    /// scenario in the field.
+    ///
+    /// Fewer seeds than the sweep it replaced: meshing a rock from its field
+    /// costs a hundred times what displacing an octahedron did, and the
+    /// analytic sweep in `asteroid_surface` covers the noise across seeds at
+    /// full width. This one is here to catch the MESH losing reach against the
+    /// function it is meshing.
     #[test]
     fn geometric_factor_bounds_hold_across_seeds() {
         let mut lowest = f32::MAX;
         let mut highest = 0.0f32;
-        for i in 0..256u32 {
+        for i in 0..24u32 {
             // Spread the sampled seeds across the u32 space (production
-            // seeds come from rng.next_u32(), not small integers).
+            // seeds are FNV hashes of object ids, not small integers).
             let seed = i.wrapping_mul(2654435761);
-            let planet = PlanetHeight::default().with_seed(seed).sampler();
-            let mesh = TriangleMeshBuilder::new_octahedron(3)
-                .apply_noise(&planet)
-                .build();
-            let factor = mesh_max_vertex_radius(&mesh).max(1.0);
+            let factor = mesh_max_vertex_radius(&pristine_rock_mesh(seed)).max(1.0);
             lowest = lowest.min(factor);
             highest = highest.max(factor);
             assert!(
@@ -875,7 +881,7 @@ mod tests {
                  [{ASTEROID_GEOMETRIC_FACTOR_MIN}, {ASTEROID_GEOMETRIC_FACTOR_MAX}]"
             );
         }
-        eprintln!("geometric factor sweep: observed [{lowest}, {highest}] across 256 seeds");
+        eprintln!("geometric factor sweep: observed [{lowest}, {highest}] across 24 seeds");
     }
 
     fn husk_app() -> App {

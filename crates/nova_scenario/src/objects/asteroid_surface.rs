@@ -47,7 +47,6 @@ use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 pub mod prelude {
     pub use super::{
         AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt, RockHeight, RockHeightNoise,
-        ROCK_SURFACE_MIN,
     };
 }
 
@@ -167,12 +166,33 @@ const ROCK_STRETCH_MIN: f32 = 0.62;
 /// out however the noise falls.
 const ROCK_RADIUS_FLOOR: f32 = 0.25;
 
-/// The closest to its own centre a rock's surface can ever come.
+/// How many directions [`RockHeightNoise::reach`] measures a rock's reach over.
 ///
-/// A BOUND, exported so a sampler of the field can settle the sign of a point
-/// without paying for the noise: inside this radius every rock is solid. See
-/// [`RockHeightNoise::radius`].
-pub const ROCK_SURFACE_MIN: f32 = ROCK_BASE * ROCK_RADIUS_FLOOR;
+/// fBm has no closed-form extremes, so the reach is sampled, and a sampled
+/// extreme is only as good as the spread is fine. Measured against a 200k
+/// spread over 64 seeds, the worst a sampled peak fell short of the real one
+/// was 6.4% at 512 directions and 2.3% at 2048; the convergence is slow (about
+/// one over the root of the count), so paying for the next step down buys
+/// little. 2048 is 6% of what seeding a field costs.
+const ROCK_EXTENT_SAMPLES: usize = 2048;
+
+/// How far [`RockHeightNoise::reach`] pushes its sampled floor DOWN.
+///
+/// The measured worst overshoot at [`ROCK_EXTENT_SAMPLES`] is 6.0%: the near
+/// extreme sits in the kink where the axis stretch changes which axis is
+/// nearest, and a spread that steps over the kink misses it. Ten per cent is
+/// that with margin, and it costs only a slightly smaller sphere of samples the
+/// field gets to skip.
+const ROCK_REACH_SLACK_NEAR: f32 = 0.10;
+
+/// How far [`RockHeightNoise::reach`] pushes its sampled ceiling UP.
+///
+/// The measured worst undershoot at [`ROCK_EXTENT_SAMPLES`] is 2.3%. This is
+/// the expensive end - it sizes the carve field's whole domain, so every
+/// percent here is a percent of coarseness on every rock in the game - and the
+/// dangerous one, because a rock reaching past its domain is CLIPPED FLAT
+/// against the grid wall. Five per cent is twice the measured worst.
+const ROCK_REACH_SLACK_FAR: f32 = 0.05;
 
 /// The parameters one rock's shape is drawn from.
 ///
@@ -263,21 +283,44 @@ impl RockHeightNoise {
             .clamp(ROCK_STRETCH_MIN, 1.0);
         (ROCK_BASE * along + noise * self.amplitude).max(ROCK_BASE * ROCK_RADIUS_FLOOR)
     }
+
+    /// The closest and furthest this rock's surface stands from its own centre.
+    ///
+    /// Two jobs. The far end sizes a carve field's domain - the grid has to
+    /// contain the whole rock, because a surface reaching past the domain would
+    /// be clipped flat against it. Both ends then let the field settle a point's
+    /// SIGN without paying for the noise: inside the near reach every rock is
+    /// solid, outside the far one every rock is empty, and the surface can only
+    /// be in the shell between them. That shell is about a third of the grid, so
+    /// two thirds of the samples never touch the noise.
+    ///
+    /// Sampled over [`ROCK_EXTENT_SAMPLES`] directions rather than solved - fBm
+    /// has no closed form - and widened at each end by the measured worst the
+    /// sampling misses by, so what comes back is a BOUND and not an estimate.
+    pub fn reach(&self) -> (f32, f32) {
+        let mut nearest = f32::MAX;
+        let mut furthest = 0.0f32;
+        for direction in sphere_spread(ROCK_EXTENT_SAMPLES) {
+            let radius = self.radius(direction);
+            nearest = nearest.min(radius);
+            furthest = furthest.max(radius);
+        }
+        (
+            nearest * (1.0 - ROCK_REACH_SLACK_NEAR),
+            furthest * (1.0 + ROCK_REACH_SLACK_FAR),
+        )
+    }
 }
 
-/// Adapter for `TriangleMeshBuilder::apply_noise`, which displaces a UNIT
-/// sphere's vertices outward along their own direction.
-///
-/// It adds `get(p)` to a vertex at `|p| = 1`, so handing it `radius - 1` puts
-/// the vertex at exactly `radius`. That is the whole of the translation, and it
-/// is why the shipped mesh and the carve field can be two readings of one
-/// function rather than two shapes that have to be kept in step.
-impl NoiseFn<f64, 3> for RockHeightNoise {
-    fn get(&self, point: [f64; 3]) -> f64 {
-        let direction =
-            Vec3::new(point[0] as f32, point[1] as f32, point[2] as f32).normalize_or(Vec3::Y);
-        f64::from(self.radius(direction) - 1.0)
-    }
+/// An even spread of `count` directions over the sphere - a Fibonacci lattice,
+/// so no axis or pole is favoured.
+fn sphere_spread(count: usize) -> impl Iterator<Item = Vec3> {
+    (0..count).map(move |step| {
+        let height = 1.0 - 2.0 * (step as f32 + 0.5) / count as f32;
+        let ring = (1.0 - height * height).max(0.0).sqrt();
+        let turn = step as f32 * 2.399_963_2;
+        Vec3::new(ring * turn.cos(), height, ring * turn.sin()).normalize_or(Vec3::Y)
+    })
 }
 
 /// A seed `Fbm` can safely build this many octaves from.
@@ -339,17 +382,6 @@ mod tests {
         );
     }
 
-    /// An even spread of `count` directions over the sphere, so a claim is
-    /// about the whole surface rather than about one lucky direction.
-    fn sphere_spread(count: usize) -> impl Iterator<Item = Vec3> {
-        (0..count).map(move |step| {
-            let height = 1.0 - 2.0 * (step as f32 + 0.5) / count as f32;
-            let ring = (1.0 - height * height).max(0.0).sqrt();
-            let turn = step as f32 * 2.399_963_2;
-            Vec3::new(ring * turn.cos(), height, ring * turn.sin()).normalize_or(Vec3::Y)
-        })
-    }
-
     /// The SIZE contract, which is not this change's to break: campaign
     /// clearances, editor placement refusal and orbit gates all size rocks off
     /// `ASTEROID_GEOMETRIC_FACTOR_MIN..MAX`, so a rock's furthest reach has to
@@ -372,6 +404,29 @@ mod tests {
                 (ASTEROID_GEOMETRIC_FACTOR_MIN..=ASTEROID_GEOMETRIC_FACTOR_MAX).contains(&furthest),
                 "seed {seed} reaches {furthest}, outside the pinned bounds"
             );
+        }
+    }
+
+    /// The carve field settles a point's sign from [`RockHeightNoise::reach`]
+    /// without asking the noise, so `reach` has to BOUND the surface rather
+    /// than approximate it. A rock reaching past the far end would be clipped
+    /// flat against the grid wall; one dipping inside the near end would be
+    /// solid where it should be hollow.
+    ///
+    /// Checked against a spread forty times finer than the one `reach` samples,
+    /// and a different lattice, so it is not being asked about its own points.
+    #[test]
+    fn reach_bounds_the_surface_in_every_direction() {
+        for seed in [0u32, 1, 7, 99, 4242, 20260817, u32::MAX] {
+            let rock = RockHeight::default().with_seed(seed).sampler();
+            let (nearest, furthest) = rock.reach();
+            for direction in sphere_spread(ROCK_EXTENT_SAMPLES * 40) {
+                let radius = rock.radius(direction);
+                assert!(
+                    (nearest..=furthest).contains(&radius),
+                    "seed {seed} reaches {radius} at {direction}, outside [{nearest}, {furthest}]"
+                );
+            }
         }
     }
 

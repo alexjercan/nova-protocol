@@ -96,8 +96,8 @@ tagged **(breaking)**.
   and a carved rock wears exactly the surface an uncarved one does.
 - Fixed: a rock whose seed landed near `u32::MAX` overflowed the noise generator.
   Seeds come from hashing a scenario id, so an unlucky name could hit it.
-- A rock's carvable field is built the first time it is actually hit, so a field
-  of untouched rocks costs exactly what it always did.
+- Every rock is meshed from its own carve field, so a hit changes the crater and
+  nothing else; the field is dropped after meshing and rebuilt on the first hit.
 - **(breaking)** A hull may carry several flight computers and steers better
   for it, on a curve capped at twice its strongest computer. Authority does
   not stack linearly.

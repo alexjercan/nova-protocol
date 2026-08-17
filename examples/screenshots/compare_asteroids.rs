@@ -140,14 +140,9 @@ fn load_scene(
         "Asteroid Texture Compare",
     )));
 
-    // The exact mesh pipeline `asteroid_scenario_object` runs, at a pinned
-    // seed so every subject is the same rock.
-    let rock = RockHeight::default().with_seed(ROCK_SEED).sampler();
-    let mesh = meshes.add(
-        TriangleMeshBuilder::new_octahedron(3)
-            .apply_noise(&rock)
-            .build(),
-    );
+    // The exact mesh `asteroid_scenario_object` spawns, at a pinned seed so
+    // every subject is the same rock.
+    let mesh = meshes.add(pristine_rock_mesh(ROCK_SEED));
 
     // Baseline first: the shipped texture through its shipped (clamp) sampler.
     let mut entries = vec![compare::CompareEntry {

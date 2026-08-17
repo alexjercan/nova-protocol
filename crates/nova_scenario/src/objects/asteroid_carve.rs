@@ -7,21 +7,27 @@
 //! can cut. A rock is solid all the way down, so a carve here can go as deep as
 //! the hit deserves - which is what makes it the honest test of the whole idea.
 //!
-//! # Seeded from the shipped silhouette, not from a fresh shape
+//! # The field IS the rock
 //!
-//! The field is `|p| - radius(p/|p|)` on the asteroid's OWN
-//! [`RockHeight`] sampler and its OWN seed, which is the same function
-//! `apply_noise` displaced the shipped mesh by. So the first remesh reproduces
-//! the rock that was already there rather than swapping in a different one:
-//! what changes is the crater, not the rock.
+//! [`pristine_field`] is the only description of an asteroid's shape.
+//! [`pristine_rock_mesh`] is that field meshed, and it is what the spawn path
+//! draws and collides with; the reseed on the first hit calls the same function
+//! with the same seed and gets the same grid back. So a hit changes the CRATER
+//! and nothing else.
 //!
-//! # Built on the first hit and never before
+//! It used to be two shapes: a subdivided octahedron displaced by the noise for
+//! the shipped mesh, and this field for the carved one. They agreed to within a
+//! cell, which is not the same as agreeing - the first hit on a rock moved its
+//! silhouette and changed the size of every facet on it, and that pop was
+//! visible on a rock the shot had barely scratched.
 //!
-//! Seeding costs tens of thousands of noise samples, and a scenario can hold a
-//! field of a hundred rocks that are never touched. So the grid is allocated
-//! the first time a rock is actually marked; an unshot asteroid costs exactly
-//! what it always did. After seeding, nothing resamples the noise: a carve
-//! touches the cells its sphere reaches, and the remesh reads the stored grid.
+//! # Kept only while it is needed
+//!
+//! The grid is 140 KB, and a scenario scatters a hundred rocks most of which are
+//! never touched, so the spawn path meshes the field and DROPS it. The first hit
+//! pays to build it again - tens of thousands of noise samples - and from then
+//! on nothing resamples: a carve touches the cells its sphere reaches, and the
+//! remesh reads the stored grid.
 //!
 //! # What it swaps, and what it must not break
 //!
@@ -40,12 +46,13 @@ use nova_ship::prelude::BodyRadius;
 
 use super::{
     asteroid::{AsteroidMarker, AsteroidRadius, AsteroidSeed},
-    asteroid_surface::prelude::{RockHeight, ROCK_SURFACE_MIN},
+    asteroid_surface::prelude::RockHeight,
 };
 
-/// `AsteroidField` and `AsteroidCarvePlugin`.
+/// `AsteroidField`, `AsteroidCarvePlugin` and the rock mesh they share with the
+/// spawn path.
 pub mod prelude {
-    pub use super::{AsteroidCarvePlugin, AsteroidField};
+    pub use super::{pristine_rock_mesh, AsteroidCarvePlugin, AsteroidField};
 }
 
 /// Cells per axis in a rock's field.
@@ -113,34 +120,49 @@ impl AsteroidField {
     }
 }
 
-/// The pristine field of a rock with this `seed`: the analytic version of the
-/// silhouette `apply_noise` builds.
+/// The pristine field of a rock with this `seed`, in the mesh node's own unit
+/// space.
 ///
-/// The shipped mesh is a unit sphere whose vertices `apply_noise` pushes out
-/// to `radius(direction)`, so the surface is `|p| = radius(p/|p|)` and the
-/// signed distance is what this returns. The mesh and the field are two
-/// readings of ONE function rather than two shapes that have to be kept in
-/// step.
+/// The ONE description of a rock's shape. The drawn mesh, the collider and the
+/// carve field all come off this, so a rock cannot be one shape before it is hit
+/// and another one after: [`pristine_rock_mesh`] is this function meshed, and
+/// the reseed on the first hit is this function called again with the same seed.
+/// Nothing has to be kept in step because there is nothing to keep in step with.
 ///
 /// The near/far shortcut is not an approximation of the surface, it is a bound
-/// on it: no rock's surface comes closer in than `ROCK_SURFACE_MIN` or reaches
-/// past the grid, so outside that shell the sign is settled without asking the
-/// noise. The noise is the only expensive part, and this halves how often it
-/// is asked.
-fn pristine_field(seed: u32, half_extent: f32) -> SignedField {
+/// on it: THIS rock's surface never comes closer in than its own nearest reach
+/// or past its own furthest, so outside that shell the sign is settled without
+/// asking the noise. The noise is the only expensive part, and the shell is
+/// about a third of the grid.
+pub(super) fn pristine_field(seed: u32) -> SignedField {
     let rock = RockHeight::default().with_seed(seed).sampler();
+    let (nearest, furthest) = rock.reach();
+    // The domain has to contain the whole rock: a surface that reached past it
+    // would be clipped flat against the grid wall.
+    let half_extent = furthest * FIELD_MARGIN;
     SignedField::sample(FIELD_RESOLUTION, half_extent, |at| {
         let radius = at.length();
-        // Inside the smallest the surface can be, or outside the largest: the
-        // sign is settled and the exact value only has to be conservative.
-        if radius <= ROCK_SURFACE_MIN {
-            return radius - ROCK_SURFACE_MIN;
+        // Inside the nearest the surface comes, or outside the furthest it
+        // reaches: the sign is settled, and the value only has to carry it.
+        if radius <= nearest {
+            return radius - nearest;
         }
-        if radius >= half_extent {
-            return radius - half_extent;
+        if radius >= furthest {
+            return radius - furthest;
         }
         radius - rock.radius(at / radius)
     })
+}
+
+/// The mesh a pristine rock with this `seed` is drawn and collided with.
+///
+/// Meshed from the same field a carve reads, so a rock's first hit changes the
+/// CRATER and nothing else. The alternative - a subdivided octahedron displaced
+/// by the same noise - was a different shape at a different triangle density,
+/// and swapping one for the other on the first hit was a visible pop: the
+/// silhouette moved by up to a cell and every facet in the rock changed size.
+pub fn pristine_rock_mesh(seed: u32) -> Mesh {
+    pristine_field(seed).surface().build()
 }
 
 /// Give a rock its field the first time it is marked, then keep its mesh,
@@ -184,16 +206,12 @@ fn carve_asteroid_fields(
         let Ok((seed, nominal, body)) = q_asteroid.get(*root) else {
             continue;
         };
-        // How far the pristine surface reaches in the node's own unit space:
-        // the published world radius over the authored one, which is exactly
-        // the factor the spawn path derived it with.
-        let unit_extent = (body.0 / nominal.0.max(f32::EPSILON)).max(1.0);
 
         let mut field = match field {
             Some(field) => field,
             None => {
                 let started = std::time::Instant::now();
-                let seeded = pristine_field(seed.0, unit_extent * FIELD_MARGIN);
+                let seeded = pristine_field(seed.0);
                 debug!(
                     "carve_asteroid_fields: seeded {node:?} at {FIELD_RESOLUTION}^3 in {:.1} ms",
                     started.elapsed().as_secs_f32() * 1000.0
@@ -305,7 +323,7 @@ mod tests {
     fn the_seeded_field_reproduces_the_shipped_silhouette() {
         let seed = 4242;
         let rock = RockHeight::default().with_seed(seed).sampler();
-        let field = pristine_field(seed, 7.0);
+        let field = pristine_field(seed);
         let mesh = field.surface().build();
         let Some(bevy::mesh::VertexAttributeValues::Float32x3(positions)) =
             mesh.attribute(Mesh::ATTRIBUTE_POSITION)
@@ -330,7 +348,7 @@ mod tests {
     /// ever fall.
     #[test]
     fn a_carved_rock_never_grows() {
-        let mut field = pristine_field(7, 6.5);
+        let mut field = pristine_field(7);
         let mut previous = field.surface_radius();
         assert!(previous > 1.0, "delivery guard: the rock has a surface");
 
