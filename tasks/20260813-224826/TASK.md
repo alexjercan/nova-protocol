@@ -868,6 +868,82 @@ not the hulls. It is the command flush behind two hundred bodies' worth of
 spawns and recursive despawns landing at once, plus the slicer, both scaling
 with the same bodies-per-frame count. Phase 4i.
 
+### Phase 4i - a per-frame finale budget - DONE (2026-08-18)
+
+Phase 4h took the hulls out of the death frame and left ~260 ms behind, and what
+was left was never a unit price. It was a COUNT: a structure does not die
+section by section, it dies all at once, so the frame a ship comes apart runs
+two hundred finales inside one command flush - eight hundred spawns and their
+archetype moves, two hundred recursive despawns, and avian's insert observers on
+every one.
+
+`FINALE_BODY_BUDGET` = 8 bodies a frame. That covers the worst measured burst in
+about twenty-five frames, 0.4 s at 60 Hz. Same shape as the reach gate plus the
+one-per-frame solidify ceiling that fixed the carve spike in Phase 4e, applied
+to the other end of a body's life.
+
+**The dying body is NOT rationed with it, and could not be.**
+`handle_entity_explosion` is the only thing that despawns a destroyed
+explodable, so a body sitting in a queue is a zero-health wreck standing with a
+live collider and working capabilities. So the queue holds resolved SPAWN
+RECORDS - mesh handle, material, transform, velocity - and never entities. All
+of it is read out of the world at the death, because the body and the render
+descendants its pieces came off are despawned there. The handles are strong,
+which is what keeps the sliced geometry alive once `ExplodeFragments` has gone
+with the body.
+
+The drain runs in `PreUpdate` rather than `Update`, so a body that died in one
+frame's `Update` has its pieces standing before the next frame's: every
+`Added<MeshFragmentMarker>` consumer still sees debris exactly one frame behind
+the death, as it did when the finale spawned inline. `destruction_finale`
+depends on that - its assert beat reads the debris counter one beat after the
+body is gone.
+
+**Measured on `wfc_arena`, traced probe run, the frame the wreck comes apart:**
+
+| | bodies | worst `Main` | `handle_entity_explosion` | `handle_explosion` |
+|---|---|---|---|---|
+| Phase 4f (b7c81ee0) | 205 | 303.8 ms | 86.4 ms | 33.1 ms |
+| + hull cap (4h) | 148 | 259.0 ms | 12.3 ms | 25.8 ms |
+| + finale budget (4i) | 223 | 114.5 ms | not in the top 14 | 33.1 ms |
+
+Per-call timers on the clean pass, 230 bodies: the observer is now 1.5 us per
+body (it resolves and queues, nothing else), and the drain is a flat 1.0-1.6 ms
+a frame for its 8 bodies and 32 colliders. `handle_entity_explosion` was 424 us
+per body before Phase 4h.
+
+**What is honest about those numbers.** Two things.
+
+The bursts are different sizes run to run, so `Main` is not like-for-like; the
+per-system figures are. And the probe TRUNCATES the after picture: the arena's
+collapse lands about four frames before the run ends, so only 24-32 of ~200
+queued bodies ever drain inside the measured window. The 1.0-1.6 ms is the real
+per-frame price and it is fixed, but the tail of the queue - and the physics
+cost of the debris once it is all standing - is moved outside the window rather
+than proven cheap there. The 178.7 ms debris-settling frame Phase 4h measured
+right after the burst does not appear in the after run for that reason.
+
+**The slicer does not scale with the budget, and is now the largest item in the
+death frame.** `mesh::explode::handle_explosion` runs at the destroy, upstream
+of the queue, because the queue holds SLICED mesh handles and there are none
+until it has run. 33.1 ms over 223 bodies (148 us each) stays where it was.
+Deferring it too would mean queueing the SOURCE mesh handles and slicing in the
+drain - possible, and a separate change.
+
+**What it looks like.** Captured off the live arena at ~10 Hz and read frame by
+frame. A torpedo salvo kills the hull; the blast discs and the carve dust fire
+at the death and cover the moment, and the rigid chunks then accumulate over the
+frames that follow rather than appearing as one cloud. There is no visible hole
+where the ship was - the dust carries the instant. The FULL twenty-five-frame
+fill was not watched end to end: the run ends four frames in, and the arena's
+auto-frame puts both hulls at about sixty pixels, so this is a read on the first
+third of the chain at low resolution, not on the whole of it.
+
+`destruction_finale` is green on all seven invariants, unchanged: four fragments
+each from the turret, thruster and hull, twelve over the run, no empty walk. Its
+beats did not move - the assert markers still land at Playing + 3, 7 and 11
+frames, exactly as before the queue.
+
 ### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 
 - What is left of a body at death comes apart into bounded debris with

@@ -321,6 +321,9 @@ tagged **(breaking)**.
 
 ### Performance
 
+- A wreck's debris arrives over the frames that follow rather than all at once:
+  at most 8 destroyed bodies spawn their pieces per frame. The wrecks still
+  leave the field the moment they die.
 - A piece of debris takes its collider from at most 64 strided points instead
   of every vertex of an unwelded triangle soup: the same shape for a fifth of
   the price, and slightly more of them come back usable.

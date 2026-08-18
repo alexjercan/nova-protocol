@@ -27,9 +27,24 @@
 //! badly, so the bug behind it survived every playtest that saw it. Every
 //! shipped body has art to break into, and `destruction_finale` asserts that.
 //!
+//! # The finale is RATIONED, the death is not
+//!
+//! A structure does not die section by section. The frame a ship comes apart,
+//! every section left on it is destroyed at once, so the finale is never asked
+//! for one body's debris - it is asked for two hundred bodies' debris inside one
+//! command flush. See [`FINALE_BODY_BUDGET`].
+//!
+//! What is rationed is only the SPAWNING. The body itself leaves the field the
+//! moment it dies, whatever the queue looks like, because a zero-health wreck
+//! left standing keeps a live collider and working capabilities. So the queue
+//! holds resolved spawn records rather than dying entities, and everything they
+//! need is read out of the world before the body goes.
+//!
 //! Touch this module to change how wrecks come apart (fragment count, spread,
 //! lifetime). Health, disable, and destroy bookkeeping lives in the generic
 //! [`core`](super::core) integrity layer; structure owners publish its graph.
+
+use std::collections::VecDeque;
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -74,6 +89,22 @@ const MESH_FRAGMENT_LIFETIME_SECS: f32 = 30.0;
 /// against a copy that could drift.
 pub const BODY_FRAGMENT_BUDGET: usize = 4;
 
+/// How many destroyed bodies may have their debris spawned in ONE frame.
+///
+/// The frame a ship comes apart is the worst frame in the game, and the reason
+/// is a COUNT: 201 bodies entered the finale together in the worst measured, and
+/// each of them spends [`BODY_FRAGMENT_BUDGET`]. Eight hundred colliders, eight
+/// hundred archetype moves and two hundred recursive despawns in one command
+/// flush is a third of a second, and no unit price is what makes it - the same
+/// work spread out is unremarkable.
+///
+/// Eight covers that worst case in about twenty-five frames, which is 0.4 s at
+/// 60 Hz: long enough that a big wreck reads as a chain of secondary detonations
+/// rather than one pop, short enough that a section's own death still looks
+/// immediate. It is the shape that fixed the carve spike - a reach gate plus a
+/// one-per-frame solidify ceiling - applied to the other end of a body's life.
+const FINALE_BODY_BUDGET: usize = 8;
+
 /// Marker component to indicate that an entity can be exploded.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 pub struct ExplodableEntity;
@@ -117,17 +148,49 @@ fn debris_material() -> StandardMaterial {
     }
 }
 
+/// One piece of a body that has died, resolved and waiting for a frame with
+/// room to spawn it.
+///
+/// Every field is read at the moment of death, because the body and the render
+/// entity this piece came off are both gone by the time it is spawned. The
+/// handles are strong, which is what keeps the sliced geometry and its material
+/// alive after the body's [`ExplodeFragments`] has been dropped with it.
+struct PendingFragment {
+    /// The sliced geometry.
+    mesh: Handle<Mesh>,
+    /// What to draw it with, already resolved through [`FragmentMaterial`].
+    material: MeshMaterial3d<StandardMaterial>,
+    /// Where it starts, already pushed out along its escape direction.
+    transform: Transform,
+    /// Its kick plus whatever the body was doing at that point.
+    velocity: Vec3,
+}
+
+/// One dead body's pieces, waiting their turn together.
+struct PendingFinale {
+    /// What died. ALREADY DESPAWNED - kept only to name its debris.
+    body: Entity,
+    /// Its resolved pieces.
+    fragments: Vec<PendingFragment>,
+}
+
+/// The finales that have not been spawned yet, oldest first.
+#[derive(Resource, Default)]
+struct FinaleQueue(VecDeque<PendingFinale>);
+
 pub(super) struct ExplodablePlugin;
 
 impl Plugin for ExplodablePlugin {
     fn build(&self, app: &mut App) {
         debug!("ExplodablePlugin: build");
 
+        app.init_resource::<FinaleQueue>();
         app.add_observer(on_add_explodable_entity);
         app.add_observer(on_destroyed_entity);
         app.add_observer(on_explode_entity);
         app.add_observer(handle_entity_explosion);
         app.add_observer(despawn_destroyed_without_finale);
+        app.add_systems(PreUpdate, spawn_pending_finales);
     }
 }
 
@@ -317,6 +380,12 @@ fn on_explode_entity(
 /// Despawns the body either way, on every path including the error ones. It is
 /// the only thing that despawns a destroyed explodable, so an early return
 /// leaves a zero-health wreck standing with a live collider.
+///
+/// RESOLVES the pieces here and SPAWNS them later, in
+/// [`spawn_pending_finales`]. That split is what lets the spawning be rationed
+/// without the death being rationed with it - see the module docs. Everything a
+/// piece needs is read now, because the body and its render descendants are
+/// despawned before its turn comes.
 #[expect(
     clippy::too_many_arguments,
     reason = "the walk for inherited motion brings its own two queries"
@@ -324,6 +393,7 @@ fn on_explode_entity(
 fn handle_entity_explosion(
     add: On<Add, ExplodeFragments>,
     mut commands: Commands,
+    mut queue: ResMut<FinaleQueue>,
     q_explode: Query<(&ExplodeFragments, Option<&GlobalTransform>), With<ExplodableEntity>>,
     q_mesh: Query<
         (
@@ -335,7 +405,6 @@ fn handle_entity_explosion(
     >,
     q_parents: Query<&ChildOf>,
     q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
-    meshes: Res<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
@@ -371,6 +440,7 @@ fn handle_entity_explosion(
     // material still has to come apart as SOMETHING, and bare debris grey is a
     // better answer than not drawing the piece at all.
     let mut anonymous: Option<Handle<StandardMaterial>> = None;
+    let mut pending = Vec::with_capacity(fragments.len());
 
     for fragment in fragments.iter() {
         let Ok((transform, own_material, fragment_material)) = q_mesh.get(fragment.origin) else {
@@ -424,35 +494,70 @@ fn handle_entity_explosion(
             );
             continue;
         }
-        let Some(mesh) = meshes.get(&fragment.mesh) else {
-            error!(
-                "handle_entity_explosion: mesh_entity {:?} has no mesh data.",
-                fragment.origin,
-            );
-            continue;
-        };
-        let Some(collider) = chunk_collider(mesh) else {
-            debug!(
-                "handle_entity_explosion: fragment of {:?} has no usable bounds",
-                fragment.origin
-            );
-            continue;
-        };
 
-        commands.spawn((
-            MeshFragmentMarker,
-            Name::new(format!("Explosion Fragment of {:?}", entity)),
-            Mesh3d(fragment.mesh.clone()),
-            mesh_material,
+        pending.push(PendingFragment {
+            mesh: fragment.mesh.clone(),
+            material: mesh_material,
             transform,
-            RigidBody::Dynamic,
-            collider,
-            LinearVelocity(velocity),
-            TempEntity(MESH_FRAGMENT_LIFETIME_SECS),
-        ));
+            velocity,
+        });
     }
 
+    queue.0.push_back(PendingFinale {
+        body: entity,
+        fragments: pending,
+    });
     commands.entity(entity).despawn();
+}
+
+/// Put at most [`FINALE_BODY_BUDGET`] queued bodies' debris on the field.
+///
+/// The colliders are hulled here rather than at the death, so a capital-scale
+/// collapse pays for them at a fixed rate instead of all at once.
+///
+/// `PreUpdate`, so a body that died in one frame's `Update` has its pieces
+/// standing before the next frame's: every `Added<MeshFragmentMarker>` consumer
+/// still sees debris one frame behind the death, as it did when the finale
+/// spawned inline.
+fn spawn_pending_finales(
+    mut commands: Commands,
+    mut queue: ResMut<FinaleQueue>,
+    meshes: Res<Assets<Mesh>>,
+) {
+    let take = queue.0.len().min(FINALE_BODY_BUDGET);
+    if take == 0 {
+        return;
+    }
+    debug!(
+        "spawn_pending_finales: spawning {take} of {} queued bodies",
+        queue.0.len()
+    );
+
+    for finale in queue.0.drain(..take) {
+        let body = finale.body;
+        for fragment in finale.fragments {
+            let Some(mesh) = meshes.get(&fragment.mesh) else {
+                error!("spawn_pending_finales: a piece of {body:?} has no mesh data.");
+                continue;
+            };
+            let Some(collider) = chunk_collider(mesh) else {
+                debug!("spawn_pending_finales: a piece of {body:?} has no usable bounds");
+                continue;
+            };
+
+            commands.spawn((
+                MeshFragmentMarker,
+                Name::new(format!("Explosion Fragment of {body:?}")),
+                Mesh3d(fragment.mesh),
+                fragment.material,
+                fragment.transform,
+                RigidBody::Dynamic,
+                collider,
+                LinearVelocity(fragment.velocity),
+                TempEntity(MESH_FRAGMENT_LIFETIME_SECS),
+            ));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -565,7 +670,9 @@ mod tests {
         app.init_asset::<Mesh>();
         app.init_asset::<StandardMaterial>();
         app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.init_resource::<FinaleQueue>();
         app.add_observer(handle_entity_explosion);
+        app.add_systems(PreUpdate, spawn_pending_finales);
 
         let mesh = app
             .world_mut()
@@ -890,6 +997,70 @@ mod tests {
                 "a piece must carry the ship's drift, not just its own kick: {velocity}"
             );
         }
+    }
+
+    /// A capital-scale collapse destroys every section left on the structure in
+    /// ONE frame, and running all of their finales together is the worst frame
+    /// in the game. The queue bounds it: the wrecks all leave the field at once
+    /// and their debris arrives over the frames that follow.
+    #[test]
+    fn a_collapse_spreads_its_debris_over_frames() {
+        let mut app = finale_app();
+        let mesh = app
+            .world_mut()
+            .resource_mut::<Assets<Mesh>>()
+            .add(TriangleMeshBuilder::new_octahedron(2).build());
+        let material = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+
+        // One piece each, so the debris count IS the body count.
+        let bodies = FINALE_BODY_BUDGET * 3;
+        for _ in 0..bodies {
+            let origin = app
+                .world_mut()
+                .spawn((
+                    Mesh3d(mesh.clone()),
+                    MeshMaterial3d(material.clone()),
+                    Transform::default(),
+                    GlobalTransform::IDENTITY,
+                ))
+                .id();
+            app.world_mut().spawn((
+                ExplodableEntity,
+                GlobalTransform::IDENTITY,
+                ExplodeFragments(vec![ExplodeFragment {
+                    origin,
+                    mesh: mesh.clone(),
+                    direction: Dir3::X,
+                }]),
+            ));
+        }
+        app.world_mut().flush();
+
+        // THE design constraint. A body waiting its turn is a zero-health wreck
+        // with a live collider and working capabilities.
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<(), With<ExplodableEntity>>()
+                .iter(app.world())
+                .count(),
+            0,
+            "every wreck leaves the field at once, whatever the queue holds"
+        );
+        assert_eq!(debris(&mut app), 0, "and none of it has landed yet");
+
+        app.update();
+        assert_eq!(
+            debris(&mut app),
+            FINALE_BODY_BUDGET,
+            "one frame spawns one frame's worth"
+        );
+
+        app.update();
+        app.update();
+        assert_eq!(debris(&mut app), bodies, "and the rest follow");
     }
 
     /// Destructible but not explodable: a skin plate comes off rather than
