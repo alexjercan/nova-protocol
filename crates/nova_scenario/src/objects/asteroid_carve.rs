@@ -85,13 +85,16 @@ const FIELD_MARGIN: f32 = 1.08;
 pub struct AsteroidField {
     /// The solid, carved by every mark seen so far.
     field: SignedField,
-    /// A fingerprint of the mark list the solid was last carved by, so a rock
-    /// is remeshed when its marks move and not otherwise.
+    /// A fingerprint of the mark list already applied to `field`.
     ///
-    /// NOT a count. Past the mark budget a hit MERGES into its nearest
-    /// neighbour, growing that mark's radius without growing the list, and a
-    /// count would call that "nothing new" and never carve it.
-    carved: u64,
+    /// NOT a count. Repeated fire grows a mark's radius without growing the
+    /// list, and a count would call that "nothing new" and never carve it.
+    applied: u64,
+    /// Quantized solid volume at the last successful mesh and collider swap.
+    ///
+    /// Marks smaller than a grid cell still accumulate in `field`, but work
+    /// waits until a corner changes sign and the grid can draw the result.
+    meshed_volume: f32,
 }
 
 impl AsteroidField {
@@ -276,15 +279,15 @@ fn throw_severed_pieces(
 /// Give a rock its field the first time it is marked, then keep its mesh,
 /// collider and published radius in step with the marks.
 ///
-/// One remesh per rock per frame however many hits landed: a frame's worth of
-/// marks is one list, and one list is one carve. The coalescing the design
-/// asked for falls out of that rather than needing a queue.
+/// Marks accumulate on every hit, but remeshing waits until the grid loses a
+/// cell. A change the field cannot yet draw must not pay for connectivity,
+/// surface generation or a collider rebuild.
 ///
 /// NOT filtered on `Changed<DamageMarks>`, deliberately. Seeding the grid takes
 /// a frame of its own - the insert lands on the next flush - and by then the
 /// marks have not changed again, so a change filter would seed every rock and
-/// carve none of them. The fingerprint compare that replaces it is two integers
-/// per rock per frame.
+/// carve none of them. The fingerprint compare that replaces it is a bounded
+/// mark-list hash per rock per frame.
 ///
 /// SYNCHRONOUS. The design's plan is to run the remesh and the collider build
 /// on the async compute pool with at most one job in flight per rock; that is
@@ -331,9 +334,11 @@ fn carve_asteroid_fields(
                     "carve_asteroid_fields: seeded {node:?} at {FIELD_RESOLUTION}^3 in {:.1} ms",
                     started.elapsed().as_secs_f32() * 1000.0
                 );
+                let meshed_volume = seeded.solid_volume();
                 commands.entity(node).insert(AsteroidField {
                     field: seeded,
-                    carved: 0,
+                    applied: 0,
+                    meshed_volume,
                 });
                 // The insert lands next flush, and this rock is carved the
                 // frame after. One frame of lag on the first hit only, and it
@@ -344,16 +349,21 @@ fn carve_asteroid_fields(
         };
 
         let signature = AsteroidField::signature(marks);
-        if field.carved == signature {
-            continue;
+        if field.applied != signature {
+            field.applied = signature;
+            // EVERY mark, not just the ones that look new. Subtraction is a
+            // max, so re-applying one already in the solid changes nothing.
+            for mark in &marks.0 {
+                field.field.subtract_sphere(mark.at, mark.radius);
+            }
         }
-        field.carved = signature;
-        // EVERY mark, not just the ones that look new. Subtraction is a max, so
-        // re-applying one that is already in the solid changes nothing, and
-        // that idempotence is what lets this skip tracking which is which -
-        // including the merge case, where a mark's radius grew in place.
-        for mark in &marks.0 {
-            field.field.subtract_sphere(mark.at, mark.radius);
+
+        // A changed distance below the grid's sign boundary cannot change the
+        // surface topology. Keep accumulating it, but do not pay connectivity,
+        // surface generation and collider rebuild until at least one cell is
+        // observably gone.
+        if field.field.solid_volume() >= field.meshed_volume {
+            continue;
         }
 
         // A carve can cut material FREE without removing it: eat through the
@@ -410,6 +420,7 @@ fn carve_asteroid_fields(
         };
 
         let surviving = field.field.surface_radius();
+        field.meshed_volume = field.field.solid_volume();
         debug!(
             "carve_asteroid_fields: {node:?} remesh {:.1} ms, collider {:.1} ms, \
              {} tri(s), unit radius {surviving:.2}",

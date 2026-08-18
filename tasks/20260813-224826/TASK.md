@@ -470,6 +470,39 @@ hull sections and on the cut-cube parts whose role is Hull; nothing else.
 - That closes the phase-5 bullet the epic opened with. The rest of phase 5 -
   deleting the slicer - is RESOLVED THE OTHER WAY: see step 4.
 
+### Phase 4c - sustained fire makes holes (accepted 2026-08-19)
+
+Owner review found that the shipped PDC path did not visibly carve shipped
+rocks. The mechanism worked only in the gallery because it used 600-damage
+synthetic hits, a small rock and 100,000 health.
+
+Accepted correction, in order:
+
+- A hit whose centre is inside an existing crater adds its paid volume to that
+  crater: `r' = cbrt(r^3 + s^3)`. A separate hit opens a separate crater while
+  the 24-mark budget has room. At the budget, the nearest crater gains the
+  volume without moving its centre. The old bounding-sphere merge is rejected:
+  one distant hit could inflate a crater across the body.
+- Accumulation and remesh throttling ship together. Marks update on every hit,
+  but asteroid and section fields remesh only after their quantized
+  `solid_volume` loses at least one grid cell since the last successful remesh.
+  A change too small for the grid to draw must not pay for surface generation,
+  island splitting or collider rebuilding.
+- Durable scatter rocks use radius-cubed health, anchored at 100,000 hit points
+  for nominal radius 3. Scripted objective rocks retain explicit fixed health,
+  so objectives cannot soft-lock. Invulnerable bodies keep the existing flag.
+  Fixed 100,000 for every size is rejected: relative removable volume would
+  vary by `radius^3`, allowing small rocks to outlive their geometry while
+  large rocks barely change before death.
+- `carve_asteroids` must exercise sustained 4-damage PDC fire against a
+  shipped-size rock, retain a torpedo-scale one-hit case and retain severance.
+  `wfc_arena` must show the same result. Frame cost under sustained fire is a
+  measured claim, not an estimate.
+
+The reported first-hit ship lag remains a separate diagnosis. Section
+`field_from_mesh` costs 10-16 ms per mesh and is the leading candidate; do not
+claim the remesh throttle fixes it without reproducing it.
+
 ### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 
 - What is left of a body at death comes apart into bounded debris with

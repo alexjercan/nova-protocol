@@ -86,20 +86,18 @@ pub struct DamageMark {
 }
 
 impl DamageMark {
-    /// Whether this mark already swallows `other`, which is when recording
-    /// `other` would change no geometry anywhere.
-    fn contains(&self, other: &Self) -> bool {
-        self.at.distance(other.at) + other.radius <= self.radius
+    /// Whether `point` lands in material this crater already reaches.
+    fn contains_point(&self, point: Vec3) -> bool {
+        self.at.distance_squared(point) <= self.radius * self.radius
     }
 
-    /// Grow this mark until it also covers `other`.
+    /// Add `other`'s paid volume without moving this crater.
     ///
-    /// The bounding sphere about the existing centre rather than the true
-    /// bounding sphere of the pair: it is cheaper, it never moves a crater that
-    /// has already been drawn, and because the radius only ever grows the carve
-    /// stays monotone - the guarantee that lets a mark list be compacted at all.
-    fn absorb(&mut self, other: &Self) {
-        self.radius = self.radius.max(self.at.distance(other.at) + other.radius);
+    /// Radius cubed is proportional to sphere volume, so this conserves what
+    /// the hit bought. A bounding sphere is deliberately wrong here: one
+    /// distant round could otherwise inflate a crater across the whole body.
+    fn absorb_volume(&mut self, other: &Self) {
+        self.radius = (self.radius.powi(3) + other.radius.powi(3)).cbrt();
     }
 }
 
@@ -114,23 +112,26 @@ pub struct DamageMarks(pub Vec<DamageMark>);
 impl DamageMarks {
     /// Record `mark`, compacting if the budget is full.
     ///
-    /// Three outcomes, and all of them leave the carved volume the same or
-    /// larger:
+    /// Three outcomes, and all of them add the hit's paid volume:
     ///
-    /// - an existing mark already covers this one: nothing is recorded, which
-    ///   is what stops a burst emptied into one hole from spending the whole
-    ///   budget on the same crater;
-    /// - there is room: it is appended;
-    /// - there is not: the nearest existing mark grows to cover it. A distant
-    ///   hit therefore blows the crater it lands nearest out of proportion,
-    ///   which is the honest failure - a ship that has been shot two dozen
-    ///   separate times is a ship that should look comprehensively holed.
+    /// - a hit centred inside an existing crater grows the nearest such crater;
+    /// - a separate hit opens a crater while the budget has room;
+    /// - at the budget, the nearest crater grows without moving its centre.
     ///
-    /// Returns whether the body's shape actually changed, which is what tells
-    /// [`CarveSpew`] whether any material came off.
+    /// Returns whether the body's shape changed. Every positive-radius hit
+    /// changes it, which is what tells [`CarveSpew`] material came off.
     pub fn add(&mut self, mark: DamageMark) -> bool {
-        if self.0.iter().any(|existing| existing.contains(&mark)) {
-            return false;
+        if let Some(existing) = self
+            .0
+            .iter_mut()
+            .filter(|existing| existing.contains_point(mark.at))
+            .min_by(|a, b| {
+                a.at.distance_squared(mark.at)
+                    .total_cmp(&b.at.distance_squared(mark.at))
+            })
+        {
+            existing.absorb_volume(&mark);
+            return true;
         }
         if self.0.len() < MARK_BUDGET {
             self.0.push(mark);
@@ -142,7 +143,7 @@ impl DamageMarks {
         }) else {
             return false;
         };
-        nearest.absorb(&mark);
+        nearest.absorb_volume(&mark);
         true
     }
 }
@@ -200,8 +201,6 @@ pub fn record_damage_mark(commands: &mut Commands, target: Entity, at: Vec3, amo
             at: local,
             radius: world_radius / scale,
         }) {
-            // Already inside a crater: no material came off, so nothing should
-            // be seen coming off.
             return;
         }
         // Material was removed, so material has to go somewhere. Announced in
@@ -219,9 +218,10 @@ pub fn record_damage_mark(commands: &mut Commands, target: Entity, at: Vec3, amo
 /// Announces that a carve took material off `entity`, so something can be seen
 /// leaving.
 ///
-/// Fired only when a mark actually changed the body's shape - a hit into an
-/// existing crater carves nothing and spews nothing. Both fields are in WORLD
-/// space: a spectator does not care what frame the body keeps its marks in.
+/// Fired only when a mark changed the body's shape. Repeated fire into one
+/// crater grows it, so every paid hit announces what it removed. Both fields
+/// are in WORLD space: a spectator does not care what frame the body keeps its
+/// marks in.
 ///
 /// An event rather than a direct spawn so the gameplay half stays free of
 /// meshes and the look is replaceable: a mod that wants sparks, a puff, or
@@ -292,15 +292,26 @@ mod tests {
         );
     }
 
-    /// A burst emptied into one hole must not spend the budget on one crater.
+    /// A burst into one spot becomes one larger crater without spending the
+    /// mark budget, and the radius preserves the volume every round paid for.
     #[test]
-    fn a_hit_inside_an_existing_crater_records_nothing() {
+    fn repeated_hits_add_their_volume_to_one_crater() {
         let mut marks = DamageMarks::default();
         marks.add(mark(Vec3::ZERO, 1.0));
-        marks.add(mark(Vec3::X * 0.2, 0.3));
+        marks.add(mark(Vec3::X * 0.2, 0.5));
 
-        assert_eq!(marks.0.len(), 1, "the second hit is already carved away");
-        assert_eq!(marks.0[0].radius, 1.0, "and did not grow the first");
+        assert_eq!(marks.0.len(), 1, "the burst uses one crater");
+        let expected = (1.0f32.powi(3) + 0.5f32.powi(3)).cbrt();
+        assert!((marks.0[0].radius - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_separate_hit_opens_a_separate_crater_while_there_is_room() {
+        let mut marks = DamageMarks::default();
+        marks.add(mark(Vec3::ZERO, 0.5));
+        marks.add(mark(Vec3::X * 2.0, 0.5));
+
+        assert_eq!(marks.0.len(), 2);
     }
 
     /// Past the budget the list stops growing, and what is already carved stays
@@ -325,22 +336,23 @@ mod tests {
         }
     }
 
-    /// A merged mark really does cover what it absorbed, which is what makes
-    /// compacting safe: the geometry a caller derives afterwards is at least as
-    /// carved as it would have been with both marks kept.
+    /// Compaction is allowed to lose the distant hit's exact location, but it
+    /// must preserve its paid volume without the old whole-body inflation.
     #[test]
-    fn a_merged_mark_still_covers_the_hit_it_absorbed() {
+    fn a_full_list_adds_volume_to_the_nearest_crater() {
         let mut marks = DamageMarks::default();
         for step in 0..MARK_BUDGET {
             marks.add(mark(Vec3::X * step as f32 * 10.0, 0.5));
         }
 
-        let late = mark(Vec3::new(0.0, 2.0, 0.0), 0.4);
-        marks.add(late);
+        let before = marks.0[0].radius;
+        marks.add(mark(Vec3::Y * 2.0, 0.4));
 
+        let expected = (before.powi(3) + 0.4f32.powi(3)).cbrt();
+        assert!((marks.0[0].radius - expected).abs() < 1e-6);
         assert!(
-            marks.0.iter().any(|kept| kept.contains(&late)),
-            "the hit is still carved by whichever mark absorbed it"
+            marks.0[0].radius < 1.0,
+            "a distant hit did not span the body"
         );
     }
 

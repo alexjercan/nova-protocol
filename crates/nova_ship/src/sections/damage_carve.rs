@@ -77,9 +77,13 @@ struct CarvedSection {
     /// is one sphere shared by everything it reaches, and a hull is tougher than
     /// its own cladding - so it takes a smaller bite out of the same sphere.
     bite: f32,
-    /// A fingerprint of the mark list the solid was last carved by, so a mesh
-    /// is remeshed when the ship's marks move and not otherwise.
-    carved: u64,
+    /// A fingerprint of the mark list already applied to `field`.
+    applied: u64,
+    /// Quantized solid volume at the last mesh swap.
+    ///
+    /// Sub-cell hits accumulate in the field without paying for a remesh the
+    /// grid cannot yet show.
+    meshed_volume: f32,
 }
 
 /// How much of a mark's radius a section of `health` hit points and `volume`
@@ -202,11 +206,13 @@ fn carve_section_meshes(
                     // The section's own toughness, measured against the solid
                     // that was just read out of its art rather than guessed.
                     let bite = bite_of(health, field.solid_volume());
+                    let meshed_volume = field.solid_volume();
                     commands.entity(art).insert(CarvedSection {
                         field,
                         offset,
                         bite,
-                        carved: 0,
+                        applied: 0,
+                        meshed_volume,
                     });
                     // The insert lands next flush and this mesh is carved the
                     // frame after, which keeps the solidify cost out of the
@@ -215,23 +221,27 @@ fn carve_section_meshes(
                 }
             };
 
-            if carved.carved == stamp {
-                continue;
-            }
-            carved.carved = stamp;
+            if carved.applied != stamp {
+                carved.applied = stamp;
 
-            // Marks are in the SHIP's frame and the field is in the mesh's, so
-            // every mark crosses two transforms to get here. Uniform scale is
-            // assumed on both, exactly as `record_damage_mark` assumes it.
-            let into_art = frame.affine().inverse();
-            let scale = frame.scale().max_element().max(f32::EPSILON);
-            let owner_scale = owner.scale().max_element();
-            let (offset, bite) = (carved.offset, carved.bite);
-            for mark in &marks.0 {
-                let at = into_art.transform_point3(owner.transform_point(mark.at)) - offset;
-                carved
-                    .field
-                    .subtract_sphere(at, mark.radius * bite * owner_scale / scale);
+                // Marks are in the SHIP's frame and the field is in the mesh's,
+                // so every mark crosses two transforms to get here. Uniform
+                // scale is assumed on both, exactly as `record_damage_mark`
+                // assumes it.
+                let into_art = frame.affine().inverse();
+                let scale = frame.scale().max_element().max(f32::EPSILON);
+                let owner_scale = owner.scale().max_element();
+                let (offset, bite) = (carved.offset, carved.bite);
+                for mark in &marks.0 {
+                    let at = into_art.transform_point3(owner.transform_point(mark.at)) - offset;
+                    carved
+                        .field
+                        .subtract_sphere(at, mark.radius * bite * owner_scale / scale);
+                }
+            }
+
+            if carved.field.solid_volume() >= carved.meshed_volume {
+                continue;
             }
 
             let surface = carved.field.surface().build();
@@ -240,6 +250,7 @@ fn carve_section_meshes(
                 // answer: the section is still alive and still has to be drawn
                 // as something.
                 debug!("carve_section_meshes: {art:?} carved away entirely, mesh kept");
+                carved.meshed_volume = carved.field.solid_volume();
                 continue;
             }
             debug!(
@@ -250,8 +261,9 @@ fn carve_section_meshes(
             // Back into the mesh's own space - the field is centred on the
             // art's bounds, and the entity's transform is not.
             let mut surface = surface;
-            surface.translate_by(offset);
+            surface.translate_by(carved.offset);
             commands.entity(art).insert(Mesh3d(meshes.add(surface)));
+            carved.meshed_volume = carved.field.solid_volume();
         }
     }
 }
