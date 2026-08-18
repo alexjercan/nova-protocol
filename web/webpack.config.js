@@ -1,3 +1,4 @@
+const fs = require("fs");
 const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const HtmlPartialsPlugin = require("./webpack-partials");
@@ -317,7 +318,22 @@ module.exports = async (env, argv) => {
         },
         mode: "development",
         devServer: {
-            static: path.join(__dirname, "dist"),
+            // The developer book is a sibling build (mdbook, repo-root book/)
+            // served under /dev/ like the deploy. Static entries resolve before
+            // historyApiFallback, so book files never fall through to the SPA
+            // fallback. Guarded: a bare `npm run serve` without a book build
+            // still starts; `scripts/serve-web.sh` builds and watches it.
+            static: [
+                path.join(__dirname, "dist"),
+                ...(fs.existsSync(path.join(__dirname, "..", "book"))
+                    ? [
+                          {
+                              directory: path.join(__dirname, "..", "book"),
+                              publicPath: "/dev",
+                          },
+                      ]
+                    : []),
+            ],
             port: uiPort,
             // Two proxies reproduce the published sibling layout (site at /,
             // game at /play/, portal at /mods/) on this one origin. Both are

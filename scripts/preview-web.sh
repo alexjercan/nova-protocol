@@ -54,6 +54,13 @@ python3 scripts/gen-portal.py \
     --shipped assets/mods.catalog.ron \
     --out web/dist/mods
 
+# Mirror the deploy's /dev/ sibling: the developer book rides along like the
+# game and the portal (see .github/workflows/deploy-page.yaml).
+mdbook build
+rm -rf web/dist/dev
+mkdir -p web/dist/dev
+cp -r book/. web/dist/dev/
+
 echo ">> serving http://localhost:${PORT}/  (Ctrl-C to stop)"
-echo "   game: http://localhost:${PORT}/play/   portal: http://localhost:${PORT}/mods/"
+echo "   game: http://localhost:${PORT}/play/   portal: http://localhost:${PORT}/mods/   book: http://localhost:${PORT}/dev/"
 npx --yes http-server web/dist -p "${PORT}" -c-1

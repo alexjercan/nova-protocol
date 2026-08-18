@@ -134,6 +134,14 @@ serve_site() {
     exec npm run serve
 }
 
+# The developer book: build once so webpack's /dev static mapping has content
+# on first load, then keep it fresh with mdbook's own watcher (no port - the
+# site dev server serves book/ at /dev/).
+echo ">> building the developer book..."
+mdbook build
+echo ">> starting book watcher (mdbook)..."
+start book mdbook watch
+
 echo ">> starting portal (mods) on :${MODS_PORT}..."
 start portal "$ROOT/scripts/serve-mods.sh"
 echo ">> starting game (trunk) on :${GAME_PORT}..."
@@ -160,6 +168,7 @@ cat <<BANNER
      site:   http://localhost:${UI_PORT}/
      game:   http://localhost:${UI_PORT}/play/     (direct: http://localhost:${GAME_PORT}/)
      portal: http://localhost:${UI_PORT}/mods/     (direct: http://localhost:${MODS_PORT}/mods/)
+     book:   http://localhost:${UI_PORT}/dev/
 
 BANNER
 
