@@ -2,12 +2,16 @@
 
 Repository guidance. Global `~/AGENTS.md` applies.
 
+`CONVENTIONS.md` is loaded alongside this file by `CLAUDE.md` and owns every
+style rule: Rust, Bevy, Nova, comments, documentation, changelog and web. This
+file owns workflow. Where a rule would fit both, it goes in `CONVENTIONS.md` and
+this file points at it.
+
 ## Project
 
 - Bevy 0.19 3D space shooter with native, WASM, editor, and scenario paths.
 - Root assembly: `crates/nova_core/src/lib.rs` -> `AppBuilder`.
 - Plugin order: Bevy -> input -> assets -> gameplay -> scenario -> UI -> debug.
-- Style and API rules: `CONVENTIONS.md`.
 
 ## Agent workflow
 
@@ -21,9 +25,9 @@ Repository guidance. Global `~/AGENTS.md` applies.
   task; use network research only when local sources are insufficient.
 - Checks/records: use proof-bearing DoD and task-local NOTES, REVIEW, and RETRO;
   run only the affected checks below.
-- Changelog: one commit-title entry per change, 200 characters hard max; the
-  detail goes to `web/src/news/<version>.md` or the task folder. `docs/` is
-  the dev book source, not scratch; transient notes live outside the repo.
+- Changelog/docs: `CONVENTIONS.md` owns the rules, including the release
+  baseline. `docs/` is the dev book source, not scratch; transient notes live
+  outside the repo.
 
 ## Rules
 

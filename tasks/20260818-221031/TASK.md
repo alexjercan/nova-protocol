@@ -26,8 +26,8 @@ costs gameplay is a visual nobody sees.
 
 1. Asteroid field seed / remesh / collider rebuild (`asteroid_carve.rs`) -
    12.7 + 10.7 + 10.0 ms at 64^3.
-2. Section solidify on first hit (`nova_ship/sections/damage_carve.rs`,
-   `mesh/solidify.rs`) - 10-16 ms per mesh, several in one frame.
+2. ~~Section solidify on first hit~~ - WRONG, struck 2026-08-19. Came from a
+   stale handoff; those files do not exist and sections never carve.
 3. Explosions and death-cascade fragment spawning. `explode.rs` already defers
    through `FinaleQueue`, which is a hand-rolled instance of this pattern - it
    should become an adoption of the shared one, not a second implementation.

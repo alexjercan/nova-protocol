@@ -6,13 +6,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 but groups each release by subsystem (Gameplay & Flight, Combat & Weapons,
 Ships & Sections, Scenarios & Objectives, Modding & Mod Portal, Interface & HUD,
 Web & Platform, Audio & Visuals, Performance, Fixes, Internals & Tooling) rather
-than by Added/Changed/Fixed. Entries are kept SHORT - one commit-title line
-each, 200 characters HARD MAX (measured on the whole entry, wrapped lines
-joined). Keep the claim, drop the justification, the arithmetic and the
-measurements: the per-release News post (`web/src/news/<version>.md`) is where
-the detail and narrative live. This project adheres to
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are
-tagged **(breaking)**.
+than by Added/Changed/Fixed. This project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+**Before editing this file, read the Changelog section of `CONVENTIONS.md`.**
+It owns the rules - the release baseline, the 200-character limit, and what
+does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
