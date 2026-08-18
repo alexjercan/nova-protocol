@@ -1,8 +1,8 @@
 //! Racer semantic parts, prototype catalog entries, and assembly.
 //!
 //! The racer flies UNARMED: a fast, expensive civilian hull (the yacht the
-//! chapters protect). Its turret prototypes stay in the catalog for mods to
-//! mount, but the base assembly skips them.
+//! chapters protect). It keeps two turret mount points so a mod can bolt the
+//! shared PDC onto its wings, but the base assembly skips them.
 
 use nova_scenario::prelude::*;
 use nova_ship::prelude::SectionConfig;
@@ -81,22 +81,10 @@ pub(super) const RACER_PARTS: [PartSpec; 9] = [
         240.0,
         PartRole::Controller,
     ),
-    module(
-        "turret_starboard",
-        "racer_turret_starboard",
-        v(1.35, 0.4, -0.8),
-        130.0,
-        PartRole::Turret,
-        PartSide::Starboard,
-    ),
-    module(
-        "turret_port",
-        "racer_turret_port",
-        v(-1.35, 0.4, -0.8),
-        130.0,
-        PartRole::Turret,
-        PartSide::Port,
-    ),
+    // Mount POINTS, not parts: the racer flies unarmed, but its wings still
+    // offer the socket a mod bolts the shared PDC onto (see `sections`).
+    module("turret_starboard", v(1.35, 0.4, -0.8), PartRole::Turret),
+    module("turret_port", v(-1.35, 0.4, -0.8), PartRole::Turret),
 ];
 
 pub(super) const RACER_EDGES: [(usize, usize); 10] = [
@@ -113,11 +101,16 @@ pub(super) const RACER_EDGES: [(usize, usize); 10] = [
 ];
 
 pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
-    prototypes(&RACER_PARTS, &RACER_EDGES, "Racer", assets, true)
+    prototypes(&RACER_PARTS, &RACER_EDGES, "Racer", assets)
 }
 
 pub(super) fn sections() -> Vec<SpaceshipSectionConfig> {
-    // The meshed seven only: the turret modules (indices 7-8) are
-    // catalog-only prototypes, not part of the unarmed assembly.
-    ship_sections(&RACER_PARTS[..7], ShipGrade::Player, Ordnance::Serpent)
+    // The meshed seven only: the turret modules (indices 7-8) are mount
+    // points a mod can fill, not part of the unarmed assembly.
+    ship_sections(
+        &RACER_PARTS[..7],
+        &RACER_EDGES,
+        ShipGrade::Player,
+        Ordnance::Serpent,
+    )
 }

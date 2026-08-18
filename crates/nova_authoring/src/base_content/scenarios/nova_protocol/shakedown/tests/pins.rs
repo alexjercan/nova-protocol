@@ -291,7 +291,7 @@ fn pirate_spawns_late_at_the_debris_cluster() {
 
 /// Both the player and the scavenger fly the cargoa corvette (base
 /// craft-ships-into-base prototypes); the scavenger is scavenger-grade - the
-/// weak `cargoa_turret_*_light` and a SetHealth-nerfed hull. Resolves each section's prototype ref
+/// SetHealth-nerfed hull, mounts included. Resolves each section's prototype ref
 /// against the base catalog to read its kind, and honors SetHealth overrides.
 #[test]
 fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
@@ -350,12 +350,10 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
             })
             .unwrap_or_else(|| resolve(s).base.health)
     };
-    let max_turret_damage = |ship: &[SpaceshipSectionConfig]| -> f32 {
+    let max_turret_hp = |ship: &[SpaceshipSectionConfig]| -> f32 {
         ship.iter()
-            .filter_map(|s| match resolve(s).kind {
-                SectionKind::Turret(t) => Some(t.bullet_damage),
-                _ => None,
-            })
+            .filter(|s| matches!(resolve(s).kind, SectionKind::Turret(_)))
+            .map(effective_hp)
             .fold(0.0_f32, f32::max)
     };
     let max_hull_hp = |ship: &[SpaceshipSectionConfig]| -> f32 {
@@ -402,9 +400,12 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
 
     let player = &ships.iter().find(|(id, _)| *id == ID_PLAYER).unwrap().1;
     let pirate = &ships.iter().find(|(id, _)| *id == ID_PIRATE).unwrap().1;
+    // Both fly the SAME gun now - there is one turret in the catalog - so the
+    // scavenger grade lives in the mount, not the round: its guns are quicker
+    // to shoot off, not softer to be shot by.
     assert!(
-        max_turret_damage(pirate) < max_turret_damage(player),
-        "the scavenger's turrets are weaker than the player's"
+        max_turret_hp(pirate) < max_turret_hp(player),
+        "the scavenger's gun mounts are flimsier than the player's"
     );
     assert!(
         max_hull_hp(pirate) < max_hull_hp(player),

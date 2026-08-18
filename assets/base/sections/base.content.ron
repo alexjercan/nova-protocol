@@ -226,171 +226,6 @@
     )),
     Section((
         base: (
-            id: "better_turret_section",
-            name: "Better Turret Section",
-            description: "A better turret section for spaceships.",
-            mass: 1.0,
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            link_points: [
-                (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "negative_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        -0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 2.0,
-            bullet_damage: 4.0,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                delay: 3.0,
-                amount: 200,
-            )),
-        )),
-    )),
-    Section((
-        base: (
             id: "light_hull_section",
             name: "Light Hull Section",
             description: "A thin-walled hull section; scavenger grade.",
@@ -481,171 +316,6 @@
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "light_turret_section",
-            name: "Light Turret Section",
-            description: "A low-caliber turret; scavenger grade.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            link_points: [
-                (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "negative_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        -0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 25.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 60.0,
-            projectile_lifetime: 3.0,
-            bullet_damage: 3.825,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(150),
-            reload: Some((
-                delay: 3.0,
-                amount: 60,
-            )),
         )),
     )),
     Section((
@@ -1301,8 +971,8 @@
                     ),
                     normal: (
                         -1.0,
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                     ),
                 ),
                 (
@@ -1313,8 +983,8 @@
                         -0.69749975,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -1407,8 +1077,8 @@
                         -0.69749975,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -1489,8 +1159,8 @@
                     ),
                     normal: (
                         -1.0,
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                     ),
                 ),
                 (
@@ -1509,13 +1179,13 @@
                 (
                     id: "to_turret_starboard",
                     position: (
-                        0.27249998,
-                        -0.050000012,
-                        -0.45891777,
+                        0.545,
+                        -0.099999994,
+                        -0.66783553,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -1578,13 +1248,13 @@
                 (
                     id: "to_turret_port",
                     position: (
-                        -0.27249998,
-                        -0.050000012,
-                        -0.45891777,
+                        -0.545,
+                        -0.099999994,
+                        -0.66783553,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -1669,8 +1339,8 @@
                         -0.75641745,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -1696,8 +1366,8 @@
                     ),
                     normal: (
                         -1.0,
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                     ),
                 ),
             ],
@@ -1738,8 +1408,8 @@
                         -0.8064175,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -1778,8 +1448,8 @@
                     ),
                     normal: (
                         -1.0,
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                     ),
                 ),
             ],
@@ -1801,438 +1471,6 @@
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
             rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_turret_starboard",
-            name: "Racer // Turret Starboard",
-            description: "The Racer\'s turret starboard section.",
-            mass: 1.0,
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.3,
-                    0.3,
-                    0.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_wing_starboard",
-                    position: (
-                        -0.049999982,
-                        -0.2725,
-                        0.45891777,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        0.99999994,
-                    ),
-                ),
-            ],
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 2.0,
-            bullet_damage: 4.0,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                delay: 3.0,
-                amount: 200,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_turret_starboard_light",
-            name: "Racer // Turret Starboard Light",
-            description: "The Racer\'s turret starboard section.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.3,
-                    0.3,
-                    0.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_wing_starboard",
-                    position: (
-                        -0.049999982,
-                        -0.2725,
-                        0.45891777,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        0.99999994,
-                    ),
-                ),
-            ],
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 25.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 60.0,
-            projectile_lifetime: 3.0,
-            bullet_damage: 3.825,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(150),
-            reload: Some((
-                delay: 3.0,
-                amount: 60,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_turret_port",
-            name: "Racer // Turret Port",
-            description: "The Racer\'s turret port section.",
-            mass: 1.0,
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.3,
-                    0.3,
-                    0.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_wing_port",
-                    position: (
-                        0.049999982,
-                        -0.2725,
-                        0.45891777,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        0.99999994,
-                    ),
-                ),
-            ],
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 2.0,
-            bullet_damage: 4.0,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                delay: 3.0,
-                amount: 200,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "racer_turret_port_light",
-            name: "Racer // Turret Port Light",
-            description: "The Racer\'s turret port section.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.3,
-                    0.3,
-                    0.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_wing_port",
-                    position: (
-                        0.049999982,
-                        -0.2725,
-                        0.45891777,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        0.99999994,
-                    ),
-                ),
-            ],
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 25.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 60.0,
-            projectile_lifetime: 3.0,
-            bullet_damage: 3.825,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(150),
-            reload: Some((
-                delay: 3.0,
-                amount: 60,
-            )),
         )),
     )),
     Section((
@@ -2260,8 +1498,8 @@
                         -1.25,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -2341,8 +1579,8 @@
                         -1.25,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -2423,8 +1661,8 @@
                     ),
                     normal: (
                         -1.0,
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                     ),
                 ),
                 (
@@ -2443,9 +1681,9 @@
                 (
                     id: "to_turret_starboard",
                     position: (
-                        0.24749994,
+                        0.4949999,
                         0.25000006,
-                        0.25,
+                        0.5,
                     ),
                     normal: (
                         0.0,
@@ -2531,8 +1769,8 @@
                     ),
                     normal: (
                         -1.0,
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                     ),
                 ),
                 (
@@ -2551,9 +1789,9 @@
                 (
                     id: "to_turret_starboard",
                     position: (
-                        0.24749994,
+                        0.4949999,
                         0.25000006,
-                        0.25,
+                        0.5,
                     ),
                     normal: (
                         0.0,
@@ -2659,9 +1897,9 @@
                 (
                     id: "to_turret_port",
                     position: (
-                        -0.24749994,
+                        -0.4949999,
                         0.25000006,
-                        0.25,
+                        0.5,
                     ),
                     normal: (
                         0.0,
@@ -2767,9 +2005,9 @@
                 (
                     id: "to_turret_port",
                     position: (
-                        -0.24749994,
+                        -0.4949999,
                         0.25000006,
-                        0.25,
+                        0.5,
                     ),
                     normal: (
                         0.0,
@@ -2897,8 +2135,8 @@
                         -0.875,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -2940,8 +2178,8 @@
                         -1.0,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -2980,8 +2218,8 @@
                     ),
                     normal: (
                         -1.0,
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                     ),
                 ),
             ],
@@ -3003,222 +2241,6 @@
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
             rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_turret_starboard",
-            name: "CargoB // Turret Starboard",
-            description: "The CargoB\'s turret starboard section.",
-            mass: 1.0,
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.3,
-                    0.3,
-                    0.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_pod_starboard",
-                    position: (
-                        0.24999999,
-                        -0.24749993,
-                        -0.24999999,
-                    ),
-                    normal: (
-                        0.99999994,
-                        -0.0,
-                        0.0,
-                    ),
-                ),
-            ],
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 2.0,
-            bullet_damage: 4.0,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                delay: 3.0,
-                amount: 200,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargob_turret_port",
-            name: "CargoB // Turret Port",
-            description: "The CargoB\'s turret port section.",
-            mass: 1.0,
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.3,
-                    0.3,
-                    0.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_pod_port",
-                    position: (
-                        -0.24999999,
-                        -0.24749993,
-                        -0.24999999,
-                    ),
-                    normal: (
-                        -0.99999994,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-            ],
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 2.0,
-            bullet_damage: 4.0,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                delay: 3.0,
-                amount: 200,
-            )),
         )),
     )),
     Section((
@@ -3246,8 +2268,8 @@
                         -0.75,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -3327,8 +2349,8 @@
                         -0.75,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -3409,8 +2431,8 @@
                     ),
                     normal: (
                         -1.0,
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                     ),
                 ),
                 (
@@ -3528,7 +2550,7 @@
                 (
                     id: "to_turret_starboard",
                     position: (
-                        0.475,
+                        0.7,
                         0.0,
                         0.0,
                     ),
@@ -3541,14 +2563,14 @@
                 (
                     id: "to_turret_port",
                     position: (
-                        -0.475,
+                        -0.7,
                         0.0,
                         0.0,
                     ),
                     normal: (
                         -1.0,
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                     ),
                 ),
             ],
@@ -3589,8 +2611,8 @@
                         -0.9,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -3632,8 +2654,8 @@
                         -0.9875,
                     ),
                     normal: (
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                         -1.0,
                     ),
                 ),
@@ -3672,8 +2694,8 @@
                     ),
                     normal: (
                         -1.0,
-                        0.0,
-                        0.0,
+                        -0.0,
+                        -0.0,
                     ),
                 ),
             ],
@@ -3695,438 +2717,6 @@
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
             rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_turret_starboard",
-            name: "CargoA // Turret Starboard",
-            description: "The CargoA\'s turret starboard section.",
-            mass: 1.0,
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.3,
-                    0.3,
-                    0.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_nose",
-                    position: (
-                        -0.0,
-                        -0.475,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -0.99999994,
-                        0.0,
-                    ),
-                ),
-            ],
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 2.0,
-            bullet_damage: 4.0,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                delay: 3.0,
-                amount: 200,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_turret_starboard_light",
-            name: "CargoA // Turret Starboard Light",
-            description: "The CargoA\'s turret starboard section.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.3,
-                    0.3,
-                    0.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_nose",
-                    position: (
-                        -0.0,
-                        -0.475,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -0.99999994,
-                        0.0,
-                    ),
-                ),
-            ],
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 25.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 60.0,
-            projectile_lifetime: 3.0,
-            bullet_damage: 3.825,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(150),
-            reload: Some((
-                delay: 3.0,
-                amount: 60,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_turret_port",
-            name: "CargoA // Turret Port",
-            description: "The CargoA\'s turret port section.",
-            mass: 1.0,
-            health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.3,
-                    0.3,
-                    0.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_nose",
-                    position: (
-                        0.0,
-                        -0.475,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -0.99999994,
-                        0.0,
-                    ),
-                ),
-            ],
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 100.0,
-            projectile_lifetime: 2.0,
-            bullet_damage: 4.0,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
-                delay: 3.0,
-                amount: 200,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargoa_turret_port_light",
-            name: "CargoA // Turret Port Light",
-            description: "The CargoA\'s turret port section.",
-            mass: 1.0,
-            health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    0.3,
-                    0.3,
-                    0.3,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "to_nose",
-                    position: (
-                        0.0,
-                        -0.475,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -0.99999994,
-                        0.0,
-                    ),
-                ),
-            ],
-            hide_in_editor: true,
-        ),
-        kind: Turret((
-            root: (
-                offset: (
-                    0.0,
-                    -0.5,
-                    0.0,
-                ),
-                children: [
-                    (
-                        offset: (
-                            0.0,
-                            0.1,
-                            0.0,
-                        ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                        children: [
-                            (
-                                offset: (
-                                    0.0,
-                                    0.332706,
-                                    0.303954,
-                                ),
-                                axis: Some((
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                children: [
-                                    (
-                                        offset: (
-                                            0.0,
-                                            0.128437,
-                                            -0.110729,
-                                        ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                        children: [
-                                            (
-                                                offset: (
-                                                    0.0,
-                                                    0.0,
-                                                    -1.2,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 25.0,
-                                                )),
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            muzzle_speed: 60.0,
-            projectile_lifetime: 3.0,
-            bullet_damage: 3.825,
-            bullet_kind: Kinetic,
-            fire_sound: Some("self://sounds/turret_fire.wav"),
-            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-            ammo_capacity: Some(150),
-            reload: Some((
-                delay: 3.0,
-                amount: 60,
-            )),
         )),
     )),
 ]

@@ -125,9 +125,11 @@ pub(crate) fn asteroid_field(
             },
             SpaceshipSectionConfig {
                 id: "turret".to_string(),
-                position: Vec3::new(0.0, 0.0, -2.0),
+                // Seated on the rear hull's -Z face: the shared PDC bolts down
+                // by its base plate a quarter-cell in, not a whole cell out.
+                position: Vec3::new(0.0, 0.0, -1.75),
                 rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                source: SectionSource::Prototype("better_turret_section".to_string()),
+                source: SectionSource::Prototype("pdc_kinetic_turret_section".to_string()),
                 modifications: vec![],
             },
         ]),
@@ -177,9 +179,11 @@ pub(crate) fn asteroid_field(
             },
             SpaceshipSectionConfig {
                 id: "turret".to_string(),
-                position: Vec3::new(0.0, 0.0, -2.0),
+                // Seated on the rear hull's -Z face: the shared PDC bolts down
+                // by its base plate a quarter-cell in, not a whole cell out.
+                position: Vec3::new(0.0, 0.0, -1.75),
                 rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                source: SectionSource::Prototype("better_turret_section".to_string()),
+                source: SectionSource::Prototype("pdc_kinetic_turret_section".to_string()),
                 modifications: vec![],
             },
         ]),

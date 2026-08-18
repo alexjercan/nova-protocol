@@ -192,8 +192,8 @@ fn hull(sections: &GameSections, index: usize) -> SpaceshipConfig {
     }));
     specs.push(SectionSpec::new(
         format!("guns_{index}"),
-        "better_turret_section",
-        Vec3::new(0.0, 1.0, 0.0),
+        "pdc_kinetic_turret_section",
+        Vec3::new(0.0, 0.75, 0.0),
     ));
 
     SpaceshipConfig {

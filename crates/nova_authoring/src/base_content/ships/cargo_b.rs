@@ -77,22 +77,8 @@ pub(super) const CARGOB_PARTS: [PartSpec; 9] = [
         300.0,
         PartRole::Controller,
     ),
-    module(
-        "turret_starboard",
-        "cargob_turret_starboard",
-        v(1.55, 1.2, 0.0),
-        130.0,
-        PartRole::Turret,
-        PartSide::Starboard,
-    ),
-    module(
-        "turret_port",
-        "cargob_turret_port",
-        v(-1.55, 1.2, 0.0),
-        130.0,
-        PartRole::Turret,
-        PartSide::Port,
-    ),
+    module("turret_starboard", v(1.55, 1.2, 0.0), PartRole::Turret),
+    module("turret_port", v(-1.55, 1.2, 0.0), PartRole::Turret),
 ];
 
 pub(super) const CARGOB_EDGES: [(usize, usize); 8] = [
@@ -107,7 +93,7 @@ pub(super) const CARGOB_EDGES: [(usize, usize); 8] = [
 ];
 
 pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
-    prototypes(&CARGOB_PARTS, &CARGOB_EDGES, "CargoB", assets, false)
+    prototypes(&CARGOB_PARTS, &CARGOB_EDGES, "CargoB", assets)
 }
 
 /// The cargo-B assembly. `ordnance` is the one real build-time choice this hull
@@ -116,5 +102,5 @@ pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
 /// the two ordnance loads are two catalog SHIPS, the way the two corvette
 /// grades are.
 pub(super) fn sections(ordnance: Ordnance) -> Vec<SpaceshipSectionConfig> {
-    ship_sections(&CARGOB_PARTS, ShipGrade::Player, ordnance)
+    ship_sections(&CARGOB_PARTS, &CARGOB_EDGES, ShipGrade::Player, ordnance)
 }

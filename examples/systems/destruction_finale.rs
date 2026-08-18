@@ -450,7 +450,15 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
                     "basic_thruster_section",
                     Vec3::new(0.0, 0.0, 2.0),
                 ),
-                at("turret", "light_turret_section", Vec3::new(1.0, 0.0, 0.0)),
+                SpaceshipSectionConfig {
+                    id: "turret".to_string(),
+                    // Seated on the controller's +X face: a quarter-cell in
+                    // from it, rolled so the gun stands out of that face.
+                    position: Vec3::new(0.75, 0.0, 0.0),
+                    rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
+                    source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
+                    modifications: vec![],
+                },
             ],
             ..default()
         }),

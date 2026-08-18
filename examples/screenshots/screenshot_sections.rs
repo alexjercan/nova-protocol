@@ -105,11 +105,9 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         modifications: vec![],
     };
     let upright = Quat::IDENTITY;
-    // The turret: 90 deg clockwise about Z, then X, then Y, so it sits on the
-    // right flank facing out (barrel along the hull) instead of into the ship.
-    let turret_rot = Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2)
-        * Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2)
-        * Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
+    // The turret stands on the right flank: one quarter turn about Z puts the
+    // mount's base plate against that face and the gun out of it.
+    let turret_rot = Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2);
 
     // A real ship shape: a spine (front hull -> controller -> rear hull ->
     // thruster) along -/+Z, with the turret and the torpedo bay mounted on the
@@ -146,8 +144,8 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 // Turret on the right flank, torpedo bay on the left - both upright.
                 at(
                     "turret",
-                    "better_turret_section",
-                    Vec3::new(1.0, 0.0, 0.0),
+                    "pdc_kinetic_turret_section",
+                    Vec3::new(0.75, 0.0, 0.0),
                     turret_rot,
                 ),
                 at(

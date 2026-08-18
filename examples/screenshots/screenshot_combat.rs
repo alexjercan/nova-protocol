@@ -141,11 +141,21 @@ const RAIDER_POSITION: Vec3 = Vec3::new(0.0, 0.6, -34.0);
 const RAIDER_BLOWN_SECTION: &str = "nose";
 #[cfg(feature = "debug")]
 /// The section the torpedo beat takes off on the raider's port side, where a
-/// blast arriving from above lands. A torpedo alone will NOT do this: the fuze
-/// goes 15 units out, and 100 blast damage with falloff at half the blast radius
-/// leaves a 70-100 health section standing. The frame is of a real detonation
-/// and a real section death, timed together.
-const RAIDER_BLAST_SECTION: &str = "wing_port";
+/// blast arriving from above lands - a BACKSTOP, not the damage itself.
+///
+/// This named the racer's `wing_port` for a while. The raider is a cargoa,
+/// which has no wings, so the blow could never resolve; it has to be a section
+/// this hull actually carries.
+///
+/// The blow was written when a Serpent carried 100 blast damage and left a
+/// 70-100 health section standing, so the frame needed help to show a hole. A
+/// Serpent carries 750 over a 30-unit radius now, which is enough to take the
+/// whole corvette apart in the same tick, root and all. So this usually fires
+/// into an already-dead section and warns, harmlessly: the torpedo did the job
+/// the blow was there to guarantee. Worth revisiting whether the beat still
+/// earns its place - and worth NOT deleting until someone has looked at what
+/// the aftermath frame actually captures.
+const RAIDER_BLAST_SECTION: &str = "pod_port";
 
 /// Scenario id of the friendly torpedo boat - the only hull in the set carrying
 /// torpedo pods, and the ship the ordnance beats are shot off.
@@ -590,22 +600,32 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    commands.trigger(LoadScenario(rock_hollow(&game_assets, &sections)));
+fn load_scene(
+    mut commands: Commands,
+    game_assets: Res<GameAssets>,
+    sections: Res<GameSections>,
+    ships: Res<GameShips>,
+) {
+    commands.trigger(LoadScenario(rock_hollow(&game_assets, &sections, &ships)));
 }
 
 #[cfg(feature = "debug")]
 fn load_ordnance_chapter(world: &mut World) {
     let game_assets = world.resource::<GameAssets>().clone();
-    let sections = world.resource::<GameSections>().clone();
+    let ships = world.resource::<GameShips>().clone();
     world.remove_resource::<HoldStation>();
-    world.trigger(LoadScenario(ordnance_chapter(&game_assets, &sections)));
+    world.trigger(LoadScenario(ordnance_chapter(&game_assets, &ships)));
     info!("combat: loading scenario chapter `{ORDNANCE_CHAPTER_ID}`");
 }
 
 /// The set: an empty start, a beacon 750 units downrange, a rock hollow around
 /// it, and an ambush that springs when the player gets there.
-fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+fn rock_hollow(
+    game_assets: &GameAssets,
+    sections: &GameSections,
+    ships: &GameShips,
+) -> ScenarioConfig {
+    let player_hull = kit::kenney_hull(ships, "cargoa");
     let player = ship(
         PLAYER_ID,
         "Player Ship",
@@ -621,14 +641,14 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             // per-section, snapshotted from this map by section id at spawn
             // (`nova_scenario/src/objects/spaceship.rs`), so an empty map is a
             // ship whose guns no button reaches.
-            input_mapping: turret_bindings(sections, "cargoa"),
+            input_mapping: turret_bindings(sections, &player_hull),
             speed_cap: None,
             // The player holds fire through several beats; running dry
             // mid-capture would leave a reload where the tracers should be.
             infinite_ammo: true,
         }),
         None,
-        kit::kenney_hull(sections, "cargoa"),
+        player_hull.clone(),
     );
 
     // The corridor: big rocks spread wide around the hollow, so the leg has
@@ -676,7 +696,7 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
                 ]
                 .concat(),
             },
-            ambush(sections),
+            ambush(ships),
         ],
         ..ScenarioConfig::new(
             APPROACH_CHAPTER_ID.to_string(),
@@ -693,7 +713,7 @@ fn rock_hollow(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
 /// Only `load_ordnance_chapter` builds it, and only the script calls that, so
 /// it is script-only like every other beat helper here.
 #[cfg(feature = "debug")]
-fn ordnance_chapter(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+fn ordnance_chapter(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     let player = ship(
         PLAYER_ID,
         "Player Ship",
@@ -705,7 +725,7 @@ fn ordnance_chapter(game_assets: &GameAssets, sections: &GameSections) -> Scenar
             infinite_ammo: true,
         }),
         None,
-        kit::kenney_hull(sections, "cargoa"),
+        kit::kenney_hull(ships, "cargoa"),
     );
     let raider = ship(
         RAIDER_ID,
@@ -714,7 +734,7 @@ fn ordnance_chapter(game_assets: &GameAssets, sections: &GameSections) -> Scenar
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::kenney_hull(sections, "cargoa"),
+        kit::kenney_hull(ships, "cargoa"),
     );
     let lance = ship(
         LANCE_ID,
@@ -725,7 +745,7 @@ fn ordnance_chapter(game_assets: &GameAssets, sections: &GameSections) -> Scenar
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::kenney_hull(sections, "cargob"),
+        kit::kenney_hull(ships, "cargob"),
     );
     let shell = kit::NearField {
         id_prefix: "ordnance_rock_",
@@ -761,7 +781,7 @@ fn ordnance_chapter(game_assets: &GameAssets, sections: &GameSections) -> Scenar
 /// Scenario data rather than script on purpose - this is the engine's own
 /// `OnEnter` ambush pattern, and it means the owner's plain run gets the fight
 /// by flying to the beacon, not only the scripted capture run.
-fn ambush(sections: &GameSections) -> ScenarioEventConfig {
+fn ambush(ships: &GameShips) -> ScenarioEventConfig {
     // The lock subject: not AI, because an AI hostile flies to a 100-unit
     // standoff and no close framing survives that (see the module docs). It is
     // not dead still either - [`nudge_raider`] gives it a slow drift, so the
@@ -776,7 +796,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::kenney_hull(sections, "cargoa"),
+        kit::kenney_hull(ships, "cargoa"),
     );
 
     // The live background: two friendlies working the near flanks, two hostiles
@@ -796,7 +816,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
             Vec3::new(-86.0, -6.0, -70.0),
         ]),
         Some(Allegiance::Player),
-        kit::kenney_hull(sections, "cargoa"),
+        kit::kenney_hull(ships, "cargoa"),
     );
     let wingman_b = ship(
         "hollow_wing_b",
@@ -809,7 +829,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
             Vec3::new(40.0, -20.0, -110.0),
         ]),
         Some(Allegiance::Player),
-        kit::kenney_hull(sections, "cargoa"),
+        kit::kenney_hull(ships, "cargoa"),
     );
     let hostile_a = ship(
         "hollow_hostile_a",
@@ -822,7 +842,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
             Vec3::new(-190.0, 6.0, -300.0),
         ]),
         None,
-        kit::kenney_hull(sections, "cargoa"),
+        kit::kenney_hull(ships, "cargoa"),
     );
     let hostile_b = ship(
         "hollow_hostile_b",
@@ -835,7 +855,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
             Vec3::new(210.0, -4.0, -330.0),
         ]),
         None,
-        kit::kenney_hull(sections, "cargob"),
+        kit::kenney_hull(ships, "cargob"),
     );
 
     // The torpedo boat: a cargo-B, which is the only Kenney hull in the catalog
@@ -853,7 +873,7 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::kenney_hull(sections, "cargob"),
+        kit::kenney_hull(ships, "cargob"),
     );
 
     ScenarioEventConfig {
@@ -871,21 +891,31 @@ fn ambush(sections: &GameSections) -> ScenarioEventConfig {
 /// shipped scenarios do (`shakedown_run` maps its two corvette turret cubes to
 /// `Mouse(Left)` + `Gamepad(RightTrigger2)`).
 ///
-/// Derived from the catalog rather than typed out, for the same reason
+/// Read off the BUILT hull rather than typed out, for the same reason
 /// [`kit::kenney_hull`] is: the ids ARE the layout, and a hand-listed pair goes
 /// stale the moment a hull gains a gun. The map is keyed by INSTANCE id
-/// (`nova_scenario` snapshots bindings by section id at spawn), which for a
-/// [`kit::kenney_hull`] build is the prototype id minus the `<hull>_` prefix;
-/// the `_light` catalog variants are not part of any built hull, so they are
-/// skipped.
-fn turret_bindings(sections: &GameSections, hull: &str) -> HashMap<String, Vec<Binding>> {
-    let prefix = format!("{hull}_");
-    sections
-        .iter()
-        .filter(|section| matches!(section.kind, SectionKind::Turret(_)))
-        .filter_map(|section| section.base.id.strip_prefix(&prefix))
-        .filter(|id| !id.ends_with("_light"))
-        .map(|id| {
+/// (`nova_scenario` snapshots bindings by section id at spawn), which is the id
+/// the assembly gave the mount.
+///
+/// This used to walk the section CATALOG and strip a `<hull>_` prefix off every
+/// turret prototype. Every craft mounts the one shared PDC now, whose id
+/// carries no hull prefix, so that filter matched nothing and handed back an
+/// empty map - a ship whose guns no button reaches, silently.
+fn turret_bindings(
+    sections: &GameSections,
+    hull: &[SpaceshipSectionConfig],
+) -> HashMap<String, Vec<Binding>> {
+    hull.iter()
+        .filter(|section| {
+            let SectionSource::Prototype(prototype) = &section.source else {
+                return false;
+            };
+            sections
+                .get_section(prototype)
+                .is_some_and(|section| matches!(section.kind, SectionKind::Turret(_)))
+        })
+        .map(|section| {
+            let id = section.id.as_str();
             (
                 id.to_string(),
                 vec![

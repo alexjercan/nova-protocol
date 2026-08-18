@@ -483,13 +483,13 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    commands.trigger(LoadScenario(the_ring(&game_assets, &sections)));
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+    commands.trigger(LoadScenario(the_ring(&game_assets, &ships)));
 }
 
 /// The set: a gravity planetoid at the origin, a rock ring outside the flight
 /// path, and the player's racer parked on the ring radius.
-fn the_ring(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+fn the_ring(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     let player = ship(
         PLAYER_ID,
         "Player Ship",
@@ -501,7 +501,7 @@ fn the_ring(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             infinite_ammo: true,
         }),
         None,
-        kit::kenney_hull(sections, "racer"),
+        kit::kenney_hull(ships, "racer"),
     );
 
     // The ring debris: OUTSIDE the flight path, and small. Two rules, both

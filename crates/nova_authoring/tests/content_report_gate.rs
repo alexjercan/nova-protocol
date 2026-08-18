@@ -53,7 +53,7 @@ fn broken_mod() -> (tempfile::TempDir, &'static str) {
                             hull: Inline((
                                 sections: [
                                     (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
-                                    (id: "guns", position: (0.0, 0.0, -1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("better_turret_section")),
+                                    (id: "guns", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("pdc_kinetic_turret_section")),
                                     (id: "bad", position: (0.0, 0.0, 1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("imaginary_hull")),
                                 ],
                             )),
@@ -66,7 +66,7 @@ fn broken_mod() -> (tempfile::TempDir, &'static str) {
                             hull: Inline((
                                 sections: [
                                     (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
-                                    (id: "turret", position: (0.0, 0.0, -1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("better_turret_section")),
+                                    (id: "turret", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("pdc_kinetic_turret_section")),
                                 ],
                             )),
                         )),

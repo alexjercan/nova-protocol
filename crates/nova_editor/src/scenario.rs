@@ -385,9 +385,11 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
                     ),
                     section(
                         "turret",
-                        Vec3::new(0.0, 0.0, -2.0),
+                        // Seated on the rear hull's -Z face: the shared PDC
+                        // bolts down by its base plate a quarter-cell in.
+                        Vec3::new(0.0, 0.0, -1.75),
                         Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                        "better_turret_section",
+                        "pdc_kinetic_turret_section",
                     ),
                 ],
                 ..default()

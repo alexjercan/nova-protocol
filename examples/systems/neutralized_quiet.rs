@@ -233,8 +233,8 @@ fn raider(sections: &GameSections) -> SpaceshipConfig {
             ),
             SectionSpec::new(
                 RAIDER_GUNS,
-                "better_turret_section",
-                Vec3::new(0.0, 1.0, 0.0),
+                "pdc_kinetic_turret_section",
+                Vec3::new(0.0, 0.75, 0.0),
             ),
         ],
     )

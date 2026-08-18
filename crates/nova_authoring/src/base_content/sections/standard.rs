@@ -25,23 +25,24 @@ use super::ordnance;
 // armored weapon mounts and shrug off MORE (take LESS); the controller core and
 // the torpedo bay sit at the mid baseline. Direction follows the task title and
 // is a playtest knob - flipping "fragile vs tough" is a one-line change here.
-// Per-section variants (a reinforced hull, a scavenger-grade turret) may deviate
-// from their type baseline on purpose; these are the values they start from.
+// Per-section variants (a reinforced hull, a light hull) may deviate from their
+// type baseline on purpose; these are the values they start from.
 const THRUSTER_BASE_HEALTH: f32 = 70.0;
 const CONTROLLER_BASE_HEALTH: f32 = 100.0;
 const TURRET_BASE_HEALTH: f32 = 130.0;
 const TORPEDO_BASE_HEALTH: f32 = 100.0;
 
-// Authored per-hit Kinetic damage of the player's PDC (`better_turret`), a
-// playtest knob. A point-defense profile: LOW per-hit, HIGH rate (100
-// rounds/s). At 4.0 the PDC does ~400 DPS - clearly the stronger gun than the
-// scavenger light turret (3.825/hit @ 25 rps ~ 96 DPS) - while a 100-HP
-// asteroid now takes ~25 rounds (~0.25s of fire) instead of ~5, so a burst
-// visibly chips it down rather than popping it in a blink (playtest: "PDC
-// destroys asteroids/objects with one bullet"). Was ~20.25 (the old emergent
-// per-hit); the drop also slows ship TTK ~5x, consistent with a PDC and with
-// the shakedown pirate still dying in a short burst (~0.15s on a 60-HP hull).
-const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
+// Authored per-hit Kinetic damage of the shared PDC, a playtest knob. A
+// point-defense profile: LOW per-hit, HIGH rate (100 rounds/s). At 4.0 the PDC
+// does ~400 DPS, while a 100-HP asteroid takes ~25 rounds (~0.25s of fire), so
+// a burst visibly chips it down rather than popping it in a blink (playtest:
+// "PDC destroys asteroids/objects with one bullet"). Was ~20.25 (the old
+// emergent per-hit); the drop also slows ship TTK ~5x, consistent with a PDC.
+//
+// Every craft now mounts this one gun, so this number is the whole gunnery
+// curve: a raider is made weaker by its HULL and its mount's health, not by a
+// second, softer turret prototype.
+const KINETIC_PDC_BULLET_DAMAGE: f32 = 4.0;
 
 /// Authored per-hit damage of the Pierce PDC: HALF the Kinetic one.
 ///
@@ -51,7 +52,7 @@ const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
 /// while a rake through three sections puts 6 into a ship the slug could only
 /// put 4 into. Half is a round number, not a measured one - the first knob to
 /// turn once the two are flown side by side.
-const PIERCE_PDC_BULLET_DAMAGE: f32 = BETTER_TURRET_BULLET_DAMAGE * 0.5;
+const PIERCE_PDC_BULLET_DAMAGE: f32 = KINETIC_PDC_BULLET_DAMAGE * 0.5;
 
 /// Side of the shared PDC turret's mount box - and the scale its art is
 /// assembled at, which is the point of having one number: the collider, the
@@ -62,17 +63,29 @@ const PIERCE_PDC_BULLET_DAMAGE: f32 = BETTER_TURRET_BULLET_DAMAGE * 0.5;
 /// the rest of it, where a unit-cube turret replaces the face outright.
 const PDC_TURRET_SIZE: f32 = 0.5;
 
+/// The catalog id of the one turret every shipped craft mounts.
+///
+/// The ship builders name it rather than spelling the string, because a mount
+/// is no longer a per-craft part: the same prototype bolts onto the cargoa's
+/// nose cheeks, the cargob's pod shoulders and any hull face a builder picks.
+pub(crate) const PDC_KINETIC_SECTION_ID: &str = "pdc_kinetic_turret_section";
+
+/// How far the shared PDC's base socket sits from the mount's own centre.
+///
+/// A mount bolts down by its base plate, so this is the ONLY offset a host
+/// needs to know to put a socket where the gun will actually stand. Ship
+/// builders read it to place the socket they offer a turret (see
+/// `ships::shared::link_points`).
+pub(crate) const PDC_MOUNT_OFFSET: f32 = PDC_TURRET_SIZE * 0.5;
+
 /// How far a shipped turret's pitch hinge may DEPRESS below level (10 deg).
 /// Every shipped mount sits ON a hull - the cargoa's nose cheeks most tightly -
 /// so a deeper floor only swings the barrel back across its own ship.
 const TURRET_DEPRESSION_LIMIT: f32 = std::f32::consts::PI / 18.0;
 
-/// Half-height of the section a turret joint tree was originally authored
-/// against: the unit cube, whose bottom face is where the turret stands.
-pub(crate) const UNIT_TURRET_MOUNT: f32 = 0.5;
-
-/// The size the turret art was drawn at: one whole section cube.
-pub(crate) const UNIT_TURRET_SCALE: f32 = 1.0;
+/// The size the turret art was drawn at: one whole section cube. A tree
+/// assembled at this scale needs no art transform at all.
+const UNIT_TURRET_SCALE: f32 = 1.0;
 
 /// Build the shipped turret's kinematic joint tree: the exact chain the flat
 /// config used to author 1:1. base(fixed, on the mount face) -> yaw(Y, meshed)
@@ -93,8 +106,8 @@ pub(crate) const UNIT_TURRET_SCALE: f32 = 1.0;
 /// primitive a full unit across (see `insert_turret_joint_render`), so a turret
 /// mounted on anything but a unit cube wore a hull-sized dinner plate.
 ///
-/// Every shipped caller passes [`UNIT_TURRET_MOUNT`] and [`UNIT_TURRET_SCALE`]
-/// and is unchanged by either.
+/// Every shipped caller is the shared PDC, which passes its own half-size and
+/// its own size: the mount, the sockets and the gun agree by construction.
 pub(crate) fn turret_joint_tree(
     yaw_mesh: &AssetRef<WorldAsset>,
     pitch_mesh: &AssetRef<WorldAsset>,
@@ -218,9 +231,9 @@ fn pdc_turret_prototype(
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // The mount the shipped craft carry: a small box that sits ON a
             // hull face instead of standing in for one, which is what lets ONE
-            // turret serve every craft. The per-craft copies
-            // (`cargob_turret_port` and its nine siblings) are the same gun on
-            // the same joint tree, and are catalog-only now that this exists.
+            // turret serve every craft. The ten per-craft copies that used to
+            // sit beside it were the same gun on the same joint tree, and are
+            // gone.
             collider: Some(SectionCollider::Cuboid {
                 size: Vec3::splat(PDC_TURRET_SIZE),
             }),
@@ -239,8 +252,6 @@ fn pdc_turret_prototype(
             hide_in_editor: false,
         },
         kind: SectionKind::Turret(TurretSectionConfig {
-            // The player-grade PDC, numbers for numbers with
-            // `better_turret_section`: what differs is the mount, not the gun.
             root: turret_joint_tree(
                 &meshes.turret_yaw,
                 &meshes.turret_pitch,
@@ -374,57 +385,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         },
         SectionConfig {
             base: BaseSectionConfig {
-                id: "better_turret_section".to_string(),
-                name: "Better Turret Section".to_string(),
-                description: "A better turret section for spaceships.".to_string(),
-                mass: 1.0,
-                // Armored weapon mount: tough, takes less damage per hit than
-                // an exposed section.
-                health: TURRET_BASE_HEALTH,
-                impact_sound: Some(meshes.section_impact_sound.clone()),
-                destroy_sound: Some(meshes.section_destroy_sound.clone()),
-                collider: None,
-                link_points: unit_cube_link_points(),
-                hide_in_editor: false,
-            },
-            kind: SectionKind::Turret(TurretSectionConfig {
-                // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) -> muzzle,
-                // migrated 1:1 from the old flat fields.
-                root: turret_joint_tree(
-                    &meshes.turret_yaw,
-                    &meshes.turret_pitch,
-                    &meshes.turret_barrel,
-                    100.0,
-                    UNIT_TURRET_MOUNT,
-                    UNIT_TURRET_SCALE,
-                ),
-                muzzle_speed: 100.0,
-                // 200 u (2.0 km) of reach, same gun as the PDC mounts.
-                projectile_lifetime: 2.0,
-                // Point-defense per-hit: low damage, high rate. See
-                // BETTER_TURRET_BULLET_DAMAGE. (Was the old emergent per-hit
-                // representative_kinetic_damage(0.1, 100.0) ~= 20.25, which
-                // vaporised asteroids in a blink.)
-                bullet_damage: BETTER_TURRET_BULLET_DAMAGE,
-                // Kinetic loadout (the slot's authored default).
-                bullet_kind: DamageType::Kinetic,
-                projectile_render_mesh: None,
-                fire_sound: Some(meshes.turret_fire_sound.clone()),
-                dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
-                // ~5s of sustained fire at 100 rounds/s. Generous on purpose:
-                // the player should feel the limit without running dry in a
-                // normal engagement. Playtest knob.
-                ammo_capacity: Some(500),
-                // Idle batch reload: each shot restarts the 3s delay, then 200
-                // rounds return. Immediate batch firing sustains 40 rounds/s.
-                reload: Some(SectionReloadConfig {
-                    delay: 3.0,
-                    amount: 200,
-                }),
-            }),
-        },
-        SectionConfig {
-            base: BaseSectionConfig {
                 id: "light_hull_section".to_string(),
                 name: "Light Hull Section".to_string(),
                 description: "A thin-walled hull section; scavenger grade.".to_string(),
@@ -443,76 +403,15 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 render_mesh_transform: None,
             }),
         },
-        SectionConfig {
-            base: BaseSectionConfig {
-                id: "light_turret_section".to_string(),
-                name: "Light Turret Section".to_string(),
-                description: "A low-caliber turret; scavenger grade.".to_string(),
-                mass: 1.0,
-                // Deliberately BELOW the turret baseline: scavenger grade, and
-                // the shakedown pirate should die in a short burst. A
-                // per-section variant departing from its type baseline on
-                // purpose - not the armored better_turret.
-                health: 60.0,
-                impact_sound: Some(meshes.section_impact_sound.clone()),
-                destroy_sound: Some(meshes.section_destroy_sound.clone()),
-                collider: None,
-                link_points: unit_cube_link_points(),
-                hide_in_editor: false,
-            },
-            kind: SectionKind::Turret(TurretSectionConfig {
-                // Same joint tree as the better turret; scavenger grade differs
-                // only in fire rate, muzzle speed, damage and ammo below.
-                root: turret_joint_tree(
-                    &meshes.turret_yaw,
-                    &meshes.turret_pitch,
-                    &meshes.turret_barrel,
-                    // Scavenger grade: a quarter of the better turret's fire
-                    // rate (per-muzzle now).
-                    25.0,
-                    UNIT_TURRET_MOUNT,
-                    UNIT_TURRET_SCALE,
-                ),
-                // Scavenger grade: slower rounds. Since the typed-damage pass
-                // the per-hit damage is authored below (bullet_damage) rather
-                // than emergent from mass x velocity.
-                muzzle_speed: 60.0,
-                // LONGER than the PDC's 2.0 s on purpose: reach is
-                // muzzle_speed x lifetime, so at 60 u/s the same 2.0 s would
-                // buy only 120 u - inside AI_STANDOFF_RANGE + AI_STANDOFF_BAND
-                // (125 u), where the ship orbits. Most shipped hostiles carry
-                // THIS gun, and a gun that cannot reach the band its own AI
-                // flies is not "weaker", it is silent. 3.0 s = 180 u (1.8 km),
-                // still short of the PDC's 200 u.
-                projectile_lifetime: 3.0,
-                // Authored Kinetic damage reproducing the old emergent per-hit
-                // (mass 0.05 @ 60 u/s) - roughly a fifth of the better turret's,
-                // matching the previous gentleness.
-                bullet_damage: representative_kinetic_damage(0.05, 60.0),
-                // Kinetic loadout.
-                bullet_kind: DamageType::Kinetic,
-                projectile_render_mesh: None,
-                fire_sound: Some(meshes.turret_fire_sound.clone()),
-                dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
-                // ~6s of fire at 25 rounds/s. Scavenger grade: a shorter fight
-                // before the pirate's guns run dry. Playtest knob.
-                ammo_capacity: Some(150),
-                // Same 40% idle batch as the player-grade PDC.
-                reload: Some(SectionReloadConfig {
-                    delay: 3.0,
-                    amount: 60,
-                }),
-            }),
-        },
         pdc_turret_prototype(
             meshes,
-            "pdc_kinetic_turret_section",
+            PDC_KINETIC_SECTION_ID,
             "PDC Turret (Kinetic)",
             "A compact point-defense mount that fits any hull face. Slugs: the \
              hardest single hit, harder still on a charge, and they stop at \
              anything they cannot destroy.",
             DamageType::Kinetic,
-            BETTER_TURRET_BULLET_DAMAGE,
+            KINETIC_PDC_BULLET_DAMAGE,
         ),
         pdc_turret_prototype(
             meshes,
@@ -706,11 +605,9 @@ mod tests {
     /// rather than over that one section, because the next mount authored at
     /// its own size would repeat it.
     ///
-    /// The per-craft turret modules are a KNOWN deviation and are excluded with
-    /// the rest of the editor-hidden prototypes: their art was placed against
-    /// the unit-cube offset and the shipped craft were framed with it there, so
-    /// correcting them MOVES the turret on every shipped ship - an art call,
-    /// not a code one.
+    /// The per-craft turret modules used to be a KNOWN deviation excluded from
+    /// this rule; they are gone, so every turret in the catalog is held to it.
+    ///
     /// No bay offers a mating surface across the face it fires through.
     ///
     /// A torpedo section used to carry the plain hull block's full six-socket
@@ -958,8 +855,8 @@ mod tests {
         const MIN_ROUNDS_TO_KILL: f32 = 12.0;
         const {
             assert!(
-                BETTER_TURRET_BULLET_DAMAGE <= ASTEROID_HP / MIN_ROUNDS_TO_KILL,
-                "PDC per-hit BETTER_TURRET_BULLET_DAMAGE would kill an \
+                KINETIC_PDC_BULLET_DAMAGE <= ASTEROID_HP / MIN_ROUNDS_TO_KILL,
+                "PDC per-hit KINETIC_PDC_BULLET_DAMAGE would kill an \
                  ASTEROID_HP-HP object in under MIN_ROUNDS_TO_KILL rounds - \
                  too close to a one-shot pop"
             );

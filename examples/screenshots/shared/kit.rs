@@ -13,7 +13,7 @@
 //!
 //! What it holds, and nothing else:
 //!
-//! - [`kenney_hull`]: the section list for a whole semantic-parts Kenney ship.
+//! - [`kenney_hull`]: the shipped section list for a semantic-parts Kenney ship.
 //! - [`NearField`]: near-field asteroid dressing, close enough to the subject to
 //!   actually be in frame.
 //!
@@ -27,74 +27,26 @@
 use bevy::prelude::*;
 use nova_protocol::prelude::*;
 
-/// Rebuild the shipped semantic-parts assembly used by screenshot fixtures.
+/// The shipped semantic-parts assembly, read straight from the ship catalog.
 ///
-/// The catalog remains the authority for prototype existence. Positions mirror
-/// the generated base ship builders so captures exercise the production parts.
-pub fn kenney_hull(sections: &GameSections, hull: &str) -> Vec<SpaceshipSectionConfig> {
-    let identity = Quat::IDENTITY;
-    let port = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
-    let starboard = Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2);
-    let specs: &[(&str, Vec3, Quat)] = match hull {
-        "racer" => &[
-            (
-                "engine_starboard",
-                Vec3::new(0.655, 0.570945, 1.512835),
-                identity,
-            ),
-            (
-                "engine_port",
-                Vec3::new(-0.655, 0.570945, 1.512835),
-                identity,
-            ),
-            ("wing_starboard", Vec3::new(0.805, 0.5, 0.117835), identity),
-            ("wing_port", Vec3::new(-0.805, 0.5, 0.117835), identity),
-            ("nose", Vec3::new(0.0, 0.611325, -1.512835), identity),
-            ("tail", Vec3::new(0.0, 0.85, 1.612835), identity),
-            ("fuselage", Vec3::new(0.0, 0.7, 0.1), identity),
-        ],
-        "cargob" => &[
-            ("engine_starboard", Vec3::new(1.005, 0.7, 2.0), identity),
-            ("engine_port", Vec3::new(-1.005, 0.7, 2.0), identity),
-            ("pod_starboard", Vec3::new(1.055, 0.7, -0.5), identity),
-            ("pod_port", Vec3::new(-1.055, 0.7, -0.5), identity),
-            ("nose", Vec3::new(0.0, 1.0, -1.75), identity),
-            ("tail", Vec3::new(0.0, 0.65, 2.0), identity),
-            ("fuselage", Vec3::new(0.0, 0.9, 0.25), identity),
-            ("turret_starboard", Vec3::new(1.55, 1.2, 0.0), starboard),
-            ("turret_port", Vec3::new(-1.55, 1.2, 0.0), port),
-        ],
-        "cargoa" => &[
-            ("engine_starboard", Vec3::new(1.205, 0.6, 1.975), identity),
-            ("engine_port", Vec3::new(-1.205, 0.6, 1.975), identity),
-            ("pod_starboard", Vec3::new(1.205, 0.7, 0.475), identity),
-            ("pod_port", Vec3::new(-1.205, 0.7, 0.475), identity),
-            ("nose", Vec3::new(0.0, 0.8, -1.8), identity),
-            ("tail", Vec3::new(0.0, 0.5875, 1.975), identity),
-            ("fuselage", Vec3::new(0.0, 0.8, 0.175), identity),
-            ("turret_starboard", Vec3::new(0.85, 0.8, -1.8), starboard),
-            ("turret_port", Vec3::new(-0.85, 0.8, -1.8), port),
-        ],
-        _ => panic!("kenney_hull: unknown semantic ship '{hull}'"),
-    };
-
-    specs
-        .iter()
-        .map(|(id, position, rotation)| {
-            let prototype = format!("{hull}_{id}");
-            assert!(
-                sections.get_section(&prototype).is_some(),
-                "kenney_hull: missing prototype '{prototype}'"
-            );
-            SpaceshipSectionConfig {
-                id: (*id).to_string(),
-                position: *position,
-                rotation: *rotation,
-                source: SectionSource::Prototype(prototype),
-                modifications: vec![],
-            }
-        })
-        .collect()
+/// `hull` is the catalog ship id (`racer`, `cargoa`, `cargob`).
+///
+/// This kit used to carry its OWN copy of every part's centre, and that copy
+/// drifted: the cargoa's two turret mounts were hand-typed at +-0.85 while the
+/// builders author them at +-0.95. A tenth of a unit is a hundred times the
+/// mate epsilon, so each mount's socket missed the nose's, the turrets joined
+/// no component, `derive_link_point_graph` rejected the WHOLE ship as
+/// `Disconnected`, and section integrity fell back to empty adjacency - under
+/// which any single section death severed the entire hull into loose wrecks.
+/// Reading the catalog is what makes that unrepresentable: there is exactly one
+/// set of coordinates, and it is the one the game ships.
+pub fn kenney_hull(ships: &GameShips, hull: &str) -> Vec<SpaceshipSectionConfig> {
+    ships
+        .get_ship(hull)
+        .unwrap_or_else(|| panic!("kenney_hull: unknown semantic ship '{hull}'"))
+        .hull
+        .sections
+        .clone()
 }
 
 /// Near-field asteroid dressing: a ring of rocks close enough to the subject to

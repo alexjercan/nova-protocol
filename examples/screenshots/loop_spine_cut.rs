@@ -135,13 +135,13 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    commands.trigger(LoadScenario(sever_range(&game_assets, &sections)));
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+    commands.trigger(LoadScenario(sever_range(&game_assets, &ships)));
 }
 
 /// The set: one corvette, three-quarter to the lens, a near rock field for
 /// depth and the photo rig.
-fn sever_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     let subject = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: SUBJECT_ID.to_string(),
@@ -152,17 +152,15 @@ fn sever_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Enemy),
-            // TURRETLESS on purpose: the kit's rotated turret sections do not
-            // mate in the link-point graph (integrity logs `Disconnected` and
-            // falls back to empty adjacency, under which ANY section death
-            // severs the whole hull into loose wrecks). Dropping them gives
-            // the subject a valid graph, so the cut severs exactly what hangs
+            // The whole shipped corvette, turrets included. The kit used to
+            // drop them: its own hand-typed copy of the mount centres had
+            // drifted from the builders', so the mounts mated nothing and the
+            // ship came back `Disconnected` - empty adjacency, under which ANY
+            // section death severs the whole hull into loose wrecks. The kit
+            // reads the ship catalog now, so the cut severs exactly what hangs
             // off the cut section.
             hull: ShipSource::Inline(ShipHull {
-                sections: kit::kenney_hull(sections, "cargoa")
-                    .into_iter()
-                    .filter(|section| !section.id.starts_with("turret"))
-                    .collect(),
+                sections: kit::kenney_hull(ships, "cargoa"),
                 ..default()
             }),
             ..default()

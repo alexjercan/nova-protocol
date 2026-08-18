@@ -10,7 +10,7 @@ use nova_ship::prelude::*;
 
 use crate::base_content::{
     assets::BaseContentAssets,
-    sections::{ordnance, turret_joint_tree, UNIT_TURRET_MOUNT, UNIT_TURRET_SCALE},
+    sections::{ordnance, PDC_KINETIC_SECTION_ID, PDC_MOUNT_OFFSET},
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -29,13 +29,6 @@ pub(super) enum PartRole {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum PartSide {
-    None,
-    Port,
-    Starboard,
-}
-
-#[derive(Clone, Copy)]
 pub(super) struct PartSpec {
     id: &'static str,
     prototype: &'static str,
@@ -45,7 +38,6 @@ pub(super) struct PartSpec {
     pub(super) bbox_max: Vec3,
     health: f32,
     role: PartRole,
-    side: PartSide,
 }
 
 impl PartSpec {
@@ -60,15 +52,46 @@ impl PartSpec {
     pub(super) fn mesh_offset(self) -> Vec3 {
         self.origin - self.center()
     }
+}
 
-    pub(super) fn rotation(self) -> Quat {
-        let quarter = std::f32::consts::FRAC_PI_2;
-        match self.side {
-            PartSide::None => Quat::IDENTITY,
-            PartSide::Port => Quat::from_rotation_z(quarter),
-            PartSide::Starboard => Quat::from_rotation_z(-quarter),
-        }
+/// The outward cardinal axis a turret module bolts along: the direction from
+/// the part it mates to, toward the module's own centre.
+///
+/// This is the ONE number a mount's placement needs. The shared PDC always
+/// bolts down by its local -Y, so the axis fixes both the rotation (which face
+/// of the host the gun stands on) and the socket the host must offer. It used
+/// to be a hand-authored `PartSide` - a flat quarter turn about Z that happened
+/// to be right for the cargoa's nose cheeks and wrong for the cargob's pod
+/// shoulders, where the gun actually stands on a TOP face.
+fn turret_mount_axis(specs: &[PartSpec], edges: &[(usize, usize)], index: usize) -> Vec3 {
+    let center = specs[index].center();
+    edges
+        .iter()
+        .find_map(|&(a, b)| {
+            let other = if a == index {
+                b
+            } else if b == index {
+                a
+            } else {
+                return None;
+            };
+            Some(cardinal_axis(center - specs[other].center()))
+        })
+        .expect("a turret module mates to exactly one host part")
+}
+
+/// Where a part sits and how it is turned, in ship-root space.
+///
+/// Everything but a turret is authored axis-aligned at its own cut centre. A
+/// turret is the one part whose pose is DERIVED: it stands on a face, so its
+/// rotation is whatever puts its base plate against that face.
+fn placement(specs: &[PartSpec], edges: &[(usize, usize)], index: usize) -> (Vec3, Quat) {
+    let spec = specs[index];
+    if !matches!(spec.role, PartRole::Turret) {
+        return (spec.center(), Quat::IDENTITY);
     }
+    let axis = turret_mount_axis(specs, edges, index);
+    (spec.center(), Quat::from_rotation_arc(Vec3::Y, axis))
 }
 
 pub(super) const fn v(x: f32, y: f32, z: f32) -> Vec3 {
@@ -94,28 +117,24 @@ pub(super) const fn part(
         bbox_max,
         health,
         role,
-        side: PartSide::None,
     }
 }
 
-pub(super) const fn module(
-    id: &'static str,
-    prototype: &'static str,
-    center: Vec3,
-    health: f32,
-    role: PartRole,
-    side: PartSide,
-) -> PartSpec {
+/// A part with no art and no catalog entry of its own: a mount POINT on the
+/// craft, filled by a shared prototype.
+///
+/// `prototype` is the catalog id the assembly bolts there, and the box is the
+/// shared PDC's, because that is the only thing a module is now.
+pub(super) const fn module(id: &'static str, center: Vec3, role: PartRole) -> PartSpec {
     PartSpec {
         id,
-        prototype,
+        prototype: PDC_KINETIC_SECTION_ID,
         mesh: None,
         origin: center,
-        bbox_min: v(-0.15, -0.15, -0.15),
-        bbox_max: v(0.15, 0.15, 0.15),
-        health,
+        bbox_min: v(-PDC_MOUNT_OFFSET, -PDC_MOUNT_OFFSET, -PDC_MOUNT_OFFSET),
+        bbox_max: v(PDC_MOUNT_OFFSET, PDC_MOUNT_OFFSET, PDC_MOUNT_OFFSET),
+        health: 0.0,
         role,
-        side,
     }
 }
 
@@ -131,7 +150,7 @@ fn render_transform(spec: PartSpec) -> Option<RenderMeshTransform> {
 }
 
 /// The sockets one authored adjacency gives a part: one per edge it takes part
-/// in, sitting at the midpoint between the two part centres.
+/// in.
 ///
 /// The normal is SNAPPED to a cardinal axis rather than left pointing at the
 /// neighbour's centre. Cut parts sit wherever the craft's art put them, so a
@@ -139,16 +158,21 @@ fn render_transform(spec: PartSpec) -> Option<RenderMeshTransform> {
 /// fuselage 36 degrees off -X - and anything mated onto that socket arrived
 /// tilted by exactly that much, which is what made parts look like they only
 /// fit the craft they were cut from. The snap is antisymmetric (see
-/// [`cardinal_axis`]), so both ends of an edge stay exactly opposed and every
-/// shipped mate survives.
+/// [`cardinal_axis`]), so both ends of an edge stay exactly opposed.
+///
+/// Two parts of comparable size meet at the MIDPOINT between their centres,
+/// which is their shared face. A turret does not: it is a small mount bolted
+/// onto a big hull part, so the midpoint floats in open space well clear of the
+/// gun's base plate. The socket offered to a turret therefore sits exactly
+/// where that base plate lands - [`PDC_MOUNT_OFFSET`] back from the mount's own
+/// centre - which is what lets one shared PDC bolt onto a craft whose parts
+/// were cut at whatever size the art happened to be.
 pub(super) fn link_points(
     specs: &[PartSpec],
     edges: &[(usize, usize)],
     index: usize,
 ) -> Vec<LinkPoint> {
-    let spec = specs[index];
-    let center = spec.center();
-    let rotation = spec.rotation();
+    let center = specs[index].center();
     edges
         .iter()
         .filter_map(|&(a, b)| {
@@ -161,13 +185,17 @@ pub(super) fn link_points(
             };
             let other_center = specs[other].center();
             // Snapped in SHIP space, not in the part's: both ends then read the
-            // same axis off the same direction, whatever each part is rotated by.
+            // same axis off the same direction.
             let direction = cardinal_axis(other_center - center);
-            let world_position = (center + other_center) * 0.5;
+            let position = if matches!(specs[other].role, PartRole::Turret) {
+                other_center - direction * PDC_MOUNT_OFFSET
+            } else {
+                (center + other_center) * 0.5
+            };
             Some(LinkPoint {
                 id: format!("to_{}", specs[other].id),
-                position: rotation.inverse() * (world_position - center),
-                normal: rotation.inverse() * direction,
+                position: position - center,
+                normal: direction,
             })
         })
         .collect()
@@ -209,9 +237,8 @@ fn base_config(
         link_points: links,
         // Placeable now that editor placement MATES link points: a semantic
         // part only goes where its authored sockets say it does, which is what
-        // hiding it was waiting for. The one exception is the turret modules -
-        // see `prototypes`.
-        hide_in_editor: matches!(spec.role, PartRole::Turret),
+        // hiding it was waiting for.
+        hide_in_editor: false,
     }
 }
 
@@ -300,66 +327,24 @@ fn torpedo_kind(
     })
 }
 
-fn turret_kind(meshes: &BaseContentAssets, enemy: bool) -> SectionKind {
-    let fire_rate = if enemy { 25.0 } else { 100.0 };
-    let root = turret_joint_tree(
-        &meshes.turret_yaw,
-        &meshes.turret_pitch,
-        &meshes.turret_barrel,
-        fire_rate,
-        // The shipped modules keep the unit-cube mount and size their art was
-        // placed against, whatever their own collider says: changing either
-        // MOVES or RESIZES the turret on every shipped ship.
-        UNIT_TURRET_MOUNT,
-        UNIT_TURRET_SCALE,
-    );
-    SectionKind::Turret(TurretSectionConfig {
-        root,
-        muzzle_speed: if enemy { 60.0 } else { 100.0 },
-        // Reach is muzzle_speed x lifetime: 200 u (2.0 km) player-grade,
-        // 180 u (1.8 km) scavenger-grade. The enemy grade authors a LONGER
-        // lifetime to buy back its slower rounds - at 2.0 s a 60 u/s gun
-        // reaches 120 u, inside the standoff band its own AI orbits at, and
-        // would never fire. See AI_FIRE_RANGE_FACTOR
-        // (nova_ship/src/input/ai/guns.rs).
-        projectile_lifetime: if enemy { 3.0 } else { 2.0 },
-        bullet_damage: if enemy {
-            representative_kinetic_damage(0.05, 60.0)
-        } else {
-            4.0
-        },
-        bullet_kind: DamageType::Kinetic,
-        projectile_render_mesh: None,
-        fire_sound: Some(meshes.turret_fire_sound.clone()),
-        dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
-        ammo_capacity: Some(if enemy { 150 } else { 500 }),
-        reload: Some(SectionReloadConfig {
-            delay: 3.0,
-            amount: if enemy { 60 } else { 200 },
-        }),
-    })
-}
-
 /// Every catalog prototype one craft's parts contribute, named for `family`.
 ///
-/// The turret modules are catalog-only (`hide_in_editor`): they carry no mesh
-/// of their own, so all six of them - port and starboard, across three craft,
-/// doubled again by `light_turrets` - are the SAME PDC on the same joint tree.
-/// Offering ten identical turrets buried the two that actually differ, and now
-/// that a part mates onto any socket the same way up (see [`link_points`]),
-/// there is nothing a per-craft copy could do that the standard turret cannot.
-/// The ships still build from them, and mods can still name them.
+/// A turret module contributes NOTHING here. It carries no mesh of its own, so
+/// the ten per-craft copies this used to emit - port and starboard across three
+/// craft, doubled again for the scavenger grade - were the same PDC on the same
+/// joint tree, and offering ten identical turrets buried the two that actually
+/// differ. A module is now only a mount POINT: the craft names where the gun
+/// goes, and the shared PDC is the gun.
 ///
-/// A torpedo pod is doubled the same way the light turret is, into a `_lance`
-/// variant loading the straight-running type. Everything else about the pod -
-/// the art, the tube, the warhead, the rack - is shared, so [`Ordnance`] picks
-/// which prototype a ship references and nothing else about the ship moves.
+/// A torpedo pod IS doubled, into a `_lance` variant loading the
+/// straight-running type. Everything else about the pod - the art, the tube,
+/// the warhead, the rack - is shared, so [`Ordnance`] picks which prototype a
+/// ship references and nothing else about the ship moves.
 pub(super) fn prototypes(
     specs: &[PartSpec],
     edges: &[(usize, usize)],
     family: &str,
     meshes: &BaseContentAssets,
-    light_turrets: bool,
 ) -> Vec<SectionConfig> {
     let mut output = Vec::new();
     for (index, &spec) in specs.iter().enumerate() {
@@ -369,22 +354,13 @@ pub(super) fn prototypes(
             PartRole::Thruster => thruster_kind(spec, meshes),
             PartRole::Controller => controller_kind(spec, meshes),
             PartRole::Torpedo => torpedo_kind(spec, meshes, ordnance::serpent()),
-            PartRole::Turret => turret_kind(meshes, false),
+            // A mount point, not a part: the shared PDC fills it.
+            PartRole::Turret => continue,
         };
         output.push(SectionConfig {
             base: base_config(spec, family, links.clone(), meshes),
             kind,
         });
-        if light_turrets && matches!(spec.role, PartRole::Turret) {
-            let mut base = base_config(spec, family, links.clone(), meshes);
-            base.id = format!("{}_light", spec.prototype);
-            base.name = format!("{} Light", base.name);
-            base.health = 60.0;
-            output.push(SectionConfig {
-                base,
-                kind: turret_kind(meshes, true),
-            });
-        }
         if matches!(spec.role, PartRole::Torpedo) {
             let mut base = base_config(spec, family, links, meshes);
             base.id = format!("{}{}", spec.prototype, Ordnance::Lance.prototype_suffix());
@@ -418,8 +394,7 @@ pub(super) enum Ordnance {
 }
 
 impl Ordnance {
-    /// The prototype-id suffix this ordnance is authored under, mirroring the
-    /// light turret's `_light`.
+    /// The prototype-id suffix this ordnance is authored under.
     fn prototype_suffix(self) -> &'static str {
         match self {
             Ordnance::Lance => "_lance",
@@ -428,14 +403,26 @@ impl Ordnance {
     }
 }
 
+/// The scavenger grade's mount health, the one thing left of the old
+/// `_light` turret prototype.
+///
+/// That prototype was a whole second gun - a quarter of the fire rate, slower
+/// rounds, less per hit. There is one turret in the catalog now, so a raider's
+/// guns are no longer softer than a player's; they are only easier to SHOOT
+/// OFF, which is the same knob every other section on an enemy hull already
+/// used.
+const ENEMY_TURRET_HEALTH: f32 = 60.0;
+
 pub(super) fn ship_sections(
     specs: &[PartSpec],
+    edges: &[(usize, usize)],
     grade: ShipGrade,
     ordnance: Ordnance,
 ) -> Vec<SpaceshipSectionConfig> {
     specs
         .iter()
-        .map(|&spec| {
+        .enumerate()
+        .map(|(index, &spec)| {
             let mut modifications = Vec::new();
             let mut prototype = spec.prototype.to_string();
             if matches!(spec.role, PartRole::Torpedo) {
@@ -452,16 +439,19 @@ pub(super) fn ship_sections(
                     PartRole::Controller => {
                         modifications.push(SectionModification::SetHealth(140.0));
                     }
-                    PartRole::Turret => prototype.push_str("_light"),
+                    PartRole::Turret => {
+                        modifications.push(SectionModification::SetHealth(ENEMY_TURRET_HEALTH));
+                    }
                     // Ordnance is not graded: which torpedo a hull carries is
                     // its own catalog entry above, not this hull's tier.
                     PartRole::Torpedo => {}
                 }
             }
+            let (position, rotation) = placement(specs, edges, index);
             SpaceshipSectionConfig {
                 id: spec.id.to_string(),
-                position: spec.center(),
-                rotation: spec.rotation(),
+                position,
+                rotation,
                 source: SectionSource::Prototype(prototype),
                 modifications,
             }

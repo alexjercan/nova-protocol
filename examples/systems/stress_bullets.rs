@@ -60,19 +60,24 @@ const BULLETS_IN_FLIGHT: usize = 1000;
 
 /// ABSURD SCALE (see [`BULLETS_IN_FLIGHT`]): eight mounts on one small hull.
 ///
-/// `better_turret_section` fires 100 rounds/s with a 2 s round lifetime, so one
+/// The shared PDC fires 100 rounds/s with a 2 s round lifetime, so one
 /// mount saturates at ~200 rounds in an empty sky and eight clear the thousand
 /// with headroom - the range reaches its scale in a couple of seconds instead
 /// of spending the whole completion budget climbing to it.
 const TURRET_MOUNTS: usize = 8;
 
-/// The sections the hull carries: the controller, one hull block, and the
-/// battery. The exact-count invariant reads this.
+/// The sections the hull carries: one spine cell per mount (the flight
+/// computer takes the middle one) plus the mounts themselves. The exact-count
+/// invariant reads this.
 #[cfg(feature = "debug")]
-const SECTIONS_ON_THE_HULL: usize = 2 + TURRET_MOUNTS;
+const SECTIONS_ON_THE_HULL: usize = 2 * TURRET_MOUNTS;
 
 /// The turret content id every mount is built from.
-const MOUNT_SECTION: &str = "better_turret_section";
+const MOUNT_SECTION: &str = "pdc_kinetic_turret_section";
+
+/// Where a mount's centre sits above the spine cell it stands on: half a cell
+/// out to that cell's top face, then a quarter for the PDC's own base plate.
+const MOUNT_SEAT: f32 = 0.75;
 
 /// The scenario id the range loads under.
 const SCENARIO_ID: &str = "stress_bullets";
@@ -195,15 +200,31 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
 /// integrity graph gets one connected structure - a cloud of islands would
 /// spend the run coming apart instead of firing.
 fn battery(sections: &GameSections) -> SpaceshipConfig {
-    let mut specs = vec![
-        SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),
-        SectionSpec::new("hull", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
-    ];
+    // A spine of unit cells along X, one per mount, with the flight computer
+    // taking the middle cell; every mount stands on its own cell's top face.
+    // The mounts used to sit in a bare row with nothing under them, chained
+    // side to side through the old unit-cube turret's six sockets. The shared
+    // PDC bolts down by its base plate and by nothing else, so a row like that
+    // mates nothing - each mount needs a cell of its own to stand on.
+    let cell = |i: usize| i as f32 - (TURRET_MOUNTS as f32) / 2.0;
+    let computer = TURRET_MOUNTS / 2;
+    let mut specs = vec![SectionSpec::new(
+        "controller",
+        "basic_controller_section",
+        Vec3::new(cell(computer), 0.0, 0.0),
+    )];
+    specs.extend((0..TURRET_MOUNTS).filter(|&i| i != computer).map(|i| {
+        SectionSpec::new(
+            format!("spine_{i}"),
+            "reinforced_hull_section",
+            Vec3::new(cell(i), 0.0, 0.0),
+        )
+    }));
     specs.extend((0..TURRET_MOUNTS).map(|i| {
         SectionSpec::new(
             mount_slot(i),
             MOUNT_SECTION,
-            Vec3::new(i as f32 - (TURRET_MOUNTS as f32) / 2.0, 1.0, 0.0),
+            Vec3::new(cell(i), MOUNT_SEAT, 0.0),
         )
     }));
 

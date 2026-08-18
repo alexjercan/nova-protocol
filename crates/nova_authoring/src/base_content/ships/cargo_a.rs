@@ -91,22 +91,8 @@ pub(super) const CARGOA_PARTS: [PartSpec; 9] = [
     // bodywork. Forward of the fuselage and the pods, so the front arcs are
     // clear; the shared joint tree's -10 degree depression floor keeps a
     // barrel from swinging back into the nose it stands on.
-    module(
-        "turret_starboard",
-        "cargoa_turret_starboard",
-        v(0.95, 0.8, -1.8),
-        130.0,
-        PartRole::Turret,
-        PartSide::Starboard,
-    ),
-    module(
-        "turret_port",
-        "cargoa_turret_port",
-        v(-0.95, 0.8, -1.8),
-        130.0,
-        PartRole::Turret,
-        PartSide::Port,
-    ),
+    module("turret_starboard", v(0.95, 0.8, -1.8), PartRole::Turret),
+    module("turret_port", v(-0.95, 0.8, -1.8), PartRole::Turret),
 ];
 
 pub(super) const CARGOA_EDGES: [(usize, usize); 8] = [
@@ -122,10 +108,10 @@ pub(super) const CARGOA_EDGES: [(usize, usize); 8] = [
 ];
 
 pub(super) fn prototypes_for(assets: &BaseContentAssets) -> Vec<SectionConfig> {
-    prototypes(&CARGOA_PARTS, &CARGOA_EDGES, "CargoA", assets, true)
+    prototypes(&CARGOA_PARTS, &CARGOA_EDGES, "CargoA", assets)
 }
 
 pub(super) fn sections(grade: ShipGrade) -> Vec<SpaceshipSectionConfig> {
     // The cargoa carries no torpedo pod, so its ordnance argument is inert.
-    ship_sections(&CARGOA_PARTS, grade, Ordnance::Serpent)
+    ship_sections(&CARGOA_PARTS, &CARGOA_EDGES, grade, Ordnance::Serpent)
 }

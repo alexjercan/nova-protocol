@@ -272,27 +272,31 @@ the aim solver drives), optionally carries a `render_mesh`, optionally is a
 `muzzle` (a fire point), and hangs `children` joints off itself. Today's turret
 is one specific tree - base(fixed) -> yaw(axis Y) -> pitch(axis X) ->
 barrel(fixed) -> muzzle - but you can build twin barrels, extra hinges, or a
-turret whose elevation lives two joints down. The shipped `better_turret_section`
-is the reference:
+turret whose elevation lives two joints down. The shipped
+`pdc_kinetic_turret_section` is the reference:
 
 ```ron
 kind: Turret((
     root: (
-        offset: (0.0, -0.5, 0.0),                                     // base (fixed)
+        offset: (0.0, -0.25, 0.0),                                    // base (fixed)
+        render_mesh_transform: Some((scale: (0.5, 0.5, 0.5))),
         children: [(
-            offset: (0.0, 0.1, 0.0),
+            offset: (0.0, 0.05, 0.0),
             axis: Some((0.0, 1.0, 0.0)),                              // yaw hinge (Y)
             render_mesh: Some("dep://base/gltf/turret-yaw-01.glb#Scene0"),
+            render_mesh_transform: Some((scale: (0.5, 0.5, 0.5))),
             children: [(
-                offset: (0.0, 0.332706, 0.303954),
-                axis: Some((1.0, 0.0, 0.0)),                         // pitch hinge (X)
-                min: Some(-0.5235988), max: Some(1.5707964),          // pitch limits
+                offset: (0.0, 0.166353, 0.151977),
+                axis: Some((1.0, 0.0, 0.0)),                          // pitch hinge (X)
+                min: Some(-0.17453294), max: Some(1.5707964),         // pitch limits
                 render_mesh: Some("dep://base/gltf/turret-pitch-01.glb#Scene0"),
+                render_mesh_transform: Some((scale: (0.5, 0.5, 0.5))),
                 children: [(
-                    offset: (0.0, 0.128437, -0.110729),               // barrel (fixed)
+                    offset: (0.0, 0.0642185, -0.0553645),             // barrel (fixed)
                     render_mesh: Some("dep://base/gltf/turret-barrel-01.glb#Scene0"),
+                    render_mesh_transform: Some((scale: (0.5, 0.5, 0.5))),
                     children: [(
-                        offset: (0.0, 0.0, -1.2),                     // muzzle (fixed)
+                        offset: (0.0, 0.0, -0.6),                     // muzzle (fixed)
                         muzzle: Some((fire_rate: 100.0)),
                     )],
                 )],
@@ -304,6 +308,7 @@ kind: Turret((
     bullet_damage: 4.0,
     bullet_kind: Kinetic,
     fire_sound: Some("dep://base/sounds/turret_fire.wav"),
+    dry_fire_sound: Some("dep://base/sounds/dry_fire.wav"),
     ammo_capacity: Some(500),
     reload: Some((delay: 3.0, amount: 200)),
 )),

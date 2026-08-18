@@ -237,7 +237,11 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 "basic_thruster_section",
                 Vec3::new(0.0, 0.0, 2.0),
             ),
-            SectionSpec::new("guns", "better_turret_section", Vec3::Y),
+            SectionSpec::new(
+                "guns",
+                "pdc_kinetic_turret_section",
+                Vec3::new(0.0, 0.75, 0.0),
+            ),
         ],
     );
 

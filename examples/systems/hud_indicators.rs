@@ -202,11 +202,11 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
     let mut player_sections = sections_line("player");
     player_sections.push(SpaceshipSectionConfig {
         id: "player_turret".to_string(),
-        position: Vec3::new(0.0, 0.0, -1.0),
+        position: Vec3::new(0.0, 0.0, -0.75),
         // Matches the turret placement in turret_gunnery so the base sits
         // upright.
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-        source: SectionSource::Inline(section("better_turret_section")),
+        source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
         modifications: vec![],
     });
     let player = SpaceshipConfig {

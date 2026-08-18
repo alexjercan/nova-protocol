@@ -206,7 +206,7 @@ const ACKED_SCENARIO_RON: &str = r#"[
                             hull: Inline((
                                 sections: [
                                     (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
-                                    (id: "guns", position: (0.0, 0.0, -1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("light_turret_section")),
+                                    (id: "guns", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("pdc_kinetic_turret_section")),
                                 ],
                             )),
                         )),
@@ -228,7 +228,7 @@ const ACKED_SCENARIO_RON: &str = r#"[
                             hull: Inline((
                                 sections: [
                                     (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),
-                                    (id: "turret", position: (0.0, 0.0, -1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("better_turret_section")),
+                                    (id: "turret", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("pdc_kinetic_turret_section")),
                                 ],
                             )),
                         )),

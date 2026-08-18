@@ -3,6 +3,26 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.25.0
+
+- Every gun in the campaign is now the base game's shared PDC turret. The base
+  game pruned its turret catalog to the two point-defense mounts, so the
+  per-craft prototypes this mod named (`cargoa_turret_*`, `cargob_turret_*`,
+  their `_light` variants, and the Magpie base's `better_turret_section`) no
+  longer exist. Required: a mod naming a deleted prototype fails the reference
+  lint and its ships spawn gunless.
+- Expect the wave-one Magpies and the chapter-three pickets to hit HARDER. Their
+  `_light` guns were a quarter of the fire rate and a fifth of the per-hit
+  damage; there is one turret in the catalog now, so they carry the same gun the
+  Kestrel does. What still marks them as scavenger grade is the mount, which
+  dies in a short burst. The heavies, the Auditor and the raid gunship are
+  unchanged - they already carried the full-grade gun.
+- The Magpie base's two station turrets moved a quarter cell down onto their
+  arm tips, and the CargoB gunships' mounts stand upright on their pod
+  shoulders instead of lying on their sides. Required: the shared PDC bolts down
+  by its base plate alone, so a mount's seat and roll follow the face it stands
+  on.
+
 ## 1.24.0
 
 - The mod declares its own balance acknowledgments in `balance_acks.ron`, beside

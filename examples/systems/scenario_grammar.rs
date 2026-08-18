@@ -246,7 +246,11 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                 "basic_thruster_section",
                 Vec3::new(0.0, 0.0, 2.0),
             ),
-            SectionSpec::new(ESCORT_GUNS, "better_turret_section", Vec3::Y),
+            SectionSpec::new(
+                ESCORT_GUNS,
+                "pdc_kinetic_turret_section",
+                Vec3::new(0.0, 0.75, 0.0),
+            ),
         ],
     );
 

@@ -219,7 +219,11 @@ fn defender(sections: &GameSections) -> SpaceshipConfig {
                 "basic_controller_section",
                 Vec3::new(0.0, 0.0, 1.0),
             ),
-            SectionSpec::new(DEFENDER_GUNS, "better_turret_section", Vec3::Y),
+            SectionSpec::new(
+                DEFENDER_GUNS,
+                "pdc_kinetic_turret_section",
+                Vec3::new(0.0, 0.75, 0.0),
+            ),
         ],
     )
 }

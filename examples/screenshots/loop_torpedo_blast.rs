@@ -183,19 +183,21 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    commands.trigger(LoadScenario(blast_range(&game_assets, &sections)));
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+    commands.trigger(LoadScenario(blast_range(&game_assets, &ships)));
 }
 
 /// The set: the parked target, the boat above its quarter, the proven rock
 /// shell around them and the photo rig. Both ships are `Controller::None` -
 /// nothing here flies itself, so the capture is deterministic.
-fn blast_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
-    // TURRETLESS on purpose: the kit's rotated turret sections do not mate in
-    // the link-point graph (integrity logs `Disconnected` and falls back to
-    // empty adjacency, under which the scripted carve would burst the WHOLE
-    // hull into loose wrecks instead of taking its outer layers off). The
-    // non-carved sections are authored tough - see [`TOUGH_SECTION_HEALTH`].
+fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+    // The whole shipped corvette, turrets included. The kit used to drop them:
+    // its own hand-typed copy of the mount centres had drifted from the
+    // builders', so the mounts mated nothing and the ship came back
+    // `Disconnected` - empty adjacency, under which the scripted carve would
+    // burst the WHOLE hull instead of taking its outer layers off. The kit
+    // reads the ship catalog now. The non-carved sections are authored tough -
+    // see [`TOUGH_SECTION_HEALTH`].
     let target = ship(
         TARGET_ID,
         "Target",
@@ -204,9 +206,8 @@ fn blast_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         // sections face the lens.
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         Some(Allegiance::Enemy),
-        kit::kenney_hull(sections, "cargoa")
+        kit::kenney_hull(ships, "cargoa")
             .into_iter()
-            .filter(|section| !section.id.starts_with("turret"))
             .map(|mut section| {
                 if !CARVED_SECTIONS.contains(&section.id.as_str()) {
                     section.modifications =
@@ -224,7 +225,7 @@ fn blast_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             .looking_at(Vec3::ZERO, Vec3::Y)
             .rotation,
         Some(Allegiance::Player),
-        kit::kenney_hull(sections, "cargob"),
+        kit::kenney_hull(ships, "cargob"),
     );
     // The same shell, radii and seed as screenshot_combat's hollow: proven to
     // keep the pocket clear of the subject and the salvo's bearing.

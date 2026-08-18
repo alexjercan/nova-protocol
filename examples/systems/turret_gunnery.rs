@@ -330,11 +330,11 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 },
                 SpaceshipSectionConfig {
                     id: "turret".to_string(),
-                    position: Vec3::new(0.0, 0.0, -1.0),
+                    position: Vec3::new(0.0, 0.0, -0.75),
                     // Matches the turret placement in the asteroid_field ship so the
                     // base sits upright.
                     rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                    source: SectionSource::Inline(section("better_turret_section")),
+                    source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
                     modifications: vec![],
                 },
             ],
@@ -1199,11 +1199,11 @@ struct KnobLabel(Knob);
 /// The turret config the range spawns its ship with; the sliders start from these values.
 fn range_turret_config(sections: &GameSections) -> TurretSectionConfig {
     let section = sections
-        .get_section("better_turret_section")
-        .expect("section 'better_turret_section' not found");
+        .get_section("pdc_kinetic_turret_section")
+        .expect("section 'pdc_kinetic_turret_section' not found");
     match &section.kind {
         SectionKind::Turret(config) => config.clone(),
-        _ => panic!("section 'better_turret_section' is not a turret"),
+        _ => panic!("section 'pdc_kinetic_turret_section' is not a turret"),
     }
 }
 

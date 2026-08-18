@@ -558,11 +558,17 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
                     "basic_thruster_section",
                     Vec3::new(0.0, 0.0, 2.0),
                 ),
-                at(
-                    "player_turret",
-                    "better_turret_section",
-                    Vec3::new(1.0, 0.0, 1.0),
-                ),
+                SpaceshipSectionConfig {
+                    id: "player_turret".to_string(),
+                    // Seated on the hull's +X face. The shared PDC bolts down by
+                    // its base plate alone, so it sits a quarter-cell in from
+                    // that face rather than a whole cell out, and is rolled to
+                    // stand out of it.
+                    position: Vec3::new(0.75, 0.0, 1.0),
+                    rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
+                    source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
+                    modifications: vec![],
+                },
             ],
             ..default()
         }),

@@ -104,12 +104,12 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
-fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    commands.trigger(LoadScenario(drydock_drift(&game_assets, &sections)));
+fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<GameShips>) {
+    commands.trigger(LoadScenario(drydock_drift(&game_assets, &ships)));
 }
 
 /// The set: planetoid, near-field belt, hero racer, two drifting hulls.
-fn drydock_drift(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     // The hero: a Kenney racer at the origin, turned three-quarters and tipped
     // off the horizontal so it reads as a ship parked in a yard rather than a
     // model on a shelf.
@@ -120,7 +120,7 @@ fn drydock_drift(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         Quat::from_rotation_y(-0.55) * Quat::from_rotation_x(0.10) * Quat::from_rotation_z(0.18),
         SpaceshipController::None,
         None,
-        kit::kenney_hull(sections, "racer"),
+        kit::kenney_hull(ships, "racer"),
     );
 
     // The yard traffic: two cargo hulls flying slow loops around the hero,
@@ -138,7 +138,7 @@ fn drydock_drift(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             Vec3::new(-30.0, 4.0, 86.0),
         ]),
         Some(Allegiance::Neutral),
-        kit::kenney_hull(sections, "cargoa"),
+        kit::kenney_hull(ships, "cargoa"),
     );
     let hauler_b = ship(
         "drydock_hauler_b",
@@ -151,7 +151,7 @@ fn drydock_drift(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             Vec3::new(58.0, -8.0, 60.0),
         ]),
         Some(Allegiance::Neutral),
-        kit::kenney_hull(sections, "cargob"),
+        kit::kenney_hull(ships, "cargob"),
     );
 
     let belt = kit::NearField {

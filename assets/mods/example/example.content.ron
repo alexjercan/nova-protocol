@@ -362,9 +362,9 @@
                                     ),
                                     (
                                         id: "turret",
-                                        position: (0.0, 0.0, -1.0),
+                                        position: (0.0, 0.0, -0.75),
                                         rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
-                                        source: Prototype("better_turret_section"),
+                                        source: Prototype("pdc_kinetic_turret_section"),
                                     ),
                                 ],
                             )),

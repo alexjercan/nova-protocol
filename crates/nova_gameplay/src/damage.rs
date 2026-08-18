@@ -145,8 +145,8 @@ pub const NEUTRALIZED_BULLET_MASS: f32 = 1.0e-6;
 
 /// The closing speed both bullet curves read exactly 1.0 at, in units/second.
 ///
-/// Chosen as the shipped PDC's `muzzle_speed` (100.0, on both PDC prototypes
-/// and `better_turret_section`), which is also the speed
+/// Chosen as the shipped PDC's `muzzle_speed` (100.0, on both PDC
+/// prototypes), which is also the speed
 /// [`representative_kinetic_damage`] authored the historical per-hit against.
 /// A round fired from a station-keeping ship at a station-keeping target closes
 /// at exactly its muzzle speed, so the normal engagement multiplier is 1.0 and

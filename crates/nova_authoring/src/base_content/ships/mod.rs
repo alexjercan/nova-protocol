@@ -2,9 +2,9 @@
 //! CONTENT entries a scenario spawns them by.
 //!
 //! A grade is a build-time knob, not a spawn-time one: the raider corvette
-//! carries thinner plating and scavenger-grade guns, which is a different ship
-//! to fight and to read about, so it is a second CATALOG entry rather than a
-//! flag a scenario flips. Two entries cost one line each here and no machinery
+//! carries thinner plating and mounts that are quicker to shoot off, which is a
+//! different ship to fight and to read about, so it is a second CATALOG entry
+//! rather than a flag a scenario flips. Two entries cost one line each here and no machinery
 //! anywhere else.
 //!
 //! ORDNANCE is the same shape of knob. The two cargo-B entries differ only in
@@ -31,7 +31,8 @@ use shared::{Ordnance, ShipGrade};
 /// The id the player-grade CargoA corvette is spawned by.
 pub(crate) const CARGOA_SHIP_ID: &str = "cargoa";
 /// The id the scavenger-grade CargoA corvette is spawned by: thinner plating,
-/// light turrets, a softer flight computer.
+/// flimsier gun mounts, a softer flight computer. The gun itself is the same
+/// shared PDC every craft carries.
 pub(crate) const CARGOA_RAIDER_SHIP_ID: &str = "cargoa_raider";
 /// The id the CargoB torpedo hauler is spawned by: weaving Serpents in the
 /// tubes, which is the escalation a defender cannot screen.
@@ -125,6 +126,7 @@ fn ship(id: &str, name: &str, sections: Vec<SpaceshipSectionConfig>) -> ShipConf
 #[cfg(test)]
 mod tests {
     use bevy::prelude::Vec3;
+    use nova_scenario::prelude::SectionSource;
     use nova_ship::prelude::{
         cardinal_axis, derive_link_point_graph, snap_placement, unit_cube_link_points,
         PlacedSectionLinkPoints, SectionLinkPoints,
@@ -132,29 +134,67 @@ mod tests {
 
     use super::{cargo_a::*, cargo_b::*, racer::*, shared::*};
 
+    /// Every shipped ship, ASSEMBLED, derives one connected structural graph.
+    ///
+    /// Checked on the assembly rather than on the part specs, because the specs
+    /// are no longer the whole story: a turret mount contributes no prototype
+    /// of its own, so its sockets come from the shared PDC and its pose is
+    /// derived from the face it stands on. Only the assembled ship exercises
+    /// that, and only the assembled ship is what the game spawns.
+    ///
+    /// `derive_link_point_graph` is all-or-nothing: one mount whose socket
+    /// misses by more than the mate epsilon leaves it in its own component, the
+    /// whole ship comes back `Disconnected`, and section integrity falls back
+    /// to EMPTY adjacency - under which any single section death severs the
+    /// entire hull into loose wrecks rather than shearing off what hung on it.
+    /// A silent tenth of a unit is enough to do it.
     #[test]
-    fn every_parts_ship_has_one_connected_mate_graph() {
-        for (specs, edges) in [
-            (RACER_PARTS.as_slice(), RACER_EDGES.as_slice()),
-            (CARGOB_PARTS.as_slice(), CARGOB_EDGES.as_slice()),
-            (CARGOA_PARTS.as_slice(), CARGOA_EDGES.as_slice()),
-        ] {
-            let points: Vec<_> = specs
+    fn every_shipped_ship_has_one_connected_mate_graph() {
+        let catalog = crate::generation::build_section_catalog();
+        for ship in super::ship_catalog() {
+            let sockets: Vec<_> = ship
+                .hull
+                .sections
                 .iter()
-                .enumerate()
-                .map(|(index, _)| SectionLinkPoints(link_points(specs, edges, index)))
-                .collect();
-            let placed: Vec<_> = specs
-                .iter()
-                .zip(&points)
-                .map(|(spec, points)| PlacedSectionLinkPoints {
-                    position: spec.center(),
-                    rotation: spec.rotation(),
-                    link_points: points,
+                .map(|section| {
+                    let SectionSource::Prototype(id) = &section.source else {
+                        panic!(
+                            "ship '{}' section '{}' is not a prototype",
+                            ship.id, section.id
+                        )
+                    };
+                    let prototype = catalog
+                        .iter()
+                        .find(|candidate| candidate.base.id == *id)
+                        .unwrap_or_else(|| {
+                            panic!("ship '{}' names missing prototype '{id}'", ship.id)
+                        });
+                    SectionLinkPoints(prototype.base.link_points.clone())
                 })
                 .collect();
-            let mates = derive_link_point_graph(&placed).unwrap();
-            assert_eq!(mates.len(), edges.len());
+            let placed: Vec<_> = ship
+                .hull
+                .sections
+                .iter()
+                .zip(&sockets)
+                .map(|(section, sockets)| PlacedSectionLinkPoints {
+                    position: section.position,
+                    rotation: section.rotation,
+                    link_points: sockets,
+                })
+                .collect();
+            // Deriving at all IS the assertion: the call returns `Disconnected`
+            // unless every section - turret mounts included - joined the one
+            // component. The count guard only catches a graph that connected
+            // through some accident while leaving a section dangling.
+            let mates = derive_link_point_graph(&placed)
+                .unwrap_or_else(|errors| panic!("ship '{}' does not mate: {errors:?}", ship.id));
+            assert!(
+                mates.len() >= ship.hull.sections.len() - 1,
+                "ship '{}' holds together on only {} mates",
+                ship.id,
+                mates.len(),
+            );
         }
     }
 
@@ -174,7 +214,9 @@ mod tests {
             (CARGOB_PARTS.as_slice(), CARGOB_EDGES.as_slice()),
             (CARGOA_PARTS.as_slice(), CARGOA_EDGES.as_slice()),
         ] {
-            for index in 0..specs.len() {
+            // The meshed parts only: a turret mount contributes no prototype,
+            // so it has no sockets of its own to mate with.
+            for index in 0..specs.len() - 2 {
                 for socket in link_points(specs, edges, index) {
                     for face in unit_cube_link_points() {
                         let (_, rotation) = snap_placement(face.position, face.normal, &socket, 0);
