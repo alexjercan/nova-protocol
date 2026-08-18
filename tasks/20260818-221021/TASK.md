@@ -1,8 +1,8 @@
 # Carve fields must never cost a frame: cap, offload, bake
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 95
-- TAGS: v0.11.0,performance,bug,asteroid
+- TAGS: v0.11.0, performance, bug, asteroid
 
 Epic: `20260818-220812`. **Blocks play.** The `asteroid_field` sandbox is
 unplayable at the current head.

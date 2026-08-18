@@ -1,8 +1,8 @@
 # Profiling loads that reproduce the stutter, in the probe
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 90
-- TAGS: v0.11.0,performance,test,harness
+- TAGS: v0.11.0, performance, test, harness
 
 Epic: `20260818-220812`.
 
