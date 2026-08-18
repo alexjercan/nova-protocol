@@ -108,7 +108,7 @@ impl EventAction<NovaEventWorld> for SetAllegianceActionConfig {
 pub struct SetControllerVerbActionConfig {
     /// The `EntityId` of the scoped ship whose controller sections to edit.
     pub id: String,
-    /// The flight verb (STOP/GOTO/ORBIT/LOCK/RCS) to toggle.
+    /// The flight verb (STOP/GOTO/ORBIT/LOCK/RCS/POINT DEFENSE) to toggle.
     pub verb: FlightVerb,
     /// Whether the verb is enabled (true) or disabled (false).
     pub enabled: bool,

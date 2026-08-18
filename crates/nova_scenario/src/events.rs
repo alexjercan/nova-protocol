@@ -25,10 +25,11 @@ pub enum EventConfig {
     OnDefeated,
     /// Fires when an entity is physically destroyed.
     OnDestroyed,
-    /// Fires when a ship is NEUTRALIZED - an armed combatant that has lost all
-    /// working weapons AND all working thrusters, so it is out of the fight
-    /// even with hull intact and still present in the world. Distinct from
-    /// `OnDestroyed`; filters by ship id/type_name the same way.
+    /// Fires when a ship is NEUTRALIZED - an armed combatant that is disarmed
+    /// (no working weapon) OR brain-dead (had a flight computer, none working),
+    /// so it is out of the fight even with hull intact and still present in
+    /// the world. Distinct from `OnDestroyed`; filters by ship id/type_name
+    /// the same way.
     OnNeutralized,
     /// Fires every frame while a scenario is live and unpaused.
     OnUpdate,

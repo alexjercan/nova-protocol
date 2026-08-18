@@ -141,10 +141,11 @@ pub struct OnDestroyedEventInfo {
 }
 
 /// Event kind fired when a ship is NEUTRALIZED (`onneutralized`) - it was an
-/// armed combatant that has lost all working weapons AND all working thrusters,
-/// so it is out of the fight even though its hull may be intact and the ship is
-/// still present in the world. Distinct from [`OnDestroyedEvent`]: a neutralized
-/// ship is not despawned. Carries [`OnNeutralizedEventInfo`] naming the ship.
+/// armed combatant that is now disarmed (no working weapon) OR brain-dead (had
+/// a flight computer, none working), so it is out of the fight even though its
+/// hull may be intact and the ship is still present in the world. Distinct
+/// from [`OnDestroyedEvent`]: a neutralized ship is not despawned. Carries
+/// [`OnNeutralizedEventInfo`] naming the ship.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onneutralized")]
 #[event_info(OnNeutralizedEventInfo)]
