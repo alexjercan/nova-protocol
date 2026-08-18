@@ -599,9 +599,26 @@ them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
   the orbit/lock trackers in `trackers.rs`; area events in `objects/area.rs`;
   `OnNeutralized` fires from `nova_gameplay`'s integrity stack).
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right
-  `actions/` submodule (`flow`/`mission`/`ship`/`spawn`/`view`), plus an
+  `actions/` submodule (`flow`/`mission`/`ship`/`spawn`/`timer`/`view`), plus an
   `EventActionConfig` variant in `actions/mod.rs`.
 - Filter: same pattern in `filters.rs` (`EventFilterConfig`).
 - Object: a module under `objects/` (config + bundle function, plugin in
   `objects/mod.rs`) plus a `ScenarioObjectKind` variant/match in
   `actions/spawn.rs`.
+
+## Find it in the code
+
+- Engine plugin: `NovaScenarioPlugin` - `crates/nova_scenario/src/lib.rs`;
+  generic dispatch: `EventHandler` - `crates/nova_events/src/engine.rs`.
+- Vocabulary enums: `EventConfig` - `crates/nova_scenario/src/events.rs`;
+  `EventFilterConfig` - `crates/nova_scenario/src/filters.rs`;
+  `EventActionConfig` - `crates/nova_scenario/src/actions/mod.rs`.
+- The state seam: `NovaEventWorld` - `crates/nova_scenario/src/world.rs`;
+  variables and expressions - `crates/nova_scenario/src/variables.rs`.
+- Loading and scoping: `ScenarioLoaderPlugin`, `ScenarioScopedMarker`,
+  `scenario_is_live` - `crates/nova_scenario/src/loader/mod.rs`.
+- Objects: `ScenarioObjectsPlugin` - `crates/nova_scenario/src/objects/mod.rs`;
+  kind dispatch: `ScenarioObjectKind` -
+  `crates/nova_scenario/src/actions/spawn.rs`.
+- API detail: `cargo doc --open -p nova_scenario` (event engine:
+  `-p nova_events`).

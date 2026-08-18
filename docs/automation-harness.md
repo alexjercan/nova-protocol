@@ -361,3 +361,20 @@ and asserts on the exit status and the log lines.
 The full API reference is the crate's rustdoc
 (`cargo doc -p nova_autopilot --open`); every public item is reachable through
 `nova_autopilot::prelude`.
+
+## Find it in the code
+
+- Drivers: `AutopilotPlugin` - `crates/nova_autopilot/src/autopilot.rs`;
+  `ScreenshotPlugin` - `crates/nova_autopilot/src/screenshot.rs`;
+  `capture_window` - `crates/nova_autopilot/src/capture.rs`.
+- Protocol and vocabulary: completion -
+  `crates/nova_autopilot/src/completion.rs`; predicates -
+  `crates/nova_autopilot/src/predicate.rs`; gestures -
+  `crates/nova_autopilot/src/input.rs`.
+- Nova adapter: `nova_autopilot()` preset, `shoot`, scene dressing -
+  `crates/nova_debug/src/harness.rs`.
+- Host layer: the `probe` subcommand - `crates/nova_probe_cli/src/native.rs`;
+  in-game half: `NovaProbePlugin` -
+  `crates/nova_probe/src/capabilities/mod.rs`.
+- End-to-end example: `crates/nova_autopilot/examples/driven_app.rs`.
+- API detail: `cargo doc --open -p nova_autopilot`.

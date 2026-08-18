@@ -140,25 +140,14 @@ these in v0.11.0 (task 20260817-013618). A per-section range and a staged UI
 flow are both correctness ranges, and a stress range is a correctness range
 that also happens to carry a number.
 
-The run-policy half of that table is no longer a table. What an example can
-be judged on is DECLARED by the example, at runtime, through the probe
-plugins it wires (`nova_probe::contract`), and probe reads it back from
-`probe-contract.json`. Nothing is left on the launch side: every cataloged
-example is spawned, `--all` is the catalog with nothing subtracted, and an
-example that declares no capability grades UNPROBEABLE rather than being
-listed away. That verdict is the sanctioned opt-out from claim grading: not
-wiring a probe plugin is the signal (no skip list exists), the run passes the
-gate on its smoke checks alone (clean exit within the deadline, clean log),
-and the banner still names it. The prose half - what each
-category proves - is the table above and the per-block comments in the root
-`Cargo.toml`; review enforces it, because judging whether an example asserts
-enough is a reading task, not a test.
-
-`gameplay/`, `sections/`, `ui/` and `stress/` are all gone. Each described how
-an example RAN, or what it happened to spawn, rather than what it proved: a
-per-section range, a staged UI flow and a scale sweep all stage a behavior and
-panic when it is wrong, so they are all `systems/` now, renamed for what they
-prove.
+Run policy is DECLARED by the example at runtime, through the probe plugins it
+wires (`nova_probe::contract`); probe reads it back from `probe-contract.json`.
+Every cataloged example is spawned (`--all` subtracts nothing), and one that
+declares no capability grades UNPROBEABLE - the sanctioned opt-out, gated on
+its smoke checks alone. The grading detail lives under
+[Performance and run verification](#performance-and-run-verification); what
+each category proves is the table above plus the per-block comments in the
+root `Cargo.toml`, and review enforces it.
 
 ### The catalog and the harness
 
@@ -303,8 +292,9 @@ cargo run -- --scenario nope               # refuses, and lists every id
 
 ## Content CLI
 
-`content` (`crates/nova_authoring/src/bin/content/main.rs`) authors and validates the
-game's content. One bin, two subcommands, run from the repo root:
+`content` (`nova_authoring::cli::main`, `crates/nova_authoring/src/cli.rs`; a
+subcommand of the game binary, not a separate bin) authors and validates the
+game's content. Two subcommands, run from the repo root:
 
 ```sh
 cargo run content gen                                   # regenerate the base *.content.ron

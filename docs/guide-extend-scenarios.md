@@ -156,7 +156,7 @@ An action runs when a handler passes, in order. Everything lives in
 `crates/nova_scenario/src/actions/`: the `EventActionConfig` enum and its
 dispatch in `actions/mod.rs`, each action's config and impl in the submodule
 for what it touches (`view.rs`, `flow.rs`, `mission.rs`, `ship.rs`,
-`spawn.rs`).
+`spawn.rs`, `timer.rs`).
 
 1. Define the config struct and its `EventAction<NovaEventWorld>` impl.
    `fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo)` mutates
@@ -305,3 +305,16 @@ Whichever recipe you follow, the change is done when: the config struct derives
 trait impl has the delegating arm; the type is exported from its module prelude;
 and (for an event) something fires it. Then it is reachable both from code-built
 scenarios and from a RON data file.
+
+## Find it in the code
+
+- Events: `EventConfig` - `crates/nova_scenario/src/events.rs`; event types and
+  the `EventKind` derive - `crates/nova_events/src/lib.rs`.
+- Filters: `EventFilterConfig` - `crates/nova_scenario/src/filters.rs`.
+- Actions: `EventActionConfig` - `crates/nova_scenario/src/actions/mod.rs`
+  (submodules: flow, mission, ship, spawn, timer, view).
+- Objects: `ScenarioObjectKind` - `crates/nova_scenario/src/actions/spawn.rs`;
+  kind modules under `crates/nova_scenario/src/objects/`.
+- The seam: `NovaEventWorld` - `crates/nova_scenario/src/world.rs`.
+- API detail: `cargo doc --open -p nova_scenario` (event engine:
+  `-p nova_events`).

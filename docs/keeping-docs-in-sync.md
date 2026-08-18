@@ -138,9 +138,9 @@ level, a release means:
 - **A chapter of this book**: create `docs/<page>.md` and list it in
   `docs/SUMMARY.md`. `mdbook build` warns on a SUMMARY entry whose file is
   missing - treat that as a failure.
-- **A site wiki page**: edit `web/webpack.config.js` (the page list) **and**
-  the manifest `web/src/wiki-pages.ts` (which drives the sidebar, search and
-  see-also).
+- **A site wiki page**: add it to the manifest `web/src/docs-manifest.js`,
+  which drives the page list, the sidebar, search and see-also
+  (`web/webpack.config.js` reads it).
 - **A news post**: edit `NEWS_POSTS` in `web/webpack.config.js` plus a card in
   `web/src/news.html`.
 - **Retiring a URL**: add a stub to `REDIRECTS` in `web/webpack.config.js`.

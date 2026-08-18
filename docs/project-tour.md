@@ -11,9 +11,8 @@
 >    [Add a ship section](guide-add-section.md) or
 >    [Extend the scenario engine](guide-extend-scenarios.md).
 
-The friendly 20-minute front door to the codebase. Read this first, then dive
-into [Architecture](architecture.md) for the full crate graph, plugin order,
-state machines and frame flow -- this page only orients you.
+This page only orients you: the crate map and where to change X. For exact
+symbols per concept, use the [Concept index](concept-index.md).
 
 Nova Protocol is a 3D space game built on **Bevy 0.19** with **avian3d** physics.
 You build ships out of modular sections (hull, controller, thruster, turret,
@@ -91,8 +90,8 @@ The state machines:
 
 Gameplay systems run an explicit chain configured identically in `Update` and
 `FixedUpdate`; avian3d physics runs on a fixed timestep in `FixedPostUpdate`.
-The plugin order, exact sets and frame flow live in
-[Architecture](architecture.md) -- start there once the shape clicks.
+The plugin order, exact sets, frame flow, and the Update-vs-FixedUpdate rule
+live in [Architecture](architecture.md) -- start there once the shape clicks.
 
 ```mermaid
 flowchart LR
@@ -103,11 +102,3 @@ flowchart LR
     scenario --> game
     game --> screen["Rendered frame + HUD"]
 ```
-
-## Where to go next
-
-- [Architecture](architecture.md) -- the full crate graph, app assembly, states, frame flow.
-- [Building & running](development.md) -- toolchain, cargo commands, examples, the web build.
-- [Ship sections (internals)](sections.md) and [Add a ship section](guide-add-section.md).
-- [Scenario engine](scenario-system.md) and [Extend the scenario engine](guide-extend-scenarios.md).
-- [Mod files](https://alexjercan.github.io/nova-protocol/create/mod-files/) and [Publish a mod](https://alexjercan.github.io/nova-protocol/create/publish-a-mod/).

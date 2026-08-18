@@ -553,3 +553,20 @@ per contact. A symmetric rule - ram damage - wants both.
   mesh from the launched `TorpedoType`'s tint - the material was already per
   projectile (`SectionDamageTint` clones it per section), so per-type colour
   costs nothing the shared mesh handle protects.
+
+## Find it in the code
+
+- Section kinds and base config: `SectionKind`, `BaseSectionConfig` -
+  `crates/nova_ship/src/sections/base_section.rs`.
+- Spawn path: `insert_spaceship_sections` -
+  `crates/nova_scenario/src/objects/spaceship.rs`.
+- Integrity core: `NovaIntegrityPlugin` -
+  `crates/nova_gameplay/src/integrity/mod.rs`; graph, sever and collapse:
+  `ShipIntegrityPlugin` - `crates/nova_ship/src/sections/integrity.rs`.
+- Typed damage and the travel rule: `DamageType`, `apply_damage`,
+  `pierce_remainder` - `crates/nova_gameplay/src/damage.rs`.
+- Derived skin and styles: `ShipSkinPlugin` -
+  `crates/nova_ship/src/sections/shell_skin.rs`; `ShipStyleConfig` -
+  `crates/nova_ship/src/sections/skin_style.rs`.
+- API detail: `cargo doc --open -p nova_ship` (integrity and damage:
+  `-p nova_gameplay`).

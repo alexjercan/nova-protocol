@@ -319,3 +319,18 @@ data now: the Rust builders in `crates/nova_authoring` (`sections.rs`,
 `cargo run content gen` serializes them to the
 committed `assets/base/**/*.content.ron` the game loads like any other bundle.
 Never hand-edit the generated files; edit the builders and re-run `gen`.
+
+## Find it in the code
+
+- App assembly, plugin order: `AppBuilder` - `crates/nova_core/src/lib.rs`;
+  game binary and CLI flags - `src/main.rs`.
+- States: `GameStates`, `PauseStates`, `GameMode` -
+  `crates/nova_gameplay/src/lib.rs`; ESC overlay and clock freeze -
+  `crates/nova_menu/src/pause.rs`.
+- Frame-flow sets: `SpaceshipSystems` - `crates/nova_gameplay/src/plugin.rs`;
+  chained in `Update` + `FixedUpdate` by `NovaShipPlugin` -
+  `crates/nova_ship/src/lib.rs`.
+- Asset gate and mod merge: `GameAssetsPlugin` -
+  `crates/nova_assets/src/plugin.rs`; `register_bundles` -
+  `crates/nova_assets/src/merge.rs`.
+- API detail: `cargo doc --open -p nova_core` (any crate from the map works).

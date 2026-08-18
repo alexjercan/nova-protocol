@@ -4,6 +4,11 @@ The Nova Protocol developer book: how to run the project, how to extend it,
 and where things live. Source lives in `docs/` at the repo root and builds
 with `nix develop --command mdbook build`.
 
+This book is the LOOKUP layer: search a concept (the search icon, top left),
+land on a [Concept index](concept-index.md) row, and leave knowing which
+crate, files and entry symbol to open. For API detail past that, run
+`cargo doc --open -p <crate>` locally - the book routes, rustdoc documents.
+
 Reading order for a first visit:
 
 1. [Building and running](development.md) - toolchain, everyday commands,

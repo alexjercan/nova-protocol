@@ -1,6 +1,7 @@
 # Summary
 
 [Introduction](introduction.md)
+[Concept index](concept-index.md)
 
 # Get started
 

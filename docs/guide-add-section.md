@@ -199,3 +199,18 @@ The compiler is your checklist enforcer for 2-7: if it builds, every
 exhaustive match handles the new kind. Steps 1, 8, and 9 are the ones with no
 compile-time backstop -- the module wiring, the catalog instance, and the
 runnable proof -- so double-check those by hand.
+
+## Find it in the code
+
+- The enum and base config: `SectionKind`, `BaseSectionConfig` -
+  `crates/nova_ship/src/sections/base_section.rs`; model modules
+  `hull_section.rs` (minimal) and `turret_section/` beside it.
+- Class label: `SectionClass` - `crates/nova_gameplay/src/damage.rs`; NOVA OS
+  label matches - `crates/nova_os_ui/src/ship/sections.rs`.
+- Spawn arm: `insert_spaceship_sections` -
+  `crates/nova_scenario/src/objects/spaceship.rs`.
+- Editor arms: `default_binds_for` - `crates/nova_editor/src/placement.rs`;
+  `GalleryCategory` - `crates/nova_editor/src/gallery/catalog.rs`.
+- Prototypes: `standard_section_prototypes` -
+  `crates/nova_authoring/src/base_content/sections/standard.rs`.
+- API detail: `cargo doc --open -p nova_ship`.
