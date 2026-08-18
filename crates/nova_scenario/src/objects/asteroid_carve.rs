@@ -30,6 +30,16 @@
 //! then on nothing resamples: a carve touches the cells its sphere reaches, and
 //! the remesh reads the stored grid.
 //!
+//! # Nothing here happens in the frame that asked for it
+//!
+//! The seed and the remesh both run on the async compute pool, one job at a
+//! time per rock, and the rock keeps drawing the surface it already had until
+//! one lands. What the main thread pays is the sphere subtraction the mark
+//! itself reaches and the swap when the job comes back. A rock is therefore a
+//! frame or two behind the shot that hit it, which is the same staleness the
+//! volume throttle below already allows and is the whole reason a held burst
+//! no longer costs the frame rate.
+//!
 //! # What it swaps, and what it must not break
 //!
 //! A remesh replaces the drawn `Mesh3d` and rebuilds the trimesh `Collider` -
@@ -41,7 +51,10 @@
 //! there now.
 
 use avian3d::prelude::{AngularVelocity, Collider, ColliderDensity, LinearVelocity};
-use bevy::prelude::*;
+use bevy::{
+    prelude::*,
+    tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
+};
 use nova_events::prelude::{CommandsGameEventExt, *};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::BodyRadius;
@@ -340,8 +353,152 @@ fn throw_severed_pieces(
     }
 }
 
-/// Give a rock its field the first time it is marked, then keep its mesh,
-/// collider and published radius in step with the marks.
+/// Everything a remesh built off one candidate, waiting for the main thread to
+/// make it observable.
+///
+/// The whole product of a carve travels in one piece, because the pieces have
+/// to become visible together: a mesh without its collider is a rock rounds
+/// fly through, and an island thrown without the parent's new surface is a
+/// chunk that leaves a hole nothing filled.
+struct CarvedSurface {
+    /// The solid the surface was built from, islands already taken out.
+    field: SignedField,
+    /// The pieces the carve cut free.
+    islands: Vec<SignedField>,
+    /// The surface that solid meshes to.
+    surface: Mesh,
+    /// Its trimesh, or `None` when the surface makes no usable collider.
+    collider: Option<Collider>,
+    /// How much solid is left, in the grid's own cubic units.
+    volume: f32,
+    /// How far that surface reaches, in the grid's own space.
+    surviving: f32,
+}
+
+/// The pristine field a rock is waiting on, in flight on the compute pool.
+#[derive(Component)]
+struct AsteroidFieldSeeding(Task<SignedField>);
+
+/// The remesh a rock has in flight, at most one at a time.
+///
+/// While it is here the rock keeps the mesh and collider it already had, and
+/// takes no new work: the marks that land meanwhile are re-applied to whatever
+/// the task hands back. That staleness is the same one the volume throttle
+/// already allows, and it is what a carve costs instead of a frame.
+#[derive(Component)]
+struct AsteroidRemesh(Task<CarvedSurface>);
+
+/// Split, mesh and collide one candidate solid. Pure, and run off the main
+/// thread.
+///
+/// `tracked` is the caller's running volume, which is right whenever nothing
+/// severed - splitting is the one operation that removes material without
+/// reporting how much, so it is the one case that pays for a scan.
+fn carve_surface(node: Entity, mut candidate: SignedField, tracked: f32) -> CarvedSurface {
+    let started = std::time::Instant::now();
+    let islands = candidate.split_off_islands();
+    let severed = started.elapsed();
+
+    let volume = match islands.is_empty() {
+        true => tracked,
+        false => candidate.solid_volume(),
+    };
+
+    let started = std::time::Instant::now();
+    let built = candidate.surface();
+    // Off the DRAWN surface, not off a second whole-grid pass over the cell
+    // vertices it was just built from: same answer, and the margin keeps the
+    // solid clear of the domain wall where a cell has no quad.
+    let surviving = built
+        .triangles
+        .iter()
+        .flat_map(|triangle| triangle.vertices)
+        .fold(0.0f32, |furthest, vertex| furthest.max(vertex.length()));
+    let surface = built.build();
+    let remeshed = started.elapsed();
+
+    let started = std::time::Instant::now();
+    let collider = Collider::trimesh_from_mesh(&surface);
+    let rebuilt = started.elapsed();
+
+    debug!(
+        "carve_surface: {node:?} sever {:.1} ms, remesh {:.1} ms, collider {:.1} ms, \
+         {} piece(s), {} tri(s), unit radius {surviving:.2}",
+        severed.as_secs_f32() * 1000.0,
+        remeshed.as_secs_f32() * 1000.0,
+        rebuilt.as_secs_f32() * 1000.0,
+        islands.len(),
+        surface.indices().map_or(0, |i| i.len() / 3),
+    );
+
+    CarvedSurface {
+        field: candidate,
+        islands,
+        surface,
+        collider,
+        volume,
+        surviving,
+    }
+}
+
+/// Put the pristine field of every rock that has just been marked in flight.
+///
+/// A rock is gridded only once it is shot at, so this is where a scenario's
+/// untouched hundred stay free. The seed is tens of thousands of noise samples
+/// and it goes to the pool for the same reason the remesh does.
+fn seed_asteroid_fields(
+    mut commands: Commands,
+    q_nodes: Query<
+        (Entity, &DamageMarks, &ChildOf),
+        (Without<AsteroidField>, Without<AsteroidFieldSeeding>),
+    >,
+    q_asteroid: Query<(&AsteroidSeed, &AsteroidRadius), With<AsteroidMarker>>,
+) {
+    for (node, marks, ChildOf(root)) in &q_nodes {
+        if marks.0.is_empty() {
+            continue;
+        }
+        let Ok((seed, nominal)) = q_asteroid.get(*root) else {
+            continue;
+        };
+        let (seed, radius) = (seed.0, nominal.0);
+        let task = AsyncComputeTaskPool::get().spawn(async move { pristine_field(seed, radius) });
+        commands.entity(node).insert(AsteroidFieldSeeding(task));
+    }
+}
+
+/// Give a rock the field its seed task finished.
+fn collect_asteroid_field_seeds(
+    mut commands: Commands,
+    mut q_seeding: Query<(Entity, &mut AsteroidFieldSeeding, &ChildOf)>,
+    q_asteroid: Query<&AsteroidRadius, With<AsteroidMarker>>,
+) {
+    for (node, mut seeding, ChildOf(root)) in &mut q_seeding {
+        let Some(seeded) = block_on(poll_once(&mut seeding.0)) else {
+            continue;
+        };
+        let nominal = q_asteroid.get(*root).map_or(1.0, |radius| radius.0);
+        debug!(
+            "collect_asteroid_field_seeds: {node:?} at {}^3 ({:.2}u cells)",
+            seeded.resolution(),
+            seeded.cell_size() * nominal,
+        );
+        let volume = seeded.solid_volume();
+        commands
+            .entity(node)
+            .remove::<AsteroidFieldSeeding>()
+            .insert(AsteroidField {
+                field: seeded,
+                applied: 0,
+                attempted: 0,
+                volume,
+                meshed_volume: volume,
+            });
+    }
+}
+
+/// Carve every mark into the rock's own field, and put a remesh in flight when
+/// the grid has lost a cell.
 ///
 /// Marks accumulate on every hit, but remeshing waits until the grid loses a
 /// cell. A change the field cannot yet draw must not pay for connectivity,
@@ -353,77 +510,16 @@ fn throw_severed_pieces(
 /// carve none of them. The fingerprint compare that replaces it is a bounded
 /// mark-list hash per rock per frame.
 ///
-/// SYNCHRONOUS. The design's plan is to run the remesh and the collider build
-/// on the async compute pool with at most one job in flight per rock; that is
-/// worth doing when the numbers say so, and the numbers have to come first.
-/// This logs what each stage costs so the decision is made on measurements
-/// rather than on the estimate that motivated the plan.
-#[expect(
-    clippy::type_complexity,
-    reason = "the query carries the whole node: marks, field, parent, frame and drawn art"
-)]
+/// What is left here is the carve itself: a sphere subtraction over the cells
+/// one mark reaches, which is bounded by the mark and not by the grid.
 fn carve_asteroid_fields(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut q_nodes: Query<(
-        Entity,
-        &DamageMarks,
-        Option<&mut AsteroidField>,
-        &ChildOf,
-        &GlobalTransform,
-        Option<&Mesh3d>,
-        Option<&MeshMaterial3d<AsteroidSurfaceMaterial>>,
-    )>,
-    q_asteroid: Query<
-        (
-            &AsteroidSeed,
-            &AsteroidRadius,
-            &BodyRadius,
-            Option<&EntityId>,
-            Option<&EntityTypeName>,
-        ),
-        With<AsteroidMarker>,
-    >,
-    q_motion: Query<(
-        &GlobalTransform,
-        Option<&LinearVelocity>,
-        Option<&AngularVelocity>,
-    )>,
+    mut q_nodes: Query<(Entity, &DamageMarks, &mut AsteroidField), Without<AsteroidRemesh>>,
 ) {
-    for (node, marks, field, ChildOf(root), frame, mesh, chunk_material) in &mut q_nodes {
+    for (node, marks, mut field) in &mut q_nodes {
         if marks.0.is_empty() {
             continue;
         }
-        let Ok((seed, nominal, body, id, type_name)) = q_asteroid.get(*root) else {
-            continue;
-        };
-
-        let mut field = match field {
-            Some(field) => field,
-            None => {
-                let started = std::time::Instant::now();
-                let seeded = pristine_field(seed.0, nominal.0);
-                debug!(
-                    "carve_asteroid_fields: seeded {node:?} at {}^3 ({:.2}u cells) in {:.1} ms",
-                    seeded.resolution(),
-                    seeded.cell_size() * nominal.0,
-                    started.elapsed().as_secs_f32() * 1000.0
-                );
-                let volume = seeded.solid_volume();
-                commands.entity(node).insert(AsteroidField {
-                    field: seeded,
-                    applied: 0,
-                    attempted: 0,
-                    volume,
-                    meshed_volume: volume,
-                });
-                // The insert lands next flush, and this rock is carved the
-                // frame after. One frame of lag on the first hit only, and it
-                // keeps the seeding cost out of the same frame as the first
-                // remesh rather than paying for both at once.
-                continue;
-            }
-        };
 
         let signature = AsteroidField::signature(marks);
         if field.applied != signature {
@@ -448,45 +544,64 @@ fn carve_asteroid_fields(
         // Work on a candidate. Splitting mutates a field; doing it to the live
         // one before collider validation can spawn duplicate islands and leave
         // the old mesh around a different internal solid.
-        let carve_started = std::time::Instant::now();
-        let mut candidate = field.field.clone();
-        let started = std::time::Instant::now();
-        let islands = candidate.split_off_islands();
-        let severed = started.elapsed();
-        if !islands.is_empty() {
-            debug!(
-                "carve_asteroid_fields: {node:?} found {} severed piece(s) in {:.1} ms",
-                islands.len(),
-                severed.as_secs_f32() * 1000.0
-            );
-        }
+        let candidate = field.field.clone();
+        let tracked = field.volume;
+        let task = AsyncComputeTaskPool::get()
+            .spawn(async move { carve_surface(node, candidate, tracked) });
+        commands.entity(node).insert(AsteroidRemesh(task));
+    }
+}
+
+/// Swap in the surface a remesh finished: the drawn mesh, the collider, the
+/// pieces it cut free, and the radius everything else measures the rock by.
+///
+/// This is the only place a carve becomes observable, so it is also where a
+/// rock that ran out of material dies.
+#[expect(
+    clippy::type_complexity,
+    reason = "the query carries the whole node: task, field, parent, frame and drawn art"
+)]
+fn collect_asteroid_remeshes(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut q_remeshing: Query<(
+        Entity,
+        &mut AsteroidRemesh,
+        &mut AsteroidField,
+        &ChildOf,
+        &GlobalTransform,
+        Option<&Mesh3d>,
+        Option<&MeshMaterial3d<AsteroidSurfaceMaterial>>,
+    )>,
+    q_asteroid: Query<
+        (
+            &AsteroidRadius,
+            &BodyRadius,
+            Option<&EntityId>,
+            Option<&EntityTypeName>,
+        ),
+        With<AsteroidMarker>,
+    >,
+    q_motion: Query<(
+        &GlobalTransform,
+        Option<&LinearVelocity>,
+        Option<&AngularVelocity>,
+    )>,
+) {
+    for (node, mut remeshing, mut field, ChildOf(root), frame, mesh, chunk_material) in
+        &mut q_remeshing
+    {
+        let Some(carved) = block_on(poll_once(&mut remeshing.0)) else {
+            continue;
+        };
+        commands.entity(node).remove::<AsteroidRemesh>();
+        let Ok((nominal, body, id, type_name)) = q_asteroid.get(*root) else {
+            continue;
+        };
 
         let (scale, _, _) = frame.to_scale_rotation_translation();
         let cubic_scale = (scale.x * scale.y * scale.z).abs();
-        // Splitting moves corners out of the candidate without reporting how
-        // much, so the rare case that severs pays for a scan and the common one
-        // that does not carries the tracked volume through.
-        let remaining = match islands.is_empty() {
-            true => field.volume,
-            false => candidate.solid_volume(),
-        };
-        let remaining_world = remaining * cubic_scale;
-        let started = std::time::Instant::now();
-        let built = candidate.surface();
-        // Off the DRAWN surface, not off a second whole-grid pass over the cell
-        // vertices it was just built from: same answer, and the margin keeps
-        // the solid clear of the domain wall where a cell has no quad.
-        let surviving = built
-            .triangles
-            .iter()
-            .flat_map(|triangle| triangle.vertices)
-            .fold(0.0f32, |furthest, vertex| furthest.max(vertex.length()));
-        let surface = built.build();
-        let remeshed = started.elapsed();
-
-        let started = std::time::Instant::now();
-        let collider = Collider::trimesh_from_mesh(&surface);
-        let rebuilt = started.elapsed();
+        let remaining_world = carved.volume * cubic_scale;
 
         let (centre, linear, angular) = match q_motion.get(*root) {
             Ok((body, linear, angular)) => (
@@ -505,15 +620,18 @@ fn carve_asteroid_fields(
             material: chunk_material.cloned(),
         };
 
-        if remaining_world < CHUNK_MIN_VOLUME || surface.count_vertices() == 0 {
-            debug!("carve_asteroid_fields: {node:?} exhausted at {remaining_world:.2} cubic units");
+        if remaining_world < CHUNK_MIN_VOLUME || carved.surface.count_vertices() == 0 {
+            debug!(
+                "collect_asteroid_remeshes: {node:?} exhausted at {remaining_world:.2} cubic units"
+            );
             // The candidate is terminal, so its islands and final dust commit
             // together with the root's destruction.
-            throw_severed_pieces(&mut commands, &mut meshes, &parent, &islands);
+            throw_severed_pieces(&mut commands, &mut meshes, &parent, &carved.islands);
             if remaining_world > 0.0 {
                 commands.trigger(CarveSpew {
                     entity: node,
-                    at: candidate
+                    at: carved
+                        .field
                         .surface_centre()
                         .map_or(frame.translation(), |at| frame.transform_point(at)),
                     radius: (remaining_world * 3.0 / (4.0 * std::f32::consts::PI)).cbrt(),
@@ -531,28 +649,23 @@ fn carve_asteroid_fields(
             commands.entity(*root).try_despawn();
             continue;
         }
-        let Some(collider) = collider else {
+        let Some(collider) = carved.collider else {
             warn!(
-                "carve_asteroid_fields: {node:?} candidate collider was unusable; kept prior state"
+                "collect_asteroid_remeshes: {node:?} candidate collider was unusable; \
+                 kept prior state"
             );
             continue;
         };
 
         // Validation succeeded. Only now may the field and its islands become
         // observable.
-        throw_severed_pieces(&mut commands, &mut meshes, &parent, &islands);
-        field.field = candidate;
-        field.volume = remaining;
-        field.meshed_volume = remaining;
-        debug!(
-            "carve_asteroid_fields: {node:?} carve {:.1} ms (sever {:.1}, remesh {:.1}, \
-             collider {:.1}), {} tri(s), unit radius {surviving:.2}",
-            carve_started.elapsed().as_secs_f32() * 1000.0,
-            severed.as_secs_f32() * 1000.0,
-            remeshed.as_secs_f32() * 1000.0,
-            rebuilt.as_secs_f32() * 1000.0,
-            surface.indices().map_or(0, |i| i.len() / 3),
-        );
+        throw_severed_pieces(&mut commands, &mut meshes, &parent, &carved.islands);
+        field.field = carved.field;
+        field.volume = carved.volume;
+        field.meshed_volume = carved.volume;
+        // Marks that landed while the task was in flight were held off the live
+        // field, so the whole list is re-applied to the solid that came back.
+        field.applied = 0;
 
         let mut node = commands.entity(node);
         node.insert(collider);
@@ -561,7 +674,7 @@ fn carve_asteroid_fields(
         node.insert(ColliderDensity(1.0));
         match mesh {
             Some(_) => {
-                node.insert(Mesh3d(meshes.add(surface)));
+                node.insert(Mesh3d(meshes.add(carved.surface)));
             }
             // Headless: the node never had a drawn mesh and must not grow one.
             None => {}
@@ -571,7 +684,7 @@ fn carve_asteroid_fields(
         // distances, orbit clearances, the sphere of influence - was authored
         // against the pristine radius, so shrinking keeps every one of those
         // valid and growing would silently invalidate them.
-        let shrunk = nominal.0 * surviving;
+        let shrunk = nominal.0 * carved.surviving;
         if shrunk < body.0 {
             commands.entity(*root).insert(BodyRadius(shrunk));
         }
@@ -593,7 +706,19 @@ impl Plugin for AsteroidCarvePlugin {
         debug!("AsteroidCarvePlugin: build");
 
         let _ = self.render;
-        app.add_systems(Update, carve_asteroid_fields);
+        // Collect first, so a task started last frame has had a whole frame to
+        // finish and the rock it belongs to is free to take the next mark in
+        // the same update.
+        app.add_systems(
+            Update,
+            (
+                collect_asteroid_field_seeds,
+                collect_asteroid_remeshes,
+                seed_asteroid_fields,
+                carve_asteroid_fields,
+            )
+                .chain(),
+        );
     }
 }
 
