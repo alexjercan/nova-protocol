@@ -1,8 +1,30 @@
-# Epic: the editor is the star of v0.11.0
+# Epic: the editor is the star of the release after v0.11.0
 
 - STATUS: OPEN
-- PRIORITY: 100
-- TAGS: v0.11.0, epic, editor
+- PRIORITY: 0
+- TAGS: backlog, epic, editor
+
+## DEFERRED 2026-08-18 - this is no longer the v0.11.0 theme
+
+Owner call: v0.11.0 becomes the performance, examples and documentation
+release (`20260818-220812`), and the editor becomes the theme of the release
+after it. This epic and its children move to the backlog UNCHANGED - nothing
+below is cancelled, it is rescheduled.
+
+The reason is `0ee9cbb0`: the destruction rework landed correct and slow, and
+the `asteroid_field` sandbox is currently unplayable. An editor whose whole
+value is "build a ship, build a scenario, then PLAY it" cannot be built on a
+game that does not hold frame rate. v0.11.0 buys the ground this epic stands
+on, and its Phase 0 - "make the evidence trustworthy" - is exactly the same
+argument one level down.
+
+Children moved with it: `20260812-131901` (ship copy-paste palette),
+`20260714-081703` (in-editor scenario builder).
+
+Phase 2 step 7 (`20260813-224826`, asteroid carving) is CLOSED - it landed as
+`0ee9cbb0`. Its performance fallout is the new release.
+
+---
 
 v0.11.0 theme per owner (2026-08-12): the editor is the main focus. The
 parts_viewer gallery from closed spike `20260812-100246` sets the UX bar:

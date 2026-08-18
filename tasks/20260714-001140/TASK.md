@@ -1,8 +1,8 @@
 # Gamepad navigation for menus/editor and mobile virtual pad
 
 - STATUS: OPEN
-- PRIORITY: 50
-- TAGS: v0.11.0, input, gamepad, mobile, spike
+- PRIORITY: 0
+- TAGS: backlog,input,gamepad,mobile,spike
 
 ## Goal
 
@@ -64,3 +64,17 @@ bevy-common-systems primitives.
   existing gamepad reads are `Option<Res<ButtonInput<GamepadButton>>>` (see
   `nova_editor`, `nova_menu`, `nova_gameplay/hud`) and the `bindings!` flight rig
   in `nova_gameplay/src/input/player.rs`.
+
+## Backlogged 2026-08-18, and absorbs `20260818-182012`
+
+Moved to the backlog with the editor epic - Part A is largely editor UI, and
+v0.11.0 is now the performance/examples/docs release (`20260818-220812`).
+
+Absorbs closed duplicate `20260818-182012`, which adds a Part C:
+
+- Turn Settings into a real settings menu. Today it is master volume, a
+  graphics preset and a READ-ONLY keybind reference. Wanted: rebinding for
+  keyboard AND gamepad. Persistence already exists (settings survive restarts)
+  - reuse it for bindings.
+- The keybinds wiki page already documents a gamepad column. Make the game
+  match the page, or correct the page where the design differs.

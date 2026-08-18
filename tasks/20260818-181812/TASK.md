@@ -1,17 +1,25 @@
 # Wiki visuals pass: fill capture slots and replace text walls
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog
+- PRIORITY: 65
+- TAGS: v0.11.0,docs,web,capture
 
 Replace the wiki's remaining walls of text with visuals: diagrams (widgets),
 screenshots, and webm loops.
 
+Epic: `20260818-220812`.
+
 ## Wait on
 
-The `carve-profiling` branch (asteroid carving + richer damage effects) changes
-how the game looks. Capture AFTER it lands, or every shot is stale on arrival.
-Existing captures need a re-shoot pass then too.
+Carving LANDED (`0ee9cbb0`), so the appearance gate is cleared and the re-shoot
+pass on existing captures is now due. Two things still gate the capture itself:
+
+- `20260818-221021` - the sandbox is unplayable at the current head. A capture
+  from a stuttering build records the stutter.
+- `20260818-221044` - the destruction pages get rewritten. Capturing a page
+  that is about to change is a wasted capture, so shoot after the words settle.
+
+Nothing else is waiting. The widget work below can start now.
 
 ## What already exists
 

@@ -1,8 +1,8 @@
 # Promote the thruster shells: check the candidates, ship the picks
 
 - STATUS: OPEN
-- PRIORITY: 47
-- TAGS: v0.11.0,art,ship,content
+- PRIORITY: 0
+- TAGS: backlog,art,ship,content
 
 ## Goal
 
@@ -35,3 +35,9 @@ is CHECKED before promotion.
 
 - owner has picked from the gallery; picked shells fly on real ships in a
   render; checks recorded per candidate; large formats explicitly deferred
+
+## Backlogged 2026-08-18
+
+Art and content, and v0.11.0 is now the performance/examples/docs release
+(`20260818-220812`). Nothing here is blocked - it is out of the release's lane.
+The candidates are landed under `art/part-candidates/shells/` and keep.
