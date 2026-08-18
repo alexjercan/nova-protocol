@@ -26,6 +26,43 @@ running what the player runs, and until that is explained no measurement from
 it can be trusted - including every budget `20260818-221027` is currently
 setting.
 
+## THE SCENARIO IS `editor_sandbox`, NOT `asteroid_field`
+
+Owner, 2026-08-19: the sandbox they fly is the one the EDITOR hands off to on
+Play. It is `crates/nova_editor/src/scenario.rs`, id `editor_sandbox`, and it
+has **never been profiled by anything**. Grep confirms zero probe or example
+coverage of that id.
+
+Everything measured today measured `asteroid_field`, a different scenario
+nobody was complaining about. That is the whole explanation for the 25x gap
+below - the probe was not mismeasuring the scenario, it was measuring the wrong
+scenario.
+
+What `editor_sandbox` actually contains, against `asteroid_field`:
+
+| | `asteroid_field` | `editor_sandbox` |
+| --- | --- | --- |
+| rocks | 20 | **64** (belts of 30 + 34) |
+| rock radius | 1.0-3.0 | 1.0-3.0 and **1.5-4.0** |
+| ships | none | target hulks + 3 dormant pickets |
+| other bodies | 1 gravity well | planetoid, 2 sky beacons |
+| lights | scenario default | **authors its own three-point rig** |
+
+Unverified leads, in the order worth checking:
+
+- 64 rocks is 3.2x the bodies, and the deep belt reaches radius 4.0, which sits
+  at the carve resolution cap. Rock SPAWN was measured at 11 ms each after the
+  fix (39 before): 64 of those is 0.7 s of load, not a per-frame cost, but it
+  says these rocks are not cheap.
+- Three authored lights over ~70 bodies plus ships. If they cast shadows, the
+  shadow passes alone could own the frame. Nothing else in the game authors its
+  own light rig, so this is the scenario's most unusual property.
+- Pickets and hulks are multi-section ships with derived skins and greebles -
+  entity counts and collider counts that `asteroid_field` never pays.
+
+Do NOT assume any of these. They are leads, and today's suspects have been
+wrong twice.
+
 ## Do this first, before any fix
 
 Reproduce the owner's case AS A PLAYER. Not a probe fixture, not an example, not
