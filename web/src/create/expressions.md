@@ -225,8 +225,8 @@ own variable when X happens, then gate on
 A linear state machine: one numeric `beat` counter, every handler filtered
 on `Equal(beat, N)` and ending with `VariableSet(beat, N+1)`. This scales
 better than a boolean per step; the Shakedown Run and the Gauntlet are both
-built this way (see the
-[scenario patterns](../../dev/scenario-system/#scenario-patterns)).
+built this way (see the scenario-engine chapter of the
+[developer book](../../dev/)).
 
 ## Traps for the unwary
 

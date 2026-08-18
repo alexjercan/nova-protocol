@@ -24,7 +24,7 @@ Objectives are wired with a three-layer reactive system. An **event** fires unde
 - **Filters**: match by object id or type (asteroid / beacon / salvage crate), combine with not / or / and, or test a variable expression.
 - **Actions**: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind dock chip, set a variable, spawn or despawn an object, scatter a seeded field of objects, drive a HUD readout, post a story message, swap the skybox, set a ship's allegiance, pose the camera, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it. A won chapter does not cut straight to that screen: it plays a short outro of comms beats over the live world first, paced by scenario timers, so the moment lands before the overlay does.
 
-This is the vocabulary the [Shakedown Run](../../tutorial/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
+This is the vocabulary the [Shakedown Run](../getting-started/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
 
 ## The shipped scenarios
 
@@ -45,4 +45,4 @@ campaign header so you can launch any chapter directly for a replay without
 flying the whole arc again. Scenarios that belong to no campaign (Asteroid Field,
 standalone mod scenarios) list on their own below the campaigns.
 
-You can author your own scenarios and mods in RON - see [Modding](../modding/).
+You can author your own scenarios and mods in RON - see the [Create docs](../../create/).

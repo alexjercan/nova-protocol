@@ -2,7 +2,8 @@ const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const HtmlPartialsPlugin = require("./webpack-partials");
 const CopyPlugin = require("copy-webpack-plugin");
-const { wikiDocPage, newsPostPage } = require("./markdown");
+const { docPage, newsPostPage } = require("./markdown");
+const { DOC_SECTIONS } = require("./src/docs-manifest");
 const getPort = require("get-port");
 
 // PUBLIC_PATH should be "/" for local dev (default) or "/nova-protocol/" for the
@@ -12,7 +13,7 @@ const getPort = require("get-port");
 const publicPath = process.env.PUBLIC_PATH || "/";
 
 // One HtmlWebpackPlugin per page. `filename` with a trailing `index.html` gives
-// clean directory URLs (/blog/, /tutorial/, ...). `basePath` is read by the
+// clean directory URLs (/news/, /wiki/, ...). `basePath` is read by the
 // template (for direct <%= htmlWebpackPlugin.options.basePath %> interpolation)
 // and by HtmlPartialsPlugin (for the shared header/footer links).
 const page = (chunk, template, filename) =>
@@ -23,240 +24,73 @@ const page = (chunk, template, filename) =>
         basePath: publicPath,
     });
 
-// Every wiki page is markdown under `src/wiki/`, rendered at build time (see
-// markdown.js) and served at `/wiki/<slug>/`; all share the `wiki` chunk (the
-// manifest-driven sidebar/search/see-also from wiki.ts + wiki-pages.ts). To add
-// a page: drop the `.md` under `src/wiki/`, add an entry here, and add a manifest
-// entry in src/wiki-pages.ts. Keep this list in sync with wiki-pages.ts.
-// Children are listed before their parent so the dev-server rewrites match the
-// more specific path first (/wiki/sections/hull before /wiki/sections).
-const SECTIONS_CRUMB = { slug: "sections", title: "Ship sections" };
-const MODDING_REF_CRUMB = {
-    slug: "modding/reference",
-    title: "Modding reference",
+// Every doc page (both /wiki/ and /create/) comes from src/docs-manifest.js -
+// the ONE list that also drives the browser chrome (sidebar, search, tags,
+// see-also and index cards in src/docs.ts). Adding a page = its markdown file
+// plus one manifest entry; the generated page, crumb, TOC, meta description
+// and dev-server rewrite all derive from that entry, so the page list and the
+// chrome can no longer drift apart.
+//
+// The manifest is validated here at config time so a broken entry fails the
+// build loudly instead of silently dropping a page from the sidebar.
+const validateSection = (section) => {
+    const slugs = new Set(section.pages.map((p) => p.slug));
+    for (const p of section.pages) {
+        const where = `${section.root}/${p.slug}`;
+        if (!section.categories.includes(p.category)) {
+            throw new Error(
+                `docs-manifest: ${where} has unknown category "${p.category}"`
+            );
+        }
+        if (p.parent && !slugs.has(p.parent)) {
+            throw new Error(
+                `docs-manifest: ${where} has unknown parent "${p.parent}"`
+            );
+        }
+        for (const r of p.related) {
+            if (!slugs.has(r)) {
+                throw new Error(
+                    `docs-manifest: ${where} relates to unknown slug "${r}"`
+                );
+            }
+        }
+    }
 };
-const MOD_FILES_CRUMB = { slug: "modding/mod-files", title: "Mod files" };
-const SCENARIOS_CRUMB = {
-    slug: "modding/scenarios",
-    title: "Scenario files",
+const sectionDocPages = (section) => {
+    validateSection(section);
+    const bySlug = new Map(section.pages.map((p) => [p.slug, p]));
+    const pages = section.pages
+        .filter((p) => !p.comingSoon)
+        .map((p) => {
+            const parent = p.parent ? bySlug.get(p.parent) : undefined;
+            return docPage({
+                section,
+                slug: p.slug,
+                mdPath: `${section.mdDir}/${p.md}`,
+                title: p.title,
+                description: p.summary,
+                crumbParent: parent && {
+                    slug: parent.slug,
+                    title: parent.title,
+                },
+                toc: p.toc,
+                publicPath,
+            });
+        });
+    if (section.landing) {
+        pages.push(
+            docPage({
+                section,
+                mdPath: `${section.mdDir}/${section.landing.md}`,
+                title: section.landing.title,
+                description: section.landing.description,
+                landing: true,
+                publicPath,
+            })
+        );
+    }
+    return pages;
 };
-const WIKI_DOC_PAGES = [
-    // Player pages (children before the sections parent for rewrite ordering).
-    {
-        slug: "sections/hull",
-        md: "sections/hull.md",
-        title: "Hull",
-        crumbParent: SECTIONS_CRUMB,
-    },
-    {
-        slug: "sections/controller",
-        md: "sections/controller.md",
-        title: "Controller",
-        crumbParent: SECTIONS_CRUMB,
-    },
-    {
-        slug: "sections/thruster",
-        md: "sections/thruster.md",
-        title: "Thruster",
-        crumbParent: SECTIONS_CRUMB,
-    },
-    {
-        slug: "sections/turret",
-        md: "sections/turret.md",
-        title: "Turret",
-        crumbParent: SECTIONS_CRUMB,
-    },
-    {
-        slug: "sections/torpedo-bay",
-        md: "sections/torpedo-bay.md",
-        title: "Torpedo bay",
-        crumbParent: SECTIONS_CRUMB,
-    },
-    {
-        slug: "getting-started",
-        md: "getting-started.md",
-        title: "Your first flight",
-    },
-    { slug: "glossary", md: "glossary.md", title: "Glossary" },
-    { slug: "sections", md: "sections.md", title: "Ship sections" },
-    { slug: "keybinds", md: "keybinds.md", title: "Keybinds" },
-    { slug: "hud", md: "hud.md", title: "HUD" },
-    { slug: "settings", md: "settings.md", title: "Settings" },
-    {
-        slug: "flight-autopilot",
-        md: "flight-autopilot.md",
-        title: "Flight & autopilot",
-    },
-    {
-        slug: "targeting-radar",
-        md: "targeting-radar.md",
-        title: "Targeting & radar",
-    },
-    {
-        slug: "combat-weapons",
-        md: "combat-weapons.md",
-        title: "Combat & weapons",
-    },
-    { slug: "gravity-wells", md: "gravity-wells.md", title: "Gravity wells" },
-    { slug: "factions", md: "factions.md", title: "Factions" },
-    { slug: "scenarios", md: "scenarios.md", title: "Scenarios" },
-    // The modding hierarchy. Deep pages come first for dev-server rewrites.
-    {
-        slug: "modding/events",
-        md: "modding/events.md",
-        title: "Events",
-        crumbParent: SCENARIOS_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/filters",
-        md: "modding/filters.md",
-        title: "Filters",
-        crumbParent: SCENARIOS_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/actions",
-        md: "modding/actions.md",
-        title: "Actions",
-        crumbParent: SCENARIOS_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/objects",
-        md: "modding/objects.md",
-        title: "Scenario objects",
-        crumbParent: SCENARIOS_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/expressions",
-        md: "modding/expressions.md",
-        title: "Variables & expressions",
-        crumbParent: SCENARIOS_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/campaigns",
-        md: "modding/campaigns.md",
-        title: "Campaign files",
-        crumbParent: MOD_FILES_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/scenarios",
-        md: "modding/scenarios.md",
-        title: "Scenario files",
-        crumbParent: MOD_FILES_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/sections",
-        md: "modding/sections.md",
-        title: "Ship sections for mods",
-        crumbParent: MOD_FILES_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/styles",
-        md: "modding/styles.md",
-        title: "Ship skin styles for mods",
-        crumbParent: MOD_FILES_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/ships",
-        md: "modding/ships.md",
-        title: "Ships for mods",
-        crumbParent: MOD_FILES_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/mod-files",
-        md: "modding/mod-files.md",
-        title: "Mod files",
-        crumbParent: MODDING_REF_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/base-content",
-        md: "modding/base-content.md",
-        title: "Base content catalog",
-        crumbParent: MODDING_REF_CRUMB,
-        toc: true,
-    },
-    {
-        slug: "modding/author-a-scenario",
-        md: "modding/author-a-scenario.md",
-        title: "Create your first scenario",
-    },
-    {
-        slug: "modding/publish-a-mod",
-        md: "modding/publish-a-mod.md",
-        title: "Publish a mod",
-    },
-    {
-        slug: "modding/reference",
-        md: "modding/reference.md",
-        title: "Modding reference",
-    },
-    { slug: "modding", md: "modding.md", title: "Modding" },
-    // Developer pages (markdown under src/wiki/dev/).
-    {
-        slug: "dev/development",
-        md: "dev/development.md",
-        title: "Building & running",
-    },
-    {
-        slug: "dev/keeping-docs-in-sync",
-        md: "dev/keeping-docs-in-sync.md",
-        title: "Keeping docs in sync",
-    },
-    {
-        slug: "dev/architecture",
-        md: "dev/architecture.md",
-        title: "Architecture",
-    },
-    {
-        slug: "dev/sections",
-        md: "dev/sections.md",
-        title: "Ship sections (internals)",
-    },
-    {
-        slug: "dev/scenario-system",
-        md: "dev/scenario-system.md",
-        title: "Scenario engine",
-    },
-    {
-        slug: "dev/project-tour",
-        md: "dev/project-tour.md",
-        title: "Project tour",
-    },
-    {
-        slug: "dev/automation-harness",
-        md: "dev/automation-harness.md",
-        title: "Automation harness",
-    },
-    {
-        slug: "dev/guide-add-section",
-        md: "dev/guide-add-section.md",
-        title: "Add a ship section",
-    },
-    {
-        slug: "dev/guide-extend-scenarios",
-        md: "dev/guide-extend-scenarios.md",
-        title: "Extend the scenario engine",
-    },
-];
-const docPage = ({ slug, md, title, crumbParent, toc }) =>
-    wikiDocPage({
-        slug,
-        mdPath: `src/wiki/${md}`,
-        title,
-        crumbParent,
-        toc,
-        publicPath,
-    });
 
 // News: markdown under `src/news/<version>.md`, rendered at build time (see
 // markdown.js newsPostPage/newsPostShell) into the standalone news article shell
@@ -379,12 +213,6 @@ const REDIRECTS = [
     ["changelog/0.5.1", "news/0.5.0"],
     ["changelog/0.5.2", "news/0.5.0"],
     ["changelog/0.6.0", "news/0.6.0"],
-    ["wiki/dev/guide-author-scenario", "wiki/modding/author-a-scenario"],
-    ["wiki/dev/guide-author-section", "wiki/modding/sections"],
-    ["wiki/dev/guide-make-a-mod", "wiki/modding/publish-a-mod"],
-    ["wiki/dev/modding-ron", "wiki/modding/mod-files"],
-    ["wiki/dev/mod-portal", "wiki/modding/publish-a-mod"],
-    ["wiki/modding/scenario", "wiki/modding/mod-files"],
 ];
 const redirectPage = ([from, to]) =>
     new HtmlWebpackPlugin({
@@ -421,8 +249,7 @@ module.exports = async (env, argv) => {
     return {
         entry: {
             index: "./src/index.ts",
-            tutorial: "./src/tutorial.ts",
-            wiki: "./src/wiki.ts",
+            docs: "./src/docs.ts",
             news: "./src/news.ts",
         },
         output: {
@@ -434,9 +261,8 @@ module.exports = async (env, argv) => {
         },
         plugins: [
             page("index", "src/index.html", "index.html"),
-            page("tutorial", "src/tutorial.html", "tutorial/index.html"),
-            page("wiki", "src/wiki.html", "wiki/index.html"),
-            ...WIKI_DOC_PAGES.map(docPage),
+            page("docs", "src/wiki.html", "wiki/index.html"),
+            ...DOC_SECTIONS.flatMap(sectionDocPages),
             page("news", "src/news.html", "news/index.html"),
             ...NEWS_POSTS.map(newsPage),
             ...REDIRECTS.map(redirectPage),
@@ -528,18 +354,30 @@ module.exports = async (env, argv) => {
             ],
             historyApiFallback: {
                 rewrites: [
-                    { from: /^\/tutorial/, to: "/tutorial/index.html" },
                     // Easter-egg routes: resolve /nova-menu, /nova-hud and /nova-os
                     // (with or without a trailing slash) to the copied PoCs during
                     // `webpack serve`. Order before the broader rewrites below.
                     { from: /^\/nova-menu/, to: "/nova-menu/index.html" },
                     { from: /^\/nova-hud/, to: "/nova-hud/index.html" },
                     { from: /^\/nova-os/, to: "/nova-os/index.html" },
-                    ...WIKI_DOC_PAGES.map(({ slug }) => ({
-                        from: new RegExp("^/wiki/" + slug),
-                        to: "/wiki/" + slug + "/index.html",
-                    })),
-                    { from: /^\/wiki/, to: "/wiki/index.html" },
+                    // Doc pages, deepest slugs first so the more specific path
+                    // wins (/wiki/sections/hull before /wiki/sections), then the
+                    // section root as the fallback.
+                    ...DOC_SECTIONS.flatMap((section) => [
+                        ...section.pages
+                            .filter((p) => !p.comingSoon)
+                            .map(({ slug }) => ({
+                                from: new RegExp(`^/${section.root}/` + slug),
+                                to: `/${section.root}/` + slug + "/index.html",
+                                depth: slug.split("/").length,
+                            }))
+                            .sort((a, b) => b.depth - a.depth)
+                            .map(({ from, to }) => ({ from, to })),
+                        {
+                            from: new RegExp(`^/${section.root}`),
+                            to: `/${section.root}/index.html`,
+                        },
+                    ]),
                     ...NEWS_POSTS.map(({ slug }) => ({
                         from: new RegExp("^/news/" + slug),
                         to: "/news/" + slug + "/index.html",

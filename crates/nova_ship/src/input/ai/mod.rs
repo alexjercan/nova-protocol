@@ -137,7 +137,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         // system in it reads an eased pose - `&Transform` on ship roots, the
         // muzzle and thruster `&GlobalTransform`, and the collider trees
         // `ai_line_of_fire_blocked` raycasts. A FixedUpdate system MUST read
-        // raw `Position`/`Rotation` instead (web/src/wiki/dev/architecture.md),
+        // raw `Position`/`Rotation` instead (docs/architecture.md),
         // and in FixedUpdate of frame N those eased poses still hold frame
         // N-1's values. These are decision reads, not impulses, and they are
         // correct against the frame they are deciding for.

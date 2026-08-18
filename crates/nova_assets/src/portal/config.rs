@@ -6,7 +6,7 @@
 use bevy::prelude::*;
 
 /// The production portal base URL - the GitHub Pages tree `scripts/gen-portal.py`
-/// publishes next to the wasm build (web/src/wiki/modding/publish-a-mod.md).
+/// publishes next to the wasm build (web/src/create/publish-a-mod.md).
 pub const DEFAULT_PORTAL_URL: &str = "https://alexjercan.github.io/nova-protocol/mods";
 
 /// Where the portal lives: `<base_url>/catalog.json` +

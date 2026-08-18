@@ -1,13 +1,16 @@
 import "./style.css";
 import { initSite } from "./site";
-import { WIKI_PAGES, WIKI_SECTIONS, WikiPage } from "./wiki-pages";
+import { DOC_SECTIONS, DocPage, DocSection } from "./docs-manifest";
 
 initSite();
 
-// The whole wiki chrome is rendered here from the manifest, so the sidebar,
-// search, tag chips, see-also and index all stay in sync with wiki-pages.ts.
-// Each wiki page (index or sub-page) supplies placeholder elements by id; we
-// only fill the ones present, so index and sub-pages share this one script.
+// The whole doc chrome (for both /wiki/ and /create/) is rendered here from
+// the manifest in docs-manifest.js, so the sidebar, search, tag chips,
+// see-also and index all stay in sync with the generated pages. Each page
+// supplies placeholder elements by id; we only fill the ones present, so the
+// section indexes and sub-pages share this one script. Everything is scoped to
+// the CURRENT section: the wiki sidebar lists only wiki pages, the create
+// sidebar only creator pages.
 
 // basePath is not available to bundled JS, so read it off the header brand link
 // the same way site.ts does (works at "/" locally and "/nova-protocol/" on
@@ -20,13 +23,22 @@ function basePath(): string {
     return new URL(brand.href).pathname.replace(/\/*$/, "/");
 }
 
-function currentSlug(base: string): string | null {
+// /wiki/... or /create/... -> the manifest section; anything else -> null.
+function currentSection(base: string): DocSection | null {
+    const path = window.location.pathname;
+    const rel = path.startsWith(base) ? path.slice(base.length) : path;
+    const root = rel.split("/").filter(Boolean)[0];
+    return DOC_SECTIONS.find((s) => s.root === root) ?? null;
+}
+
+function currentSlug(base: string, section: DocSection): string | null {
     const path = window.location.pathname;
     const rel = path.startsWith(base) ? path.slice(base.length) : path;
     const segs = rel.split("/").filter(Boolean);
     // /wiki/<slug>/ -> slug (multi-segment for child pages, e.g.
-    // /wiki/sections/hull/ -> "sections/hull"); /wiki/ -> null (the index).
-    return segs[0] === "wiki" && segs[1] ? segs.slice(1).join("/") : null;
+    // /wiki/sections/hull/ -> "sections/hull"); the section root itself
+    // (/wiki/, /create/) -> null (the index / landing).
+    return segs[0] === section.root && segs[1] ? segs.slice(1).join("/") : null;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -40,15 +52,15 @@ function el<K extends keyof HTMLElementTagNameMap>(
     return node;
 }
 
-function pageUrl(base: string, slug: string): string {
-    return `${base}wiki/${slug}/`;
+function pageUrl(base: string, section: DocSection, slug: string): string {
+    return `${base}${section.root}/${slug}/`;
 }
 
-function bySlug(slug: string): WikiPage | undefined {
-    return WIKI_PAGES.find((p) => p.slug === slug);
+function bySlug(section: DocSection, slug: string): DocPage | undefined {
+    return section.pages.find((p) => p.slug === slug);
 }
 
-function haystack(p: WikiPage): string {
+function haystack(p: DocPage): string {
     return [p.title, p.summary, p.tags.join(" "), p.headings.join(" ")]
         .join(" ")
         .toLowerCase();
@@ -60,22 +72,26 @@ function haystack(p: WikiPage): string {
 // non-navigable span (a link would 404) - still searchable. A parent counts as
 // active when the current page is one of its children.
 function makeNavLink(
-    p: WikiPage,
+    p: DocPage,
     base: string,
+    section: DocSection,
     active: string | null
 ): HTMLElement {
     const soon = !!p.comingSoon;
     const link = el(soon ? "span" : "a", "wiki-nav__link", p.title);
-    if (!soon) (link as HTMLAnchorElement).href = pageUrl(base, p.slug);
+    if (!soon)
+        (link as HTMLAnchorElement).href = pageUrl(base, section, p.slug);
     link.dataset.search = haystack(p);
-    let activePage = active ? bySlug(active) : undefined;
+    let activePage = active ? bySlug(section, active) : undefined;
     let isActive = false;
     while (activePage) {
         if (activePage.slug === p.slug) {
             isActive = true;
             break;
         }
-        activePage = activePage.parent ? bySlug(activePage.parent) : undefined;
+        activePage = activePage.parent
+            ? bySlug(section, activePage.parent)
+            : undefined;
     }
     if (isActive) {
         link.classList.add("is-active");
@@ -91,16 +107,17 @@ function makeNavLink(
 function renderSidebar(
     nav: HTMLElement,
     base: string,
+    section: DocSection,
     active: string | null
 ): void {
     const search = el("input", "wiki-search");
     search.type = "search";
-    search.placeholder = "Search the wiki...";
-    search.setAttribute("aria-label", "Search the wiki");
+    search.placeholder = section.searchPlaceholder;
+    search.setAttribute("aria-label", section.searchPlaceholder);
     nav.appendChild(search);
 
-    const home = el("a", "wiki-nav__home", "Wiki index");
-    home.href = `${base}wiki/`;
+    const home = el("a", "wiki-nav__home", section.homeLabel);
+    home.href = `${base}${section.root}/`;
     if (active === null) {
         home.classList.add("is-active");
         home.setAttribute("aria-current", "page");
@@ -108,51 +125,37 @@ function renderSidebar(
     nav.appendChild(home);
 
     const groups: { heading: HTMLElement; items: HTMLElement[] }[] = [];
-    // Each band (audience) header plus the category groups under it, so search
-    // can hide a whole band when all its categories filter out.
-    const bands: { header: HTMLElement; cats: { heading: HTMLElement }[] }[] =
-        [];
 
-    for (const section of WIKI_SECTIONS) {
-        const bandHeader = el("p", "wiki-nav__section", section.name);
-        nav.appendChild(bandHeader);
-        const bandCats: { heading: HTMLElement }[] = [];
+    for (const category of section.categories) {
+        const pages = section.pages.filter((p) => p.category === category);
+        if (pages.length === 0) continue;
 
-        for (const category of section.categories) {
-            const pages = WIKI_PAGES.filter((p) => p.category === category);
-            if (pages.length === 0) continue;
+        const group = el("div", "wiki-nav__group");
+        const heading = el("p", "wiki-nav__cat", category);
+        group.appendChild(heading);
 
-            const group = el("div", "wiki-nav__group");
-            const heading = el("p", "wiki-nav__cat", category);
-            group.appendChild(heading);
+        const items: HTMLElement[] = [];
+        const appendPage = (
+            page: DocPage,
+            host: HTMLElement,
+            depth: number
+        ): void => {
+            const link = makeNavLink(page, base, section, active);
+            if (depth > 0) link.classList.add("wiki-nav__child");
+            host.appendChild(link);
+            items.push(link);
 
-            const items: HTMLElement[] = [];
-            const appendPage = (
-                page: WikiPage,
-                host: HTMLElement,
-                depth: number
-            ): void => {
-                const link = makeNavLink(page, base, active);
-                if (depth > 0) link.classList.add("wiki-nav__child");
-                host.appendChild(link);
-                items.push(link);
-
-                const children = pages.filter((c) => c.parent === page.slug);
-                if (children.length === 0) return;
-                const sub = el("div", "wiki-nav__sub");
-                children.forEach((child) => appendPage(child, sub, depth + 1));
-                host.appendChild(sub);
-            };
-            pages
-                .filter((page) => !page.parent)
-                .forEach((page) => appendPage(page, group, 0));
-            nav.appendChild(group);
-            const cat = { heading, items };
-            groups.push(cat);
-            bandCats.push(cat);
-        }
-        bandHeader.hidden = bandCats.length === 0;
-        bands.push({ header: bandHeader, cats: bandCats });
+            const children = pages.filter((c) => c.parent === page.slug);
+            if (children.length === 0) return;
+            const sub = el("div", "wiki-nav__sub");
+            children.forEach((child) => appendPage(child, sub, depth + 1));
+            host.appendChild(sub);
+        };
+        pages
+            .filter((page) => !page.parent)
+            .forEach((page) => appendPage(page, group, 0));
+        nav.appendChild(group);
+        groups.push({ heading, items });
     }
 
     const empty = el("p", "wiki-nav__empty", "No pages match.");
@@ -175,10 +178,6 @@ function renderSidebar(
             heading.hidden = !groupVisible;
             if (groupVisible) anyVisible = true;
         }
-        // A band shows only while at least one of its categories is visible.
-        for (const band of bands) {
-            band.header.hidden = !band.cats.some((c) => !c.heading.hidden);
-        }
         empty.hidden = anyVisible;
     };
     search.addEventListener("input", filter);
@@ -186,7 +185,7 @@ function renderSidebar(
 
 // ---- current-page tag chips ----------------------------------------------
 
-function renderTags(container: HTMLElement, page: WikiPage): void {
+function renderTags(container: HTMLElement, page: DocPage): void {
     if (page.tags.length === 0) return;
     for (const tag of page.tags) {
         const chip = el("span", "wiki-tag", tag);
@@ -199,14 +198,15 @@ function renderTags(container: HTMLElement, page: WikiPage): void {
 function renderSeeAlso(
     container: HTMLElement,
     base: string,
-    page: WikiPage
+    section: DocSection,
+    page: DocPage
 ): void {
     const seen = new Set<string>([page.slug]);
-    const picks: WikiPage[] = [];
+    const picks: DocPage[] = [];
 
     const add = (slug: string): void => {
         if (seen.has(slug)) return;
-        const p = bySlug(slug);
+        const p = bySlug(section, slug);
         // Only suggest pages you can actually open.
         if (!p || p.comingSoon) return;
         seen.add(slug);
@@ -215,7 +215,7 @@ function renderSeeAlso(
 
     // Explicit related first, then pages that share a tag, capped.
     page.related.forEach(add);
-    for (const other of WIKI_PAGES) {
+    for (const other of section.pages) {
         if (picks.length >= 5) break;
         if (other.tags.some((t) => page.tags.includes(t))) add(other.slug);
     }
@@ -227,7 +227,7 @@ function renderSeeAlso(
     for (const p of picks.slice(0, 5)) {
         const li = el("li");
         const link = el("a", undefined, p.title);
-        link.href = pageUrl(base, p.slug);
+        link.href = pageUrl(base, section, p.slug);
         li.appendChild(link);
         li.appendChild(el("span", "wiki-seealso__sum", ` - ${p.summary}`));
         list.appendChild(li);
@@ -237,43 +237,42 @@ function renderSeeAlso(
 
 // ---- index page -----------------------------------------------------------
 
-function renderIndex(container: HTMLElement, base: string): void {
-    const topLevel = (category: string): WikiPage[] =>
-        WIKI_PAGES.filter((p) => p.category === category && !p.parent);
+function renderIndex(
+    container: HTMLElement,
+    base: string,
+    section: DocSection
+): void {
+    const topLevel = (category: string): DocPage[] =>
+        section.pages.filter((p) => p.category === category && !p.parent);
 
-    for (const section of WIKI_SECTIONS) {
-        if (!section.categories.some((c) => topLevel(c).length > 0)) continue;
-        container.appendChild(el("h2", "wiki-index__band", section.name));
+    for (const category of section.categories) {
+        // Top-level pages only - children live on their parent's overview page.
+        const pages = topLevel(category);
+        if (pages.length === 0) continue;
 
-        for (const category of section.categories) {
-            // Top-level pages only - children live on their parent's overview page.
-            const pages = topLevel(category);
-            if (pages.length === 0) continue;
-
-            container.appendChild(el("h3", "wiki-index__cat", category));
-            const grid = el("div", "wiki-index__grid");
-            for (const p of pages) {
-                const card = p.comingSoon
-                    ? el("div", "wiki-index__card is-soon")
-                    : el("a", "wiki-index__card");
-                if (!p.comingSoon) {
-                    (card as HTMLAnchorElement).href = pageUrl(base, p.slug);
-                }
-                const titleRow = el("div", "wiki-index__cardhead");
-                titleRow.appendChild(
-                    el("h3", "wiki-index__cardtitle", p.title)
+        container.appendChild(el("h3", "wiki-index__cat", category));
+        const grid = el("div", "wiki-index__grid");
+        for (const p of pages) {
+            const card = p.comingSoon
+                ? el("div", "wiki-index__card is-soon")
+                : el("a", "wiki-index__card");
+            if (!p.comingSoon) {
+                (card as HTMLAnchorElement).href = pageUrl(
+                    base,
+                    section,
+                    p.slug
                 );
-                if (p.comingSoon) {
-                    titleRow.appendChild(
-                        el("span", "wiki-index__soon", "soon")
-                    );
-                }
-                card.appendChild(titleRow);
-                card.appendChild(el("p", "wiki-index__cardsum", p.summary));
-                grid.appendChild(card);
             }
-            container.appendChild(grid);
+            const titleRow = el("div", "wiki-index__cardhead");
+            titleRow.appendChild(el("h3", "wiki-index__cardtitle", p.title));
+            if (p.comingSoon) {
+                titleRow.appendChild(el("span", "wiki-index__soon", "soon"));
+            }
+            card.appendChild(titleRow);
+            card.appendChild(el("p", "wiki-index__cardsum", p.summary));
+            grid.appendChild(card);
         }
+        container.appendChild(grid);
     }
 }
 
@@ -285,15 +284,16 @@ function renderIndex(container: HTMLElement, base: string): void {
 function renderChildrenGrid(
     container: HTMLElement,
     base: string,
+    section: DocSection,
     parentSlug: string
 ): void {
-    const kids = WIKI_PAGES.filter((p) => p.parent === parentSlug);
+    const kids = section.pages.filter((p) => p.parent === parentSlug);
     if (kids.length === 0) return;
 
     const grid = el("div", "wiki-children");
     for (const c of kids) {
         const card = el("a", "wiki-child");
-        card.href = pageUrl(base, c.slug);
+        card.href = pageUrl(base, section, c.slug);
 
         const icon = el("span", "wiki-child__icon");
         if (c.icon) {
@@ -327,7 +327,7 @@ function renderChildrenGrid(
 
 // ---- mermaid diagrams -----------------------------------------------------
 
-// Developer doc pages (rendered from markdown) may hold ```mermaid blocks, which
+// Doc pages (rendered from markdown) may hold ```mermaid blocks, which
 // markdown.js emits as <pre class="mermaid">. Mermaid needs the DOM, so it runs
 // client-side here - and only when a diagram is present, so its (large) bundle is
 // dynamically imported and never weighs on a page without one. Themed to the
@@ -384,26 +384,26 @@ async function initMermaid(): Promise<void> {
 
 // ---- drawer scroll persistence --------------------------------------------
 
-// Each wiki page is a full document, so the sidebar (#wiki-nav - its own
+// Each doc page is a full document, so the sidebar (#wiki-nav - its own
 // overflow-y scroll container) re-renders at scrollTop 0 on every navigation and
 // refresh. Persist its scroll position in sessionStorage (per-tab; survives
 // same-tab navigations and reloads, clears on tab close) so the reader keeps
-// their place. One key: the drawer is identical on every wiki page. Storage
-// access is guarded for private mode / disabled storage, and on mobile the nav
-// is not a scroll container so scrollTop stays 0 (a harmless no-op).
-const NAV_SCROLL_KEY = "wiki-nav-scroll";
-
-function persistNavScroll(nav: HTMLElement): void {
+// their place. One key per section: the drawer is identical on every page of a
+// section but differs between /wiki/ and /create/. Storage access is guarded
+// for private mode / disabled storage, and on mobile the nav is not a scroll
+// container so scrollTop stays 0 (a harmless no-op).
+function persistNavScroll(nav: HTMLElement, section: DocSection): void {
+    const key = `${section.root}-nav-scroll`;
     const read = (): string | null => {
         try {
-            return sessionStorage.getItem(NAV_SCROLL_KEY);
+            return sessionStorage.getItem(key);
         } catch {
             return null;
         }
     };
     const write = (v: number): void => {
         try {
-            sessionStorage.setItem(NAV_SCROLL_KEY, String(v));
+            sessionStorage.setItem(key, String(v));
         } catch {
             // storage unavailable; scroll simply will not persist.
         }
@@ -427,28 +427,32 @@ function persistNavScroll(nav: HTMLElement): void {
 // ---- boot -----------------------------------------------------------------
 
 const base = basePath();
-const slug = currentSlug(base);
+const section = currentSection(base);
 
 void initMermaid();
 
-const nav = document.getElementById("wiki-nav");
-if (nav) {
-    renderSidebar(nav, base, slug);
-    persistNavScroll(nav);
-}
+if (section) {
+    const slug = currentSlug(base, section);
 
-const indexHost = document.getElementById("wiki-index");
-if (indexHost) renderIndex(indexHost, base);
-
-if (slug) {
-    const page = bySlug(slug);
-    if (page) {
-        const tagHost = document.getElementById("wiki-tags");
-        if (tagHost) renderTags(tagHost, page);
-        const seeAlsoHost = document.getElementById("wiki-seealso");
-        if (seeAlsoHost) renderSeeAlso(seeAlsoHost, base, page);
+    const nav = document.getElementById("wiki-nav");
+    if (nav) {
+        renderSidebar(nav, base, section, slug);
+        persistNavScroll(nav, section);
     }
-    // Overview pages (parents) render their children as a grid.
-    const childrenHost = document.getElementById("wiki-children");
-    if (childrenHost) renderChildrenGrid(childrenHost, base, slug);
+
+    const indexHost = document.getElementById("wiki-index");
+    if (indexHost) renderIndex(indexHost, base, section);
+
+    if (slug) {
+        const page = bySlug(section, slug);
+        if (page) {
+            const tagHost = document.getElementById("wiki-tags");
+            if (tagHost) renderTags(tagHost, page);
+            const seeAlsoHost = document.getElementById("wiki-seealso");
+            if (seeAlsoHost) renderSeeAlso(seeAlsoHost, base, section, page);
+        }
+        // Overview pages (parents) render their children as a grid.
+        const childrenHost = document.getElementById("wiki-children");
+        if (childrenHost) renderChildrenGrid(childrenHost, base, section, slug);
+    }
 }

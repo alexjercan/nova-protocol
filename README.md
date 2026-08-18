@@ -10,10 +10,11 @@ Project and gameplay documentation lives on the published site:
 
 - [Project site](https://alexjercan.github.io/nova-protocol/)
 - [Play in your browser](https://alexjercan.github.io/nova-protocol/play/)
-- [Tutorial](https://alexjercan.github.io/nova-protocol/tutorial/)
-- [Player and modding wiki](https://alexjercan.github.io/nova-protocol/wiki/)
-- [Developer guide](https://alexjercan.github.io/nova-protocol/wiki/dev/development/)
-- [Project tour](https://alexjercan.github.io/nova-protocol/wiki/dev/project-tour/)
+- [How to play](https://alexjercan.github.io/nova-protocol/wiki/getting-started/)
+- [Player wiki](https://alexjercan.github.io/nova-protocol/wiki/)
+- [Creator docs](https://alexjercan.github.io/nova-protocol/create/)
+- [Developer book](https://alexjercan.github.io/nova-protocol/dev/)
+- [Project tour](https://alexjercan.github.io/nova-protocol/dev/project-tour.html)
 
 ## Quick start
 
@@ -47,7 +48,7 @@ The script prints the local URL and watches all three parts. To run only the
 WASM game, use `nix develop --command trunk serve` and open
 `http://localhost:8080/`.
 
-See the [developer guide](https://alexjercan.github.io/nova-protocol/wiki/dev/development/)
+See the [developer book](https://alexjercan.github.io/nova-protocol/dev/)
 for builds, tests, tools, examples, and platform setup.
 
 ## Repository guide

@@ -156,7 +156,6 @@ Two engine-maintained variables also belong to the vocabulary:
 ## Extending the vocabulary
 
 A construct that does not exist here cannot be authored in RON - adding an
-event, filter, action or object kind is a small Rust change, covered in
-[Extend the scenario engine](../../dev/guide-extend-scenarios/). If you add
-one, its entry lands on these pages in the same task (see
-[Keeping docs in sync](../../dev/keeping-docs-in-sync/)).
+event, filter, action or object kind is a small Rust change, covered in the
+[developer book](../../dev/). If you add one, its entry lands on these pages
+in the same task.

@@ -1,77 +1,38 @@
-// The wiki manifest: the single source of truth for the whole wiki. Every
-// piece of chrome (the sidebar, search, tag chips, "see also", and the wiki
-// index) is a view of this array, so adding or renaming a page is a one-line
-// edit here (plus authoring its HTML and the one-line wikiPage() registration
-// in webpack.config.js). See tasks/20260713-225157/SPIKE.md.
+// The docs manifest: the single source of truth for BOTH doc sections of the
+// site - /wiki/ (players) and /create/ (mod authors). webpack.config.js
+// requires this at config time to generate every page, its crumbs, TOC and
+// dev-server rewrite; docs.ts imports it in the browser to render the sidebar,
+// search, tags, see-also and index cards. One entry here IS the page - there is
+// no second list to keep in sync.
+//
+// Plain CommonJS on purpose: node (webpack config) consumes it directly and
+// the browser bundle picks it up through docs-manifest.d.ts for types.
+//
+// Page fields:
+// - slug: URL segment under the section root ("actions" -> /create/actions/).
+//   Children use nested slugs only in the wiki ("sections/hull").
+// - md: markdown source, relative to the section's mdDir.
+// - category: sidebar group; must be one of the section's categories.
+// - tags: small controlled taxonomy - tag chips, search, and the auto
+//   "shares a tag" half of See also.
+// - summary: one line - index cards, search results, and the meta description.
+// - related: explicit cross-links (same-section slugs), first under See also.
+// - headings: section headings, so search matches in-page topics too.
+// - parent: slug of the parent page. Drives the sidebar nesting, the crumb
+//   ("Create / <parent> / <title>") and the parent's #wiki-children grid.
+// - toc: render the build-time contents box (the reference pages opt in).
+// - icon: asset for the parent's child grid (placeholder until captured).
+// - comingSoon: not yet written - muted, non-navigable entry.
 
-export interface WikiPage {
-    // URL segment under /wiki/, e.g. "sections" -> /wiki/sections/.
-    slug: string;
-    title: string;
-    // Sidebar group; must be one of WIKI_CATEGORIES.
-    category: string;
-    // Small controlled taxonomy - drives tag chips and search, and the auto
-    // "shares a tag" half of See also.
-    tags: string[];
-    // One line, shown on the index cards and in search results.
-    summary: string;
-    // Explicit cross-links (slugs), shown first under See also.
-    related: string[];
-    // Section headings, so search matches on in-page topics too.
-    headings: string[];
-    // Not yet written - rendered as a muted, non-navigable "coming soon" entry.
-    comingSoon?: boolean;
-    // Slug of the parent page. The sidebar nests this hierarchy recursively;
-    // direct children appear in the parent's overview grid.
-    parent?: string;
-    // Icon asset for the parent's child grid (placeholder until captured).
-    icon?: string;
-}
-
-// The wiki nav is segmented into three audience BANDS - "For players" (the game
-// manual), "For creators" (authoring scenarios and mods, no Rust), and "For
-// developers" (the codebase and engine) - each holding an ordered list of
-// category groups. Every page's `category` must be one of the categories listed
-// here. WIKI_CATEGORIES is the flattened order, derived from the bands.
-export interface WikiSection {
-    name: string;
-    categories: string[];
-}
-
-export const WIKI_SECTIONS: WikiSection[] = [
-    {
-        name: "For players",
-        categories: [
-            "Start here",
-            "Ships & building",
-            "Flying",
-            "Combat",
-            "Interface",
-            "World",
-        ],
-    },
-    {
-        name: "For creators",
-        categories: ["Learn to mod", "Modding reference"],
-    },
-    {
-        name: "For developers",
-        categories: ["Get started", "Architecture", "Extending"],
-    },
-];
-
-export const WIKI_CATEGORIES: string[] = WIKI_SECTIONS.flatMap(
-    (s) => s.categories
-);
-
-export const WIKI_PAGES: WikiPage[] = [
+const WIKI_PAGES = [
     {
         slug: "getting-started",
+        md: "getting-started.md",
         title: "Your first flight",
         category: "Start here",
         tags: ["ui", "flight"],
         summary:
-            "The shortest path from launch to flying: New Game into the Shakedown Run, the first two minutes (burn, lock, GOTO, raise weapons and fire), and where to go next.",
+            "The full first flight: launch into the Shakedown Run, learn every gesture beat by beat (burn, lock, GOTO, ORBIT, weapons), then the sandbox and where to go next.",
         related: [
             "keybinds",
             "flight-autopilot",
@@ -81,11 +42,14 @@ export const WIKI_PAGES: WikiPage[] = [
         headings: [
             "Launch and start",
             "The first two minutes",
+            "The Shakedown Run, beat by beat",
+            "The sandbox",
             "Where to go next",
         ],
     },
     {
         slug: "glossary",
+        md: "glossary.md",
         title: "Glossary",
         category: "Start here",
         tags: ["ui"],
@@ -96,6 +60,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "sections",
+        md: "sections.md",
         title: "Ship sections",
         category: "Ships & building",
         tags: ["ships"],
@@ -106,6 +71,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "sections/hull",
+        md: "sections/hull.md",
         title: "Hull",
         category: "Ships & building",
         parent: "sections",
@@ -118,6 +84,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "sections/controller",
+        md: "sections/controller.md",
         title: "Controller",
         category: "Ships & building",
         parent: "sections",
@@ -130,6 +97,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "sections/thruster",
+        md: "sections/thruster.md",
         title: "Thruster",
         category: "Ships & building",
         parent: "sections",
@@ -142,6 +110,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "sections/turret",
+        md: "sections/turret.md",
         title: "Turret",
         category: "Ships & building",
         parent: "sections",
@@ -154,6 +123,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "sections/torpedo-bay",
+        md: "sections/torpedo-bay.md",
         title: "Torpedo bay",
         category: "Ships & building",
         parent: "sections",
@@ -166,6 +136,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "keybinds",
+        md: "keybinds.md",
         title: "Keybinds",
         category: "Interface",
         tags: ["ui"],
@@ -181,6 +152,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "hud",
+        md: "hud.md",
         title: "HUD",
         category: "Interface",
         tags: ["ui"],
@@ -197,6 +169,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "settings",
+        md: "settings.md",
         title: "Settings",
         category: "Interface",
         tags: ["ui"],
@@ -207,6 +180,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "flight-autopilot",
+        md: "flight-autopilot.md",
         title: "Flight & autopilot",
         category: "Flying",
         tags: ["flight"],
@@ -225,6 +199,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "targeting-radar",
+        md: "targeting-radar.md",
         title: "Targeting & radar",
         category: "Combat",
         tags: ["combat", "ui"],
@@ -240,6 +215,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "combat-weapons",
+        md: "combat-weapons.md",
         title: "Combat & weapons",
         category: "Combat",
         tags: ["combat"],
@@ -258,6 +234,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "gravity-wells",
+        md: "gravity-wells.md",
         title: "Gravity wells",
         category: "Flying",
         tags: ["flight", "world"],
@@ -272,6 +249,7 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "factions",
+        md: "factions.md",
         title: "Factions",
         category: "World",
         tags: ["world", "combat"],
@@ -282,52 +260,34 @@ export const WIKI_PAGES: WikiPage[] = [
     },
     {
         slug: "scenarios",
+        md: "scenarios.md",
         title: "Scenarios",
         category: "World",
         tags: ["world", "modding"],
         summary:
             "What a scenario places into the world and how objectives are wired through events, filters and actions; the scenarios that ship today.",
-        related: ["modding", "gravity-wells", "sections"],
+        related: ["gravity-wells", "sections"],
         headings: [
             "Shipped scenarios",
             "Objectives and events",
             "Beacons and salvage",
         ],
     },
-    // === For creators: a short learning path plus a hierarchical reference.
-    // Mod files own the three content items. Scenario-only vocabulary nests
-    // under Scenario files. The sidebar supports this hierarchy recursively. ===
+];
+
+// The creator section: a short learning path plus a hierarchical reference.
+// Mod files owns the content items; scenario-only vocabulary nests under
+// Scenario files. The sidebar supports this hierarchy recursively.
+const CREATE_PAGES = [
     {
-        slug: "modding",
-        title: "Modding",
-        category: "Learn to mod",
-        tags: ["modding"],
-        summary:
-            "The front door to content creation: discover what mods can do, create a first scenario, publish it for other players, then explore the full reference.",
-        related: [
-            "modding/author-a-scenario",
-            "modding/publish-a-mod",
-            "modding/reference",
-        ],
-        headings: [
-            "Learn to mod",
-            "What can a mod contain?",
-            "Look it up",
-            "Extend the engine",
-        ],
-    },
-    {
-        slug: "modding/author-a-scenario",
+        slug: "author-a-scenario",
+        md: "author-a-scenario.md",
         title: "Create your first scenario",
         category: "Learn to mod",
         tags: ["guide", "modding"],
         summary:
             "Build and play a small shooting-range scenario in RON by following one objective from setup through events, filters, actions, variables, and victory.",
-        related: [
-            "modding/scenarios",
-            "modding/publish-a-mod",
-            "modding/actions",
-        ],
+        related: ["scenarios", "publish-a-mod", "actions"],
         headings: [
             "Start with the working example",
             "Understand the scenario file",
@@ -341,17 +301,14 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/publish-a-mod",
+        slug: "publish-a-mod",
+        md: "publish-a-mod.md",
         title: "Publish a mod",
         category: "Learn to mod",
         tags: ["guide", "modding"],
         summary:
             "Prepare a finished mod release, lint it, generate and preview the static portal, publish it, and ship updates.",
-        related: [
-            "modding/mod-files",
-            "modding/author-a-scenario",
-            "modding/reference",
-        ],
+        related: ["mod-files", "author-a-scenario", "reference"],
         headings: [
             "Prepare the release folder",
             "Set the version",
@@ -365,13 +322,14 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/reference",
+        slug: "reference",
+        md: "reference.md",
         title: "Modding reference",
         category: "Modding reference",
         tags: ["modding", "reference"],
         summary:
             "The complete mod file hierarchy and catalog of campaigns, scenarios, sections, events, filters, actions, objects, expressions, base ids, and assets.",
-        related: ["modding", "modding/mod-files", "modding/base-content"],
+        related: ["mod-files", "base-content"],
         headings: [
             "How RON content is written",
             "The reference pages",
@@ -380,14 +338,16 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/mod-files",
+        slug: "mod-files",
+        md: "mod-files.md",
         title: "Mod files",
         category: "Modding reference",
-        parent: "modding/reference",
+        parent: "reference",
+        toc: true,
         tags: ["modding", "reference"],
         summary:
-            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the three content items: campaigns, scenarios, and sections.",
-        related: ["modding/campaigns", "modding/scenarios", "modding/sections"],
+            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, and styles.",
+        related: ["campaigns", "scenarios", "sections", "ships", "styles"],
         headings: [
             "Folder structure",
             "The bundle manifest",
@@ -398,14 +358,16 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/campaigns",
+        slug: "campaigns",
+        md: "campaigns.md",
         title: "Campaign files",
         category: "Modding reference",
-        parent: "modding/mod-files",
+        parent: "mod-files",
+        toc: true,
         tags: ["modding", "reference"],
         summary:
             "Define a campaign id, menu name, and ordered scenario list; connect chapters and add or replace a campaign from a mod.",
-        related: ["modding/scenarios", "modding/mod-files"],
+        related: ["scenarios", "mod-files"],
         headings: [
             "File shape",
             "Fields",
@@ -415,18 +377,16 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/scenarios",
+        slug: "scenarios",
+        md: "scenarios.md",
         title: "Scenario files",
         category: "Modding reference",
-        parent: "modding/mod-files",
+        parent: "mod-files",
+        toc: true,
         tags: ["modding", "reference"],
         summary:
             "Define a playable mission or backdrop, its picker metadata and handlers, then script it with events, filters, actions, objects, and expressions.",
-        related: [
-            "modding/author-a-scenario",
-            "modding/events",
-            "modding/actions",
-        ],
+        related: ["author-a-scenario", "events", "actions"],
         headings: [
             "File shape",
             "Fields",
@@ -439,18 +399,16 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/sections",
+        slug: "sections",
+        md: "sections.md",
         title: "Ship sections for mods",
         category: "Modding reference",
-        parent: "modding/mod-files",
+        parent: "mod-files",
+        toc: true,
         tags: ["modding", "reference", "ships"],
         summary:
             "Define reusable ship parts field by field: shared identity and physics, then hull, thruster, controller, turret, and torpedo behavior and mod overlays.",
-        related: [
-            "modding/base-content",
-            "modding/objects",
-            "modding/publish-a-mod",
-        ],
+        related: ["base-content", "objects", "publish-a-mod"],
         headings: [
             "The Section item",
             "Common fields",
@@ -464,14 +422,57 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/events",
+        slug: "ships",
+        md: "ships.md",
+        title: "Ships for mods",
+        category: "Modding reference",
+        parent: "mod-files",
+        toc: true,
+        tags: ["modding", "reference", "ships"],
+        summary:
+            "Author a whole hull once as content and spawn it by id: the section layout, cladding and collapse threshold, spawn-time overrides, and one-off hulls.",
+        related: ["styles", "objects", "base-content"],
+        headings: [
+            "Why a ship is content",
+            "The Ship item",
+            "Spawning one",
+            "Changing one hull for one spawn",
+            "One-off hulls",
+            "Overlay and lint",
+            "Base ships",
+        ],
+    },
+    {
+        slug: "styles",
+        md: "styles.md",
+        title: "Ship skin styles for mods",
+        category: "Modding reference",
+        parent: "mod-files",
+        toc: true,
+        tags: ["modding", "reference", "ships"],
+        summary:
+            "Author the look a ship's derived cladding wears: plate material, scattered decoration, the deterministic scatter rule, and how a ship names a style by id.",
+        related: ["ships", "sections", "base-content"],
+        headings: [
+            "What a style can and cannot change",
+            "The Style item",
+            "The scatter rule",
+            "The scatter is deterministic",
+            "The frame a greeble is authored in",
+            "Using a style",
+        ],
+    },
+    {
+        slug: "events",
+        md: "events.md",
         title: "Events",
         category: "Modding reference",
-        parent: "modding/scenarios",
+        parent: "scenarios",
+        toc: true,
         tags: ["modding", "reference"],
         summary:
             "Everything that can fire a scenario handler: fifteen event kinds, payloads, lifecycle edges, and dispatch order.",
-        related: ["modding/filters", "modding/actions", "modding/scenarios"],
+        related: ["filters", "actions", "scenarios"],
         headings: [
             "OnStart",
             "OnUpdate",
@@ -486,18 +487,16 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/filters",
+        slug: "filters",
+        md: "filters.md",
         title: "Filters",
         category: "Modding reference",
-        parent: "modding/scenarios",
+        parent: "scenarios",
+        toc: true,
         tags: ["modding", "reference"],
         summary:
             "The four scenario filter kinds: Entity, Timer, Expression, and Conditional, with payload and fail-closed rules.",
-        related: [
-            "modding/events",
-            "modding/expressions",
-            "modding/author-a-scenario",
-        ],
+        related: ["events", "expressions", "author-a-scenario"],
         headings: [
             "Entity",
             "Timer",
@@ -507,14 +506,16 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/actions",
+        slug: "actions",
+        md: "actions.md",
         title: "Actions",
         category: "Modding reference",
-        parent: "modding/scenarios",
+        parent: "scenarios",
+        toc: true,
         tags: ["modding", "reference"],
         summary:
             "All 24 actions a scenario handler can run, grouped by spawning, mission, flow, ship state, timers, and camera.",
-        related: ["modding/objects", "modding/events", "modding/expressions"],
+        related: ["objects", "events", "expressions"],
         headings: [
             "SpawnScenarioObject",
             "ScatterObjects",
@@ -543,18 +544,16 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/objects",
+        slug: "objects",
+        md: "objects.md",
         title: "Scenario objects",
         category: "Modding reference",
-        parent: "modding/scenarios",
+        parent: "scenarios",
+        toc: true,
         tags: ["modding", "reference"],
         summary:
             "The five spawnable scenario object kinds: Asteroid, Spaceship, Beacon, SalvageCrate, and Light.",
-        related: [
-            "modding/actions",
-            "modding/base-content",
-            "modding/sections",
-        ],
+        related: ["actions", "base-content", "sections"],
         headings: [
             "Asteroid",
             "Spaceship",
@@ -566,14 +565,16 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/expressions",
+        slug: "expressions",
+        md: "expressions.md",
         title: "Variables & expressions",
         category: "Modding reference",
-        parent: "modding/scenarios",
+        parent: "scenarios",
+        toc: true,
         tags: ["modding", "reference"],
         summary:
             "The complete scenario expression grammar: literals, factors, terms, conditions, reserved variables, and common recipes.",
-        related: ["modding/filters", "modding/actions", "modding/scenarios"],
+        related: ["filters", "actions", "scenarios"],
         headings: [
             "Values: the literal types",
             "Factors: the atoms",
@@ -585,14 +586,16 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
-        slug: "modding/base-content",
+        slug: "base-content",
+        md: "base-content.md",
         title: "Base content catalog",
         category: "Modding reference",
-        parent: "modding/reference",
+        parent: "reference",
+        toc: true,
         tags: ["modding", "reference", "ships"],
         summary:
             "Every id and asset the base game ships: section prototype ids, scenario ids, the campaign, dep://base asset paths, and overlay rules.",
-        related: ["modding/sections", "modding/mod-files", "modding/objects"],
+        related: ["sections", "mod-files", "objects"],
         headings: [
             "Section prototypes",
             "Scenario ids",
@@ -600,171 +603,47 @@ export const WIKI_PAGES: WikiPage[] = [
             "The overlay rule",
         ],
     },
+];
 
-    // === For developers: the codebase and engine. Rendered from markdown under
-    // src/wiki/dev/ (see WIKI_DOC_PAGES in webpack.config.js); slugs are
-    // `dev/`-prefixed and must match that list. ===
+// The two doc sections. Each owns its URL root, sidebar categories, markdown
+// directory and page list; the chrome and page generation both walk this array.
+// - `landing` (optional): a markdown page rendered at the section root itself
+//   (/create/). The wiki instead keeps a hand-authored index shell
+//   (src/wiki.html), registered directly in webpack.config.js.
+const DOC_SECTIONS = [
     {
-        slug: "dev/development",
-        title: "Building & running",
-        category: "Get started",
-        tags: ["dev", "build"],
-        summary:
-            "The developer's getting-started: toolchain, everyday cargo commands, features, examples, the web build, and the versioning/release checklist.",
-        related: [
-            "dev/architecture",
-            "modding/publish-a-mod",
-            "dev/keeping-docs-in-sync",
+        root: "wiki",
+        title: "Wiki",
+        homeLabel: "Wiki index",
+        searchPlaceholder: "Search the wiki...",
+        titleSuffix: "Nova Protocol Wiki",
+        mdDir: "src/wiki",
+        categories: [
+            "Start here",
+            "Ships & building",
+            "Flying",
+            "Combat",
+            "Interface",
+            "World",
         ],
-        headings: [
-            "Toolchain",
-            "Everyday commands",
-            "Features",
-            "Examples",
-            "Web build",
-            "Versioning and release",
-        ],
+        pages: WIKI_PAGES,
     },
     {
-        slug: "dev/keeping-docs-in-sync",
-        title: "Keeping docs in sync",
-        category: "Get started",
-        tags: ["dev", "docs"],
-        summary:
-            "The map of documentation surfaces (CHANGELOG, News, wiki, tutorial) and what to update when you change code or cut a release - so nothing drifts.",
-        related: [
-            "dev/development",
-            "dev/architecture",
-            "modding/publish-a-mod",
-        ],
-        headings: [
-            "The documentation surfaces",
-            "When you change code",
-            "The dependency map",
-            "When you cut a release",
-            "Adding or renaming a page",
-        ],
-    },
-    {
-        slug: "dev/project-tour",
-        title: "Project tour",
-        category: "Get started",
-        tags: ["dev", "onboarding"],
-        summary:
-            "The 20-minute front door: the crate map at a glance, where each kind of thing lives, the app boot path, and a 'want to change X? start here' table.",
-        related: [
-            "dev/architecture",
-            "dev/development",
-            "dev/guide-add-section",
-            "modding/publish-a-mod",
-        ],
-        headings: [
-            "Crate map at a glance",
-            "The boot path",
-            "Want to change X? Start here",
-            "Where to go next",
-        ],
-    },
-    {
-        slug: "dev/architecture",
-        title: "Architecture",
-        category: "Architecture",
-        tags: ["dev", "architecture"],
-        summary:
-            "How the codebase fits together: the crate map and dependency graph, app assembly and plugin order, the state machines, and the Update vs FixedUpdate frame flow.",
-        related: ["dev/development", "dev/scenario-system", "dev/sections"],
-        headings: [
-            "Crate map",
-            "App assembly",
-            "States",
-            "Frame flow",
-            "Assets",
-        ],
-    },
-    {
-        slug: "dev/sections",
-        title: "Ship sections (internals)",
-        category: "Architecture",
-        tags: ["dev", "architecture", "combat"],
-        summary:
-            "The section components and how a ship is built from them, the integrity pipeline (damage -> disable -> destroy), typed damage and the travel rule, and ammo slots.",
-        related: ["sections", "dev/architecture", "combat-weapons"],
-        headings: [
-            "Sections",
-            "Building a ship",
-            "Integrity: damage -> disable -> destroy",
-            "Typed damage",
-            "Ammo",
-        ],
-    },
-    {
-        slug: "dev/scenario-system",
-        title: "Scenario engine",
-        category: "Architecture",
-        tags: ["dev", "architecture", "modding"],
-        summary:
-            "The event-driven scenario/modding engine: scenario structure, loading, the event/filter/action pipeline, variables and the event world, scenario objects, and where to add new pieces.",
-        related: ["scenarios", "modding/scenarios", "dev/architecture"],
-        headings: [
-            "Scenario structure",
-            "Loading / unloading",
-            "Events",
-            "Filters",
-            "Actions",
-            "Scenario patterns",
-            "The gate-counter ordering pattern",
-            "The act-gating pattern",
-            "The Gauntlet worked example",
-            "Scenario objects",
-            "Adding new pieces",
-        ],
-    },
-    {
-        slug: "dev/automation-harness",
-        title: "Automation harness",
-        category: "Architecture",
-        tags: ["dev", "architecture", "tooling"],
-        summary:
-            "The nova_autopilot crate that drives the game without a human: the scripted autopilot, screenshot and reel drivers, the NOVA_* environment contract, and the completion protocol that decides when a run ends.",
-        related: ["dev/architecture", "dev/development", "dev/project-tour"],
-        headings: [
-            "What it drives",
-            "The environment contract",
-            "The completion protocol",
-            "How an example opts in",
-        ],
-    },
-    {
-        slug: "dev/guide-add-section",
-        title: "Add a ship section",
-        category: "Extending",
-        tags: ["dev", "guide", "ships"],
-        summary:
-            "The ordered checklist to add a new ship-section kind - section module, the SectionKind enum, the section class label, the section plugin, spawn and editor wiring, an asset prototype, and a runnable example.",
-        related: ["dev/sections", "dev/architecture", "dev/project-tour"],
-        headings: [
-            "Closed by design",
-            "The checklist",
-            "The config module",
-            "Wiring the plugin",
-            "Section class",
-            "Editor and prototype",
-        ],
-    },
-    {
-        slug: "dev/guide-extend-scenarios",
-        title: "Extend the scenario engine",
-        category: "Extending",
-        tags: ["dev", "guide", "modding"],
-        summary:
-            "Add a new scenario primitive in Rust - an event kind, filter, action, or scenario-object kind - via the enum-variant + trait-impl + prelude recipe, one worked example each, plus the NovaEventWorld state/command seam.",
-        related: ["dev/scenario-system", "modding/author-a-scenario"],
-        headings: [
-            "Add an event kind",
-            "Add a filter",
-            "Add an action",
-            "Add a scenario object kind",
-            "The NovaEventWorld seam",
-        ],
+        root: "create",
+        title: "Create",
+        homeLabel: "Create home",
+        searchPlaceholder: "Search the creator docs...",
+        titleSuffix: "Nova Protocol Creator Docs",
+        mdDir: "src/create",
+        landing: {
+            md: "index.md",
+            title: "Create",
+            description:
+                "Make content for Nova Protocol: author scenarios and campaigns in RON, add ship sections, ships and skins, and publish mods to the portal.",
+        },
+        categories: ["Learn to mod", "Modding reference"],
+        pages: CREATE_PAGES,
     },
 ];
+
+module.exports = { DOC_SECTIONS };

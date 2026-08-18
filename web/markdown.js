@@ -12,14 +12,14 @@ function interop(m) {
     return m && m.__esModule && m.default ? m.default : m;
 }
 
-// Build-time markdown -> HTML for the developer wiki pages. Rendering happens
-// here in Node (the webpack config calls wikiDocPage at configure time), so
-// there is no runtime markdown cost and a no-JS / SEO reader still gets the full
-// article - the same "content in HTML, chrome via JS" split the hand-authored
-// wiki pages use.
+// Build-time markdown -> HTML for the doc pages (/wiki/ and /create/).
+// Rendering happens here in Node (the webpack config calls docPage at
+// configure time), so there is no runtime markdown cost and a no-JS / SEO
+// reader still gets the full article - the same "content in HTML, chrome via
+// JS" split the hand-authored pages use.
 //
 // - A fenced ```mermaid block becomes a <pre class="mermaid"> holding the escaped
-//   diagram source; wiki.ts renders it client-side (mermaid needs the DOM). Every
+//   diagram source; docs.ts renders it client-side (mermaid needs the DOM). Every
 //   other fence is highlighted with highlight.js into <pre><code class="hljs ...">.
 // - markdown-it-anchor gives every h2/h3 a slug id, so headings deep-link and the
 //   manifest's `headings` search terms line up with real anchors.
@@ -134,20 +134,27 @@ function tocBox(headings) {
                     </nav>`;
 }
 
-// The page shell for a markdown doc: the same chrome as a hand-authored wiki
+// The page shell for a markdown doc: the same chrome as a hand-authored doc
 // page (header/footer placeholders, the manifest-driven #wiki-nav aside, the
 // crumb/h1/#wiki-tags, and #wiki-seealso), with a #doc-body placeholder the
 // partials plugin fills with the rendered markdown after templating - so lodash
 // never runs over code samples. Unlike a `template` FILE, a templateContent
 // STRING is not run through lodash, so basePath is inlined here at config time
 // (publicPath is already known) rather than left as a <%= %> token.
-// opts: { description, crumbParent: { slug, title }, toc: headings }. A
+// opts: { section, description, crumbParent: { slug, title }, toc: headings,
+// landing }. `section` ({ root, title, titleSuffix }) picks the crumb root and
+// <title> suffix, so /wiki/ and /create/ pages share this one shell. A
 // description is rendered as the page meta; a crumbParent renders a two-level
-// crumb ("Wiki / <parent> / <title>") for child pages like the ship sections;
-// toc renders the contents box above the body (the reference pages opt in).
+// crumb ("Create / <parent> / <title>") for child pages; toc renders the
+// contents box above the body (the reference pages opt in); landing renders the
+// section root page itself, so the crumb (which would just self-link) is
+// omitted.
 function docShell(title, basePath, opts = {}) {
     const t = escapeAttr(title);
     const b = escapeAttr(basePath);
+    const section = opts.section;
+    const root = escapeAttr(section.root);
+    const sectionTitle = escapeAttr(section.title);
     const desc = opts.description
         ? `\n        <meta name="description" content="${escapeAttr(
               opts.description
@@ -155,19 +162,28 @@ function docShell(title, basePath, opts = {}) {
         : "";
     const parent = opts.crumbParent;
     const crumb = parent
-        ? `<a href="${b}wiki/">Wiki</a>
-                        / <a href="${b}wiki/${escapeAttr(parent.slug)}/">${escapeAttr(
+        ? `<a href="${b}${root}/">${sectionTitle}</a>
+                        / <a href="${b}${root}/${escapeAttr(parent.slug)}/">${escapeAttr(
                             parent.title
                         )}</a>
                         / ${t}`
-        : `<a href="${b}wiki/">Wiki</a>
+        : `<a href="${b}${root}/">${sectionTitle}</a>
                         / ${t}`;
+    const crumbBlock = opts.landing
+        ? ""
+        : `<p class="wiki__crumb">
+                        ${crumb}
+                    </p>
+                    `;
+    const htmlTitle = opts.landing
+        ? `${t} - Nova Protocol`
+        : `${t} - ${escapeAttr(section.titleSuffix)}`;
     return `<!doctype html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>${t} - Nova Protocol Wiki</title>${desc}
+        <title>${htmlTitle}</title>${desc}
         <link rel="icon" href="${b}favicon.svg" />
     </head>
     <body>
@@ -177,13 +193,10 @@ function docShell(title, basePath, opts = {}) {
                 <aside
                     class="wiki__nav"
                     id="wiki-nav"
-                    aria-label="Wiki navigation"
+                    aria-label="${sectionTitle} navigation"
                 ></aside>
                 <article class="wiki__body prose">
-                    <p class="wiki__crumb">
-                        ${crumb}
-                    </p>
-                    <h1>${t}</h1>
+                    ${crumbBlock}<h1>${t}</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
                     ${opts.toc ? tocBox(opts.toc) : ""}
                     <div id="doc-body"></div>
@@ -196,33 +209,41 @@ function docShell(title, basePath, opts = {}) {
 </html>`;
 }
 
-// Build one HtmlWebpackPlugin for a markdown doc page. The rendered body rides
-// on the plugin's `docBody` option; HtmlPartialsPlugin injects it into the
-// #doc-body placeholder at beforeEmit (see webpack-partials.js). Shares the
-// `wiki` chunk so the sidebar/search/tags/see-also all render from the manifest.
-// `description` sets the page meta; `crumbParent` renders a child crumb;
-// `toc: true` renders the auto contents box (the modding reference pages).
-function wikiDocPage({
+// Build one HtmlWebpackPlugin for a markdown doc page in a doc SECTION (/wiki/
+// or /create/). The rendered body rides on the plugin's `docBody` option;
+// HtmlPartialsPlugin injects it into the #doc-body placeholder at beforeEmit
+// (see webpack-partials.js). Shares the `docs` chunk so the sidebar/search/
+// tags/see-also all render from the manifest. `description` sets the page
+// meta; `crumbParent` renders a child crumb; `toc: true` renders the auto
+// contents box; `landing: true` emits the page at the section root itself.
+function docPage({
+    section,
     slug,
     mdPath,
     title,
     description,
     crumbParent,
     toc,
+    landing,
     publicPath,
 }) {
     const abs = path.resolve(__dirname, mdPath);
     const { html, title: h1, headings } = renderMarkdownFile(abs);
     const pageTitle = title || h1;
+    const filename = landing
+        ? `${section.root}/index.html`
+        : `${section.root}/${slug}/index.html`;
     return new HtmlWebpackPlugin({
-        filename: `wiki/${slug}/index.html`,
-        chunks: ["wiki"],
+        filename,
+        chunks: ["docs"],
         basePath: publicPath,
         docBody: html,
         templateContent: docShell(pageTitle, publicPath, {
+            section,
             description,
             crumbParent,
             toc: toc ? headings : undefined,
+            landing,
         }),
     });
 }
@@ -354,6 +375,6 @@ function newsPostPage({
 
 module.exports = {
     renderMarkdownFile,
-    wikiDocPage,
+    docPage,
     newsPostPage,
 };

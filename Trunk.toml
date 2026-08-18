@@ -36,4 +36,4 @@ port = 8080
 # `scripts/serve-web.sh` wires this up for you. For the game-only loop:
 #   nix develop -c scripts/serve-mods.sh          # prints its port
 #   TRUNK_SERVE_PROXY_BACKEND=http://127.0.0.1:<port>/mods nix develop -c trunk serve
-# See web/src/wiki/modding/publish-a-mod.md, "Local development".
+# See web/src/create/publish-a-mod.md, "Local development".

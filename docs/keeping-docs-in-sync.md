@@ -15,10 +15,13 @@ and "Writing the release news post".
 | `CHANGELOG.md` | repo root | everyone (terse, complete) | any user-visible change |
 | News | `web/src/news/*.md` -> `/news/` | players + modders | each feature release |
 | Player wiki | `web/src/wiki/*.md` -> `/wiki/` | players | player-facing behavior changes |
-| Creator docs | `web/src/` -> `/create/` | mod authors | a data format or the modding UX changes |
+| Creator docs | `web/src/create/*.md` -> `/create/` | mod authors | a data format or the modding UX changes |
 | Dev book (this book) | `docs/` -> `/dev/` | contributors | internals, architecture, or the dev workflow change |
 | rustdoc | local: `cargo doc --open` | contributors | with the code (doc comments travel in the same diff) |
-| Tutorial | `web/src/tutorial.html` -> `/tutorial/` | new players | the first-flight flow changes |
+
+The tutorial is not a separate surface: it is the wiki's Start-here landing
+(`web/src/wiki/getting-started.md` -> `/wiki/getting-started/`), updated when
+the first-flight flow changes.
 
 `CHANGELOG.md` is the exhaustive machine reference (every version, terse,
 grouped by subsystem). News is the story (one rich post per feature release).

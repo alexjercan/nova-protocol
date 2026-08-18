@@ -1,6 +1,6 @@
 //! Mod resource references: the `self://` (own folder) and `dep://<id>/` (a
 //! declared dependency's folder) sentinels, their rewrite to concrete asset
-//! paths, and membership validation. See the modding guide (`web/src/wiki/modding/mod-files.md`).
+//! paths, and membership validation. See the modding guide (`web/src/create/mod-files.md`).
 //!
 //! Two reserved schemes, both resolved at bundle-merge time where the owning mod
 //! and its loaded dependencies are known, and both rewritten away before the path
