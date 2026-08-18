@@ -35,4 +35,8 @@ The budget can never pass **twice** what one controller is worth, no matter how 
 
 Stacking adds authority and _precision_. A stacked hull starts arresting its turn earlier, so it stops on the heading you pointed at instead of sailing past and swinging back. The second controller gives most of the available gain; the tenth is nearly dead weight.
 
+<div class="widget" data-widget="controller-stacking">
+<p>The budget follows one curve toward its x2.00 ceiling: two controllers reach x1.50, four x1.75, ten x1.90 - the tenth adds about a hundredth. Peak turn rate grows with the square root of the budget.</p>
+</div>
+
 The other half of stacking is **redundancy**. Lose one of two and the ship does not go brain-dead - it drops to single-controller handling and keeps fighting. Only the last one is the ship's brain.

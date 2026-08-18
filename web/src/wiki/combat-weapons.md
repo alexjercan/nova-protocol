@@ -79,6 +79,10 @@ off the starboard quarter, or anything under the keel - simply holds, while the
 mounts that CAN bear keep shooting. It is your ammunition either way; the rounds
 a gun does not spend are the ones that were going to miss.
 
+<div class="widget" data-widget="aim-decay">
+<p>How well a gun tracks does not depend on your frame rate: the aim servo corrects a fixed fraction of its error per second, not per frame. Against a target crossing at 9 deg/s it stays inside the 0.92 degree fire gate at any playable frame rate, where the old per-frame correction crossed the gate below about 28 fps - the guns went quiet exactly when the machine struggled.</p>
+</div>
+
 ## Point defense
 
 Every gun runs its own point defense, and each mount picks its
@@ -179,6 +183,10 @@ Two things follow from pricing power on the rating rather than on what is left. 
 
 Every rake also has a hard ceiling on how many sections one round may cross, so a round fired down the length of a lightly built ship cannot chain forever.
 
+<div class="widget" data-widget="round-travel">
+<p>Worked example: five light hull sections at 60 hp each. A 100-damage kinetic slug at 100 u/s destroys the first section and hits the second for 40; at 200 u/s it punches twice as hard and destroys three. A pierce dart deals its full damage to every section it crosses: a crossing costs 60 of its 300 power at 100 u/s (five sections deep), only 20 at 300 u/s - but never more than six sections.</p>
+</div>
+
 Nothing pierces an **indestructible** obstacle: an asteroid or a planetoid stops any round of any type at any speed. Torpedoes do not travel through anything either - they detonate.
 
 ## Blast pressure and structural depth
@@ -188,6 +196,10 @@ A torpedo blast reaches every collider inside its visible radius. Distance from 
 Ship structure then gives that pressure something to travel through. For each section, the game traces a line from the blast centre. A section that survives its incoming pressure stops the wave and shields every section behind it. A section the wave destroys lets 65 percent continue. Existing holes cost nothing, so repeated hits deepen a breach instead of repainting the whole ship with damage.
 
 Only actual ship sections consume penetration. Cladding and fixtures still take pressure, and sections can shield them, but a thin decorative plate does not attenuate pressure travelling toward something behind it. Several warheads detonating in one fixed tick see the same initial structure: they can combine to remove the outer layer, but cannot use the new hole until the next tick.
+
+<div class="widget" data-widget="blast-layers">
+<p>Worked example: the standard torpedo warhead (750 blast, 30 u radius) against three light hull layers at 10, 12 and 14 u destroys all three and still puts about 96 hp into a section at 16 u. Drop the blast to 200 and the third layer holds, shielding everything behind it.</p>
+</div>
 
 The result scales through geometry rather than a ship-size bonus. A thin small craft can still be gutted by one direct hit. A deep capital loses a local crater and keeps fighting until later hits open it farther or push it below structural collapse. A section destroyed at any structural depth leaves a real hole. If that cut disconnects the graph, the controller-bearing hull keeps ship identity and healthy detached components drift away as inert, damageable wrecks. Which weapon section fires which control is per-ship and rebindable in the editor (see [Keybinds](../keybinds/)).
 

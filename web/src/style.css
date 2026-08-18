@@ -1653,6 +1653,304 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     height: auto;
 }
 
+/* ---- interactive doc widgets --------------------------------------------- */
+/* Small in-page simulators on the doc pages (src/widgets.ts). Authors drop a
+   `<div class="widget" data-widget="...">` block with static fallback prose
+   into a doc .md; widgets.ts replaces the fallback with live controls. The
+   widget is an instrument panel in the NOVA OS material language: a lit CRT
+   panel whose controls are text the terminal drew - hairlines and glow, never
+   bevels. Series identity in plots is phosphor (current) vs phosphor-dim +
+   dash (old), which keeps a strong lightness delta for color-blind readers;
+   red is reserved for a fault threshold (a gate line, a destroyed section)
+   and always ships with a text label. */
+.widget {
+    margin: 1.8em 0;
+    padding: 16px 18px 18px;
+    background: var(--panel-face);
+    border: 1px solid var(--edge-faint);
+    border-radius: var(--panel-radius);
+    box-shadow: var(--panel-shadow);
+    font-family: var(--font-mono);
+}
+/* Header row: the bracketed eyebrow tag + the instrument's name. */
+.widget__tag {
+    font-size: 0.66rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--phosphor-dim);
+}
+.widget__tag::before {
+    content: "[ ";
+    color: var(--phosphor-muted);
+}
+.widget__tag::after {
+    content: " ]";
+    color: var(--phosphor-muted);
+}
+.widget__title {
+    margin: 4px 0 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text);
+}
+.widget__hint {
+    margin: 6px 0 0;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--phosphor-dim);
+    max-width: 60ch;
+}
+/* Controls: one labeled slider per row; the value is a lit readout beside the
+   label, so the number is readable before the thumb is touched. */
+.widget__controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0 0;
+}
+.widget__control {
+    display: grid;
+    grid-template-columns: minmax(150px, max-content) 1fr;
+    align-items: center;
+    gap: 6px 14px;
+    font-size: 0.78rem;
+    color: var(--phosphor-dim);
+}
+.widget__value {
+    color: var(--phosphor);
+    text-shadow: var(--glow-text);
+    font-variant-numeric: tabular-nums;
+}
+/* The slider is a fader on the panel: a recessed hairline track and a solid
+   phosphor key for a thumb. Track and thumb must be styled per engine. */
+.widget__slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    max-width: 420px;
+    height: 18px;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+}
+.widget__slider::-webkit-slider-runnable-track {
+    height: 4px;
+    background: var(--recess);
+    border: 1px solid var(--edge-soft);
+    border-radius: var(--radius);
+}
+.widget__slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -6px;
+    background: var(--phosphor);
+    border: 1px solid var(--phosphor);
+    border-radius: var(--radius);
+    box-shadow: var(--glow-key);
+}
+.widget__slider::-moz-range-track {
+    height: 4px;
+    background: var(--recess);
+    border: 1px solid var(--edge-soft);
+    border-radius: var(--radius);
+}
+.widget__slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--phosphor);
+    border: 1px solid var(--phosphor);
+    border-radius: var(--radius);
+    box-shadow: var(--glow-key);
+}
+.widget__slider:focus-visible {
+    outline: 2px solid var(--phosphor);
+    outline-offset: 2px;
+}
+/* The plot is a screen let into the panel: unlit glass behind a hairline.
+   Mark classes are consumed by the SVGs widgets.ts draws. */
+.widget__plot {
+    margin: 14px 0 0;
+    padding: 6px;
+    background: var(--screen);
+    border: 1px solid var(--edge-faint);
+    border-radius: var(--radius);
+}
+.widget__plot svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+.widget-mark--grid {
+    stroke: var(--edge-faint);
+    stroke-width: 1;
+}
+.widget-mark--now {
+    stroke: var(--phosphor);
+    stroke-width: 2;
+    fill: none;
+}
+.widget-mark--old {
+    stroke: var(--phosphor-dim);
+    stroke-width: 2;
+    stroke-dasharray: 5 4;
+    fill: none;
+}
+.widget-mark--gate {
+    stroke: var(--red);
+    stroke-width: 1;
+    stroke-dasharray: 2 3;
+}
+.widget-mark--cursor {
+    stroke: var(--edge);
+    stroke-width: 1;
+}
+.widget-mark--dot-now {
+    fill: var(--phosphor);
+    stroke: var(--screen-0);
+    stroke-width: 2;
+}
+.widget-mark--dot-old {
+    fill: var(--phosphor-dim);
+    stroke: var(--screen-0);
+    stroke-width: 2;
+}
+/* Text on the glass: axis text is quiet, direct series labels wear their
+   series' color (the one place a label leaves the text tokens, so a curve can
+   be named without a legend box), the gate label names its red line. */
+.widget-mark--axis {
+    fill: var(--phosphor-dim);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+.widget-mark--label-now {
+    fill: var(--phosphor);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+.widget-mark--label-old {
+    fill: var(--phosphor-dim);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+.widget-mark--label-gate {
+    fill: var(--red);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+/* Numeric result strips under a plot: label left, lit value right. */
+.widget__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    margin: 12px 0 0;
+    font-size: 0.78rem;
+    color: var(--phosphor-dim);
+}
+.widget__stats b {
+    font-weight: 500;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+/* The verdict line: a readout cell with a status rail. Phosphor = firing /
+   nominal, red = the fault case; the words always carry the state. */
+.widget__readout {
+    margin: 12px 0 0;
+    padding: 8px 12px;
+    background: var(--recess);
+    border: 1px solid var(--edge-faint);
+    border-left: 3px solid var(--phosphor);
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+    color: var(--text);
+}
+.widget__readout.is-fault {
+    border-left-color: var(--red);
+}
+.widget__readout.is-warn {
+    border-left-color: var(--amber);
+}
+/* A row of ship sections a round or a blast wave walks through. States carry
+   a word in the cell, never color alone. */
+.widget__stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0 0;
+}
+.widget__cell {
+    min-width: 64px;
+    padding: 6px 8px;
+    text-align: center;
+    font-size: 0.7rem;
+    line-height: 1.5;
+    color: var(--phosphor-dim);
+    background: var(--recess);
+    border: 1px solid var(--edge-faint);
+    border-radius: var(--radius);
+}
+.widget__cell b {
+    display: block;
+    font-weight: 700;
+    font-size: 0.74rem;
+    color: var(--text);
+}
+.widget__cell.is-dead {
+    border-color: var(--red);
+    background: rgba(255, 78, 66, 0.08);
+}
+.widget__cell.is-dead b {
+    color: var(--red);
+}
+.widget__cell.is-hit {
+    border-color: var(--edge-amber);
+    background: var(--fill-amber);
+}
+.widget__cell.is-hit b {
+    color: var(--amber);
+}
+.widget__cell.is-clear {
+    opacity: 0.7;
+}
+/* Sub-heading over each stack row (the two travel rules side by side). */
+.widget__rowlabel {
+    margin: 14px 0 0;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--phosphor-dim);
+}
+/* A recessed meter: the trough is unlit screen, the fill is lit phosphor. */
+.widget__bar {
+    position: relative;
+    height: 12px;
+    max-width: 420px;
+    margin: 10px 0 0;
+    background: var(--recess);
+    border: 1px solid var(--edge-faint);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.widget__bar-fill {
+    height: 100%;
+    background: var(--phosphor);
+    box-shadow: var(--glow-key);
+}
+.widget__note {
+    margin: 12px 0 0;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    color: var(--phosphor-dim);
+    max-width: 62ch;
+}
+@media (max-width: 640px) {
+    .widget__control {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ---- footer -------------------------------------------------------------- */
 .site-footer {
     flex-shrink: 0;

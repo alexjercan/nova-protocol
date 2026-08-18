@@ -1,5 +1,6 @@
 import "./style.css";
 import { initSite } from "./site";
+import { initWidgets } from "./widgets";
 import { DOC_SECTIONS, DocPage, DocSection } from "./docs-manifest";
 
 initSite();
@@ -430,6 +431,8 @@ const base = basePath();
 const section = currentSection(base);
 
 void initMermaid();
+// Interactive widgets declared in the rendered markdown (data-widget blocks).
+initWidgets();
 
 if (section) {
     const slug = currentSlug(base, section);
