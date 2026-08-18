@@ -20,9 +20,13 @@ The torpedo bay fires **guided torpedoes** that home on the combat lock with pro
 
 A torpedo is a section like any other, so it inherits the same physics and mounting rules as the rest of the build. Where turret fire is precise and pointed, torpedoes are about zoning and catching clustered or fragile targets.
 
-A blast carves from the outside in. A section that survives shields everything behind it; a destroyed section lets 65 percent of the remaining pressure continue. One hit can gut a thin craft, while a deep capital loses a local breach instead of its whole hull. Later hits travel farther through the opened hole.
+**The warhead touches before it bursts.** Against a locked ship or rock the fuze fires about a metre off the nearest part of that body, so the pressure lands at full strength on the plating rather than short of it. A torpedo with nothing left to touch - one sent at a bare point in space, or one whose target dies mid-flight - bursts a half-radius out instead.
 
-A bay is loaded with a **torpedo type**, and the editor offers two: **Torpedo Bay (Serpent)** and **Torpedo Bay (Lance)**. Same tube, same warhead, same blast, same six-round rack - the only difference is the run-in. A Serpent corkscrews, so a defender spends roughly three times the rounds stopping it and only kills it on its own doorstep, and it pays for that by cruising slower. A Lance flies the bare intercept at the faster cruise, arriving sooner on the shortest path there is - and dying comfortably clear of what it was aimed at. Each flies in its own colour, so what is inbound is readable at a glance. See [Combat & weapons](../../combat-weapons/) for the trade in full.
+A blast then works from the outside in. A section that survives shields everything behind it; a destroyed section lets 65 percent of the remaining pressure continue. One hit can gut a thin craft, while a deep capital loses a local breach instead of its whole hull. Later hits travel farther through the opened hole.
+
+The bay itself cracks and sparks as it is worn down, and keeps launching until it dies.
+
+A bay is loaded with a **torpedo type**, and the editor offers two: **Torpedo Bay (Serpent)** and **Torpedo Bay (Lance)**. Same tube, same warhead, same blast, same six-round rack - the only difference is the run-in. A Serpent corkscrews, so a defender spends roughly three times the rounds stopping it and only kills it on its own doorstep, and it pays for that by cruising slower. A Lance flies the bare intercept at the faster cruise, arriving sooner on the shortest path there is - and a defender's guns kill it comfortably short of what it was aimed at. Each flies in its own colour, so what is inbound is readable at a glance. See [Combat & weapons](../../combat-weapons/) for the trade in full.
 
 <figure class="figure">
     <!-- Capture: assets/loop-section-torpedo-bay.webm (short gameplay loop) -->

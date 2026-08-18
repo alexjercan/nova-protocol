@@ -23,11 +23,13 @@ Two weapon families - precise turrets and area-effect torpedoes - feed one typed
 
 A [turret](../sections/turret/) is an articulated mount that aims at your combat lock with **true intercept lead** - the solution is computed in the shooter's own frame, so a moving ship's rounds actually land - bounded by its yaw and pitch limits and fire rate. Its rounds are sensor projectiles: they deal damage on contact with no physical shove, they [pierce](#piercing) what they destroy, and they curve through [gravity wells](../gravity-wells/) like everything else. The point-defense cannon is tuned to chip a target down over a visible burst rather than delete it, and prioritizes shooting down inbound torpedoes. A mount can carry **more than one barrel** - a twin-barrel PDC aims and fires every muzzle it has, throwing two streams at once (each at its own fire rate) that share the turret's one magazine, so it also drains that magazine twice as fast.
 
-A gun is a **short-range** weapon. A round is not tracked forever: it expires after a couple of seconds, which puts a PDC slug's reach at about **2 km** and a scavenger turret's a little under that. Enemy ships know it - they close to roughly **1 km** and fight there, and they hold fire until they are inside their own reach, so a hostile burning toward you is not being polite, it is out of range. Closing speed moves the number in both directions: rounds inherit the ship that fired them, so a charge carries them further and running from your target cuts what they can reach along with what they hit for.
+A gun is a **short-range** weapon. A round is not tracked forever: it expires after a couple of seconds, which puts a PDC slug's reach at about **2 km**. Everyone shoots the same gun, so a raider's rounds reach exactly as far as yours - what a scavenger-grade mount gives up is toughness, not range. Enemy ships know it - they close to roughly **1 km** and fight there, and they hold fire until they are inside their own reach, so a hostile burning toward you is not being polite, it is out of range. Closing speed moves the number in both directions: rounds inherit the ship that fired them, so a charge carries them further and running from your target cuts what they can reach along with what they hit for.
 
 ## Torpedoes
 
-A torpedo homes on the combat lock with **proportional-navigation** guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It detonates on a proximity fuze and deals **blast (area) damage** that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.
+A torpedo homes on the combat lock with **proportional-navigation** guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It deals **blast (area) damage** that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.
+
+A torpedo aimed at a locked ship or rock **touches it before it bursts**: the fuze fires about a metre off the nearest part of that body's skin, so the warhead delivers the pressure it is rated for and the crater lands on the hull. Fire one at a bare point in space instead - a scripted volley, or a torpedo whose target dies mid-flight - and it still bursts a half-radius short, because there is no surface left to reach.
 
 A bay does not just launch "a torpedo" - it launches a **torpedo type**, and a ship's tubes are loaded with one before the fight starts. Two types fly in the base game, and they carry the same warhead, the same rack and the same blast. What differs is how they run in, and each has its own colour in flight so you can see which one is coming.
 
@@ -62,10 +64,34 @@ the firing line **holds fire** instead of hosing the rock, and won't waste a
 torpedo on cover either. Its attack orbit keeps it circling all the while,
 so expect the pressure back the moment its motion clears the angle. That
 makes hard cover a real tool: breaking the line of sight buys you a pause in
-the pressure, not just a bullet sponge. Two caveats: destructible debris is
-only cover until it gets shot away, and intangible volumes (beacon rings,
-trigger zones) stop nothing. Point-defense is the exception - a turret
+the pressure, not just a bullet sponge. Two caveats: a rock is cover that
+**wears out where it is hit** - see below - and intangible volumes (beacon
+rings, trigger zones) stop nothing. Point-defense is the exception - a turret
 swatting an inbound torpedo keeps firing no matter what is in the way.
+
+## Shooting rock
+
+A hit on an asteroid takes a real bite out of it. The hole is in the rock's
+shape, not painted on it: the silhouette changes, the collider changes with it,
+and it is still there when you come back. A rock has no health bar, because it
+has no health - what is left of the rock IS what is left of the rock.
+
+Three things follow, and all of them are things you do with the trigger.
+
+- **Hold it and the same hole deepens.** A round that lands within about a metre
+  of the last one joins that crater; a round further off opens its own. So the
+  hole follows your aim instead of piling into the first place you shot.
+- **Rocks take real time.** Material costs the same everywhere - a pebble and a
+  planetoid give up the same amount to the same round - so a small rock is
+  seconds of fire and a big one is minutes. Sustained fire is the only way
+  through; a torpedo bowls out a large bite in one go.
+- **Bite deep enough and pieces come off.** Anything a crater cuts loose becomes
+  its own tumbling body, carrying the drift and spin the rock had. Everything
+  smaller goes out as dust. Cut a rock in half across a firing line and you have
+  opened it, not cleared it.
+
+An **invulnerable** planetoid does none of this. It is scenery, it never wears,
+and its gravity well cannot be shot away.
 
 ## Barrel discipline
 
@@ -183,19 +209,23 @@ Every rake also has a hard ceiling on how many sections one round may cross, so 
 <p>Worked example: five light hull sections at 60 hp each. A 100-damage kinetic slug at 100 u/s destroys the first section and hits the second for 40; at 200 u/s it punches twice as hard and destroys three. A pierce dart deals its full damage to every section it crosses: a crossing costs 60 of its 300 power at 100 u/s (five sections deep), only 20 at 300 u/s - but never more than six sections.</p>
 </div>
 
-Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. A normal asteroid can be **carved away**; an invulnerable planetoid cannot. Torpedoes do not travel through anything either - they detonate.
+Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. What a round does to a rock instead is take a bite out of it (see [Shooting rock](#shooting-rock)); an invulnerable planetoid does not even do that. Torpedoes do not travel through anything either - they detonate.
 
 ## Blast pressure and structural depth
 
 A torpedo blast reaches every collider inside its visible radius. Distance from the blast to that collider's centre sets the free pressure: full at the centre, falling linearly to zero at the edge.
 
-Ship structure then gives that pressure something to travel through. For each section, the game traces a line from the blast centre. A section that survives its incoming pressure stops the wave and shields every section behind it. A section the wave destroys lets 65 percent continue. Existing holes cost nothing, so repeated hits deepen a breach instead of repainting the whole ship with damage.
+Ship structure then gives that pressure something to travel through. For each section, the game traces a line from the blast centre. A section that survives its incoming pressure stops the wave and shields every section behind it. A section the wave destroys lets 65 percent continue. Existing holes cost nothing, so repeated hits drive a breach deeper into the same place rather than spreading damage evenly over the hull.
+
+A warhead is charged for the material it really destroys, and it marks the hull **once** however many sections it reached. Two torpedoes on one flank are two wounds; one torpedo over forty sections is still one.
 
 Only actual ship sections consume penetration. Cladding and fixtures still take pressure, and sections can shield them, but a thin decorative plate does not attenuate pressure travelling toward something behind it. Several warheads detonating in one fixed tick see the same initial structure: they can combine to remove the outer layer, but cannot use the new hole until the next tick.
 
 <div class="widget" data-widget="blast-layers">
 <p>Worked example: the standard torpedo warhead (750 blast, 30 u radius) against three light hull layers at 10, 12 and 14 u destroys all three and still puts about 96 hp into a section at 16 u. Drop the blast to 200 and the third layer holds, shielding everything behind it.</p>
 </div>
+
+The scope spaces its layers out so you can read the falloff. A real torpedo goes off **against the skin**, so the outer sections of the ship it hits sit at the sharp end of that curve, not out at 10 u.
 
 <figure class="figure">
     <div class="figure__placeholder">
@@ -206,13 +236,13 @@ Only actual ship sections consume penetration. Cladding and fixtures still take 
             >assets/loops/torpedo-blast.webm</span
         >
         <span class="figure__placeholder-note"
-            >The real thing: a Serpent's detonation carving the
+            >The real thing: a Serpent's detonation blowing the
             outer layers off a corvette.</span
         >
     </div>
 </figure>
 
-The result scales through geometry rather than a ship-size bonus. A thin small craft can still be gutted by one direct hit. A deep capital loses a local crater and keeps fighting until later hits open it farther or push it below structural collapse. A section destroyed at any structural depth leaves a real hole. If that cut disconnects the graph, the controller-bearing hull keeps ship identity and healthy detached components drift away as inert, damageable wrecks. Which weapon section fires which control is per-ship and rebindable in the editor (see [Keybinds](../keybinds/)).
+The result scales through geometry rather than a ship-size bonus. A thin small craft can still be gutted by one direct hit. A deep capital loses a local bite - the sections around the impact, not the ship - and keeps fighting until later hits open it farther or push it below structural collapse. A section destroyed at any structural depth leaves a real hole. If that cut disconnects the graph, the controller-bearing hull keeps ship identity and healthy detached components drift away as inert, damageable wrecks. Which weapon section fires which control is per-ship and rebindable in the editor (see [Keybinds](../keybinds/)).
 
 <figure class="figure">
     <div class="figure__placeholder">

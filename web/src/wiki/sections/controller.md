@@ -20,6 +20,8 @@ The controller is the ship's steering system: it rotates the ship toward a targe
 
 With no live controller, the hull cannot steer itself - so destroying the **last** controller _disables_ a ship without destroying it outright, leaving a drifting, tumbling wreck. It is also what the autopilot verbs drive when they fly the ship for you.
 
+A hurt computer cracks and, past about a third of its health gone, throws sparks. It steers exactly as well as it did new right up to the moment it dies: handling degrades when a computer is LOST, never while one is merely damaged.
+
 ## Stacking controllers
 
 A big hull can mount more than one, and steers better for it - with sharply diminishing returns. The extras do not each add their own steering; they share the work, and the ship's total steering budget grows on a curve that flattens out:
