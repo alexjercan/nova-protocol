@@ -896,8 +896,9 @@ The everyday loop for landing a change:
    with `debug` off or on wasm - neither configuration is otherwise built. All
    of it must be green to merge.
 
-Rust house style is [`CONVENTIONS.md`](https://github.com/alexjercan/nova-protocol/blob/master/CONVENTIONS.md)
-at the repo root. Commit messages are plain and use ASCII punctuation only.
+House style is [`CONVENTIONS.md`](https://github.com/alexjercan/nova-protocol/blob/master/CONVENTIONS.md)
+at the repo root - Rust, Bevy, Nova, comments, documentation, changelog and web,
+each a section. Commit messages are plain and use ASCII punctuation only.
 Releases are a separate, tagged flow (see [Cutting a release](#cutting-a-release)).
 
 ## Task tracking
