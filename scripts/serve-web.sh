@@ -16,8 +16,10 @@
 # this at once. Pin any of them with NOVA_UI_PORT / NOVA_GAME_PORT /
 # NOVA_MODS_PORT. Run it from inside the dev shell:
 #
-#     nix develop -c scripts/serve-web.sh            # debug game build
-#     nix develop -c scripts/serve-web.sh --release  # optimized game build
+#     nix develop -c scripts/serve-web.sh                   # debug game build
+#     nix develop -c scripts/serve-web.sh --release         # optimized game build
+#     nix develop -c scripts/serve-web.sh --open            # open the site when ready
+#     nix develop -c scripts/serve-web.sh --release --open  # both, in any order
 #
 # The banner prints the URL to open; everything rebuilds on save until Ctrl-C.
 #
@@ -31,12 +33,22 @@ cd "$ROOT"
 # shellcheck source=scripts/dev-ports.sh
 source "$ROOT/scripts/dev-ports.sh"
 
+RELEASE=0
+OPEN_BROWSER=0
+for arg in "$@"; do
+    case "$arg" in
+        --release) RELEASE=1 ;;
+        --open) OPEN_BROWSER=1 ;;
+        *)
+            echo "usage: $0 [--release] [--open]" >&2
+            exit 2
+            ;;
+    esac
+done
+
 TRUNK_ARGS=()
-if [[ "${1:-}" == "--release" ]]; then
+if ((RELEASE)); then
     TRUNK_ARGS+=(--release)
-elif [[ $# -gt 0 ]]; then
-    echo "usage: $0 [--release]" >&2
-    exit 2
 fi
 
 # Explicit watch paths. Trunk's default is "the build target's parent folder",
@@ -162,6 +174,27 @@ if ! nova_wait_for_port "$UI_PORT" 120; then
     exit 1
 fi
 
+# Best-effort by design: a box with no browser (headless CI, a bare container)
+# must still get a served site, so every failure path here returns 0 and the
+# stack keeps running. Detached from stdio and from the job table - an attached
+# browser would inherit the terminal and, worse, `wait -n` below would count the
+# opener's exit as "a preview server died" and tear the stack down.
+open_site() {
+    local url="$1"
+    local opener
+    if command -v xdg-open >/dev/null 2>&1; then
+        opener=xdg-open
+    elif [[ -n "${BROWSER:-}" ]] && command -v "$BROWSER" >/dev/null 2>&1; then
+        opener="$BROWSER"
+    else
+        echo ">> no xdg-open and no usable \$BROWSER - open ${url} yourself"
+        return 0
+    fi
+    echo ">> opening ${url} (${opener})..."
+    "$opener" "$url" </dev/null >/dev/null 2>&1 &
+    disown "$!" 2>/dev/null || true
+}
+
 cat <<BANNER
 
 >> live preview ready  (Ctrl-C to stop)
@@ -171,6 +204,10 @@ cat <<BANNER
      book:   http://localhost:${UI_PORT}/dev/
 
 BANNER
+
+if ((OPEN_BROWSER)); then
+    open_site "http://localhost:${UI_PORT}/"
+fi
 
 # Any server dying takes the stack down, rather than leaving a half-wired
 # preview that serves stale output from the survivors.
