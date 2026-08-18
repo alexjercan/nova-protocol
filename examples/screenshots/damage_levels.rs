@@ -480,7 +480,11 @@ fn column_ship(sections: &GameSections, level_index: usize) -> ScenarioObjectCon
                     Vec3::new(0.0, 0.0, 0.0),
                 ),
                 at("hull", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
-                at("turret", "light_turret_section", Vec3::new(1.0, 0.0, 0.0)),
+                at(
+                    "turret",
+                    "pdc_kinetic_turret_section",
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 at(
                     "thruster",
                     "basic_thruster_section",

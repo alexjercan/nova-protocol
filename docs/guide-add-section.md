@@ -82,9 +82,10 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    Add the variant to `SectionClass` in
    `crates/nova_gameplay/src/damage.rs` (grep for `enum SectionClass`). It is a
    LABEL, not a damage key -- there is no resistance table, so there is nothing
-   else to fill in on the damage side. How much a section takes is its `health`;
-   how far a round gets through it is the travel rule, which reads
-   `Health.max` and never the class.
+   else to fill in on the damage NUMBER. How much a section takes is its
+   `health`; how far a round gets through it is the travel rule, which reads
+   `Health.max` and never the class. What the section LOOKS like as it is
+   damaged is a separate, authored decision - step 8.
 
    The NOVA OS ship app labels sections by this enum: add an arm to the
    exhaustive matches `code_prefix`, `kind_glyph`, `kind_description` and
@@ -162,10 +163,20 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
            description: "A basic shield section for spaceships.".to_string(),
            mass: 1.0,
            health: 100.0,
+           damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
+           ..default()
        },
        kind: SectionKind::Shield(ShieldSectionConfig { /* ... */ }),
    },
    ```
+
+   `damage_effects` is a real design decision per kind, not boilerplate. The
+   shipped rule: a hull authors nothing (defaulting to `[Cracks]`), anything
+   carrying machinery adds `Sparks`, and a thruster adds `Plume` on top. Pick by
+   what the part IS - a turret is all function and fails by sparking, a hull
+   has nothing but material to lose. The rule the vocabulary is kept honest by:
+   no section loses geometry, so every effect is a material or a particle. See
+   [Ship sections internals](sections.md#the-authored-looks).
 
    If your config needs a render-mesh `AssetRef`, add a field to
    `BaseContentAssets` and its `from_paths()` in

@@ -12,7 +12,10 @@ how sections connect and handles damage, disabling, and cascading destruction.
 
 A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 `BaseSectionConfig` is shared by all kinds: `id`, `name`, `description`, `mass`,
-`health`, optional `collider`, structural `link_points`, and `hide_in_editor`.
+`health`, optional `impact_sound` / `destroy_sound`, optional `collider`,
+structural `link_points`, `hide_in_editor`, and `damage_effects` - the authored
+list of looks this section wears as it is damaged (see [Damage is two
+readings](#damage-is-two-readings)).
 
 `SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`;
 `turret_section/` and `torpedo_section/` are directories, not single files):
@@ -128,8 +131,9 @@ neighbours. The same structure always gives the same skin.
 
 - A plate is a `SectionFixture` (`sections/fixture.rs`): `Collider`, `Health`,
   density and `HealthIsolated`, but no `SectionMarker`. So it never joins the
-  integrity graph, never counts toward the ship's health, never takes a damage
-  tint, and never reaches the palette. Losing one costs the ship nothing it can
+  integrity graph, never counts toward the ship's health, never wears a
+  section's damage effects (`owning_section` in `damage_cracks.rs` stops its
+  ancestor walk at the first fixture), and never reaches the palette. Losing one costs the ship nothing it can
   DO - which is the line between a fixture and a section.
 - Each plate is a CHILD of the section it clads, so a destroyed section takes
   its own cladding down with it and nothing has to hunt the plates of a part
@@ -238,9 +242,9 @@ With `chance: 0.0` the share picks nothing and the rule is purely "one piece per
 block", which is a density that reads the same at any hull size.
 
 A decoration is a `SectionFixture` like a plate, and a child of the PLATE, one
-level further out - so a plate shot off takes its greebles and the `damage_tint`
-ancestor walk stops at the first fixture it meets whichever of the two it started
-under. The base game generates its greeble models from committed JSON recipes
+level further out - so a plate shot off takes its greebles, and
+`damage_cracks`'s `owning_section` walk stops at the first fixture it meets
+whichever of the two it started under. The base game generates its greeble models from committed JSON recipes
 (`scripts/gen-greebles.py`), and the mod-facing format is documented in
 [Ship skin styles](https://alexjercan.github.io/nova-protocol/create/styles/).
 
@@ -269,28 +273,35 @@ by its own share, and `x0 of 0` is a filter that matches nothing this hull has.
 
 The destruction stack is nova's own, in
 `crates/nova_gameplay/src/integrity/`, with the ship adapter in
-`crates/nova_ship/src/sections/integrity.rs`. `NovaIntegrityPlugin` composes five
-generic pieces:
+`crates/nova_ship/src/sections/integrity.rs`. `NovaIntegrityPlugin` composes
+eight generic pieces, and the ship adds its own `ShipIntegrityPlugin` on top:
 
 - `health.rs` - the hit-point store: `Health`, `HealthApplyDamage` and the
   `HealthZeroMarker` its observer adds at zero.
 - `core.rs` (`IntegrityCorePlugin`) - the generic disable/destroy core, plus
   the mass-times-velocity impact damage.
-- Ship-owned `ShipIntegrityPlugin` - derives the section graph, handles disabled
-  sections, rolls section health up to the ship root, and collapses a root that
-  falls below its `StructuralCollapseThreshold`.
+- `erosion.rs` (`DamageLevelPlugin`) and `carve.rs` (`DamageMarksPlugin`) - the
+  two damage READINGS, below.
+- `spew.rs` (`CarveSpewPlugin`) and `chunk.rs` (`CarvedChunkPlugin`) - what a
+  carve leaves behind: dust from every carve, and a real rigid body wherever a
+  cut actually severed material.
+- Ship-owned `ShipIntegrityPlugin` (`nova_ship`, not one of the eight) - derives
+  the section graph, handles disabled sections, rolls section health up to the
+  ship root, and collapses a root that falls below its
+  `StructuralCollapseThreshold`.
 - `explode.rs` - reacts to destruction: debris, mesh fragments, `OnDestroyedEvent`.
   Destructibility is SEMANTIC (`ExplodableEntity` plus the destroy marker), never
   where a `Mesh3d` sits: a section keeps its gameplay components on a root and
   draws through `SectionRenderOf` descendants, so the geometry walk in
   `mesh/explode.rs` collects the whole subtree. That walk is also the only thing
   that decides whether a body HAS geometry - it reports an empty
-  `ExplodeFragments` when it finds none, and the finale reads that one answer to
-  choose between real fragments and the generic cube burst, so one death can
-  never emit both. The fragment budget is per BODY
-  (`BODY_FRAGMENT_BUDGET`), so a multi-part turret costs no more than a hull
-  cube. A spaceship root is excluded from fragmenting: its descendants are whole
-  sections, each of which bursts as itself.
+  `ExplodeFragments` when it finds none, and the finale reads that one answer.
+  There is NO FALLBACK: an empty walk emits nothing and logs it, and
+  `destruction_finale` asserts that never happens. The generic cube burst that
+  used to run there made a body which had silently failed to come apart look like
+  a body that had come apart badly, so the bug behind it survived every playtest
+  that saw it. **How a destroyed section itself comes apart is being replaced and
+  is deliberately not written up here.**
 - `neutralize.rs` - combat-death: fires `OnNeutralized` when a ship stops
   being a threat.
 
@@ -300,9 +311,13 @@ position, and outward unit normal. When avian links a collider to its body
 space. Coincident points with opposed normals become symmetric `ConnectedTo`
 neighbor edges. IDs are for diagnostics and UI, not compatibility. A malformed,
 ambiguous, or disconnected graph is rejected as a whole; collider contact and
-center distance never create fallback edges. `SpaceshipRootMarker` declares the
-body as `IntegrityRoot`. Asteroids declare the same root role and give their lone
-collider node an empty list, so it is a leaf.
+center distance never create fallback edges. `SpaceshipRootMarker` requires
+`IntegrityRoot` AND `DamageMarks`: a ship's hits belong to the ship, not to
+whatever collider stopped them, because a crater has to cross the seams between
+the plates and sections it reaches. Asteroids are not in the graph at all - a
+rock carries no `Health` and no `IntegrityRoot`, only `DamageMarks`, and its
+death is decided by its own remesh (see
+[Scenario engine](scenario-system.md)).
 
 Editor placement mates the same sockets, so the editor cannot build a ship the
 graph would reject. `snap_placement` (`nova_ship::sections::link_points`) poses a
@@ -357,7 +372,9 @@ Damage flow:
 1. A hit triggers `HealthApplyDamage` (`nova_gameplay::integrity::health`);
    its observer subtracts the amount and adds `HealthZeroMarker` at zero. The amount also bubbles up `ChildOf`, clamped to
    what the section actually had left - so overkill on one section cannot kill
-   the ship (a 1000 hit on a 100 hp section costs the root 100).
+   the ship (a 1000 hit on a 100 hp section costs the root 100). `apply_damage`
+   also takes an `at: Option<Vec3>` and records a mark there, so a hit says
+   WHERE as well as how much; the ram path passes the rammer's transform.
 2. Zero health -> `IntegrityDisabledMarker`. A depleted ship section is destroyed
    at any graph degree. The leaf rule remains for healthy sections disabled by
    final structural collapse.
@@ -444,6 +461,121 @@ flowchart TD
     N -->|Yes| O[Ship dead]
 ```
 
+## Damage is two readings
+
+Health decides when something dies. It cannot decide what the wreck LOOKS like,
+because a pool is one number for a whole body and the only geometry one number
+can drive is geometry that changes everywhere at once. So there are two readings
+taken off a hit, and neither is a look of its own.
+
+**`DamageLevel(f32)`** (`integrity/erosion.rs`) - 0.0 pristine to 1.0 destroyed,
+derived from the entity's OWN `Health` every time health moves. Read it, never
+write it. Because it is a function of health rather than an accumulator beside
+it, a body at half health always looks the same amount of wrecked, a reload
+restores the look for free, and a scripted `destroy` grades exactly like a shot.
+Derived per entity and not per aggregate: a skin plate is `HealthIsolated`, so a
+stripped plate reads as stripped while the hull under it still reads as
+untouched.
+
+**`DamageMarks(Vec<DamageMark>)`** (`integrity/carve.rs`) - where the hits
+LANDED, each a sphere `{ at, radius }` in the LOCAL frame of the body carrying
+the list. A hit is recorded on the nearest ancestor carrying `DamageMarks`, never
+on whatever collider it met. That is what makes a carve continuous: a ship's
+plates each derive from the same list, so two plates sharing a boundary compute
+the same depression at it and a crater crosses the seam instead of stopping at
+it.
+
+### What material costs
+
+`DAMAGE_PER_UNIT_VOLUME` is **8.0 hit points per cubic world unit**. It is the
+whole coupling between what a weapon costs and what it looks like it did, and it
+is ABSOLUTE: the same round makes the same hole in a pebble and in a planetoid,
+because the hole is what the round's energy is worth. Pricing a crater against
+the body it landed on is the other design, and it makes a big rock unshootable
+and a small one vanish on contact.
+
+`mark_radius(amount)` is therefore `(amount / 8.0 * 3 / (2 * pi))^(1/3)` - a
+HEMISPHERE, because a hit lands ON a surface. The shipped kinetic PDC round
+(4.0 damage) carves 0.62 units.
+
+A mark is priced by what the hit ABSORBED, never by what it asked for
+(`absorbed_by`): the first `Health` at or above the hit clamps it, a node already
+spent pays nothing, and a chain with no pool at all spends the whole hit in
+material. Without the clamp a slug that crosses a plate would be charged for the
+plate and then charged again, in full, for the hull behind it.
+
+### The merge, and why a hole follows the aim
+
+Sustained fire has to dig ONE hole rather than two dozen dents, and that job has
+a SIZE - the width of the hole the last round made - which is why it is capped in
+world units and not proportionally.
+
+- `MARK_MIN_RADIUS` 0.15: below this a sphere cannot reach a boundary sample of
+  the cell it lands in, so it would cost a budget slot and change nothing.
+  Grazing fire should crack, which is the level's job.
+- `MERGE_REACH` 4.0: a ceiling expressed as a multiple of the INCOMING bite,
+  never of the grown crater. Testing the grown radius is what let a crater's own
+  growth widen the area that captured the next hit, which widened it again until
+  one crater ate the whole body.
+- `MERGE_MAX` 1.0 WORLD unit, converted into the body's own frame by
+  `DamageMarks::add`: "the round landed IN the hole the last one made". This is
+  the cap that actually binds, and it is why the hole follows the aim.
+- `MARK_BUDGET` 24. At the budget the SMALLEST crater is folded into its own
+  nearest neighbour to free a slot, so nothing is dropped, paid volume is
+  conserved, and the hit that just landed is recorded where it landed.
+
+A blast is the same defect wearing a different hat: it asks for its pressure once
+per collider it overlaps, and a hull built out of hundreds of them would grow one
+crater hundreds of times. `record_blast_marks` sums contributions PER OWNING
+BODY and cuts them as one crater, capped at the blast's own radius.
+`apply_blast_damage` queues that BEFORE the health triggers, so every body prices
+against one pre-damage snapshot - the same contract `NovaBlast` already states
+for its pressure pass.
+
+### What a carve leaves
+
+`CarveSpew { entity, at, radius }` fires whenever a mark changed a body's shape,
+in world space. `spew.rs` observes it and throws 2 to 7 shards sized off the
+crater: kinematic, no collider, `TempEntity(2.5)`. They are born INSIDE the body
+they came off, so a dynamic body with a collider would spawn interpenetrating and
+the solver would shove the two apart - a ship kicking itself sideways every time
+it was shot. An event rather than a direct spawn, so a mod that wants a puff or
+nothing at all replaces the observer instead of patching the carve.
+
+Real geometry leaves a body only where a carve actually SEVERED it, and only the
+body being cut knows that. `chunk.rs` is what a severed piece spawns through;
+`CHUNK_MIN_VOLUME` (1.0 cubic unit) is the floor under which a crumb goes out as
+dust instead. The asteroid is the only body that takes this path - see
+[Scenario engine](scenario-system.md).
+
+### The authored looks
+
+WHICH looks a section wears is content, not engine. A section authors
+`DamageEffects`, a list of `DamageEffect`, and `damage_effects.rs` turns each
+variant into exactly one component. Nothing else translates, and no effect system
+reads the list - each reads only its own component. So the authored list is the
+CONTENT vocabulary, the components are the RUNTIME vocabulary, and a Rust mod
+that wants a look nobody authored inserts its own component and touches neither.
+
+| variant | component | what it does |
+|---|---|---|
+| `Cracks` | `DamageCracks` | Fractures the section's own material clone, glows through when critical, burns out cold when dead. Replaced SCORCH, a whole-body red tint that fought every authored paint scheme and said nothing about WHERE a section was failing. |
+| `Sparks` | `DamageSparks` | Throws sparks, faster the worse it is, past level 0.35. Removes nothing. |
+| `Plume` | `DamagePlume` | Guts and flickers a thruster's exhaust past level 0.35, floored at 25 percent so it never reads as SHUT DOWN. Touches no thrust. |
+
+`Default` is `[Cracks]` and not the empty list, so unchanged content and
+third-party mods keep behaving; `DamageEffects::none()` is the explicit "wears
+nothing", because "I want none" and "I did not say" are different statements.
+
+The rule the vocabulary is kept honest by: **NO SHIP SECTION LOSES GEOMETRY.**
+Every effect here is a material or a particle, and the only thing that changes a
+ship's shape is a whole PIECE leaving - a plate shot off, a section destroyed. A
+`Carve` effect that cut a real crater out of authored art was built and then
+removed: reading a solid out of a drawn mesh costs 6-15 ms per mesh, a ship's
+marks belong to its root, so one round anywhere on a hull turned every mesh under
+it into a solid in one frame - 325 meshes, 2.0 seconds. A rock still carves,
+because a rock's solid is analytic and its collider IS its mesh.
+
 ## Typed damage (`crates/nova_gameplay/src/damage.rs`)
 
 Weapon damage is authored, not emergent from bullet physics, and it is ONE
@@ -467,7 +599,38 @@ authored amount is the only weapon damage. Torpedoes detonate a `NovaBlast`.
 `damage.rs` computes linear falloff from each collider's world centre. For a
 target it then walks the centre ray through closer live ship sections: a
 survivor stops pressure, while a destroyed section transmits 65 percent. All
-blasts collected in one fixed tick read one pre-damage health snapshot.
+blasts collected in one fixed tick read one pre-damage health snapshot. Health is
+charged per COLLIDER; the crater is cut once per BODY (see
+[Damage is two readings](#damage-is-two-readings)).
+
+### The torpedo fuze
+
+`CONTACT_FUZE` is 1.0 unit to the target's SKIN, not to its centre of mass. A
+torpedo holding a locked ENTITY asks the physics broad phase for the nearest
+point on that body via `SpatialQuery::project_point_predicate`, filtered to the
+colliders avian links to that body - solid, so a nose already inside the hull
+reads zero, and a torpedo threading a formation cannot fuze on the wrong ship.
+`contact_reach(speed, dt) = CONTACT_FUZE.max(speed * dt)` widens the window to
+the step about to be taken, so a fast closer cannot pass straight through it.
+
+The old fuze was half the blast radius measured to the centre of mass. It had
+three consequences and no upside: a torpedo always stood off exactly half a
+blast radius and so always delivered exactly half its rated pressure; against a
+rock the crater was cut in vacuum beside the surface, because a rock's centre is
+buried under twelve units of solid; and nothing in the game had a contact fuze at
+all.
+
+That fallback survives for the one case with nothing to touch: a torpedo with a
+target POSITION but no entity (a scripted launch, or one whose target died in
+flight) still fuzes at `blast.radius * 0.5`. A torpedo launched with no lock
+never receives a target position at all, so it cannot detonate - it flies its
+lifetime, deals a contact ding and is deleted, and the bay still spends the
+round.
+
+Note `weave_fade` is measured off the BLAST RADIUS and not off the fuze: full
+weave beyond three blast radii, linearly to zero at half a blast radius. The
+terminal sprint has to start where the corkscrew stops helping, out at
+point-defense range, not where the warhead finally fires.
 
 ### Closing speed
 
@@ -515,7 +678,13 @@ A target with no `Health` on the hit collider (an asteroid, a planetoid, a pool
 that lives on an ancestor) has no thickness to price and nothing provably
 destroyed, so it is a wall to both types at any speed. Nothing in the rule knows
 what it hit, so destructible cover needs no special case. Torpedoes do not use
-it - they detonate on a proximity fuze.
+it - they detonate on a [contact fuze](#the-torpedo-fuze).
+
+The carve reads the same absent pool and draws the OPPOSITE conclusion, and the
+pair is easy to misremember. `absorbed_by` walks the same `ChildOf` chain: no
+pool anywhere up it means the whole hit is spent in MATERIAL. That is the
+asteroid rule, not a fallback - a rock's remaining solid is its durability, and
+clamping against a pool it does not have would stop rocks carving at all.
 
 One avian trap the hit callsite has to handle: `CollisionStart` is raised once
 per EVENT-ENABLED collider, so a contact with events on both sides arrives
@@ -551,8 +720,11 @@ per contact. A symmetric rule - ram damage - wants both.
   come from `sections::nose_cone_mesh` (a cylinder and a cone, merged), which
   the torpedo warhead's `DefaultTorpedoRender` shares. The warhead colours ITS copy of that
   mesh from the launched `TorpedoType`'s tint - the material was already per
-  projectile (`SectionDamageTint` clones it per section), so per-type colour
-  costs nothing the shared mesh handle protects.
+  projectile (`SectionCracksMaterial` clones a section's material per section,
+  for the same reason), so per-type colour costs nothing the shared mesh handle
+  protects. Note the cracks clone is an `ExtendedMaterial` rather than a
+  `StandardMaterial`, which is why a section also keeps a `FragmentMaterial`
+  pointing at its pristine standard material.
 
 ## Find it in the code
 
@@ -565,6 +737,16 @@ per contact. A symmetric rule - ram damage - wants both.
   `ShipIntegrityPlugin` - `crates/nova_ship/src/sections/integrity.rs`.
 - Typed damage and the travel rule: `DamageType`, `apply_damage`,
   `pierce_remainder` - `crates/nova_gameplay/src/damage.rs`.
+- The two damage readings: `DamageLevel` -
+  `crates/nova_gameplay/src/integrity/erosion.rs`; `DamageMarks`,
+  `DAMAGE_PER_UNIT_VOLUME`, `mark_radius`, `record_blast_marks` -
+  `crates/nova_gameplay/src/integrity/carve.rs`.
+- Carve leftovers: `CarveSpew` - `crates/nova_gameplay/src/integrity/spew.rs`;
+  `spawn_carved_chunk`, `CHUNK_MIN_VOLUME` -
+  `crates/nova_gameplay/src/integrity/chunk.rs`.
+- Authored damage looks: `DamageEffect`, `fit_damage_effects` -
+  `crates/nova_ship/src/sections/damage_effects.rs`, with one module per look in
+  `damage_cracks.rs`, `damage_sparks.rs` and `damage_plume.rs`.
 - Derived skin and styles: `ShipSkinPlugin` -
   `crates/nova_ship/src/sections/shell_skin.rs`; `ShipStyleConfig` -
   `crates/nova_ship/src/sections/skin_style.rs`.

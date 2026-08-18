@@ -62,6 +62,8 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | A ship section behavior | `crates/nova_ship/src/sections/` | [Ship sections](sections.md), [Add a ship section](guide-add-section.md) |
 | Damage types / how a round travels | `crates/nova_gameplay/src/damage.rs` | [Ship sections](sections.md) |
 | Integrity (disable/destroy) | `crates/nova_gameplay/src/integrity/` | [Ship sections](sections.md) |
+| How a body wears its damage | `crates/nova_ship/src/sections/damage_*.rs` + `crates/nova_gameplay/src/integrity/{erosion,carve}.rs` | [Ship sections](sections.md) |
+| How an asteroid carves, and what it costs | `crates/nova_scenario/src/objects/asteroid_carve.rs` | [Scenario engine](scenario-system.md) |
 | Flight / autopilot verbs | `crates/nova_ship/src/flight/` | -- |
 | Player input / AI | `crates/nova_ship/src/input/{player,ai}/` | -- |
 | Radar targeting / lock-on | `crates/nova_ship/src/input/targeting/` | -- |

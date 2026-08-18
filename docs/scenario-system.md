@@ -526,7 +526,9 @@ All share `BaseScenarioObjectConfig` (id, name, position, rotation) and spawn
 scoped entities via `base_scenario_object`, which deliberately carries no body:
 each kind declares its own `RigidBody` (only the asteroid and the spaceship
 are dynamic), and the asteroid alone opts into `Dynamic` +
-`TransformInterpolation`.
+`TransformInterpolation`. A carved rock also emits NEW dynamic bodies at
+runtime - every piece a crater severs (`CarvedChunkMarker`, `integrity/chunk.rs`)
+- so the six spawn kinds are not the whole population of a live scene.
 
 - `Anchor(AnchorConfig)` - an invisible point publishing a `GravityWell` with
   an AUTHORED `body_radius` (deterministic, unlike the asteroid's mesh-derived
@@ -545,6 +547,8 @@ are dynamic), and the asteroid alone opts into `Dynamic` +
   a scenario rock can carry its own hit and death audio, the same surface a
   section's `base` block exposes. Spawned ship sections take the same two
   fields; see [Ship sections for mods](https://alexjercan.github.io/nova-protocol/create/sections/).
+  There is no `health` field: what a rock is made of IS its durability, and the
+  mechanism is [below](#how-an-asteroid-carves).
 - `Spaceship(SpaceshipConfig)` - sections plus a `SpaceshipController`:
   `None`, `Player` (input mapping, optional `speed_cap`, and `infinite_ammo` -
   a debug-only cheat a shipped build ignores), or
@@ -577,6 +581,75 @@ are dynamic), and the asteroid alone opts into `Dynamic` +
   ordinary spawned kind. Load-bearing: a scenario that spawns no `Light`
   renders black - the engine no longer supplies one.
 
+### How an asteroid carves
+
+An asteroid is the one body in the game with nothing to hide behind. A ship
+carves through its cladding and stops at the structure underneath, because a
+plate is one cell thick and the hull it is bolted to is a glTF model nothing can
+cut. A rock is solid all the way down, so a carve here goes as deep as the hit
+deserves.
+
+**The field IS the rock.** `pristine_field(seed, radius)` is the only
+description of an asteroid's shape. `pristine_rock_mesh` is that field meshed,
+and it is what the spawn path draws and collides with; the reseed on the first
+hit calls the same function with the same seed and gets the same grid back. It
+used to be two shapes - a subdivided octahedron displaced by the noise for the
+shipped mesh, and a field for the carved one. They agreed to within a cell, which
+is not the same as agreeing: the first hit moved the silhouette and changed the
+size of every facet, and that pop was visible on a rock the shot had barely
+scratched.
+
+**The grid is kept only while it is needed.** 140 KB on an arena rock and 1.1 MB
+on the biggest the cap allows, and a scenario scatters a hundred rocks most of
+which are never touched - so the spawn path meshes the field and DROPS it. The
+first hit pays to build it again (tens to hundreds of thousands of noise
+samples); from then on nothing resamples.
+
+**The cost model.** `FIELD_CELL_WORLD` is 0.5 WORLD units, and the cell COUNT is
+derived from it - the opposite way round from how this started. A crater is a
+world-sized thing (a 4-damage PDC round carves 0.62 units whatever it lands on),
+so a grid whose cells grew with the rock could not draw that round's hole on
+anything big: 32 cells across a radius-3 rock is a 1.02 unit cell, four times the
+round being fired at it. Coarseness is the ART, not a resolution knob - a finer
+grid only makes a smoother rock. `FIELD_RESOLUTION_MIN` is 16 and
+`FIELD_RESOLUTION_MAX` is 64; the cap BINDS above about radius 2.9, and what it
+costs there is the cell (a radius-5 rock is gridded at 0.85 units, so a PDC round
+on one is under a cell again and only blast-scale hits mark it). `65^3` corners
+is 1.1 MB per carved rock, paid only by rocks that are hit. `FIELD_MARGIN` is
+1.08, only just over 1 because carving never ADDS material.
+
+**What it costs today.** Measured on one desktop core at `64^3`: 12.7 ms to seed,
+10.7 ms to remesh 26,000 triangles, 10.0 ms to rebuild the collider - against
+2.3, 1.6 and 2.2 at `32^3`. `carve_asteroid_fields` is SYNCHRONOUS. Running the
+remesh and the collider build on the async compute pool, at most one job in
+flight per rock, is the plan; the system logs what each stage costs so that
+decision is made on measurements. A remesh also waits until the grid actually
+loses a cell (a quantized `meshed_volume` compare), so sub-cell hits accumulate
+in the field without paying for connectivity, surface generation or a collider
+rebuild.
+
+**Severing and death.** `SignedField::split_off_islands`
+(`crates/nova_gameplay/src/mesh/field.rs`) hands back whatever the cut freed. A piece past `CHUNK_MIN_VOLUME`
+becomes a rigid body of its own, meshed by the SAME surface nets the rock is,
+carrying `v + omega x r`; anything smaller is announced as a carve and goes out
+as dust. When the remaining solid falls under `CHUNK_MIN_VOLUME`, or the surface
+comes back empty, the rock inserts `IntegrityDestroyMarker`, fires
+`OnDestroyedEvent` itself and despawns its root - so a rock's `OnDestroyed` comes
+from `nova_scenario`, not from `nova_gameplay`'s integrity stack.
+
+**`BodyRadius` only ever SHRINKS.** Everything sized off a rock's surface -
+standoff distances, orbit clearances, the sphere of influence - was authored
+against the pristine radius, so shrinking keeps every one of those valid and
+growing would silently invalidate them. The collider density rides along
+unchanged, so avian re-derives mass from the volume that is left: a carved rock
+is a lighter rock.
+
+**The surface is sampled by POSITION.** `AsteroidSurfaceMaterial` / `RockHeight`
+are triplanar in the body's own local space, so a carved rock wears exactly the
+surface an uncarved one does and there is no per-triangle quilting. It is also
+why a severed piece must not inherit that material blindly - a piece is a new
+body with a new origin, and it reads the grain from a different place.
+
 ## Built-in scenarios
 
 The builders live under
@@ -598,7 +671,8 @@ them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
   variant in `events.rs`, and something that fires it (engine-driven events
   live in `loader/` - `OnStart` in `lifecycle.rs`, `OnUpdate` in `clock.rs`,
   the orbit/lock trackers in `trackers.rs`; area events in `objects/area.rs`;
-  `OnNeutralized` fires from `nova_gameplay`'s integrity stack).
+  `OnNeutralized` fires from `nova_gameplay`'s integrity stack, and a rock's
+  `OnDestroyed` from `objects/asteroid_carve.rs` when its field is exhausted).
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right
   `actions/` submodule (`flow`/`mission`/`ship`/`spawn`/`timer`/`view`), plus an
   `EventActionConfig` variant in `actions/mod.rs`.
@@ -621,5 +695,10 @@ them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
 - Objects: `ScenarioObjectsPlugin` - `crates/nova_scenario/src/objects/mod.rs`;
   kind dispatch: `ScenarioObjectKind` -
   `crates/nova_scenario/src/actions/spawn.rs`.
+- Asteroid carving: `AsteroidField`, `carve_asteroid_fields`, `pristine_field` -
+  `crates/nova_scenario/src/objects/asteroid_carve.rs`; the mesher underneath:
+  `SignedField` - `crates/nova_gameplay/src/mesh/field.rs`; the cost of the
+  material itself: `DAMAGE_PER_UNIT_VOLUME` -
+  `crates/nova_gameplay/src/integrity/carve.rs`.
 - API detail: `cargo doc --open -p nova_scenario` (event engine:
   `-p nova_events`).

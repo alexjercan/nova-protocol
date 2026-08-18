@@ -15,8 +15,8 @@ real code lives under `crates/`.
 | `nova_core`     | Thin wiring only: `AppBuilder` assembles every plugin (window/log/asset setup, status UI). No gameplay logic. |
 | `nova_menu`     | Main menu (owns the `MainMenu` state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write `GameMode` and hand off to `Playing`. The Settings modal (audio volume, graphics preset, read-only keybind reference) is shared by both entry points and persisted cross-platform in `settings_store` (RON file / localStorage). |
 | `nova_editor`   | The ship editor scene (`NovaEditorPlugin`). Comes up on entering `Playing`, only in `GameMode::Sandbox`. |
-| `nova_gameplay` | The shared gameplay layer under the ship: `integrity/`, `damage`, `gravity` (gravity wells), `markers` (the entity markers the ship tags with and this layer reads), `math`, `audio` (the generic SFX engine `nova_menu` and `nova_os_ui` also use), `juice`, `shake`, `settings` (`MasterVolume`/`GraphicsQuality` + apply systems), `mesh`, `transform`, `relations`, `beacon`, `objectives` (the `GameObjectives` list, its panel and the conveyance tags), `lifetime` (`TempEntity`/`DespawnEntity`), `cooldown`, `plugin`. Also owns `GameStates`, `PauseStates`, and the `GameMode` resource. Knows nothing about a ship. |
-| `nova_ship`     | The ship and how it is flown: `sections/` (the modular hull and its ammo/damage tint), `input/` (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, the `reference` keybind table), `flight/` (the diegetic controller and its autopilot verbs), `camera/` (the chase-camera controller and the chase/skybox/post/WASD rigs under it), `physics/` (the PD attitude controller) and `ship_audio/` (the soundtrack those five produce). Depends on `nova_gameplay` and never the reverse; `NovaShipPlugin` owns the `SpaceshipSystems` brackets and `nova_core` adds it after `NovaGameplayPlugin`. |
+| `nova_gameplay` | The shared gameplay layer under the ship: `integrity/` (health, the two damage readings `erosion` and `carve`, and the debris a carve leaves in `spew`/`chunk`), `damage`, `gravity` (gravity wells), `markers` (the entity markers the ship tags with and this layer reads), `math`, `audio` (the generic SFX engine `nova_menu` and `nova_os_ui` also use), `juice`, `shake`, `settings` (`MasterVolume`/`GraphicsQuality` + apply systems), `mesh` (mesh slicing, plus the `SignedField` an asteroid is meshed from), `transform`, `relations`, `beacon`, `objectives` (the `GameObjectives` list, its panel and the conveyance tags), `lifetime` (`TempEntity`/`DespawnEntity`), `cooldown`, `plugin`. Also owns `GameStates`, `PauseStates`, and the `GameMode` resource. Knows nothing about a ship. |
+| `nova_ship`     | The ship and how it is flown: `sections/` (the modular hull, its ammo, and the authored damage looks in `damage_effects`/`damage_cracks`/`damage_sparks`/`damage_plume`), `input/` (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, the `reference` keybind table), `flight/` (the diegetic controller and its autopilot verbs), `camera/` (the chase-camera controller and the chase/skybox/post/WASD rigs under it), `physics/` (the PD attitude controller) and `ship_audio/` (the soundtrack those five produce). Depends on `nova_gameplay` and never the reverse; `NovaShipPlugin` owns the `SpaceshipSystems` brackets and `nova_core` adds it after `NovaGameplayPlugin`. |
 | `nova_hud`      | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs `nova_hud -> nova_gameplay`. `nova_core` adds `NovaHudPlugin` render-gated, and the crate places `NovaHudSystems` between the section and camera sets itself. |
 | `nova_os`       | NOVA OS logic with no UI in it: the terminal model (`terminal`), the shell command language and typo suggestions (`shell`), and the app runtime seam (`app`). |
 | `nova_os_ui`    | The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (`terminal`), and the two apps that run on it - `map` (schematic local space) and `ship` (schematic player ship). A PEER of the flight HUD, not one of its widgets: `nova_core` adds it, and nothing in `nova_hud` reaches into it (it reads `NovaHudAssets` and `NovaHudSystems`, so it sits ABOVE `nova_hud`). |
@@ -115,12 +115,14 @@ game was done produced generic-looking code shaped by one game's needs. Whether
 any of it deserves extracting is a question for after the game ships.
 
 The generic `HealthDisplay` bar stays here (still available for other games and
-for non-player entities), but Nova's player-ship health readout is no longer that
-bar: it is diegetic, grading each ship section's own mesh material by integrity
-(`nova_ship::sections::damage_tint`, task 20260717-003613). Because that
-readout keys on Nova's section graph and materials it is game-specific and is NOT
-a promotion candidate - the generic bar and the diegetic readout are different
-things at different layers.
+for non-player entities), but Nova's own damage readout is no longer that bar:
+it is diegetic, and it runs on every ship rather than only the player's. Each
+section fractures its own material as its `DamageLevel` rises
+(`nova_ship::sections::damage_cracks`), and which looks a section wears is
+authored content (`damage_effects`, task 20260813-224826). Because that readout
+keys on Nova's section graph, its authored vocabulary and an extended material,
+it is game-specific and is NOT a promotion candidate - the generic bar and the
+diegetic readout are different things at different layers.
 
 Boundary policy, from most game-agnostic to most game-specific:
 
@@ -333,6 +335,9 @@ Never hand-edit the generated files; edit the builders and re-run `gen`.
 - Frame-flow sets: `SpaceshipSystems` - `crates/nova_gameplay/src/plugin.rs`;
   chained in `Update` + `FixedUpdate` by `NovaShipPlugin` -
   `crates/nova_ship/src/lib.rs`.
+- The two damage readings: `DamageLevel` -
+  `crates/nova_gameplay/src/integrity/erosion.rs`; `DamageMarks` and the carve
+  cost model - `crates/nova_gameplay/src/integrity/carve.rs`.
 - Asset gate and mod merge: `GameAssetsPlugin` -
   `crates/nova_assets/src/plugin.rs`; `register_bundles` -
   `crates/nova_assets/src/merge.rs`.
