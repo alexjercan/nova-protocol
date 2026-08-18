@@ -67,7 +67,14 @@ const WIKI_PAGES = [
         summary:
             "The modular parts a ship is built from - hull, controller, thruster, turret and torpedo bay - each with its own mass, health and one behavior.",
         related: ["combat-weapons", "flight-autopilot", "hud"],
-        headings: ["Hull", "Controller", "Thruster", "Turret", "Torpedo bay"],
+        headings: [
+            "Hull",
+            "Controller",
+            "Thruster",
+            "Turret",
+            "Torpedo bay",
+            "Variants",
+        ],
     },
     {
         slug: "sections/hull",
@@ -80,7 +87,7 @@ const WIKI_PAGES = [
         summary:
             "Passive structure and armor - the backbone the other sections mount to.",
         related: ["sections", "combat-weapons"],
-        headings: [],
+        headings: ["Variants"],
     },
     {
         slug: "sections/controller",
@@ -93,7 +100,7 @@ const WIKI_PAGES = [
         summary:
             "The steering system that rotates the ship toward a heading; required to fly.",
         related: ["sections", "flight-autopilot"],
-        headings: [],
+        headings: ["Stacking controllers", "Variants"],
     },
     {
         slug: "sections/thruster",
@@ -106,7 +113,7 @@ const WIKI_PAGES = [
         summary:
             "Produces forward thrust and drives the exhaust plume; analog throttle.",
         related: ["sections", "flight-autopilot"],
-        headings: [],
+        headings: ["Variants"],
     },
     {
         slug: "sections/turret",
@@ -119,7 +126,7 @@ const WIKI_PAGES = [
         summary:
             "An articulated mount that aims with intercept lead and fires bullets.",
         related: ["sections", "combat-weapons", "targeting-radar"],
-        headings: [],
+        headings: ["Variants"],
     },
     {
         slug: "sections/torpedo-bay",
@@ -132,7 +139,7 @@ const WIKI_PAGES = [
         summary:
             "Fires guided, proportional-navigation torpedoes that deal blast damage.",
         related: ["sections", "combat-weapons"],
-        headings: [],
+        headings: ["Variants"],
     },
     {
         slug: "keybinds",

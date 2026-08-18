@@ -40,3 +40,39 @@ Stacking adds authority and _precision_. A stacked hull starts arresting its tur
 </div>
 
 The other half of stacking is **redundancy**. Lose one of two and the ship does not go brain-dead - it drops to single-controller handling and keeps fighting. Only the last one is the ship's brain.
+
+<figure class="figure">
+    <!-- Capture: assets/loop-section-controller.webm (short gameplay loop) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loop-section-controller.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >A short loop: a ship flipping to a new heading
+            and settling on it without overshoot.</span
+        >
+    </div>
+</figure>
+
+## Variants
+
+Every shipped flight computer steers with the same numbers - authority is authored as angular acceleration, so hull inertia does not weaken it. What separates the fuselage computers is how much structure they add to the ship that carries them.
+
+<div class="catalog">
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (basic_controller_section mass :344, health :346, steering_lag 0.5 :354, max_angular_acceleration 0.5 :359) and crates/nova_authoring/src/base_content/ships/ (semantic-part mass shared.rs:204, controller kind steering_lag/authority shared.rs:246-247; racer.rs:81 fuselage 240; cargo_b.rs:77 fuselage 300; cargo_a.rs:84 fuselage 350). -->
+<div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-controller.png</span></span></span><span class="catalog__title">Controller - shipped prototypes</span></div>
+<table>
+<thead>
+<tr><th></th><th>Variant</th><th>Turn authority</th><th>Steering lag</th><th>Health</th><th>Mass</th></tr>
+</thead>
+<tbody>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-basic-controller-section.png</span></span></span></td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">0.5 rad/s^2</td><td class="catalog__num">0.5 s</td><td class="catalog__num">100</td><td class="catalog__num">1.0</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-racer-fuselage.png</span></span></span></td><td><span class="catalog__name">Racer // Fuselage</span><span class="catalog__id">racer_fuselage</span></td><td class="catalog__num">0.5 rad/s^2</td><td class="catalog__num">0.5 s</td><td class="catalog__num">240</td><td class="catalog__num">1.0</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargob-fuselage.png</span></span></span></td><td><span class="catalog__name">CargoB // Fuselage</span><span class="catalog__id">cargob_fuselage</span></td><td class="catalog__num">0.5 rad/s^2</td><td class="catalog__num">0.5 s</td><td class="catalog__num">300</td><td class="catalog__num">1.0</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargoa-fuselage.png</span></span></span></td><td><span class="catalog__name">CargoA // Fuselage</span><span class="catalog__id">cargoa_fuselage</span></td><td class="catalog__num">0.5 rad/s^2</td><td class="catalog__num">0.5 s</td><td class="catalog__num">350</td><td class="catalog__num">1.0</td></tr>
+</tbody>
+</table>
+</div>

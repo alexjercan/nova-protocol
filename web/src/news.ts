@@ -1,7 +1,12 @@
 import "./style.css";
 import { initSite } from "./site";
+import { initWidgets } from "./widgets";
 
 initSite();
+
+// Interactive widgets declared in the rendered markdown (data-widget blocks),
+// hydrated the same way docs.ts does for the wiki pages.
+initWidgets();
 
 // Scroll-spy for the news post TOC: highlight the sidebar link whose section is
 // currently in view. The TOC and its anchors are rendered at build time (see

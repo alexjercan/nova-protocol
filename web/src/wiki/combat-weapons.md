@@ -79,10 +79,6 @@ off the starboard quarter, or anything under the keel - simply holds, while the
 mounts that CAN bear keep shooting. It is your ammunition either way; the rounds
 a gun does not spend are the ones that were going to miss.
 
-<div class="widget" data-widget="aim-decay">
-<p>How well a gun tracks does not depend on your frame rate: the aim servo corrects a fixed fraction of its error per second, not per frame. Against a target crossing at 9 deg/s it stays inside the 0.92 degree fire gate at any playable frame rate, where the old per-frame correction crossed the gate below about 28 fps - the guns went quiet exactly when the machine struggled.</p>
-</div>
-
 ## Point defense
 
 Every gun runs its own point defense, and each mount picks its

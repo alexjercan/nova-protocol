@@ -1951,6 +1951,272 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     }
 }
 
+/* Transport deck for the animated scope widgets: a PLAY/REPLAY key, a scrub
+   fader over the scope timeline, and a T+ clock. widgets.ts never autoplays
+   under prefers-reduced-motion and PLAY then cuts to the resolved end state;
+   the scrub still steps every intermediate frame by hand. */
+.widget__transport {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 12px 0 0;
+}
+.widget__btn {
+    padding: 6px 16px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--phosphor);
+    background: var(--recess);
+    border: 1px solid var(--edge-soft);
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+.widget__btn:hover {
+    color: var(--phosphor-hot);
+    border-color: var(--phosphor-dim);
+}
+.widget__btn:focus-visible {
+    outline: 2px solid var(--phosphor);
+    outline-offset: 2px;
+}
+.widget__scrub {
+    flex: 1 1 auto;
+}
+.widget__clock {
+    font-size: 0.72rem;
+    min-width: 7ch;
+    text-align: right;
+}
+/* Scope furniture on the glass: range rings, the bearing ray, and the blast
+   shadow a surviving layer casts over the sector behind it. */
+.widget-mark--ring {
+    stroke: var(--edge-faint);
+    fill: none;
+}
+.widget-mark--ray {
+    stroke: var(--phosphor-muted);
+    stroke-width: 1;
+    stroke-dasharray: 2 5;
+}
+.widget-mark--shadow {
+    fill: var(--recess);
+    stroke: none;
+}
+/* The shock front and the detonation point. */
+.widget-mark--wave {
+    stroke: var(--phosphor);
+    stroke-width: 2;
+    fill: none;
+    filter: drop-shadow(var(--glow-text));
+}
+.widget-mark--det {
+    stroke: var(--red);
+    stroke-width: 2;
+}
+/* Structural layers as arcs; states mirror the stack cells, and a crossing
+   flashes hot for a beat before settling into its state. */
+.widget-mark--layer {
+    stroke: var(--phosphor-dim);
+    stroke-width: 5;
+    fill: none;
+}
+.widget-mark--layer.is-dead {
+    stroke: var(--red);
+    stroke-dasharray: 3 3;
+}
+.widget-mark--layer.is-hold {
+    stroke: var(--amber);
+}
+.widget-mark--layer.is-shielded {
+    stroke: var(--phosphor-muted);
+}
+.widget-mark--target-arc {
+    stroke: var(--text);
+    stroke-width: 2;
+    stroke-dasharray: 6 3;
+    fill: none;
+}
+.widget-mark--target-arc.is-hit {
+    stroke: var(--amber);
+}
+.widget-mark--target-arc.is-shielded {
+    stroke: var(--phosphor-muted);
+}
+.widget-mark--layer.is-flash,
+.widget-mark--target-arc.is-flash,
+.widget-mark--section.is-flash {
+    stroke: var(--phosphor-hot);
+    filter: drop-shadow(var(--glow-text));
+}
+/* Side-profile sections and the two rounds on the round scope. The round
+   colors follow the in-game tracers: amber slug, pale needle. */
+.widget-mark--section {
+    fill: var(--recess);
+    stroke: var(--edge-soft);
+}
+.widget-mark--section.is-dead {
+    stroke: var(--red);
+    fill: rgba(255, 78, 66, 0.08);
+}
+.widget-mark--section.is-hit {
+    stroke: var(--edge-amber);
+    fill: var(--fill-amber);
+}
+.widget-mark--slug {
+    fill: var(--amber);
+    filter: drop-shadow(var(--glow-text-amber));
+}
+.widget-mark--dart {
+    fill: var(--phosphor-hot);
+    filter: drop-shadow(var(--glow-text));
+}
+.widget-mark--impact {
+    stroke: var(--red);
+    stroke-width: 2;
+    fill: none;
+}
+/* Words on the glass: per-section state words and lane labels; states carry
+   the word, never color alone. */
+.widget-mark--word {
+    fill: var(--phosphor-dim);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+}
+.widget-mark--word.is-dead {
+    fill: var(--red);
+}
+.widget-mark--word.is-hit {
+    fill: var(--amber);
+}
+.widget-mark--detail {
+    fill: var(--phosphor-dim);
+    font-family: var(--font-mono);
+    font-size: 9px;
+}
+/* Recessed budget meters inside the scope SVG. */
+.widget-mark--barframe {
+    fill: var(--recess);
+    stroke: var(--edge-soft);
+}
+.widget-mark--barfill {
+    fill: var(--phosphor);
+}
+/* Variant catalogs: editor-catalog-style tables on the wiki section pages,
+   shipped prototypes with source-verified stats. The thumb slots reuse the
+   .figure__placeholder upgrade path (site.ts), so a capture dropped into
+   assets/ lights up with no HTML edit. */
+.catalog {
+    margin: 1.4em 0;
+    overflow-x: auto;
+}
+.catalog table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+}
+.catalog th {
+    padding: 6px 10px;
+    text-align: left;
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--phosphor-dim);
+    border-bottom: 1px solid var(--edge-soft);
+    white-space: nowrap;
+}
+.catalog td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--edge-faint);
+    color: var(--text);
+    vertical-align: middle;
+}
+.catalog__name {
+    color: var(--phosphor);
+    white-space: nowrap;
+}
+.catalog__id {
+    display: block;
+    font-size: 0.66rem;
+    color: var(--phosphor-muted);
+}
+.catalog__num {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.catalog__flag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 5px;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--amber);
+    border: 1px solid var(--edge-amber);
+    border-radius: var(--radius);
+    vertical-align: middle;
+}
+.catalog__thumb {
+    display: block;
+    width: 64px;
+}
+.catalog__thumb .figure__placeholder {
+    aspect-ratio: 1 / 1;
+    padding: 4px;
+    gap: 2px;
+    border-radius: var(--radius);
+}
+.catalog__thumb .figure__placeholder-tag {
+    font-size: 0.42rem;
+    letter-spacing: 0.08em;
+}
+.catalog__thumb .figure__placeholder-name {
+    font-size: 0.42rem;
+    word-break: break-all;
+}
+.catalog__thumb .figure__img {
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: var(--radius);
+}
+/* Table header strip: the kind icon (auto-upgraded from assets/) + a title. */
+.catalog__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 8px;
+}
+.catalog__kindicon {
+    flex: none;
+    width: 36px;
+}
+.catalog__kindicon .figure__placeholder {
+    aspect-ratio: 1 / 1;
+    padding: 2px;
+    gap: 0;
+    border-radius: var(--radius);
+}
+.catalog__kindicon .figure__placeholder-name {
+    display: none;
+}
+.catalog__kindicon .figure__img {
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    border: 0;
+    box-shadow: none;
+}
+.catalog__title {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--phosphor-dim);
+}
+
 /* ---- footer -------------------------------------------------------------- */
 .site-footer {
     flex-shrink: 0;
