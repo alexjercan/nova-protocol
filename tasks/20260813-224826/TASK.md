@@ -470,7 +470,7 @@ hull sections and on the cut-cube parts whose role is Hull; nothing else.
 - That closes the phase-5 bullet the epic opened with. The rest of phase 5 -
   deleting the slicer - is RESOLVED THE OTHER WAY: see step 4.
 
-### Phase 4c - sustained fire makes holes (accepted 2026-08-19)
+### Phase 4c - sustained fire makes holes - DONE (2026-08-19)
 
 Owner review found that the shipped PDC path did not visibly carve shipped
 rocks. The mechanism worked only in the gallery because it used 600-damage
@@ -499,6 +499,28 @@ Accepted correction, in order:
   `wfc_arena` must show the same result. Frame cost under sustained fire is a
   measured claim, not an estimate.
 
+Carve and gate delivery:
+
+- `DamageMarks` now adds radius-cubed volume to the crater containing a hit,
+  or to the nearest crater at the budget. Repeated rounds no longer disappear;
+  a distant budget merge no longer creates a whole-body bounding sphere.
+- Asteroid and section fields track marks applied separately from volume last
+  meshed. They keep every sub-cell field change but remesh only after a grid
+  corner changes sign. In the real-fire gallery, 354 landed PDC rounds caused
+  two asteroid remeshes, not one remesh per round.
+- `carve_asteroids` now holds a real shipped `better_turret_section` on one
+  point of a radius-3 durable rock until at least 300 4-damage rounds land. A
+  captured run paid 1,416 damage after in-flight rounds settled, accumulated
+  into three depth-wise craters with a 1.52u largest radius, and showed a clear
+  dark cavity against the identical pristine control. The same row retains one
+  750-damage torpedo crater and the severing cut. Every rendered capture was
+  opened and inspected.
+- Sustained-fire frame capture, native Vulkan RTX 3060 Ti, dev profile,
+  1280x720, one accumulating 4-damage hit per rendered frame: 300 frames,
+  mean 18.40 ms, p95 23.82 ms, p99 30.84 ms, max 39.72 ms. During warm-up and
+  capture, grid-cell throttling reduced hundreds of mark changes to nine
+  remeshes. This is a native measurement, not a wasm claim.
+
 Health delivery:
 
 - `AsteroidConfig.health` is replaced by explicit `durability`: `Durable` or
@@ -510,9 +532,14 @@ Health delivery:
 - Base content was regenerated from the Rust builders. Bundled example and web
   mods were migrated to explicit fixed values, preserving their authored beats.
 
-The reported first-hit ship lag remains a separate diagnosis. Section
-`field_from_mesh` costs 10-16 ms per mesh and is the leading candidate; do not
-claim the remesh throttle fixes it without reproducing it.
+Lag diagnosis:
+
+- Reproduced in `damage_levels`. Its first damage batch synchronously solidified
+  five section meshes in one frame: 18.0, 10.7, 10.4, 10.3 and 10.3 ms, 59.7 ms
+  total before remeshing. This is the reported huge first-hit ship spike.
+- The grid-cell remesh throttle does not fix that one-off cost. The next design
+  choice is async solidification versus a bounded across-frame queue; no fix is
+  claimed in this phase.
 
 ### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 

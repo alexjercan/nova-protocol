@@ -1,39 +1,31 @@
-//! carve_asteroids: one rock, shot progressively to bits, and one cut in two.
+//! carve_asteroids: shipped weapons against a shipped-size durable rock.
 //!
-//! THE GATE for phase 4 of the erosion epic (task 20260813-224826). A ship's
-//! cladding carves one cell deep and then stops on the glTF hull underneath; a
-//! rock is solid all the way down, so this is where a carve gets to be as deep
-//! as the hit deserves and where the representation is really on trial.
+//! THE GATE for phase 4c of the erosion epic (task 20260813-224826). The old
+//! row used 600-damage synthetic hits against a radius-1.2 rock with 100,000
+//! health. It proved the mesher and hid the player path: a 4-damage PDC round
+//! was sub-cell, repeated rounds in one spot were discarded, and a shipped rock
+//! died before a visible hole formed.
 //!
-//! Six copies of the SAME fixed-seed rock, left to right. Five have taken 0, 1,
-//! 3, 6 and 12 hits at points scattered over their own surfaces; the sixth is
-//! CUT IN TWO by a salvo walked across one plane through it. Nothing is poked
-//! directly: each hit goes through `apply_damage` with a world hit point,
-//! exactly as a turret round and a torpedo blast do, so what the row shows is
-//! what a fight would do.
+//! Four copies of the SAME radius-3 fixed-seed rock, left to right:
 //!
-//! What to judge:
+//! - pristine control;
+//! - 300 rounds from a real `better_turret_section`, held on one point;
+//! - one shipped 750-damage torpedo-scale blast;
+//! - a cut walked across one plane until a piece severs.
 //!
-//! - Does a carved rock still read as THE SAME ROCK? The field is seeded from
-//!   the same noise the shipped mesh is displaced by, so the first remesh
-//!   should reproduce the silhouette rather than swap in a different one. A
-//!   visible change between the control and the once-hit rock ANYWHERE except
-//!   the crater is a bug in that translation.
-//! - Do the craters read as craters, or as dents? A rock can be carved deeper
-//!   than a hull plate can, and this is the first place that shows.
-//! - Is the FACETING still the game's faceting? The mesher emits flat per-face
-//!   normals at a coarse resolution on purpose. If the carved rock looks
-//!   smoother than its neighbours, the resolution is too high, not too low.
-//! - The SPEW: every carve throws shards out of the crater. Do they read as
-//!   material coming off, or as sparks?
-//! - The CUT column: the half the slab severs is a rigid body of its own from
-//!   the moment it comes free, drifting away on the motion it inherited. If it
-//!   sits welded in place, connectivity is not being checked; if it appears
-//!   somewhere else or at the wrong size, its frame is wrong.
+//! The PDC column is the load-bearing one. The gallery spawns a player ship,
+//! raises the real weapons safety, holds its real trigger and waits until 300
+//! rounds have actually reduced the rock's health. The torpedo and cut enter
+//! through `apply_damage`, the same seam their blast uses.
 //!
-//! Costs are logged rather than guessed - run with
-//! `RUST_LOG=nova_scenario=debug` to see the seeding, remesh and collider-build
-//! times per rock, which is what the async-offload decision should be made on.
+//! Judge the PDC column first: it must have one unmistakable hole, while the
+//! control stays whole. Then check that the torpedo makes a visible one-hit
+//! crater and the cut still throws a real body. All rocks retain the same
+//! silhouette and coarse faceting away from the damage.
+//!
+//! Costs are logged with `RUST_LOG=nova_scenario=debug`. With `NOVA_PERF=1`,
+//! the frame-time probe also drives one accumulating 4-damage hit per frame
+//! into the PDC rock for the whole capture window.
 //!
 //! Hand-run:
 //! ```text
@@ -46,7 +38,9 @@
 //!   whole row), one `carve-asteroids-<hits>.png` per scattered rock, and
 //!   `carve-asteroids-cut.png` for the severed one.
 
-use bevy::prelude::*;
+#[cfg(feature = "debug")]
+use avian3d::prelude::RigidBody;
+use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
 
@@ -57,113 +51,56 @@ use nova_protocol::prelude::*;
 struct Cli;
 
 /// What is done to each rock in the row, left to right.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Shot {
-    /// Craters scattered over the whole surface: what a firefight does to a
-    /// rock it is not trying to break.
-    Scatter(usize),
-    /// Craters walked across ONE PLANE through the rock, so their union is a
-    /// slab and what is above it comes free. A torpedo resolves its blast at a
-    /// point in space rather than on a surface, so a salvo walked across a rock
-    /// is what this is - and it is the only thing in the row that severs.
-    ///
-    /// A ring of surface craters cannot do it. Cutting deep enough to reach the
-    /// axis means each crater is nearly as wide as the rock, and their union
-    /// then swallows the caps it was supposed to leave behind: the rock does not
-    /// come apart, it goes away.
-    Cut(usize),
+    Control,
+    Pdc,
+    Torpedo,
+    Cut,
 }
 
 impl Shot {
-    /// How many hits this column takes.
-    fn hits(self) -> usize {
+    fn name(self) -> &'static str {
         match self {
-            Shot::Scatter(hits) | Shot::Cut(hits) => hits,
+            Self::Control => "pristine",
+            Self::Pdc => "300 real PDC rounds",
+            Self::Torpedo => "one 750-damage torpedo",
+            Self::Cut => "cut in two",
         }
     }
 
-    /// What one of its hits costs, in health.
-    fn damage(self) -> f32 {
+    #[cfg(feature = "debug")]
+    fn shot_name(self) -> &'static str {
         match self {
-            Shot::Scatter(_) => HIT_DAMAGE,
-            Shot::Cut(_) => CUT_DAMAGE,
-        }
-    }
-
-    /// What the column is called in the shot.
-    fn name(self) -> String {
-        match self {
-            Shot::Scatter(hits) => format!("{hits} hit(s)"),
-            Shot::Cut(hits) => format!("cut, {hits} hit(s)"),
-        }
-    }
-
-    /// The capture this column is shot into.
-    fn shot_name(self) -> String {
-        match self {
-            Shot::Scatter(hits) => format!("carve-asteroids-{hits}.png"),
-            Shot::Cut(_) => "carve-asteroids-cut.png".to_string(),
-        }
-    }
-
-    /// Where its `nth` hit lands, relative to the rock's own centre, in world
-    /// units.
-    fn hit_at(self, nth: usize) -> Vec3 {
-        match self {
-            // The golden-angle spiral over the rock's own surface, so hits land
-            // all over it rather than bunching.
-            Shot::Scatter(count) => {
-                let height = 1.0 - 2.0 * (nth as f32 + 0.5) / count.max(1) as f32;
-                let ring = (1.0 - height * height).max(0.0).sqrt();
-                let turn = nth as f32 * 2.399_963_2;
-                let direction =
-                    Vec3::new(ring * turn.cos(), height, ring * turn.sin()).normalize_or(Vec3::Y);
-                surface_point(direction)
-            }
-            // One blast on the axis and the rest in a ring around it, all in the
-            // y = 0 plane: the craters overlap into a slab wider than the rock.
-            Shot::Cut(count) => {
-                let at = match nth {
-                    0 => Vec3::ZERO,
-                    _ => {
-                        let turn =
-                            (nth - 1) as f32 / (count - 1).max(1) as f32 * std::f32::consts::TAU;
-                        Vec3::new(turn.cos(), 0.0, turn.sin()) * CUT_SPACING
-                    }
-                };
-                at * ROCK_RADIUS
-            }
+            Self::Control => "carve-asteroids-control.png",
+            Self::Pdc => "carve-asteroids-pdc.png",
+            Self::Torpedo => "carve-asteroids-torpedo.png",
+            Self::Cut => "carve-asteroids-cut.png",
         }
     }
 }
 
 /// The row, left to right.
-///
-/// The scatter columns end at 12 and not at the mark budget (24): past a dozen
-/// craters the silhouette is mostly crater and the row stops telling anybody
-/// anything new. The cut column is the sixth because severance is a different
-/// claim from cratering - the piece that comes off is a body of its own.
-const ROW: [Shot; 6] = [
-    Shot::Scatter(0),
-    Shot::Scatter(1),
-    Shot::Scatter(3),
-    Shot::Scatter(6),
-    Shot::Scatter(12),
-    Shot::Cut(7),
-];
+const ROW: [Shot; 4] = [Shot::Control, Shot::Pdc, Shot::Torpedo, Shot::Cut];
 
-/// What one scattering hit costs, in health.
-///
-/// Sized so `mark_radius` prices it into a crater about one and a half world
-/// units across - a bite a rock this size visibly loses, rather than the
-/// pockmark a PDC round would leave.
-const HIT_DAMAGE: f32 = 600.0;
+/// The exact shipped kinetic PDC hit and the sustained-fire acceptance point.
+#[cfg(feature = "debug")]
+const PDC_DAMAGE: f32 = 4.0;
+#[cfg(feature = "debug")]
+const PDC_ROUNDS: usize = 300;
+#[cfg(feature = "debug")]
+const PDC_PAID_DAMAGE: f32 = PDC_DAMAGE * PDC_ROUNDS as f32;
+
+/// The shipped standard torpedo blast.
+#[cfg(feature = "debug")]
+const TORPEDO_DAMAGE: f32 = 750.0;
 
 /// What one hit of the cut costs.
 ///
 /// Prices a crater of 2.44 in the rock's own unit space, just over
 /// [`CUT_SPACING`], so the seven overlap into a solid slab about four units
 /// thick rather than a row of holes with material between them.
+#[cfg(feature = "debug")]
 const CUT_DAMAGE: f32 = 4200.0;
 
 /// How far apart the cut's craters sit, in the rock's own unit space.
@@ -171,21 +108,20 @@ const CUT_DAMAGE: f32 = 4200.0;
 /// The centre blast plus six at this radius covers a disk 4.8 across, which is
 /// wider than the rock's furthest reach - so the slab goes all the way through
 /// rather than leaving a rim holding the two halves together.
+#[cfg(feature = "debug")]
 const CUT_SPACING: f32 = 2.4;
 
 /// One noise seed for every rock: the row varies the damage only.
 const ROCK_SEED: u32 = 20260817;
 
-/// Nominal radius of the row rocks. The noise reaches several times past the
-/// unit sphere, so this draws roughly 7 units across.
-const ROCK_RADIUS: f32 = 1.2;
+/// A common shipped arena size, large enough that one PDC round is sub-cell.
+const ROCK_RADIUS: f32 = 3.0;
 
-/// Health well past what the row spends, so no rock dies mid-gallery and takes
-/// its own column out of the shot.
-const ROCK_HEALTH: f32 = 100_000.0;
+/// How far apart rocks stand at their real 3.5x-6x geometric reach.
+const COLUMN_PITCH: f32 = 42.0;
 
-/// How far apart the rocks stand.
-const COLUMN_PITCH: f32 = 16.0;
+/// The firing ship sits on the PDC rock's +Z axis, inside the gun's 200u reach.
+const PDC_SHIP_STANDOFF: f32 = 60.0;
 
 /// The scenario id each rock is spawned under.
 fn column_id(index: usize) -> String {
@@ -203,7 +139,10 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        app.add_plugins(nova_probe::NovaProbePlugin::default());
+        app.init_resource::<HeldInput>();
+        app.add_plugins(
+            nova_probe::NovaProbePlugin::default().drive_frametime(sustained_pdc_driver),
+        );
         app.add_plugins(gallery_script());
     }
 
@@ -224,52 +163,186 @@ fn setup_gallery(mut commands: Commands, game_assets: Res<GameAssets>) {
 /// `BodyRadius`: the published radius is the rock's furthest reach, and a hit
 /// placed there in a direction where the noise happens to be low would land in
 /// empty space and carve nothing.
+#[cfg(feature = "debug")]
 fn surface_point(direction: Vec3) -> Vec3 {
     let rock = RockHeight::default().with_seed(ROCK_SEED).sampler();
     direction * rock.radius(direction) * ROCK_RADIUS
 }
 
-/// Shoot every rock in the row the number of times its column stands for.
-///
-/// Through `apply_damage` - the one path a turret, a torpedo and a ram all use
-/// - rather than by writing marks. If a scripted hit and a fired round did not
-/// produce the same crater the seam would be wrong, and a gallery that wrote
-/// marks directly would be hiding exactly that.
 #[cfg(feature = "debug")]
-fn shoot_the_row(world: &mut World) {
-    // The carvable node is the CHILD that carries the marks, not the asteroid
-    // root: the root is the rigid body, the child is the mesh and collider.
-    let mut nodes: Vec<(Entity, Vec3, Shot)> = Vec::new();
-    {
-        let mut q_nodes = world.query_filtered::<(Entity, &ChildOf), With<DamageMarks>>();
-        let mut roots = world.query::<&EntityId>();
-        let found: Vec<(Entity, Entity)> = q_nodes
-            .iter(world)
-            .map(|(node, ChildOf(root))| (node, *root))
-            .collect();
-        for (node, root) in found {
-            let Ok(id) = roots.get(world, root) else {
-                continue;
-            };
-            let Some(index) = (0..ROW.len()).find(|index| column_id(*index) == id.as_str()) else {
-                continue;
-            };
-            nodes.push((node, column_position(index), ROW[index]));
+fn rock_node(world: &World, shot: Shot) -> Option<Entity> {
+    let index = ROW.iter().position(|candidate| *candidate == shot)?;
+    let id = column_id(index);
+    world.iter_entities().find_map(|entity| {
+        if !entity.contains::<DamageMarks>() {
+            return None;
         }
+        let root = entity.get::<ChildOf>()?.0;
+        (world.get::<EntityId>(root)?.as_str() == id).then_some(entity.id())
+    })
+}
+
+/// Apply the blast-scale cases. The PDC column is deliberately absent: only a
+/// real fired round is allowed to make that hole.
+#[cfg(feature = "debug")]
+fn apply_blast_cases(world: &mut World) {
+    if let Some(node) = rock_node(world, Shot::Torpedo) {
+        let at = column_position(2) + surface_point(Vec3::Z);
+        let mut commands = world.commands();
+        apply_damage(&mut commands, node, None, TORPEDO_DAMAGE, Some(at));
+        world.flush();
     }
 
-    for (node, centre, shot) in nodes {
-        for nth in 0..shot.hits() {
-            let at = centre + shot.hit_at(nth);
+    if let Some(node) = rock_node(world, Shot::Cut) {
+        let count = 7;
+        for nth in 0..count {
+            let local = match nth {
+                0 => Vec3::ZERO,
+                _ => {
+                    let turn = (nth - 1) as f32 / (count - 1) as f32 * std::f32::consts::TAU;
+                    Vec3::new(turn.cos(), 0.0, turn.sin()) * CUT_SPACING * ROCK_RADIUS
+                }
+            };
             let mut commands = world.commands();
-            apply_damage(&mut commands, node, None, shot.damage(), Some(at));
+            apply_damage(
+                &mut commands,
+                node,
+                None,
+                CUT_DAMAGE,
+                Some(column_position(3) + local),
+            );
             world.flush();
         }
-        info!(
-            "carve asteroids: rock at {centre} took {} hit(s)",
-            shot.hits()
-        );
     }
+}
+
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct HeldInput {
+    combat: bool,
+    fire: bool,
+}
+
+#[cfg(feature = "debug")]
+fn hold_inputs(world: &mut World, _elapsed: f32) {
+    let held = world.resource::<HeldInput>();
+    let (combat, fire) = (held.combat, held.fire);
+    if combat {
+        world
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Right);
+    }
+    if fire {
+        world
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+    }
+}
+
+#[cfg(feature = "debug")]
+fn pin_range_and_aim(world: &mut World) {
+    let roots: Vec<Entity> = world
+        .iter_entities()
+        .filter(|entity| {
+            entity.contains::<AsteroidMarker>() || entity.contains::<PlayerSpaceshipMarker>()
+        })
+        .map(|entity| entity.id())
+        .collect();
+    for root in roots {
+        world.entity_mut(root).insert(RigidBody::Static);
+    }
+
+    let target = column_position(1);
+    nova_protocol::nova_debug::harness::pose_camera(
+        world,
+        target + Vec3::new(0.0, 5.0, PDC_SHIP_STANDOFF - 4.0),
+        target,
+    );
+    world.resource_mut::<HeldInput>().combat = true;
+}
+
+#[cfg(feature = "debug")]
+fn weapons_are_hot() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&WeaponsHot, With<PlayerSpaceshipMarker>>()
+            .is_some_and(|mut query| query.iter(world).any(|hot| hot.0))
+    })
+}
+
+#[cfg(feature = "debug")]
+fn pdc_rounds_landed() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        rock_node(world, Shot::Pdc)
+            .and_then(|node| world.get::<Health>(node))
+            .is_some_and(|health| health.max - health.current >= PDC_PAID_DAMAGE)
+    })
+}
+
+#[cfg(feature = "debug")]
+fn open_fire(world: &mut World) {
+    world.resource_mut::<HeldInput>().fire = true;
+}
+
+#[cfg(feature = "debug")]
+fn cease_fire(world: &mut World) {
+    let mut held = world.resource_mut::<HeldInput>();
+    held.fire = false;
+    held.combat = false;
+    world
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .release(MouseButton::Left);
+    world
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .release(MouseButton::Right);
+}
+
+#[cfg(feature = "debug")]
+fn report_pdc_result(world: &mut World) {
+    let node = rock_node(world, Shot::Pdc).expect("the PDC rock still exists");
+    let health = world.get::<Health>(node).expect("the PDC rock has health");
+    let marks = world
+        .get::<DamageMarks>(node)
+        .expect("actual rounds recorded marks");
+    let largest = marks
+        .0
+        .iter()
+        .map(|mark| mark.radius * ROCK_RADIUS)
+        .fold(0.0f32, f32::max);
+    info!(
+        "carve asteroids: real PDC paid {:.0} damage into {} crater(s), largest radius {largest:.2}u",
+        health.max - health.current,
+        marks.0.len(),
+    );
+    assert!(
+        health.max - health.current >= PDC_PAID_DAMAGE,
+        "the real PDC did not land {PDC_ROUNDS} rounds"
+    );
+}
+
+#[cfg(feature = "debug")]
+fn remove_firing_ship(world: &mut World) {
+    let roots: Vec<Entity> = world
+        .iter_entities()
+        .filter(|entity| entity.contains::<PlayerSpaceshipMarker>())
+        .map(|entity| entity.id())
+        .collect();
+    for root in roots {
+        world.entity_mut(root).despawn();
+    }
+}
+
+/// Worst-case perf drive: one paid sub-cell PDC hit every rendered frame. The
+/// field changes every frame; expensive geometry work should not.
+#[cfg(feature = "debug")]
+fn sustained_pdc_driver(world: &mut World, _frame: u32) {
+    let Some(node) = rock_node(world, Shot::Pdc) else {
+        return;
+    };
+    let at = column_position(1) + surface_point(Vec3::Z);
+    let mut commands = world.commands();
+    apply_damage(&mut commands, node, None, PDC_DAMAGE, Some(at));
+    world.flush();
 }
 
 #[cfg(feature = "debug")]
@@ -278,37 +351,49 @@ type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
 #[cfg(feature = "debug")]
 fn gallery_script() -> Script {
     let script = Script::new()
-        .step("load the row")
+        .input(hold_inputs)
+        .step("load the shipped-size row and firing ship")
         .enter(GameStates::Loading)
         .until(scenario_camera_present())
-        .deadline(25.0)
+        .deadline(30.0)
         .add()
-        .step("let the rocks settle")
+        .step("let the range assemble")
         .until(elapsed(1.0))
         .add()
-        .step("shoot the row")
-        .on_enter(shoot_the_row)
+        .step("pin the range and aim at the PDC rock")
+        .on_enter(pin_range_and_aim)
+        .until(weapons_are_hot())
+        .deadline(10.0)
         .add()
-        // The field is seeded on one frame and carved on the next, so a rock
-        // needs a handful of frames to reach its final shape - measured at
-        // about 150 ms for the whole row. The rest of this wait is the SPEW:
-        // shards live 2.5 s, so the row has to be framed and shot INSIDE that
-        // or the capture shows craters with nothing coming out of them.
-        .step("let the rock come apart")
-        .until(elapsed(0.7))
+        .step("hold actual PDC fire on one point")
+        .on_enter(open_fire)
+        .until(pdc_rounds_landed())
+        .deadline(15.0)
+        .add()
+        .step("cease fire and let the last rounds land")
+        .on_enter(cease_fire)
+        .until(elapsed(1.0))
+        .add()
+        .step("remove the firing ship and apply blast cases")
+        .on_enter(report_pdc_result)
+        .on_enter(remove_firing_ship)
+        .on_enter(apply_blast_cases)
+        .add()
+        .step("let the fields and severed piece settle")
+        .until(elapsed(1.0))
         .add()
         .step("frame the whole row")
         .on_enter(|world: &mut World| {
             let centre = row_centre();
             nova_protocol::nova_debug::harness::pose_camera(
                 world,
-                centre + Vec3::new(0.0, 10.0, 86.0),
+                centre + Vec3::new(0.0, 36.0, 170.0),
                 centre,
             );
         })
         .until(elapsed(0.8))
         .add()
-        .step("shoot the whole row")
+        .step("capture the whole row")
         .on_enter(|world: &mut World| {
             nova_protocol::nova_debug::harness::shoot(world, "carve-asteroids.png")
         })
@@ -326,12 +411,10 @@ fn gallery_script() -> Script {
                 .step("settle on the rock")
                 .until(elapsed(0.6))
                 .add()
-                .step("shoot the rock")
+                .step("capture the rock")
                 .on_enter(move |world: &mut World| {
-                    nova_protocol::nova_debug::harness::shoot(world, &name)
+                    nova_protocol::nova_debug::harness::shoot(world, name)
                 })
-                // The capture is handed to the render world and written a frame or
-                // two later, so the run must not end on the request.
                 .until(elapsed(0.5))
                 .add()
         })
@@ -346,11 +429,10 @@ fn row_centre() -> Vec3 {
 #[cfg(feature = "debug")]
 fn frame_column(world: &mut World, index: usize) {
     let centre = column_position(index);
-    nova_protocol::nova_debug::harness::pose_camera(
-        world,
-        centre + Vec3::new(6.0, 7.5, 17.0),
-        centre,
-    );
+    // Look down the PDC's firing line. A side view turns a deep tunnel into a
+    // shallow silhouette change and lets the gate hide the hole it made.
+    let firing_line = Vec3::new(0.0, 5.0, PDC_SHIP_STANDOFF - 4.0).normalize();
+    nova_protocol::nova_debug::harness::pose_camera(world, centre + firing_line * 42.0, centre);
 }
 
 fn rock(game_assets: &GameAssets, index: usize) -> ScenarioObjectConfig {
@@ -358,14 +440,14 @@ fn rock(game_assets: &GameAssets, index: usize) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: column_id(index),
-            name: shot.name(),
+            name: shot.name().to_string(),
             position: column_position(index),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: ROCK_RADIUS,
             texture: game_assets.asteroid_texture.clone().into(),
-            durability: AsteroidDurability::Fixed(ROCK_HEALTH),
+            durability: AsteroidDurability::Durable,
             impact_sound: None,
             destroy_sound: None,
             mass: None,
@@ -378,18 +460,65 @@ fn rock(game_assets: &GameAssets, index: usize) -> ScenarioObjectConfig {
     }
 }
 
+fn firing_ship() -> ScenarioObjectConfig {
+    let sections = vec![
+        SpaceshipSectionConfig {
+            id: "controller".to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Prototype("basic_controller_section".to_string()),
+            modifications: vec![],
+        },
+        SpaceshipSectionConfig {
+            id: "hull".to_string(),
+            position: Vec3::Z,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Prototype("reinforced_hull_section".to_string()),
+            modifications: vec![],
+        },
+        SpaceshipSectionConfig {
+            id: "pdc".to_string(),
+            position: Vec3::Y,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Prototype("better_turret_section".to_string()),
+            modifications: vec![],
+        },
+    ];
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: "pdc_ship".to_string(),
+            name: "PDC firing rig".to_string(),
+            position: column_position(1) + Vec3::Z * PDC_SHIP_STANDOFF,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            hull: ShipSource::Inline(ShipHull {
+                sections,
+                ..default()
+            }),
+            controller: SpaceshipController::Player(PlayerControllerConfig {
+                input_mapping: HashMap::from([("pdc".to_string(), vec![MouseButton::Left.into()])]),
+                speed_cap: None,
+                infinite_ammo: true,
+            }),
+            ..default()
+        }),
+    }
+}
+
 fn gallery(game_assets: &GameAssets) -> ScenarioConfig {
-    let rocks: Vec<EventActionConfig> = (0..ROW.len())
+    let mut objects: Vec<EventActionConfig> = (0..ROW.len())
         .map(|index| EventActionConfig::SpawnScenarioObject(rock(game_assets, index)))
         .collect();
+    objects.push(EventActionConfig::SpawnScenarioObject(firing_ship()));
 
     ScenarioConfig {
-        description: "One rock at five levels of being shot to bits.".to_string(),
+        description: "Real PDC fire, one torpedo and one severing cut.".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
             actions: [
-                rocks,
+                objects,
                 ThreePointRig::around("row", row_centre(), 8.0).actions(),
             ]
             .concat(),

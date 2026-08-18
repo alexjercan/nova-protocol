@@ -395,6 +395,7 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- Make the asteroid gate hold real PDC fire on a shipped-size rock.
 - The `destruction_finale` range kills a gltf section, a procedural one, a multi-part turret and an asteroid, asserting each breaks into its own art on one per-body budget.
 - Controller mods author `steering_lag` in seconds instead of internal PD frequency and damping fields; mixed stacks use the fastest live computer. **(breaking)**
 - A driven run turns the wheel (`scroll_lines` / `scroll_pixels`), so a scripted beat reaches a row past the fold instead of skipping it.

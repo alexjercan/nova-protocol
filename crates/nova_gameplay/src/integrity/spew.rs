@@ -522,25 +522,21 @@ mod tests {
         }
     }
 
-    /// A hit into an existing crater takes no material, so it must show none
-    /// coming off - otherwise a burst emptied into one hole spews forever.
+    /// Repeated fire pays for more material, so it keeps announcing ejecta
+    /// without spending another mark slot.
     #[test]
-    fn a_hit_that_carves_nothing_throws_nothing() {
+    fn a_hit_into_an_existing_crater_still_takes_material() {
         let mut marks = DamageMarks::default();
-        assert!(
-            marks.add(DamageMark {
-                at: Vec3::ZERO,
-                radius: 1.0
-            }),
-            "the first hit carves"
-        );
-        assert!(
-            !marks.add(DamageMark {
-                at: Vec3::X * 0.1,
-                radius: 0.2
-            }),
-            "a hit already inside that crater carves nothing"
-        );
+        marks.add(DamageMark {
+            at: Vec3::ZERO,
+            radius: 1.0,
+        });
+        assert!(marks.add(DamageMark {
+            at: Vec3::X * 0.1,
+            radius: 0.2,
+        }));
+        assert_eq!(marks.0.len(), 1);
+        assert!(marks.0[0].radius > 1.0);
     }
 
     /// Shards are debris, not litter: they clear themselves, so a long fight
