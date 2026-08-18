@@ -325,9 +325,12 @@ pub(super) fn insert_particle_effect(
     };
 
     let Ok(config) = q_config.get(*torpedo_section) else {
-        error!(
-            "insert_turret_barrel_muzzle_effect: entity {:?} not found in q_effect",
-            entity
+        // A launched torpedo can outlive the bay that supplied its optional
+        // particle effect. The blast remains real; only that authored look is
+        // unavailable after its owner has gone.
+        debug!(
+            "insert_particle_effect: source section {:?} is gone; particle omitted",
+            torpedo_section
         );
         return;
     };
