@@ -120,6 +120,10 @@ name = "ship_editor"
 path = "examples/systems/ship_editor.rs"
 
 [[example]]
+name = "sandbox_soak"
+path = "examples/systems/sandbox_soak.rs"
+
+[[example]]
 name = "hud_indicators"
 path = "examples/systems/hud_indicators.rs"
 

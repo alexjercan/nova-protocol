@@ -156,7 +156,18 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
         config.radius,
         started.elapsed().as_secs_f32() * 1000.0
     );
-    let collider = Collider::trimesh_from_mesh(&mesh).unwrap_or(Collider::sphere(1.0));
+    // A pristine rock is a noise-displaced ball, so its HULL is what to
+    // collide against until something puts a hole in it, and carving is what
+    // buys the exact surface back - `carve_surface` rebuilds this collider
+    // from the holed mesh. Same laziness `seed_asteroid_fields` already
+    // applies to the carve grid, for a sharper reason: avian sleeps only
+    // TOUCHING contact pairs, so two belt rocks whose AABBs overlap and whose
+    // surfaces never meet stay in the ACTIVE contact set forever and are
+    // re-manifolded every step, asleep or not. Trimesh against trimesh is the
+    // most expensive manifold parry can be asked for - over the editor
+    // sandbox's field the same 52 never-touching pairs cost 21.9 ms a step as
+    // trimeshes and 0.10 ms as hulls.
+    let collider = Collider::convex_hull_from_mesh(&mesh).unwrap_or(Collider::sphere(1.0));
 
     // The true geometric radius, from the meshed surface itself: a rock's
     // shape function is based several times out from the unit sphere
@@ -826,6 +837,31 @@ mod tests {
         assert!(
             app.world().get::<BodyRadius>(asteroid).is_some(),
             "the derived surface lands with the body too"
+        );
+    }
+
+    /// A pristine rock collides as a HULL. avian sleeps only TOUCHING contact
+    /// pairs, so a belt's never-touching neighbours stay in the active set and
+    /// are re-manifolded on every step for as long as the scene is loaded -
+    /// which trimesh against trimesh cannot pay for. Carving is what buys the
+    /// exact surface back, on the rocks that have actually been shot.
+    #[test]
+    fn a_pristine_rock_collides_as_a_hull() {
+        let mut app = App::new();
+        let asteroid = spawn_rock(&mut app, rock(4.0, None), 20_260_819);
+
+        let node = app
+            .world()
+            .get::<Children>(asteroid)
+            .and_then(|children| children.iter().next())
+            .expect("the collider node is a child of the root");
+        let collider = app
+            .world()
+            .get::<Collider>(node)
+            .expect("the node carries a collider");
+        assert!(
+            collider.shape().as_convex_polyhedron().is_some(),
+            "an unshot rock must collide as a hull, not as its drawn surface"
         );
     }
 

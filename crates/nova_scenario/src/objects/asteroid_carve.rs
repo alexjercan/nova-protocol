@@ -42,9 +42,12 @@
 //!
 //! # What it swaps, and what it must not break
 //!
-//! A remesh replaces the drawn `Mesh3d` and rebuilds the trimesh `Collider` -
-//! the same `trimesh_from_mesh` call the spawn path uses, so mass-from-volume
-//! stays honest and a carved rock weighs what is left of it. `BodyRadius` is
+//! A remesh replaces the drawn `Mesh3d` and rebuilds the `Collider` as a
+//! TRIMESH. That is also where a rock stops being collided against as a hull:
+//! the spawn path hulls the pristine ball because a whole field of trimeshes
+//! is unaffordable, and a hole is precisely the shape a hull cannot hold. Mass
+//! comes from the surface either way, so a carved rock weighs what is left of
+//! it. `BodyRadius` is
 //! re-derived and only ever SHRINKS, which is what keeps gravity spheres of
 //! influence and orbit bands valid without recomputing them: everything sized
 //! off a rock's surface was authored against a bigger rock than the one that is

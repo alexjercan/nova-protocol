@@ -341,6 +341,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A destroyed section DETACHES and tumbles away whole, keeping the art and the
   collider it already had. Nothing computes geometry when something dies: the
   death path drops from 46 ms a run to 2.5 ms.
+- An untouched rock costs collision almost nothing: it collides as its hull
+  until something puts a hole in it, so a 64-rock field's physics step drops
+  from 22 ms to 0.4 and stops outrunning the tick.
 
 ### Fixes
 
