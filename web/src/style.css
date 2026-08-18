@@ -2132,3 +2132,86 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
         margin: 0 auto;
     }
 }
+
+/* ---- creator docs: RON highlighting, folded prose, sidebar collapse ------- */
+/* Semantic RON scheme (markdown.js highlightRon emits these at build time).
+   IDE-like but in the house phosphor: type/variant names carry the phosphor
+   backbone, field keys sit one hue over (orange, like hljs attrs), string
+   literals are amber and numeric/boolean literals blue (matching the hljs
+   theme above), comments and punctuation recede. */
+.ron-type {
+    color: var(--phosphor);
+}
+.ron-key {
+    color: var(--orange);
+}
+.ron-string {
+    color: var(--amber);
+}
+.ron-literal {
+    color: var(--blue);
+}
+.ron-comment {
+    color: var(--phosphor-dim);
+    font-style: italic;
+}
+.ron-punct {
+    color: var(--phosphor-dim);
+}
+
+/* Folded prose: a <details class="explain"> block holds the long detail under
+   a visible catalog entry - collapsed by default, the summary reads as a
+   terminal control. The summary bleeds to the frame edge; the folded content
+   keeps the side padding. */
+.prose details.explain {
+    margin: 1.1em 0 1.6em;
+    padding: 0 14px 2px;
+    background: var(--recess);
+    border: 1px solid var(--edge-faint);
+    border-radius: var(--panel-radius);
+}
+.prose details.explain > summary {
+    margin: 0 -14px;
+    padding: 8px 14px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--phosphor-dim);
+}
+.prose details.explain > summary::-webkit-details-marker {
+    display: none;
+}
+.prose details.explain > summary::before {
+    content: "[+] ";
+    color: var(--phosphor-dim);
+}
+.prose details.explain[open] > summary::before {
+    content: "[-] ";
+}
+.prose details.explain > summary:hover {
+    color: var(--phosphor);
+    background: var(--fill);
+}
+.prose details.explain > summary:focus-visible {
+    outline: 2px solid var(--phosphor);
+    outline-offset: -2px;
+}
+.prose details.explain[open] > summary {
+    color: var(--phosphor);
+    border-bottom: 1px solid var(--edge-faint);
+    margin-bottom: 0.4em;
+}
+
+/* Sidebar subtree collapse (docs.ts): a page's children render only expanded
+   while the reader is on that parent or inside its subtree; a live search
+   (is-searching on the nav) re-opens every subtree so matches are visible. */
+.wiki-nav__sub.is-collapsed {
+    display: none;
+}
+.wiki__nav.is-searching .wiki-nav__sub.is-collapsed {
+    display: flex;
+}

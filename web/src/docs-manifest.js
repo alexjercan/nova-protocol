@@ -276,8 +276,9 @@ const WIKI_PAGES = [
 ];
 
 // The creator section: a short learning path plus a hierarchical reference.
-// Mod files owns the content items; scenario-only vocabulary nests under
-// Scenario files. The sidebar supports this hierarchy recursively.
+// Mod files owns the content items; the scenario vocabulary pages (events,
+// filters, actions, objects, expressions) sit directly under the reference
+// root so the tree stays shallow. The sidebar supports hierarchy recursively.
 const CREATE_PAGES = [
     {
         slug: "author-a-scenario",
@@ -469,7 +470,7 @@ const CREATE_PAGES = [
         md: "events.md",
         title: "Events",
         category: "Modding reference",
-        parent: "scenarios",
+        parent: "reference",
         toc: true,
         tags: ["modding", "reference"],
         summary:
@@ -494,7 +495,7 @@ const CREATE_PAGES = [
         md: "filters.md",
         title: "Filters",
         category: "Modding reference",
-        parent: "scenarios",
+        parent: "reference",
         toc: true,
         tags: ["modding", "reference"],
         summary:
@@ -513,7 +514,7 @@ const CREATE_PAGES = [
         md: "actions.md",
         title: "Actions",
         category: "Modding reference",
-        parent: "scenarios",
+        parent: "reference",
         toc: true,
         tags: ["modding", "reference"],
         summary:
@@ -552,7 +553,7 @@ const CREATE_PAGES = [
         md: "objects.md",
         title: "Scenario objects",
         category: "Modding reference",
-        parent: "scenarios",
+        parent: "reference",
         toc: true,
         tags: ["modding", "reference"],
         summary:
@@ -575,7 +576,7 @@ const CREATE_PAGES = [
         md: "expressions.md",
         title: "Variables & expressions",
         category: "Modding reference",
-        parent: "scenarios",
+        parent: "reference",
         toc: true,
         tags: ["modding", "reference"],
         summary:

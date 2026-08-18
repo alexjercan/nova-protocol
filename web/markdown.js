@@ -12,6 +12,91 @@ function interop(m) {
     return m && m.__esModule && m.default ? m.default : m;
 }
 
+function escapeHtml(s) {
+    return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+// Semantic highlighter for ```ron fences. highlight.js has no RON grammar, so
+// every RON snippet used to render as plain escaped text; this small tokenizer
+// understands just enough of the real lexical shape to color it like an IDE
+// would. Classes (styled in src/style.css):
+// - ron-type:    PascalCase tagged type/variant names (Campaign, Some, None)
+// - ron-key:     field keys - an ident directly followed by ":"
+// - ron-string:  double-quoted strings, escapes included
+// - ron-literal: numbers, true, false
+// - ron-comment: // line and /* block */ comments
+// - ron-punct:   structural punctuation, dimmed
+// Everything is HTML-escaped; concatenating the span texts always reproduces
+// the escaped source exactly (the tokenizer never drops or reorders input).
+function highlightRon(code) {
+    const span = (cls, text) =>
+        `<span class="${cls}">${escapeHtml(text)}</span>`;
+    const isIdentStart = (c) => /[A-Za-z_]/.test(c);
+    const isIdent = (c) => /[A-Za-z0-9_]/.test(c);
+    const n = code.length;
+    let out = "";
+    let i = 0;
+    while (i < n) {
+        const c = code[i];
+        if (c === "/" && code[i + 1] === "/") {
+            let j = code.indexOf("\n", i);
+            if (j === -1) j = n;
+            out += span("ron-comment", code.slice(i, j));
+            i = j;
+        } else if (c === "/" && code[i + 1] === "*") {
+            let j = code.indexOf("*/", i + 2);
+            j = j === -1 ? n : j + 2;
+            out += span("ron-comment", code.slice(i, j));
+            i = j;
+        } else if (c === '"') {
+            let j = i + 1;
+            while (j < n && code[j] !== '"') {
+                if (code[j] === "\\") j++;
+                j++;
+            }
+            j = Math.min(j + 1, n);
+            out += span("ron-string", code.slice(i, j));
+            i = j;
+        } else if (
+            /\d/.test(c) ||
+            (c === "-" && /[\d.]/.test(code[i + 1] || "")) ||
+            (c === "." && /\d/.test(code[i + 1] || ""))
+        ) {
+            const m =
+                /^-?(?:0x[0-9a-fA-F_]+|0b[01_]+|\d[\d_]*(?:\.\d*)?(?:[eE][+-]?\d+)?|\.\d+(?:[eE][+-]?\d+)?)/.exec(
+                    code.slice(i)
+                );
+            out += span("ron-literal", m[0]);
+            i += m[0].length;
+        } else if (isIdentStart(c)) {
+            let j = i + 1;
+            while (j < n && isIdent(code[j])) j++;
+            const word = code.slice(i, j);
+            let k = j;
+            while (k < n && (code[k] === " " || code[k] === "\t")) k++;
+            let cls = null;
+            if (code[k] === ":") cls = "ron-key";
+            else if (word === "true" || word === "false") cls = "ron-literal";
+            else if (/^[A-Z]/.test(word)) cls = "ron-type";
+            out += cls ? span(cls, word) : escapeHtml(word);
+            i = j;
+        } else if (/[(){}[\]:,]/.test(c)) {
+            let j = i + 1;
+            while (j < n && /[(){}[\]:,]/.test(code[j])) j++;
+            out += span("ron-punct", code.slice(i, j));
+            i = j;
+        } else {
+            out += escapeHtml(c);
+            i += 1;
+        }
+    }
+    return out;
+}
+
 // Build-time markdown -> HTML for the doc pages (/wiki/ and /create/).
 // Rendering happens here in Node (the webpack config calls docPage at
 // configure time), so there is no runtime markdown cost and a no-JS / SEO
@@ -19,7 +104,8 @@ function interop(m) {
 // JS" split the hand-authored pages use.
 //
 // - A fenced ```mermaid block becomes a <pre class="mermaid"> holding the escaped
-//   diagram source; docs.ts renders it client-side (mermaid needs the DOM). Every
+//   diagram source; docs.ts renders it client-side (mermaid needs the DOM). A
+//   ```ron fence goes through highlightRon above (highlight.js has no RON). Every
 //   other fence is highlighted with highlight.js into <pre><code class="hljs ...">.
 // - markdown-it-anchor gives every h2/h3 a slug id, so headings deep-link and the
 //   manifest's `headings` search terms line up with real anchors.
@@ -32,6 +118,9 @@ const md = new MarkdownIt({
     highlight(code, lang) {
         if (lang === "mermaid") {
             return `<pre class="mermaid">${md.utils.escapeHtml(code)}</pre>`;
+        }
+        if (lang === "ron") {
+            return `<pre><code class="hljs language-ron">${highlightRon(code)}</code></pre>`;
         }
         const language = lang && hljs.getLanguage(lang) ? lang : null;
         const body = language
@@ -377,4 +466,5 @@ module.exports = {
     renderMarkdownFile,
     docPage,
     newsPostPage,
+    highlightRon,
 };

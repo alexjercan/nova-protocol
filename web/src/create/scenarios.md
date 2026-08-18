@@ -85,8 +85,6 @@ Each event entry is one handler:
 
 ## Scenario scripting chapters
 
-<div id="wiki-children"></div>
-
 - [Events](../events/) - when handlers run and what entity data they carry.
 - [Filters](../filters/) - entity matching, expression conditions, and logic.
 - [Actions](../actions/) - objectives, spawning, story, flow, and state changes.

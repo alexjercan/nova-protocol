@@ -69,6 +69,21 @@ function haystack(p: DocPage): string {
 
 // ---- sidebar + search -----------------------------------------------------
 
+// True when `slug` is the active page or one of its ancestors - the active
+// trail. Drives both the active highlight and which subtrees stay expanded.
+function onActiveTrail(
+    section: DocSection,
+    active: string | null,
+    slug: string
+): boolean {
+    let page = active ? bySlug(section, active) : undefined;
+    while (page) {
+        if (page.slug === slug) return true;
+        page = page.parent ? bySlug(section, page.parent) : undefined;
+    }
+    return false;
+}
+
 // One sidebar entry. Coming-soon pages have no HTML yet, so they render as a
 // non-navigable span (a link would 404) - still searchable. A parent counts as
 // active when the current page is one of its children.
@@ -83,18 +98,7 @@ function makeNavLink(
     if (!soon)
         (link as HTMLAnchorElement).href = pageUrl(base, section, p.slug);
     link.dataset.search = haystack(p);
-    let activePage = active ? bySlug(section, active) : undefined;
-    let isActive = false;
-    while (activePage) {
-        if (activePage.slug === p.slug) {
-            isActive = true;
-            break;
-        }
-        activePage = activePage.parent
-            ? bySlug(section, activePage.parent)
-            : undefined;
-    }
-    if (isActive) {
+    if (onActiveTrail(section, active, p.slug)) {
         link.classList.add("is-active");
         if (active === p.slug) link.setAttribute("aria-current", "page");
     }
@@ -148,7 +152,13 @@ function renderSidebar(
 
             const children = pages.filter((c) => c.parent === page.slug);
             if (children.length === 0) return;
+            // A subtree is expanded only while the reader is inside it (on the
+            // parent or one of its descendants); everywhere else it collapses
+            // to keep the tree shallow. Children stay in the DOM so an active
+            // search (is-searching on the nav) can still reveal matches.
             const sub = el("div", "wiki-nav__sub");
+            if (!onActiveTrail(section, active, page.slug))
+                sub.classList.add("is-collapsed");
             children.forEach((child) => appendPage(child, sub, depth + 1));
             host.appendChild(sub);
         };
@@ -166,6 +176,9 @@ function renderSidebar(
     const filter = (): void => {
         const q = search.value.trim().toLowerCase();
         const terms = q.split(/\s+/).filter(Boolean);
+        // While a query is live, collapsed subtrees open (CSS keys on this
+        // class) so a match inside one is never invisible.
+        nav.classList.toggle("is-searching", terms.length > 0);
         let anyVisible = false;
         for (const { heading, items } of groups) {
             let groupVisible = false;
@@ -383,6 +396,38 @@ async function initMermaid(): Promise<void> {
     }
 }
 
+// ---- folded prose (details.explain) ---------------------------------------
+
+// Doc pages fold long detail into <details class="explain"> blocks (closed by
+// default). A deep link or a search anchor must never land on hidden content:
+// when the URL hash targets an element inside a closed fold, open the fold
+// (nested folds included) and re-scroll, since the browser's own jump hit a
+// hidden element. Runs on load and on every hashchange.
+function revealHashTarget(): void {
+    const hash = window.location.hash;
+    if (hash.length < 2) return;
+    let target: HTMLElement | null;
+    try {
+        target = document.getElementById(decodeURIComponent(hash.slice(1)));
+    } catch {
+        return;
+    }
+    if (!target) return;
+    let fold = target.closest<HTMLDetailsElement>("details.explain");
+    let opened = false;
+    while (fold) {
+        if (!fold.open) {
+            fold.open = true;
+            opened = true;
+        }
+        fold =
+            fold.parentElement?.closest<HTMLDetailsElement>(
+                "details.explain"
+            ) ?? null;
+    }
+    if (opened) target.scrollIntoView();
+}
+
 // ---- drawer scroll persistence --------------------------------------------
 
 // Each doc page is a full document, so the sidebar (#wiki-nav - its own
@@ -433,6 +478,9 @@ const section = currentSection(base);
 void initMermaid();
 // Interactive widgets declared in the rendered markdown (data-widget blocks).
 initWidgets();
+// Deep links into folded prose open the fold they land in.
+revealHashTarget();
+window.addEventListener("hashchange", revealHashTarget);
 
 if (section) {
     const slug = currentSlug(base, section);
