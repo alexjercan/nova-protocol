@@ -179,7 +179,7 @@ Two things follow from pricing power on the rating rather than on what is left. 
 
 Every rake also has a hard ceiling on how many sections one round may cross, so a round fired down the length of a lightly built ship cannot chain forever.
 
-Nothing pierces an **indestructible** obstacle: an asteroid or a planetoid stops any round of any type at any speed. Torpedoes do not travel through anything either - they detonate.
+Nothing pierces a rock while its collider remains: an asteroid or planetoid stops any round of any type at any speed. A normal asteroid can be carved away; an invulnerable planetoid cannot. Torpedoes do not travel through anything either - they detonate.
 
 ## Blast pressure and structural depth
 

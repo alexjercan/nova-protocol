@@ -310,7 +310,6 @@
                 destroy_sound: Some("dep://base/sounds/explosion.wav"),
                             radius: 7.0,
                             texture: "dep://base/textures/asteroid.png",
-                            durability: Fixed(1000.0),
                             mass: None,
                             invulnerable: true,
                             lock_signature: None,

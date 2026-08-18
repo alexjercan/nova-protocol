@@ -1,5 +1,5 @@
 //! The asteroid scenario object: config, spawn bundle, mesh and texture
-//! selection, collider and gravity well, and the husk despawn after a break.
+//! selection, collider, and gravity well.
 //!
 //! Radius drives mass, gravity and collider together, so the scenario author
 //! sets one number rather than four that can disagree.
@@ -9,7 +9,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
-use nova_events::prelude::{CommandsGameEventExt, *};
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
 use nova_ship::prelude::*;
@@ -23,9 +23,9 @@ use super::{
 /// geometric-factor bounds and `AsteroidPlugin`.
 pub mod prelude {
     pub use super::{
-        asteroid_scenario_object, asteroid_seed_from_id, AsteroidConfig, AsteroidDurability,
-        AsteroidInvulnerable, AsteroidMarker, AsteroidMass, AsteroidPlugin, AsteroidRadius,
-        AsteroidRenderMesh, AsteroidSeed, AsteroidTexture, PlanetHeight, PlanetHeightNoise,
+        asteroid_scenario_object, asteroid_seed_from_id, AsteroidConfig, AsteroidInvulnerable,
+        AsteroidMarker, AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh,
+        AsteroidSeed, AsteroidTexture, PlanetHeight, PlanetHeightNoise,
         ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
     };
 }
@@ -33,37 +33,8 @@ pub mod prelude {
 /// The scenario/modding RON type name for an asteroid object.
 pub const ASTEROID_TYPE_NAME: &str = "asteroid";
 
-/// Hit points for a durable radius-3 rock.
-pub const DURABLE_ASTEROID_REFERENCE_HEALTH: f32 = 100_000.0;
-/// Radius where durable health equals [`DURABLE_ASTEROID_REFERENCE_HEALTH`].
-pub const DURABLE_ASTEROID_REFERENCE_RADIUS: f32 = 3.0;
-
-/// How an asteroid's hit points are authored.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum AsteroidDurability {
-    /// Radius-cubed health for ordinary rocks that must survive long enough to
-    /// show sustained carving.
-    Durable,
-    /// Exact health for objectives and scripted destruction beats.
-    Fixed(f32),
-}
-
-impl AsteroidDurability {
-    /// Resolve authored durability for a nominal radius.
-    pub fn health(self, radius: f32) -> f32 {
-        match self {
-            Self::Durable => {
-                DURABLE_ASTEROID_REFERENCE_HEALTH
-                    * (radius.max(0.0) / DURABLE_ASTEROID_REFERENCE_RADIUS).powi(3)
-            }
-            Self::Fixed(health) => health,
-        }
-    }
-}
-
 /// The scenario/modding RON surface for an asteroid object: a noise-generated
-/// rock with health, textures, impact/destroy sounds, and optional gravity and
+/// rock with geometry-owned durability, textures, sounds, and optional gravity and
 /// lock-signature overrides. Passed to [`asteroid_scenario_object`] to build the
 /// asteroid-root bundle.
 #[derive(Clone, Debug)]
@@ -74,11 +45,9 @@ pub struct AsteroidConfig {
     /// Surface texture. Authored as an asset path; resolved to a live handle
     /// at spawn time (see `insert_asteroid_render`).
     pub texture: AssetRef<Image>,
-    /// How hit points are resolved; ignored when `invulnerable` is set.
-    pub durability: AsteroidDurability,
     /// The sound a hit on this rock plays. Authorable asset ref;
     /// AUTHORED-OR-SILENT. Snapshotted into [`ImpactDestroySounds`] on the
-    /// asteroid parent (the audio observers walk up from the Health node).
+    /// asteroid parent (the audio observers walk up from the collider node).
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -107,11 +76,10 @@ pub struct AsteroidConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub mass: Option<f32>,
-    /// An invulnerable body gets its collider WITHOUT a health node:
-    /// nothing can disable or destroy it, so its gravity well can never
+    /// An invulnerable body gets its collider without a carve field:
+    /// nothing can erode or destroy it, so its gravity well can never
     /// die mid-scenario (playtest 2026-07-12 finding 6 - a tutorial
     /// planetoid shot to death takes the whole orbit beat with it).
-    /// `health` is ignored when set.
     pub invulnerable: bool,
     /// Radar signature override; `None` = the radius (a rock locks in
     /// proportion to its size). A scenario body meant to be designated from
@@ -155,7 +123,7 @@ pub fn asteroid_seed_from_id(id: &str) -> u32 {
 }
 
 /// Build the whole asteroid onto `entity`: the root (marker, radius, sounds,
-/// lock signature, body) AND its collider/health node, from one
+/// lock signature, body) AND its collider/carve node, from one
 /// [`AsteroidConfig`] and a resolved silhouette `seed`.
 ///
 /// Takes `EntityCommands` rather than returning a bundle, unlike its sibling
@@ -199,14 +167,12 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
     // radius * the outermost vertex.
     let unit_extent = mesh_max_vertex_radius(&mesh).max(1.0);
     let radius = config.radius;
-    let health = config.durability.health(radius);
 
     entity.insert((
         AsteroidMarker,
         EntityTypeName::new(ASTEROID_TYPE_NAME),
         AsteroidTexture(config.texture),
         AsteroidRadius(radius),
-        AsteroidHealth(health),
         ImpactDestroySounds {
             impact: config.impact_sound.clone(),
             destroy: config.destroy_sound.clone(),
@@ -244,32 +210,19 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
             Visibility::Inherited,
         ));
         if !config.invulnerable {
-            // An invulnerable rock gets NO Health: the integrity pipeline has
-            // nothing to deplete, so the body (and its well) cannot be
-            // destroyed. Health + ExplodableEntity is the rest of
-            // `destructible_body`, whose density and visibility every node
-            // above already carries.
-            //
-            // `DamageMarks` rides with them, on THIS node rather than on the
-            // root: the node is where the mesh and collider are, it is drawn in
-            // unit space, and a mark recorded here lands in that same space -
-            // which is the frame `AsteroidField` carves in. It also means an
-            // invulnerable rock is not carvable, which is the right answer for
-            // a body whose whole job is to still be there at the end.
-            node.insert((
-                Health::new(health),
-                ExplodableEntity,
-                DamageMarks::default(),
-            ));
+            // The field is the rock's only durability. `DamageMarks` rides on
+            // THIS node because its mesh and collider use the same unit space.
+            // Collision events are explicit now that no Health component opts
+            // the collider into the generic ram-damage observer.
+            node.insert((DamageMarks::default(), CollisionEventsEnabled));
         }
     });
 }
 
-/// Marks an asteroid root (a `RigidBody` parent whose collider/health live on a
+/// Marks an asteroid root (a `RigidBody` parent whose collider/field live on a
 /// child node). Inserted by `asteroid_scenario_object`; the asteroid observers
 /// key on it to derive the collider, gravity well, and destruction handling.
 #[derive(Component, Clone, Debug, Reflect)]
-#[require(IntegrityRoot)]
 pub struct AsteroidMarker;
 
 /// The asteroid's surface texture ref (from [`AsteroidConfig::texture`]),
@@ -290,12 +243,6 @@ pub struct AsteroidRenderMesh(pub Mesh);
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidRadius(pub f32);
 
-/// The asteroid's authored hit points (from [`AsteroidConfig::health`]), carried
-/// on the root and used to build the collider node's `Health` for destructible
-/// bodies. Ignored for invulnerable asteroids.
-#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-pub struct AsteroidHealth(pub f32);
-
 /// See [`AsteroidConfig::invulnerable`].
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidInvulnerable(pub bool);
@@ -313,18 +260,9 @@ pub struct AsteroidMass(pub Option<f32>);
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidSeed(pub u32);
 
-/// Marks an asteroid root whose collider/health node has been destroyed, so its
-/// now-empty `RigidBody` husk is despawned next frame (see `despawn_asteroid_husk`).
-#[derive(Component, Clone, Debug, Default, Reflect)]
-struct AsteroidHuskDespawn;
-
-/// The asteroid scenario object: generates a noise-displaced rock, derives its
-/// collider and (for big/authored bodies) a gravity well, and handles its
-/// destruction. `render` gates the visible mesh; physics and gravity apply
-/// regardless.
-/// Seeds [`GravitySettings`], adds the collider/gravity-well/node-destroyed
-/// observers plus the `Update` husk-despawn system, and (when `render`) the
-/// render-insert observer.
+/// The asteroid scenario object: generates a noise-displaced rock and derives
+/// its collider and optional gravity well. Geometry-owned destruction lives in
+/// `asteroid_carve`. `render` gates the visible mesh; physics applies regardless.
 pub struct AsteroidPlugin {
     /// Whether to add the render-insert observer that builds the visible mesh (false for headless tools).
     pub render: bool,
@@ -339,73 +277,12 @@ impl Plugin for AsteroidPlugin {
         app.init_resource::<GravitySettings>();
 
         app.add_observer(insert_asteroid_gravity_well);
-        app.add_observer(on_asteroid_node_destroyed);
-        app.add_systems(Update, despawn_asteroid_husk);
         if self.render {
             // The triplanar rock material, which is what a rock is drawn with
             // whether or not it has ever been carved.
             app.add_plugins(MaterialPlugin::<AsteroidSurfaceMaterial>::default());
             app.add_observer(insert_asteroid_render);
         }
-    }
-}
-
-/// When an asteroid's collider/health node is destroyed, mark the asteroid root
-/// for despawn AND fire the scenario's OnDestroyed under the ROOT's id. An
-/// asteroid is a `RigidBody::Dynamic` parent whose `Collider` + `Health` live
-/// on a child node; once that node explodes and despawns, the parent is an
-/// empty body with no collider, and the invisible husk would linger until the
-/// scenario unloads. Marking (rather than despawning here) defers the despawn
-/// to `despawn_asteroid_husk`
-/// so the destruction observers - which spawn the explosion fragments and
-/// despawn the node - all run first.
-///
-/// The EVENT must fire from here: the integrity pipeline's own bridge
-/// (nova_gameplay explode.rs `on_destroyed_entity`) reads `EntityId` off the
-/// MARKED entity, and for asteroids the marked entity is the id-less child
-/// node - so no asteroid ever fired OnDestroyed, and the shakedown's derelict
-/// beat soft-locked on a kill the script never heard about. Putting the marker
-/// on the root instead would fire the bridge but ALSO trip the meshless
-/// insta-despawn observer, racing the fragment spawn this deferral protects.
-fn on_asteroid_node_destroyed(
-    add: On<Add, IntegrityDestroyMarker>,
-    mut commands: Commands,
-    q_node: Query<&ChildOf, With<IntegrityDestroyMarker>>,
-    q_asteroid: Query<(Option<&EntityId>, Option<&EntityTypeName>), With<AsteroidMarker>>,
-) {
-    let Ok(ChildOf(parent)) = q_node.get(add.entity) else {
-        return;
-    };
-    if let Ok((id, type_name)) = q_asteroid.get(*parent) {
-        trace!(
-            "on_asteroid_node_destroyed: marking asteroid husk {:?}",
-            parent
-        );
-        // On rails in the same insert: the node carried the rock's only
-        // collider, so from here until the reaper the root is a dynamic body
-        // with no mass, and avian says so once per rock. Static is what a
-        // body awaiting removal already is (task 20260817-091716).
-        commands
-            .entity(*parent)
-            .try_insert((AsteroidHuskDespawn, RigidBody::Static));
-        // Editor previews carry no scenario id: husk cleanup still runs,
-        // only the event is skipped.
-        if let (Some(id), Some(type_name)) = (id, type_name) {
-            commands.fire::<OnDestroyedEvent>(OnDestroyedEventInfo {
-                id: id.to_string(),
-                type_name: type_name.to_string(),
-            });
-        }
-    }
-}
-
-/// Despawn asteroid roots whose node was destroyed last frame, clearing the
-/// empty `RigidBody` husk. The husk is already on rails by then (see
-/// `on_asteroid_node_destroyed`); this is what actually removes it.
-fn despawn_asteroid_husk(mut commands: Commands, q_husk: Query<Entity, With<AsteroidHuskDespawn>>) {
-    for husk in &q_husk {
-        trace!("despawn_asteroid_husk: despawning {:?}", husk);
-        commands.entity(husk).try_despawn();
     }
 }
 
@@ -914,122 +791,6 @@ mod tests {
         eprintln!("geometric factor sweep: observed [{lowest}, {highest}] across 24 seeds");
     }
 
-    fn husk_app() -> App {
-        let mut app = App::new();
-        app.add_observer(on_asteroid_node_destroyed);
-        app.add_systems(Update, despawn_asteroid_husk);
-        app
-    }
-
-    /// The husk stops being simulated the moment it is marked, not when it is
-    /// finally reaped: its only collider left with the node, so a dynamic
-    /// husk is a massless body avian warns about for the whole gap
-    /// (task 20260817-091716).
-    #[test]
-    fn a_marked_husk_is_on_rails_before_the_reaper_runs() {
-        let mut app = App::new();
-        // Observer only: the reaper is deliberately NOT registered, so this
-        // reads the husk exactly in the gap the warning was emitted from.
-        app.add_observer(on_asteroid_node_destroyed);
-        let asteroid = app
-            .world_mut()
-            .spawn((AsteroidMarker, RigidBody::Dynamic))
-            .id();
-        let node = app.world_mut().spawn(ChildOf(asteroid)).id();
-
-        app.world_mut()
-            .entity_mut(node)
-            .insert(IntegrityDestroyMarker);
-        app.update();
-
-        assert_eq!(
-            app.world().get::<RigidBody>(asteroid),
-            Some(&RigidBody::Static),
-            "a husk awaiting the reaper must not be a dynamic body"
-        );
-    }
-
-    #[test]
-    fn destroying_an_asteroid_node_despawns_the_husk() {
-        // The collider/health node is a child of the asteroid root; destroying it must
-        // take the now-empty RigidBody husk with it.
-        let mut app = husk_app();
-        let asteroid = app.world_mut().spawn(AsteroidMarker).id();
-        let node = app.world_mut().spawn(ChildOf(asteroid)).id();
-
-        app.world_mut()
-            .entity_mut(node)
-            .insert(IntegrityDestroyMarker);
-        app.update();
-
-        assert!(
-            !app.world().entities().contains(asteroid),
-            "the asteroid husk should be despawned when its node is destroyed"
-        );
-    }
-
-    /// Destroying the node fires the scenario's OnDestroyed under the ROOT's
-    /// id, through the real handler pipeline.
-    #[test]
-    fn destroying_an_asteroid_node_fires_on_destroyed_for_the_root() {
-        use nova_events::prelude::{EventHandler, GameEventsPlugin};
-        use nova_gameplay::prelude::GameObjectives;
-
-        use crate::prelude::*;
-
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
-        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
-        app.init_resource::<NovaEventWorld>();
-        app.init_resource::<GameObjectives>();
-        app.add_observer(on_asteroid_node_destroyed);
-        app.add_systems(Update, despawn_asteroid_husk);
-
-        let mut handler =
-            EventHandler::<NovaEventWorld>::from(crate::events::EventConfig::OnDestroyed);
-        // Filter on BOTH the root's id and its type: the asteroid_field
-        // scenario (example 03) counts kills by type_name alone, so the
-        // fired info's type is part of the contract this pin owns.
-        handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
-            id: Some("derelict".to_string()),
-            type_name: Some(ASTEROID_TYPE_NAME.to_string()),
-            ..Default::default()
-        }));
-        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
-            key: "hulk_down".to_string(),
-            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
-            )),
-        }));
-        app.world_mut().spawn(handler);
-
-        let asteroid = app
-            .world_mut()
-            .spawn((
-                AsteroidMarker,
-                EntityId::new("derelict".to_string()),
-                EntityTypeName::new(ASTEROID_TYPE_NAME),
-            ))
-            .id();
-        let node = app.world_mut().spawn(ChildOf(asteroid)).id();
-
-        app.world_mut()
-            .entity_mut(node)
-            .insert(IntegrityDestroyMarker);
-        app.update();
-        app.update();
-
-        assert!(
-            matches!(
-                app.world()
-                    .resource::<NovaEventWorld>()
-                    .get_variable("hulk_down"),
-                Some(VariableLiteral::Boolean(true))
-            ),
-            "the node's death must reach a handler filtered on the ROOT's id"
-        );
-    }
-
     fn gravity_app() -> App {
         let mut app = App::new();
         app.init_resource::<GravitySettings>();
@@ -1170,18 +931,14 @@ mod tests {
         );
     }
 
-    /// An invulnerable body's collider node carries NO Health - the
-    /// integrity pipeline has nothing to deplete, so the body (and its
-    /// well) cannot die mid-scenario (playtest 2026-07-12 finding 6). A
-    /// destructible one keeps Health; both keep the collider so physics
-    /// and lock targeting are unchanged.
+    /// No asteroid carries a health kill gate. A normal rock accepts marks;
+    /// an invulnerable planetoid does not.
     #[test]
-    fn invulnerable_asteroids_get_no_health_node() {
+    fn asteroid_geometry_is_the_only_durability() {
         let mut app = App::new();
 
         let spawn = |app: &mut App, invulnerable: bool| -> Entity {
             let mut config = rock(20.0, Some(45_000.0));
-            config.durability = AsteroidDurability::Fixed(2000.0);
             config.invulnerable = invulnerable;
             spawn_rock(app, config, 3)
         };
@@ -1205,9 +962,14 @@ mod tests {
             app.world().get::<Health>(tough_node).is_none(),
             "no Health on an invulnerable body's node - nothing to deplete"
         );
+        assert!(app.world().get::<Health>(normal_node).is_none());
+        assert!(app.world().get::<DamageMarks>(tough_node).is_none());
+        assert!(app.world().get::<DamageMarks>(normal_node).is_some());
         assert!(
-            app.world().get::<Health>(normal_node).is_some(),
-            "delivery guard: a destructible body's node does carry Health"
+            app.world()
+                .get::<CollisionEventsEnabled>(normal_node)
+                .is_some(),
+            "healthless rocks still need ram collision events"
         );
     }
 
@@ -1228,22 +990,11 @@ mod tests {
             destroy_sound: None,
             radius,
             texture: AssetRef::default(),
-            durability: AsteroidDurability::Fixed(100.0),
             mass,
             invulnerable: false,
             seed: None,
             lock_signature: None,
         }
-    }
-
-    #[test]
-    fn durable_health_scales_with_rock_volume() {
-        let at_reference = AsteroidDurability::Durable.health(3.0);
-        let twice_radius = AsteroidDurability::Durable.health(6.0);
-
-        assert_eq!(at_reference, DURABLE_ASTEROID_REFERENCE_HEALTH);
-        assert_eq!(twice_radius, at_reference * 8.0);
-        assert_eq!(AsteroidDurability::Fixed(150.0).health(20.0), 150.0);
     }
 
     /// Spawn a rock exactly as the scenario spawn action does: one entity,
@@ -1334,25 +1085,6 @@ mod tests {
         assert_eq!(
             hot_well.mu,
             settings.max_surface_gravity * surface * surface
-        );
-    }
-
-    #[test]
-    fn destroying_a_non_asteroid_node_leaves_its_parent() {
-        // A destroyed node whose parent is not an asteroid (e.g. a ship section under a
-        // ship root) must not despawn its parent - the ship dies through its own path.
-        let mut app = husk_app();
-        let parent = app.world_mut().spawn_empty().id();
-        let node = app.world_mut().spawn(ChildOf(parent)).id();
-
-        app.world_mut()
-            .entity_mut(node)
-            .insert(IntegrityDestroyMarker);
-        app.update();
-
-        assert!(
-            app.world().entities().contains(parent),
-            "a non-asteroid parent must not be despawned by the husk cleanup"
         );
     }
 }

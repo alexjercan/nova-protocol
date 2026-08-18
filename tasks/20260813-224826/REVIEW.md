@@ -139,7 +139,7 @@ Recommended direction:
 The coalescing key and maximum-pressure rule are interface decisions. Confirm
 and record them in `TASK.md` before implementation.
 
-### 3. Asteroid remesh failure mutates state before validation
+### 3. Asteroid remesh failure mutates state before validation - RESOLVED
 
 Locations at the reviewed head:
 
@@ -187,6 +187,10 @@ Recommended direction:
 
 A 32^3 field clone is small compared with remeshing and collider construction.
 Prefer the transaction over partial rollback.
+
+Phase 4d implemented this transaction while making asteroid geometry the
+lifecycle authority. Re-check it after merging C+A, but do not implement this
+item a second time.
 
 ## Performance follow-ups
 
@@ -238,7 +242,7 @@ Measure or test that stable query ordering cannot starve a later ship forever.
    path.
 2. Reproduce and fix absorbed-damage mark accounting.
 3. Reproduce and fix body-level blast coalescing and ejecta bounds.
-4. Make asteroid remesh and severance transactional.
+4. Re-verify the already-transactional asteroid remesh after the merge.
 5. Measure shard population and unchanged-mark traversal.
 6. Run the literal `wfc_arena` player path.
 7. Run only affected checks, inspect rendered output, update task evidence, and

@@ -86,7 +86,7 @@ tagged **(breaking)**.
 
 ### Gameplay & Flight
 
-- **(breaking)** Scale ordinary rock health with volume while scripted rocks keep their kill beats.
+- **(breaking)** Make an asteroid's remaining material its only durability.
 - Let sustained fire grow one crater without remeshing sub-cell hits.
 - Asteroids CARVE: a hit takes a real crater out of the rock, mesh and collider
   both, so a shot rock is physically the shape it looks. Craters persist and a
@@ -327,6 +327,7 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- Treat a torpedo outliving its launch bay as a missing optional effect.
 - Fixed: closing NOVA OS in the WFC arena resumes combat instead of leaving the match clocks paused.
 - Fixed: every ship section burst eight generic gray cubes instead of its own
   art - destruction looked for a mesh on the entity that dies, never on the

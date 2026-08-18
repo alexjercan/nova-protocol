@@ -63,47 +63,18 @@ struct Cli;
 /// Id of the gate that sweeps across the front for the turret to track.
 const MOVING_GATE_ID: &str = "gate_moving";
 
-/// Health of a static gate. High so the range keeps something to shoot at
-/// rather than clearing itself in a burst.
-const GATE_HEALTH: f32 = 2000.0;
-
-/// Health of an object the run must not lose: the sweeping gate and the
-/// planetoid. Not `invulnerable`, because the script still needs to OBSERVE
-/// damage landing on the sweeping gate.
-const INDESTRUCTIBLE_HEALTH: f32 = 100_000.0;
-
 /// Centre of the sweeping gate's path.
 const MOVING_GATE_ORIGIN: Vec3 = Vec3::new(-35.0, 6.0, -55.0);
 
-/// Every authored range gate: id, display name, position, health. The single
+/// Every authored range gate: id, display name, and position. The single
 /// roster - the scenario spawns exactly these and [`tag_gate`] tags exactly
 /// these, so the range's OTHER asteroid (the gravity planetoid) cannot drift
 /// into the gate count.
-const RANGE_GATES: [(&str, &str, Vec3, f32); 5] = [
-    (
-        "gate_front",
-        "Front Gate",
-        Vec3::new(0.0, 3.0, -55.0),
-        GATE_HEALTH,
-    ),
-    (
-        "gate_left",
-        "Left Gate",
-        Vec3::new(-32.0, 4.0, -45.0),
-        GATE_HEALTH,
-    ),
-    (
-        "gate_right",
-        "Right Gate",
-        Vec3::new(30.0, 3.0, -48.0),
-        GATE_HEALTH,
-    ),
-    (
-        "gate_high",
-        "High Gate",
-        Vec3::new(6.0, 26.0, -40.0),
-        GATE_HEALTH,
-    ),
+const RANGE_GATES: [(&str, &str, Vec3); 5] = [
+    ("gate_front", "Front Gate", Vec3::new(0.0, 3.0, -55.0)),
+    ("gate_left", "Left Gate", Vec3::new(-32.0, 4.0, -45.0)),
+    ("gate_right", "Right Gate", Vec3::new(30.0, 3.0, -48.0)),
+    ("gate_high", "High Gate", Vec3::new(6.0, 26.0, -40.0)),
     // The sweeping gate is the one target the script REQUIRES alive: the
     // tracking beat waits on its live position, so its despawn stalls the run
     // outright. It is also the most punished object on the range - it is what
@@ -113,12 +84,7 @@ const RANGE_GATES: [(&str, &str, Vec3, f32); 5] = [
     // mattered; a multi-round one has to outlast it, so this gate gets the
     // planetoid's durability rather than a gate's. Still damageable, which is
     // what invariant 2 observes.
-    (
-        MOVING_GATE_ID,
-        "Moving Gate",
-        MOVING_GATE_ORIGIN,
-        INDESTRUCTIBLE_HEALTH,
-    ),
+    (MOVING_GATE_ID, "Moving Gate", MOVING_GATE_ORIGIN),
 ];
 
 /// Half-width of the sweep, in world units. Chosen so the path stays clear of
@@ -343,10 +309,9 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
         ..default()
     };
 
-    // Gates in the turret's firing arc (ahead, -Z, within its pitch range), plus
-    // the sweeping one. Health is high so they survive and the turret keeps
-    // tracking/firing rather than clearing the range in a burst.
-    let gate = |id: &str, name: &str, pos: Vec3, health: f32| ScenarioObjectConfig {
+    // Geometry-authoritative gates in the turret's firing arc, plus the
+    // sweeping one. Their full rock volume keeps the range alive under fire.
+    let gate = |id: &str, name: &str, pos: Vec3| ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: name.to_string(),
@@ -358,7 +323,6 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
             destroy_sound: Some("base/sounds/explosion.wav".into()),
             radius: 2.0,
             texture: game_assets.asteroid_texture.clone().into(),
-            durability: AsteroidDurability::Fixed(health),
             mass: None,
             invulnerable: false,
             seed: None,
@@ -378,7 +342,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
     objects.extend(
         RANGE_GATES
             .iter()
-            .map(|(id, name, position, health)| gate(id, name, *position, *health)),
+            .map(|(id, name, position)| gate(id, name, *position)),
     );
     objects.push(
         // A gravity planetoid slung below the firing lane so rounds crossing
@@ -400,9 +364,8 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 destroy_sound: Some("base/sounds/explosion.wav".into()),
                 radius: 16.0,
                 texture: game_assets.asteroid_texture.clone().into(),
-                durability: AsteroidDurability::Fixed(INDESTRUCTIBLE_HEALTH),
                 mass: Some(30_000.0),
-                invulnerable: false,
+                invulnerable: true,
                 seed: None,
                 lock_signature: None,
             }),

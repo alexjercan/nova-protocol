@@ -541,6 +541,82 @@ Lag diagnosis:
   choice is async solidification versus a bounded across-frame queue; no fix is
   claimed in this phase.
 
+### Phase 4d - the rock is its remaining material - ACCEPTED (2026-08-19)
+
+Owner playtest found that carving is the fun asteroid mechanic and health death
+undercuts it: a visibly solid rock reaches zero hit points and abruptly enters
+the unrelated random-plane finale. Asteroids now use their signed geometry as
+their sole durability authority.
+
+Accepted correction:
+
+- Normal asteroids carry `DamageMarks` but no `Health` or `ExplodableEntity`.
+  Every accepted hit is material work. Kinetic and pierce rounds still stop at a
+  healthless rock; rams explicitly keep collision events. Invulnerable
+  planetoids remain uncarvable.
+- Remove `AsteroidDurability` and `AsteroidConfig::durability` entirely. This is
+  intentionally format-breaking. One global rock material-toughness constant
+  converts weapon damage to volume; preserve the current 80 hp per cubic unit
+  first so the approved crater look does not move. Author mineral hardness only
+  when the game has real material variants to distinguish.
+- A rock remains the primary carvable body while its largest connected field is
+  collider-buildable and above the existing world-space debris threshold.
+  Disconnected islands become chunks or dust as they do now. An empty,
+  unmeshable or sub-threshold final remnant becomes dust, fires the asteroid
+  root's `OnDestroyed`, and removes the root. No health finale and no random
+  slicing.
+- Field, mesh, collider, radius, islands and finalization commit as one
+  transaction. Build from a cloned candidate; a rejected candidate cannot spawn
+  chunks, desynchronize the visible body or retry expensive work every frame.
+- Health-bearing bodies carve only damage their health pool actually absorbed.
+  Geometry-only asteroids accept the whole hit as material work. This distinction
+  belongs in the post-C+A damage-accounting correction recorded in `REVIEW.md`.
+- Replace Shakedown's asteroid-kind rehearsal hulk with an inert neutral inline
+  ship of three connected light hull sections. It keeps the scenario id and
+  teaches section damage before the pirate arrives.
+- Ordinary scenario rocks all use the one geometry lifecycle. Replace Asteroid
+  Field's five-health-rock grind with one small marked ore rock whose geometric
+  exhaustion fits the exercise; the rest of the field remains a free combat and
+  gravity sandbox. Migrate bundled mods, examples, fixtures and docs without a
+  compatibility parser.
+- The correctness gate is the real destruction range: a healthless rock must
+  survive ordinary carving, finish only when no viable primary field remains,
+  emit no `ExplodeFragments`, leave bounded carve debris and fire `OnDestroyed`
+  exactly once. The existing real-PDC gallery remains the player-path look gate.
+
+Rejected alternatives:
+
+- A renamed hidden integrity counter: the same arbitrary death under another
+  name.
+- Finalization at a remaining-volume percentage: health expressed as voxels.
+- Finalization on the first meaningful severance: one chip would stop further
+  carving of a mostly intact rock.
+
+Delivery:
+
+- `AsteroidConfig` has no durability field. Normal collider nodes carry marks
+  and collision events but no health or explodable marker; invulnerable ones
+  carry neither marks nor health. Bundled content and docs use the breaking
+  schema directly.
+- Candidate fields split, mesh and build their collider before any island or
+  replacement becomes observable. Rejected colliders wait for a new mark. An
+  empty or sub-one-cubic-unit largest solid emits its final debris, reuses the
+  common destruction cue, fires the root's `OnDestroyed` once and despawns.
+- `destruction_finale` first leaves a healthless rock alive with an ordinary
+  crater, then exhausts it and asserts no random fragments, bounded carve
+  chunks and exactly one scenario event. The old health path failed this range
+  by deleting the rock after the first 1200-damage carve.
+- The real-PDC gallery now counts sourced turret hits rather than health loss.
+  Its geometry-authoritative run completed and the PDC, torpedo and cut captures
+  were opened; the sustained-fire cavity remains clear.
+- Shakedown's rehearsal target is a neutral, controller-less line of three light
+  hull sections. Asteroid Field instead marks one radius-0.35 ore rock and asks
+  the player to break it; normal field rocks remain long-lived carveable cover.
+- Live correctness runs passed for `destruction_finale`, `player_path`,
+  `scenario_grammar`, `outcomes`, `turret_gunnery` and `torpedo_launch`.
+  `wfc_arena` completed; its unrelated destroyed-bay particle lookup was then
+  downgraded from a false engine error to the expected omitted optional effect.
+
 ### Phase 4e - ships stop carving - DONE (2026-08-19)
 
 Owner decision after flying the profiled build. Carving is now an ASTEROID

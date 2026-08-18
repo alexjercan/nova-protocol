@@ -171,7 +171,6 @@ pub(crate) fn menu_gauntlet(
                 destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius: 1.0,
                 texture: asteroid_texture,
-                durability: AsteroidDurability::Durable,
                 mass: None,
                 invulnerable: false,
                 seed: None,

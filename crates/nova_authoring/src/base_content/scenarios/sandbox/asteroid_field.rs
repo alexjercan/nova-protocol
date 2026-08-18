@@ -5,7 +5,10 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
-use crate::base_content::{scenarios::SCATTER_SEED, ships};
+use crate::{
+    base_content::{scenarios::SCATTER_SEED, ships},
+    scenario_helpers::prelude::*,
+};
 
 pub(crate) fn asteroid_field(
     cubemap: AssetRef<Image>,
@@ -34,7 +37,6 @@ pub(crate) fn asteroid_field(
                 destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius: 1.0,
                 texture: asteroid_texture.clone(),
-                durability: AsteroidDurability::Fixed(100.0),
                 mass: None,
                 invulnerable: false,
                 seed: None,
@@ -56,6 +58,28 @@ pub(crate) fn asteroid_field(
     // cannot destroy the well mid-playtest and take the orbit demo with it.
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
+            id: "ore_rock".to_string(),
+            name: "Marked Ore Rock".to_string(),
+            position: Vec3::new(-140.0, 0.0, 0.0),
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+            destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
+            // Geometry is durability. This small but otherwise ordinary rock
+            // makes exhaustion a magazine-scale introduction rather than a
+            // hidden low-health target.
+            radius: 0.35,
+            texture: asteroid_texture.clone(),
+            mass: None,
+            invulnerable: false,
+            seed: Some(20260819),
+            lock_signature: Some(10.0),
+        }),
+    });
+
+    objects.push(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
             id: "asteroid_grav".to_string(),
             name: "Gravity Rock".to_string(),
             position: Vec3::new(250.0, 0.0, 0.0),
@@ -66,7 +90,6 @@ pub(crate) fn asteroid_field(
             destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
             radius: 20.0,
             texture: asteroid_texture.clone(),
-            durability: AsteroidDurability::Fixed(2000.0),
             mass: Some(45_000.0),
             invulnerable: true,
             seed: None,
@@ -224,26 +247,14 @@ pub(crate) fn asteroid_field(
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
-            actions: vec![EventActionConfig::Objective(ObjectiveActionConfig::new(
-                "destroy_asteroids",
-                "Objective: Destroy 5 asteroids!",
-            ))],
-        },
-        // OnStart: Initialize variables
-        // asteroids_destroyed = 0
-        // objective_destroy_asteroids = false
-        ScenarioEventConfig {
-            name: EventConfig::OnStart,
-            filters: vec![],
             actions: vec![
+                EventActionConfig::Objective(ObjectiveActionConfig::new(
+                    "break_ore_rock",
+                    "Break apart the marked ore rock.",
+                )),
+                attach_objective_marker("ore_rock", "ORE ROCK"),
                 EventActionConfig::VariableSet(VariableSetActionConfig {
-                    key: "asteroids_destroyed".to_string(),
-                    expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                        VariableFactorNode::new_literal(VariableLiteral::Number(0.0)),
-                    )),
-                }),
-                EventActionConfig::VariableSet(VariableSetActionConfig {
-                    key: "objective_destroy_asteroids".to_string(),
+                    key: "ore_broken".to_string(),
                     expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
                         VariableFactorNode::new_literal(VariableLiteral::Boolean(false)),
                     )),
@@ -294,78 +305,32 @@ pub(crate) fn asteroid_field(
                 }),
             ],
         },
-        // OnDestroyed: If an asteroid is destroyed, increment asteroids_destroyed
+        // The field remains free-play cover. Only the deliberately small,
+        // marked rock gates the sandbox objective.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
-                id: None,
-                type_name: Some("asteroid".to_string()),
+                id: Some("ore_rock".to_string()),
+                type_name: Some(ASTEROID_TYPE_NAME.to_string()),
                 ..default()
             })],
-            actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
-                key: "asteroids_destroyed".to_string(),
-                expression: VariableExpressionNode::new_add(
-                    VariableTermNode::new_factor(VariableFactorNode::new_name(
-                        "asteroids_destroyed".to_string(),
-                    )),
-                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                        VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
-                    )),
-                ),
-            })],
-        },
-        // OnDestroyed: If an asteroid is destroyed and asteroids_destroyed > 4 and objective not
-        // complete, complete objective and create new objective to reach safe zone
-        ScenarioEventConfig {
-            name: EventConfig::OnDestroyed,
-            filters: vec![
-                EventFilterConfig::Entity(EntityFilterConfig {
-                    id: None,
-                    type_name: Some("asteroid".to_string()),
-                    ..default()
-                }),
-                EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_greater_than(
-                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                            VariableFactorNode::new_name("asteroids_destroyed".to_string()),
-                        )),
-                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                            VariableFactorNode::new_literal(VariableLiteral::Number(4.0)),
-                        )),
-                    ),
-                )),
-                EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_equals(
-                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                            VariableFactorNode::new_name("objective_destroy_asteroids".to_string()),
-                        )),
-                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                            VariableFactorNode::new_literal(VariableLiteral::Boolean(false)),
-                        )),
-                    ),
-                )),
-            ],
             actions: vec![
-                EventActionConfig::DebugMessage(DebugMessageActionConfig {
-                    message: "Objective Complete: Destroyed 5 asteroids!".to_string(),
-                }),
                 EventActionConfig::VariableSet(VariableSetActionConfig {
-                    key: "objective_destroy_asteroids".to_string(),
+                    key: "ore_broken".to_string(),
                     expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
                         VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
                     )),
                 }),
                 EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig {
-                    id: "destroy_asteroids".to_string(),
+                    id: "break_ore_rock".to_string(),
                 }),
                 EventActionConfig::Objective(ObjectiveActionConfig::new(
                     "reach_zone",
-                    "Objective: Reach the safe zone!",
+                    "Reach the safe zone.",
                 )),
             ],
         },
-        // OnEnter: If player spaceship enters safe zone and the destroy asteroids objective is
-        // complete, complete the scenario
+        // The safe-zone exit unlocks only after the marked rock is exhausted.
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
             filters: vec![
@@ -377,7 +342,7 @@ pub(crate) fn asteroid_field(
                 EventFilterConfig::Expression(ExpressionFilterConfig(
                     VariableConditionNode::new_equals(
                         VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                            VariableFactorNode::new_name("objective_destroy_asteroids".to_string()),
+                            VariableFactorNode::new_name("ore_broken".to_string()),
                         )),
                         VariableExpressionNode::new_term(VariableTermNode::new_factor(
                             VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),

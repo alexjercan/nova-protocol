@@ -245,6 +245,22 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
         ..default()
     };
 
+    let hostile = SpaceshipConfig {
+        controller: SpaceshipController::None,
+        allegiance: Some(Allegiance::Enemy),
+        hull: ShipSource::Inline(ShipHull {
+            sections: vec![SpaceshipSectionConfig {
+                id: "target_hull".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                source: SectionSource::Inline(section("light_hull_section")),
+                modifications: vec![],
+            }],
+            ..default()
+        }),
+        ..default()
+    };
+
     let events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
@@ -266,17 +282,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
                         position: Vec3::new(0.0, 0.0, -40.0),
                         rotation: Quat::IDENTITY,
                     },
-                    kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                        impact_sound: Some("base/sounds/impact.wav".into()),
-                        destroy_sound: Some("base/sounds/explosion.wav".into()),
-                        radius: 2.0,
-                        texture: game_assets.asteroid_texture.clone().into(),
-                        durability: AsteroidDurability::Fixed(60.0),
-                        mass: None,
-                        invulnerable: false,
-                        seed: None,
-                        lock_signature: Some(1000.0),
-                    }),
+                    kind: ScenarioObjectKind::Spaceship(hostile),
                 }),
                 EventActionConfig::Objective(ObjectiveActionConfig::new(
                     OBJECTIVE_ID,
@@ -509,12 +515,8 @@ fn current_scenario_is(id: &'static str) -> std::sync::Arc<dyn Fn(&World) -> boo
 /// Kill the scenario object `id` with an overkill through the production damage
 /// entry point, aimed at the node that actually carries the `Health`.
 ///
-/// Which node that is depends on the object: a ship root carries the aggregate
-/// health its sections sum into, but an asteroid root carries only markers -
-/// its collider and `Health` live on a CHILD (`asteroid_scenario_object`).
-/// `HealthApplyDamage` propagates child -> parent and never downwards, so an
-/// overkill on an asteroid root is silently absorbed by nothing. Walking to the
-/// `Health` bearer is what makes one helper kill both the player and the rock.
+/// The range uses ships on both sides. Walking to the nearest health bearer
+/// keeps the helper valid while their aggregate pools finish assembling.
 #[cfg(feature = "debug")]
 fn kill_object(id: &'static str) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| {

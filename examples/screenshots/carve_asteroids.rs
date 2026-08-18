@@ -1,8 +1,8 @@
-//! carve_asteroids: shipped weapons against a shipped-size durable rock.
+//! carve_asteroids: shipped weapons against a shipped-size carvable rock.
 //!
 //! THE GATE for phase 4c of the erosion epic (task 20260813-224826). The old
-//! row used 600-damage synthetic hits against a radius-1.2 rock with 100,000
-//! health. It proved the mesher and hid the player path: a 4-damage PDC round
+//! row used 600-damage synthetic hits against a radius-1.2 rock. It proved the
+//! mesher and hid the player path: a 4-damage PDC round
 //! was sub-cell, repeated rounds in one spot were discarded, and a shipped rock
 //! died before a visible hole formed.
 //!
@@ -15,7 +15,7 @@
 //!
 //! The PDC column is the load-bearing one. The gallery spawns a player ship,
 //! raises the real weapons safety, holds its real trigger and waits until 300
-//! rounds have actually reduced the rock's health. The torpedo and cut enter
+//! rounds have actually reached the rock. The torpedo and cut enter
 //! through `apply_damage`, the same seam their blast uses.
 //!
 //! Judge the PDC column first: it must have one unmistakable hole, while the
@@ -140,6 +140,8 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<HeldInput>();
+        app.init_resource::<PdcLanded>();
+        app.add_observer(tally_real_pdc_hits);
         app.add_plugins(
             nova_probe::NovaProbePlugin::default().drive_frametime(sustained_pdc_driver),
         );
@@ -218,6 +220,41 @@ fn apply_blast_cases(world: &mut World) {
 
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
+struct PdcLanded {
+    rounds: usize,
+    damage: f32,
+}
+
+/// Count only shipped turret rounds that reached the PDC rock. Synthetic perf
+/// hits carry no source and cannot satisfy the player-path gate.
+#[cfg(feature = "debug")]
+fn tally_real_pdc_hits(
+    hit: On<HealthApplyDamage>,
+    q_bullets: Query<(), With<TurretBulletProjectileMarker>>,
+    q_nodes: Query<&ChildOf, With<DamageMarks>>,
+    q_ids: Query<&EntityId, With<AsteroidMarker>>,
+    mut landed: ResMut<PdcLanded>,
+) {
+    if hit.entity != hit.original_event_target()
+        || !hit.source.is_some_and(|source| q_bullets.contains(source))
+    {
+        return;
+    }
+    let Ok(ChildOf(root)) = q_nodes.get(hit.entity) else {
+        return;
+    };
+    let Ok(id) = q_ids.get(*root) else {
+        return;
+    };
+    if id.as_str() != column_id(1) {
+        return;
+    }
+    landed.rounds += 1;
+    landed.damage += hit.amount;
+}
+
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
 struct HeldInput {
     combat: bool,
     fire: bool,
@@ -273,9 +310,9 @@ fn weapons_are_hot() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predi
 #[cfg(feature = "debug")]
 fn pdc_rounds_landed() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {
-        rock_node(world, Shot::Pdc)
-            .and_then(|node| world.get::<Health>(node))
-            .is_some_and(|health| health.max - health.current >= PDC_PAID_DAMAGE)
+        world
+            .get_resource::<PdcLanded>()
+            .is_some_and(|landed| landed.damage >= PDC_PAID_DAMAGE)
     })
 }
 
@@ -300,7 +337,7 @@ fn cease_fire(world: &mut World) {
 #[cfg(feature = "debug")]
 fn report_pdc_result(world: &mut World) {
     let node = rock_node(world, Shot::Pdc).expect("the PDC rock still exists");
-    let health = world.get::<Health>(node).expect("the PDC rock has health");
+    let landed = world.resource::<PdcLanded>();
     let marks = world
         .get::<DamageMarks>(node)
         .expect("actual rounds recorded marks");
@@ -310,13 +347,16 @@ fn report_pdc_result(world: &mut World) {
         .map(|mark| mark.radius * ROCK_RADIUS)
         .fold(0.0f32, f32::max);
     info!(
-        "carve asteroids: real PDC paid {:.0} damage into {} crater(s), largest radius {largest:.2}u",
-        health.max - health.current,
+        "carve asteroids: {} real PDC rounds paid {:.0} damage into {} crater(s), largest radius {largest:.2}u",
+        landed.rounds,
+        landed.damage,
         marks.0.len(),
     );
     assert!(
-        health.max - health.current >= PDC_PAID_DAMAGE,
-        "the real PDC did not land {PDC_ROUNDS} rounds"
+        landed.damage >= PDC_PAID_DAMAGE && landed.rounds >= PDC_ROUNDS,
+        "the real PDC landed {} round(s) for {:.0} damage",
+        landed.rounds,
+        landed.damage
     );
 }
 
@@ -447,7 +487,6 @@ fn rock(game_assets: &GameAssets, index: usize) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: ROCK_RADIUS,
             texture: game_assets.asteroid_texture.clone().into(),
-            durability: AsteroidDurability::Durable,
             impact_sound: None,
             destroy_sound: None,
             mass: None,

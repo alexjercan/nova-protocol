@@ -21,11 +21,12 @@
 //! | 1 | `outcome: the turret breaks into its own art` | a multi-part gltf section fragments |
 //! | 2 | `outcome: the thruster breaks into its own art` | and so does a single-mesh one |
 //! | 3 | `outcome: the hull breaks into its own art` | and so does the plainest one |
-//! | 4 | `outcome: the asteroid breaks into its own art` | the path that already worked is untouched |
-//! | 5 | `outcome: no death spends more than its budget` | the budget is per BODY, not per mesh |
-//! | 6 | `outcome: no death came apart into nothing` | every shipped body has art to break into |
+//! | 4 | `outcome: ordinary carving leaves a viable asteroid` | a rock has geometry, not health |
+//! | 5 | `outcome: the asteroid exhausts its own geometry` | its field, not a slicer, ends it |
+//! | 6 | `outcome: no death spends more than its budget` | the budget is per BODY, not per mesh |
+//! | 7 | `outcome: no death came apart into nothing` | every shipped body has art to break into |
 //!
-//! Invariant 6 is the whole-run claim. There is no fallback any more: a body
+//! Invariant 7 is the whole-run claim. There is no fallback any more: a body
 //! whose geometry walk comes back empty emits NOTHING and logs it. That makes
 //! this range the only thing standing between a silent failure and a shipped
 //! build, so a single empty walk anywhere in the run is a failure.
@@ -89,7 +90,7 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_rig);
     #[cfg(feature = "debug")]
     {
-        app.add_systems(Update, tally_debris);
+        app.add_systems(Update, (tally_debris, tally_carved_chunks));
         app.add_observer(watch_body_fragments);
     }
 }
@@ -122,6 +123,8 @@ struct FinaleProbe {
     /// also contains whatever the collapse took with it. A window count would
     /// blame one body for two bodies' debris.
     most_from_one_body: usize,
+    /// Real chunks emitted by geometry-authoritative carving.
+    carved_chunks: usize,
     /// The body the current beat is killing.
     target: Option<Entity>,
 }
@@ -138,6 +141,13 @@ impl FinaleProbe {
 #[cfg(feature = "debug")]
 fn tally_debris(q_new: Query<(), Added<MeshFragmentMarker>>, mut probe: ResMut<FinaleProbe>) {
     probe.fragments += q_new.iter().count();
+}
+
+/// Count chunks separately from random-plane finale fragments. A rock ends by
+/// exhausting its field, so seeing it enter `ExplodeFragments` is a failure.
+#[cfg(feature = "debug")]
+fn tally_carved_chunks(q_new: Query<(), Added<CarvedChunkMarker>>, mut probe: ResMut<FinaleProbe>) {
+    probe.carved_chunks += q_new.iter().count();
 }
 
 /// Record what ONE body's geometry walk produced, at the body, before any of it
@@ -207,20 +217,20 @@ fn finale_script() -> Script {
             assert_broke_into_art(world, "hull", "outcome: the hull breaks into its own art");
         })
         .add()
-        // The body that always worked, to prove nothing regressed under it.
-        .step("kill the asteroid")
-        .on_enter(kill_asteroid)
-        .until(target_is_gone())
+        .step("carve the asteroid without ending it")
+        .on_enter(carve_asteroid_once)
+        .until(elapsed(0.5))
+        .add()
+        .step("assert ordinary carving leaves a viable asteroid")
+        .on_enter(assert_asteroid_is_geometry_authoritative)
+        .add()
+        .step("exhaust the asteroid field")
+        .on_enter(exhaust_asteroid)
+        .until(asteroid_destroyed())
         .deadline(REACT_SECS)
         .add()
-        .step("assert the asteroid still fragments")
-        .on_enter(|world: &mut World| {
-            assert_broke_into_art(
-                world,
-                "asteroid",
-                "outcome: the asteroid breaks into its own art",
-            );
-        })
+        .step("assert the asteroid ended through its field")
+        .on_enter(assert_asteroid_exhausted)
         .add()
         .step("assert one death, one finale")
         .on_enter(assert_one_finale_per_death)
@@ -269,10 +279,9 @@ fn kill_section(name: &'static str) -> impl Fn(&mut World) + Send + Sync + 'stat
     }
 }
 
-/// Kill the asteroid's collider/health node, which is where a rock's health
-/// lives - the root above it is a bare `RigidBody` husk.
+/// The scenario rock and its collider/field node.
 #[cfg(feature = "debug")]
-fn kill_asteroid(world: &mut World) {
+fn rock_and_node(world: &World) -> (Entity, Entity) {
     let rock = world
         .try_query_filtered::<(Entity, &EntityId), With<AsteroidMarker>>()
         .and_then(|mut q| {
@@ -281,23 +290,111 @@ fn kill_asteroid(world: &mut World) {
                 .map(|(entity, _)| entity)
         })
         .expect("finale probe: the range must have spawned its rock");
-
     let node = world
         .get::<Children>(rock)
         .and_then(|children| children.iter().next())
-        .expect("finale probe: a rock carries its health on a child node");
-    let health = world
-        .get::<Health>(node)
-        .expect("finale probe: the rock's node has health")
-        .current;
+        .expect("finale probe: a rock carries a collider node");
+    (rock, node)
+}
 
-    mark_and_target(world, node);
-    info!("finale probe: killing the asteroid ({node:?}, {health} hp)");
-    world.trigger(HealthApplyDamage {
-        entity: node,
-        source: None,
-        amount: health,
-    });
+/// Take one visible bite. A viable rock must remain a rock afterward.
+#[cfg(feature = "debug")]
+fn carve_asteroid_once(world: &mut World) {
+    let (rock, node) = rock_and_node(world);
+    let centre = world
+        .get::<GlobalTransform>(rock)
+        .map_or(Vec3::ZERO, GlobalTransform::translation);
+    let surface = RockHeight::default().with_seed(7).sampler().radius(Vec3::Z) * 3.0;
+    let mut commands = world.commands();
+    apply_damage(
+        &mut commands,
+        node,
+        None,
+        1200.0,
+        Some(centre + Vec3::Z * surface),
+    );
+    world.flush();
+}
+
+/// Prove normal carving did not consult a hidden kill counter.
+#[cfg(feature = "debug")]
+fn assert_asteroid_is_geometry_authoritative(world: &mut World) {
+    let (rock, node) = rock_and_node(world);
+    assert!(
+        world.get::<Health>(node).is_none(),
+        "finale probe: a normal asteroid still carries a health kill gate"
+    );
+    assert!(
+        world.get::<AsteroidField>(node).is_some(),
+        "finale probe: the ordinary hit did not establish a carve field"
+    );
+    assert!(
+        world.get_entity(rock).is_ok(),
+        "finale probe: an ordinary crater ended a viable asteroid"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: ordinary carving leaves a viable asteroid",
+        serde_json::json!({ "healthless": true, "field": true }),
+    );
+}
+
+/// Remove every sampled corner with one paid sphere centred on the body.
+#[cfg(feature = "debug")]
+fn exhaust_asteroid(world: &mut World) {
+    let (rock, node) = rock_and_node(world);
+    let centre = world
+        .get::<GlobalTransform>(rock)
+        .map_or(Vec3::ZERO, GlobalTransform::translation);
+    let mut probe = world.resource_mut::<FinaleProbe>();
+    probe.mark = (probe.fragments, probe.empty);
+    probe.carved_chunks = 0;
+    probe.target = Some(rock);
+    let mut commands = world.commands();
+    apply_damage(&mut commands, node, None, 2_000_000.0, Some(centre));
+    world.flush();
+}
+
+#[cfg(feature = "debug")]
+fn asteroid_destroyed() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        matches!(
+            world
+                .get_resource::<NovaEventWorld>()
+                .and_then(|events| events.get_variable("rock_destroyed")),
+            Some(VariableLiteral::Number(count)) if *count >= 1.0
+        )
+    })
+}
+
+/// The rock ended at field exhaustion, emitted bounded carve debris, and never
+/// entered the health-driven random slicer.
+#[cfg(feature = "debug")]
+fn assert_asteroid_exhausted(world: &mut World) {
+    let probe = world.resource::<FinaleProbe>();
+    let (fragments, empty) = probe.since_mark();
+    let chunks = probe.carved_chunks;
+    assert_eq!(
+        fragments, 0,
+        "a healthless asteroid entered the mesh slicer"
+    );
+    assert_eq!(empty, 0, "a healthless asteroid entered an empty finale");
+    assert!(
+        (1..=3).contains(&chunks),
+        "field exhaustion emitted {chunks} carve chunks instead of a bounded 1..=3"
+    );
+    let destroyed = world
+        .resource::<NovaEventWorld>()
+        .get_variable("rock_destroyed");
+    assert!(
+        matches!(destroyed, Some(VariableLiteral::Number(count)) if *count == 1.0),
+        "asteroid OnDestroyed fired {destroyed:?} times instead of once"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the asteroid exhausts its own geometry",
+        serde_json::json!({ "fragments": fragments, "chunks": chunks, "destroyed": 1 }),
+    );
 }
 
 /// Open a beat: snapshot the debris counts and record what is about to die, so
@@ -461,47 +558,76 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
 
     ScenarioConfig {
         description: "Every destructible body breaking into its own art.".to_string(),
-        events: vec![ScenarioEventConfig {
-            name: EventConfig::OnStart,
-            filters: vec![],
-            actions: [
-                vec![
-                    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
-                        base: BaseScenarioObjectConfig {
-                            id: "player_ship".to_string(),
-                            name: "Rig Ship".to_string(),
-                            position: Vec3::ZERO,
-                            rotation: Quat::IDENTITY,
-                        },
-                        kind: ScenarioObjectKind::Spaceship(ship),
-                    }),
-                    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
-                        base: BaseScenarioObjectConfig {
-                            id: ROCK.to_string(),
-                            name: "Range Rock".to_string(),
-                            // Off the beam and well clear: a rock that drifts
-                            // into the rig rams it, and ram damage would kill
-                            // sections the script has not scheduled yet.
-                            position: Vec3::new(0.0, 0.0, -40.0),
-                            rotation: Quat::IDENTITY,
-                        },
-                        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                            radius: 3.0,
-                            texture: game_assets.asteroid_texture.clone().into(),
-                            durability: AsteroidDurability::Fixed(100.0),
-                            impact_sound: None,
-                            destroy_sound: None,
-                            mass: None,
-                            invulnerable: false,
-                            lock_signature: None,
-                            seed: Some(7),
+        events: vec![
+            ScenarioEventConfig {
+                name: EventConfig::OnStart,
+                filters: vec![],
+                actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
+                    key: "rock_destroyed".to_string(),
+                    expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(0.0)),
+                    )),
+                })],
+            },
+            ScenarioEventConfig {
+                name: EventConfig::OnStart,
+                filters: vec![],
+                actions: [
+                    vec![
+                        EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                            base: BaseScenarioObjectConfig {
+                                id: "player_ship".to_string(),
+                                name: "Rig Ship".to_string(),
+                                position: Vec3::ZERO,
+                                rotation: Quat::IDENTITY,
+                            },
+                            kind: ScenarioObjectKind::Spaceship(ship),
                         }),
-                    }),
-                ],
-                ThreePointRig::around("rig", Vec3::ZERO, 1.0).actions(),
-            ]
-            .concat(),
-        }],
+                        EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                            base: BaseScenarioObjectConfig {
+                                id: ROCK.to_string(),
+                                name: "Range Rock".to_string(),
+                                // Off the beam and well clear: a rock that drifts
+                                // into the rig rams it, and ram damage would kill
+                                // sections the script has not scheduled yet.
+                                position: Vec3::new(0.0, 0.0, -40.0),
+                                rotation: Quat::IDENTITY,
+                            },
+                            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                                radius: 3.0,
+                                texture: game_assets.asteroid_texture.clone().into(),
+                                impact_sound: None,
+                                destroy_sound: None,
+                                mass: None,
+                                invulnerable: false,
+                                lock_signature: None,
+                                seed: Some(7),
+                            }),
+                        }),
+                    ],
+                    ThreePointRig::around("rig", Vec3::ZERO, 1.0).actions(),
+                ]
+                .concat(),
+            },
+            ScenarioEventConfig {
+                name: EventConfig::OnDestroyed,
+                filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+                    id: Some(ROCK.to_string()),
+                    ..default()
+                })],
+                actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
+                    key: "rock_destroyed".to_string(),
+                    expression: VariableExpressionNode::new_add(
+                        VariableTermNode::new_factor(VariableFactorNode::new_name(
+                            "rock_destroyed".to_string(),
+                        )),
+                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                            VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                        )),
+                    ),
+                })],
+            },
+        ],
         ..ScenarioConfig::new(
             "destruction_finale".to_string(),
             "Destruction Finale Range".to_string(),

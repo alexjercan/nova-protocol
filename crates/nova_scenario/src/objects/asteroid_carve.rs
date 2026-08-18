@@ -41,6 +41,7 @@
 
 use avian3d::prelude::{AngularVelocity, Collider, ColliderDensity, LinearVelocity};
 use bevy::prelude::*;
+use nova_events::prelude::{CommandsGameEventExt, *};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::BodyRadius;
 
@@ -90,6 +91,11 @@ pub struct AsteroidField {
     /// NOT a count. Repeated fire grows a mark's radius without growing the
     /// list, and a count would call that "nothing new" and never carve it.
     applied: u64,
+    /// Mark signature whose candidate was last attempted.
+    ///
+    /// A rejected surface waits for another mark rather than rebuilding the
+    /// same unusable collider every frame.
+    attempted: u64,
     /// Quantized solid volume at the last successful mesh and collider swap.
     ///
     /// Marks smaller than a grid cell still accumulate in `field`, but work
@@ -310,7 +316,16 @@ fn carve_asteroid_fields(
         Option<&Mesh3d>,
         Option<&MeshMaterial3d<AsteroidSurfaceMaterial>>,
     )>,
-    q_asteroid: Query<(&AsteroidSeed, &AsteroidRadius, &BodyRadius), With<AsteroidMarker>>,
+    q_asteroid: Query<
+        (
+            &AsteroidSeed,
+            &AsteroidRadius,
+            &BodyRadius,
+            Option<&EntityId>,
+            Option<&EntityTypeName>,
+        ),
+        With<AsteroidMarker>,
+    >,
     q_motion: Query<(
         &GlobalTransform,
         Option<&LinearVelocity>,
@@ -321,7 +336,7 @@ fn carve_asteroid_fields(
         if marks.0.is_empty() {
             continue;
         }
-        let Ok((seed, nominal, body)) = q_asteroid.get(*root) else {
+        let Ok((seed, nominal, body, id, type_name)) = q_asteroid.get(*root) else {
             continue;
         };
 
@@ -338,6 +353,7 @@ fn carve_asteroid_fields(
                 commands.entity(node).insert(AsteroidField {
                     field: seeded,
                     applied: 0,
+                    attempted: 0,
                     meshed_volume,
                 });
                 // The insert lands next flush, and this rock is carved the
@@ -362,64 +378,93 @@ fn carve_asteroid_fields(
         // surface topology. Keep accumulating it, but do not pay connectivity,
         // surface generation and collider rebuild until at least one cell is
         // observably gone.
-        if field.field.solid_volume() >= field.meshed_volume {
+        if field.field.solid_volume() >= field.meshed_volume || field.attempted == signature {
             continue;
         }
+        field.attempted = signature;
 
-        // A carve can cut material FREE without removing it: eat through the
-        // neck between two lobes and the far lobe is drawn and collided with by
-        // a body it is no longer attached to. Split BEFORE remeshing, so the
-        // rock's new mesh, collider and radius are all of what is left of it.
+        // Work on a candidate. Splitting mutates a field; doing it to the live
+        // one before collider validation can spawn duplicate islands and leave
+        // the old mesh around a different internal solid.
+        let mut candidate = field.field.clone();
         let started = std::time::Instant::now();
-        let islands = field.field.split_off_islands();
+        let islands = candidate.split_off_islands();
         let severed = started.elapsed();
         if !islands.is_empty() {
             debug!(
-                "carve_asteroid_fields: {node:?} severed {} piece(s) in {:.1} ms",
+                "carve_asteroid_fields: {node:?} found {} severed piece(s) in {:.1} ms",
                 islands.len(),
                 severed.as_secs_f32() * 1000.0
             );
-            let (centre, linear, angular) = match q_motion.get(*root) {
-                Ok((body, linear, angular)) => (
-                    body.translation(),
-                    linear.map_or(Vec3::ZERO, |velocity| velocity.0),
-                    angular.map_or(Vec3::ZERO, |velocity| velocity.0),
-                ),
-                Err(_) => (frame.translation(), Vec3::ZERO, Vec3::ZERO),
-            };
-            throw_severed_pieces(
-                &mut commands,
-                &mut meshes,
-                &Parent {
-                    node,
-                    frame: *frame,
-                    centre,
-                    linear,
-                    angular,
-                    material: chunk_material.cloned(),
-                },
-                &islands,
-            );
         }
 
+        let (scale, _, _) = frame.to_scale_rotation_translation();
+        let cubic_scale = (scale.x * scale.y * scale.z).abs();
+        let remaining_world = candidate.solid_volume() * cubic_scale;
         let started = std::time::Instant::now();
-        let surface = field.field.surface().build();
+        let surface = candidate.surface().build();
         let remeshed = started.elapsed();
 
         let started = std::time::Instant::now();
         let collider = Collider::trimesh_from_mesh(&surface);
         let rebuilt = started.elapsed();
 
+        let (centre, linear, angular) = match q_motion.get(*root) {
+            Ok((body, linear, angular)) => (
+                body.translation(),
+                linear.map_or(Vec3::ZERO, |velocity| velocity.0),
+                angular.map_or(Vec3::ZERO, |velocity| velocity.0),
+            ),
+            Err(_) => (frame.translation(), Vec3::ZERO, Vec3::ZERO),
+        };
+        let parent = Parent {
+            node,
+            frame: *frame,
+            centre,
+            linear,
+            angular,
+            material: chunk_material.cloned(),
+        };
+
+        if remaining_world < CHUNK_MIN_VOLUME || surface.count_vertices() == 0 {
+            debug!("carve_asteroid_fields: {node:?} exhausted at {remaining_world:.2} cubic units");
+            // The candidate is terminal, so its islands and final dust commit
+            // together with the root's destruction.
+            throw_severed_pieces(&mut commands, &mut meshes, &parent, &islands);
+            if remaining_world > 0.0 {
+                commands.trigger(CarveSpew {
+                    entity: node,
+                    at: candidate
+                        .surface_centre()
+                        .map_or(frame.translation(), |at| frame.transform_point(at)),
+                    radius: (remaining_world * 3.0 / (4.0 * std::f32::consts::PI)).cbrt(),
+                    volume: remaining_world,
+                });
+            }
+            // Reuse the common destruction cue seam without opting into its
+            // health or random-fragment finale.
+            commands.entity(node).insert(IntegrityDestroyMarker);
+            if let (Some(id), Some(type_name)) = (id, type_name) {
+                commands.fire::<OnDestroyedEvent>(OnDestroyedEventInfo {
+                    id: id.to_string(),
+                    type_name: type_name.to_string(),
+                });
+            }
+            commands.entity(*root).try_despawn();
+            continue;
+        }
         let Some(collider) = collider else {
-            // A rock carved into something parry will not accept is a rock
-            // that keeps the shape it had. Never leave a body without a
-            // collider: it would fall out of the world and stop stopping
-            // rounds.
-            warn!("carve_asteroid_fields: {node:?} carved into an unusable collider, kept");
+            warn!(
+                "carve_asteroid_fields: {node:?} candidate collider was unusable; kept prior state"
+            );
             continue;
         };
 
-        let surviving = field.field.surface_radius();
+        // Validation succeeded. Only now may the field and its islands become
+        // observable.
+        throw_severed_pieces(&mut commands, &mut meshes, &parent, &islands);
+        let surviving = candidate.surface_radius();
+        field.field = candidate;
         field.meshed_volume = field.field.solid_volume();
         debug!(
             "carve_asteroid_fields: {node:?} remesh {:.1} ms, collider {:.1} ms, \

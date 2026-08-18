@@ -268,20 +268,18 @@ fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
     )
 }
 
-/// An asteroid target. Health is the knob that decides whether it survives being
-/// hit: the gate scene wants gates a blast can destroy (arm -> home -> hit
-/// feedback), the crossing scene wants a target that outlives several torpedoes
-/// so the approach metric keeps accumulating.
+/// A geometry-authoritative asteroid target. The legacy health argument stays
+/// only to keep the range's gate table readable while size owns survival.
 fn gate(
     game_assets: &GameAssets,
     id: &str,
     name: &str,
     pos: Vec3,
     radius: f32,
-    health: f32,
+    _health: f32,
 ) -> ScenarioObjectConfig {
     // Unsigned: the gates are shot at over open sights, never radar-locked.
-    fixtures::asteroid(game_assets, id, name, pos, radius, health, None)
+    fixtures::asteroid(game_assets, id, name, pos, radius, None)
 }
 
 fn player_ship_object(sections: &GameSections) -> ScenarioObjectConfig {
@@ -298,8 +296,8 @@ fn player_ship_object(sections: &GameSections) -> ScenarioObjectConfig {
 
 /// Scene 1: the gate range - one player torpedo ship plus the target gates.
 fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
-    // Gates ahead of the ship (forward is -Z). Health is low enough that a
-    // torpedo blast destroys one, so you get arm -> home -> hit feedback.
+    // Gates ahead of the ship (forward is -Z). A torpedo blast visibly carves
+    // them, so the range gets arm -> home -> hit feedback without a kill gate.
     let objects = vec![
         player_ship_object(sections),
         gate(
@@ -368,8 +366,8 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
 /// laterally, fast, some way ahead. This is the scene built to answer one
 /// question the gate scene cannot: does the torpedo LEAD a mover?
 ///
-/// The crosser gets a lot of health so it survives being hit and the harness
-/// can keep measuring approach across several torpedoes.
+/// The crosser's full rock volume survives long enough for the harness to keep
+/// measuring approach across several torpedoes.
 fn crossing_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let objects = vec![
         player_ship_object(sections),
