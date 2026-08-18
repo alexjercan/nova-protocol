@@ -134,6 +134,24 @@ pub fn shot_written(path: impl Into<String>) -> Arc<Predicate> {
     resource_where::<crate::capture::CaptureLog>(move |log| log.wrote(&path))
 }
 
+/// Advance once the loop named `name` has been encoded and its webm is on
+/// disk - the await that closes a [`loop_end`](crate::loops::loop_end) step,
+/// mirroring [`shot_written`] shot for shot.
+///
+/// `name` is the loop name the step ended with; the ack key is its
+/// `<name>.webm` file name in [`CaptureLog`](crate::capture::CaptureLog).
+///
+/// On the SMOKE path it holds immediately, for the same reason
+/// [`shot_written`] does: an unarmed run records nothing, and this is the one
+/// place that difference belongs.
+pub fn loop_written(name: impl Into<String>) -> Arc<Predicate> {
+    if !crate::capture::capturing() {
+        return Arc::new(|_: &World| true);
+    }
+    let file = crate::loops::loop_file_name(&name.into());
+    resource_where::<crate::capture::CaptureLog>(move |log| log.wrote(&file))
+}
+
 /// Advance once both predicates hold.
 pub fn and(a: Arc<Predicate>, b: Arc<Predicate>) -> Arc<Predicate> {
     Arc::new(move |world: &World| a(world) && b(world))
@@ -228,6 +246,34 @@ mod tests {
         assert!(shot_written("never-written.png")(&World::new()));
     }
 
+    /// The loop ack mirrors the shot ack: keyed by the loop's webm file name,
+    /// false until the encode lands it in the log. Built the way
+    /// `loop_written` builds it on the ARMED path, for the same
+    /// env-racing reason as the shot test above.
+    #[test]
+    fn a_loop_ack_holds_only_once_the_webm_has_landed() {
+        let ack = resource_where::<crate::capture::CaptureLog>(|log| log.wrote("orbit.webm"));
+        let mut world = World::new();
+        world.init_resource::<crate::capture::CaptureLog>();
+        assert!(!ack(&world), "an empty log is not a written loop");
+
+        world
+            .resource_mut::<crate::capture::CaptureLog>()
+            .mark("orbit.webm");
+        assert!(ack(&world));
+    }
+
+    /// The smoke path records no loops, so the ack must hold immediately -
+    /// the same one-place branching as `shot_written`.
+    #[test]
+    fn a_loop_ack_holds_immediately_when_the_run_is_not_armed() {
+        assert!(
+            !crate::capture::capturing(),
+            "this test asserts the UNARMED branch; something set NOVA_CAPTURE"
+        );
+        assert!(loop_written("never-encoded")(&World::new()));
+    }
+
     #[test]
     fn state_is_reads_the_live_state() {
         let mut world = World::new();
@@ -278,9 +324,10 @@ mod tests {
 }
 
 /// The `Predicate` type and its combinators: time, frames, state, resource,
-/// entity and screenshot conditions plus `and`/`not`.
+/// entity, screenshot and loop conditions plus `and`/`not`.
 pub mod prelude {
     pub use super::{
-        and, any_entity, elapsed, frames, not, resource_where, shot_written, state_is, Predicate,
+        and, any_entity, elapsed, frames, loop_written, not, resource_where, shot_written,
+        state_is, Predicate,
     };
 }

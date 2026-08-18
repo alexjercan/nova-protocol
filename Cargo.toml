@@ -191,6 +191,18 @@ path = "examples/screenshots/screenshot_sections.rs"
 name = "screenshot_flight"
 path = "examples/screenshots/screenshot_flight.rs"
 
+# The webm loop producers (scripts/capture-web-media.sh): the same capture
+# idiom as the stills, with `loop_start`/`loop_end` recording every rendered
+# frame between them into a short VP9 webm for the docs site
+# (`nova_autopilot::loops`).
+[[example]]
+name = "loop_torpedo_blast"
+path = "examples/screenshots/loop_torpedo_blast.rs"
+
+[[example]]
+name = "loop_spine_cut"
+path = "examples/screenshots/loop_spine_cut.rs"
+
 [[example]]
 name = "render_scale_shot"
 path = "examples/screenshots/render_scale_shot.rs"

@@ -122,8 +122,10 @@ fn create_capture_dir(resolved: &std::path::Path) {
     }
 }
 
-/// Resolve an output path under [`SHOT_DIR_ENV`].
-fn capture_path(path: &str) -> PathBuf {
+/// Resolve an output path under [`SHOT_DIR_ENV`]. Shared with the loop
+/// recorder ([`crate::loops`]), whose staging frames and webm resolve under
+/// the same shot dir as every still.
+pub(crate) fn capture_path(path: &str) -> PathBuf {
     resolve_capture_path(std::env::var(SHOT_DIR_ENV).ok().as_deref(), path)
 }
 

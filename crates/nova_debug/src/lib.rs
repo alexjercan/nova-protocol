@@ -52,17 +52,19 @@ pub mod prelude {
             press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels, type_text,
             ui_node_centre, ui_node_rect,
         },
-        predicate::{and, any_entity, elapsed, frames, resource_where, shot_written, state_is},
+        predicate::{
+            and, any_entity, elapsed, frames, loop_written, resource_where, shot_written, state_is,
+        },
     };
 
     pub use super::{
         debugdump,
         harness::{
             assert_scenario_loaded, capture_window, capturing, force_capture_resolution,
-            freeze_bodies, hide_dev_overlays, hide_hud, nova_autopilot, nova_screenshot,
-            player_ship_present, pose_camera, scenario_camera_present, scenario_variable_is,
-            script_reports_done, section_gone, shoot, CaptureLog, NOVA_AUTOPILOT_STEP,
-            SETTLE_FRAMES, SHOT_DEADLINE_SECS,
+            freeze_bodies, hide_dev_overlays, hide_hud, loop_end, loop_start, nova_autopilot,
+            nova_screenshot, player_ship_present, pose_camera, scenario_camera_present,
+            scenario_variable_is, script_reports_done, section_gone, shoot, CaptureLog,
+            LoopCapturePlugin, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES, SHOT_DEADLINE_SECS,
         },
         screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE},
         DebugPlugin,

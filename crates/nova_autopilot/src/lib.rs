@@ -41,7 +41,7 @@
 //! | --- | --- | --- | --- |
 //! | `NOVA_AUTOPILOT` ([`AUTOPILOT_ENV`](autopilot::AUTOPILOT_ENV)) | the scripted state driver | [`AutopilotPlugin`](autopilot::AutopilotPlugin) | any (presence only) |
 //! | `NOVA_SHOT` ([`SCREENSHOT_ENV`](screenshot::SCREENSHOT_ENV)) | the single settled-frame capture, UNLESS `NOVA_AUTOPILOT` is also set - both drivers write `NextState`, so the autopilot wins and [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) stands down with a warning | [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) | `WxH` overrides the window size; anything else is a plain toggle |
-//! | `NOVA_CAPTURE` ([`CAPTURE_ENV`](capture::CAPTURE_ENV)) | the CAPTURE path of a script that has one - it takes its shots instead of driving straight through | [`capturing`](capture::capturing), which the script reads while building its steps | any (presence only) |
+//! | `NOVA_CAPTURE` ([`CAPTURE_ENV`](capture::CAPTURE_ENV)) | the CAPTURE path of a script that has one - it takes its shots (and records its [`loops`], which also pins the armed run's frame clock to the loop cadence) instead of driving straight through | [`capturing`](capture::capturing), which the script reads while building its steps | any (presence only) |
 //! | `NOVA_SHOT_DIR` ([`SHOT_DIR_ENV`](capture::SHOT_DIR_ENV)) | nothing on its own | [`capture_window`](capture::capture_window) | directory RELATIVE capture paths resolve under; absolute paths ignore it |
 //! | `NOVA_AUTOPILOT_DEADLINE` ([`DEADLINE_ENV`](completion::DEADLINE_ENV)) | nothing on its own | the [`completion`] watcher | seconds before the run error-exits naming the laggards (default [`DEFAULT_DEADLINE_SECS`](completion::DEFAULT_DEADLINE_SECS)); the RUN-level backstop under a script's own per-step [`deadline`](autopilot::StepBuilder::deadline)s |
 //!
@@ -88,6 +88,7 @@ pub mod exit;
 pub mod input;
 #[cfg(test)]
 mod log_capture;
+pub mod loops;
 pub mod predicate;
 pub mod screenshot;
 
@@ -124,9 +125,13 @@ pub mod prelude {
             press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels, type_text,
             ui_node_centre, ui_node_rect,
         },
+        loops::{
+            loop_end, loop_file_name, loop_start, LoopCapturePlugin, LOOP_CAPTURE, LOOP_CRF,
+            LOOP_FPS, LOOP_FRAME_CAP, LOOP_RESOLUTION,
+        },
         predicate::{
-            and, any_entity, elapsed, frames, not, resource_where, shot_written, state_is,
-            Predicate,
+            and, any_entity, elapsed, frames, loop_written, not, resource_where, shot_written,
+            state_is, Predicate,
         },
         screenshot::{ScreenshotPlugin, MAX_WAIT_FRAMES, SCREENSHOT_ENV},
     };
