@@ -44,6 +44,8 @@
             sccache # RUSTC_WRAPPER: content-hash compile cache shared safely across worktrees (task 20260721-000229)
             watchexec # file-watch driver for scripts/serve-mods.sh (the mod portal has no watch mode of its own)
             xvfb-run
+            mdbook # developer docs: book.toml at the root, source in docs/, published at /dev/
+            mdbook-mermaid # renders the book's ```mermaid fences
           ];
 
           buildInputs = with pkgs; [

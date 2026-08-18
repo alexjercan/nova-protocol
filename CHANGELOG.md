@@ -437,6 +437,8 @@ tagged **(breaking)**.
 - Built-in authoring content gains an explicit `base_content` inventory of
   chapters, backdrops, sandboxes, section prototypes and semantic parts;
   generated RON is unchanged.
+- Developer docs are an mdbook published at `/dev/`, sourced from `docs/`;
+  the ephemeral-docs scratchpad model is retired.
 
 ## [0.10.0] - 2026-08-13
 

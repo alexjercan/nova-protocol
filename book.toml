@@ -1,0 +1,16 @@
+[book]
+title = "Nova Protocol Developer Docs"
+authors = ["Alex Jercan"]
+language = "en"
+src = "docs"
+
+[build]
+build-dir = "book"
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output]
+
+[output.html]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]

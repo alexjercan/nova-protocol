@@ -6,7 +6,7 @@ Release from `master`. Use semantic versions and tags in the form `vX.Y.Z`.
 
 - [ ] Confirm the intended work is complete and `master` is green.
 - [ ] Review everything since the previous tag. Ensure user-visible changes are in `CHANGELOG.md` and affected wiki pages are current.
-- [ ] Distil any durable material from `docs/`, then leave only `docs/README.md`.
+- [ ] Confirm the developer book is current: `docs/` is the mdbook source, so pages the cycle's changes touched must already be updated (`nix develop --command mdbook build` is green).
 - [ ] Check the game, web build, and release-critical player paths.
 
 ## Set the version

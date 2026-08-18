@@ -15,14 +15,15 @@ Repository guidance. Global `~/AGENTS.md` applies.
   `backlog` at priority 0 or the current release tag.
 - Examples/retention: use declared examples or scripts, then the task folder;
   ask once and cache the answer in the task.
-- Domain docs: `web/src/wiki/`; use
-  `web/src/wiki/dev/keeping-docs-in-sync.md` as the routing map.
+- Domain docs: player/creator pages under `web/src/`, the developer mdbook
+  under `docs/`; use `docs/keeping-docs-in-sync.md` as the routing map.
 - Research/network: inspect the current tree first; keep `SPIKE.md` with the
   task; use network research only when local sources are insufficient.
 - Checks/records: use proof-bearing DoD and task-local NOTES, REVIEW, and RETRO;
   run only the affected checks below.
 - Changelog: one commit-title entry per change, 200 characters hard max; the
-  detail goes to `web/src/news/<version>.md`, the task folder, or `docs/`.
+  detail goes to `web/src/news/<version>.md` or the task folder. `docs/` is
+  the dev book source, not scratch; transient notes live outside the repo.
 
 ## Rules
 

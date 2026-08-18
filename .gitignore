@@ -11,6 +11,9 @@ dist/
 dump.dot
 dump.svg
 
+# mdbook output (book.toml build-dir); the source is docs/
+/book/
+
 # Default output of the nova_debug screenshot harness (NOVA_SHOT)
 screenshot.png
 
