@@ -266,8 +266,8 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                     "prey",
                     "Prey",
                     Vec3::new(0.0, 0.0, -40.0),
-                    2.0,
-                    60.0,
+                    // Small enough for real gunfire to exhaust its geometry.
+                    0.25,
                     Some(1000.0),
                 )),
                 // The waypoint: off the boresight (the radar pick is

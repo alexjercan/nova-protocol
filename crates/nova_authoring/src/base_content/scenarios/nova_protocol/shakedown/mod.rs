@@ -104,17 +104,9 @@ const BEACON_4_LOCK_SIGNATURE: f32 = 30.0;
 /// ring spawns still advances: a spawned area fires OnEnter for bodies it lands
 /// on (pinned in nova_scenario's area tests).
 const COAST_RING_RADIUS: f32 = 240.0;
-/// The live-fire rehearsal target: an inert hulk drifting near the old
-/// salvage field, OUTSIDE the SOI (a dynamic body inside it
-/// would fall into the planetoid). Its combat-lock range is short
-/// (signature = radius, ~75u) - the marker walks the player in.
+/// The live-fire rehearsal target: an inert three-section hulk drifting near
+/// the old salvage field, outside the SOI so it stays where the lesson put it.
 const DERELICT_POS: Vec3 = Vec3::new(300.0, -40.0, 40.0);
-const DERELICT_RADIUS: f32 = 2.5;
-const DERELICT_HEALTH: f32 = 150.0;
-/// Authored radar signature (x30 u/unit = 450u combat-lock range): the hulk
-/// must be paintable well before gun range (playtest 2026-07-13 - at the
-/// size-derived ~75u the player shot it before they could ever lock it).
-const DERELICT_LOCK_SIGNATURE: f32 = 15.0;
 /// The pirate spawns back at the debris cluster once the rehearsal is
 /// done, and patrols it.
 const PIRATE_SPAWN: Vec3 = Vec3::new(380.0, 40.0, -100.0);
@@ -409,10 +401,17 @@ fn beacon_with_signature(
     }
 }
 
-/// The live-fire rehearsal target: an inert asteroid-kind hulk - zero new spawn
-/// paths (asteroids lock, zoom in the viewfinder, and die); the inert-SHIP
-/// silhouette is recorded future polish.
-fn derelict(asteroid_texture: AssetRef<Image>) -> ScenarioObjectConfig {
+/// The live-fire rehearsal target: three connected light hull cells, with no
+/// pilot, systems or weapons. It teaches the ship damage model the next beat
+/// asks the player to use instead of making a rock impersonate a wreck.
+fn derelict() -> ScenarioObjectConfig {
+    let section = |id: &str, z: f32| SpaceshipSectionConfig {
+        id: id.to_string(),
+        position: Vec3::new(0.0, 0.0, z),
+        rotation: Quat::IDENTITY,
+        source: SectionSource::Prototype("light_hull_section".to_string()),
+        modifications: vec![],
+    };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ID_DERELICT.to_string(),
@@ -420,16 +419,15 @@ fn derelict(asteroid_texture: AssetRef<Image>) -> ScenarioObjectConfig {
             position: DERELICT_POS,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
-            destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
-            radius: DERELICT_RADIUS,
-            texture: asteroid_texture,
-            health: DERELICT_HEALTH,
-            mass: None,
-            invulnerable: false,
-            seed: None,
-            lock_signature: Some(DERELICT_LOCK_SIGNATURE),
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            controller: SpaceshipController::None,
+            allegiance: Some(Allegiance::Neutral),
+            hull: ships::inline_hull(vec![
+                section("hulk_fore", -1.0),
+                section("hulk_mid", 0.0),
+                section("hulk_aft", 1.0),
+            ]),
+            ..Default::default()
         }),
     }
 }
@@ -575,7 +573,6 @@ fn belt_rock(
             destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
             radius,
             texture: asteroid_texture,
-            health: 100.0,
             mass: None,
             invulnerable: false,
             seed: None,
@@ -658,7 +655,6 @@ pub(crate) fn shakedown_run(
             destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
             radius: PLANETOID_NOMINAL_RADIUS,
             texture: asteroid_texture.clone(),
-            health: 2000.0,
             mass: Some(PLANETOID_MASS),
             invulnerable: true,
             seed: None,
@@ -678,7 +674,6 @@ pub(crate) fn shakedown_run(
                 destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius,
                 texture: asteroid_texture.clone(),
-                health: 100.0,
                 mass: None,
                 invulnerable: false,
                 seed: None,
@@ -1122,7 +1117,7 @@ pub(crate) fn shakedown_run(
                 // skipped setup would strand the marker on the planetoid. It
                 // spawns back by the salvage field, outside the SOI. Only the
                 // break-away objective text waits for the line.
-                spawn_object(derelict(asteroid_texture.clone())),
+                spawn_object(derelict()),
                 detach_objective_marker(ID_PLANETOID),
                 attach_objective_marker(ID_DERELICT, "DERELICT"),
                 story_message(

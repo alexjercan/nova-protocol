@@ -59,11 +59,11 @@ use crate::sections::{
 
 /// The prelude: `SkinStructure`, `SkinPlate`, `PlacedPart`, `derive_skin`,
 /// `read_structure`, `section_cell`, `plate_body`, `SkinAssets`, `ShipSkin`,
-/// `ShipSkinMarker` and `ShipSkinPlugin`.
+/// `ShipSkinMarker`, `SkinSurfaceMarker` and `ShipSkinPlugin`.
 pub mod prelude {
     pub use super::{
         derive_skin, plate_body, read_structure, section_cell, PlacedPart, ShipSkin,
-        ShipSkinMarker, ShipSkinPlugin, SkinAssets, SkinPlate, SkinStructure,
+        ShipSkinMarker, ShipSkinPlugin, SkinAssets, SkinPlate, SkinStructure, SkinSurfaceMarker,
     };
 }
 
@@ -731,6 +731,10 @@ fn spawn_ship_skin(
             laid.push(Some(entity));
         }
 
+        // The root already remembers where the ship was hit - `DamageMarks` is
+        // a requirement of `SpaceshipRootMarker`. It used to be inserted HERE,
+        // on the theory that an unclad ship has no shape to carve, and that
+        // stopped being true the moment hull sections started carving too.
         let style = q_clad
             .get(root)
             .ok()
@@ -961,7 +965,7 @@ impl SkinAssets {
 /// simulation is already on it before this runs. One child per surface role,
 /// because one mesh carries one material.
 ///
-/// The style is found by walking UP from the plate, the same way `damage_tint`
+/// The style is found by walking UP from the plate, the same way `damage_cracks`
 /// finds a mesh's owning section. A plate hangs two levels under a live ship's
 /// root and one level under the editor's preview root, and neither is the
 /// plate's business to know about.
@@ -984,9 +988,42 @@ fn dress_skin_plate(
         .as_ref()
         .zip(worn_style(plate, &q_child_of, &q_style))
         .and_then(|(styles, worn)| worn.resolve(styles));
-    for (mesh, material) in assets.surfaces(*shape, style, &mut meshes, &mut materials) {
+    hang_surfaces(
+        &mut commands,
+        plate,
+        *shape,
+        style,
+        &mut assets,
+        &mut meshes,
+        &mut materials,
+    );
+}
+
+/// Tags a mesh a plate is drawn with, so re-dressing takes the old set off
+/// without touching anything else hanging on the plate - a greeble is a child
+/// too, and it belongs to the decoration system rather than this one.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct SkinSurfaceMarker;
+
+/// Hang one shape's meshes on a plate.
+///
+/// The first dressing and every re-dressing both come through here, so a worn
+/// plate is built exactly the way a fresh one is: same cache, same style
+/// lookup, same surface roles.
+fn hang_surfaces(
+    commands: &mut Commands,
+    plate: Entity,
+    shape: ShellShape,
+    style: Option<&ShipStyleConfig>,
+    assets: &mut SkinAssets,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+) {
+    for (mesh, material) in assets.surfaces(shape, style, meshes, materials) {
         commands.spawn((
             Name::new("Skin Surface"),
+            SkinSurfaceMarker,
             ChildOf(plate),
             Mesh3d(mesh),
             MeshMaterial3d(material),
@@ -1087,6 +1124,7 @@ impl Plugin for ShipSkinPlugin {
         );
 
         if self.render {
+            app.register_type::<SkinSurfaceMarker>();
             app.init_resource::<SkinAssets>();
             app.add_observer(dress_skin_plate);
             app.add_observer(dress_skin_decor);

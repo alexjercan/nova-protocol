@@ -152,7 +152,6 @@ pub(crate) fn menu_duel(
                 destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius: 1.0,
                 texture: asteroid_texture,
-                health: 100.0,
                 mass: None,
                 invulnerable: false,
                 seed: None,

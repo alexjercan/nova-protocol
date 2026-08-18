@@ -34,10 +34,17 @@ const TORPEDO_BASE_HEALTH: f32 = 100.0;
 
 // Authored per-hit Kinetic damage of the shared PDC, a playtest knob. A
 // point-defense profile: LOW per-hit, HIGH rate (100 rounds/s). At 4.0 the PDC
-// does ~400 DPS, while a 100-HP asteroid takes ~25 rounds (~0.25s of fire), so
-// a burst visibly chips it down rather than popping it in a blink (playtest:
-// "PDC destroys asteroids/objects with one bullet"). Was ~20.25 (the old
-// emergent per-hit); the drop also slows ship TTK ~5x, consistent with a PDC.
+// does ~400 DPS, while a 60-HP scavenger section takes 15 rounds (~0.15 s of
+// fire) instead of 3, so a burst visibly chips it down rather than popping it
+// in a blink (playtest: "PDC destroys asteroids/objects with one bullet"). Was
+// ~20.25 (the old emergent per-hit); the drop also slows ship TTK ~5x,
+// consistent with a PDC and with the shakedown pirate still dying in a short
+// burst.
+//
+// Rock is NOT priced here. An asteroid has no health pool since the carve pass:
+// its durability is the material left in it, priced at `DAMAGE_PER_UNIT_VOLUME`
+// (nova_gameplay::integrity::carve), which is calibrated AGAINST this number.
+// Moving this moves every rock's time-to-kill with it.
 //
 // Every craft now mounts this one gun, so this number is the whole gunnery
 // curve: a raider is made weaker by its HULL and its mount's health, not by a
@@ -229,6 +236,10 @@ fn pdc_turret_prototype(
             health: TURRET_BASE_HEALTH,
             impact_sound: Some(meshes.section_impact_sound.clone()),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
+            // A turret is all function - the barrel has to point and the mount
+            // has to turn - so it fails by sparking and never by losing a
+            // piece of itself.
+            damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
             // The mount the shipped craft carry: a small box that sits ON a
             // hull face instead of standing in for one, which is what lets ONE
             // turret serve every craft. The ten per-craft copies that used to
@@ -297,6 +308,9 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "reinforced_hull_section".to_string(),
+                // Material and nothing else, so the damage reads in the
+                // surface: it cracks, and its cladding leaves plate by plate.
+                damage_effects: DamageEffects(vec![DamageEffect::Cracks]),
                 name: "Reinforced Hull Section".to_string(),
                 description: "A reinforced hull section for spaceships.".to_string(),
                 mass: 1.0,
@@ -315,6 +329,13 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "basic_thruster_section".to_string(),
+                // A drive is machinery and a bell: it sparks and its
+                // plume guts, and it never loses a piece of itself.
+                damage_effects: DamageEffects(vec![
+                    DamageEffect::Cracks,
+                    DamageEffect::Sparks,
+                    DamageEffect::Plume,
+                ]),
                 name: "Basic Thruster Section".to_string(),
                 description: "A basic thruster section for spaceships.".to_string(),
                 mass: 1.0,
@@ -350,6 +371,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "basic_controller_section".to_string(),
+                damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
                 name: "Basic Controller Section".to_string(),
                 description: "A basic controller section for spaceships.".to_string(),
                 mass: 1.0,
@@ -386,6 +408,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "light_hull_section".to_string(),
+                damage_effects: DamageEffects::default(),
                 name: "Light Hull Section".to_string(),
                 description: "A thin-walled hull section; scavenger grade.".to_string(),
                 mass: 1.0,
@@ -449,6 +472,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "heavy_torpedo_section".to_string(),
+                damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
                 name: "Siege Torpedo Bay Section".to_string(),
                 description: "A capital-grade siege torpedo battery: slow salvo, \
                               armored ordnance, ship-killing blast."
@@ -532,6 +556,9 @@ fn torpedo_bay_prototype(
             // (`spawn_offset`), so the bow face is the open muzzle.
             link_points: unit_cube_link_points_without(Vec3::NEG_Z),
             hide_in_editor: false,
+            // A launcher is loading machinery: it arcs and sparks as it fails,
+            // and the tube it fires down stays a tube.
+            damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
         },
         kind: SectionKind::Torpedo(TorpedoSectionConfig {
             render_mesh: Some(meshes.torpedo_bay.clone()),
@@ -843,22 +870,32 @@ mod tests {
     }
 
     /// Anti-regression guard for the PDC one-shot fix: the player PDC's per-hit
-    /// must stay low enough that a 100-HP asteroid takes a sustained burst, not
-    /// a blink. At the old ~20.25 a 100-HP rock died in ~5 rounds (~50 ms); the
-    /// ceiling here keeps it at >= ~13 rounds. This fails if the PDC damage
-    /// creeps back toward the old value; it is a loose guard, not a precise
-    /// balance number (raise it consciously if playtest wants punchier).
+    /// must stay low enough that the softest thing it shoots at takes a burst
+    /// and not a blink. At the old ~20.25 a light hull section died in three
+    /// rounds - 30 ms of trigger - which is the "PDC destroys objects with one
+    /// bullet" playtest report.
+    ///
+    /// Anchored on the softest SHIPPED section, because the 100-HP asteroid the
+    /// guard used to cite has not existed since rocks stopped carrying a health
+    /// pool: a rock's durability is the material left in it, priced at
+    /// `DAMAGE_PER_UNIT_VOLUME`, and the smallest one a scenario scatters is
+    /// about 140 cubic units - some 280 rounds. The section is the tighter
+    /// bound, so it is the one worth guarding.
+    ///
+    /// A loose guard and not a balance number: raise it consciously if playtest
+    /// wants a punchier PDC.
     #[test]
     fn pdc_per_hit_stays_below_the_one_shot_ceiling() {
-        // A representative environment object (field asteroid) is 100 HP.
-        const ASTEROID_HP: f32 = 100.0;
+        /// `light_hull_section`: scavenger grade, and the least health any
+        /// shipped section carries.
+        const SOFTEST_SECTION_HEALTH: f32 = 60.0;
         const MIN_ROUNDS_TO_KILL: f32 = 12.0;
         const {
             assert!(
-                KINETIC_PDC_BULLET_DAMAGE <= ASTEROID_HP / MIN_ROUNDS_TO_KILL,
-                "PDC per-hit KINETIC_PDC_BULLET_DAMAGE would kill an \
-                 ASTEROID_HP-HP object in under MIN_ROUNDS_TO_KILL rounds - \
-                 too close to a one-shot pop"
+                KINETIC_PDC_BULLET_DAMAGE <= SOFTEST_SECTION_HEALTH / MIN_ROUNDS_TO_KILL,
+                "PDC per-hit KINETIC_PDC_BULLET_DAMAGE would kill the softest \
+                 shipped section in under MIN_ROUNDS_TO_KILL rounds - too close \
+                 to a one-shot pop"
             );
         }
     }

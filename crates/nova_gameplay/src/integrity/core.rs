@@ -115,6 +115,7 @@ fn on_impact_collision_deal_damage(
         (&LinearVelocity, &ComputedMass),
         (With<RigidBody>, Without<crate::damage::NovaBlast>),
     >,
+    q_where: Query<&GlobalTransform>,
 ) {
     let collider1 = collision.collider1;
     let collider2 = collision.collider2;
@@ -142,7 +143,15 @@ fn on_impact_collision_deal_damage(
         "on_impact_collision: collider {:?} (body {:?}) rammed by {:?} (body {:?}) for {amount:.2}",
         collider1, body, collider2, other
     );
-    apply_damage(&mut commands, collider1, Some(collider2), amount);
+    // Where the rammer IS, which for a contact is where it hit to within the
+    // half-cell the carve is quantized to anyway. Avian reports the pair, not
+    // the manifold, so a true contact point would cost a second lookup for a
+    // precision nothing downstream can draw.
+    let at = q_where
+        .get(collider2)
+        .ok()
+        .map(|transform| transform.translation());
+    apply_damage(&mut commands, collider1, Some(collider2), amount, at);
 }
 
 /// Hit points a ram deals: the impulse term plus the energy the collision

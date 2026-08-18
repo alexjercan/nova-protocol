@@ -11,7 +11,7 @@
 //! a collider and the marker on a gameplay root while its art hangs off
 //! `SectionRenderOf` descendants under a gltf `WorldAssetRoot`, so a finale
 //! gated on `Mesh3d` at the gameplay entity found nothing on every section ever
-//! shipped and sent all of them to the generic cube burst.
+//! shipped and sent all of them to a burst of generic cubes.
 //!
 //! The fix is not a wider filter. Two observers agreeing about whether geometry
 //! exists is what let one death emit both real fragments and fallback cubes, so
@@ -19,9 +19,32 @@
 //! ([`handle_explosion`](crate::mesh::explode)) and its RESULT - a possibly
 //! empty [`ExplodeFragments`] - is the only thing the finale branches on.
 //!
+//! # There is no fallback
+//!
+//! An empty walk emits NOTHING and says so in the log. The generic cube burst
+//! that used to run there is gone, and its absence is the point: it made a body
+//! that had silently failed to come apart look like a body that had come apart
+//! badly, so the bug behind it survived every playtest that saw it. Every
+//! shipped body has art to break into, and `destruction_finale` asserts that.
+//!
+//! # The finale is RATIONED, the death is not
+//!
+//! A structure does not die section by section. The frame a ship comes apart,
+//! every section left on it is destroyed at once, so the finale is never asked
+//! for one body's debris - it is asked for two hundred bodies' debris inside one
+//! command flush. See [`FINALE_BODY_BUDGET`].
+//!
+//! What is rationed is only the SPAWNING. The body itself leaves the field the
+//! moment it dies, whatever the queue looks like, because a zero-health wreck
+//! left standing keeps a live collider and working capabilities. So the queue
+//! holds resolved spawn records rather than dying entities, and everything they
+//! need is read out of the world before the body goes.
+//!
 //! Touch this module to change how wrecks come apart (fragment count, spread,
 //! lifetime). Health, disable, and destroy bookkeeping lives in the generic
 //! [`core`](super::core) integrity layer; structure owners publish its graph.
+
+use std::collections::VecDeque;
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -31,15 +54,16 @@ use rand::RngExt;
 
 use super::components::prelude::*;
 use crate::{
-    integrity::neutralize::prelude::DefeatedMarker,
+    integrity::{chunk::prelude::chunk_collider, neutralize::prelude::DefeatedMarker},
     lifetime::TempEntity,
     mesh::prelude::{ExplodeFragments, ExplodeMesh},
     prelude::SpaceshipRootMarker,
 };
 
-/// `ExplodableEntity`, `MeshFragmentMarker` and the per-body fragment budget.
+/// `ExplodableEntity`, `FragmentMaterial`, `MeshFragmentMarker` and the
+/// per-body fragment budget.
 pub mod prelude {
-    pub use super::{ExplodableEntity, MeshFragmentMarker, BODY_FRAGMENT_BUDGET};
+    pub use super::{ExplodableEntity, FragmentMaterial, MeshFragmentMarker, BODY_FRAGMENT_BUDGET};
 }
 
 /// How long a sliced mesh fragment survives before it despawns.
@@ -65,19 +89,21 @@ const MESH_FRAGMENT_LIFETIME_SECS: f32 = 30.0;
 /// against a copy that could drift.
 pub const BODY_FRAGMENT_BUDGET: usize = 4;
 
-/// The thinnest a fragment's collider may be, in the mesh's own units.
+/// How many destroyed bodies may have their debris spawned in ONE frame.
 ///
-/// Ship art is full of FLAT panels, and a cut across one leaves coplanar
-/// vertices. parry hulls those into a shape with no volume, avian gives a
-/// volumeless dynamic body zero mass AND zero inertia, and the solver divides
-/// by it: the body's swept AABB comes back NaN and avian asserts on it frames
-/// later, deep inside `update_solver_body_aabbs`
-/// (`assertion failed: b.min.cmple(b.max).all()`). That took down a
-/// capital-scale fight the first time sections fragmented for real.
+/// The frame a ship comes apart is the worst frame in the game, and the reason
+/// is a COUNT: 201 bodies entered the finale together in the worst measured, and
+/// each of them spends [`BODY_FRAGMENT_BUDGET`]. Eight hundred colliders, eight
+/// hundred archetype moves and two hundred recursive despawns in one command
+/// flush is a third of a second, and no unit price is what makes it - the same
+/// work spread out is unremarkable.
 ///
-/// Asteroids never found this. A rock is a blob and every piece of one has
-/// volume; it took section art to produce a flat shard.
-const FRAGMENT_MIN_THICKNESS: f32 = 0.02;
+/// Eight covers that worst case in about twenty-five frames, which is 0.4 s at
+/// 60 Hz: long enough that a big wreck reads as a chain of secondary detonations
+/// rather than one pop, short enough that a section's own death still looks
+/// immediate. It is the shape that fixed the carve spike - a reach gate plus a
+/// one-per-frame solidify ceiling - applied to the other end of a body's life.
+const FINALE_BODY_BUDGET: usize = 8;
 
 /// Marker component to indicate that an entity can be exploded.
 #[derive(Component, Clone, Debug, Default, Reflect)]
@@ -88,139 +114,108 @@ pub struct ExplodableEntity;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct MeshFragmentMarker;
 
+/// What the pieces of this body should be DRAWN with when it comes apart.
+///
+/// Carried by a render entity whose own material its fragments must not
+/// inherit. Two reasons, and the second is the one that matters:
+///
+/// - the finale can only clone a `StandardMaterial`, so a body wearing any
+///   other material type had nothing to hand its fragments and fell through the
+///   geometry walk entirely;
+/// - and it should not hand them its own anyway. The rock and section shaders
+///   sample by the body's OWN LOCAL POSITION - which is what stops the pattern
+///   swimming as the body tumbles - so a fragment, being a new body with a new
+///   origin, would draw that pattern from the wrong place. A chunk is not a
+///   small copy of the thing it broke off.
+///
+/// Absent means the fragments inherit the entity's own `StandardMaterial`,
+/// which is what every plainly-materialled body already did and still does.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct FragmentMaterial(pub Handle<StandardMaterial>);
+
+/// Bare debris: what a piece is drawn with when nothing better is on offer.
+///
+/// The last resort of the MATERIAL question, which is a different question from
+/// the geometry one - a body can have perfectly good geometry to come apart
+/// into and still wear a material its fragments cannot inherit. Anonymous grey
+/// metal is a poor look and a much better one than an undrawn chunk.
+fn debris_material() -> StandardMaterial {
+    StandardMaterial {
+        base_color: Color::srgb(0.35, 0.35, 0.38),
+        perceptual_roughness: 0.9,
+        metallic: 0.4,
+        ..default()
+    }
+}
+
+/// One piece of a body that has died, resolved and waiting for a frame with
+/// room to spawn it.
+///
+/// Every field is read at the moment of death, because the body and the render
+/// entity this piece came off are both gone by the time it is spawned. The
+/// handles are strong, which is what keeps the sliced geometry and its material
+/// alive after the body's [`ExplodeFragments`] has been dropped with it.
+struct PendingFragment {
+    /// The sliced geometry.
+    mesh: Handle<Mesh>,
+    /// What to draw it with, already resolved through [`FragmentMaterial`].
+    material: MeshMaterial3d<StandardMaterial>,
+    /// Where it starts, already pushed out along its escape direction.
+    transform: Transform,
+    /// Its kick plus whatever the body was doing at that point.
+    velocity: Vec3,
+}
+
+/// One dead body's pieces, waiting their turn together.
+struct PendingFinale {
+    /// What died. ALREADY DESPAWNED - kept only to name its debris.
+    body: Entity,
+    /// Its resolved pieces.
+    fragments: Vec<PendingFragment>,
+}
+
+/// The finales that have not been spawned yet, oldest first.
+#[derive(Resource, Default)]
+struct FinaleQueue(VecDeque<PendingFinale>);
+
 pub(super) struct ExplodablePlugin;
 
 impl Plugin for ExplodablePlugin {
     fn build(&self, app: &mut App) {
         debug!("ExplodablePlugin: build");
 
+        app.init_resource::<FinaleQueue>();
         app.add_observer(on_add_explodable_entity);
         app.add_observer(on_destroyed_entity);
         app.add_observer(on_explode_entity);
         app.add_observer(handle_entity_explosion);
         app.add_observer(despawn_destroyed_without_finale);
+        app.add_systems(PreUpdate, spawn_pending_finales);
     }
 }
 
-/// Scatter a short-lived burst of generic cubes, for a body that had no render
-/// geometry to come apart into.
+/// The centre, drift and spin of the nearest body at or above `entity` that is
+/// moving, or `None` when nothing in the chain is.
 ///
-/// The LAST RESORT, not the section path. It runs when the geometry walk came
-/// back empty: art that has not finished loading (a gltf `WorldAssetRoot` scene
-/// instantiates asynchronously, and a section can die before it lands), a body
-/// that draws nothing, or a mesh the slicer could not interpret. Anything with
-/// real geometry breaks into that geometry instead.
-///
-/// Called from [`handle_entity_explosion`] rather than observing destruction on
-/// its own, because "no geometry" is only knowable AFTER the walk - and two
-/// observers each deciding it separately is how one death used to emit both
-/// cubes and fragments.
-fn spawn_fallback_burst(
-    commands: &mut Commands,
+/// A section carries no velocity of its own: it is a child of the ship's rigid
+/// body, and avian keeps the velocity there. So a fragment's inheritance is a
+/// walk, not a lookup.
+fn moving_body(
     entity: Entity,
-    origin: Vec3,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    rng: &mut WyRand,
-) {
-    trace!(
-        "spawn_fallback_burst: bursting {:?} with no geometry",
-        entity
-    );
-
-    let mesh = meshes.add(Cuboid::new(0.25, 0.25, 0.25));
-    let material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.35, 0.35, 0.38),
-        perceptual_roughness: 0.9,
-        metallic: 0.4,
-        ..default()
-    });
-
-    for _ in 0..8 {
-        let direction = Vec3::new(
-            rng.random_range(-1.0..1.0),
-            rng.random_range(-1.0..1.0),
-            rng.random_range(-1.0..1.0),
-        )
-        .normalize_or_zero();
-        let velocity = direction * rng.random_range(3.0..7.0);
-
-        commands.spawn((
-            MeshFragmentMarker,
-            Name::new("Fallback Debris"),
-            Mesh3d(mesh.clone()),
-            MeshMaterial3d(material.clone()),
-            Transform::from_translation(origin + direction * 0.3),
-            RigidBody::Dynamic,
-            Collider::cuboid(0.25, 0.25, 0.25),
-            LinearVelocity(velocity),
-            AngularVelocity(Vec3::new(
-                rng.random_range(-6.0..6.0),
-                rng.random_range(-6.0..6.0),
-                rng.random_range(-6.0..6.0),
-            )),
-            TempEntity(2.0),
-        ));
-    }
-}
-
-/// A collider avian can actually simulate for a fragment of `mesh`, or `None`
-/// when the mesh has no bounds to work from and there is nothing to spawn.
-///
-/// Prefers the true convex hull, and falls back to the mesh's own bounding box
-/// padded to [`FRAGMENT_MIN_THICKNESS`] whenever that hull would leave the body
-/// without mass. MASS is the property tested rather than the vertex layout,
-/// because it is the one the solver divides by - a hull can be judged
-/// non-degenerate by its bounds and still come back with none.
-///
-/// A slightly boxy shard inside a debris burst that lasts a few seconds is not
-/// something a player can see. A NaN rigid body is a crash.
-fn fragment_collider(mesh: &Mesh) -> Option<Collider> {
-    let (centre, half) = mesh_bounds(mesh)?;
-
-    if half.min_element() > FRAGMENT_MIN_THICKNESS {
-        if let Some(hull) = Collider::convex_hull_from_mesh(mesh) {
-            if hull.mass_properties(1.0).mass > 0.0 {
-                return Some(hull);
-            }
+    q_parents: &Query<&ChildOf>,
+    q_motion: &Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
+) -> Option<(Vec3, Vec3, Vec3)> {
+    let mut current = entity;
+    loop {
+        if let Ok((frame, linear, angular)) = q_motion.get(current) {
+            return Some((
+                frame.translation(),
+                linear.0,
+                angular.map_or(Vec3::ZERO, |angular| angular.0),
+            ));
         }
+        current = q_parents.get(current).ok()?.0;
     }
-
-    // Offset by the bounds' centre: a fragment is a piece cut off a bigger
-    // mesh, so its geometry sits wherever it sat in the original and a box
-    // centred on the entity would not cover it.
-    let padded = half.max(Vec3::splat(FRAGMENT_MIN_THICKNESS));
-    Some(Collider::compound(vec![(
-        centre,
-        Quat::IDENTITY,
-        Collider::cuboid(padded.x * 2.0, padded.y * 2.0, padded.z * 2.0),
-    )]))
-}
-
-/// A mesh's local centre and half extents, or `None` when it carries no finite
-/// positions to measure.
-///
-/// Read straight off the position attribute rather than through bevy's
-/// `compute_aabb`, so the finite check is on the numbers this module is about
-/// to hand to the physics engine.
-fn mesh_bounds(mesh: &Mesh) -> Option<(Vec3, Vec3)> {
-    use bevy::mesh::VertexAttributeValues;
-    let VertexAttributeValues::Float32x3(positions) = mesh.attribute(Mesh::ATTRIBUTE_POSITION)?
-    else {
-        return None;
-    };
-
-    let mut min = Vec3::splat(f32::INFINITY);
-    let mut max = Vec3::splat(f32::NEG_INFINITY);
-    for position in positions {
-        let point = Vec3::from_array(*position);
-        if !point.is_finite() {
-            return None;
-        }
-        min = min.min(point);
-        max = max.max(point);
-    }
-    (min.cmple(max).all()).then(|| ((min + max) * 0.5, (max - min) * 0.5))
 }
 
 /// Despawn a destroyed entity that the finale does not own.
@@ -371,20 +366,45 @@ fn on_explode_entity(
 ///
 /// Branches on what the geometry walk actually produced rather than on a
 /// predicate about what it might produce. A non-empty [`ExplodeFragments`]
-/// becomes physics debris; an empty one - unloaded art, a body that draws
-/// nothing, a mesh the slicer declined - becomes the fallback burst. One
-/// destroyed body therefore emits one or the other and never both, which two
-/// independent observers could not guarantee.
+/// becomes physics debris.
+///
+/// An empty one becomes NOTHING, and that is a deliberate refusal rather than a
+/// gap. There used to be a burst of eight generic cubes here, and the trouble
+/// with it was not that it looked bad - it was that it looked like SOMETHING, so
+/// a body that had silently failed to come apart was indistinguishable from a
+/// body that had come apart badly. Every shipped body has art to break into; a
+/// body that reaches this branch has a bug behind it (art still loading, a mesh
+/// the slicer declined), and the log line is the thing that gets it fixed. The
+/// `destruction_finale` range asserts this branch never runs on shipped content.
 ///
 /// Despawns the body either way, on every path including the error ones. It is
 /// the only thing that despawns a destroyed explodable, so an early return
 /// leaves a zero-health wreck standing with a live collider.
+///
+/// RESOLVES the pieces here and SPAWNS them later, in
+/// [`spawn_pending_finales`]. That split is what lets the spawning be rationed
+/// without the death being rationed with it - see the module docs. Everything a
+/// piece needs is read now, because the body and its render descendants are
+/// despawned before its turn comes.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the walk for inherited motion brings its own two queries"
+)]
 fn handle_entity_explosion(
     add: On<Add, ExplodeFragments>,
     mut commands: Commands,
+    mut queue: ResMut<FinaleQueue>,
     q_explode: Query<(&ExplodeFragments, Option<&GlobalTransform>), With<ExplodableEntity>>,
-    q_mesh: Query<(&GlobalTransform, &MeshMaterial3d<StandardMaterial>), With<Mesh3d>>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    q_mesh: Query<
+        (
+            &GlobalTransform,
+            Option<&MeshMaterial3d<StandardMaterial>>,
+            Option<&FragmentMaterial>,
+        ),
+        With<Mesh3d>,
+    >,
+    q_parents: Query<&ChildOf>,
+    q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
@@ -398,30 +418,49 @@ fn handle_entity_explosion(
         );
         return;
     };
-    // Where the body was, for the fallback burst and for aiming whole pieces
-    // away from the middle of the wreck.
+    // Where the body was, for aiming whole pieces away from the middle of the
+    // wreck.
     let centre = body.map(|transform| transform.translation());
+    // And how it was moving, so its pieces leave with it. A section is a child
+    // of the rigid body, not the body itself, so this walks up for the nearest
+    // thing that has a velocity at all.
+    let motion = moving_body(entity, &q_parents, &q_motion);
 
     if fragments.is_empty() {
-        spawn_fallback_burst(
-            &mut commands,
-            entity,
-            centre.unwrap_or(Vec3::ZERO),
-            &mut meshes,
-            &mut materials,
-            &mut rng,
+        error!(
+            "handle_entity_explosion: {entity:?} died with no geometry to come \
+             apart into - nothing was emitted"
         );
         commands.entity(entity).despawn();
         return;
     }
 
+    // Minted at most once for the whole body, and only if something actually
+    // needs it: a body wearing an exotic material that never named a fragment
+    // material still has to come apart as SOMETHING, and bare debris grey is a
+    // better answer than not drawing the piece at all.
+    let mut anonymous: Option<Handle<StandardMaterial>> = None;
+    let mut pending = Vec::with_capacity(fragments.len());
+
     for fragment in fragments.iter() {
-        let Ok((transform, mesh_material)) = q_mesh.get(fragment.origin) else {
+        let Ok((transform, own_material, fragment_material)) = q_mesh.get(fragment.origin) else {
             error!(
                 "handle_entity_explosion: mesh_entity {:?} not found in q_mesh.",
                 fragment.origin,
             );
             continue;
+        };
+        // A named fragment material wins, then the entity's own standard one.
+        // See `FragmentMaterial` for why a body that names one is not just
+        // working around a type mismatch.
+        let mesh_material = match (fragment_material, own_material) {
+            (Some(FragmentMaterial(handle)), _) => MeshMaterial3d(handle.clone()),
+            (None, Some(material)) => material.clone(),
+            (None, None) => MeshMaterial3d(
+                anonymous
+                    .get_or_insert_with(|| materials.add(debris_material()))
+                    .clone(),
+            ),
         };
 
         let transform = transform.compute_transform();
@@ -434,11 +473,19 @@ fn handle_entity_explosion(
             .and_then(|centre| Dir3::new(transform.translation - centre).ok())
             .unwrap_or(fragment.direction);
         let offset = direction * 0.5;
-        let velocity = direction * rng.random_range(2.0..5.0);
+        // The kick the death gives it, PLUS whatever the body was already doing
+        // at that point: `v + omega x r`. Without the second term a ship dying
+        // at speed leaves its debris hanging where it was hit while the wreck
+        // flies out from under it, which reads as the pieces being spawned
+        // rather than shed.
+        let velocity = direction * rng.random_range(2.0..5.0)
+            + motion.map_or(Vec3::ZERO, |(at, linear, angular)| {
+                linear + angular.cross(transform.translation - at)
+            });
         let transform = transform.with_translation(transform.translation + offset);
         // A collider is scaled by the entity's transform, so a degenerate scale
         // flattens even a good hull back to no volume - the same NaN body
-        // FRAGMENT_MIN_THICKNESS exists to prevent. Authored art is the source
+        // `chunk_collider` exists to prevent. Authored art is the source
         // of this scale, so it is not this module's to trust.
         if !transform.scale.is_finite() || transform.scale.min_element() <= f32::EPSILON {
             debug!(
@@ -447,35 +494,70 @@ fn handle_entity_explosion(
             );
             continue;
         }
-        let Some(mesh) = meshes.get(&fragment.mesh) else {
-            error!(
-                "handle_entity_explosion: mesh_entity {:?} has no mesh data.",
-                fragment.origin,
-            );
-            continue;
-        };
-        let Some(collider) = fragment_collider(mesh) else {
-            debug!(
-                "handle_entity_explosion: fragment of {:?} has no usable bounds",
-                fragment.origin
-            );
-            continue;
-        };
 
-        commands.spawn((
-            MeshFragmentMarker,
-            Name::new(format!("Explosion Fragment of {:?}", entity)),
-            Mesh3d(fragment.mesh.clone()),
-            mesh_material.clone(),
+        pending.push(PendingFragment {
+            mesh: fragment.mesh.clone(),
+            material: mesh_material,
             transform,
-            RigidBody::Dynamic,
-            collider,
-            LinearVelocity(velocity),
-            TempEntity(MESH_FRAGMENT_LIFETIME_SECS),
-        ));
+            velocity,
+        });
     }
 
+    queue.0.push_back(PendingFinale {
+        body: entity,
+        fragments: pending,
+    });
     commands.entity(entity).despawn();
+}
+
+/// Put at most [`FINALE_BODY_BUDGET`] queued bodies' debris on the field.
+///
+/// The colliders are hulled here rather than at the death, so a capital-scale
+/// collapse pays for them at a fixed rate instead of all at once.
+///
+/// `PreUpdate`, so a body that died in one frame's `Update` has its pieces
+/// standing before the next frame's: every `Added<MeshFragmentMarker>` consumer
+/// still sees debris one frame behind the death, as it did when the finale
+/// spawned inline.
+fn spawn_pending_finales(
+    mut commands: Commands,
+    mut queue: ResMut<FinaleQueue>,
+    meshes: Res<Assets<Mesh>>,
+) {
+    let take = queue.0.len().min(FINALE_BODY_BUDGET);
+    if take == 0 {
+        return;
+    }
+    debug!(
+        "spawn_pending_finales: spawning {take} of {} queued bodies",
+        queue.0.len()
+    );
+
+    for finale in queue.0.drain(..take) {
+        let body = finale.body;
+        for fragment in finale.fragments {
+            let Some(mesh) = meshes.get(&fragment.mesh) else {
+                error!("spawn_pending_finales: a piece of {body:?} has no mesh data.");
+                continue;
+            };
+            let Some(collider) = chunk_collider(mesh) else {
+                debug!("spawn_pending_finales: a piece of {body:?} has no usable bounds");
+                continue;
+            };
+
+            commands.spawn((
+                MeshFragmentMarker,
+                Name::new(format!("Explosion Fragment of {body:?}")),
+                Mesh3d(fragment.mesh),
+                fragment.material,
+                fragment.transform,
+                RigidBody::Dynamic,
+                collider,
+                LinearVelocity(fragment.velocity),
+                TempEntity(MESH_FRAGMENT_LIFETIME_SECS),
+            ));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -588,7 +670,9 @@ mod tests {
         app.init_asset::<Mesh>();
         app.init_asset::<StandardMaterial>();
         app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.init_resource::<FinaleQueue>();
         app.add_observer(handle_entity_explosion);
+        app.add_systems(PreUpdate, spawn_pending_finales);
 
         let mesh = app
             .world_mut()
@@ -685,21 +769,12 @@ mod tests {
         root
     }
 
-    /// Debris on the ground, split by which path produced it: real mesh
-    /// fragments, and generic fallback cubes.
-    fn debris(app: &mut App) -> (usize, usize) {
-        let mut q_debris = app
-            .world_mut()
-            .query_filtered::<&Name, With<MeshFragmentMarker>>();
-        let names: Vec<String> = q_debris
+    /// How many pieces of real art are on the ground.
+    fn debris(app: &mut App) -> usize {
+        app.world_mut()
+            .query_filtered::<(), With<MeshFragmentMarker>>()
             .iter(app.world())
-            .map(|name| name.to_string())
-            .collect();
-        let fallback = names
-            .iter()
-            .filter(|name| name.starts_with("Fallback"))
-            .count();
-        (names.len() - fallback, fallback)
+            .count()
     }
 
     /// THE regression. Every section ever shipped holds its health and collider
@@ -716,23 +791,23 @@ mod tests {
             .insert(IntegrityDestroyMarker);
         app.update();
 
-        let (fragments, fallback) = debris(&mut app);
+        let fragments = debris(&mut app);
         assert!(
             fragments > 0,
             "a section's art must become its debris, got {fragments} fragments"
         );
-        assert_eq!(fallback, 0, "and the generic burst must not run as well");
         assert!(
             !app.world().entities().contains(body),
             "the wreck is despawned once its fragments exist"
         );
     }
 
-    /// The fallback is now exactly what it claims to be: what happens when
-    /// there was nothing to break. A section can die before its gltf scene has
-    /// finished instantiating, and that is the case this covers.
+    /// A body with nothing to break into emits NOTHING, and is still taken off
+    /// the field. There used to be a burst of generic cubes here; it made a
+    /// silent failure look like a working finale, which is how it survived
+    /// every playtest that saw it.
     #[test]
-    fn a_body_with_no_geometry_falls_back_to_the_generic_burst() {
+    fn a_body_with_no_geometry_emits_nothing_and_is_still_reaped() {
         let mut app = finale_app();
         let body = app
             .world_mut()
@@ -748,12 +823,10 @@ mod tests {
             .insert(IntegrityDestroyMarker);
         app.update();
 
-        let (fragments, fallback) = debris(&mut app);
-        assert_eq!(fragments, 0, "there was no art to fragment");
-        assert!(fallback > 0, "so the body still visibly comes apart");
+        assert_eq!(debris(&mut app), 0, "there was no art to fragment");
         assert!(
             !app.world().entities().contains(body),
-            "and is despawned rather than left standing at zero health"
+            "and it is despawned rather than left standing at zero health"
         );
     }
 
@@ -785,8 +858,8 @@ mod tests {
 
             assert_eq!(
                 debris(&mut app),
-                (0, 0),
-                "a root emits neither fragments nor cubes (spaceship: {ship})"
+                0,
+                "a root emits nothing of its own (spaceship: {ship})"
             );
             assert!(
                 !app.world().entities().contains(root),
@@ -883,6 +956,113 @@ mod tests {
         }
     }
 
+    /// A body's pieces leave WITH it. Without the inherited motion a ship dying
+    /// at speed leaves its debris hanging where it was hit while the wreck
+    /// carries on out from under it, which reads as the pieces being spawned
+    /// rather than shed.
+    ///
+    /// The velocity is read at the SHIP, not at the section: a section is a
+    /// child of the rigid body and has none of its own.
+    #[test]
+    fn a_bodys_pieces_leave_with_the_body() {
+        let mut app = finale_app();
+        let ship = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                GlobalTransform::IDENTITY,
+                LinearVelocity(Vec3::Z * 40.0),
+            ))
+            .id();
+        let body = body_drawing_through_descendants(&mut app, 1);
+        app.world_mut().entity_mut(body).insert(ChildOf(ship));
+
+        app.world_mut()
+            .entity_mut(body)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+
+        let mut q_debris = app
+            .world_mut()
+            .query_filtered::<&LinearVelocity, With<MeshFragmentMarker>>();
+        let speeds: Vec<Vec3> = q_debris
+            .iter(app.world())
+            .map(|velocity| velocity.0)
+            .collect();
+
+        assert!(!speeds.is_empty(), "delivery guard: it came apart");
+        for velocity in speeds {
+            assert!(
+                velocity.z > 30.0,
+                "a piece must carry the ship's drift, not just its own kick: {velocity}"
+            );
+        }
+    }
+
+    /// A capital-scale collapse destroys every section left on the structure in
+    /// ONE frame, and running all of their finales together is the worst frame
+    /// in the game. The queue bounds it: the wrecks all leave the field at once
+    /// and their debris arrives over the frames that follow.
+    #[test]
+    fn a_collapse_spreads_its_debris_over_frames() {
+        let mut app = finale_app();
+        let mesh = app
+            .world_mut()
+            .resource_mut::<Assets<Mesh>>()
+            .add(TriangleMeshBuilder::new_octahedron(2).build());
+        let material = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+
+        // One piece each, so the debris count IS the body count.
+        let bodies = FINALE_BODY_BUDGET * 3;
+        for _ in 0..bodies {
+            let origin = app
+                .world_mut()
+                .spawn((
+                    Mesh3d(mesh.clone()),
+                    MeshMaterial3d(material.clone()),
+                    Transform::default(),
+                    GlobalTransform::IDENTITY,
+                ))
+                .id();
+            app.world_mut().spawn((
+                ExplodableEntity,
+                GlobalTransform::IDENTITY,
+                ExplodeFragments(vec![ExplodeFragment {
+                    origin,
+                    mesh: mesh.clone(),
+                    direction: Dir3::X,
+                }]),
+            ));
+        }
+        app.world_mut().flush();
+
+        // THE design constraint. A body waiting its turn is a zero-health wreck
+        // with a live collider and working capabilities.
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<(), With<ExplodableEntity>>()
+                .iter(app.world())
+                .count(),
+            0,
+            "every wreck leaves the field at once, whatever the queue holds"
+        );
+        assert_eq!(debris(&mut app), 0, "and none of it has landed yet");
+
+        app.update();
+        assert_eq!(
+            debris(&mut app),
+            FINALE_BODY_BUDGET,
+            "one frame spawns one frame's worth"
+        );
+
+        app.update();
+        app.update();
+        assert_eq!(debris(&mut app), bodies, "and the rest follow");
+    }
+
     /// Destructible but not explodable: a skin plate comes off rather than
     /// breaking apart, and nothing in the finale claims it. The reaper must,
     /// or it stands at zero health with a live collider.
@@ -900,6 +1080,6 @@ mod tests {
         app.update();
 
         assert!(!app.world().entities().contains(plate));
-        assert_eq!(debris(&mut app), (0, 0), "and it does not burst");
+        assert_eq!(debris(&mut app), 0, "and it does not burst");
     }
 }

@@ -22,7 +22,6 @@ pub(super) fn backdrop_planetoid(
             destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
             radius: 20.0,
             texture: asteroid_texture,
-            health: 2000.0,
             mass: Some(mass),
             invulnerable: true,
             seed: None,

@@ -117,6 +117,11 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
         ),
         kind: Thruster((
             magnitude: 1.0,
@@ -212,6 +217,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Controller((
             steering_lag: 0.5,
@@ -349,6 +358,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Turret((
             root: (
@@ -484,6 +497,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Turret((
             root: (
@@ -664,6 +681,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
@@ -784,6 +805,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
@@ -905,6 +930,10 @@
                 ),
             ],
             hide_in_editor: true,
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
@@ -989,6 +1018,11 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
         ),
         kind: Thruster((
             magnitude: 1.0,
@@ -1083,6 +1117,11 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
         ),
         kind: Thruster((
             magnitude: 1.0,
@@ -1453,6 +1492,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Controller((
             steering_lag: 0.5,
@@ -1504,6 +1547,11 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
         ),
         kind: Thruster((
             magnitude: 1.0,
@@ -1585,6 +1633,11 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
         ),
         kind: Thruster((
             magnitude: 1.0,
@@ -1692,6 +1745,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/parts/cargob/pod_starboard.glb#Scene0"),
@@ -1800,6 +1857,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/parts/cargob/pod_starboard.glb#Scene0"),
@@ -1908,6 +1969,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/parts/cargob/pod_port.glb#Scene0"),
@@ -2016,6 +2081,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/parts/cargob/pod_port.glb#Scene0"),
@@ -2223,6 +2292,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Controller((
             steering_lag: 0.5,
@@ -2274,6 +2347,11 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
         ),
         kind: Thruster((
             magnitude: 1.0,
@@ -2355,6 +2433,11 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+                Plume,
+            ]),
         ),
         kind: Thruster((
             magnitude: 1.0,
@@ -2699,6 +2782,10 @@
                     ),
                 ),
             ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
         ),
         kind: Controller((
             steering_lag: 0.5,

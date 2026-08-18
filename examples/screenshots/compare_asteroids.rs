@@ -1,13 +1,21 @@
 //! compare_asteroids: the asteroid-texture lineup for art round 2 (task
 //! 20260812-100256) - the shipped `asteroid.png` next to the ambientCG and
 //! Poly Haven candidates, every subject the SAME fixed-seed rock from the
-//! game's real mesh pipeline (`TriangleMeshBuilder` + `PlanetHeight`), so the
+//! game's real mesh pipeline (`TriangleMeshBuilder` + `RockHeight`), so the
 //! only thing that differs between subjects is the texture.
 //!
-//! The mesh's UVs are planar PER TRIANGLE, so macro features seam at every
-//! triangle edge and stretched triangles push UVs past 1.0 - candidates load
-//! with a repeat sampler (they tile), while the baseline keeps the shipped
-//! ClampToEdge default so the smear it causes stays visible for contrast.
+//! SUPERSEDED in part (2026-08-17). This row was built when a rock was textured
+//! through its mesh UVs, which are planar PER TRIANGLE - so macro features
+//! seamed at every triangle edge and stretched triangles pushed UVs past 1.0.
+//! Candidates load with a repeat sampler (they tile) and the baseline keeps the
+//! shipped ClampToEdge default, so the smear it caused stays visible for
+//! contrast.
+//!
+//! Production no longer textures rocks that way: `AsteroidSurfaceMaterial`
+//! samples by POSITION and never consults a UV. This row still compares the
+//! IMAGES fairly - same rock, same lighting, one variable - which is what it
+//! was for, but the seaming it documents is a property of the old material and
+//! not of what a rock looks like in game.
 //!
 //! Hand-run (the comparison itself - WASD+mouse free-fly):
 //! ```text
@@ -132,14 +140,12 @@ fn load_scene(
         "Asteroid Texture Compare",
     )));
 
-    // The exact mesh pipeline `asteroid_scenario_object` runs, at a pinned
-    // seed so every subject is the same rock.
-    let planet = PlanetHeight::default().with_seed(ROCK_SEED).sampler();
-    let mesh = meshes.add(
-        TriangleMeshBuilder::new_octahedron(3)
-            .apply_noise(&planet)
-            .build(),
-    );
+    // The exact mesh `asteroid_scenario_object` spawns, at a pinned seed so
+    // every subject is the same rock. Gridded at the FOCUS rock's size and
+    // shared with the row: a rock's grid is sized in world units now, and the
+    // subject here is the texture, so every entry has to wear the same
+    // silhouette rather than the one its own scale would have earned.
+    let mesh = meshes.add(pristine_rock_mesh(ROCK_SEED, FOCUS_RADIUS));
 
     // Baseline first: the shipped texture through its shipped (clamp) sampler.
     let mut entries = vec![compare::CompareEntry {

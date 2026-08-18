@@ -2,7 +2,7 @@
 //!
 //! Three examples were building the same two config shapes inline - a
 //! [`SpaceshipConfig`] assembled out of [`GameSections`] lookups, and an
-//! asteroid [`ScenarioObjectConfig`] with a health knob - before `stress/`
+//! geometry-authoritative asteroid [`ScenarioObjectConfig`] - before `stress/`
 //! became the third caller and paid for the extraction.
 //!
 //! They live in `nova_probe` rather than under `examples/` because
@@ -84,11 +84,9 @@ pub fn ship(
     }
 }
 
-/// An asteroid target.
+/// A geometry-authoritative asteroid target.
 ///
-/// `health` is the knob that decides whether it survives being hit: a gate a
-/// blast destroys wants a low number, a target that must outlive several
-/// torpedoes wants a high one. `lock_signature` is `Some` only where the run
+/// Size is its durability. `lock_signature` is `Some` only where the run
 /// needs the rock to be radar-lockable - an unsigned rock is invisible to the
 /// radar, which is exactly what most fixtures want.
 pub fn asteroid(
@@ -97,7 +95,6 @@ pub fn asteroid(
     name: &str,
     position: Vec3,
     radius: f32,
-    health: f32,
     lock_signature: Option<f32>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -112,7 +109,6 @@ pub fn asteroid(
             destroy_sound: Some("base/sounds/explosion.wav".into()),
             radius,
             texture: game_assets.asteroid_texture.clone().into(),
-            health,
             mass: None,
             invulnerable: false,
             seed: None,

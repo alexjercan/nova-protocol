@@ -62,6 +62,54 @@ pub(super) fn update_torpedo_arming(
     }
 }
 
+/// How close to a target's SKIN a torpedo has to be before the warhead fires.
+///
+/// Almost touching, and that is the whole point. The fuze used to be half the
+/// blast radius measured to the target's CENTRE OF MASS, which had three
+/// consequences and no upside: a torpedo always stood off exactly half a blast
+/// radius, so it always delivered exactly half its rated pressure; against a
+/// rock the crater was cut in vacuum beside the surface, because a rock's centre
+/// is buried under twelve units of solid; and nothing in the game had a contact
+/// fuze at all. Fired against the nearest point of the body instead, a warhead
+/// delivers close to what it is rated for and its crater lands where the hull or
+/// the rock actually is.
+const CONTACT_FUZE: f32 = 1.0;
+
+/// How near a torpedo has to get before it fires, given how far it moves in
+/// `dt`.
+///
+/// [`CONTACT_FUZE`] on its own is a window a fast closer can step straight over:
+/// a torpedo closing at cruise on a ship running the other way covers several
+/// units in one frame, and one that skipped its own window would fly on with the
+/// warhead still in it. Never smaller than the step about to be taken, so a
+/// torpedo that would pass through the skin fires instead of through it.
+pub(super) fn contact_reach(speed: f32, dt: f32) -> f32 {
+    CONTACT_FUZE.max(speed * dt)
+}
+
+/// Distance from `at` to the nearest point on `target`'s own skin, or `None`
+/// when that body has no collider in the world.
+///
+/// Projected over the physics broad phase and filtered to the colliders avian
+/// links to THAT body, so a torpedo threading a formation cannot fuze on the
+/// wrong ship, and a ship built out of two hundred section colliders answers
+/// with whichever one is nearest the nose. Solid, so a nose already inside the
+/// hull reads zero instead of the distance back out to the skin.
+fn distance_to_skin(
+    spatial: &SpatialQuery,
+    q_collider_of: &Query<&ColliderOf>,
+    target: Entity,
+    at: Vec3,
+) -> Option<f32> {
+    let projection =
+        spatial.project_point_predicate(at, true, &SpatialQueryFilter::default(), &|collider| {
+            q_collider_of
+                .get(collider)
+                .is_ok_and(|of| of.body == target)
+        })?;
+    Some(projection.point.distance(at))
+}
+
 /// Fuze every armed torpedo that has reached its target: despawn it and spawn
 /// the blast.
 ///
@@ -70,13 +118,31 @@ pub(super) fn update_torpedo_arming(
 /// `CombatLock` is `None`), so it CANNOT detonate - it flies its full lifetime,
 /// deals a contact ding and is deleted. A no-lock launch is a misfire, and the
 /// bay still spends the round.
+///
+/// Two cases, and the difference is whether there is anything to touch:
+///
+/// - a locked BODY - ship or rock, no distinction - is fuzed on its own skin,
+///   almost at contact, which is what puts the warhead's pressure and its crater
+///   where the target actually is;
+/// - a bare aim POINT is fuzed at half the blast radius, as it always was. A
+///   torpedo committed to a position (`stress_torpedoes`, an emplacement) or one
+///   whose target died mid-flight has no surface to reach, and "the warhead
+///   covers the point" is the only sense "arrived" can have there.
+#[expect(
+    clippy::type_complexity,
+    reason = "the fuze reads the whole projectile: pose, lock, arming, warhead and owner"
+)]
 pub(super) fn torpedo_detonate_system(
     mut commands: Commands,
+    time: Res<Time>,
+    spatial: SpatialQuery,
     q_torpedo: Query<
         (
             Entity,
             &Transform,
             &TorpedoTargetPosition,
+            Option<&TorpedoTargetEntity>,
+            Option<&LinearVelocity>,
             &TorpedoArming,
             &TorpedoBlast,
             &TorpedoSectionPartOf,
@@ -89,9 +155,20 @@ pub(super) fn torpedo_detonate_system(
             Without<super::TorpedoShotDownMarker>,
         ),
     >,
+    q_collider_of: Query<&ColliderOf>,
 ) {
-    for (torpedo, torpedo_transform, torpedo_target_position, arming, blast, part_of, owner) in
-        &q_torpedo
+    let dt = time.delta_secs();
+    for (
+        torpedo,
+        torpedo_transform,
+        torpedo_target_position,
+        target_entity,
+        velocity,
+        arming,
+        blast,
+        part_of,
+        owner,
+    ) in &q_torpedo
     {
         // Do not detonate until the torpedo has armed (cleared the muzzle), so a
         // shot at a nearby target does not blow up on spawn.
@@ -99,12 +176,19 @@ pub(super) fn torpedo_detonate_system(
             continue;
         }
 
-        let distance = torpedo_transform
-            .translation
-            .distance(**torpedo_target_position);
+        let at = torpedo_transform.translation;
+        let speed = velocity.map_or(0.0, |velocity| velocity.length());
+        let (distance, reach) = match target_entity
+            .and_then(|target| distance_to_skin(&spatial, &q_collider_of, **target, at))
+        {
+            Some(skin) => (skin, contact_reach(speed, dt)),
+            None => (at.distance(**torpedo_target_position), blast.radius * 0.5),
+        };
 
-        // Proximity fuze: fire within half the blast radius of the target.
-        if distance < blast.radius * 0.5 {
+        if distance < reach {
+            debug!(
+                "torpedo_detonate_system: {torpedo:?} fuzed {distance:.2}u out, reach {reach:.2}u"
+            );
             // try_despawn: the lifetime sweep can queue a despawn for this same
             // torpedo in the same flush (a torpedo that fuzes on the frame its
             // lifetime expires). A plain despawn on the loser of that race is a
@@ -233,15 +317,20 @@ pub(super) fn torpedo_pn_guidance(
 /// is still running in, fading to none on final approach.
 ///
 /// The fade is what separates evasive ordnance from a drunk one. Only the MEAN
-/// course of the corkscrew is the intercept, so a torpedo still weaving at fuze
-/// range flies its helix past a target that never moved. Full amplitude beyond
-/// three blast radii, linearly to zero at the proximity-fuze radius (half a
-/// blast radius): the run-in is evasive and the last stretch is a straight
-/// sprint - which is also the defender's cleanest shot, and deliberately so.
+/// course of the corkscrew is the intercept, so a torpedo still weaving on the
+/// last stretch flies its helix past a target that never moved. Full amplitude
+/// beyond three blast radii, linearly to zero at half a blast radius: the run-in
+/// is evasive and the last stretch is a straight sprint - which is also the
+/// defender's cleanest shot, and deliberately so.
+///
+/// The band is measured off the blast radius and NOT off the fuze, which is now
+/// a contact fuze a hundredth of the distance away (see [`contact_reach`]). The
+/// terminal sprint has to start where the corkscrew stops helping - out at
+/// point-defense range - not where the warhead finally fires.
 pub(super) fn weave_fade(distance_to_target: f32, blast_radius: f32) -> f32 {
-    let fuze = blast_radius * 0.5;
+    let terminal = blast_radius * 0.5;
     let full = blast_radius * 3.0;
-    ((distance_to_target - fuze) / (full - fuze).max(f32::EPSILON)).clamp(0.0, 1.0)
+    ((distance_to_target - terminal) / (full - terminal).max(f32::EPSILON)).clamp(0.0, 1.0)
 }
 
 /// Tilt `steer` by `angle` toward `offset`, after spinning `offset` by `spin`
@@ -375,6 +464,8 @@ pub(super) fn torpedo_thrust_system(
 
 #[cfg(test)]
 mod tests {
+    use avian3d::collider_tree::ColliderTrees;
+
     use super::*;
 
     #[test]
@@ -382,6 +473,11 @@ mod tests {
         // Regression: a torpedo sitting right on its target must not detonate
         // while unarmed - this is the "spawns too close and just dies" bug.
         let mut app = App::new();
+        // The fuze reads the clock for its swept window and the broad phase for
+        // the target's skin; an empty tree means no skin to find, which is what
+        // sends these rigs down the frozen-aim-point path.
+        app.init_resource::<Time>();
+        app.init_resource::<ColliderTrees>();
         app.add_systems(Update, torpedo_detonate_system);
 
         let part_of = app.world_mut().spawn_empty().id();
@@ -412,6 +508,11 @@ mod tests {
     fn armed_torpedo_detonates_on_target() {
         // Once armed, the same on-target torpedo detonates (despawns).
         let mut app = App::new();
+        // The fuze reads the clock for its swept window and the broad phase for
+        // the target's skin; an empty tree means no skin to find, which is what
+        // sends these rigs down the frozen-aim-point path.
+        app.init_resource::<Time>();
+        app.init_resource::<ColliderTrees>();
         app.add_systems(Update, torpedo_detonate_system);
 
         let part_of = app.world_mut().spawn_empty().id();
@@ -449,6 +550,11 @@ mod tests {
         // a shooter through ProjectileOwner. The blast is a NovaBlast
         // (Explosive), the only blast volume the game spawns.
         let mut app = App::new();
+        // The fuze reads the clock for its swept window and the broad phase for
+        // the target's skin; an empty tree means no skin to find, which is what
+        // sends these rigs down the frozen-aim-point path.
+        app.init_resource::<Time>();
+        app.init_resource::<ColliderTrees>();
         app.add_systems(Update, torpedo_detonate_system);
 
         let owner = app.world_mut().spawn_empty().id();
@@ -494,6 +600,11 @@ mod tests {
     #[test]
     fn the_detonation_blast_is_a_transient() {
         let mut app = App::new();
+        // The fuze reads the clock for its swept window and the broad phase for
+        // the target's skin; an empty tree means no skin to find, which is what
+        // sends these rigs down the frozen-aim-point path.
+        app.init_resource::<Time>();
+        app.init_resource::<ColliderTrees>();
         app.add_systems(Update, torpedo_detonate_system);
 
         let part_of = app.world_mut().spawn_empty().id();
@@ -548,6 +659,8 @@ mod tests {
         }
 
         let mut app = App::new();
+        app.init_resource::<Time>();
+        app.init_resource::<ColliderTrees>();
         app.insert_resource(FallbackErrorHandler(panic));
         // chain_ignore_deferred: no sync point between them, so both despawns
         // are applied from the same buffer - the real frame order.
@@ -795,8 +908,8 @@ mod tests {
     #[test]
     fn thrust_tapers_to_zero_at_cruise_speed() {
         // Below the taper band: full thrust. At/above cruise: none. The cap keeps
-        // the turning circle (speed / turn rate) inside the proximity fuze so the
-        // torpedo cannot end up orbiting its target at high speed.
+        // the turning circle (speed / turn rate) tight enough that the torpedo
+        // cannot end up orbiting its target instead of closing on it.
         assert_eq!(thrust_headroom(0.0, 35.0), 1.0);
         assert_eq!(thrust_headroom(20.0, 35.0), 1.0);
         assert!((thrust_headroom(32.5, 35.0) - 0.5).abs() < 1e-6);
@@ -820,10 +933,13 @@ mod tests {
         );
     }
 
-    /// A closest approach that counts as a kill: inside the proximity fuze
-    /// (`BLAST_RADIUS * 0.5` = 15). Crossing intercepts from a sideways launch
-    /// carry a few units of turn-rate lag at the endgame (measured ~8), which the
-    /// fuze absorbs; a broken law misses by the full crossing distance instead.
+    /// A closest approach that counts as a solved intercept, in units.
+    ///
+    /// A bound on the GUIDANCE and no longer on the fuze: the rig flies at a
+    /// point, and the real fuze fires on a body's skin, so what a real ship's
+    /// hull covers of this is the ship's own size. Crossing intercepts from a
+    /// sideways launch carry a few units of turn-rate lag at the endgame
+    /// (measured ~8); a broken law misses by the full crossing distance instead.
     const HIT: f32 = 10.0;
 
     #[test]
@@ -951,7 +1067,7 @@ mod tests {
         // never moved.
         assert_eq!(weave_fade(400.0, 30.0), 1.0, "full weave at range");
         assert_eq!(weave_fade(90.0, 30.0), 1.0, "full weave at three radii");
-        assert_eq!(weave_fade(15.0, 30.0), 0.0, "none at the fuze radius");
+        assert_eq!(weave_fade(15.0, 30.0), 0.0, "none at the terminal band");
         assert_eq!(weave_fade(0.0, 30.0), 0.0, "and none on top of the target");
         let mid = weave_fade(52.5, 30.0);
         assert!(
@@ -1107,7 +1223,11 @@ mod point_defense_cost_tests {
         let dt = 1.0 / 120.0;
         let interval = 1.0 / FIRE_RATE;
         let blast_radius = 30.0;
-        let fuze = blast_radius * 0.5;
+        // The mount is modelled as a point, so its skin is the origin and the
+        // contact fuze is the whole standoff. The run-in is that much longer
+        // than it was under the old half-a-blast-radius fuze, and both arms pay
+        // it: the defender gets the extra tenths of a second on every torpedo.
+        let contact = CONTACT_FUZE;
         let needed = (TORPEDO_HEALTH / BULLET_DAMAGE).ceil() as usize;
 
         // The torpedo enters the envelope already at cruise and pointed in -
@@ -1161,7 +1281,7 @@ mod point_defense_cost_tests {
                 swing = swing.max(pos.xy().length());
             }
 
-            if pos.length() <= fuze {
+            if pos.length() <= contact {
                 break; // leaked through: the warhead is on the defender
             }
 

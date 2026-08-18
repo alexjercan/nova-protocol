@@ -99,7 +99,7 @@ pub(super) fn insert_torpedo_render(
 /// The mesh is built nose down -Y: the body rides the torpedo's CONTROLLER
 /// section, whose authored `Transform` turns the section a quarter turn about X
 /// (`shoot_spawn_projectile`), which lands -Y on the torpedo's own -Z, the way
-/// it flies. Only the mesh is shared - `SectionDamageTint` clones the material
+/// it flies. Only the mesh is shared - `SectionCracks` clones the material
 /// per section anyway, so a hit torpedo still grades on its own.
 #[derive(Resource, Debug)]
 pub(crate) struct DefaultTorpedoRender {
@@ -155,7 +155,7 @@ pub(super) fn insert_torpedo_controller_render(
 
     // The type's tint, so two ordnance types read apart in the frame BEFORE
     // their flight paths have had time to diverge. The warhead's material is
-    // already built per projectile (`SectionDamageTint` clones it per section
+    // already built per projectile (`SectionCracks` clones it per section
     // anyway), so a per-type colour costs nothing the shared MESH handle above
     // was protecting. A torpedo spawned with no type - a bare test fixture -
     // keeps the old neutral grey.
@@ -317,17 +317,24 @@ pub(super) fn insert_particle_effect(
     }
 
     let Ok((blast_transform, TorpedoSectionPartOf(torpedo_section))) = q_blast.get(entity) else {
-        error!(
-            "insert_particle_effect: entity {:?} not found in q_blast",
+        // A blast no torpedo bay owns - a scripted detonation, a range rig, a
+        // mod spawning `nova_blast` directly. It is a real blast and it damages
+        // normally; it just has no authored bay behind it to take a particle
+        // effect from. Same class as the missing config below, not an error.
+        debug!(
+            "insert_particle_effect: blast {:?} has no owning bay; particle omitted",
             entity
         );
         return;
     };
 
     let Ok(config) = q_config.get(*torpedo_section) else {
-        error!(
-            "insert_turret_barrel_muzzle_effect: entity {:?} not found in q_effect",
-            entity
+        // A launched torpedo can outlive the bay that supplied its optional
+        // particle effect. The blast remains real; only that authored look is
+        // unavailable after its owner has gone.
+        debug!(
+            "insert_particle_effect: source section {:?} is gone; particle omitted",
+            torpedo_section
         );
         return;
     };

@@ -11,6 +11,32 @@
                 actions: [
                     SpawnScenarioObject((
                         base: (
+                            id: "ore_rock",
+                            name: "Marked Ore Rock",
+                            position: (
+                                -140.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 0.35,
+                            texture: "self://textures/asteroid.png",
+                            impact_sound: Some("self://sounds/impact.wav"),
+                            destroy_sound: Some("self://sounds/explosion.wav"),
+                            invulnerable: false,
+                            lock_signature: Some(10.0),
+                            seed: Some(20260819),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
                             id: "asteroid_grav",
                             name: "Gravity Rock",
                             position: (
@@ -28,7 +54,6 @@
                         kind: Asteroid((
                             radius: 20.0,
                             texture: "self://textures/asteroid.png",
-                            health: 2000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             mass: Some(45000.0),
@@ -360,7 +385,6 @@
                             kind: Asteroid((
                                 radius: 1.0,
                                 texture: "self://textures/asteroid.png",
-                                health: 100.0,
                                 impact_sound: Some("self://sounds/impact.wav"),
                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                 invulnerable: false,
@@ -398,20 +422,15 @@
                 name: OnStart,
                 actions: [
                     Objective((
-                        id: "destroy_asteroids",
-                        message: "Objective: Destroy 5 asteroids!",
+                        id: "break_ore_rock",
+                        message: "Break apart the marked ore rock.",
                     )),
-                ],
-            ),
-            (
-                name: OnStart,
-                actions: [
-                    VariableSet((
-                        key: "asteroids_destroyed",
-                        expression: Term(Factor(Literal(Number(0.0)))),
+                    ObjectiveMarkerAttach((
+                        target_id: "ore_rock",
+                        label: "ORE ROCK",
                     )),
                     VariableSet((
-                        key: "objective_destroy_asteroids",
+                        key: "ore_broken",
                         expression: Term(Factor(Literal(Boolean(false)))),
                     )),
                 ],
@@ -459,48 +478,21 @@
                 name: OnDestroyed,
                 filters: [
                     Entity((
+                        id: Some("ore_rock"),
                         type_name: Some("asteroid"),
                     )),
                 ],
                 actions: [
                     VariableSet((
-                        key: "asteroids_destroyed",
-                        expression: Add(
-                            Factor(Name("asteroids_destroyed")),
-                            Term(Factor(Literal(Number(1.0)))),
-                        ),
-                    )),
-                ],
-            ),
-            (
-                name: OnDestroyed,
-                filters: [
-                    Entity((
-                        type_name: Some("asteroid"),
-                    )),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("asteroids_destroyed"))),
-                        Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("objective_destroy_asteroids"))),
-                        Term(Factor(Literal(Boolean(false)))),
-                    ))),
-                ],
-                actions: [
-                    DebugMessage((
-                        message: "Objective Complete: Destroyed 5 asteroids!",
-                    )),
-                    VariableSet((
-                        key: "objective_destroy_asteroids",
+                        key: "ore_broken",
                         expression: Term(Factor(Literal(Boolean(true)))),
                     )),
                     ObjectiveComplete((
-                        id: "destroy_asteroids",
+                        id: "break_ore_rock",
                     )),
                     Objective((
                         id: "reach_zone",
-                        message: "Objective: Reach the safe zone!",
+                        message: "Reach the safe zone.",
                     )),
                 ],
             ),
@@ -512,7 +504,7 @@
                         other_id: Some("player_spaceship"),
                     )),
                     Expression((Equal(
-                        Term(Factor(Name("objective_destroy_asteroids"))),
+                        Term(Factor(Name("ore_broken"))),
                         Term(Factor(Literal(Boolean(true)))),
                     ))),
                 ],

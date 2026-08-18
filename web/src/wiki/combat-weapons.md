@@ -183,7 +183,7 @@ Every rake also has a hard ceiling on how many sections one round may cross, so 
 <p>Worked example: five light hull sections at 60 hp each. A 100-damage kinetic slug at 100 u/s destroys the first section and hits the second for 40; at 200 u/s it punches twice as hard and destroys three. A pierce dart deals its full damage to every section it crosses: a crossing costs 60 of its 300 power at 100 u/s (five sections deep), only 20 at 300 u/s - but never more than six sections.</p>
 </div>
 
-Nothing pierces an **indestructible** obstacle: an asteroid or a planetoid stops any round of any type at any speed. Torpedoes do not travel through anything either - they detonate.
+Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. A normal asteroid can be **carved away**; an invulnerable planetoid cannot. Torpedoes do not travel through anything either - they detonate.
 
 ## Blast pressure and structural depth
 

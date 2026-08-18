@@ -18,6 +18,14 @@ tagged **(breaking)**.
 
 ### Combat & Weapons
 
+- **(breaking)** Torpedoes fuze on CONTACT, against the closest point of the
+  body they lock, not half a blast radius from its centre of mass: full rated
+  pressure, and the crater lands on the hull.
+- Rock is its own material, ten times softer than cladding: a radius-3 asteroid
+  takes 2.4 minutes of held PDC fire instead of 24, and a torpedo bowls out every
+  shipped rock size instead of nothing.
+- A crater captures a following hit only within a unit of itself, so the hole
+  follows the aim instead of the first place the rock was shot.
 - The turret catalog is the two PDC mounts. The Better, the Light and the ten per-craft turret prototypes are gone; every craft mounts the kinetic PDC. **(breaking)**
 - Make ship sections shield against blast pressure. **(breaking)**
 - Weapon reloads require a quiet interval: PDCs recover partial batches, torpedo launches restart rearming, and incoming rounds pulse on a persistent ammo gauge. **(breaking)**
@@ -87,6 +95,36 @@ tagged **(breaking)**.
 
 ### Gameplay & Flight
 
+- **(breaking)** Make an asteroid's remaining material its only durability.
+- Let sustained fire grow one crater without remeshing sub-cell hits.
+- Asteroids CARVE: a hit takes a real crater out of the rock, mesh and collider
+  both, so a shot rock is physically the shape it looks. Craters persist and a
+  rock's published radius only ever shrinks.
+- **(breaking)** Rocks are shaped by a ROCK generator, not the planet one: the
+  displacement is signed and per-seed stretched, so a rock is an irregular chunk
+  instead of a sphere with growths on it. Same size, new silhouette.
+- Rocks are textured by POSITION, not by mesh UVs. No more per-triangle quilting,
+  and a carved rock wears exactly the surface an uncarved one does.
+- Fixed: a rock whose seed landed near `u32::MAX` overflowed the noise generator.
+  Seeds come from hashing a scenario id, so an unlucky name could hit it.
+- Every rock is meshed from its own carve field, so a hit changes the crater and
+  nothing else; the field is dropped after meshing and rebuilt on the first hit.
+- Carve a rock apart and the piece FLIES OFF: anything a crater cuts free
+  becomes a rigid body of its own, carrying the drift and spin it had.
+- A carve throws DUST, however big the bite: only geometry a cut really severed
+  becomes a body. Debris drifts clear before it collides, so nothing kicks its
+  own wreckage.
+- **(breaking)** No body ever bursts into generic grey cubes. A death with no
+  art to break into now emits nothing and logs it, and a range asserts it never
+  happens.
+- Hull sections CARVE: a hit takes a real crater out of the hull under the
+  cladding, not just off the plate over it. Authorable as `Carve` on any
+  section; the collider does not follow.
+- **(breaking)** `Scorch` becomes `Cracks`: a damaged section fractures where it
+  is failing and glows through the cracks, instead of the whole body turning red.
+  Mods authoring `Scorch` must rename it.
+- Wreck debris leaves with the wreck: a body's pieces inherit its drift and spin
+  instead of hanging where it died.
 - **(breaking)** A hull may carry several flight computers and steers better
   for it, on a curve capped at twice its strongest computer. Authority does
   not stack linearly.
@@ -111,6 +149,22 @@ tagged **(breaking)**.
 
 ### Ships & Sections
 
+- **(breaking)** Hits are REMEMBERED where they land: a ship stores each one as
+  a sphere, which is what throws shards off the spot that was hit.
+- The plate that stopped the round dies and comes off, leaving a hole in the
+  cladding onto the hull underneath.
+- **(breaking)** Ships no longer CARVE. Sections and cladding keep their
+  authored shape and show damage through cracks and lost plates; a mod
+  authoring the `Carve` effect fails to load. Asteroids still carve.
+- Damage is TWO readings now: how far gone a body is (cracks, sparks) and where
+  it was hit (the shards). Nothing on a ship loses geometry.
+- Sections AUTHOR the damage looks they wear (`base.damage_effects`): `Scorch`,
+  `Sparks`, `Plume`. Omitted means `[Scorch]`, so unchanged content and mods
+  keep their behaviour; author `[]` for a section that never shows damage.
+- New PLUME effect: a damaged drive's exhaust guts and flickers without ever
+  reading as shut down, and delivers exactly the thrust it authored.
+- A hit THROWS material off the spot it landed on: shards sized and counted by
+  how big the hit was, on ships and rocks alike.
 - Make destroyed sections sever physical wreck fragments. **(breaking)**
 - **(breaking)** Ships collapse structurally: a hull below a fraction of its
   as-built health (0.05 by default) comes apart. Authorable as
@@ -186,6 +240,9 @@ tagged **(breaking)**.
   Scrapyard Drift retire.
 - Asteroids gain an optional `seed` pinning the generated silhouette across
   runs; `ScatterObjects` fills it deterministically from the scatter seed.
+- **(breaking)** A carvable asteroid grids in WORLD units - a half-unit cell, 16
+  to 64 cells - so a PDC round's hole shows on any rock. Small rocks carve 5-8x
+  cheaper; rocks past radius 2.4 cost 3-5x.
 - The editor's Play sandbox becomes a RANGE: two seeded rock belts, five target
   hulks, three dormant pickets and two skybox beacons. Dying now offers a
   Retry.
@@ -276,12 +333,26 @@ tagged **(breaking)**.
 
 ### Performance
 
+- A wreck's debris arrives over the frames that follow rather than all at once:
+  at most 8 destroyed bodies spawn their pieces per frame. The wrecks still
+  leave the field the moment they die.
+- A piece of debris takes its collider from at most 64 strided points instead
+  of every vertex of an unwelded triangle soup: the same shape for a fifth of
+  the price, and slightly more of them come back usable.
+- One blast cuts ONE crater per body however many colliders it overlaps, so
+  peak live debris in the WFC arena drops from ~3700 bodies to ~1450.
 - A scenario swap never blocks the main thread: queued spawns drain under a
   3 ms per-frame budget and the scenario is held until they land, so the
   LOADING panel animates across the whole transition.
 
 ### Fixes
 
+- Treat a torpedo outliving its launch bay as a missing optional effect.
+- Fixed: a crater captured hits by its own accumulated size, so every merge
+  widened it and one hole ate the rock. Shooting a fresh place now opens a
+  fresh hole; a held burst still digs one.
+- Fixed: a hit carved what it ASKED for, not what it destroyed, so an overkill
+  round bought material twice and a spent plate still threw debris.
 - Fixed: closing NOVA OS in the WFC arena resumes combat instead of leaving the match clocks paused.
 - Fixed: every ship section burst eight generic gray cubes instead of its own
   art - destruction looked for a mesh on the entity that dies, never on the
@@ -351,6 +422,7 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- Make the asteroid gate hold real PDC fire on a shipped-size rock.
 - The `destruction_finale` range kills a gltf section, a procedural one, a multi-part turret and an asteroid, asserting each breaks into its own art on one per-body budget.
 - Controller mods author `steering_lag` in seconds instead of internal PD frequency and damping fields; mixed stacks use the fastest live computer. **(breaking)**
 - A driven run turns the wheel (`scroll_lines` / `scroll_pixels`), so a scripted beat reaches a row past the fold instead of skipping it.

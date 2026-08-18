@@ -18,7 +18,6 @@ pub(crate) fn spawn_object_action() -> EventActionConfig {
             destroy_sound: None,
             radius: 1.0,
             texture: AssetRef::default(),
-            health: 1.0,
             mass: None,
             invulnerable: false,
             seed: None,

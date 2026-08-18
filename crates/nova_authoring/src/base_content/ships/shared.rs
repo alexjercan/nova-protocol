@@ -239,6 +239,34 @@ fn base_config(
         // part only goes where its authored sockets say it does, which is what
         // hiding it was waiting for.
         hide_in_editor: false,
+        damage_effects: role_damage_effects(spec.role),
+    }
+}
+
+/// The damage looks a cut-cube part wears, by what the part IS.
+///
+/// Derived from the role rather than authored per part because these are cut
+/// from whole craft by the hundred - the racer alone contributes dozens of hull
+/// tiles - and every one of them would otherwise repeat the same list. A part
+/// that wants something else says so by not coming through here.
+fn role_damage_effects(role: PartRole) -> DamageEffects {
+    match role {
+        // Hull is material and nothing else, so it wears its damage in the
+        // SURFACE rather than in the silhouette: it cracks, and the cladding
+        // over it comes off a plate at a time.
+        PartRole::Hull => DamageEffects(vec![DamageEffect::Cracks]),
+        // Machinery whose shape has to survive to keep working: it sparks.
+        // A turret never reaches here - it is a mount point, not a prototype -
+        // but the arm keeps the role list exhaustive.
+        PartRole::Controller | PartRole::Torpedo | PartRole::Turret => {
+            DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks])
+        }
+        // A drive adds its plume guttering to that.
+        PartRole::Thruster => DamageEffects(vec![
+            DamageEffect::Cracks,
+            DamageEffect::Sparks,
+            DamageEffect::Plume,
+        ]),
     }
 }
 

@@ -145,9 +145,10 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the turret breaks into its own art",
             "the thruster breaks into its own art",
             "the hull breaks into its own art",
-            "the asteroid breaks into its own art",
+            "ordinary carving leaves a viable asteroid",
+            "the asteroid exhausts its own geometry",
             "no death spends more than its budget",
-            "no death emitted both fragments and cubes",
+            "no death came apart into nothing",
         ],
     ),
     (
@@ -345,7 +346,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 128;
+const SYSTEMS_INVARIANTS: usize = 129;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

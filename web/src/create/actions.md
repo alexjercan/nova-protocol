@@ -51,7 +51,7 @@ object and carries its config - the five kinds are the
 ```ron
 SpawnScenarioObject((
     base: (id: "rock_1", name: "Rock", position: (10.0, 0.0, -40.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-    kind: Asteroid((radius: 5.0, texture: "dep://base/textures/asteroid.png", health: 100.0, invulnerable: false)),
+    kind: Asteroid((radius: 5.0, texture: "dep://base/textures/asteroid.png", invulnerable: false)),
 )),
 ```
 
@@ -90,7 +90,7 @@ ScatterObjects((
     region: Box(min: (-100.0, -20.0, -100.0), max: (100.0, 20.0, 100.0)),
     template: (
         base: (id: "asteroid_", name: "Asteroid", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-        kind: Asteroid((radius: 1.0, texture: "dep://base/textures/asteroid.png", health: 100.0, invulnerable: false)),
+        kind: Asteroid((radius: 1.0, texture: "dep://base/textures/asteroid.png", invulnerable: false)),
     ),
     asteroid_radius: Some((1.0, 3.0)),
     min_separation: Some(32.0),

@@ -53,6 +53,7 @@ shared `base` block and one kind-specific block:
 | `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
 | `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. |
 | `base.hide_in_editor` | bool | `false` | `true` hides the prototype from the editor palette. Ships can still reference it. |
+| `base.damage_effects` | effect list | `([Cracks])` | The damage looks this section wears. Omitted means its surface cracks, which is what every section does unless it says otherwise. |
 | `kind` | section kind | required | `Hull((...))`, `Thruster((...))`, `Controller((...))`, `Turret((...))`, or `Torpedo((...))`. |
 
 Collider forms:
@@ -67,6 +68,40 @@ collider: Some(Cylinder(radius: 0.5, height: 1.0)),
 `Cuboid.size` is the full size on each axis. Capsules and cylinders extend
 along local Y. A larger collider also increases real mass because `base.mass`
 is density.
+
+### Damage effects
+
+What a section LOOKS like as it takes damage, authored as a list:
+
+```ron
+damage_effects: ([Cracks, Sparks, Plume]),
+```
+
+| effect | what it does |
+|---|---|
+| `Cracks` | The section's surface fractures where it is failing, glows through the cracks when it is critical, and burns out cold when it dies. |
+| `Sparks` | The section throws sparks, faster the worse it is. |
+| `Plume` | The section's exhaust guts and flickers. Thrusters only - it grades the exhaust cone, so a section with none shows nothing. |
+
+Omitting the field means `([Cracks])`. Author `([])` for a section that should
+never show damage at all - saying "none" and saying nothing are different.
+
+The rule the list is kept honest by: NO SECTION LOSES GEOMETRY. Every effect is
+a material or a particle, and the only thing that changes a ship's shape is a
+whole piece leaving - a cladding plate shot off, a section destroyed. Where a
+section carries expendable material it wears cladding, and the cladding comes
+off first (see [ships](./ships.md)).
+
+There was a `Carve` effect that cut a real crater out of a section's drawn mesh.
+It is GONE, and mods authoring it will fail to load. It read well in a gallery
+and badly in a fight: reading a solid out of authored art costs 6-15 ms per
+mesh, a ship's marks belong to its root, and so a single round anywhere on a
+hull turned every drawn mesh under it into a solid in one frame - measured at
+325 meshes and 2.0 seconds. Asteroids still carve, because a rock's solid comes
+from the same noise its mesh does and never has to be read out of art.
+
+Effects compose freely and none of them changes what the section DOES: a
+damaged thruster delivers exactly the thrust it authored.
 
 ### Structural link points
 

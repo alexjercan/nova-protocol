@@ -13,6 +13,10 @@ pub mod anchor;
 pub mod area;
 /// Asteroid scenario object: noise-generated rocks that can act as gravity wells.
 pub mod asteroid;
+/// The signed field behind a carvable rock, and the remesh that follows a hit.
+pub mod asteroid_carve;
+/// How a rock is textured (triplanar, no UVs) and how its silhouette is shaped.
+pub mod asteroid_surface;
 pub mod beacon;
 pub mod binding_input;
 /// Light scenario object: the authored directional and point lights a scene
@@ -28,9 +32,10 @@ pub mod spaceship;
 /// Every scenario object submodule's prelude plus `ScenarioObjectsPlugin`.
 pub mod prelude {
     pub use super::{
-        anchor::prelude::*, area::prelude::*, asteroid::prelude::*, beacon::prelude::*,
-        binding_input::prelude::*, light::prelude::*, modification::prelude::*,
-        salvage::prelude::*, ship::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
+        anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
+        asteroid_surface::prelude::*, beacon::prelude::*, binding_input::prelude::*,
+        light::prelude::*, modification::prelude::*, salvage::prelude::*, ship::prelude::*,
+        spaceship::prelude::*, ScenarioObjectsPlugin,
     };
 }
 
@@ -55,6 +60,9 @@ impl Plugin for ScenarioObjectsPlugin {
 
         app.add_plugins(anchor::AnchorPlugin);
         app.add_plugins(asteroid::AsteroidPlugin {
+            render: self.render,
+        });
+        app.add_plugins(asteroid_carve::AsteroidCarvePlugin {
             render: self.render,
         });
         app.add_plugins(spaceship::SpaceshipPlugin);

@@ -23,7 +23,10 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::{
-    integrity::health::prelude::{Health, HealthApplyDamage, HealthZeroMarker},
+    integrity::{
+        carve::prelude::{record_blast_marks, record_damage_mark},
+        health::prelude::{Health, HealthApplyDamage, HealthZeroMarker},
+    },
     markers::SectionMarker,
 };
 
@@ -31,11 +34,11 @@ use crate::{
 /// travel rule and `NovaDamagePlugin`.
 pub mod prelude {
     pub use super::{
-        apply_damage, closing_speed, damage_type_color, hit_bite, kinetic_damage_multiplier,
-        nova_blast, pierce_power_multiplier, pierce_remainder, representative_kinetic_damage,
-        spend_piercing_damage, DamageType, NovaBlast, NovaDamagePlugin, ProjectileDamage,
-        SectionClass, MAX_PIERCE_LAYERS, NEUTRALIZED_BULLET_MASS, PIERCE_BASE_POWER,
-        REFERENCE_CLOSING_SPEED,
+        apply_blast_damage, apply_damage, closing_speed, damage_type_color, hit_bite,
+        kinetic_damage_multiplier, nova_blast, pierce_power_multiplier, pierce_remainder,
+        representative_kinetic_damage, spend_piercing_damage, DamageType, NovaBlast,
+        NovaDamagePlugin, ProjectileDamage, SectionClass, MAX_PIERCE_LAYERS,
+        NEUTRALIZED_BULLET_MASS, PIERCE_BASE_POWER, REFERENCE_CLOSING_SPEED,
     };
 }
 
@@ -255,19 +258,68 @@ pub fn damage_type_color(kind: DamageType) -> Color {
     }
 }
 
-/// Spend `amount` hit points on `target`, attributed to `source`.
+/// Spend `amount` hit points on `target`, attributed to `source`, landing at
+/// `at` in WORLD space.
 ///
 /// The single point at which a weapon enters the health store, so every weapon
 /// - turret, torpedo blast, ram - lands identically. It is a plain trigger:
-///
-/// Damage is one number now, and nothing between the weapon and
+/// damage is still one number, and nothing between the weapon and
 /// [`on_damage`](crate::integrity::health) reinterprets it.
-pub fn apply_damage(commands: &mut Commands, target: Entity, source: Option<Entity>, amount: f32) {
+///
+/// `at` goes to a different store, and that split is the point: health
+/// remembers how MUCH was spent, [`DamageMarks`] remembers WHERE, and a body
+/// that changes shape needs both. `None` is for damage that genuinely happened
+/// nowhere - a scripted `destroy`, a test rig - and costs the target nothing
+/// but its shape staying whole.
+///
+/// [`DamageMarks`]: crate::integrity::carve::DamageMarks
+pub fn apply_damage(
+    commands: &mut Commands,
+    target: Entity,
+    source: Option<Entity>,
+    amount: f32,
+    at: Option<Vec3>,
+) {
+    if let Some(at) = at {
+        record_damage_mark(commands, target, at, amount);
+    }
     commands.trigger(HealthApplyDamage {
         entity: target,
         source,
         amount,
     });
+}
+
+/// Deal a blast's pressure to everything it reached: health PER COLLIDER, one
+/// crater PER BODY.
+///
+/// `hits` is `(collider, pressure)` for every collider the blast reached, `at`
+/// is its centre in WORLD space and `max_radius` its own reach.
+///
+/// The split is the whole point of a separate entry. A blast that reaches forty
+/// sections has to damage forty sections, so health stays per collider and
+/// nothing about it is coalesced. What it may NOT do is grow the same body's
+/// crater forty times and throw forty piles of debris - which is what a hull
+/// built out of hundreds of colliders used to cost, once per warhead.
+///
+/// Ordering is load-bearing: the carve is queued before the health triggers, so
+/// [`record_blast_marks`] prices every body against one pre-damage snapshot -
+/// the same contract [`NovaBlast`] states for its pressure pass.
+pub fn apply_blast_damage(
+    commands: &mut Commands,
+    at: Vec3,
+    max_radius: f32,
+    source: Option<Entity>,
+    hits: &[(Entity, f32)],
+) {
+    record_blast_marks(commands, at, max_radius, hits.to_vec());
+    for &(target, amount) in hits {
+        commands.trigger(HealthApplyDamage {
+            entity: target,
+            source,
+            amount,
+        });
+    }
 }
 
 /// The damage ONE hit delivers, before the health store clamps it to what the
@@ -365,8 +417,15 @@ pub fn spend_piercing_damage(
     target_health: Option<&Health>,
     damage: ProjectileDamage,
     closing_speed: f32,
+    at: Option<Vec3>,
 ) -> Option<ProjectileDamage> {
-    apply_damage(commands, target, source, hit_bite(damage, closing_speed));
+    apply_damage(
+        commands,
+        target,
+        source,
+        hit_bite(damage, closing_speed),
+        at,
+    );
     pierce_remainder(damage, target_health, closing_speed)
 }
 
@@ -550,7 +609,22 @@ fn pressure_at_target(
     )
 }
 
+/// One blast's whole overlap set, resolved together.
+struct BlastGroup {
+    blast: Entity,
+    collider: Entity,
+    at: Vec3,
+    radius: f32,
+    hits: Vec<(Entity, f32)>,
+}
+
 /// Resolve every blast overlap collected in this fixed tick.
+///
+/// Grouped BY BLAST rather than applied hit by hit. Pressure is still computed
+/// per collider - a section only takes what reached it - but the material a
+/// warhead removes is one sphere, so the whole overlap set goes to
+/// [`apply_blast_damage`] together and a body is carved once however many of
+/// its colliders were inside.
 fn resolve_nova_blast_hits(
     mut commands: Commands,
     mut pending: ResMut<PendingBlastHits>,
@@ -564,6 +638,9 @@ fn resolve_nova_blast_hits(
     hits.sort_by_key(|hit| (hit.blast.to_bits(), hit.target_collider.to_bits()));
     hits.dedup();
 
+    // A linear scan: a tick resolves a handful of blasts, however many
+    // colliders each of them found.
+    let mut groups: Vec<BlastGroup> = Vec::new();
     for hit in hits {
         let Ok((blast_position, blast)) = q_blast.get(hit.blast) else {
             continue;
@@ -592,14 +669,34 @@ fn resolve_nova_blast_hits(
                 blast.max_damage,
             )
         };
-        if amount > f32::EPSILON {
-            apply_damage(
-                &mut commands,
-                hit.target_collider,
-                Some(hit.blast_collider),
-                amount,
-            );
+        if amount <= f32::EPSILON {
+            continue;
         }
+
+        match groups.iter_mut().find(|group| group.blast == hit.blast) {
+            Some(group) => group.hits.push((hit.target_collider, amount)),
+            None => groups.push(BlastGroup {
+                blast: hit.blast,
+                collider: hit.blast_collider,
+                at: blast_position.0,
+                radius: blast.radius,
+                hits: vec![(hit.target_collider, amount)],
+            }),
+        }
+    }
+
+    for group in groups {
+        // Carved at the BLAST's own centre rather than at each target: a blast
+        // is a sphere of material removed, and every body caught in one is
+        // carved by that same sphere, so the bite a warhead takes out of a hull
+        // is one crater and not a target's worth of unrelated dents.
+        apply_blast_damage(
+            &mut commands,
+            group.at,
+            group.radius,
+            Some(group.collider),
+            &group.hits,
+        );
     }
 }
 
@@ -631,12 +728,42 @@ mod tests {
 
     use super::*;
     use crate::{
-        integrity::health::prelude::Health,
+        integrity::{
+            carve::prelude::{mark_radius, CarveSpew, DamageMarks},
+            health::prelude::Health,
+        },
         test_support::{integrity_physics_app, settle},
     };
 
     fn health(app: &App, entity: Entity) -> f32 {
         app.world().get::<Health>(entity).unwrap().current
+    }
+
+    /// The blast harness. `integrity_physics_app` brings the health store and
+    /// the mark store but not `NovaDamagePlugin`, so a blast test wires the
+    /// collector and the resolver itself.
+    fn blast_app() -> App {
+        let mut app = integrity_physics_app();
+        app.init_resource::<PendingBlastHits>();
+        app.add_observer(collect_nova_blast_collision);
+        app.add_systems(
+            FixedPostUpdate,
+            resolve_nova_blast_hits.after(PhysicsSystems::Last),
+        );
+        app
+    }
+
+    /// How many craters a blast announced.
+    #[derive(Resource, Default)]
+    struct SpewCount(usize);
+
+    /// Count `CarveSpew` rather than the debris it throws: the headless harness
+    /// has no `StandardMaterial` store, so the spew observer draws nothing.
+    /// The event count IS the cost - every one of them is up to three rigid
+    /// bodies and seven shards.
+    fn count_spews(app: &mut App) {
+        app.init_resource::<SpewCount>();
+        app.add_observer(|_: On<CarveSpew>, mut count: ResMut<SpewCount>| count.0 += 1);
     }
 
     /// Every travel-rule test that is about the RULE and not about speed runs at
@@ -1023,13 +1150,7 @@ mod tests {
         // The rigid body stays at the blast centre while its child collider is
         // 15 units away. Root-relative falloff deals 100; collider-relative
         // falloff deals the intended 50 exactly once.
-        let mut app = integrity_physics_app();
-        app.init_resource::<PendingBlastHits>();
-        app.add_observer(collect_nova_blast_collision);
-        app.add_systems(
-            FixedPostUpdate,
-            resolve_nova_blast_hits.after(PhysicsSystems::Last),
-        );
+        let mut app = blast_app();
         let radius = 30.0;
         let max_damage = 100.0;
         let body = app
@@ -1056,6 +1177,145 @@ mod tests {
             (health(&app, target) - 950.0).abs() < 1e-1,
             "nova blast should deal a single 50.0, got drop {}",
             1000.0 - health(&app, target)
+        );
+    }
+
+    /// A body of `count` colliders on a ring of `at_range` about the origin,
+    /// each with its own pool. Returns `(root, colliders)`.
+    fn spawn_clad_body(
+        app: &mut App,
+        count: usize,
+        at_range: f32,
+        hp: &[f32],
+    ) -> (Entity, Vec<Entity>) {
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                DamageMarks::default(),
+            ))
+            .id();
+        let colliders = (0..count)
+            .map(|nth| {
+                let turn = nth as f32 / count as f32 * std::f32::consts::TAU;
+                app.world_mut()
+                    .spawn((
+                        ChildOf(root),
+                        Transform::from_xyz(turn.cos() * at_range, 0.0, turn.sin() * at_range),
+                        Collider::sphere(0.5),
+                        ColliderDensity(1.0),
+                        Health::new(hp[nth % hp.len()]),
+                    ))
+                    .id()
+            })
+            .collect();
+        (root, colliders)
+    }
+
+    /// THE blast invariant. One warhead is one sphere of material removed, so
+    /// it cuts ONE crater and announces it ONCE however many colliders the body
+    /// it caught happens to be built out of. A WFC hull carries hundreds, and
+    /// the announcement count is what a torpedo's frame cost is made of - every
+    /// one of them is up to three rigid bodies living half a minute.
+    ///
+    /// Health is deliberately NOT coalesced: all twelve still take their hit.
+    #[test]
+    fn one_blast_cuts_one_crater_however_many_colliders_the_body_has() {
+        let mut app = blast_app();
+        count_spews(&mut app);
+        let (root, colliders) = spawn_clad_body(&mut app, 12, 5.0, &[1000.0]);
+        app.world_mut().spawn((
+            nova_blast(30.0, 500.0, DamageType::Explosive),
+            Transform::default(),
+        ));
+        settle(&mut app);
+
+        for (nth, collider) in colliders.iter().enumerate() {
+            assert!(
+                health(&app, *collider) < 1000.0,
+                "collider {nth} took no damage - the blast never reached the body"
+            );
+        }
+        assert_eq!(
+            app.world().resource::<SpewCount>().0,
+            1,
+            "one blast, one announcement"
+        );
+        let marks = &app.world().get::<DamageMarks>(root).unwrap().0;
+        assert_eq!(marks.len(), 1, "one blast, one crater");
+
+        // And the crater is worth what the blast really destroyed: twelve
+        // colliders' pressure, summed.
+        let each = blast_falloff(5.0, 30.0, 500.0);
+        let want = mark_radius(12.0 * each);
+        assert!(
+            (marks[0].radius - want).abs() < 1e-2,
+            "crater priced at {} want {want}",
+            marks[0].radius
+        );
+    }
+
+    /// The absorbed clamp, inside the blast path: a nearly-dead plate can only
+    /// pay what it has left, so a warhead that overkills a hull of scrap does
+    /// not carve as though it had destroyed a fresh one.
+    #[test]
+    fn a_blast_carves_what_it_destroyed_and_not_what_it_asked_for() {
+        let mut app = blast_app();
+        let (root, _) = spawn_clad_body(&mut app, 2, 5.0, &[20.0, 1000.0]);
+        app.world_mut().spawn((
+            nova_blast(30.0, 500.0, DamageType::Explosive),
+            Transform::default(),
+        ));
+        settle(&mut app);
+
+        let each = blast_falloff(5.0, 30.0, 500.0);
+        let want = mark_radius(20.0 + each);
+        let marks = &app.world().get::<DamageMarks>(root).unwrap().0;
+        assert_eq!(marks.len(), 1);
+        assert!(
+            (marks[0].radius - want).abs() < 1e-2,
+            "the 20 hp plate paid 20, not {each}: crater {} want {want}",
+            marks[0].radius
+        );
+    }
+
+    /// Coalescing is per BLAST, not per body: two warheads into opposite ends
+    /// of one hull are two craters and two piles of debris, which is the whole
+    /// reason a body remembers a list of marks rather than one.
+    #[test]
+    fn two_blasts_on_one_body_stay_two_craters() {
+        let mut app = blast_app();
+        count_spews(&mut app);
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                DamageMarks::default(),
+            ))
+            .id();
+        for end in [-20.0f32, 20.0] {
+            app.world_mut().spawn((
+                ChildOf(root),
+                Transform::from_xyz(end, 0.0, 0.0),
+                Collider::sphere(0.5),
+                ColliderDensity(1.0),
+                Health::new(1000.0),
+            ));
+            // Reaches its own end of the hull and nothing else.
+            app.world_mut().spawn((
+                nova_blast(10.0, 500.0, DamageType::Explosive),
+                Transform::from_xyz(end, 0.0, 0.0),
+            ));
+        }
+        settle(&mut app);
+
+        assert_eq!(app.world().resource::<SpewCount>().0, 2);
+        assert_eq!(
+            app.world().get::<DamageMarks>(root).unwrap().0.len(),
+            2,
+            "two warheads, two holes"
         );
     }
 }

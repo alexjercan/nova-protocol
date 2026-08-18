@@ -60,6 +60,10 @@ use crate::sections::link_points::{unit_cube_link_points, LinkPoint};
 /// edge of a skin.
 pub const SAMPLE_HEIGHTS: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
 
+/// The gap between two neighbouring [`SAMPLE_HEIGHTS`], which is the quantum a
+/// carved height is rounded back onto.
+pub const SAMPLE_STEP: f32 = 0.25;
+
 /// The digit of a sample standing a full cell high, which is what it takes to
 /// close against structure a whole cell tall.
 pub const FULL: u8 = 4;
@@ -109,10 +113,10 @@ const SOCKET_EPSILON: f32 = 1e-4;
 /// `.glb` tiles already do - one primitive per material. Vertex colours would
 /// be one mesh and one material for the whole family, but bevy's PBR fragment
 /// ASSIGNS `base_color` from the vertex colour instead of multiplying by it,
-/// and [`super::damage_tint`] grades a section by writing that same
+/// and [`super::damage_cracks`] grades a section by writing that same
 /// `base_color`. A vertex-coloured shell would quietly stop reading as damaged
 /// or destroyed, which is a gameplay signal and not just a look. Nor would it
-/// buy anything: `damage_tint` hands every section a private clone of its
+/// buy anything: `damage_cracks` hands every section a private clone of its
 /// material, so sections do not batch with each other whatever the mesh does.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -639,6 +643,23 @@ mod tests {
 
     fn shape(corners: [u8; 4], midpoints: [u8; 4]) -> ShellShape {
         ShellShape::new(corners, midpoints).expect("a legal shape")
+    }
+
+    /// The vocabulary's floor case is a STUD rather than nothing: an all-floor
+    /// boundary still reads as a stub of surviving material, which is what
+    /// `volume`'s exception is there for. Only the derivation ever reaches it,
+    /// so a reader who expects to meet it as battle damage should find out here
+    /// that they will not.
+    #[test]
+    fn the_all_floor_shape_is_the_vocabularys_stud() {
+        let flat = shape([0; 4], [0; 4]);
+
+        assert!(flat.is_stud(), "the all-floor shape is the stud");
+        assert_eq!(
+            flat.volume(),
+            SAMPLE_HEIGHTS[HALF as usize],
+            "and a stud is half a cell of solid, not none"
+        );
     }
 
     /// Every facet of a shape, across all of its surface meshes. The tile is

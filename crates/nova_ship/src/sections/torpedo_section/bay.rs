@@ -837,6 +837,10 @@ mod tests {
         // Armed, on its target, but marked shot down: the fuze must stay
         // quiet for the tick between the marker and the despawn.
         let mut app = App::new();
+        // The contact fuze reads the clock for its swept window and the broad
+        // phase for the target's skin.
+        app.init_resource::<Time>();
+        app.init_resource::<avian3d::collider_tree::ColliderTrees>();
         app.add_systems(Update, torpedo_detonate_system);
         let mut arming = TorpedoArming::new(0.0, 0.0, Vec3::ZERO);
         arming.tick(1.0, Vec3::ZERO);

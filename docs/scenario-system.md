@@ -532,11 +532,12 @@ are dynamic), and the asteroid alone opts into `Dynamic` +
   an AUTHORED `body_radius` (deterministic, unlike the asteroid's mesh-derived
   radius) and an optional `mass`; no mesh, no collider, no `BodyRadius` - an
   orbit-target / bodiless-gravity anchor for scenes that do not want a rock.
-- `Asteroid(AsteroidConfig)` - radius, texture, health, `mass` (the body's
+- `Asteroid(AsteroidConfig)` - radius, texture, geometry-owned durability,
+  `mass` (the body's
   `mu`: it alone sets both the pull `a = mu / r^2` and the sphere of influence,
   the distance where that decays to `GravitySettings::soi_cutoff_accel` - so
   author it by the SOI you want, `mu = soi_cutoff_accel * soi^2`),
-  `invulnerable` (no health node, so its gravity well cannot die),
+  `invulnerable` (no carving, so its gravity well cannot die),
   `lock_signature` override, an optional `seed` pinning the noise silhouette
   (and so the derived `BodyRadius`) across runs, and optional per-spawn
   `impact_sound` / `destroy_sound`
