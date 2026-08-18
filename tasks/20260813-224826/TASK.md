@@ -944,6 +944,63 @@ each from the turret, thruster and hull, twelve over the run, no empty walk. Its
 beats did not move - the assert markers still land at Playing + 3, 7 and 11
 frames, exactly as before the queue.
 
+### Phase 4j - a crater stops capturing the whole rock - DONE (2026-08-18)
+
+Owner playtest: "if I have a crater in an asteroid and I shoot it in another
+place, the original crater keeps growing instead of creating a new one where I
+am currently shooting."
+
+Cause, in `integrity/carve.rs`. Phase 4c gave `radius` two jobs at once. It is
+how big the hole is, which `subtract_sphere` and the spew both need, and it was
+also the test for whether the next hit belongs to that hole. So the capture area
+WAS the accumulated hole: `absorb_volume` grew the radius, which widened the
+area that captured the next hit, which widened it again. Positive feedback, and
+one crater eventually captured every hit on the body.
+
+Corrected by splitting the two jobs apart and bounding only the second.
+`DamageMark::accepts` caps the reach at `MERGE_REACH * mark.radius` - four times
+the INCOMING bite - as well as at the crater's own radius. The cap does not
+depend on how far the crater has grown, so the loop is broken; the `min` keeps
+capture inside the hole that is really there, so a hit is never credited to a
+crater that does not reach it. Nothing about the hole's SIZE moved:
+`absorb_volume`, `mark_radius`, `DAMAGE_PER_UNIT_VOLUME` and `MARK_MIN_RADIUS`
+are untouched, and a mark still costs exactly what the hit destroyed.
+
+LOOSE over tight, deliberately. The reach a 4-damage round earns is 1.15u of
+world, which is aim wobble on the smallest scatter rock and still leaves the far
+side of the biggest one a different place to shoot. A tight rule - capture only
+what the bite itself overlaps - would have turned a held burst into a row of
+separate dents and undone Phase 4c, which exists to make sustained fire dig ONE
+hole. A torpedo still captures across its own width, because four times its own
+1.65u bite is wider than the crater it makes.
+
+The over-budget branch is deliberately NOT gated on the reach. Past
+`MARK_BUDGET` there is nowhere to put a hit that belongs to no crater, and
+material a body paid for has to come off it somewhere, so the nearest crater
+still absorbs it. That is a cost of the budget, not of the reach, and it is
+untouched here.
+
+Measured:
+
+- The regression is pinned: 1,000 rounds into one spot then one round 2.0u away
+  used to leave ONE crater and now leaves two, with the first frozen at the
+  radius it had.
+- `carve_asteroids` gained a fifth column: two 4-damage bursts, 5,000 rounds
+  then 2,500, held 3.50u apart - inside the 4.92u the first burst grows to and
+  outside the 1.15u a round earns. Under the old rule the run left ONE 5.64u pit
+  centred on the first aim point with the second place untouched; it now leaves
+  two, 4.92u and 3.91u, one under each aim point. Both captures were opened. The
+  control, torpedo and cut columns are pixel-identical across the two runs.
+- Budget fill does not move for scattered fire. A 300-round burst at 0.3u spread
+  leaves 14 craters under both rules; at 1.0u spread both fill the 24-mark
+  budget on round 23. The cap never binds there, because craters that share a
+  burst never grow past four bites wide.
+- The one pattern that costs more slots is fire held on one point deep enough
+  that the collider recedes past the reach: 3,000 rounds into the same hole go
+  from 1 crater to 8, which is the hole DEEPENING instead of widening, and the
+  budget is still not reached. In the real-fire gallery the count did not move
+  at all - 352 landed rounds gave three craters before and after.
+
 ### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 
 - What is left of a body at death comes apart into bounded debris with

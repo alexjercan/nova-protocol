@@ -6,17 +6,18 @@
 //! was sub-cell, repeated rounds in one spot were discarded, and a shipped rock
 //! died before a visible hole formed.
 //!
-//! Four copies of the SAME radius-3 fixed-seed rock, left to right:
+//! Five copies of the SAME radius-3 fixed-seed rock, left to right:
 //!
 //! - pristine control;
 //! - 300 rounds from a real `better_turret_section`, held on one point;
 //! - one shipped 750-damage torpedo-scale blast;
-//! - a cut walked across one plane until a piece severs.
+//! - a cut walked across one plane until a piece severs;
+//! - two PDC bursts held on two separate places of the same face.
 //!
 //! The PDC column is the load-bearing one. The gallery spawns a player ship,
 //! raises the real weapons safety, holds its real trigger and waits until 300
-//! rounds have actually reached the rock. The torpedo and cut enter
-//! through `apply_damage`, the same seam their blast uses.
+//! rounds have actually reached the rock. The torpedo, the cut and the two
+//! bursts enter through `apply_damage`, the same seam their blast uses.
 //!
 //! Judge the PDC column first: it must have one unmistakable hole, while the
 //! control stays whole. Then check that the torpedo makes a visible one-hit
@@ -25,6 +26,11 @@
 //! a carve throws dust, and only an island big enough to be worth simulating
 //! becomes a body. All rocks retain the same silhouette and coarse faceting
 //! away from the damage.
+//!
+//! The two-burst column is the merge-reach gate. Its second burst lands closer
+//! to the first crater than that crater has GROWN, which is the exact band a
+//! hole used to swallow: the rock has to end up with a bite under EACH aim
+//! point, not one round hole centred on the first.
 //!
 //! Costs are logged with `RUST_LOG=nova_scenario=debug`. With `NOVA_PERF=1`,
 //! the frame-time probe also drives one accumulating 4-damage hit per frame
@@ -60,6 +66,7 @@ enum Shot {
     Pdc,
     Torpedo,
     Cut,
+    TwoSpots,
 }
 
 impl Shot {
@@ -69,6 +76,7 @@ impl Shot {
             Self::Pdc => "300 real PDC rounds",
             Self::Torpedo => "one 750-damage torpedo",
             Self::Cut => "cut in two",
+            Self::TwoSpots => "two bursts, two places",
         }
     }
 
@@ -79,12 +87,19 @@ impl Shot {
             Self::Pdc => "carve-asteroids-pdc.png",
             Self::Torpedo => "carve-asteroids-torpedo.png",
             Self::Cut => "carve-asteroids-cut.png",
+            Self::TwoSpots => "carve-asteroids-two-spots.png",
         }
     }
 }
 
 /// The row, left to right.
-const ROW: [Shot; 4] = [Shot::Control, Shot::Pdc, Shot::Torpedo, Shot::Cut];
+const ROW: [Shot; 5] = [
+    Shot::Control,
+    Shot::Pdc,
+    Shot::Torpedo,
+    Shot::Cut,
+    Shot::TwoSpots,
+];
 
 /// The exact shipped kinetic PDC hit and the sustained-fire acceptance point.
 #[cfg(feature = "debug")]
@@ -113,6 +128,24 @@ const CUT_DAMAGE: f32 = 4200.0;
 /// rather than leaving a rim holding the two halves together.
 #[cfg(feature = "debug")]
 const CUT_SPACING: f32 = 2.4;
+
+/// How far apart the two-burst column holds its two aim points, in world units.
+///
+/// Chosen to sit in the band the old merge rule swallowed: further out than the
+/// reach a 4-damage round earns (1.15u) and well inside the crater the first
+/// burst grows to (4.92u). A hole that captures by its own accumulated size
+/// eats the second burst whole and stays one round pit; a hole that captures by
+/// the size of the bite coming at it keeps a bite under each aim point.
+#[cfg(feature = "debug")]
+const TWO_SPOT_SEPARATION: f32 = 3.5;
+
+/// Rounds into the first place, then into the second.
+///
+/// A 4-damage round is far under one grid cell, so the first burst has to be
+/// long enough BOTH to show and to outgrow [`TWO_SPOT_SEPARATION`] - otherwise
+/// there is nothing for the second burst to be swallowed by.
+#[cfg(feature = "debug")]
+const TWO_SPOT_BURSTS: [usize; 2] = [5000, 2500];
 
 /// One noise seed for every rock: the row varies the damage only.
 const ROCK_SEED: u32 = 20260817;
@@ -174,6 +207,24 @@ fn surface_point(direction: Vec3) -> Vec3 {
     direction * rock.radius(direction) * ROCK_RADIUS
 }
 
+/// Where the two-burst column holds its `place`-th aim point, relative to that
+/// rock, both on the face the camera looks at.
+///
+/// The second is stepped straight sideways off the first rather than resampled
+/// from a second direction: the separation is the whole point of the column,
+/// and this rock's surface wanders by several units between directions, so a
+/// direction chosen by eye lands anywhere. The step leaves it a fraction of a
+/// unit off the true surface, which is well inside the crater the first burst
+/// has already dug there.
+#[cfg(feature = "debug")]
+fn two_spot_surface(place: usize) -> Vec3 {
+    let first = surface_point(Vec3::Z);
+    match place {
+        0 => first,
+        _ => first + Vec3::X * TWO_SPOT_SEPARATION,
+    }
+}
+
 #[cfg(feature = "debug")]
 fn rock_node(world: &World, shot: Shot) -> Option<Entity> {
     let index = ROW.iter().position(|candidate| *candidate == shot)?;
@@ -196,6 +247,17 @@ fn apply_blast_cases(world: &mut World) {
         let mut commands = world.commands();
         apply_damage(&mut commands, node, None, TORPEDO_DAMAGE, Some(at));
         world.flush();
+    }
+
+    if let Some(node) = rock_node(world, Shot::TwoSpots) {
+        for (place, rounds) in TWO_SPOT_BURSTS.into_iter().enumerate() {
+            let at = column_position(4) + two_spot_surface(place);
+            for _ in 0..rounds {
+                let mut commands = world.commands();
+                apply_damage(&mut commands, node, None, PDC_DAMAGE, Some(at));
+                world.flush();
+            }
+        }
     }
 
     if let Some(node) = rock_node(world, Shot::Cut) {
@@ -363,6 +425,49 @@ fn report_pdc_result(world: &mut World) {
     );
 }
 
+/// The merge-reach gate: every aim point the two-burst column held has to have
+/// its own bite under it.
+///
+/// A hole that captures by its own accumulated size swallows the second burst
+/// and leaves ONE crater centred on the first aim point, with nothing under the
+/// second - which is the defect this column exists to catch.
+#[cfg(feature = "debug")]
+fn report_two_spot_result(world: &mut World) {
+    let node = rock_node(world, Shot::TwoSpots).expect("the two-burst rock still exists");
+    let aims = [two_spot_surface(0), two_spot_surface(1)];
+    let marks = world
+        .get::<DamageMarks>(node)
+        .expect("the bursts recorded marks");
+    // Marks live in the mesh node's unit space; the aim points are world.
+    let craters: Vec<(Vec3, f32)> = marks
+        .0
+        .iter()
+        .map(|mark| (mark.at * ROCK_RADIUS, mark.radius * ROCK_RADIUS))
+        .collect();
+
+    info!(
+        "carve asteroids: two bursts {:.2}u apart left {} crater(s), radii {}",
+        aims[0].distance(aims[1]),
+        craters.len(),
+        craters
+            .iter()
+            .map(|(_, radius)| format!("{radius:.2}u"))
+            .collect::<Vec<_>>()
+            .join(" "),
+    );
+
+    for (place, aim) in aims.iter().enumerate() {
+        let nearest = craters
+            .iter()
+            .map(|(at, _)| at.distance(*aim))
+            .fold(f32::INFINITY, f32::min);
+        assert!(
+            nearest < 0.5,
+            "place {place} has no bite of its own: nearest crater is {nearest:.2}u away"
+        );
+    }
+}
+
 #[cfg(feature = "debug")]
 fn remove_firing_ship(world: &mut World) {
     let roots: Vec<Entity> = world
@@ -428,9 +533,12 @@ fn gallery_script() -> Script {
         .step("frame the whole row")
         .on_enter(|world: &mut World| {
             let centre = row_centre();
+            // Stood off by the row's own width, so adding a column reframes the
+            // establishing shot instead of cropping it.
+            let width = row_width();
             nova_protocol::nova_debug::harness::pose_camera(
                 world,
-                centre + Vec3::new(0.0, 36.0, 170.0),
+                centre + Vec3::new(0.0, width * 0.29, width * 1.35),
                 centre,
             );
         })
@@ -443,7 +551,8 @@ fn gallery_script() -> Script {
         .until(elapsed(0.5))
         .add();
 
-    ROW.iter()
+    let script = ROW
+        .iter()
         .enumerate()
         .fold(script, |script, (index, shot)| {
             let name = shot.shot_name();
@@ -460,12 +569,24 @@ fn gallery_script() -> Script {
                 })
                 .until(elapsed(0.5))
                 .add()
-        })
+        });
+
+    // LAST, after the captures: a gate that fails still leaves the picture that
+    // shows why it failed.
+    script
+        .step("check every aim point kept its own bite")
+        .on_enter(report_two_spot_result)
+        .add()
+}
+
+/// End to end, in world units.
+fn row_width() -> f32 {
+    (ROW.len() as f32 - 1.0) * COLUMN_PITCH
 }
 
 /// The middle of the row, which the establishing shot is centred on.
 fn row_centre() -> Vec3 {
-    Vec3::new((ROW.len() as f32 - 1.0) * COLUMN_PITCH * 0.5, 0.0, 0.0)
+    Vec3::new(row_width() * 0.5, 0.0, 0.0)
 }
 
 /// Point the scenario camera at one rock, close in.

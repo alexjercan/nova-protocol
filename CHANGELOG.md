@@ -336,6 +336,9 @@ tagged **(breaking)**.
 ### Fixes
 
 - Treat a torpedo outliving its launch bay as a missing optional effect.
+- Fixed: a crater captured hits by its own accumulated size, so every merge
+  widened it and one hole ate the rock. Shooting a fresh place now opens a
+  fresh hole; a held burst still digs one.
 - Fixed: a hit carved what it ASKED for, not what it destroyed, so an overkill
   round bought material twice and a spent plate still threw debris.
 - Fixed: closing NOVA OS in the WFC arena resumes combat instead of leaving the match clocks paused.

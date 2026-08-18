@@ -83,6 +83,16 @@ pub const DAMAGE_PER_UNIT_VOLUME: f32 = 80.0;
 /// the case: it should crack, which is the level's job, not this one.
 const MARK_MIN_RADIUS: f32 = 0.15;
 
+/// How far outside a crater a hit still counts as landing IN it, as a multiple
+/// of the INCOMING hit's own radius.
+///
+/// Loose on purpose: a burst wanders, and it has to keep reading as one
+/// deepening hole rather than a row of separate dents. Four bites is 1.15 units
+/// of world for a kinetic PDC round - about a third of the smallest rock a
+/// scenario scatters, so aim wobble on one still digs one hole, and a small
+/// fraction of the biggest, so its far side stays a different place to shoot.
+const MERGE_REACH: f32 = 4.0;
+
 /// How many marks one body remembers.
 ///
 /// A cap and not a hint: a capital in a long fight takes thousands of hits, and
@@ -103,9 +113,22 @@ pub struct DamageMark {
 }
 
 impl DamageMark {
-    /// Whether `point` lands in material this crater already reaches.
-    fn contains_point(&self, point: Vec3) -> bool {
-        self.at.distance_squared(point) <= self.radius * self.radius
+    /// Whether `mark` lands close enough to count as another bite out of THIS
+    /// crater rather than a hole somewhere else.
+    ///
+    /// Capped against the INCOMING bite, never against how big this crater has
+    /// grown. Testing the grown radius alone is what let a crater's own growth
+    /// widen the area that captured the next hit, which widened it again: one
+    /// crater ended up eating the whole body, and a shot at a fresh part of a
+    /// rock deepened the old hole instead of opening a new one. The cap breaks
+    /// that loop because it does not depend on `radius` at all.
+    ///
+    /// Still capped BY `radius` as well, so capture can never exceed the hole
+    /// that is actually there - a big hit legitimately captures across its own
+    /// width, a small one may not reach past what it took.
+    fn accepts(&self, mark: &Self) -> bool {
+        let reach = self.radius.min(MERGE_REACH * mark.radius);
+        self.at.distance_squared(mark.at) <= reach * reach
     }
 
     /// Add `other`'s paid volume without moving this crater.
@@ -131,9 +154,16 @@ impl DamageMarks {
     ///
     /// Three outcomes, and all of them add the hit's paid volume:
     ///
-    /// - a hit centred inside an existing crater grows the nearest such crater;
+    /// - a hit within an existing crater's reach grows the nearest such crater;
     /// - a separate hit opens a crater while the budget has room;
     /// - at the budget, the nearest crater grows without moving its centre.
+    ///
+    /// [`DamageMark::accepts`] is the whole of the first rule and the reason a
+    /// hole stops growing once it is shot somewhere else. The LAST rule is
+    /// deliberately not gated on it: past the budget there is nowhere to put a
+    /// hit that belongs to no crater, and material a body paid for has to come
+    /// off it somewhere. That is a separate cost of [`MARK_BUDGET`], not of the
+    /// reach.
     ///
     /// Returns whether the body's shape changed. Every positive-radius hit
     /// changes it, which is what tells [`CarveSpew`] material came off.
@@ -141,7 +171,7 @@ impl DamageMarks {
         if let Some(existing) = self
             .0
             .iter_mut()
-            .filter(|existing| existing.contains_point(mark.at))
+            .filter(|existing| existing.accepts(&mark))
             .min_by(|a, b| {
                 a.at.distance_squared(mark.at)
                     .total_cmp(&b.at.distance_squared(mark.at))
@@ -468,6 +498,59 @@ mod tests {
         assert!(
             marks.0[0].radius < 1.0,
             "a distant hit did not span the body"
+        );
+    }
+
+    /// The reported defect: a crater that has been fired into for long enough
+    /// must not swallow a hit somewhere else on the rock. Capture used to BE
+    /// the accumulated hole, so every merge widened the area that captured the
+    /// next one and one crater ate the whole body.
+    #[test]
+    fn a_grown_crater_does_not_swallow_a_hit_somewhere_else() {
+        // The shipped kinetic PDC round.
+        let round = mark_radius(4.0);
+        let mut marks = DamageMarks::default();
+        for _ in 0..1000 {
+            marks.add(mark(Vec3::ZERO, round));
+        }
+        assert_eq!(marks.0.len(), 1, "delivery guard: the burst is one hole");
+        let grown = marks.0[0].radius;
+        assert!(
+            grown > 2.5,
+            "delivery guard: it grew past an arena rock's radius, got {grown}"
+        );
+
+        marks.add(mark(Vec3::X * 2.0, round));
+
+        assert_eq!(marks.0.len(), 2, "the second place got its own hole");
+        assert!(
+            (marks.0[0].radius - grown).abs() < 1e-6,
+            "and the first stopped growing: {} was {grown}",
+            marks.0[0].radius
+        );
+    }
+
+    /// What the loose reach buys, and the reason it is loose: a burst wanders
+    /// while it digs, and it still has to read as ONE deepening hole rather
+    /// than a row of separate dents.
+    #[test]
+    fn a_burst_that_wanders_still_digs_one_hole() {
+        let round = mark_radius(4.0);
+        let mut marks = DamageMarks::default();
+        for step in 0..300 {
+            let turn = step as f32 * 0.7;
+            // Drift opens up as the hole does: the first rounds land on one
+            // point and the rest wander inside what they have already opened.
+            let drift = step as f32 / 300.0;
+            marks.add(mark(Vec3::new(turn.cos(), turn.sin(), 0.0) * drift, round));
+        }
+
+        assert_eq!(marks.0.len(), 1, "sustained fire is one hole");
+        let expected = round * 300.0f32.cbrt();
+        assert!(
+            (marks.0[0].radius - expected).abs() < 1e-4,
+            "and it holds every round it was paid: got {} want {expected}",
+            marks.0[0].radius
         );
     }
 
