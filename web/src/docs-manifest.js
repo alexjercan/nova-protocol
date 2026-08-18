@@ -54,7 +54,7 @@ const WIKI_PAGES = [
         category: "Start here",
         tags: ["ui"],
         summary:
-            "Short definitions for the recurring terms and units - prograde/retrograde, standoff, sphere of influence, hysteresis, fine-lock, hot weapons, diegetic, and the u / u-per-s units.",
+            "Short definitions for the recurring terms and units - prograde/retrograde, standoff, sphere of influence, hysteresis, fine-lock, hot weapons, neutralized, point defense, Kinetic/Pierce, the torpedo types, diegetic, and the m / km / m-per-s units.",
         related: ["getting-started", "flight-autopilot", "targeting-radar"],
         headings: ["Units", "Terms"],
     },
@@ -351,8 +351,9 @@ const CREATE_PAGES = [
         headings: [
             "Folder structure",
             "The bundle manifest",
+            "Balance acknowledgments",
             "Content files",
-            "The three content chapters",
+            "The five content chapters",
             "Paths and dependencies",
             "Overlay behavior",
         ],
@@ -412,6 +413,7 @@ const CREATE_PAGES = [
         headings: [
             "The Section item",
             "Common fields",
+            "Structural link points",
             "Assets and visual transforms",
             "Hull",
             "Thruster",
@@ -471,12 +473,13 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "Everything that can fire a scenario handler: fifteen event kinds, payloads, lifecycle edges, and dispatch order.",
+            "Everything that can fire a scenario handler: sixteen event kinds, payloads, lifecycle edges, and dispatch order.",
         related: ["filters", "actions", "scenarios"],
         headings: [
             "OnStart",
             "OnUpdate",
             "OnTimerEnd",
+            "OnDefeated",
             "OnDestroyed",
             "OnNeutralized",
             "OnEnter",
@@ -514,7 +517,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "All 24 actions a scenario handler can run, grouped by spawning, mission, flow, ship state, timers, and camera.",
+            "All 25 actions a scenario handler can run, grouped by spawning, mission, flow, ship state, timers, and camera.",
         related: ["objects", "events", "expressions"],
         headings: [
             "SpawnScenarioObject",
@@ -534,6 +537,7 @@ const CREATE_PAGES = [
             "SetSpeedCap",
             "SetControllerVerb",
             "SetAllegiance",
+            "ForceTorpedoLaunch",
             "TimerStart",
             "TimerCancel",
             "VariableSet",
@@ -552,9 +556,10 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "The five spawnable scenario object kinds: Asteroid, Spaceship, Beacon, SalvageCrate, and Light.",
+            "The six spawnable scenario object kinds: Anchor, Asteroid, Spaceship, Beacon, SalvageCrate, and Light.",
         related: ["actions", "base-content", "sections"],
         headings: [
+            "Anchor",
             "Asteroid",
             "Spaceship",
             "The controller",
@@ -562,6 +567,7 @@ const CREATE_PAGES = [
             "Beacon",
             "SalvageCrate",
             "Light",
+            "Traps for the unwary",
         ],
     },
     {
@@ -581,8 +587,9 @@ const CREATE_PAGES = [
             "Terms: multiply / divide",
             "Expressions: add / subtract",
             "Conditions: the boolean root",
-            "Reserved engine variables",
+            "Queries and watched variables",
             "Recipes",
+            "Traps for the unwary",
         ],
     },
     {
@@ -594,7 +601,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference", "ships"],
         summary:
-            "Every id and asset the base game ships: section prototype ids, scenario ids, the campaign, dep://base asset paths, and overlay rules.",
+            "Every id and asset the base game ships: section prototype ids, ship and style ids, scenario ids, the campaign, dep://base asset paths, and overlay rules.",
         related: ["sections", "mod-files", "objects"],
         headings: [
             "Section prototypes",

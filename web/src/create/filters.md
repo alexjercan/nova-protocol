@@ -128,14 +128,14 @@ script needs.
 - **Filters fail CLOSED.** Any evaluation error - an UNDEFINED variable, a
   type mismatch, a division by zero - logs an error and the filter returns
   false. The handler silently never fires. Consequence: seed EVERY variable
-  your filters read in `OnStart` (the two
-  [reserved engine variables](../expressions/#reserved-engine-variables)
-  are exempt). A missing seed is a soft-lock, not a crash - and the content
-  lint warns on reads of never-set variables.
+  your filters read in `OnStart` (variables a
+  [watch](../expressions/#queries-and-watched-variables) maintains are
+  exempt). A missing seed is a soft-lock, not a crash - and the content
+  lint warns on reads of never-set, unwatched variables.
 - **A payload that fails to serialize also fails closed** (loudly, in the
   log): every `Entity` filter reads "no match" for that event.
-- **Recurring events + an ungated filter = repeated actions.** The 5 s
-  recurrence on the locks (and every frame on `OnUpdate`)
-  passes your filters again each pulse. Pair the condition with a one-shot
-  flag the actions flip - the
+- **Repeating events + an ungated filter = repeated actions.** `OnUpdate`
+  fires every frame, and the lifecycle edges re-fire on every genuine
+  transition (a lock landing again, orbit stability recovered). Pair the
+  condition with a one-shot flag the actions flip - the
   [count-gate idiom](../expressions/#recipes).

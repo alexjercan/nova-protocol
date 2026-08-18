@@ -125,6 +125,8 @@ The wiki search (sidebar) indexes every construct name, so typing
 [`Point`](../objects/#light) (light method),
 [`Prototype`](../objects/#the-sections-list) (section source)
 
+**Q** - [`Query`](../expressions/#factors-the-atoms) (expression node)
+
 **R** - [`Rename`](../objects/#the-sections-list) (section modification),
 [`Ring`](../actions/#scatterobjects) (scatter region)
 
@@ -140,18 +142,24 @@ The wiki search (sidebar) indexes every construct name, so typing
 [`SetHealth`](../objects/#the-sections-list) (section modification),
 [`SetSkybox`](../actions/#setskybox),
 [`SetSpeedCap`](../actions/#setspeedcap),
+[`Ship`](../ships/) (content item),
 [`SpawnScenarioObject`](../actions/#spawnscenarioobject) (actions),
 [`Spaceship`](../objects/#spaceship) (object),
 [`StoryMessage`](../actions/#storymessage) (action),
 [`String`](../expressions/#values-the-literal-types) (literal),
+[`Style`](../styles/) (content item),
 [`Subtract`](../expressions/#expressions-add-subtract-the-value-root) (expression node)
 
-**T** - [`Term`](../expressions/#expressions-add-subtract-the-value-root) (expression node)
+**T** - [`Term`](../expressions/#expressions-add-subtract-the-value-root) (expression node),
+[`Timer`](../filters/#timer) (filter),
+[`TimerCancel`](../actions/#timercancel),
+[`TimerStart`](../actions/#timerstart) (actions)
 
 **V** - [`VariableSet`](../actions/#variableset) (action)
 
-Two engine-maintained variables also belong to the vocabulary:
-[typed queries and watched variables](../expressions/#queries-and-watched-variables).
+Typed queries and their auto-updating watched variables also belong to the
+vocabulary:
+[queries and watched variables](../expressions/#queries-and-watched-variables).
 
 ## Extending the vocabulary
 

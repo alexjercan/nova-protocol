@@ -48,6 +48,7 @@ folder and bundle shape.
 | `thumbnail` | `Option` asset ref | `None` | Plain 2D menu image, written as `Some("self://thumbnails/x.png")`. Do not use a cubemap. |
 | `hidden` | bool | `false` | `true` removes the scenario from the flat list. Campaign members remain available under their campaign. |
 | `menu_backdrop` | bool | `false` | `true` adds the scenario to the random main-menu backdrop rotation. Backdrops normally also use `hidden: true`. |
+| `watches` | list | `[]` | Read-only queries sampled into auto-updating variables, entries of `(variable: "...", query: ...)`. See [Queries and watched variables](../expressions/#queries-and-watched-variables). |
 | `events` | list of handlers | `[]` | Scenario script. Empty is valid but does nothing. |
 
 A menu backdrop POSES ITS OWN CAMERA: author a

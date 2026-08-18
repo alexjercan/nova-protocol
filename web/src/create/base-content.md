@@ -1,10 +1,12 @@
 # Base content catalog
 
 Every id and asset the base game ships, so your mod can reference them
-instead of guessing. Three registries matter to a mod author: **section
-prototype ids** (what `source: Prototype("<id>")` can name), **scenario ids**
-(what `NextScenario` and campaigns can target), and **base asset paths** (what
-`dep://base/<path>` can reach). All of it is generated from the Rust builders
+instead of guessing. Five registries matter to a mod author: **section
+prototype ids** (what `source: Prototype("<id>")` can name), **ship ids**
+(what `hull: Prototype("<id>")` can name - tabled in
+[Ships](../ships/#base-ships)), **style ids** (what a hull's `style:` can
+name), **scenario ids** (what `NextScenario` and campaigns can target), and
+**base asset paths** (what `dep://base/<path>` can reach). All of it is generated from the Rust builders
 by `cargo run content gen` into
 `assets/base/**/*.content.ron` - the generated RON is the shipped truth, and
 `content -- lint` checks your references against it.
@@ -41,7 +43,7 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 | `pdc_pierce_turret_section` | Turret | PDC Turret (Pierce) | 130 | the same 500-round, +200 after 3 s idle gun loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through |
 | `torpedo_section` | Torpedo | Torpedo Bay (Serpent) | 100 | blast 750 dmg / 30 u, ordnance 10 hp, ammo 6 restoring +1 after 10 s idle; loads the WEAVING Serpent - 32 u/s, ~390 PDC rounds an intercept, killed ~40 u out |
 | `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, 35 u/s, ~116 PDC rounds an intercept, killed ~114 u out |
-| `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; scene dressing, hidden in the editor |
+| `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; loads the crimson siege Breaker (70 u/s, a shallow weave); scene dressing, hidden in the editor |
 
 ### Cladding (not a prototype)
 
@@ -63,7 +65,11 @@ have an id.
 
 | id | what it is |
 |---|---|
-| `placeholder` | scaffolding, in deliberately garish magenta: four placeholder greebles wired to four rules that exercise the whole plate vocabulary. It makes no art decision and the authored kits replace it |
+| `industrial` | a working hull: exposed services, corrugation, radiators, safety-yellow paint on its edges |
+| `armoured` | flat plate, a belt down every straight edge, sensor blisters |
+| `civilian` | the racer's: pale satin paint, a cobalt livery rail, lit cabin windows |
+| `salvage` | the raider's: mismatched patches, weld beads, a lashed drum, a whip antenna |
+| `placeholder` | scaffolding, in deliberately garish magenta: four placeholder greebles wired to four rules that exercise the whole plate vocabulary. It makes no art decision |
 
 A ship names one with `style: Some("<id>")` beside `skin: true` on its
 [hull](../ships/#the-hull). A mod declaring
@@ -149,9 +155,9 @@ launchable by id.
 One campaign ships: `nova_protocol` ("Nova Protocol"), members
 `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline`, `final_tally`
 in play order. There are no other content kinds - a content file holds
-`Section`, `Scenario` and `Campaign` items only; ships and factions are not
-content items (ships are `Spaceship` scenario objects built from prototype
-ids).
+`Section`, `Scenario`, `Campaign`, `Ship`, and `Style` items only; factions
+are not content. The base ship ids are tabled in
+[Ships](../ships/#base-ships), the style ids [above](#skin-styles).
 
 New Game is base-owned: `new_game_scenario: Some("shakedown_run")` in
 `assets/base/base.bundle.ron` is honored only from the base bundle; a mod
@@ -185,14 +191,15 @@ Semantic ship meshes use `#Scene0` and live under `gltf/parts/`:
 Cladding ships no meshes and never will: a ship's skin is derived from its
 structure and built at run time - see [Cladding](#cladding-not-a-prototype).
 
-### Greebles (4 glb)
+### Greebles (54 glb)
 
 The decoration models the base [styles](../styles/) scatter, under
-`dep://base/gltf/greebles/`: `placeholder_blister.glb`, `placeholder_block.glb`,
-`placeholder_mast.glb`, `placeholder_vent.glb`. PLACEHOLDERS in garish magenta,
-shipped to prove the pipeline; the authored kits replace them. They are
-generated from committed JSON recipes (`scripts/gen-greebles.py`), and a mod can
-ship its own the same way.
+`dep://base/gltf/greebles/`, named `<kit>_<piece>.glb`: the four authored
+kits - `armoured_*` (10), `civilian_*` (12), `industrial_*` (14),
+`salvage_*` (14) - plus the four garish magenta `placeholder_*` pieces that
+prove the pipeline.
+All are generated from committed JSON recipes (`scripts/gen-greebles.py`,
+`scripts/greeble-recipes/`), and a mod can ship its own `.glb` the same way.
 
 ### Sounds (13 wav)
 
@@ -224,8 +231,8 @@ How a mod item interacts with this catalog (implemented in
 `crates/nova_assets/src/merge.rs`):
 
 - The matching key is the id string per kind - `Section` matches on
-  `base.id`, `Scenario` and `Campaign` on `id`. Names and file paths never
-  participate.
+  `base.id`; `Scenario`, `Campaign`, `Ship`, and `Style` on `id`. Names and
+  file paths never participate.
 - Same id as base (or an earlier bundle) = REPLACE, whole item. It is not a
   field-level patch: an overlay must restate every field it wants to keep.
   Sections replace in place, so the editor palette order is preserved.
@@ -242,7 +249,8 @@ How a mod item interacts with this catalog (implemented in
 
 The builders behind this page live under
 `crates/nova_authoring/src/base_content/`: `sections/standard.rs` owns generic
-section prototypes, `ships/` owns semantic parts and complete craft,
+section prototypes, `sections/ordnance.rs` the torpedo types, `styles.rs` the
+skin styles, `ships/` owns semantic parts and complete craft,
 `scenarios/` groups mainline, main-menu, and sandbox scenarios, and
 `campaigns.rs` owns campaign membership. If this page and the generated RON
 ever disagree, the RON is the

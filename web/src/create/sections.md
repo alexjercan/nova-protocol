@@ -462,8 +462,13 @@ kind: Torpedo((
   costs a short burst rather than one lucky tap; author far more for armored
   ordnance point defense has to chew through across the closing window.
 - `torpedo_type` (optional, defaults to the Serpent) - **what the bay loads**, as
-  opposed to the tube it loads into. Four fields:
-  - `name` - the ordnance's player-facing name (`"Lance"`, `"Serpent"`). It names
+  opposed to the tube it loads into. A type is DATA, not an enum: base authors
+  its three (the straight-running Lance, the weaving Serpent, and the crimson
+  siege Breaker - 70 u/s with a shallow 0.22 rad weave - that only the hidden
+  `heavy_torpedo_section` bay loads), and a mod authors its own by writing the
+  same five fields:
+  - `name` - the ordnance's player-facing name (`"Lance"`, `"Serpent"`,
+    `"Breaker"`). It names
     the launched projectile, so a log line or a probe snapshot says WHICH torpedo
     is in the air.
   - `tint` - the warhead's colour in flight, as

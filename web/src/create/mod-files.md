@@ -192,9 +192,10 @@ the [base content catalog](../base-content/) for reusable base ids and assets.
 
 Content merges by item id:
 
-- A new id adds a campaign, scenario, or section.
+- A new id adds a campaign, scenario, section, ship, or style.
 - An id that already exists replaces that whole item.
 - A duplicate id inside one bundle is a conflict; the first item is kept.
 
-For sections, the key is `base.id`. For campaigns and scenarios, the key is
-`id`. Prefix new ids with your mod id to avoid accidental collisions.
+For sections, the key is `base.id`. For campaigns, scenarios, ships, and
+styles, the key is `id`. Prefix new ids with your mod id to avoid accidental
+collisions.

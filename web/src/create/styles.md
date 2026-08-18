@@ -71,7 +71,7 @@ decoration.
 | field | type | meaning |
 |---|---|---|
 | `surface` | `Top` / `Wall` / `Floor` | which face of a plate. `Top` faces space; `Wall` is the side a plate drops away at; `Floor` is against the hull and never seen |
-| `color` | color | base colour, tagged: `Srgba((red: .., green: .., blue: .., alpha: ..))` |
+| `color` | color | base colour, tagged: `Srgba((red: .., green: .., blue: .., alpha: ..))` or `LinearRgba((..))` - both spellings of the engine colour type parse; the shipped kits author `LinearRgba` |
 | `roughness` | float | 0 (mirror) to 1 (matte) |
 | `metallic` | float | 0 (dielectric) to 1 (metal) |
 
@@ -326,8 +326,10 @@ The base game ships four authored looks and one piece of scaffolding:
 | `salvage` | the raider's: mismatched patches, weld beads, a lashed drum, a whip antenna |
 | `placeholder` | scaffolding for the authored kits rather than a look to build on |
 
-A ship that names no style takes the FIRST the merged content offers, so the
-authored looks are listed before the scaffolding. The editor lists every merged
+A ship that names no style flies undressed: built-in plate colours, no
+decoration. The EDITOR's build view instead previews the first style the merged
+content offers while none is picked, so the authored looks are listed before
+the scaffolding. The editor lists every merged
 style under its cladding toggle - a mod's look appears there beside the base
 ones with nothing to register - and the `wfc_ships` example cycles the same list
 with `L`, or takes `--style <id>`.
