@@ -132,6 +132,12 @@ pub struct AsteroidField {
     /// A rejected surface waits for another mark rather than rebuilding the
     /// same unusable collider every frame.
     attempted: u64,
+    /// How much solid `field` holds, in the grid's own cubic units.
+    ///
+    /// CARRIED, not measured. `subtract_sphere` reports exactly what it took by
+    /// the same count [`SignedField::solid_volume`] uses, so the guard below is
+    /// a compare rather than a whole-grid scan every rock pays every frame.
+    volume: f32,
     /// Quantized solid volume at the last successful mesh and collider swap.
     ///
     /// Marks smaller than a grid cell still accumulate in `field`, but work
@@ -403,12 +409,13 @@ fn carve_asteroid_fields(
                     seeded.cell_size() * nominal.0,
                     started.elapsed().as_secs_f32() * 1000.0
                 );
-                let meshed_volume = seeded.solid_volume();
+                let volume = seeded.solid_volume();
                 commands.entity(node).insert(AsteroidField {
                     field: seeded,
                     applied: 0,
                     attempted: 0,
-                    meshed_volume,
+                    volume,
+                    meshed_volume: volume,
                 });
                 // The insert lands next flush, and this rock is carved the
                 // frame after. One frame of lag on the first hit only, and it
@@ -422,9 +429,10 @@ fn carve_asteroid_fields(
         if field.applied != signature {
             field.applied = signature;
             // EVERY mark, not just the ones that look new. Subtraction is a
-            // max, so re-applying one already in the solid changes nothing.
+            // max, so re-applying one already in the solid changes nothing -
+            // and reports taking nothing, which is what keeps `volume` exact.
             for mark in &marks.0 {
-                field.field.subtract_sphere(mark.at, mark.radius);
+                field.volume -= field.field.subtract_sphere(mark.at, mark.radius);
             }
         }
 
@@ -432,7 +440,7 @@ fn carve_asteroid_fields(
         // surface topology. Keep accumulating it, but do not pay connectivity,
         // surface generation and collider rebuild until at least one cell is
         // observably gone.
-        if field.field.solid_volume() >= field.meshed_volume || field.attempted == signature {
+        if field.attempted == signature || field.volume >= field.meshed_volume {
             continue;
         }
         field.attempted = signature;
@@ -455,9 +463,25 @@ fn carve_asteroid_fields(
 
         let (scale, _, _) = frame.to_scale_rotation_translation();
         let cubic_scale = (scale.x * scale.y * scale.z).abs();
-        let remaining_world = candidate.solid_volume() * cubic_scale;
+        // Splitting moves corners out of the candidate without reporting how
+        // much, so the rare case that severs pays for a scan and the common one
+        // that does not carries the tracked volume through.
+        let remaining = match islands.is_empty() {
+            true => field.volume,
+            false => candidate.solid_volume(),
+        };
+        let remaining_world = remaining * cubic_scale;
         let started = std::time::Instant::now();
-        let surface = candidate.surface().build();
+        let built = candidate.surface();
+        // Off the DRAWN surface, not off a second whole-grid pass over the cell
+        // vertices it was just built from: same answer, and the margin keeps
+        // the solid clear of the domain wall where a cell has no quad.
+        let surviving = built
+            .triangles
+            .iter()
+            .flat_map(|triangle| triangle.vertices)
+            .fold(0.0f32, |furthest, vertex| furthest.max(vertex.length()));
+        let surface = built.build();
         let remeshed = started.elapsed();
 
         let started = std::time::Instant::now();
@@ -517,9 +541,9 @@ fn carve_asteroid_fields(
         // Validation succeeded. Only now may the field and its islands become
         // observable.
         throw_severed_pieces(&mut commands, &mut meshes, &parent, &islands);
-        let surviving = candidate.surface_radius();
         field.field = candidate;
-        field.meshed_volume = field.field.solid_volume();
+        field.volume = remaining;
+        field.meshed_volume = remaining;
         debug!(
             "carve_asteroid_fields: {node:?} carve {:.1} ms (sever {:.1}, remesh {:.1}, \
              collider {:.1}), {} tri(s), unit radius {surviving:.2}",
