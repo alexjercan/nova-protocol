@@ -1,8 +1,8 @@
 # Document the destruction model on all three doc surfaces
 
-- STATUS: OPEN
-- PRIORITY: 72
-- TAGS: v0.11.0,docs,destruction
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,docs,destruction
 
 Epic: `20260818-220812`.
 
