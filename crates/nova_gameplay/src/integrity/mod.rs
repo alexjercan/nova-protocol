@@ -9,8 +9,8 @@
 //!   out.
 //! - ship-specific adapters declare their graphs and can promote direct
 //!   depletion to immediate destruction at any graph degree;
-//! - [`explode`] reacts to the destroy marker: slice meshes, spawn debris, fire
-//!   `OnDestroyedEvent`.
+//! - [`explode`] reacts to the destroy marker: detach the dead body from its
+//!   parent so it tumbles away whole, and fire `OnDestroyedEvent`.
 //! - [`neutralize`] calls a ship combat-dead once its weapons are gone OR its
 //!   flight computer is.
 //! - [`erosion`] reads health as a level, for effects that grade a whole body.
@@ -71,7 +71,7 @@ impl Plugin for NovaIntegrityPlugin {
         app.add_plugins(spew::CarveSpewPlugin);
         app.add_plugins(chunk::CarvedChunkPlugin);
 
-        // Nova's reaction to destruction: mesh slice, debris, OnDestroyedEvent.
+        // Nova's reaction to destruction: detach the dead body, OnDestroyedEvent.
         app.add_plugins(explode::ExplodablePlugin);
 
         // Combat-death detection: weapons + thrusters all gone -> neutralized.

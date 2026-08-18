@@ -28,10 +28,9 @@
 //! [`SectionCracksMaterial`] built from its own pristine `StandardMaterial`,
 //! which this module owns and writes to.
 //!
-//! The mesh keeps a [`FragmentMaterial`] pointing at the PRISTINE standard
-//! material, because the finale can only draw debris with a `StandardMaterial`
-//! and a section that swapped to an extended one would otherwise break into
-//! anonymous grey.
+//! The cracked material is also what a dead section wears as it tumbles away:
+//! destruction detaches the art rather than re-drawing it, so the last damage
+//! level written here is the one the wreck leaves with.
 //!
 //! # Timing
 //!
@@ -47,7 +46,7 @@ use bevy::{
     render::render_resource::AsBindGroup,
     shader::ShaderRef,
 };
-use nova_gameplay::prelude::{DamageLevel, FragmentMaterial, SectionMarker};
+use nova_gameplay::prelude::{DamageLevel, SectionMarker};
 #[cfg(test)]
 use nova_gameplay::prelude::{DamageLevelPlugin, Health, SectionInactiveMarker};
 
@@ -262,10 +261,6 @@ fn resolve_pending_cracks(
             .entity(entity)
             .try_insert((
                 MeshMaterial3d(handle.clone()),
-                // The finale can only draw debris with a `StandardMaterial`, so
-                // the pristine one is kept for it. Without this a cracked
-                // section would break into anonymous grey.
-                FragmentMaterial(material.0.clone()),
                 SectionCracks {
                     section: pending.section,
                     material: handle,
@@ -414,36 +409,6 @@ mod tests {
                 .base_color,
             pristine,
             "the shared source material is never mutated"
-        );
-    }
-
-    /// A cracked section still breaks into its OWN art. The finale can only
-    /// draw debris with a `StandardMaterial`, and a mesh that swapped to an
-    /// extended one has none to give it.
-    #[test]
-    fn a_cracked_mesh_keeps_a_standard_material_for_its_debris() {
-        let mut app = cracks_app();
-        let shared = app
-            .world_mut()
-            .resource_mut::<Assets<StandardMaterial>>()
-            .add(StandardMaterial::default());
-        let (_, mesh) = section_with_mesh(&mut app, &shared);
-
-        app.update();
-        app.update();
-
-        assert_eq!(
-            app.world()
-                .get::<FragmentMaterial>(mesh)
-                .map(|material| material.0.id()),
-            Some(shared.id()),
-            "the pristine material is kept for the pieces"
-        );
-        assert!(
-            app.world()
-                .get::<MeshMaterial3d<StandardMaterial>>(mesh)
-                .is_none(),
-            "but the mesh itself is drawn with the cracked one"
         );
     }
 

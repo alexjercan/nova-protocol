@@ -339,6 +339,9 @@ tagged **(breaking)**.
 - Held fire on a big rock runs at 47 fps instead of 25: its carve field caps at
   40 cells a side, the seed and remesh run off the main thread, and nothing
   rescans the grid to learn it has not changed.
+- A destroyed section DETACHES and tumbles away whole, keeping the art and the
+  collider it already had. Nothing computes geometry when something dies: the
+  death path drops from 46 ms a run to 2.5 ms.
 
 ### Fixes
 
@@ -354,6 +357,13 @@ tagged **(breaking)**.
   descendants that draw it.
 - Fixed: the fragment budget was charged per mesh, so a multi-part turret cost
   several times a hull cube for the same death. It is now per destroyed body.
+- Fixed: a dying section came apart into slivers - every cut plane ran through
+  the world origin, so a piece off to one side was cut by a plane outside
+  itself. Sections come off whole now.
+- Fixed: a piece the cut missed hung motionless where the section died, because
+  it was carried forward with no direction to leave in.
+- Fixed: section death drew from the thread RNG and never played the same way
+  twice. The kick and the tumble come off the seeded stream.
 - Fixed: a destroyed section could crash the physics solver - flat art slices
   into coplanar fragments, whose hulls have no volume and so no mass.
 - Asteroids stop logging "no mass or inertia": a rock builds its collider in

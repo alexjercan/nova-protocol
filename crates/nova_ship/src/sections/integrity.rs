@@ -1387,12 +1387,12 @@ mod physics_tests {
             amount: 100.0,
         });
         app.update();
-        // The production cube burst has colliders and intentionally adds chaos.
-        // Remove that separate VFX before the next fixed pass so this test
-        // isolates the sever motion contract itself.
+        // A dead section detaches as a physical body of its own. Remove that
+        // separate wreckage before the next fixed pass so this test isolates
+        // the sever motion contract itself.
         let debris: Vec<_> = app
             .world_mut()
-            .query_filtered::<Entity, With<MeshFragmentMarker>>()
+            .query_filtered::<Entity, With<DetachedPieceMarker>>()
             .iter(app.world())
             .collect();
         for entity in debris {
@@ -1467,7 +1467,7 @@ mod physics_tests {
         app.update();
         let debris: Vec<_> = app
             .world_mut()
-            .query_filtered::<Entity, With<MeshFragmentMarker>>()
+            .query_filtered::<Entity, With<DetachedPieceMarker>>()
             .iter(app.world())
             .collect();
         for entity in debris {
