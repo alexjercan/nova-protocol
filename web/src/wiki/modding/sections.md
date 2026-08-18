@@ -82,29 +82,23 @@ damage_effects: ([Cracks, Sparks, Plume]),
 | `Cracks` | The section's surface fractures where it is failing, glows through the cracks when it is critical, and burns out cold when it dies. |
 | `Sparks` | The section throws sparks, faster the worse it is. |
 | `Plume` | The section's exhaust guts and flickers. Thrusters only - it grades the exhaust cone, so a section with none shows nothing. |
-| `Carve` | The section LOSES material where the ship was hit: a real crater in its drawn mesh, deeper the bigger the hit. |
 
 Omitting the field means `([Cracks])`. Author `([])` for a section that should
 never show damage at all - saying "none" and saying nothing are different.
 
-The rule the list is kept honest by: only NON-FUNCTIONAL material comes off. A
-turret that has taken a beating still has to point and shoot, so it sparks
-instead of losing geometry, while a hull is material and nothing else and can
-afford to be bitten into. Where a section carries expendable material it wears
-cladding, and the cladding comes off first (see [ships](./ships.md)).
+The rule the list is kept honest by: NO SECTION LOSES GEOMETRY. Every effect is
+a material or a particle, and the only thing that changes a ship's shape is a
+whole piece leaving - a cladding plate shot off, a section destroyed. Where a
+section carries expendable material it wears cladding, and the cladding comes
+off first (see [ships](./ships.md)).
 
-`Carve` costs the section its authored silhouette: the crater is cut out of a
-solid read from the mesh and what is left is re-meshed, so from the first hit
-the section is drawn at the mesher's fidelity rather than the model's. Author it
-on sections that are MATERIAL - hull, armour, plating - and not on ones whose
-shape is the read. Two things it does NOT do:
-
-- the section's COLLIDER does not follow. Its mass and the link-point graph that
-  holds a ship together are built against the authored shape, so a round can
-  pass through the air inside a deep crater and still be stopped;
-- art that is not a closed surface cannot be carved, because "inside" is
-  undefined for one. A section whose model has open faces keeps it, is not asked
-  again, and is unchanged in every other way.
+There was a `Carve` effect that cut a real crater out of a section's drawn mesh.
+It is GONE, and mods authoring it will fail to load. It read well in a gallery
+and badly in a fight: reading a solid out of authored art costs 6-15 ms per
+mesh, a ship's marks belong to its root, and so a single round anywhere on a
+hull turned every drawn mesh under it into a solid in one frame - measured at
+325 meshes and 2.0 seconds. Asteroids still carve, because a rock's solid comes
+from the same noise its mesh does and never has to be read out of art.
 
 Effects compose freely and none of them changes what the section DOES: a
 damaged thruster delivers exactly the thrust it authored.

@@ -541,6 +541,68 @@ Lag diagnosis:
   choice is async solidification versus a bounded across-frame queue; no fix is
   claimed in this phase.
 
+### Phase 4e - ships stop carving - DONE (2026-08-19)
+
+Owner decision after flying the profiled build. Carving is now an ASTEROID
+effect only. `DamageEffect::Carve` and skin plate carving are both removed.
+
+**What the profiling found first** (throwaway sprout off this branch,
+`probe run wfc_arena --samply`, before any change):
+
+- Marks live on the ship's ROOT - the decision that lets a crater cross the seam
+  between two plates - and `carve_section_meshes` gated only on
+  `marks.0.is_empty()`. So the first round to land anywhere on a ship solidified
+  every drawn mesh under every carving section in that same frame. A round in
+  the tail solidified the nose.
+- Measured three ways, all agreeing: 325 meshes and 2002.6 ms in ONE frame
+  against 2008.9 ms of wall (99.7% of it); the engine's own frame deltas at
+  2165/2456/361 ms against a 90.4 ms median; and bevy's system spans putting
+  `carve_section_meshes` at 4446.6 ms self, 94% of all Update self time, worst
+  single span 3850.7 ms. The unit price was never the problem - 6.16 ms mean,
+  15.4 ms worst, and dependencies build at `opt-level = 3` even in dev, so parry
+  was already at shipped speed. The COUNT in one frame was.
+- A reach gate plus a one-per-frame solidify ceiling fixed it as a performance
+  matter: 47.4 ms self, worst span 14.0 ms, median frame 90.4 -> 67.2, p90
+  154.7 -> 79.6, worst 2456 -> 226. That work is NOT in this branch; it was
+  written, measured, and then dropped with the feature.
+
+**Why it went anyway.** The owner flew the fixed build and judged the cost
+against what it drew. A ship is large, the cracks shader already carries damage
+across the whole surface, and cladding coming off plate by plate already breaks
+the silhouette. A crater the size of a PDC round on a body that size is not
+worth an entire mesh-to-solid pipeline, its parry dependency, a per-frame
+subtree walk over every drawn mesh, and a first-hit cost that has to be rationed
+to stay under a frame.
+
+Plate carving went with it for a different reason, and a better one: a plate has
+so little health that it spends its whole life in the first deformation step.
+The interesting thing a plate does is COME OFF, and it already did that.
+
+**Removed:** `nova_ship/src/sections/damage_carve.rs`;
+`nova_gameplay/src/mesh/solidify.rs` entirely (section carving was its only
+consumer - `field_from_mesh`, `is_closed`, and the parry `TriMesh`/QBVH use go
+with it); `ShellShape::carved()`; `carve_skin_plates`; `SkinPlateWear`, which
+without the carve was a second copy of `ShipSkinMarker`'s shape; the
+`DamageEffect::Carve` variant and its fitter arm.
+
+**Kept, deliberately:** `DamageMarks` on ships, and with it the `CarveSpew`
+shards a hit throws. They are hit feedback and the owner wants them; the
+follow-up there is pooling or batching the spew, not deleting it (`REVIEW.md`
+measures roughly 500 live shards per sustained turret). Asteroid carving is
+untouched in full - a rock's solid is analytic and its collider IS its mesh, so
+none of the costs above apply to it.
+
+**Consequences to know:** a modded section authoring `Carve` now fails to load,
+which is the house rule (never backward compatible) and is documented in
+`web/src/wiki/modding/sections.md`. `damage_levels` no longer photographs a
+crater; its doc, its hit step and the bare column's justification were rewritten
+to say what the row now judges - cracks, plate loss, sparks, plume.
+
+**Not fixed by this, and still the worst frame measured:** the death cascade.
+226 ms clean, and in the trace `FixedPostUpdate` at 209.4 ms with
+`resolve_nova_blast_hits` commands at 185.6 ms, on the frame a ship comes apart.
+It was there before carving and it is there after.
+
 ### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 
 - What is left of a body at death comes apart into bounded debris with

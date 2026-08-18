@@ -14,24 +14,23 @@
 //!   what the whole-body effects grade off;
 //! - and each ship past the first takes ONE real hit, through the same
 //!   `apply_damage` a turret uses, landing on the same place on its hull with a
-//!   bigger warhead each time. That is what the carve reads.
+//!   bigger warhead each time. That is what takes the cladding off.
 //!
 //! What to judge, per effect:
 //!
-//! - CARVING, on the skin plates. The hit records a sphere and every plate it
-//!   reaches subtracts that sphere from its own eight samples, so the crater
-//!   crosses the seams between plates instead of stopping at them, and the
-//!   plate it actually landed on dies and comes off. Does a carved hull read as
-//!   BROKEN? The previous attempt drove this off the per-body level instead,
-//!   which could only sag every plate by the same proportion at once - the hull
-//!   kept its outline, lost its relief, and came out looking like a smaller,
-//!   plainer ship. A crater is the fix; this row is where it is judged.
+//! - PLATE LOSS, on the cladding. The plate the round lands on spends its own
+//!   health and comes off, opening a hole onto the hull underneath. That is the
+//!   ONLY thing that changes a ship's shape now: sections carved their drawn
+//!   geometry for one release and it was removed for costing a two-second frame
+//!   on a ship's first hit (Phase 4e). Does a hull that is cracked and missing
+//!   plates read as BROKEN without the crater?
 //! - SCORCH, on the section materials. Reddening, darkening, then a burnt
 //!   endpoint. It has lost its allegiance split, so an enemy now shows this
 //!   too - is that too much information, or the right amount?
-//! - SPARKS, on the turret and thruster. These never lose geometry, because a
-//!   turret that has been carved open cannot convincingly still shoot. Does a
-//!   sparking turret read as failing without looking broken?
+//! - SPARKS, on the turret and thruster. Nothing on a ship loses geometry now,
+//!   and these two never could: a turret whose silhouette has been chewed
+//!   cannot convincingly still shoot. Does a sparking turret read as failing
+//!   without looking broken?
 //! - PLUME, on the thruster. Every drive in the row is held at full throttle,
 //!   so the cone is drawn and the damaged ones can be compared against the
 //!   clean one. Does a guttering plume read as a failing drive rather than as
@@ -39,8 +38,8 @@
 //!
 //! Which of those a section wears is AUTHORED, in its content
 //! (`base.damage_effects`), so this row is also the check that the shipped
-//! catalog authored what it meant to: the hull cracks and carves, the
-//! turret sparks, the thruster sparks and gutters.
+//! catalog authored what it meant to: the hull cracks, the turret sparks, the
+//! thruster sparks and gutters.
 //!
 //! The thing NOT here is SHED - expendable pieces coming off a section that
 //! keeps working. It needs art with separable pieces and the shipped turret has
@@ -83,25 +82,23 @@ const LEVELS: [f32; 6] = [0.0, 0.25, 0.5, 0.75, 0.9, 0.0];
 ///
 /// Authored as damage rather than as a radius because damage is what a weapon
 /// deals: `mark_radius` prices it into a sphere, and these five buy roughly
-/// nothing, half a cell, four fifths of one, one and a bit, and nearly two.
-/// That spread is the point - a scrape, a dent, a hole, and a bite that takes
-/// a corner off the ship.
+/// nothing, then enough to take the plate it lands on, then enough to carry
+/// through it into the hull. The spread is the point - a scrape, a plate gone,
+/// a hole with the hull cracked open behind it.
 const HITS: [f32; 6] = [0.0, 21.0, 86.0, 290.0, 977.0, 150.0];
 
 /// Whether each column's ship wears cladding.
 ///
-/// The last one does NOT, and it is there for the CARVE. A clad ship is covered
-/// in plates, and a plate is what a hit meets first - so the crater the hull
-/// itself takes is behind the skin until the skin is shot off, which is exactly
-/// how it should behave and exactly what makes it impossible to judge. The bare
-/// column shows the same hit landing on the hull with nothing over it.
+/// The last one does NOT, and it is there for the HULL's own surface. A clad
+/// ship is covered in plates, and a plate is what a hit meets first, so the
+/// hull material is behind the skin until the skin is shot off. The bare column
+/// shows the same hit landing on the hull with nothing over it.
 ///
 /// It stands at level 0.0 and takes a smaller hit than the column before it,
-/// and both numbers are load-bearing. The level is zero so nothing is cracked
-/// and the only thing that has changed about the section is its SHAPE. The hit
-/// is 150 because a hull section holds 200 - one that spends more than its
-/// health bar is destroyed by the hit rather than carved by it, and there is
-/// nothing left to photograph.
+/// and both numbers are load-bearing. The level is zero so the column isolates
+/// what the HIT alone does to a section nothing else has touched. The hit is
+/// 150 because a hull section holds 200 - one that spends more than its health
+/// bar is destroyed outright and there is nothing left to photograph.
 const CLAD: [bool; 6] = [true, true, true, true, true, false];
 
 /// How far apart the ships stand, in units. Wide enough that debris and sparks
@@ -164,8 +161,8 @@ fn hold_the_throttle_open(
 /// without leaving the frame.
 ///
 /// A gallery is a row of specimens, not a scenario: nothing here should move at
-/// all. Static rather than locked axes because it also settles the debris a
-/// carve throws off, which would otherwise nudge the row apart.
+/// all. Static rather than locked axes because it also settles the shards a hit
+/// throws off, which would otherwise nudge the row apart.
 #[cfg(feature = "debug")]
 fn pin_the_row(world: &mut World) {
     let roots: Vec<Entity> = world
@@ -241,12 +238,10 @@ fn set_column_levels(world: &mut World) {
 ///
 /// The target is whichever plate is nearest the aim point rather than a named
 /// one, because the skin is DERIVED and no column knows in advance which cell
-/// it grew there. Only that one plate spends health; every other plate the
-/// sphere reaches is carved without being damaged, which is exactly the claim -
-/// a crater belongs to the ship, not to the plate that happened to stop the
-/// round.
+/// it grew there. That plate spends its own health and comes off; what is left
+/// over pierces into the section behind it.
 #[cfg(feature = "debug")]
-fn carve_columns(world: &mut World) {
+fn hit_columns(world: &mut World) {
     for (index, amount) in HITS.iter().enumerate() {
         if *amount <= 0.0 {
             continue;
@@ -365,8 +360,8 @@ fn gallery_script() -> Script {
         .step("grade the row by health")
         .on_enter(set_column_levels)
         .add()
-        .step("carve the row")
-        .on_enter(carve_columns)
+        .step("hit the row")
+        .on_enter(hit_columns)
         .add()
         // Long enough for the wear to re-dress and for the worst columns to
         // throw a few sparks, so the shot catches them mid-flight.

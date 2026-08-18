@@ -8,7 +8,6 @@ pub mod ammo;
 pub mod base_section;
 pub mod clearance;
 pub mod controller_section;
-pub mod damage_carve;
 pub mod damage_cracks;
 pub mod damage_effects;
 pub mod damage_plume;
@@ -32,14 +31,13 @@ pub mod turret_section;
 pub mod prelude {
     pub use super::{
         ammo::prelude::*, base_section::prelude::*, clearance::prelude::*,
-        controller_section::prelude::*, damage_carve::prelude::*, damage_cracks::prelude::*,
-        damage_effects::prelude::*, damage_plume::prelude::*, damage_sparks::prelude::*,
-        fixture::prelude::*, hull_section::prelude::*, integrity::prelude::*,
-        link_points::prelude::*, live_structure_anchor, shell_shape::prelude::*,
-        shell_skin::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
-        skin_report::prelude::*, skin_style::prelude::*, thruster_section::prelude::*,
-        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
-        SpaceshipSectionSystems,
+        controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
+        damage_plume::prelude::*, damage_sparks::prelude::*, fixture::prelude::*,
+        hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
+        live_structure_anchor, shell_shape::prelude::*, shell_skin::prelude::*,
+        skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
+        skin_style::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
+        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -261,10 +259,5 @@ impl Plugin for SpaceshipSectionPlugin {
             app.add_plugins(damage_sparks::DamageSparksPlugin);
             app.add_plugins(damage_plume::DamagePlumePlugin);
         }
-        // Carving is a look too, and it is the one that reaches the hull under
-        // the cladding rather than only the cladding.
-        app.add_plugins(damage_carve::DamageCarvePlugin {
-            render: self.render,
-        });
     }
 }
