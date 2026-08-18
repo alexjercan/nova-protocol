@@ -338,6 +338,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Held fire on a big rock runs at 47 fps instead of 25: its carve field caps at
   40 cells a side, the seed and remesh run off the main thread, and nothing
   rescans the grid to learn it has not changed.
+- An untouched rock costs collision almost nothing: it collides as its hull
+  until something puts a hole in it, so a 64-rock field's physics step drops
+  from 22 ms to 0.4 and stops outrunning the tick.
 
 ### Fixes
 

@@ -266,6 +266,13 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "sandbox_soak",
+        &[
+            "an untouched field costs the narrow phase nothing",
+            "the physics step fits its own timestep",
+        ],
+    ),
+    (
         "hud_indicators",
         &[
             "the lock is live under the sweep",
@@ -346,7 +353,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 129;
+const SYSTEMS_INVARIANTS: usize = 131;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

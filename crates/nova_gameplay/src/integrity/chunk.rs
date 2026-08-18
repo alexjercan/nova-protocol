@@ -23,9 +23,10 @@
 //! and only then becomes dynamic and grows its collider. By then it is clear.
 //!
 //! This matters most for SHIPS, whose sections carry convex colliders with a
-//! real inside. An asteroid's collider is a trimesh, which is a shell rather
-//! than a solid, so a chunk born inside one has nothing to resolve against; the
-//! grace costs it nothing either way.
+//! real inside. A chunk only ever comes off a rock that has been carved, and a
+//! carved rock's collider is a trimesh - a shell rather than a solid - so a
+//! chunk born inside one has nothing to resolve against; the grace costs it
+//! nothing either way.
 //!
 //! # Not the same thing as a shard
 //!
