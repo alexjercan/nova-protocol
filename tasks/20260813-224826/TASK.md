@@ -1001,6 +1001,40 @@ Measured:
   budget is still not reached. In the real-fire gallery the count did not move
   at all - 352 landed rounds gave three craters before and after.
 
+### The literal `wfc_arena` player path - CLOSED (2026-08-18)
+
+`REVIEW.md` left this open: the accepted Phase 4c design requires `wfc_arena` to
+show sustained PDC carving on a rock, and only the `carve_asteroids` gallery had
+ever been recorded. Run and inspected here, in the scenario the crater bug was
+reported from.
+
+How: `--ship amber:player` plus three amber and four onyx hulls, START MATCH from
+the configurator, RMB held for aim mode, LMB held on one rock of a derelict
+blob's debris shell. `NOVA_AUTOPILOT` cannot drive this - the example refuses a
+`:player` slot under it - so the run was driven through real X input into the
+window, which is the point: this is the player's own path, not a script's.
+
+Seen, over about 60 seconds of held fire (roughly 30,000 kinetic and 10,000
+pierce rounds by the team scoreboard, all of them the player's):
+
+- Every turret converges on the aim point and the rock grows ONE bowl - a wide,
+  deep, clearly bounded crater, with the rest of the silhouette untouched. That
+  is the fix's claim, and it is the thing the bug report said did not happen.
+- The rock's published unit radius held at 4.81 across all 164 remeshes. Under
+  the old rule the capture area WAS the accumulated hole, so a held burst walked
+  the radius down and took the body with it.
+- Triangle count climbed 5,920 -> 6,012 as the crater rim gained relief, then
+  fell back to 6,000 when the carve severed a piece off that rim.
+- Cost per remesh: 2.2-4.0 ms surface, 2.2-4.2 ms collider, unchanged from the
+  gallery's numbers and unchanged between the first remesh and the 164th.
+
+Two honest notes from the run. Rounds held on a rock roughly a hundred units out
+carved nothing - the target was past the guns' reach, and nothing was marked
+until the aim moved to a rock inside it; that is weapon range, not carving. And
+the second aim point was close enough to the first to deepen the same bowl
+rather than open a second one, which is `MERGE_REACH` behaving as authored - the
+separate-crater case is the `carve_asteroids` two-burst column's job.
+
 ### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 
 - What is left of a body at death comes apart into bounded debris with
