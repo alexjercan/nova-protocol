@@ -247,7 +247,9 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
                 "<p>Top systems by total span time - traced-run numbers RANK \
                  systems; they never compare against the clean pass, and \
                  shares overlap (parent and child spans both count), so they \
-                 must not be summed.</p>\n",
+                 must not be summed. A <code>(commands)</code> row is that \
+                 system's deferred flush - its spawns, despawns and every \
+                 observer they trigger - not its own body.</p>\n",
             );
             html.push_str(
                 "<table>\n<thead><tr><th>#</th><th>system</th><th>calls</th>\
@@ -259,7 +261,7 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
                      <td class=\"num\">{}</td><td class=\"num\">{:.2}</td>\
                      <td class=\"num\">{:.4}</td><td class=\"num\">{:.1}%</td></tr>\n",
                     i + 1,
-                    escape(&cost.name),
+                    escape(&cost.display_name()),
                     cost.calls,
                     cost.total_ms,
                     cost.mean_ms_per_call,

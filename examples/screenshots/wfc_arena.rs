@@ -54,7 +54,10 @@
 //!   have).
 //!
 //! With no `--ship` at all the roster is one hull per team, drafted off the
-//! stream - the two-ship duel this example started as.
+//! stream - the two-ship duel this example started as. A probe MEASUREMENT
+//! pass fields four per team instead ([`MEASURED_SHIPS_PER_TEAM`]): the 4v4
+//! brawl is this release's headline profiling case, and it is a load rather
+//! than a composition, so a photograph and a hand-run keep the duel.
 //!
 //! A `:player` slot spawns under the game's REAL player controller - the
 //! campaign's flight rig and HUD, every gun on the left mouse (the campaign's
@@ -399,10 +402,23 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        // Probe wiring (inert without its NOVA_PERF_* env): run timeline +
-        // engine-bound invariants. No frame-time capture - a brawl's load
-        // varies with the roll, so there is no steady state to grade.
-        app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        // Probe wiring (inert without its NOVA_PERF_* env): run timeline,
+        // engine-bound invariants, and the frame-time capture over the 4v4
+        // brawl - the release's headline profiling case.
+        //
+        // The capture is GATED on the fight instead of on `Playing`: the
+        // opening is a passive approach that spends 15-25 s before a shot is
+        // legal, so an ungated warm-up would spend the whole window measuring
+        // two lines of ships flying at each other. It opens on the same
+        // scoreboard predicate the driven walk advances on - both teams have
+        // fired AND both have connected.
+        app.add_plugins(
+            nova_probe::NovaProbePlugin::default().ready_frametime(|world: &World| {
+                world
+                    .get_resource::<Scoreboard>()
+                    .is_some_and(Scoreboard::fight_happened)
+            }),
+        );
         // Clean frames at the fleet's 16:9, dev overlays out of shot. The HUD
         // drops to cinematic only under capture: a hand-run keeps the level On
         // so grave/tilde still controls the combat instruments and chevrons.
@@ -566,15 +582,39 @@ fn parse_ship(value: &str) -> Result<ShipSpec, String> {
     })
 }
 
+/// Hulls per side a MEASURED run fields with no `--ship`: the 4v4 brawl the
+/// frame-time budget is recorded against. A photograph and a hand-run stay the
+/// duel - eight AI hulls is a load, not a composition.
+const MEASURED_SHIPS_PER_TEAM: usize = 4;
+
+/// Whether this binary is a probe MEASUREMENT pass rather than a photograph.
+///
+/// Both halves matter and they are read differently: `perf_armed` is the
+/// frame-time pass (env), `feature = "trace"` is the profiled pass (a
+/// build probe makes only for the chrome trace). If only one of them fielded
+/// the 4v4, the top-systems table would rank a lighter scene than the
+/// frame-time numbers describe, which is the exact way a profile lies.
+fn measuring() -> bool {
+    nova_probe::perf_armed() || cfg!(feature = "trace")
+}
+
 /// The roster a run with no `--ship` fields: one drafted hull per team, on the
-/// run's look. The duel this example started as.
+/// run's look - the duel this example started as - or
+/// [`MEASURED_SHIPS_PER_TEAM`] per side under a measurement pass.
 fn default_roster() -> Vec<ShipSpec> {
+    let per_team = if measuring() {
+        MEASURED_SHIPS_PER_TEAM
+    } else {
+        1
+    };
     (0..TEAMS.len())
-        .map(|team| ShipSpec {
-            team,
-            style: None,
-            seed: None,
-            player: false,
+        .flat_map(|team| {
+            (0..per_team).map(move |_| ShipSpec {
+                team,
+                style: None,
+                seed: None,
+                player: false,
+            })
         })
         .collect()
 }

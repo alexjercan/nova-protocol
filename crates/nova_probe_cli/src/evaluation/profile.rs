@@ -5,12 +5,19 @@
 //!
 //! Bevy has NO per-system timing diagnostic; per-system costs exist only as
 //! tracing SPANS compiled in under `bevy/trace`
-//! (bevy_ecs-0.19.0/src/system/function_system.rs:52,
-//! `info_span!(parent: None, "system", name = ...)`), which bevy_log's
-//! chrome layer renders as `"system: name=<path>"` entries. This module
-//! aggregates those spans; everything else in the trace (schedules, render
-//! internals, commands) is left for Perfetto - attach the raw JSON for the
-//! deep dive.
+//! (bevy_ecs-0.19.0/src/system/function_system.rs:52 and :54,
+//! `info_span!(parent: None, "system", name = ...)` and the sibling
+//! `"system_commands"`), which bevy_log's chrome layer renders as
+//! `"system: name=<path>"` and `"system_commands: name=<path>"` entries. This
+//! module aggregates both; everything else in the trace (schedules, render
+//! internals) is left for Perfetto - attach the raw JSON for the deep dive.
+//!
+//! **Both, because half this codebase's expensive work is DEFERRED.** An
+//! observer (`add_observer`) never gets a span of its own, and neither does a
+//! `commands.queue(|world: &mut World| ...)` closure: they run when the
+//! spawning system's commands are applied, inside `system_commands`. Counting
+//! only `system` spans therefore reports zero for carve-shard spawning, mesh
+//! slicing at death, and every other observer - not "cheap", but invisible.
 //!
 //! Honesty note: costs are reported per CALL and as a share of TOTAL
 //! system-span time. Bevy 0.19 has no reliable universal frame span, so
@@ -21,16 +28,50 @@
 
 /// Glob-import surface for the chrome-trace system-cost aggregation.
 pub mod prelude {
-    pub use super::{aggregate_system_costs, render_top_table, SystemCost};
+    pub use super::{aggregate_system_costs, render_top_table, CostKind, SystemCost};
 }
 
 use std::collections::HashMap;
+
+/// Which span a cost row came from: the system body, or the flush of the
+/// commands it deferred (where its observers and exclusive-world closures
+/// actually run).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CostKind {
+    /// The `system` span: the body of the system itself.
+    System,
+    /// The `system_commands` span: applying that system's deferred commands -
+    /// spawns, despawns, `queue(|world| ...)` closures and every observer they
+    /// trigger.
+    Commands,
+}
+
+impl CostKind {
+    /// The chrome-trace span-name prefix this kind is read from.
+    fn prefix(self) -> &'static str {
+        match self {
+            CostKind::System => "system: name=",
+            CostKind::Commands => "system_commands: name=",
+        }
+    }
+
+    /// The suffix the table shows, so a deferred row is never mistaken for
+    /// the system's own body.
+    fn suffix(self) -> &'static str {
+        match self {
+            CostKind::System => "",
+            CostKind::Commands => " (commands)",
+        }
+    }
+}
 
 /// One system's aggregated cost over a trace.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SystemCost {
     /// The system's full path (the span's `name=` field).
     pub name: String,
+    /// Whether this row is the system's body or its deferred command flush.
+    pub kind: CostKind,
     /// Times the span was entered (roughly: runs).
     pub calls: u64,
     /// Total time inside the span, milliseconds.
@@ -42,12 +83,13 @@ pub struct SystemCost {
 }
 
 /// Parse a chrome-trace JSON file (the `trace_chrome` output) and aggregate
-/// the per-system spans into costs, sorted by total time descending.
+/// the per-system and per-command-flush spans into costs, sorted by total time
+/// descending.
 ///
 /// Handles both duration styles the format allows: `B`/`E` begin-end pairs
 /// (what tracing_chrome emits; paired per `tid` as a stack) and complete
 /// `X` events carrying `dur`. Timestamps and durations are microseconds
-/// (the chrome contract). Non-system spans are counted into nothing - they
+/// (the chrome contract). Any other span is counted into nothing - they
 /// stay in the raw file for Perfetto. A file that is not a JSON array is
 /// rejected loudly (a killed run can truncate the file; profile clean
 /// exits).
@@ -61,16 +103,23 @@ pub fn aggregate_system_costs(contents: &str) -> Result<Vec<SystemCost>, String>
     // Pair B/E per tid with a stack (chrome semantics: E closes the most
     // recent open B on the same thread); X events carry their duration.
     let mut open: HashMap<i64, Vec<(String, f64)>> = HashMap::new();
-    let mut totals: HashMap<String, (u64, f64)> = HashMap::new();
+    let mut totals: HashMap<(String, CostKind), (u64, f64)> = HashMap::new();
     let mut record = |name: &str, dur_us: f64| {
-        if let Some(system) = name.strip_prefix("system: name=") {
+        // The commands prefix has to be tried FIRST: "system: name=" is not a
+        // prefix of "system_commands: name=", but keeping the order explicit
+        // stops a future rename from silently folding the two together.
+        for kind in [CostKind::Commands, CostKind::System] {
+            let Some(system) = name.strip_prefix(kind.prefix()) else {
+                continue;
+            };
             // The field value arrives quoted (`name="path::to::system"`) -
             // bevy renders it via DebugName's Debug impl. Trim the quotes so
             // the table shows the bare path.
             let system = system.trim_matches('"');
-            let entry = totals.entry(system.to_string()).or_insert((0, 0.0));
+            let entry = totals.entry((system.to_string(), kind)).or_insert((0, 0.0));
             entry.0 += 1;
             entry.1 += dur_us;
+            return;
         }
     };
     for event in events {
@@ -107,8 +156,9 @@ pub fn aggregate_system_costs(contents: &str) -> Result<Vec<SystemCost>, String>
     let grand_total_us: f64 = totals.values().map(|(_, us)| us).sum();
     let mut costs: Vec<SystemCost> = totals
         .into_iter()
-        .map(|(name, (calls, us))| SystemCost {
+        .map(|((name, kind), (calls, us))| SystemCost {
             name,
+            kind,
             calls,
             total_ms: us / 1000.0,
             mean_ms_per_call: us / 1000.0 / calls.max(1) as f64,
@@ -128,6 +178,14 @@ pub fn aggregate_system_costs(contents: &str) -> Result<Vec<SystemCost>, String>
     Ok(costs)
 }
 
+impl SystemCost {
+    /// The row's display name: the system path, with deferred rows marked so
+    /// the flush is never read as the system's own body.
+    pub fn display_name(&self) -> String {
+        format!("{}{}", self.name, self.kind.suffix())
+    }
+}
+
 /// Render the top `n` costs as a markdown table (also readable as plain
 /// text). The header names the honesty constraints so a pasted table cannot
 /// silently overclaim.
@@ -142,7 +200,7 @@ pub fn render_top_table(costs: &[SystemCost], n: usize) -> String {
         out.push_str(&format!(
             "| {} | {} | {} | {:.2} | {:.4} | {:.1}% |\n",
             i + 1,
-            cost.name,
+            cost.display_name(),
             cost.calls,
             cost.total_ms,
             cost.mean_ms_per_call,
@@ -192,6 +250,7 @@ mod tests {
         // alpha: two 1000 us calls (nested non-system span pops first on
         // tid 1 - stack pairing) = 2.0 ms total, 1.0 ms mean.
         assert_eq!(costs[0].name, "game::alpha");
+        assert_eq!(costs[0].kind, CostKind::System);
         assert_eq!(costs[0].calls, 2);
         assert!((costs[0].total_ms - 2.0).abs() < 1e-9);
         assert!((costs[0].mean_ms_per_call - 1.0).abs() < 1e-9);
@@ -203,6 +262,31 @@ mod tests {
         assert_eq!(costs[1].calls, 1);
         assert!((costs[1].total_ms - 0.5).abs() < 1e-9);
         assert!((costs[1].share_pct - 20.0).abs() < 1e-9);
+    }
+
+    /// The deferred half. An observer and a `queue(|world| ...)` closure run
+    /// inside the SPAWNING system's `system_commands` span, so a reader that
+    /// counts only `system` spans reports zero for them - which reads as
+    /// "cheap" and is really "invisible".
+    #[test]
+    fn a_command_flush_is_counted_and_never_folded_into_the_system_body() {
+        let trace = r#"[
+            {"ph":"X","ts":1000.0,"tid":1,"dur":1000.0,"name":"system: name=\"game::alpha\""},
+            {"ph":"B","ts":3000.0,"tid":1,"name":"system_commands: name=\"game::alpha\""},
+            {"ph":"E","ts":6000.0,"tid":1}
+        ]"#;
+        let costs = aggregate_system_costs(trace).expect("fixture parses");
+        assert_eq!(costs.len(), 2, "one row each, never merged: {costs:?}");
+
+        // The flush is the bigger row and sorts first.
+        assert_eq!(costs[0].name, "game::alpha");
+        assert_eq!(costs[0].kind, CostKind::Commands);
+        assert!((costs[0].total_ms - 3.0).abs() < 1e-9);
+        assert_eq!(costs[0].display_name(), "game::alpha (commands)");
+
+        assert_eq!(costs[1].kind, CostKind::System);
+        assert!((costs[1].total_ms - 1.0).abs() < 1e-9);
+        assert_eq!(costs[1].display_name(), "game::alpha");
     }
 
     #[test]

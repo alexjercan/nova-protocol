@@ -16,6 +16,7 @@ pub mod prelude {
 
 mod artifacts_loadable;
 mod fps_within_baseline;
+mod frame_within_budget;
 mod invariants_held;
 mod log_clean;
 mod process_exit;
@@ -141,6 +142,14 @@ const CHECKS: &[(&str, Option<Capability>, fn(&RunArtifacts) -> Check)] = &[
         "fps_within_baseline",
         Some(Capability::FrameTime),
         fps_within_baseline::evaluate,
+    ),
+    // The HARD frame gate, beside the soft one: a recorded budget needs no
+    // baseline and no reviewer, and it reads the WORST frame rather than the
+    // mean.
+    (
+        "frame_within_budget",
+        Some(Capability::FrameTime),
+        frame_within_budget::evaluate,
     ),
     ("log_clean", None, log_clean::evaluate),
     // Last because it grades the EVIDENCE rather than the run: when it fails,
@@ -293,6 +302,12 @@ mod tests {
             check(&checks, "fps_within_baseline").status,
             CheckStatus::NotApplicable(NotApplicable::InputNotSupplied("--baseline"))
         );
+        // The fixture is not a profiling case, so no budget is recorded for
+        // its label - N/A, and the coverage figure is unchanged by it.
+        assert_eq!(
+            check(&checks, "frame_within_budget").status,
+            CheckStatus::NotApplicable(NotApplicable::InputNotComparable("recorded budget"))
+        );
         assert_eq!(check(&checks, "log_clean").status, CheckStatus::Pass);
         assert_eq!(
             check(&checks, "artifacts_loadable").status,
@@ -406,7 +421,7 @@ mod tests {
         };
         let json = checks_json(&checks, Some(&manifest));
         assert_eq!(json["verdict"], "OK");
-        assert_eq!(json["measured"], "5/7");
+        assert_eq!(json["measured"], "5/8");
         assert_eq!(json["reviewer_confirmation_required"], true);
         assert_eq!(json["run"]["example"], "playable");
         assert_eq!(json["run"]["passes"][0]["name"], "clean");
