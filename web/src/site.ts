@@ -1,14 +1,19 @@
 // Progressive enhancement: every figure ships as a `.figure__placeholder`
-// naming the screenshot to capture. Once that PNG exists in `assets/`, swap the
-// placeholder for the real image; if it 404s (not captured yet) the placeholder
+// naming the asset to capture. Once that file exists in `assets/`, swap the
+// placeholder for the real media; if it 404s (not captured yet) the placeholder
 // stays. So a newly captured shot appears with no HTML edit - the capture
-// pipeline drops the file into `web/src/assets/` (scripts/gen-web-screenshots.py)
-// and it lights up. `base` is the deploy subpath (trailing slash), and the
-// placeholder name is asset-root-relative (e.g. "assets/feature-gravity.png").
+// pipelines drop the file into `web/src/assets/` (scripts/gen-web-screenshots.py
+// for stills, scripts/capture-web-media.sh for webm loops) and it lights up.
+// `base` is the deploy subpath (trailing slash), and the placeholder name is
+// asset-root-relative (e.g. "assets/feature-gravity.png",
+// "assets/loops/torpedo-blast.webm").
 function upgradeFigures(base: string): void {
     const placeholders = document.querySelectorAll<HTMLElement>(
         ".figure__placeholder"
     );
+    const reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+    ).matches;
     placeholders.forEach((placeholder) => {
         const name = placeholder
             .querySelector(".figure__placeholder-name")
@@ -17,6 +22,28 @@ function upgradeFigures(base: string): void {
         const note = placeholder
             .querySelector(".figure__placeholder-note")
             ?.textContent?.trim();
+
+        if (name.endsWith(".webm")) {
+            const video = document.createElement("video");
+            video.className = "figure__img";
+            video.muted = true;
+            video.loop = true;
+            video.playsInline = true;
+            video.setAttribute("aria-label", note ?? "");
+            // Reduced motion: no autoplay - the loop sits on its first frame
+            // behind the browser's own controls instead of animating.
+            if (reducedMotion) video.controls = true;
+            else video.autoplay = true;
+            video.preload = "auto";
+            // Swap only once a frame is decodable, so a missing capture never
+            // blanks the placeholder (the video element is detached until then).
+            video.addEventListener("loadeddata", (): void => {
+                placeholder.replaceWith(video);
+                if (!reducedMotion) void video.play().catch(() => {});
+            });
+            video.src = base + name;
+            return;
+        }
 
         const img = new Image();
         img.className = "figure__img";

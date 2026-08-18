@@ -197,6 +197,36 @@ Only actual ship sections consume penetration. Cladding and fixtures still take 
 <p>Worked example: the standard torpedo warhead (750 blast, 30 u radius) against three light hull layers at 10, 12 and 14 u destroys all three and still puts about 96 hp into a section at 16 u. Drop the blast to 200 and the third layer holds, shielding everything behind it.</p>
 </div>
 
+<figure class="figure">
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/torpedo-blast.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >The real thing: a Serpent's detonation carving the
+            outer layers off a corvette.</span
+        >
+    </div>
+</figure>
+
 The result scales through geometry rather than a ship-size bonus. A thin small craft can still be gutted by one direct hit. A deep capital loses a local crater and keeps fighting until later hits open it farther or push it below structural collapse. A section destroyed at any structural depth leaves a real hole. If that cut disconnects the graph, the controller-bearing hull keeps ship identity and healthy detached components drift away as inert, damageable wrecks. Which weapon section fires which control is per-ship and rebindable in the editor (see [Keybinds](../keybinds/)).
+
+<figure class="figure">
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/spine-cut.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >A cut that disconnects the graph: the engine block
+            severs and drifts free as a wreck.</span
+        >
+    </div>
+</figure>
 
 Ordnance is not free to shoot down, either. A warhead now carries enough hit points that no single PDC round can swat it - an intercept costs a short burst, not one lucky tap - while the siege bay's armoured torpedoes take sustained fire across the whole closing window.
