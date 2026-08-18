@@ -222,7 +222,10 @@ Weapon sections are rebindable: in the editor, click a section to bind it to any
         </td>
     </tr>
     <tr>
-        <td>Ship-computer terminal (commands; pauses, frees the cursor)</td>
+        <td>
+            <a href="../nova-os/">NOVA OS</a> ship-computer terminal
+            (commands; pauses, frees the cursor)
+        </td>
         <td>
             <kbd>Tab</kbd> &nbsp;or&nbsp;
             <span

@@ -79,26 +79,15 @@ Scenarios talk to you through a **comms stack**: speaker-attributed story cards 
 
 Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise, fades in with a soft blip, and leaves by timeout or explicit dismiss. Press <kbd>V</kbd> to dismiss the oldest visible card, or <kbd>B</kbd> to pull queued backlog into view once the visible stack is full.
 
-An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open NOVA OS. For the standing list, type `objectives` in NOVA OS (or `log` for the combined comms/objective event history); in flight, the gold **objective markers** on the targets themselves are the lasting "go here" cue. A **completed** objective ghosts green as it fades. Everything clears with the scenario rather than lingering over the menu.
+An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open [NOVA OS](../nova-os/). For the standing list, type `objectives` in NOVA OS (or `log` for the combined comms/objective event history); in flight, the gold **objective markers** on the targets themselves are the lasting "go here" cue. A **completed** objective ghosts green as it fades. Everything clears with the scenario rather than lingering over the menu.
 
 </details>
 
 ## The ship computer
 
-Press <kbd>Tab</kbd> (or click the right stick on a gamepad) to open the **NOVA OS** ship-computer monitor: a real CRT terminal that pauses the game, frees the cursor, and answers `help`, `log`, `objectives`, `ship`, `map`, `clear` and `exit`. <kbd>Esc</kbd> (or `exit`) closes it and resumes flight.
+Press <kbd>Tab</kbd> (or click the right stick on a gamepad) to open the **NOVA OS** ship-computer monitor: a real CRT terminal that pauses the game, frees the cursor, and answers `help`, `log`, `objectives`, `ship`, `map`, `clear` and `exit`. <kbd>Esc</kbd> (or `exit`) closes it and resumes flight. A posted objective's chip carries a `TAB` cue while it is up - the in-flight reminder that the computer is there.
 
-<details class="explain">
-<summary>Show explanation</summary>
-
-The old side panels are now one inset cockpit screen with dark casing, a rounded green phosphor display, and a real CRT tube: the terminal is rendered to an offscreen image and shown through a single screen shader, so the bright green text blooms into a soft phosphor halo and the whole picture bows with gentle barrel curvature, over subtle square grain, soft scanlines, a glass sheen and an edge vignette. Opening the computer blooms the raster on from a single scan line and closing collapses it to a dying dot before flight resumes. Live ship-name topbar status, footer hints and orange/yellow accents complete the panel.
-
-The command line sits in a dark input strip above the screen and shows a fish-style inline completion that continues on the same line as you type; <kbd>Tab</kbd> completes commands, and mistypes get close-match (`did you mean`) suggestions. It starts with a boot welcome block and keeps command history and cursor editing. Command output scrolls to the bottom automatically; `clear` restores the welcome block instead of leaving the screen blank. `log` prints comms plus objective events, and `objectives` prints the active mission list.
-
-`ship view` prints live player-ship section status including weapons, thrusters, ammo where present, and critical or neutralized state; bare `ship` opens a **schematic viewer app** that swallows the monitor and renders your ship as an orbitable green-phosphor 3D schematic, its sections labelled with short codes (`HULL-1`, `PDC-1`, `TRB-1`) you can select by clicking a block or cycling with <kbd>[</kbd>/<kbd>]</kbd>. Sections are addressed by those codes from the CLI too: `ship section <id>` shows one section's detail, and `ship reload <id>` / `ship repair <id>` act on it (also on the <kbd>L</kbd>/<kbd>P</kbd> keys inside the app; Tab completes the code). A bindable selected section also shows its current inputs; <kbd>B</kbd> captures one replacement keyboard key or mouse button, while <kbd>Esc</kbd> cancels. Several sections can share one input; reserved flight controls remain unavailable.
-
-`map view` prints local-space contacts as the same fixed-width KIND/LABEL/INFO table, each contact carrying a short unique label (`SELF` for your ship, then `HOST-1`, `ALLY-1`, `OBJ-1`, `AST-1`) with its range and bearing; `map goto <label>` flies the ship to that contact by engaging the flight autopilot (Tab completes the label). Bare `map` opens the schematic local-space minimap app, where the same labels ride on each contact blip and <kbd>G</kbd> sets GOTO on the selected one. Apps swallow this same monitor while they run and hand it back on <kbd>Esc</kbd>, rather than adding permanent side panels. A posted objective's chip carries a `TAB` cue while it is up, which is the in-flight reminder that the computer is there.
-
-</details>
+The computer has [its own page](../nova-os/): the full command reference, the MAP and SHIP apps, rebinding a section's controls, and the monitor's own knobs and sounds.
 
 ## The screen substrate
 

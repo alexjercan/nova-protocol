@@ -154,6 +154,7 @@ const WIKI_PAGES = [
             "targeting-radar",
             "combat-weapons",
             "hud",
+            "nova-os",
         ],
         headings: ["Flight", "Targeting and camera", "Weapons", "Interface"],
     },
@@ -165,13 +166,31 @@ const WIKI_PAGES = [
         tags: ["ui"],
         summary:
             "What the heads-up display shows: visibility tiers, the diegetic flight readouts, lock brackets and reticles, the target viewfinder, and the story comms panel.",
-        related: ["targeting-radar", "flight-autopilot", "keybinds"],
+        related: ["targeting-radar", "flight-autopilot", "keybinds", "nova-os"],
         headings: [
             "Visibility tiers",
             "Flight readouts",
             "Locks and reticles",
             "Target viewfinder",
             "Comms and objectives",
+        ],
+    },
+    {
+        slug: "nova-os",
+        md: "nova-os.md",
+        title: "NOVA OS",
+        category: "Interface",
+        tags: ["ui"],
+        summary:
+            "The Tab ship computer: a CRT terminal that freezes the game while you use it, the full command reference, the MAP and SHIP apps, section rebinding, and the monitor's own knobs and sounds.",
+        related: ["hud", "keybinds", "flight-autopilot"],
+        headings: [
+            "Opening and closing",
+            "The terminal",
+            "Command reference",
+            "Apps",
+            "Rebinding a section",
+            "The monitor",
         ],
     },
     {

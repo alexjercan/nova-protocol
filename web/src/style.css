@@ -2247,6 +2247,66 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     opacity: 0.55;
     border-style: dashed;
 }
+/* The NOVA OS console frame: a mock CRT screen (header breadcrumb, surface
+   body, footer hint row) for the where-does-a-command-land widget. Unlit
+   glass behind a hairline like .widget__plot; the off state is the powered
+   down tube. */
+.widget__console {
+    display: flex;
+    flex-direction: column;
+    margin: 14px 0 0;
+    background: var(--screen);
+    border: 1px solid var(--edge-soft);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.widget__console-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 12px;
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    color: var(--phosphor-dim);
+    border-bottom: 1px solid var(--edge-faint);
+}
+.widget__console-esc {
+    color: var(--amber);
+}
+.widget__console-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 96px;
+    padding: 14px 12px;
+}
+.widget__console-echo {
+    font-size: 0.78rem;
+    color: var(--phosphor);
+    text-shadow: var(--glow-text);
+    overflow-wrap: anywhere;
+}
+.widget__console-surface {
+    margin: auto;
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-align: center;
+    color: var(--phosphor-muted);
+}
+.widget__console-foot {
+    padding: 6px 12px;
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    line-height: 1.8;
+    color: var(--phosphor-dim);
+    border-top: 1px solid var(--edge-faint);
+    overflow-wrap: anywhere;
+}
+.widget__console.is-off .widget__console-head,
+.widget__console.is-off .widget__console-foot,
+.widget__console.is-off .widget__console-echo {
+    opacity: 0.35;
+}
 /* Variant catalogs: editor-catalog-style tables on the wiki section pages,
    shipped prototypes with source-verified stats. The thumb slots reuse the
    .figure__placeholder upgrade path (site.ts), so a capture dropped into

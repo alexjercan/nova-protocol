@@ -3727,6 +3727,285 @@ function initHudContext(host: HTMLElement): void {
     update();
 }
 
+// ---- NOVA OS surfaces ------------------------------------------------------
+
+// The NOVA OS command set and where each command lands. Names, summaries and
+// dispatch are the registered command tree: core builtins
+// (crates/nova_os/src/command.rs:166-175), the map tree
+// (crates/nova_os_ui/src/map/mod.rs:96-113) and the ship tree
+// (crates/nova_os_ui/src/ship/mod.rs:142-169); dispatch classes are
+// crates/nova_os/src/shell.rs:50-80 (Cli prints, App takes the screen,
+// Gameplay acts on the live ship and prints the result).
+type NovaOsDispatch = "print" | "app" | "action" | "close";
+interface NovaOsCommand {
+    name: string;
+    summary: string;
+    dispatch: NovaOsDispatch;
+    app?: "map" | "ship";
+    outcome: string;
+}
+const NOVA_OS_COMMANDS: NovaOsCommand[] = [
+    // command.rs:168-173 (names + summaries verbatim).
+    {
+        name: "help",
+        summary: "Show this command list",
+        dispatch: "print",
+        outcome:
+            "Prints the command list into the scrollback " +
+            "(every command also answers `<command> help`).",
+    },
+    {
+        name: "log",
+        summary: "Print comms and mission events",
+        dispatch: "print",
+        outcome:
+            "Prints the flight log: comms lines and posted / " +
+            "completed objective events.",
+    },
+    {
+        name: "objectives",
+        summary: "Print active objectives",
+        dispatch: "print",
+        outcome: "Prints the active objectives.",
+    },
+    {
+        name: "clear",
+        summary: "Clear terminal scrollback",
+        dispatch: "print",
+        outcome: "Clears the scrollback back to the boot report.",
+    },
+    {
+        name: "version",
+        summary: "Print the NOVA OS version",
+        dispatch: "print",
+        outcome: "Prints the version banner.",
+    },
+    {
+        name: "exit",
+        summary: "Suspend the NOVA OS computer",
+        dispatch: "close",
+        outcome:
+            "Powers the monitor off - the picture collapses to a dot, " +
+            "then flight resumes.",
+    },
+    // map/mod.rs:99-112.
+    {
+        name: "map",
+        summary: "Open the local-space map",
+        dispatch: "app",
+        app: "map",
+        outcome:
+            "Hands the screen to the MAP app; the footer swaps to its keys.",
+    },
+    {
+        name: "map view",
+        summary: "Print local-space contacts",
+        dispatch: "print",
+        outcome: "Prints the local-space contact table into the scrollback.",
+    },
+    {
+        name: "map goto <label>",
+        summary: "Fly the ship to a contact label",
+        dispatch: "action",
+        outcome:
+            "Engages the flight autopilot toward the contact and prints " +
+            "the result; the burn continues after the computer closes.",
+    },
+    // ship/mod.rs:143-168.
+    {
+        name: "ship",
+        summary: "Open the ship computer",
+        dispatch: "app",
+        app: "ship",
+        outcome:
+            "Hands the screen to the SHIP app; the footer swaps to its keys.",
+    },
+    {
+        name: "ship view",
+        summary: "Print ship status summary",
+        dispatch: "print",
+        outcome: "Prints the ship status table into the scrollback.",
+    },
+    {
+        name: "ship section <id>",
+        summary: "Show one section's detail",
+        dispatch: "action",
+        outcome:
+            "Prints one section's detail: kind, integrity bar, status, ammo.",
+    },
+    {
+        name: "ship reload <id>",
+        summary: "Reload a weapon section",
+        dispatch: "action",
+        outcome:
+            "Reloads that weapon section on the live ship and prints " +
+            "the new ammo count.",
+    },
+    {
+        name: "ship repair <id>",
+        summary: "Repair a section",
+        dispatch: "action",
+        outcome:
+            "Repairs that section on the live ship and prints the " +
+            "restored integrity.",
+    },
+];
+
+// The three surfaces a command can leave you on. Breadcrumb format:
+// crates/nova_os_ui/src/terminal/content.rs:45-55 (`NOVA OS <ver> // SHELL`,
+// `NOVA OS <ver> // APPS / <ID>`; the build version is elided here). Body
+// labels are the app titles (map/app.rs:115-117, ship/app.rs:24-26). Footer
+// hint sets verbatim: crates/nova_os/src/app.rs:15-25,
+// crates/nova_os_ui/src/map/mod.rs:70-80,
+// crates/nova_os_ui/src/ship/mod.rs:82-94.
+interface NovaOsSurface {
+    crumb: string;
+    body: string;
+    hints: string[];
+    esc: boolean;
+}
+const NOVA_OS_SURFACES: Record<string, NovaOsSurface> = {
+    shell: {
+        crumb: "NOVA OS // SHELL",
+        body: "TERMINAL SCROLLBACK",
+        hints: [
+            "TAB: COMPLETE",
+            "ENTER: RUN",
+            "UP/DN: HISTORY",
+            "PGUP/PGDN: SCROLL",
+            "ESC: CLOSE",
+            "TYPE HELP",
+        ],
+        esc: false,
+    },
+    map: {
+        crumb: "NOVA OS // APPS / MAP",
+        body: "MAP / LOCAL SPACE",
+        hints: [
+            "WASD: MOVE",
+            "Q/E: TURN",
+            "R/F: TILT",
+            "DRAG: LOOK",
+            "WHEEL: ZOOM",
+            "[ / ]: CYCLE",
+            "G: GOTO",
+            "T: RESET",
+            "ESC: BACK",
+        ],
+        esc: true,
+    },
+    ship: {
+        crumb: "NOVA OS // APPS / SHIP",
+        body: "SHIP / SCHEMATIC",
+        hints: [
+            "Q/E: TURN",
+            "R/F: TILT",
+            "DRAG: LOOK",
+            "WHEEL: ZOOM",
+            "[ / ]: SELECT",
+            "G: MATES",
+            "L: RELOAD",
+            "P: REPAIR",
+            "B: REBIND",
+            "T: RESET",
+            "ESC: BACK",
+        ],
+        esc: true,
+    },
+};
+
+const NOVA_OS_DISPATCH_LABEL: Record<NovaOsDispatch, string> = {
+    print: "PRINTS TO THE SCROLLBACK",
+    app: "APP TAKES THE SCREEN",
+    action: "ACTS ON THE SHIP + PRINTS",
+    close: "POWERS OFF",
+};
+
+function initNovaOsSurfaces(host: HTMLElement): void {
+    header(
+        host,
+        "NOVA OS console: where each command lands",
+        "Every command lands on one of three surfaces: most print into " +
+            "the terminal scrollback, `map` and `ship` hand the whole " +
+            "screen to an app, and the acting verbs touch the live ship " +
+            "and print the result. Pick a command - the frame shows the " +
+            "surface you end up on, with that surface's real header " +
+            "breadcrumb and footer keys."
+    );
+
+    const keysRow = el("div", "widget__keys");
+    const frame = el("div", "widget__console");
+    const head = el("div", "widget__console-head");
+    const crumb = el("span", undefined, NOVA_OS_SURFACES.shell.crumb);
+    // The amber [ ESC ] close control is visible only while an app owns the
+    // screen (crates/nova_os_ui/src/terminal/spawn.rs:372-393).
+    const escControl = el("span", "widget__console-esc", "[ ESC ]");
+    head.appendChild(crumb);
+    head.appendChild(escControl);
+    const body = el("div", "widget__console-body");
+    const echo = el("div", "widget__console-echo");
+    const surfaceLabel = el("div", "widget__console-surface");
+    body.appendChild(echo);
+    body.appendChild(surfaceLabel);
+    const foot = el("div", "widget__console-foot");
+    frame.appendChild(head);
+    frame.appendChild(body);
+    frame.appendChild(foot);
+    const readout = el("p", "widget__readout");
+
+    const show = (command: NovaOsCommand | undefined): void => {
+        const surface =
+            NOVA_OS_SURFACES[command?.app ?? "shell"] ?? NOVA_OS_SURFACES.shell;
+        const off = command?.dispatch === "close";
+        frame.classList.toggle("is-off", off);
+        crumb.textContent = surface.crumb;
+        escControl.style.visibility = surface.esc ? "visible" : "hidden";
+        // Submits echo as `nova> <line>` (crates/nova_os/src/terminal/edit.rs:18,112-115).
+        echo.textContent = command ? `nova> ${command.name}` : "nova> _";
+        surfaceLabel.textContent = off ? "" : surface.body;
+        foot.textContent = surface.hints.join("   ");
+        readout.textContent = command
+            ? `${NOVA_OS_DISPATCH_LABEL[command.dispatch]} - ${command.outcome}`
+            : "Pick a command above. The footer row always lists the " +
+              "keys of the active surface.";
+    };
+
+    let active: HTMLButtonElement | undefined;
+    for (const command of NOVA_OS_COMMANDS) {
+        const btn = el("button", "widget__btn", command.name);
+        btn.type = "button";
+        btn.title = command.summary;
+        btn.setAttribute("aria-pressed", "false");
+        btn.addEventListener("click", () => {
+            if (active) {
+                active.classList.remove("is-on");
+                active.setAttribute("aria-pressed", "false");
+            }
+            active = btn;
+            btn.classList.add("is-on");
+            btn.setAttribute("aria-pressed", "true");
+            show(command);
+        });
+        keysRow.appendChild(btn);
+    }
+
+    const note = el(
+        "p",
+        "widget__note",
+        "The real header carries the build version (NOVA OS v... // " +
+            "SHELL) and a live SHIP / LINK / FPS status line. Esc backs " +
+            "out one level - an app returns to the prompt, the prompt " +
+            "powers the monitor off - and Shift+Esc powers off from " +
+            "anywhere."
+    );
+
+    host.appendChild(keysRow);
+    host.appendChild(frame);
+    host.appendChild(readout);
+    host.appendChild(note);
+    show(undefined);
+}
+
 // ---- activation -----------------------------------------------------------
 
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
@@ -3740,6 +4019,7 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "lock-sweep": initLockSweep,
     "relation-matrix": initRelationMatrix,
     "hud-context": initHudContext,
+    "nova-os-surfaces": initNovaOsSurfaces,
 };
 
 // Hydrate every declared widget on the page. The static fallback content is
