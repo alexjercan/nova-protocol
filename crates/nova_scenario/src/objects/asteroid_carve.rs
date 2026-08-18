@@ -23,7 +23,7 @@
 //!
 //! # Kept only while it is needed
 //!
-//! The grid is 140 KB on an arena rock and 1.1 MB on the biggest one the cap
+//! The grid is 140 KB on an arena rock and 275 KB on the biggest one the cap
 //! allows, and a scenario scatters a hundred rocks most of which are never
 //! touched, so the spawn path meshes the field and DROPS it. The first hit pays
 //! to build it again - tens to hundreds of thousands of noise samples - and from
@@ -75,23 +75,23 @@ const FIELD_CELL_WORLD: f32 = 0.5;
 
 /// The most cells a rock's field may have per axis.
 ///
-/// Everything about a field is `count^3` - the seed, the corner scan, the
-/// remesh, the collider - so the cap is what makes a huge or a modded rock
-/// expensive instead of fatal. It BINDS above about radius 2.9, and what it
-/// costs there is the cell: a radius-5 rock is gridded at 0.85 units rather
-/// than 0.5, so a PDC round on one is under a cell again and only blast-scale
-/// hits mark it. `65^3` corners is 1.1 MB per carved rock, paid only by rocks
-/// that are hit.
+/// A cap on the CELL COUNT is a cap on a frame, because everything about a
+/// field is `count^3`: the seed, the corner scans, the remesh, the collider.
+/// At `64^3` one carve measured 43 ms of main-thread work on one desktop core
+/// - 17 to remesh 28,000 triangles, 11 to rebuild the collider, 3 to test
+/// connectivity and the rest in whole-grid scans - a first hit seeded in 19 ms,
+/// and a rock cost 39 ms to spawn. Held PDC fire pays the carve on every second
+/// frame, which is what put the asteroid field at 25 fps. `40^3` is a quarter of
+/// the cells.
 ///
-/// This deliberately breaks the 32^3 ceiling the field was written to, which was
-/// the resolution a single-threaded browser can remesh inside a frame. The
-/// ceiling bought a rock that looks the same on the web as on the desktop; it
-/// cost every rock past radius 1.5 being unshootable, and that is the worse
-/// trade. The worst case is now 64^3 against the old 32^3 - eight times the
-/// cells, and measured on one desktop core at 12.7 ms to seed, 10.7 ms to remesh
-/// 26,000 triangles and 10.0 ms to rebuild the collider, against 2.3, 1.6 and
-/// 2.2 at 32^3.
-const FIELD_RESOLUTION_MAX: usize = 64;
+/// It BINDS above about radius 1.8, and what it costs there is the cell: a
+/// radius-3 rock grids at 0.82 units rather than 0.5, so one PDC round is under
+/// a cell and only sustained fire - whose mark GROWS where it is held - opens a
+/// hole. That is the trade this number exists to make, and it is why it is not
+/// a resolution knob: raising it buys smoother rocks and a frame nothing else
+/// can pay for. `41^3` corners is 275 KB per carved rock, paid only by rocks
+/// that are hit.
+const FIELD_RESOLUTION_MAX: usize = 40;
 
 /// The fewest cells a rock's field may have per axis.
 ///
@@ -440,6 +440,7 @@ fn carve_asteroid_fields(
         // Work on a candidate. Splitting mutates a field; doing it to the live
         // one before collider validation can spawn duplicate islands and leave
         // the old mesh around a different internal solid.
+        let carve_started = std::time::Instant::now();
         let mut candidate = field.field.clone();
         let started = std::time::Instant::now();
         let islands = candidate.split_off_islands();
@@ -520,8 +521,10 @@ fn carve_asteroid_fields(
         field.field = candidate;
         field.meshed_volume = field.field.solid_volume();
         debug!(
-            "carve_asteroid_fields: {node:?} remesh {:.1} ms, collider {:.1} ms, \
-             {} tri(s), unit radius {surviving:.2}",
+            "carve_asteroid_fields: {node:?} carve {:.1} ms (sever {:.1}, remesh {:.1}, \
+             collider {:.1}), {} tri(s), unit radius {surviving:.2}",
+            carve_started.elapsed().as_secs_f32() * 1000.0,
+            severed.as_secs_f32() * 1000.0,
             remeshed.as_secs_f32() * 1000.0,
             rebuilt.as_secs_f32() * 1000.0,
             surface.indices().map_or(0, |i| i.len() / 3),
@@ -706,7 +709,7 @@ mod tests {
     /// fight rather than only on the small ones.
     ///
     /// The cap is part of the claim, not an exception to it: past about radius
-    /// 2.9 the cell grows, and what that costs has to be visible here rather
+    /// 1.8 the cell grows, and what that costs has to be visible here rather
     /// than discovered when a big rock stops taking marks.
     #[test]
     fn a_rock_is_gridded_in_world_units_until_the_cap_binds() {
@@ -720,7 +723,7 @@ mod tests {
             |radius: f32| 2.0 * half_extent * radius / field_resolution(half_extent, radius) as f32;
 
         // Every rock a shipped scenario scatters up to where the cap binds.
-        for radius in [0.8f32, 1.2, 1.5, 2.0, 2.4, 2.9] {
+        for radius in [0.8f32, 1.2, 1.5, 1.8] {
             let cell = cell(radius);
             assert!(
                 (cell - FIELD_CELL_WORLD).abs() < FIELD_CELL_WORLD * 0.05,
@@ -730,12 +733,13 @@ mod tests {
             assert!(mark_radius(4.0) > cell * 0.5);
         }
 
-        // Past the cap the cell grows, and a PDC round is under one again.
-        let biggest = cell(5.0);
-        assert_eq!(field_resolution(half_extent, 5.0), FIELD_RESOLUTION_MAX);
+        // Past the cap the cell grows and one PDC round is under it, so a
+        // bigger rock is marked by held fire rather than by a round.
+        let biggest = cell(3.0);
+        assert_eq!(field_resolution(half_extent, 3.0), FIELD_RESOLUTION_MAX);
         assert!(
             biggest > FIELD_CELL_WORLD && biggest < 1.0,
-            "a radius-5 rock grids at {biggest:.3}u"
+            "a radius-3 rock grids at {biggest:.3}u"
         );
 
         // And the floor holds a silhouette on something smaller than anything
