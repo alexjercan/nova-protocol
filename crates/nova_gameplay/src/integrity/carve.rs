@@ -32,14 +32,31 @@
 //! CONTINUOUS: a ship's plates each derive their own geometry from the same
 //! list, so two plates sharing a boundary sample compute the same depression at
 //! it and the crater crosses the seam between them instead of stopping at it.
+//!
+//! # What a hit may take
+//!
+//! A mark is priced by the damage the hit actually SPENT, never by the damage
+//! it asked for - see [`absorbed_by`]. The two differ every time a round
+//! overkills what it hits, and the difference compounds: a slug that crosses a
+//! plate is charged for the plate and then charged again, in full, for the hull
+//! behind it. One round, priced twice.
+//!
+//! The same defect wearing a different hat is a blast, which asks for its
+//! pressure once per collider it overlaps. A ship built out of hundreds of
+//! them would grow one crater hundreds of times and throw the debris to match -
+//! see [`record_blast_marks`], which sums a blast's contributions per body and
+//! cuts them as one.
 
 use bevy::prelude::*;
 
-/// `CarveSpew`, `DamageMark`, `DamageMarks`, `mark_radius` and
-/// `record_damage_mark`.
+use super::health::prelude::{Health, HealthZeroMarker};
+
+/// `CarveSpew`, `DamageMark`, `DamageMarks`, `mark_radius`,
+/// `record_damage_mark` and `record_blast_marks`.
 pub mod prelude {
     pub use super::{
-        mark_radius, record_damage_mark, CarveSpew, DamageMark, DamageMarks, DAMAGE_PER_UNIT_VOLUME,
+        mark_radius, record_blast_marks, record_damage_mark, CarveSpew, DamageMark, DamageMarks,
+        DAMAGE_PER_UNIT_VOLUME,
     };
 }
 
@@ -163,6 +180,73 @@ pub fn mark_radius(amount: f32) -> f32 {
     (volume * 3.0 / (2.0 * std::f32::consts::PI)).cbrt()
 }
 
+/// What a hit of `amount` on `target` actually COST, which is all it may take
+/// in material.
+///
+/// The first [`Health`] at or above the hit is the node that pays for it - the
+/// same node [`on_damage`](super::health) charges - so a round asking for more
+/// than a plate has left carves the plate and not the plate plus a bonus. A
+/// node already spent pays nothing at all, and therefore carves nothing.
+///
+/// A body with NO pool anywhere up the chain spends the whole hit in material.
+/// That is the asteroid rule rather than a fallback: a rock's remaining solid
+/// IS its durability, and clamping it against a pool it does not have would
+/// stop rocks carving altogether.
+fn absorbed_by(world: &World, target: Entity, amount: f32) -> f32 {
+    let mut current = target;
+    loop {
+        if let Some(health) = world.get::<Health>(current) {
+            let spent = health.current <= 0.0 || world.get::<HealthZeroMarker>(current).is_some();
+            return if spent {
+                0.0
+            } else {
+                amount.min(health.current)
+            };
+        }
+        let Some(&ChildOf(parent)) = world.get::<ChildOf>(current) else {
+            return amount;
+        };
+        current = parent;
+    }
+}
+
+/// Cut one crater of `world_radius` into `owner` at `at` (WORLD space) and
+/// announce the `volume` that came off.
+///
+/// The one place a mark is written, so the frame conversion and the spew that
+/// follows it cannot drift between the single-hit and the blast paths.
+fn carve_body(world: &mut World, owner: Entity, at: Vec3, world_radius: f32, volume: f32) {
+    let Some(frame) = world.get::<GlobalTransform>(owner).copied() else {
+        return;
+    };
+    // Into the owner's frame, so the mark rides with the body. UNIFORM scale is
+    // assumed: the position crosses on the affine, and the radius has to be
+    // divided by that same scale by hand or a body drawn in unit space (an
+    // asteroid's mesh node, scaled by its radius) would be carved by a sphere
+    // its own size. A non-uniform scale would need the mark to become an
+    // ellipsoid rather than just move, and nothing authors one.
+    let scale = frame.scale().max_element().max(f32::EPSILON);
+    let local = frame.affine().inverse().transform_point3(at);
+    let Some(mut marks) = world.get_mut::<DamageMarks>(owner) else {
+        return;
+    };
+    if !marks.add(DamageMark {
+        at: local,
+        radius: world_radius / scale,
+    }) {
+        return;
+    }
+    // Material was removed, so material has to go somewhere. Announced in WORLD
+    // terms because that is what a spectator sees; the mark itself stays in the
+    // body's frame.
+    world.trigger(CarveSpew {
+        entity: owner,
+        at,
+        radius: world_radius,
+        volume,
+    });
+}
+
 /// Remember that `target` was hit at `at` (WORLD space) for `amount`.
 ///
 /// Queued rather than done here because the work is a walk up the hierarchy and
@@ -170,48 +254,100 @@ pub fn mark_radius(amount: f32) -> f32 {
 /// [`apply_damage`](crate::damage::apply_damage), so every weapon marks its
 /// target the same way and nothing has a private path to a body's shape.
 ///
+/// The queue is FIFO and `apply_damage` queues this BEFORE it triggers the
+/// health event, so [`absorbed_by`] reads the pool the hit is about to spend.
+/// Two rounds landing in one flush interleave the same way, and each is priced
+/// against what the first left.
+///
 /// Silently does nothing when no ancestor carries [`DamageMarks`]. That is the
 /// normal case for most of a scenario - a bare prop has no shape to change -
 /// and it is what keeps this off the critical path for everything that does not
 /// opt in.
 pub fn record_damage_mark(commands: &mut Commands, target: Entity, at: Vec3, amount: f32) {
-    let world_radius = mark_radius(amount);
-    if world_radius < MARK_MIN_RADIUS {
+    // Cheap pre-filter on the REQUESTED amount. Absorption only ever reduces
+    // it, so a hit too small to carve at full price cannot become big enough
+    // once clamped, and a graze never costs a command.
+    if mark_radius(amount) < MARK_MIN_RADIUS {
         return;
     }
     commands.queue(move |world: &mut World| {
+        let paid = absorbed_by(world, target, amount);
+        let world_radius = mark_radius(paid);
+        if world_radius < MARK_MIN_RADIUS {
+            return;
+        }
         let Some(owner) = mark_owner(world, target) else {
             return;
         };
-        let Some(frame) = world.get::<GlobalTransform>(owner).copied() else {
-            return;
-        };
-        // Into the owner's frame, so the mark rides with the body. UNIFORM
-        // scale is assumed: the position crosses on the affine, and the radius
-        // has to be divided by that same scale by hand or a body drawn in unit
-        // space (an asteroid's mesh node, scaled by its radius) would be carved
-        // by a sphere its own size. A non-uniform scale would need the mark to
-        // become an ellipsoid rather than just move, and nothing authors one.
-        let scale = frame.scale().max_element().max(f32::EPSILON);
-        let local = frame.affine().inverse().transform_point3(at);
-        let Some(mut marks) = world.get_mut::<DamageMarks>(owner) else {
-            return;
-        };
-        if !marks.add(DamageMark {
-            at: local,
-            radius: world_radius / scale,
-        }) {
-            return;
-        }
-        // Material was removed, so material has to go somewhere. Announced in
-        // WORLD terms because that is what a spectator sees; the mark itself
-        // stays in the body's frame.
-        world.trigger(CarveSpew {
-            entity: owner,
+        carve_body(
+            world,
+            owner,
             at,
-            radius: world_radius,
-            volume: amount / DAMAGE_PER_UNIT_VOLUME,
-        });
+            world_radius,
+            paid / DAMAGE_PER_UNIT_VOLUME,
+        );
+    });
+}
+
+/// Record ONE crater per body for a blast centred at `at` (WORLD space) that
+/// reached `hits`, each `(collider, pressure)`.
+///
+/// A blast is a single sphere of material removed. It damages every collider it
+/// overlaps and that is correct, but a body that happens to be built out of two
+/// hundred colliders must not therefore lose two hundred craters' worth of
+/// material and throw two hundred piles of debris. Contributions are summed per
+/// owning body - the material the blast really destroyed there - and cut as
+/// one.
+///
+/// Summed rather than maxed because [`DAMAGE_PER_UNIT_VOLUME`] says what it
+/// says: material lost is material paid for. Once [`absorbed_by`] has clamped
+/// each contribution, the total is bounded by the hit points that were really
+/// inside the sphere, and it is the same volume-add that sustained fire into
+/// one spot already gets from [`DamageMark::absorb_volume`]. The crater is
+/// capped at `max_radius`, the blast's own reach - a hole wider than the sphere
+/// that made it is nonsense.
+///
+/// Queue this BEFORE the tick's health triggers: every body then resolves
+/// against one pre-damage snapshot, which is the contract
+/// [`NovaBlast`](crate::damage::NovaBlast) already states for its pressure
+/// pass.
+pub fn record_blast_marks(
+    commands: &mut Commands,
+    at: Vec3,
+    max_radius: f32,
+    hits: Vec<(Entity, f32)>,
+) {
+    commands.queue(move |world: &mut World| {
+        // A linear scan, because a blast reaches a handful of BODIES however
+        // many colliders it overlapped.
+        let mut totals: Vec<(Entity, f32)> = Vec::new();
+        for (target, amount) in hits {
+            let paid = absorbed_by(world, target, amount);
+            if paid <= 0.0 {
+                continue;
+            }
+            let Some(owner) = mark_owner(world, target) else {
+                continue;
+            };
+            match totals.iter_mut().find(|(entity, _)| *entity == owner) {
+                Some((_, total)) => *total += paid,
+                None => totals.push((owner, paid)),
+            }
+        }
+
+        for (owner, paid) in totals {
+            let world_radius = mark_radius(paid).min(max_radius);
+            if world_radius < MARK_MIN_RADIUS {
+                continue;
+            }
+            carve_body(
+                world,
+                owner,
+                at,
+                world_radius,
+                paid / DAMAGE_PER_UNIT_VOLUME,
+            );
+        }
     });
 }
 
@@ -399,6 +535,134 @@ mod tests {
             marks[0].at.abs_diff_eq(Vec3::X, 1e-5),
             "in the root's own frame, got {}",
             marks[0].at
+        );
+    }
+
+    /// A body that keeps marks and no hit points spends the whole hit in
+    /// material. A rock's remaining solid IS its durability, so a clamp against
+    /// a pool it does not have would stop rocks carving.
+    #[test]
+    fn a_body_with_no_hit_points_spends_the_whole_hit_in_material() {
+        let mut app = App::new();
+        let root = app
+            .world_mut()
+            .spawn((DamageMarks::default(), GlobalTransform::IDENTITY))
+            .id();
+        let node = app.world_mut().spawn(ChildOf(root)).id();
+
+        let mut commands = app.world_mut().commands();
+        record_damage_mark(&mut commands, node, Vec3::ZERO, 600.0);
+        app.world_mut().flush();
+
+        let marks = &app.world().get::<DamageMarks>(root).unwrap().0;
+        assert_eq!(marks.len(), 1);
+        assert!(
+            (marks[0].radius - mark_radius(600.0)).abs() < 1e-6,
+            "a rock pays the full price, got {}",
+            marks[0].radius
+        );
+    }
+
+    /// THE pricing rule: a mark costs what the hit DESTROYED, not what the
+    /// round asked for. A 100-damage slug crossing a 20 hp plate takes 20
+    /// hit points of material there and carries the other 80 to whatever is
+    /// behind it - the round, once, instead of the 180 the requested amount
+    /// used to buy.
+    #[test]
+    fn a_mark_is_priced_by_what_the_hit_destroyed_not_by_what_it_asked_for() {
+        let mut app = App::new();
+        let root = app
+            .world_mut()
+            .spawn((DamageMarks::default(), GlobalTransform::IDENTITY))
+            .id();
+        let plate = app
+            .world_mut()
+            .spawn((ChildOf(root), Health::new(20.0)))
+            .id();
+
+        let mut commands = app.world_mut().commands();
+        record_damage_mark(&mut commands, plate, Vec3::ZERO, 100.0);
+        app.world_mut().flush();
+
+        let marks = &app.world().get::<DamageMarks>(root).unwrap().0;
+        assert_eq!(marks.len(), 1);
+        assert!(
+            (marks[0].radius - mark_radius(20.0)).abs() < 1e-6,
+            "priced at the plate's 20 hp, not the round's 100: got {} want {}",
+            marks[0].radius,
+            mark_radius(20.0)
+        );
+    }
+
+    /// A hit on a corpse costs nobody anything, so it takes no material and
+    /// throws no debris. This is most of a second warhead into a chewed hull.
+    #[test]
+    fn a_hit_on_a_spent_node_takes_no_material() {
+        // Both ways a node reads as spent: an emptied pool, and one the
+        // destruction pipeline has already marked but not yet swept away.
+        let drained = Health {
+            current: 0.0,
+            max: 50.0,
+        };
+        for (case, pool, marked) in [
+            ("drained", drained, false),
+            ("marked", Health::new(50.0), true),
+        ] {
+            let mut app = App::new();
+            let root = app
+                .world_mut()
+                .spawn((DamageMarks::default(), GlobalTransform::IDENTITY))
+                .id();
+            let mut plate = app.world_mut().spawn((ChildOf(root), pool));
+            if marked {
+                plate.insert(HealthZeroMarker);
+            }
+            let plate = plate.id();
+
+            let mut commands = app.world_mut().commands();
+            record_damage_mark(&mut commands, plate, Vec3::ZERO, 500.0);
+            app.world_mut().flush();
+
+            assert!(
+                app.world().get::<DamageMarks>(root).unwrap().0.is_empty(),
+                "{case}: a corpse has nothing left to lose"
+            );
+        }
+    }
+
+    /// The command order the pricing rests on: a mark is queued before its own
+    /// health event, so two rounds landing in one flush are each priced against
+    /// what the one before it left. 60 into a 100 hp plate takes 60, the next
+    /// 60 takes the remaining 40, and the crater holds exactly the plate.
+    #[test]
+    fn two_rounds_in_one_flush_are_each_priced_against_what_is_left() {
+        use crate::damage::prelude::apply_damage;
+
+        let mut app = App::new();
+        app.add_plugins(super::super::health::NovaHealthPlugin);
+        let root = app
+            .world_mut()
+            .spawn((DamageMarks::default(), GlobalTransform::IDENTITY))
+            .id();
+        let plate = app
+            .world_mut()
+            .spawn((ChildOf(root), Health::new(100.0)))
+            .id();
+
+        let mut commands = app.world_mut().commands();
+        for _ in 0..2 {
+            apply_damage(&mut commands, plate, None, 60.0, Some(Vec3::ZERO));
+        }
+        app.world_mut().flush();
+
+        assert_eq!(app.world().get::<Health>(plate).unwrap().current, 0.0);
+        let marks = &app.world().get::<DamageMarks>(root).unwrap().0;
+        assert_eq!(marks.len(), 1, "both rounds hit the same spot");
+        assert!(
+            (marks[0].radius - mark_radius(100.0)).abs() < 1e-5,
+            "the crater holds the plate and no more: got {} want {}",
+            marks[0].radius,
+            mark_radius(100.0)
         );
     }
 

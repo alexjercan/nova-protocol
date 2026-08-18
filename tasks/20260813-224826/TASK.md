@@ -679,7 +679,7 @@ to say what the row now judges - cracks, plate loss, sparks, plume.
 `resolve_nova_blast_hits` commands at 185.6 ms, on the frame a ship comes apart.
 It was there before carving and it is there after.
 
-### Phase 4f - a hit carves what it destroyed - ACCEPTED (2026-08-19)
+### Phase 4f - a hit carves what it destroyed - DONE (2026-08-19)
 
 Owner-accepted design for `REVIEW.md` landing blockers 1 and 2, which are one
 defect seen twice: a mark is priced from the damage a hit REQUESTED rather than
@@ -723,11 +723,49 @@ Health stays PER COLLIDER and is not coalesced. A blast that reaches forty
 sections damages forty sections; what it may not do is make forty craters and
 forty piles of debris.
 
-**The seam.** A new `apply_blast_damage(commands, at, source, hits)` owns the
-whole per-blast pattern - health per collider, one crater per body - so the
-coalescing rule lives in exactly one place and `apply_damage` keeps its meaning
-for point weapons. Both share the clamp, the owner walk and the mark-and-spew
-body, so there is no second copy of the rule to drift.
+**The seam.** A new `apply_blast_damage(commands, at, max_radius, source, hits)`
+owns the whole per-blast pattern - health per collider, one crater per body - so
+the coalescing rule lives in exactly one place and `apply_damage` keeps its
+meaning for point weapons. Both share the clamp, the owner walk and the
+mark-and-spew body, so there is no second copy of the rule to drift.
+
+**The gate.** `one_blast_cuts_one_crater_however_many_colliders_the_body_has`
+fires a warhead at a twelve-collider body and asserts one crater, one spew, and
+all twelve pools still charged. Restoring the per-collider call fails it 12
+against 1.
+
+**Measured.** `probe run wfc_arena`, both columns from this tree on one box in
+one session; BEFORE is the same tree with the two changed files reverted. The
+Phase 4e figures above are an older sample and are not the baseline here.
+
+Repeatable, four clean passes per column:
+
+- Peak live moving bodies, the probe's `velocity_subjects` high-water mark:
+  3605-3783 before, 1410-1631 after. The ranges do not overlap.
+- `health_subjects` is 1587 in all eight runs. Health was not coalesced and the
+  ships are the same ships.
+
+One traced pass per column, matched on work done - 1043 against 1039 fixed
+ticks, 215 against 210 entity explosions, every unrelated system total within
+2%:
+
+- Craters announced over the run, `spew_carved_material`: 990 -> 253.
+- The frame a ship comes apart: `resolve_nova_blast_hits` commands 218.9 -> 174.6
+  ms, `FixedPostUpdate` 240.4 -> 196.4 ms, `Main` 380.5 -> 322.2 ms.
+- Entity churn inside that one frame: 2907 rigid-body inserts -> 874.
+
+**What did not move: frame time.** Pooled over the four passes per column,
+median 68.5 -> 71.1 ms and p90 80.4 -> 81.8 ms, with per-run worst 201-376
+before against 199-303 after. The arena sits near 70 ms a frame on present and
+render - `present_frames` alone is 8.2 s of a 16 s run - the blast spike is one
+frame in 250, and run-to-run noise is wider than the difference. This buys
+headroom and debris, not fps.
+
+**Still open, and still the worst frame measured:** the death cascade, exactly
+where Phase 4e left it. Inside the 174.6 ms, `handle_entity_explosion` is 78.5
+ms and `mesh::explode::handle_explosion` 31.7 ms - 63% of the frame, both within
+4% of their before figures. Coalescing craters cannot reach it: a blast that
+kills forty sections has forty finales to run.
 
 ### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 

@@ -321,6 +321,8 @@ tagged **(breaking)**.
 
 ### Performance
 
+- One blast cuts ONE crater per body however many colliders it overlaps, so
+  peak live debris in the WFC arena drops from ~3700 bodies to ~1450.
 - A scenario swap never blocks the main thread: queued spawns drain under a
   3 ms per-frame budget and the scenario is held until they land, so the
   LOADING panel animates across the whole transition.
@@ -328,6 +330,8 @@ tagged **(breaking)**.
 ### Fixes
 
 - Treat a torpedo outliving its launch bay as a missing optional effect.
+- Fixed: a hit carved what it ASKED for, not what it destroyed, so an overkill
+  round bought material twice and a spent plate still threw debris.
 - Fixed: closing NOVA OS in the WFC arena resumes combat instead of leaving the match clocks paused.
 - Fixed: every ship section burst eight generic gray cubes instead of its own
   art - destruction looked for a mesh on the entity that dies, never on the
