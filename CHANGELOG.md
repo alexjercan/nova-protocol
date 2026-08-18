@@ -344,6 +344,9 @@ tagged **(breaking)**.
 - A scenario swap never blocks the main thread: queued spawns drain under a
   3 ms per-frame budget and the scenario is held until they land, so the
   LOADING panel animates across the whole transition.
+- Held fire on a big rock runs at 47 fps instead of 25: its carve field caps at
+  40 cells a side, the seed and remesh run off the main thread, and nothing
+  rescans the grid to learn it has not changed.
 
 ### Fixes
 
