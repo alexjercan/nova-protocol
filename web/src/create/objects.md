@@ -56,7 +56,7 @@ default mass and radar signature together.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `radius` | number | required | nominal radius in world units. The true mesh extent reaches up to 6x this (matters for [`min_separation`](../actions/#scatterobjects)) |
+| `radius` | number | required | nominal radius in world units, and the rock's DURABILITY - see below. The true mesh extent reaches up to 6x this (matters for [`min_separation`](../actions/#scatterobjects)) |
 | `texture` | asset ref | required | surface texture (`dep://base/textures/asteroid.png` is the stock rock) |
 | `invulnerable` | bool | required | `true` = no carving: the rock and its gravity well cannot be destroyed mid-scenario |
 | `mass` | `Option` number | `None` | the gravity parameter mu (u^3/s^2). `Some` ALWAYS makes this rock a well: pull is `a = mu / r^2`; size it by the sphere of influence you want (`mu = soi_cutoff_accel * soi^2`). `None` = the global rule (a default mass only if the radius qualifies it as a well) |
@@ -80,6 +80,19 @@ SpawnScenarioObject((
 A normal asteroid has no health pool. Hits remove signed geometry and severed
 pieces become debris. When no viable connected solid remains, destruction fires
 [`OnDestroyed`](../events/#ondestroyed) with the rock's id and `"asteroid"`.
+
+### Sizing a rock you want shot
+
+`radius` IS the durability, so it is the only knob, and it is CUBIC. Material
+costs 8 hit points per cubic world unit - absolutely, on every body, whatever
+its size - so doubling a radius multiplies the time to break it by about eight.
+The stock kinetic PDC deals 4.0 per round at 100 rounds a second, which is 50
+cubic units a second of held fire. A radius-3 rock is about 2.4 minutes of that;
+a radius-0.3 rock is a couple of seconds.
+
+Author the size you want the fight to take. The shipped tutorial targets are
+`radius: 0.25` and `0.3` for exactly this reason: small size, not hidden health,
+is what keeps a target brief now that there is no `health` field to turn down.
 
 ## Spaceship
 

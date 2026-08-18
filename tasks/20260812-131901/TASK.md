@@ -1,8 +1,8 @@
 # Editor: full-spaceship copy-paste palette
 
 - STATUS: OPEN
-- PRIORITY: 70
-- TAGS: v0.11.0,editor,ui
+- PRIORITY: 0
+- TAGS: backlog,editor,ui
 
 Goal: full-spaceship palette in the editor - browse complete ship prototypes
 with 3D preview and stamp ("copy paste") a whole ship into the scene;
@@ -28,3 +28,7 @@ DoD:
 - UI harness walk: open palette -> preview -> stamp two copies -> duplicate
   an in-scene ship -> scenario saves and reloads with all copies intact.
 - probe green.
+
+## Backlogged 2026-08-18
+
+Moves with the editor epic `20260812-131912`. Unchanged, rescheduled.

@@ -103,7 +103,11 @@ variant (`nova_scenario`), plus the firing site.
    `OnStart` site in `loader/lifecycle.rs`, `OnUpdate` in `loader/clock.rs`, and
    orbit-lifecycle/the lock events in `loader/trackers.rs`); object-local events (an
    area entering/leaving) fire from the object's own observer, the way
-   `objects/asteroid.rs` fires `OnDestroyedEvent` from `on_asteroid_node_destroyed`.
+   `objects/area.rs` fires `OnEnterEvent` from its own trigger. A kind may also
+   fire from a system it owns: `objects/asteroid_carve.rs` fires
+   `OnDestroyedEvent` out of `carve_asteroid_fields` when a rock's field is
+   exhausted, because "destroyed" there is a geometry test rather than a
+   health-zero marker.
 
 `EventConfig` is `Copy` and derives serde, so the new variant is authorable from
 RON with no extra work.
@@ -212,8 +216,11 @@ Each fires the action into a `NovaEventWorld`, drains with
 ## Recipe 4: add a scenario object kind
 
 A scenario object is a scoped entity spawned by `SpawnScenarioObject`; the
-kind decides its own body (or none - three of the five shipped kinds are
-static). Model it on `crates/nova_scenario/src/objects/asteroid.rs`.
+kind decides its own body (or none - four of the six shipped kinds are
+static). Model it on `crates/nova_scenario/src/objects/beacon.rs` or
+`salvage.rs`. Do NOT model it on the asteroid: it is the least representative
+kind in the directory, split across three modules with two plugins, carrying no
+`Health` and outside the integrity graph entirely.
 
 > A kind is not required to be a physical body. `beacon.rs` declares
 > `RigidBody::Static` (the base bundle supplies no body), and `light.rs` is a
@@ -229,7 +236,7 @@ static). Model it on `crates/nova_scenario/src/objects/asteroid.rs`.
    `base_scenario_object` (id, name, transform, visibility,
    `ScenarioScopedMarker`) is added by the spawn path, not here. It
    deliberately carries NO body - each kind declares its own `RigidBody` (the
-   asteroid adds `Dynamic` + `TransformInterpolation`; three of the five kinds
+   asteroid adds `Dynamic` + `TransformInterpolation`; four of the six kinds
    are static).
 
    ```rust

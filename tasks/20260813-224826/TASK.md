@@ -1,8 +1,8 @@
 # Erode every destructible body by its own health
 
-- STATUS: OPEN
-- PRIORITY: 75
-- TAGS: v0.11.0,epic,destruction,asteroid,ship,torpedo,render,physics,spike
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,epic,destruction,asteroid,ship,torpedo,render,physics
 
 ## Goal
 
@@ -1277,3 +1277,26 @@ so no asteroid field is ever seeded and the grid change costs the arena nothing.
   every step that changed a look.
 - DONE. Content schema, modding docs and examples match the shipped scope.
   Release notes are not written here - the per-version News post is.
+
+## CLOSED 2026-08-18 - landed as `0ee9cbb0`
+
+Squash-merged to master as `0ee9cbb0` ("Give every destructible body damage it
+wears in its own geometry"), 96 files, +10374/-1951. The raw 32-commit history
+is preserved at tag `archive/carve-profiling-raw`.
+
+The feature is correct and it is SLOW. Moving the carve grid from a fixed 32
+cells per axis to a world-fixed 0.5u cell (count derived, capped at 64) is what
+lets a PDC round mark a big rock at all, and it made every field cost up to
+eight times what it did. The `asteroid_field` sandbox is unplayable at this
+head.
+
+That fallout is not reopened here - it is the v0.11.0 release theme
+(`20260818-220812`), with the carve cost itself as `20260818-221021`. The
+REVIEW.md performance follow-ups (shard population, permanent section
+traversal) are carried into that task rather than left here.
+
+Also carried forward, unresolved: crater SCALE. Time-to-kill and crater radius
+are both driven by `DAMAGE_PER_UNIT_VOLUME`, so there is no lever to separate
+them. Two bursts 3.5u apart correctly produce two marks, but at 4.92u and 3.91u
+radius they read as one cavity. Needs a second constant or a different pricing
+curve; not a blocker, but it is the thing most likely to still read wrong.

@@ -181,8 +181,8 @@ ship dies through the section-explosion pipeline. Payload: `id` and
 <details class="explain">
 <summary>Show explanation</summary>
 
-Type names are the object-kind constants: `"asteroid"`, `"spaceship"`,
-`"beacon"`, `"salvage_crate"`, `"light"` - see
+Type names are the object-kind constants: `"anchor"`, `"asteroid"`,
+`"spaceship"`, `"beacon"`, `"salvage_crate"`, `"light"` - see
 [Scenario objects](../objects/).
 
 </details>

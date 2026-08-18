@@ -56,7 +56,7 @@ pub mod prelude {
 /// litter that costs a solver step. Under this a crumb goes out as
 /// [`spew`](super::spew) dust instead.
 ///
-/// One cubic unit is 80 hit points at the cladding's toughness
+/// One cubic unit is 8 hit points at the cladding's toughness
 /// ([`mark_radius`](super::carve::mark_radius)), so it is also the scale at
 /// which a piece is worth a ship noticing.
 pub const CHUNK_MIN_VOLUME: f32 = 1.0;

@@ -20,6 +20,8 @@ A turret is an **articulated mount** - a base, the joints that swivel and elevat
 
 Turrets draw their aim from the combat lock and prefer a fine-locked section if you have one, falling back to live structure and then the camera ray.
 
+A beaten mount cracks and, past about a third of its health gone, throws sparks - but it loses nothing of itself and it shoots exactly as well as it did new. A turret that had been eaten away would be answering "how is that still firing?" with "it is not, really", and it is. It stops when it dies, and not before.
+
 <figure class="figure">
     <!-- Capture: assets/loop-section-turret.webm (short gameplay loop) -->
     <div class="figure__placeholder">

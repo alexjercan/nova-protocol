@@ -195,9 +195,9 @@ pub(super) fn torpedo_detonate_system(
             // hard panic under the FallbackErrorHandler(panic) the autopilot and
             // probe runs install.
             commands.entity(torpedo).try_despawn();
-            // A nova typed blast (Explosive): nova owns the falloff + trigger
-            // so the blast obeys the resistance table, and it is the only blast
-            // path in the app, so the damage is not double-counted.
+            // A nova typed blast (Explosive): nova owns the falloff and the
+            // trigger, and it is the only blast path in the app, so the damage
+            // is not double-counted.
             let mut blast_entity = commands.spawn((
                 nova_blast(blast.radius, blast.damage, DamageType::Explosive),
                 Transform::from_translation(torpedo_transform.translation),

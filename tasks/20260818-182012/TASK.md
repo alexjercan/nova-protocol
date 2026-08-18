@@ -1,8 +1,8 @@
 # Gamepad support and a real settings menu with rebinding
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog
+- TAGS: archive,duplicate
 
 Add real gamepad support and turn the Settings menu into an actual settings
 menu.
@@ -28,3 +28,9 @@ menu.
   (read-only claim goes away), getting-started.
 - Rebind UI should follow the shared NOVA keybind conventions (the editor and
   NOVA OS share bindings; keep one source of truth).
+
+## CLOSED 2026-08-18 - merged into `20260714-001140`
+
+Duplicate. `20260714-001140` covers the same gamepad ground in more detail and
+adds the mobile virtual pad; it now carries the settings-menu and rebinding
+half of this task too. Both are on the backlog.

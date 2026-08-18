@@ -43,6 +43,13 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 | `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, 35 u/s, ~116 PDC rounds an intercept, killed ~114 u out |
 | `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; loads the crimson siege Breaker (70 u/s, a shallow weave); scene dressing, hidden in the editor |
 
+Every shipped prototype authors its [damage
+effects](../sections/#damage-effects) by kind, and the whole catalog follows one
+rule: Hull wears `([Cracks])` (the default, so it is omitted), Controller,
+Turret and Torpedo wear `([Cracks, Sparks])`, and Thruster wears
+`([Cracks, Sparks, Plume])`. The semantic ship parts below use the same rule.
+No shipped mod authors the field at all, so base is the worked example.
+
 ### Cladding (not a prototype)
 
 A ship's outer SKIN is DERIVED from the structure it wraps, as a pure function
@@ -82,11 +89,12 @@ and those link points are what places one: a part attaches only where its own
 sockets meet another's. Ships use the suffix as the instance id: prototype
 `racer_engine_port` normally becomes instance `engine_port`.
 
-The `turret_*` suffixes are the exception: they carry no mesh of their own, so
-all ten of them are the same PDC on the same joint tree. They stay in the
-catalog for ships and mods, but the editor hides them and offers the two
-`pdc_*_turret_section` mounts instead - one gun that fits any hull face, in a
-Kinetic and a Pierce loadout.
+There is no `*_turret_*` suffix in this table. The ten per-craft turret
+prototypes carried no mesh of their own - all of them were the same PDC on the
+same joint tree - and they are GONE from the catalog along with their `_light`
+twins. A mod naming one no longer resolves. Use `pdc_kinetic_turret_section` or
+`pdc_pierce_turret_section`: one gun that fits any hull face, in a Kinetic and a
+Pierce loadout.
 
 | family | prototype suffix | kind | health |
 |---|---|---|---|
@@ -112,8 +120,9 @@ coordinate-named cube prototypes do not exist.
 
 Turret MOUNTS are not in this table because they are not prototypes. A craft
 names where a gun goes; the gun is always `pdc_kinetic_turret_section`, seated
-on the face it stands on. The ten per-craft `*_turret_*` prototypes (and their
-`_light` twins) were the same PDC on the same joint tree and have been removed.
+on the face it stands on. A scavenger-grade craft flies the SAME gun with a
+`SetHealth(60.0)` modification on the mount - that is all that is left of the
+old `_light` variants.
 
 The shipped assemblies cast the hulls by role: the cargoa is the campaign's
 armed corvette (turrets on the pod shoulders), the cargob its torpedo-and-PDC

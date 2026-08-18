@@ -1,8 +1,8 @@
 # In-editor scenario builder: place objects/objectives and save/load scenarios to RON
 
 - STATUS: OPEN
-- PRIORITY: 60
-- TAGS: v0.11.0,editor,scenario,modding,spike
+- PRIORITY: 0
+- TAGS: backlog,editor,scenario,modding,spike
 
 Spike: tasks/20260714-081636/SPIKE.md
 Spike: tasks/20260714-204059/SPIKE.md (editor UI rework - splits this into baseline + "the rest")
@@ -41,3 +41,7 @@ are surfaced without overwhelming the panel, and how the editor's in-memory ship
 deeper design lives in the modding/authoring spike (tasks/20260714-081636 and its
 follow-up); expand this task from there.
 
+
+## Backlogged 2026-08-18
+
+Moves with the editor epic `20260812-131912`. Unchanged, rescheduled.

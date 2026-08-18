@@ -45,7 +45,7 @@ and does nothing - spawn first.
 ### SpawnScenarioObject
 
 Spawn one object. `base` is the shared identity block; `kind` picks the
-object and carries its config - the five kinds are the
+object and carries its config - the six kinds are the
 [Scenario objects reference](../objects/).
 
 ```ron
@@ -61,7 +61,7 @@ SpawnScenarioObject((
 | field | type | default | meaning |
 |---|---|---|---|
 | `base` | object base | required | identity + pose (below) |
-| `kind` | object kind | required | `Asteroid((..))` / `Spaceship((..))` / `Beacon((..))` / `SalvageCrate((..))` / `Light(..)` |
+| `kind` | object kind | required | `Anchor((..))` / `Asteroid((..))` / `Spaceship((..))` / `Beacon((..))` / `SalvageCrate((..))` / `Light(..)` |
 
 The `base` block:
 

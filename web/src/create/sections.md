@@ -83,6 +83,10 @@ damage_effects: ([Cracks, Sparks, Plume]),
 | `Sparks` | The section throws sparks, faster the worse it is. |
 | `Plume` | The section's exhaust guts and flickers. Thrusters only - it grades the exhaust cone, so a section with none shows nothing. |
 
+`Cracks` grades from the first hit. `Sparks` and `Plume` both start once the
+section is properly hurt - past 35 percent of its own health gone - so a scratch
+does not make a part read as broken.
+
 Omitting the field means `([Cracks])`. Author `([])` for a section that should
 never show damage at all - saying "none" and saying nothing are different.
 
@@ -308,9 +312,19 @@ the aim solver drives), optionally carries a `render_mesh`, optionally is a
 is one specific tree - base(fixed) -> yaw(axis Y) -> pitch(axis X) ->
 barrel(fixed) -> muzzle - but you can build twin barrels, extra hinges, or a
 turret whose elevation lives two joints down. The shipped
-`pdc_kinetic_turret_section` is the reference:
+`pdc_kinetic_turret_section` is the reference. Its `base` block is half the
+part - a 0.5 mount box with ONE socket on its underside is why the same gun
+bolts to any hull face:
 
 ```ron
+base: (
+    id: "pdc_kinetic_turret_section",
+    health: 130.0,
+    collider: Some(Cuboid(size: (0.5, 0.5, 0.5))),
+    link_points: [(id: "base", position: (0.0, -0.25, 0.0), normal: (0.0, -1.0, 0.0))],
+    damage_effects: ([Cracks, Sparks]),
+    // name, description, mass and sounds omitted
+),
 kind: Turret((
     root: (
         offset: (0.0, -0.25, 0.0),                                    // base (fixed)
@@ -465,9 +479,9 @@ kind: Torpedo((
 - `launch_sound` (optional) - the sound a departing torpedo plays
   (`dep://base/sounds/torpedo_launch.wav` is the base whoosh); omit for a
   silent launch.
-- `detonation_sound` (optional) - the sound the warhead plays when it blasts
-  (proximity or on impact); rides the torpedo's own destroy event, so it fires
-  even when a torpedo is shot down. Omit for a silent detonation.
+- `detonation_sound` (optional) - the sound the warhead plays when it blasts;
+  rides the torpedo's own destroy event, so it fires even when a torpedo is shot
+  down. Omit for a silent detonation.
 - `render_mesh`, `projectile_render_mesh` (both optional) - the bay mesh and the
   torpedo mesh. Omit `projectile_render_mesh` and the warhead flies as the
   built-in coned body, nose along its direction of travel.
@@ -485,14 +499,18 @@ kind: Torpedo((
   higher leads a moving target harder).
 - `linear_damping` - drag on the torpedo body (gives a real terminal velocity so
   the flight path follows guidance).
-- `blast_radius`, `blast_damage` - detonation radius and peak centre pressure.
-  The visible sphere is the damage radius; pressure falls linearly to zero at
-  its edge, measured from each collider's world centre. Ship sections shield
-  sections behind them along a centre ray. A surviving section stops pressure;
-  a destroyed section transmits 65 percent. Existing holes transmit freely.
-  This transmission is one global Explosive rule, not an authored bay field.
-  Structural sections can shield cladding and fixtures behind them, but those
-  non-structural targets do not consume penetration themselves.
+- `blast_radius`, `blast_damage` - damage radius and peak centre pressure.
+  `blast_radius` no longer decides WHERE a torpedo goes off against a locked
+  body (see [the fuze](#the-fuze-is-not-a-bay-field)); it is the reach of the
+  pressure and the band the weave fades over. The visible sphere is the damage radius; pressure falls
+  linearly to zero at its edge, measured from each collider's world centre. Ship
+  sections shield sections behind them along a centre ray. A surviving section
+  stops pressure; a destroyed section transmits 65 percent. Existing holes
+  transmit freely. This transmission is one global Explosive rule, not an
+  authored bay field. Structural sections can shield cladding and fixtures
+  behind them, but those non-structural targets do not consume penetration
+  themselves. Health is charged PER COLLIDER, but a blast cuts one crater PER
+  BODY: a warhead over forty sections of one hull is one crater, not forty.
 - `blast_effect`, `launch_effect` (both optional) - custom particle effects;
   omit for the built-in bursts.
 - `projectile_health` (optional, default `10.0`) - hit points on each of the
@@ -522,16 +540,20 @@ kind: Torpedo((
     be authored: see the note below.
   - `weave_angle` (rad; `0.44`, ~25 degrees, on the Serpent) - the terminal
     weave: how far off the guidance solution an armed torpedo corkscrews. It
-    PERTURBS the solution rather than replacing it and fades to nothing between
-    three blast radii and the proximity fuze, so a weaving torpedo still arrives
-    on the aim point. `0.0` flies the bare intercept, which is what the Lance
-    authors.
+    PERTURBS the solution rather than replacing it and fades linearly to nothing
+    between three blast radii and HALF a blast radius of the target, so a weaving
+    torpedo still arrives on the aim point. The band is measured off
+    `blast_radius`, never off the fuze: the terminal sprint has to start out at
+    point-defense range, not a unit from the hull. `0.0` flies the bare
+    intercept, which is what the Lance authors.
   - `weave_rate` (rad/s; `1.4` on both shipped types) - how fast the weave spins
     about the guidance command. The lateral acceleration a defender's lead
     solution fails to predict scales with
     `max_speed * sin(weave_angle) * weave_rate`, while the helix radius
     (`max_speed * sin(weave_angle) / weave_rate`) shrinks with it - keep that
-    radius comfortably inside the proximity fuze. Unread at zero amplitude.
+    radius comfortably inside the terminal band, `blast_radius * 0.5`, or the
+    torpedo is still swinging when the weave is meant to be gone. Unread at zero
+    amplitude.
 
   The ANGLE is the exchange: measured against one stock PDC across the shipped
   150 u point-defense envelope, a Serpent costs ~370 rounds to stop and is only
@@ -553,6 +575,23 @@ kind: Torpedo((
   restores one torpedo after ten seconds without a launch. Another launch
   resets that timer. Ammunition is a rate limit, not a permanent budget, but a
   bay must win through its six-round salvo rather than by outwaiting one PDC.
+
+### The fuze is not a bay field
+
+Where a torpedo goes off is engine behaviour, not an authored number. An armed
+torpedo that locked an ENTITY fuzes on that body's own skin: one world unit
+from the nearest point of any collider linked to it, or the distance the torpedo
+covers in one frame, whichever is larger. So the pressure and the crater land
+where the target actually is. Two other cases:
+
+- a torpedo holding a target POSITION but no entity - a scripted launch, or one
+  whose target died in flight - fuzes at `blast_radius * 0.5`, which is the only
+  sense "arrived" has at a bare point;
+- a torpedo launched with NO lock never fuzes at all. It flies its
+  `projectile_lifetime`, deals a contact ding and is deleted, and the bay still
+  spends the round. That is what
+  [`ForceTorpedoLaunch`](../actions/#forcetorpedolaunch) produces on a battery
+  with no controller.
 
 ## A section in a mod
 
@@ -586,9 +625,10 @@ corvette, gunship, and civilian hulls use `cargoa_*`, `cargob_*`, and
 does not have to inline a big ship or
 carry any mesh paths: build one as a compact list of
 `(id, position, rotation, source: Prototype("<base-part-id>"))` entries, and each
-prototype resolves the base's meshes and sounds for you. Vary a ship by grade by
-swapping which prototypes it references (for example a weaker `_light` turret variant
-for an enemy) rather than re-authoring the parts. `SectionSource` is `Inline`
+prototype resolves the base's meshes and sounds for you. Vary a ship by grade
+with a per-spawn `SetHealth` [modification](../ships/) on the parts you want
+weaker - a scavenger flies the same `pdc_kinetic_turret_section` at 60 mount
+health - rather than re-authoring the parts. `SectionSource` is `Inline`
 (the full config, for a one-off part) or `Prototype` (a catalog reference, the
 compact reusable form). Every prototype id base ships - with its kind, so you
 can tell structure from a gun - is tabled in the

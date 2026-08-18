@@ -22,6 +22,8 @@ A thruster bolts on by its forward end and by that end only. The rest of it is b
 
 The flight computer balances thrust through the ship's live center of mass, recruiting off-axis thrusters for counter-torque, so an asymmetric or battle-damaged thruster layout still flies straight instead of pinwheeling.
 
+A hurt drive **looks** hurt. Past about a third of its health gone it cracks and throws sparks, and its exhaust runs short and guttering instead of steady. It never guts all the way out, because a dead plume means a shut-down drive and this one is not shut down: a damaged thruster delivers exactly the push a fresh one does. The plume tells you what a chaser has already taken off it, not what it can still do.
+
 <figure class="figure">
     <!-- Capture: assets/loop-section-thruster.webm (short gameplay loop) -->
     <div class="figure__placeholder">

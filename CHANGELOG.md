@@ -117,12 +117,8 @@ tagged **(breaking)**.
 - **(breaking)** No body ever bursts into generic grey cubes. A death with no
   art to break into now emits nothing and logs it, and a range asserts it never
   happens.
-- Hull sections CARVE: a hit takes a real crater out of the hull under the
-  cladding, not just off the plate over it. Authorable as `Carve` on any
-  section; the collider does not follow.
-- **(breaking)** `Scorch` becomes `Cracks`: a damaged section fractures where it
-  is failing and glows through the cracks, instead of the whole body turning red.
-  Mods authoring `Scorch` must rename it.
+- A damaged section fractures where it is failing and glows through the cracks,
+  instead of the whole body turning red.
 - Wreck debris leaves with the wreck: a body's pieces inherit its drift and spin
   instead of hanging where it died.
 - **(breaking)** A hull may carry several flight computers and steers better
@@ -133,8 +129,8 @@ tagged **(breaking)**.
 - Losing one computer on a stacked hull degrades handling to the smaller stack
   instead of casting the ship adrift; autopilot and neutralization key on "no
   computer LEFT".
-- Sliced mesh fragments (asteroid debris) despawn after 30 seconds instead of
-  persisting until scenario teardown.
+- Wreck fragments despawn after 30 seconds instead of persisting until scenario
+  teardown.
 - AI patrol legs steer around sized bodies: a leg blocked by an asteroid's
   geometric radius detours past it instead of flying the GOTO straight
   through the rock.
@@ -153,14 +149,13 @@ tagged **(breaking)**.
   a sphere, which is what throws shards off the spot that was hit.
 - The plate that stopped the round dies and comes off, leaving a hole in the
   cladding onto the hull underneath.
-- **(breaking)** Ships no longer CARVE. Sections and cladding keep their
-  authored shape and show damage through cracks and lost plates; a mod
-  authoring the `Carve` effect fails to load. Asteroids still carve.
+- Ships do not CARVE. Sections and cladding keep their authored shape and show
+  damage through cracks and lost plates. Only asteroids change shape.
 - Damage is TWO readings now: how far gone a body is (cracks, sparks) and where
   it was hit (the shards). Nothing on a ship loses geometry.
-- Sections AUTHOR the damage looks they wear (`base.damage_effects`): `Scorch`,
-  `Sparks`, `Plume`. Omitted means `[Scorch]`, so unchanged content and mods
-  keep their behaviour; author `[]` for a section that never shows damage.
+- Sections AUTHOR the damage looks they wear (`base.damage_effects`): `Cracks`,
+  `Sparks`, `Plume`. Omitted means `[Cracks]`, so a section shows damage without
+  saying anything; author `[]` for one that never shows it.
 - New PLUME effect: a damaged drive's exhaust guts and flickers without ever
   reading as shut down, and delivers exactly the thrust it authored.
 - A hit THROWS material off the spot it landed on: shards sized and counted by
@@ -187,8 +182,7 @@ tagged **(breaking)**.
   off, and its sections fire their own `OnDestroyed`. `OnDefeated` still fires
   exactly once.
 - The hull cast swapped: the cargoa is the campaign's armed corvette, the racer
-  flies unarmed as the civilian. The `racer_turret_*` prototypes stay in the
-  catalog.
+  flies unarmed as the civilian.
 - The editor places parts by MATING link points instead of stepping one unit
   along the surface it hit. A placement that cannot mate is refused, and the
   status line says why.
@@ -199,8 +193,6 @@ tagged **(breaking)**.
 - New `pdc_turret_section` ("PDC Turret"): one compact point-defense mount that
   fits any hull face, replacing ten per-craft copies in the editor's Weapons
   tab.
-- The per-craft `*_turret_*` prototypes are catalog-only now: ships and mods
-  still name them, the editor offers the shared PDC instead.
 - A turret's base stands on the face of the section it mounts through; the
   joint tree hardcoded the unit cube's -0.5 and sank a small mount's gun into
   its hull.

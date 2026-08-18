@@ -200,7 +200,9 @@ Edit the existing `example_arena` before adding new mechanics:
 1. Change the scenario `name` and `description`.
 2. Change the `StoryMessage` speaker and text in `OnStart`.
 3. Change the `Objective` message.
-4. Change the two asteroid names, positions, or radii.
+4. Change the two asteroid names, positions, or radii. A rock's radius is its
+   durability and it is cubic, so raise it in small steps - see [sizing a rock
+   you want shot](../objects/#sizing-a-rock-you-want-shot).
 5. Change the `Outcome` message.
 
 For example:
