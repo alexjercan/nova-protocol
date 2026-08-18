@@ -21,11 +21,10 @@
 //!
 //! Judge the PDC column first: it must have one unmistakable hole, while the
 //! control stays whole. Then check that the torpedo makes a visible one-hit
-//! crater and that the cut opens the rock and throws dust off it. The cut's
-//! islands are all crumbs at this radius, so no severed BODY is expected here -
-//! a carve throws dust, and only an island big enough to be worth simulating
-//! becomes a body. All rocks retain the same silhouette and coarse faceting
-//! away from the damage.
+//! crater and that the cut takes the rock's whole middle slice out, leaving a
+//! cap above and a cap below as separate BODIES - this column is the only place
+//! in the fleet where severing is shown at all. All rocks retain the same
+//! silhouette and coarse faceting away from the damage.
 //!
 //! The two-burst column is the merge-reach gate. Its second burst lands closer
 //! to the first crater than that crater has GROWN, which is the exact band a
@@ -113,21 +112,51 @@ const PDC_PAID_DAMAGE: f32 = PDC_DAMAGE * PDC_ROUNDS as f32;
 #[cfg(feature = "debug")]
 const TORPEDO_DAMAGE: f32 = 750.0;
 
-/// What one hit of the cut costs.
+/// One cut crater, in the rock's own UNIT space.
 ///
-/// Prices a crater of 2.44 in the rock's own unit space, just over
-/// [`CUT_SPACING`], so the seven overlap into a solid slab about four units
-/// thick rather than a row of holes with material between them.
+/// Sized against the pattern below rather than against a damage number, because
+/// the cut has to land in a band: over the covering radius of
+/// [`CUT_RINGS`] or the slab keeps a gap and the rock stays one piece, and under
+/// the spacing of it or each crater falls inside the last one's merge reach and
+/// nineteen hits collapse into a single round hole.
 #[cfg(feature = "debug")]
-const CUT_DAMAGE: f32 = 4200.0;
+const CUT_RADIUS: f32 = 1.6;
 
-/// How far apart the cut's craters sit, in the rock's own unit space.
+/// The cut: rings of craters through the rock's middle, `(radius, count)` in
+/// the rock's own UNIT space.
 ///
-/// The centre blast plus six at this radius covers a disk 4.8 across, which is
-/// wider than the rock's furthest reach - so the slab goes all the way through
-/// rather than leaving a rim holding the two halves together.
+/// A centre crater plus these tiles the whole y = 0 slice, so the rock is left
+/// with a cap above the cut and a cap below it and nothing joining them. The
+/// outer ring plus one [`CUT_RADIUS`] has to clear the rock's furthest reach in
+/// that plane - about 4.5 units, where the published `radius` is a SCALE over
+/// this space and not a distance in it.
 #[cfg(feature = "debug")]
-const CUT_SPACING: f32 = 2.4;
+const CUT_RINGS: [(f32, usize); 2] = [(1.85, 6), (3.7, 12)];
+
+/// What one cut crater costs, which is [`mark_radius`] run backwards over a
+/// [`CUT_RADIUS`] hemisphere at the rock's world scale.
+///
+/// Derived and not authored: a hand-typed number drifts from the pricing curve
+/// the moment either end of it moves, and this cut only severs while the
+/// craters are the size the pattern was laid out for.
+#[cfg(feature = "debug")]
+fn cut_damage() -> f32 {
+    let world_radius = CUT_RADIUS * ROCK_RADIUS;
+    DAMAGE_PER_UNIT_VOLUME * (2.0 * std::f32::consts::PI / 3.0) * world_radius.powi(3)
+}
+
+/// Every place the cut lands, in the rock's own UNIT space.
+#[cfg(feature = "debug")]
+fn cut_pattern() -> Vec<Vec3> {
+    let mut places = vec![Vec3::ZERO];
+    for (radius, count) in CUT_RINGS {
+        places.extend((0..count).map(|step| {
+            let turn = step as f32 / count as f32 * std::f32::consts::TAU;
+            Vec3::new(turn.cos(), 0.0, turn.sin()) * radius
+        }));
+    }
+    places
+}
 
 /// How far apart the two-burst column holds its two aim points, in world units.
 ///
@@ -261,22 +290,16 @@ fn apply_blast_cases(world: &mut World) {
     }
 
     if let Some(node) = rock_node(world, Shot::Cut) {
-        let count = 7;
-        for nth in 0..count {
-            let local = match nth {
-                0 => Vec3::ZERO,
-                _ => {
-                    let turn = (nth - 1) as f32 / (count - 1) as f32 * std::f32::consts::TAU;
-                    Vec3::new(turn.cos(), 0.0, turn.sin()) * CUT_SPACING * ROCK_RADIUS
-                }
-            };
+        let damage = cut_damage();
+        for local in cut_pattern() {
             let mut commands = world.commands();
             apply_damage(
                 &mut commands,
                 node,
                 None,
-                CUT_DAMAGE,
-                Some(column_position(3) + local),
+                damage,
+                // The pattern is unit space; the rock's node carries the scale.
+                Some(column_position(3) + local * ROCK_RADIUS),
             );
             world.flush();
         }
@@ -468,6 +491,45 @@ fn report_two_spot_result(world: &mut World) {
     }
 }
 
+/// The severing gate: the cut has to leave a second BODY, not just a hole.
+///
+/// This column is the only place in the fleet where carving is shown severing
+/// anything, so a slab that left a rim joining the two halves - or islands that
+/// all came back as crumbs - has to fail here instead of passing for a deep
+/// crater.
+#[cfg(feature = "debug")]
+fn report_cut_result(world: &mut World) {
+    let cut = column_position(3);
+    let mut q_pieces = world.query_filtered::<&GlobalTransform, With<CarvedChunkMarker>>();
+    // By place, because every column carves and only this one should sever.
+    let reaches: Vec<f32> = q_pieces
+        .iter(world)
+        .map(|at| at.translation().distance(cut))
+        .filter(|reach| *reach < COLUMN_PITCH * 0.5)
+        .collect();
+
+    // The crater count rides along because the pattern only severs while its
+    // craters stay separate marks: a merge rule that swallowed them would
+    // collapse the slab into one round hole.
+    let craters = rock_node(world, Shot::Cut)
+        .and_then(|node| world.get::<DamageMarks>(node))
+        .map_or(0, |marks| marks.0.len());
+    info!(
+        "carve asteroids: {} cut crater(s) severed {} body(s), {} from the rock's centre",
+        craters,
+        reaches.len(),
+        reaches
+            .iter()
+            .map(|reach| format!("{reach:.2}u"))
+            .collect::<Vec<_>>()
+            .join(" "),
+    );
+    assert!(
+        !reaches.is_empty(),
+        "the cut severed nothing: it dug a hole where it should have cut the rock in two"
+    );
+}
+
 #[cfg(feature = "debug")]
 fn remove_firing_ship(world: &mut World) {
     let roots: Vec<Entity> = world
@@ -576,6 +638,7 @@ fn gallery_script() -> Script {
     script
         .step("check every aim point kept its own bite")
         .on_enter(report_two_spot_result)
+        .on_enter(report_cut_result)
         .add()
 }
 

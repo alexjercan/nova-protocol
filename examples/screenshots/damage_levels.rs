@@ -85,6 +85,7 @@ const LEVELS: [f32; 6] = [0.0, 0.25, 0.5, 0.75, 0.9, 0.0];
 /// nothing, then enough to take the plate it lands on, then enough to carry
 /// through it into the hull. The spread is the point - a scrape, a plate gone,
 /// a hole with the hull cracked open behind it.
+#[cfg(feature = "debug")]
 const HITS: [f32; 6] = [0.0, 21.0, 86.0, 290.0, 977.0, 150.0];
 
 /// Whether each column's ship wears cladding.
@@ -279,6 +280,7 @@ fn hit_columns(world: &mut World) {
 
 /// Where a column is shot: the top of its hull cell, which is one cell forward
 /// of the controller and one cell up.
+#[cfg(feature = "debug")]
 fn column_aim(index: usize) -> Vec3 {
     Vec3::new(index as f32 * COLUMN_PITCH, 1.0, 1.0)
 }
