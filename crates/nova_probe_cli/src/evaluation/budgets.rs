@@ -55,13 +55,75 @@ pub struct FrameBudget {
     pub backend: &'static str,
 }
 
-/// Every recorded budget, in the ranked order of the profiling report.
+/// Every recorded budget, most expensive case first.
 ///
-/// Numbers come from measured runs on one host; see
-/// `tasks/20260818-221027/REPORT.md` for the measurement behind each and for
-/// the cases that are deliberately ABSENT from this table because they could
-/// not be made repeatable.
-pub const BUDGETS: &[FrameBudget] = &[];
+/// Numbers come from measured runs on one host; the measurement behind each,
+/// and the cases deliberately ABSENT because they could not be made
+/// repeatable, are in `tasks/20260818-221027/REPORT.md`.
+///
+/// Every entry sits at TWICE its measured worst frame. That is not caution, it
+/// is what the samples allow: the worst frame of the same case on the same
+/// commit varied by up to 2.2x run to run on this host, so a tighter gate
+/// would fire on noise and get muted. What these catch is a DOUBLING of the
+/// tail, which is the size of the regression this release exists to stop.
+pub const BUDGETS: &[FrameBudget] = &[
+    FrameBudget {
+        label: "stress_torpedoes",
+        case: "a thousand torpedoes under guidance at once (engine ceiling, not content)",
+        command: "cargo run --features debug probe run stress_torpedoes",
+        worst_ms: 1164.4,
+        measured_worst_ms: 582.2,
+        measured_mean_ms: 131.4,
+        headroom: "2x the worst of 3 runs (536-582 ms)",
+        profile: "dev",
+        backend: "vulkan",
+    },
+    FrameBudget {
+        label: "stress_one_structure",
+        case: "one thousand-section hull (engine ceiling, not content)",
+        command: "cargo run --features debug probe run stress_one_structure",
+        worst_ms: 289.0,
+        measured_worst_ms: 144.5,
+        measured_mean_ms: 41.6,
+        headroom: "2x the worst of 3 runs (132-145 ms)",
+        profile: "dev",
+        backend: "vulkan",
+    },
+    FrameBudget {
+        label: "stress_many_structures",
+        case: "a hundred ten-section hulls (engine ceiling, not content)",
+        command: "cargo run --features debug probe run stress_many_structures",
+        worst_ms: 289.2,
+        measured_worst_ms: 144.6,
+        measured_mean_ms: 29.9,
+        headroom: "2x the worst of 3 runs (65-145 ms, the widest spread here)",
+        profile: "dev",
+        backend: "vulkan",
+    },
+    FrameBudget {
+        label: "stress_bullets",
+        case: "a thousand turret rounds in flight at once (engine ceiling, not content)",
+        command: "cargo run --features debug probe run stress_bullets",
+        worst_ms: 148.0,
+        measured_worst_ms: 74.0,
+        measured_mean_ms: 21.2,
+        headroom: "2x the worst of 5 runs (36-74 ms)",
+        profile: "dev",
+        backend: "vulkan",
+    },
+    FrameBudget {
+        label: "scene_baseline",
+        case: "the asteroid_field sandbox as it ships, AT REST - nothing fires in it",
+        command: "cargo run --features debug probe run scene_baseline",
+        worst_ms: 86.6,
+        measured_worst_ms: 43.3,
+        measured_mean_ms: 22.5,
+        headroom: "2x the worst of 4 runs (40-43 ms) on a QUIET host; a loaded \
+                   box read 117 ms on the same binary",
+        profile: "dev",
+        backend: "vulkan",
+    },
+];
 
 /// The budget recorded for a capture row label, if there is one.
 pub fn budget_for(label: &str) -> Option<&'static FrameBudget> {

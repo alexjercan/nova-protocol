@@ -59,10 +59,26 @@ fn main() -> bevy::app::AppExit {
     // Headless smoke-test harness: inert in a normal run (gated on NOVA_AUTOPILOT / NOVA_SHOT).
     #[cfg(feature = "debug")]
     {
-        // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
-        // frame-time capture, so `probe run` can measure this example.
-        app.add_plugins(nova_probe::NovaProbePlugin::default());
+        // Probe wiring (each plugin is inert without its NOVA_PERF_* env): run
+        // timeline + engine-bound invariants + frame-time capture.
+        //
+        // The capture is GATED on the flown range, and that gate is why
+        // measuring here is worth anything. [`FLOWN_RANGE`] is the scenario the
+        // editor hands off to on Play, so it is the range a player is most
+        // likely to be sitting in - and nothing else in the catalog can load
+        // it, because the editor registers it at hand-off instead of shipping
+        // it in `GameScenarios`. Ungated, the window closed while the walk was
+        // still clicking gallery tiles: the row said `ship_editor` and meant
+        // the editor's build UI.
+        app.add_plugins(
+            nova_probe::NovaProbePlugin::default().ready_frametime(|world: &World| {
+                world.get_resource::<CurrentScenario>().is_some_and(|live| {
+                    live.0
+                        .as_ref()
+                        .is_some_and(|scenario| scenario.id == FLOWN_RANGE)
+                })
+            }),
+        );
         app.init_resource::<EditorProbe>();
         app.add_plugins(editor_script());
         app.add_plugins(nova_screenshot());
@@ -70,6 +86,12 @@ fn main() -> bevy::app::AppExit {
 
     app.run()
 }
+
+/// The scenario Play hands off to: the editor's own open range, registered at
+/// hand-off rather than shipped, so no id-driven rig can reach it. Named here
+/// because the frame-time capture waits for it - see the probe wiring above.
+#[cfg(feature = "debug")]
+const FLOWN_RANGE: &str = "editor_sandbox";
 
 /// Frames a beat waits for a gesture to land: the picking backend needs a frame
 /// to raycast the new pointer position and the editor's observers a frame to

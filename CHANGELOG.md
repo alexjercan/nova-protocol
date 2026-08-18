@@ -416,6 +416,7 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- Probe records a per-case frame budget and FAILS a run whose worst frame blows it; the profile table counts deferred command flushes, where observers actually run.
 - Make the asteroid gate hold real PDC fire on a shipped-size rock.
 - The `destruction_finale` range kills a gltf section, a procedural one, a multi-part turret and an asteroid, asserting each breaks into its own art on one per-body budget.
 - Controller mods author `steering_lag` in seconds instead of internal PD frequency and damping fields; mixed stacks use the fastest live computer. **(breaking)**

@@ -161,10 +161,20 @@ impl FrameTimePlugin {
 #[derive(Resource, Clone)]
 struct PerfDriverRes(Arc<PerfDriver>);
 
-/// Holds the active [`PerfReady`] gate so the exclusive wait system can run
-/// it. Absent when the example named none, which is `Playing` alone.
+/// Holds the active [`PerfReady`] gate and the latch it sets. Absent when the
+/// example named no gate, which is `Playing` alone.
+///
+/// The latch is an atomic rather than a `ResMut` because the predicate needs
+/// `&World` and nothing else may: [`perf_watch_ready`] is a READ-ONLY system,
+/// so it cannot write a resource, and making it exclusive instead would put a
+/// command-flush barrier in the middle of `Update` for every armed capture -
+/// which reorders the whole schedule's deferred work and is not something a
+/// measurement may do to the thing it measures.
 #[derive(Resource, Clone)]
-struct PerfReadyRes(Arc<PerfReady>);
+struct PerfReadyRes {
+    ready: Arc<PerfReady>,
+    open: Arc<std::sync::atomic::AtomicBool>,
+}
 
 /// Reload bookkeeping for LOOPED captures: frames inside a scene reload are
 /// EXCLUDED from the scene stats - how many
@@ -414,13 +424,15 @@ impl Plugin for FrameTimePlugin {
             app.insert_resource(PerfDriverRes(driver.clone()));
             app.add_systems(Update, perf_drive.before(perf_capture));
         }
+        // The gate watcher exists ONLY for an example that named one: an
+        // ungated capture must schedule exactly what it scheduled before.
         if let Some(ready) = &self.ready {
-            app.insert_resource(PerfReadyRes(ready.clone()));
+            app.insert_resource(PerfReadyRes {
+                ready: ready.clone(),
+                open: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            });
+            app.add_systems(Update, perf_watch_ready.before(perf_capture));
         }
-        // The wait gate owns the WaitPlaying -> Warmup edge: it is exclusive
-        // because a readiness predicate reads the whole world, which
-        // `perf_capture`'s parameter list cannot.
-        app.add_systems(Update, perf_wait_ready.before(perf_capture));
         app.add_systems(Update, perf_capture);
     }
 }
@@ -443,26 +455,21 @@ fn perf_drive(world: &mut World) {
     driver(world, frame);
 }
 
-/// Open the capture when the scene is READY: in `Playing`, and past the
-/// example's own [`PerfReady`] gate when it named one. Exclusive because a
-/// gate predicate reads `&World`.
-fn perf_wait_ready(world: &mut World) {
-    if world.resource::<PerfState>().phase != Phase::WaitPlaying {
+/// Latch the example's [`PerfReady`] gate once it holds. Read-only (`&World`
+/// is the whole parameter list, which is what a predicate over arbitrary world
+/// state needs) - see [`PerfReadyRes`] for why it may not be exclusive.
+/// Added only when a gate was named.
+fn perf_watch_ready(world: &World) {
+    let Some(gate) = world.get_resource::<PerfReadyRes>() else {
+        return;
+    };
+    if gate.open.load(std::sync::atomic::Ordering::Relaxed) {
         return;
     }
-    if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
-        return;
-    }
-    if let Some(ready) = world
-        .get_resource::<PerfReadyRes>()
-        .map(|res| res.0.clone())
-    {
-        if !ready(world) {
-            return;
-        }
+    if (gate.ready)(world) {
+        gate.open.store(true, std::sync::atomic::Ordering::Relaxed);
         info!("nova perf: readiness gate open, warm-up starts");
     }
-    world.resource_mut::<PerfState>().phase = Phase::Warmup;
 }
 
 /// Force the primary window to the capture resolution with vsync off, so every
@@ -494,12 +501,13 @@ fn perf_force_render_scale(config: Res<PerfConfig>, budget: Option<ResMut<Graphi
     }
 }
 
-/// Advance the capture state machine one frame: discard warm-up frames, record
-/// deltas, then compute + emit stats and exit. [`perf_wait_ready`] owns the
-/// wait phase. The adapter resource feeds the run metadata (schema v2) at emit
-/// time.
+/// Advance the capture state machine one frame: wait for the scene to be
+/// ready, discard warm-up frames, record deltas, then compute + emit stats and
+/// exit. The adapter resource feeds the run metadata (schema v2) at emit time.
 fn perf_capture(
     time: Res<Time<Real>>,
+    state_res: Res<State<GameStates>>,
+    ready: Option<Res<PerfReadyRes>>,
     config: Res<PerfConfig>,
     adapter: Option<Res<RenderAdapterInfo>>,
     mut gate: ResMut<ReloadGate>,
@@ -507,7 +515,15 @@ fn perf_capture(
     mut completion: ResMut<HarnessCompletion>,
 ) {
     match state.phase {
-        Phase::WaitPlaying => {}
+        Phase::WaitPlaying => {
+            // `Playing` plus the example's own gate, when it named one - see
+            // [`PerfReady`]. The gate is latched by `perf_watch_ready`.
+            let gated =
+                ready.is_some_and(|gate| !gate.open.load(std::sync::atomic::Ordering::Relaxed));
+            if *state_res.get() == GameStates::Playing && !gated {
+                state.phase = Phase::Warmup;
+            }
+        }
         Phase::Warmup => {
             state.warmed += 1;
             if state.warmed >= config.warmup_frames {
