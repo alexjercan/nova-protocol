@@ -1,8 +1,8 @@
 # The sandbox runs at 2 FPS and no measurement has found it
 
-- STATUS: OPEN
-- PRIORITY: 99
-- TAGS: v0.11.0,performance,bug,scenario
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,performance,scenario
 
 Epic: `20260818-220812`. **Blocks play. Highest priority on the board.**
 
