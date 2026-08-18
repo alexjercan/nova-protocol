@@ -89,6 +89,21 @@ pub const CHUNK_LIFETIME_SECS: f32 = 30.0;
 /// volume; it took section art to produce a flat shard.
 const CHUNK_MIN_THICKNESS: f32 = 0.02;
 
+/// The most points [`chunk_collider`] hands to the convex hull.
+///
+/// A piece coming off a body is an unwelded TRIANGLE SOUP - its position count
+/// is exactly three per triangle, measured on 804 of 804 death fragments - so
+/// every corner reaches parry twice more than it needs to. And the hull is not
+/// linear in the count: 34 points cost 7 us, 2020 cost 139 us and 5268 cost
+/// 1488 us, so the handful of dense pieces in a wreck dominate a whole frame's
+/// colliders.
+///
+/// A hull is a SHELL, and a strided sample across the surface describes the same
+/// shell. Priced over 924 real fragments the mean fell from 94.0 us to 16.4 us,
+/// and MORE of them came back with usable mass (681 against 673) - fewer
+/// near-duplicate points is fewer degenerate faces for parry to reject.
+const HULL_POINT_CAP: usize = 64;
+
 /// Tags a piece that came off a body under fire and is now a body of its own.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
@@ -174,7 +189,7 @@ pub fn chunk_collider(mesh: &Mesh) -> Option<Collider> {
     let (centre, half) = mesh_bounds(mesh)?;
 
     if half.min_element() > CHUNK_MIN_THICKNESS {
-        if let Some(hull) = Collider::convex_hull_from_mesh(mesh) {
+        if let Some(hull) = hull_points(mesh).and_then(Collider::convex_hull) {
             if hull.mass_properties(1.0).mass > 0.0 {
                 return Some(hull);
             }
@@ -190,6 +205,28 @@ pub fn chunk_collider(mesh: &Mesh) -> Option<Collider> {
         Quat::IDENTITY,
         Collider::cuboid(padded.x * 2.0, padded.y * 2.0, padded.z * 2.0),
     )]))
+}
+
+/// At most [`HULL_POINT_CAP`] of `mesh`'s positions, evenly strided, or `None`
+/// when it carries none to sample.
+///
+/// Only ever called after [`mesh_bounds`] has accepted the same mesh, so every
+/// position here is already known finite.
+fn hull_points(mesh: &Mesh) -> Option<Vec<Vec3>> {
+    use bevy::mesh::VertexAttributeValues;
+    let VertexAttributeValues::Float32x3(positions) = mesh.attribute(Mesh::ATTRIBUTE_POSITION)?
+    else {
+        return None;
+    };
+
+    let stride = positions.len().div_ceil(HULL_POINT_CAP).max(1);
+    Some(
+        positions
+            .iter()
+            .step_by(stride)
+            .map(|position| Vec3::from_array(*position))
+            .collect(),
+    )
 }
 
 /// A mesh's local centre and half extents, or `None` when it carries no finite
@@ -351,6 +388,61 @@ mod tests {
         app.update();
 
         assert!(app.world().get::<TempEntity>(chunk).is_some());
+    }
+
+    /// A sphere as an unwelded TRIANGLE SOUP - the shape every piece off a body
+    /// arrives in. Three positions per triangle, nothing shared.
+    fn dense_soup() -> Mesh {
+        let (rings, segments) = (16usize, 32usize);
+        let at = |ring: usize, segment: usize| {
+            let phi = std::f32::consts::PI * ring as f32 / rings as f32;
+            let theta = std::f32::consts::TAU * segment as f32 / segments as f32;
+            [phi.sin() * theta.cos(), phi.cos(), phi.sin() * theta.sin()]
+        };
+
+        let mut positions: Vec<[f32; 3]> = Vec::new();
+        for ring in 0..rings {
+            for segment in 0..segments {
+                let (a, b) = (at(ring, segment), at(ring, segment + 1));
+                let (c, d) = (at(ring + 1, segment), at(ring + 1, segment + 1));
+                positions.extend([a, c, b, b, c, d]);
+            }
+        }
+        let indices: Vec<u32> = (0..positions.len() as u32).collect();
+
+        Mesh::new(
+            bevy::mesh::PrimitiveTopology::TriangleList,
+            bevy::asset::RenderAssetUsages::default(),
+        )
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_indices(bevy::mesh::Indices::U32(indices))
+    }
+
+    /// The hull is priced on POINTS, super-linearly, and a soup hands it the
+    /// same corner three times. Sampling must still describe the PIECE: a hull
+    /// with mass, and one TIGHTER than the box the fallback would have used.
+    #[test]
+    fn a_dense_soup_is_hulled_from_a_bounded_sample() {
+        let mesh = dense_soup();
+        let points = mesh.count_vertices();
+        assert!(
+            points > HULL_POINT_CAP * 3,
+            "delivery guard: the fixture must out-run the cap, got {points} points"
+        );
+
+        let collider = chunk_collider(&mesh).expect("a dense piece still gets a collider");
+        let mass = collider.mass_properties(1.0).mass;
+        assert!(
+            mass > 0.0,
+            "a body with no mass makes the solver produce NaN"
+        );
+        // A unit sphere is 4/3 pi against its 8-unit box. A mass anywhere near
+        // 8 is the cuboid fallback, which would mean the sampled hull had been
+        // rejected rather than used.
+        assert!(
+            mass < 6.0,
+            "the capped sample fell back to a bounding box: mass {mass}"
+        );
     }
 
     /// A FLAT piece - the shape ship art is full of and an asteroid never is.

@@ -321,6 +321,9 @@ tagged **(breaking)**.
 
 ### Performance
 
+- A piece of debris takes its collider from at most 64 strided points instead
+  of every vertex of an unwelded triangle soup: the same shape for a fifth of
+  the price, and slightly more of them come back usable.
 - One blast cuts ONE crater per body however many colliders it overlaps, so
   peak live debris in the WFC arena drops from ~3700 bodies to ~1450.
 - A scenario swap never blocks the main thread: queued spawns drain under a

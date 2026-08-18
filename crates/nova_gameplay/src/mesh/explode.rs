@@ -178,7 +178,7 @@ fn handle_explosion(
             per_mesh
         );
 
-        let Some(fragments) = explode_mesh(&mesh.clone(), per_mesh, MAX_ITERATIONS) else {
+        let Some(fragments) = explode_mesh(mesh, per_mesh, MAX_ITERATIONS) else {
             error!(
                 "explode_mesh: mesh_entity {:?} failed to slice mesh into fragments.",
                 mesh_entity
@@ -192,7 +192,7 @@ fn handle_explosion(
             let direction = Dir3::new(normal.normalize_or_zero()).unwrap_or(Dir3::Y);
             fragment_meshes.push(ExplodeFragment {
                 origin: mesh_entity,
-                mesh: meshes.add(mesh.clone()),
+                mesh: meshes.add(mesh),
                 direction,
             });
         }

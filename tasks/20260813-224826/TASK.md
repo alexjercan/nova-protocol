@@ -806,6 +806,68 @@ different question from the one the deleted field answered.
   throw dark lumps. The example's judging line said the cut "throws a real
   body", which the ejecta had been quietly satisfying; corrected.
 
+### Phase 4h - the death hull is priced on POINTS - DONE (2026-08-18)
+
+Phase 4f left the death cascade as the worst frame measured and named the two
+observers inside it. Profiled again, this time with per-call timers rather than
+bevy's system spans, on the frame a ship comes apart:
+`handle_entity_explosion` 87.5 ms, of which `chunk_collider` is 98.4% and
+`Collider::convex_hull_from_mesh` alone is 92.8% - 81.2 ms of hulls.
+
+Neither cause is the hull being the wrong SHAPE:
+
+- a fragment mesh is an unwelded TRIANGLE SOUP. Its position count is exactly
+  three per triangle, in 804 of 804 fragments, so parry is handed every corner
+  three times.
+- and the hull is not linear in the point count: 34 points cost 7 us, 2020 cost
+  139 us, 5268 cost 1488 us. Fourteen fragments at 5268 points were 20.8 ms of
+  the 81.2.
+
+A hull is a SHELL, so a strided sample across the surface describes the same
+shell. `chunk_collider` now hands the hull at most `HULL_POINT_CAP` = 64
+positions. Priced over 924 real fragments the mean fell 94.0 -> 16.4 us and MORE
+of them came back with usable mass, 681 against 673 - fewer near-duplicate
+points is fewer degenerate faces for parry to reject, so the cap is not the less
+robust option. Everything around it is untouched: the `mesh_bounds` gate, the
+0.02 thickness floor, the mass test that catches a coplanar hull, and the
+compound-cuboid fallback.
+
+Removed with it, no behaviour change: two clones in
+`mesh::explode::handle_explosion` that copied a whole source mesh to hand out a
+`&Mesh`, and copied an already-owned one to store it.
+
+**Measured on `wfc_arena`, one probe run per column.** The fight varies - the
+clean pass killed 192 bodies before against 214 after, and the traced pass 205
+against 228 - so every figure is normalised per body or per fragment.
+
+Per-call timers, clean pass:
+
+- The finale: 424.3 -> 78.0 us per body, 106.1 -> 19.5 us per fragment.
+- The hull inside it: 105.6 -> 19.0 us per fragment, 5.6x, and it is still 97%
+  of what the finale spends.
+- The slicer is untouched at 139.0 -> 150.9 us per body. The clones it stopped
+  making were never the cost; they were removed because they were pointless.
+
+bevy's own spans, traced pass, on the frame the wreck comes apart:
+
+- `handle_entity_explosion` 86.4 ms over 205 bodies -> 12.3 ms over 148.
+  421.5 -> 83.1 us per body.
+- Worst `Main` 303.8 -> 259.0 ms, which is NOT a like-for-like frame: the after
+  run's deaths landed across two frames (148 then 80) where the before run's
+  landed in one. The per-body figure is the honest one.
+
+`destruction_finale` is green on all seven invariants: four fragments from each
+of the turret, thruster and hull, twelve over the run, no empty walk.
+
+**Not done here, deliberately.** Replacing the hull with the bounds box
+everywhere is a further ~12 ms and turns 73% of fragments into boxes. That is a
+look decision, not a performance one.
+
+**Still open after this.** The frame is still ~260 ms, and what is left of it is
+not the hulls. It is the command flush behind two hundred bodies' worth of
+spawns and recursive despawns landing at once, plus the slicer, both scaling
+with the same bodies-per-frame count. Phase 4i.
+
 ### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 
 - What is left of a body at death comes apart into bounded debris with
