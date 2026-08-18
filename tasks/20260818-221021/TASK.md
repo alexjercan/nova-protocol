@@ -44,10 +44,11 @@ Surface-only meshing is the biggest win and is `PERF-SURFACE`, not this task.
 
 ## Also suspect, not yet measured
 
-- `field_from_mesh` / solidify on a SECTION's first hit
-  (`nova_ship/sections/damage_carve.rs`, `mesh/solidify.rs`): 10-16 ms per
-  mesh, several sections in one frame. Matches "lag spike when a ship takes
-  damage", reported earlier and never diagnosed.
+- ~~Section solidify on first hit~~ - WRONG, struck 2026-08-19. This came from
+  a stale 2026-08 handoff and the files it named
+  (`nova_ship/sections/damage_carve.rs`, `mesh/solidify.rs`) DO NOT EXIST in
+  this tree. Ship sections never carve, so nothing solidifies a section mesh.
+  Do not go looking for it.
 - Carve shard population: every accepted mark emits 2+ shards on a 2.5 s
   lifetime; one turret at 100 rounds/s sustains ~500 entities. From the epic
   review's performance follow-ups (`tasks/20260813-224826/REVIEW.md`).

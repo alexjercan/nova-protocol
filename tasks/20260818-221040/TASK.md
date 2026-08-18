@@ -19,8 +19,8 @@ Sweep for work whose input is fully known at load but is deferred to first use.
 Known and suspected:
 
 - Asteroid field seeding (`asteroid_carve.rs`) - confirmed.
-- Section mesh solidify (`mesh/solidify.rs`) - the ship roster is known at
-  load; the fields are not.
+- ~~Section mesh solidify~~ - WRONG, struck 2026-08-19. `mesh/solidify.rs` does
+  not exist and sections never carve.
 - Collider construction from meshes generally: `convex_hull_from_mesh` and the
   trimesh QBVH builds.
 - Anything that lazily fills a cache keyed on an asset that the scenario
