@@ -150,4 +150,4 @@ second scenario would spawn belongs in the catalog.
 | `cargob` | the CargoB hauler - two torpedo pods, two PDC mounts, the capital silhouette. Its pods load weaving **Serpent** torpedoes |
 | `cargob_lance` | the same hauler loading straight-running **Lance** torpedoes: the same guns, hull and rack, but faster ordnance point defense can answer |
 | `cargoa` | the CargoA corvette at player grade - the armed hauler the player flies |
-| `cargoa_raider` | the same corvette at scavenger grade: thinner plating, light turrets, a softer flight computer |
+| `cargoa_raider` | the same corvette at scavenger grade: every section set to lower health - thinner plating, fragile thrusters, mounts quicker to shoot off - carrying the same PDC guns |

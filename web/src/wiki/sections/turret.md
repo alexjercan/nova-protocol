@@ -55,4 +55,5 @@ Every shipped gun rides the same mount: yaw unlimited, pitch from 10 degrees bel
 </table>
 </div>
 
-The Light Turret's 3.825 is a derived number - the representative kinetic damage of its 0.05-mass round at its 60 u/s muzzle speed - not a hand-tuned value.
+<!-- raider mount health: nova_authoring ships/shared.rs ENEMY_TURRET_HEALTH = 60 and the ShipGrade::Enemy SetHealth pass -->
+Raider hulls mount the same two guns. The scavenger grade only lowers the mount's health to 60 (against 130 on a player hull), so an enemy's guns are quicker to shoot off - but every round they land hits exactly as hard as yours.

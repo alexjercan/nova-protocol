@@ -11,6 +11,7 @@ Short definitions for the terms and units that recur across the wiki.
 
 - **Prograde / retrograde** - prograde is the direction you are moving; retrograde is the opposite. STOP flips you to retrograde and burns to kill your speed.
 - **Standoff** - the resting distance GOTO stops at, just off a target (about 500 m plus the target's radius, measured from the surface) rather than ramming it.
+- **RCS** - reaction-control fine translation for docking: hold <kbd>Shift</kbd> and steer with the mouse and scroll wheel to nudge the hull straight along its own axes, no rotation, capped at a gentle per-axis speed. A trim a scenario grants rather than standard flight - see [RCS](../flight-autopilot/#rcs-fine-docking-thrusters).
 - **Sphere of influence** - the reach of a [gravity well](../gravity-wells/), set by the body's authored mass alone: the distance where the pull decays to a fixed cutoff. Outside it the well does not pull on you; only the dominant well inside it matters.
 - **Hysteresis** - a bit of stickiness that stops a state from flickering at its edge. A lock, a fine-lock section, and the dominant well all hold a little past their switch point so they do not chatter.
 - **Fine-lock** - drilling a combat lock into one specific [section](../sections/) of an enemy hull, so turrets and the viewfinder focus that part.
