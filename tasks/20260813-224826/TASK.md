@@ -499,6 +499,17 @@ Accepted correction, in order:
   `wfc_arena` must show the same result. Frame cost under sustained fire is a
   measured claim, not an estimate.
 
+Health delivery:
+
+- `AsteroidConfig.health` is replaced by explicit `durability`: `Durable` or
+  `Fixed(hit_points)`. This is intentionally format-breaking; no implicit
+  numeric convention decides whether a rock belongs to an objective.
+- Shipped scatter and belt dressing use `Durable`. The asteroid-field objective,
+  campaign anchors, the Shakedown derelict and mod-scripted targets retain
+  `Fixed` health. Editor belts and the WFC arena use the durable rule.
+- Base content was regenerated from the Rust builders. Bundled example and web
+  mods were migrated to explicit fixed values, preserving their authored beats.
+
 The reported first-hit ship lag remains a separate diagnosis. Section
 `field_from_mesh` costs 10-16 ms per mesh and is the leading candidate; do not
 claim the remesh throttle fixes it without reproducing it.

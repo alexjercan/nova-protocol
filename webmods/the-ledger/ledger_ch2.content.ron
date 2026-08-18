@@ -459,7 +459,7 @@
                         kind: Asteroid((
                             radius: 4.0,
                             texture: "dep://base/textures/asteroid.png",
-                            health: 1000.0,
+                            durability: Fixed(1000.0),
                             mass: None,
                             invulnerable: true,
                             lock_signature: None,
@@ -475,7 +475,7 @@
                         kind: Asteroid((
                             radius: 3.5,
                             texture: "dep://base/textures/asteroid.png",
-                            health: 1000.0,
+                            durability: Fixed(1000.0),
                             mass: None,
                             invulnerable: true,
                             lock_signature: None,
@@ -491,7 +491,7 @@
                         kind: Asteroid((
                             radius: 5.0,
                             texture: "dep://base/textures/asteroid.png",
-                            health: 1000.0,
+                            durability: Fixed(1000.0),
                             mass: None,
                             invulnerable: true,
                             lock_signature: None,
@@ -507,7 +507,7 @@
                         kind: Asteroid((
                             radius: 4.0,
                             texture: "dep://base/textures/asteroid.png",
-                            health: 1000.0,
+                            durability: Fixed(1000.0),
                             mass: None,
                             invulnerable: true,
                             lock_signature: None,
@@ -523,7 +523,7 @@
                         kind: Asteroid((
                             radius: 3.5,
                             texture: "dep://base/textures/asteroid.png",
-                            health: 1000.0,
+                            durability: Fixed(1000.0),
                             mass: None,
                             invulnerable: true,
                             lock_signature: None,
@@ -542,7 +542,7 @@
                         kind: Asteroid((
                             radius: 2.0,
                             texture: "dep://base/textures/asteroid.png",
-                            health: 100.0,
+                            durability: Fixed(100.0),
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -558,7 +558,7 @@
                         kind: Asteroid((
                             radius: 2.0,
                             texture: "dep://base/textures/asteroid.png",
-                            health: 100.0,
+                            durability: Fixed(100.0),
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -574,7 +574,7 @@
                         kind: Asteroid((
                             radius: 2.5,
                             texture: "dep://base/textures/asteroid.png",
-                            health: 100.0,
+                            durability: Fixed(100.0),
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,

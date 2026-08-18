@@ -112,7 +112,7 @@ pub fn asteroid(
             destroy_sound: Some("base/sounds/explosion.wav".into()),
             radius,
             texture: game_assets.asteroid_texture.clone().into(),
-            health,
+            durability: AsteroidDurability::Fixed(health),
             mass: None,
             invulnerable: false,
             seed: None,

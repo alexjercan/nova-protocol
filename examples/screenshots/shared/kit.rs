@@ -159,7 +159,7 @@ impl NearField {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: self.radius.0,
                     texture: game_assets.asteroid_texture.clone().into(),
-                    health: 100.0,
+                    durability: AsteroidDurability::Durable,
                     impact_sound: None,
                     destroy_sound: None,
                     // No wells in the dressing: a near-field rock strong enough

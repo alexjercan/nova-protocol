@@ -58,7 +58,7 @@ default mass and radar signature together.
 |---|---|---|---|
 | `radius` | number | required | nominal radius in world units. The true mesh extent reaches up to 6x this (matters for [`min_separation`](../actions/#scatterobjects)) |
 | `texture` | asset ref | required | surface texture (`dep://base/textures/asteroid.png` is the stock rock) |
-| `health` | number | required | hit points; ignored when `invulnerable` |
+| `durability` | `Durable` or `Fixed(number)` | required | `Durable` scales hit points by `radius^3`, anchored at 100,000 for radius 3; use `Fixed` for objectives and scripted destruction. Ignored when `invulnerable` |
 | `invulnerable` | bool | required | `true` = no health node at all: can never be destroyed or disabled, so its gravity well can never die mid-scenario |
 | `mass` | `Option` number | `None` | the gravity parameter mu (u^3/s^2). `Some` ALWAYS makes this rock a well: pull is `a = mu / r^2`; size it by the sphere of influence you want (`mu = soi_cutoff_accel * soi^2`). `None` = the global rule (a default mass only if the radius qualifies it as a well) |
 | `impact_sound` | `Option` asset ref | `None` | played on hit (`Some("dep://base/sounds/impact.wav")`); omitted = silent |
@@ -72,7 +72,7 @@ SpawnScenarioObject((
     kind: Asteroid((
         radius: 20.0,
         texture: "dep://base/textures/asteroid.png",
-        health: 2000.0,
+        durability: Fixed(2000.0),
         mass: Some(45000.0),
         invulnerable: true,
     )),

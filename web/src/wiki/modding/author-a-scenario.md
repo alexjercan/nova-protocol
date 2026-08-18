@@ -200,7 +200,7 @@ Edit the existing `example_arena` before adding new mechanics:
 1. Change the scenario `name` and `description`.
 2. Change the `StoryMessage` speaker and text in `OnStart`.
 3. Change the `Objective` message.
-4. Change the two asteroid names, positions, or `health` values.
+4. Change the two asteroid names, positions, or `durability: Fixed(..)` values.
 5. Change the `Outcome` message.
 
 For example:

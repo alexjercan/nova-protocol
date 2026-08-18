@@ -271,7 +271,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
                         destroy_sound: Some("base/sounds/explosion.wav".into()),
                         radius: 2.0,
                         texture: game_assets.asteroid_texture.clone().into(),
-                        health: 60.0,
+                        durability: AsteroidDurability::Fixed(60.0),
                         mass: None,
                         invulnerable: false,
                         seed: None,

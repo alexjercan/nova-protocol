@@ -205,7 +205,7 @@ fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: PLANETOID_RADIUS,
             texture: game_assets.asteroid_texture.clone().into(),
-            health: 5000.0,
+            durability: AsteroidDurability::Fixed(5000.0),
             impact_sound: None,
             destroy_sound: None,
             mass: Some(PLANETOID_MASS),

@@ -86,6 +86,7 @@ tagged **(breaking)**.
 
 ### Gameplay & Flight
 
+- **(breaking)** Scale ordinary rock health with volume while scripted rocks keep their kill beats.
 - Let sustained fire grow one crater without remeshing sub-cell hits.
 - Asteroids CARVE: a hit takes a real crater out of the rock, mesh and collider
   both, so a shot rock is physically the shape it looks. Craters persist and a

@@ -23,15 +23,44 @@ use super::{
 /// geometric-factor bounds and `AsteroidPlugin`.
 pub mod prelude {
     pub use super::{
-        asteroid_scenario_object, asteroid_seed_from_id, AsteroidConfig, AsteroidInvulnerable,
-        AsteroidMarker, AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh,
-        AsteroidSeed, AsteroidTexture, PlanetHeight, PlanetHeightNoise,
+        asteroid_scenario_object, asteroid_seed_from_id, AsteroidConfig, AsteroidDurability,
+        AsteroidInvulnerable, AsteroidMarker, AsteroidMass, AsteroidPlugin, AsteroidRadius,
+        AsteroidRenderMesh, AsteroidSeed, AsteroidTexture, PlanetHeight, PlanetHeightNoise,
         ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
     };
 }
 
 /// The scenario/modding RON type name for an asteroid object.
 pub const ASTEROID_TYPE_NAME: &str = "asteroid";
+
+/// Hit points for a durable radius-3 rock.
+pub const DURABLE_ASTEROID_REFERENCE_HEALTH: f32 = 100_000.0;
+/// Radius where durable health equals [`DURABLE_ASTEROID_REFERENCE_HEALTH`].
+pub const DURABLE_ASTEROID_REFERENCE_RADIUS: f32 = 3.0;
+
+/// How an asteroid's hit points are authored.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum AsteroidDurability {
+    /// Radius-cubed health for ordinary rocks that must survive long enough to
+    /// show sustained carving.
+    Durable,
+    /// Exact health for objectives and scripted destruction beats.
+    Fixed(f32),
+}
+
+impl AsteroidDurability {
+    /// Resolve authored durability for a nominal radius.
+    pub fn health(self, radius: f32) -> f32 {
+        match self {
+            Self::Durable => {
+                DURABLE_ASTEROID_REFERENCE_HEALTH
+                    * (radius.max(0.0) / DURABLE_ASTEROID_REFERENCE_RADIUS).powi(3)
+            }
+            Self::Fixed(health) => health,
+        }
+    }
+}
 
 /// The scenario/modding RON surface for an asteroid object: a noise-generated
 /// rock with health, textures, impact/destroy sounds, and optional gravity and
@@ -45,8 +74,8 @@ pub struct AsteroidConfig {
     /// Surface texture. Authored as an asset path; resolved to a live handle
     /// at spawn time (see `insert_asteroid_render`).
     pub texture: AssetRef<Image>,
-    /// Hit points; ignored when `invulnerable` is set.
-    pub health: f32,
+    /// How hit points are resolved; ignored when `invulnerable` is set.
+    pub durability: AsteroidDurability,
     /// The sound a hit on this rock plays. Authorable asset ref;
     /// AUTHORED-OR-SILENT. Snapshotted into [`ImpactDestroySounds`] on the
     /// asteroid parent (the audio observers walk up from the Health node).
@@ -170,13 +199,14 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
     // radius * the outermost vertex.
     let unit_extent = mesh_max_vertex_radius(&mesh).max(1.0);
     let radius = config.radius;
+    let health = config.durability.health(radius);
 
     entity.insert((
         AsteroidMarker,
         EntityTypeName::new(ASTEROID_TYPE_NAME),
         AsteroidTexture(config.texture),
         AsteroidRadius(radius),
-        AsteroidHealth(config.health),
+        AsteroidHealth(health),
         ImpactDestroySounds {
             impact: config.impact_sound.clone(),
             destroy: config.destroy_sound.clone(),
@@ -227,7 +257,7 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
             // invulnerable rock is not carvable, which is the right answer for
             // a body whose whole job is to still be there at the end.
             node.insert((
-                Health::new(config.health),
+                Health::new(health),
                 ExplodableEntity,
                 DamageMarks::default(),
             ));
@@ -1151,7 +1181,7 @@ mod tests {
 
         let spawn = |app: &mut App, invulnerable: bool| -> Entity {
             let mut config = rock(20.0, Some(45_000.0));
-            config.health = 2000.0;
+            config.durability = AsteroidDurability::Fixed(2000.0);
             config.invulnerable = invulnerable;
             spawn_rock(app, config, 3)
         };
@@ -1198,12 +1228,22 @@ mod tests {
             destroy_sound: None,
             radius,
             texture: AssetRef::default(),
-            health: 100.0,
+            durability: AsteroidDurability::Fixed(100.0),
             mass,
             invulnerable: false,
             seed: None,
             lock_signature: None,
         }
+    }
+
+    #[test]
+    fn durable_health_scales_with_rock_volume() {
+        let at_reference = AsteroidDurability::Durable.health(3.0);
+        let twice_radius = AsteroidDurability::Durable.health(6.0);
+
+        assert_eq!(at_reference, DURABLE_ASTEROID_REFERENCE_HEALTH);
+        assert_eq!(twice_radius, at_reference * 8.0);
+        assert_eq!(AsteroidDurability::Fixed(150.0).health(20.0), 150.0);
     }
 
     /// Spawn a rock exactly as the scenario spawn action does: one entity,

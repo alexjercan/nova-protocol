@@ -589,7 +589,7 @@ mod tests {
                             destroy_sound: None,
                             radius: 5.0,
                             texture: AssetRef::from("textures/rock.png"),
-                            health: 100.0,
+                            durability: AsteroidDurability::Fixed(100.0),
                             mass: None,
                             invulnerable: false,
                             seed: None,
