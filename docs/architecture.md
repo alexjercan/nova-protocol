@@ -172,10 +172,13 @@ juice, settings. The ship stack (input, sections, flight, camera, physics) is
   default editor app); examples with custom game plugins go straight
   `Loading -> Playing`. The `GameMode` resource (`Sandbox` default | `NewGame`)
   records what the menu handed off to.
-- `PauseStates { Unpaused, Paused }` - the ESC pause overlay. `nova_gameplay` owns
-  the enum and gates the spaceship sets; `nova_menu` owns the toggle, the overlay
-  UI, and the clock freeze (`Time<Virtual>` + `Time<Physics>`). Only meaningful
-  inside `Playing`; leaving `Playing` resets it.
+- `PauseStates { Unpaused, Paused, NovaOs }` - the freeze axis. `Paused` is the
+  ESC pause overlay; `NovaOs` is the Tab ship-computer takeover (same clock
+  freeze, cursor freed, no pause menu). Both frozen variants enter only from
+  `Unpaused` and exit back to it, never into each other. `nova_gameplay` owns
+  the enum and gates the spaceship sets; `nova_menu` owns the toggle, the
+  overlay UI, and the clock freeze (`Time<Virtual>` + `Time<Physics>`). Only
+  meaningful inside `Playing`; leaving `Playing` resets it.
 - `GameAssetsStates { Loading, Processing, Loaded }` (`nova_assets`) - asset
   pipeline. Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)` - see
   `examples/systems/scenario_grammar.rs`.
