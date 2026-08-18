@@ -20,8 +20,11 @@
 //!
 //! Judge the PDC column first: it must have one unmistakable hole, while the
 //! control stays whole. Then check that the torpedo makes a visible one-hit
-//! crater and the cut still throws a real body. All rocks retain the same
-//! silhouette and coarse faceting away from the damage.
+//! crater and that the cut opens the rock and throws dust off it. The cut's
+//! islands are all crumbs at this radius, so no severed BODY is expected here -
+//! a carve throws dust, and only an island big enough to be worth simulating
+//! becomes a body. All rocks retain the same silhouette and coarse faceting
+//! away from the damage.
 //!
 //! Costs are logged with `RUST_LOG=nova_scenario=debug`. With `NOVA_PERF=1`,
 //! the frame-time probe also drives one accumulating 4-damage hit per frame

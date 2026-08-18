@@ -767,6 +767,45 @@ ms and `mesh::explode::handle_explosion` 31.7 ms - 63% of the frame, both within
 4% of their before figures. Coalescing craters cannot reach it: a blast that
 kills forty sections has forty finales to run.
 
+### Phase 4g - a carve throws only dust - DONE (2026-08-19)
+
+Owner decision: carve ejecta is dropped. Phase 4b steps 2 and 3 gave `CarveSpew`
+a `volume` and had `spew.rs` invent a body above `CHUNK_MIN_VOLUME` - a shared
+octahedron, squashed per piece, rigid for thirty seconds. That body never
+existed. The material a hemisphere of carving removes is pulverised across the
+crater floor, so a lump standing in for it is decoration the solver pays for.
+
+Deleted: the volume branch in `spew_carved_material`, `LumpAssets`,
+`lump_assets`, `throw_ejected_pieces`, `ejecta_count`, `squashed`, the four
+`EJECTA_*` constants, and `CarveSpew::volume` with the four producers that
+computed it. A spew now carries only a position and a radius.
+
+**`Severed Rock` survives untouched.** `chunk.rs` stays in full - the
+death-fragment path in `explode.rs` uses `chunk_collider` too - and
+`throw_severed_pieces` in `asteroid_carve.rs` still spawns a body for every
+island a cut really freed, meshed off its own field with the parent's
+`v + omega x r`. That is geometry that existed; ejecta was not. Mining, when it
+is built, wants its own material-yield concept rather than this one, so nothing
+is kept as a shim.
+
+`CHUNK_MIN_VOLUME` stays. It is the rock's island-vs-crumb threshold, which is a
+different question from the one the deleted field answered.
+
+**What the gates showed.** Both were counting ejecta and nothing else:
+
+- `destruction_finale` asserted field exhaustion emits `1..=3` carve chunks. The
+  measured 3 was exactly `EJECTA_MAX`; with ejecta gone it is 0. One sphere
+  takes the whole field there, so no island is left to sever and no body is the
+  right answer. The assertion now bounds chunks from above and takes its
+  delivery guard from the dust (`shards > 0`, measured 7), which is what the
+  range was really asking.
+- `carve_asteroids` spawned 24 chunks before, ALL of them `Carve Ejecta` and not
+  one `Severed Rock` - the cut's islands are all crumbs at this radius. Now 0.
+  The rock's holes, silhouette and cut notch are identical A/B; the only visible
+  change is that the cut column throws a legible cloud of dust where it used to
+  throw dark lumps. The example's judging line said the cut "throws a real
+  body", which the ejecta had been quietly satisfying; corrected.
+
 ### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 
 - What is left of a body at death comes apart into bounded debris with

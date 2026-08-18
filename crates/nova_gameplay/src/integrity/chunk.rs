@@ -1,12 +1,15 @@
 //! A piece of a body that came off and is still a body: real geometry, real
 //! mass, its own place in the world.
 //!
-//! Two things produce one. A carve can SEVER material - eat through the neck
-//! between two lobes and the far lobe is no longer attached to anything - and a
-//! carve can EJECT it, when the bite is big enough that the material it removed
-//! deserves to be seen leaving as an object rather than as dust. Both hand the
-//! result here, because from this point on the two are the same thing: a mesh,
-//! a place, and a velocity it inherited.
+//! One thing produces one: a carve that SEVERS material - eats through the neck
+//! between two lobes until the far lobe is no longer attached to anything. A
+//! deep hole does not, however big it is, because the material a crater removes
+//! was never sitting there as an object. Whoever cut the piece free hands it
+//! here with a mesh, a place, and the velocity it inherited.
+//!
+//! [`chunk_collider`] has a second caller, the death-fragment path in
+//! [`explode`](super::explode), because "what collider does a loose piece of
+//! art get" should have one answer.
 //!
 //! # Born inside the body it left
 //!
@@ -44,19 +47,18 @@ pub mod prelude {
     };
 }
 
-/// The least material a carve has to free before the piece is worth simulating,
-/// in cubic world units.
+/// The least material a SEVERED piece has to hold before it is worth
+/// simulating, in cubic world units.
 ///
-/// THE line between dust and debris. Below it a carve throws
-/// [`spew`](super::spew) shards - cosmetic, colliderless, gone in a couple of
-/// seconds - and above it a real body with mass that a ship can fly into.
+/// Asked of a piece that is already free, never of a crater: a cut across a
+/// rock does not end at a clean line, it leaves crumbs all round the rim where
+/// the slab thinned out, and eighteen rigid bodies of a few cells each is
+/// litter that costs a solver step. Under this a crumb goes out as
+/// [`spew`](super::spew) dust instead.
 ///
 /// One cubic unit is 80 hit points at the cladding's toughness
-/// ([`mark_radius`](super::carve::mark_radius)), which puts the shipped weapons
-/// firmly on either side rather than near the line: a PDC round spends 4 and
-/// throws dust, a torpedo spends 750 to 2000 and throws a chunk. Twenty PDC
-/// rounds into one spot still throw dust, because they carve one crater
-/// between them and each announces only its own bite.
+/// ([`mark_radius`](super::carve::mark_radius)), so it is also the scale at
+/// which a piece is worth a ship noticing.
 pub const CHUNK_MIN_VOLUME: f32 = 1.0;
 
 /// How long a chunk drifts before it becomes a physical body.

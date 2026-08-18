@@ -102,9 +102,9 @@ tagged **(breaking)**.
   nothing else; the field is dropped after meshing and rebuilt on the first hit.
 - Carve a rock apart and the piece FLIES OFF: anything a crater cuts free
   becomes a rigid body of its own, carrying the drift and spin it had.
-- A carve big enough to matter throws real rubble you can fly into instead of
-  cosmetic chips. Small ones still throw dust. Debris drifts clear before it
-  starts colliding, so nothing kicks its own wreckage.
+- A carve throws DUST, however big the bite: only geometry a cut really severed
+  becomes a body. Debris drifts clear before it collides, so nothing kicks its
+  own wreckage.
 - **(breaking)** No body ever bursts into generic grey cubes. A death with no
   art to break into now emits nothing and logs it, and a range asserts it never
   happens.

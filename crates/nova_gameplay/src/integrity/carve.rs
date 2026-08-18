@@ -211,11 +211,11 @@ fn absorbed_by(world: &World, target: Entity, amount: f32) -> f32 {
 }
 
 /// Cut one crater of `world_radius` into `owner` at `at` (WORLD space) and
-/// announce the `volume` that came off.
+/// announce what came off.
 ///
 /// The one place a mark is written, so the frame conversion and the spew that
 /// follows it cannot drift between the single-hit and the blast paths.
-fn carve_body(world: &mut World, owner: Entity, at: Vec3, world_radius: f32, volume: f32) {
+fn carve_body(world: &mut World, owner: Entity, at: Vec3, world_radius: f32) {
     let Some(frame) = world.get::<GlobalTransform>(owner).copied() else {
         return;
     };
@@ -243,7 +243,6 @@ fn carve_body(world: &mut World, owner: Entity, at: Vec3, world_radius: f32, vol
         entity: owner,
         at,
         radius: world_radius,
-        volume,
     });
 }
 
@@ -279,13 +278,7 @@ pub fn record_damage_mark(commands: &mut Commands, target: Entity, at: Vec3, amo
         let Some(owner) = mark_owner(world, target) else {
             return;
         };
-        carve_body(
-            world,
-            owner,
-            at,
-            world_radius,
-            paid / DAMAGE_PER_UNIT_VOLUME,
-        );
+        carve_body(world, owner, at, world_radius);
     });
 }
 
@@ -340,13 +333,7 @@ pub fn record_blast_marks(
             if world_radius < MARK_MIN_RADIUS {
                 continue;
             }
-            carve_body(
-                world,
-                owner,
-                at,
-                world_radius,
-                paid / DAMAGE_PER_UNIT_VOLUME,
-            );
+            carve_body(world, owner, at, world_radius);
         }
     });
 }
@@ -370,14 +357,6 @@ pub struct CarveSpew {
     pub at: Vec3,
     /// The crater's radius, in world units.
     pub radius: f32,
-    /// How much material came off, in cubic world units.
-    ///
-    /// What decides whether the material is worth simulating: dust below
-    /// [`CHUNK_MIN_VOLUME`](super::chunk::CHUNK_MIN_VOLUME), a real body above
-    /// it. Not derivable from `radius` by whoever observes this, because the
-    /// two are not always the same claim - a severed piece announces the volume
-    /// its own geometry holds, not the volume of a sphere.
-    pub volume: f32,
 }
 
 /// The nearest entity at or above `target` that remembers marks.

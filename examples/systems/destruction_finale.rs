@@ -90,7 +90,7 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_rig);
     #[cfg(feature = "debug")]
     {
-        app.add_systems(Update, (tally_debris, tally_carved_chunks));
+        app.add_systems(Update, (tally_debris, tally_carved_chunks, tally_shards));
         app.add_observer(watch_body_fragments);
     }
 }
@@ -123,8 +123,10 @@ struct FinaleProbe {
     /// also contains whatever the collapse took with it. A window count would
     /// blame one body for two bodies' debris.
     most_from_one_body: usize,
-    /// Real chunks emitted by geometry-authoritative carving.
+    /// Bodies a carve SEVERED: real geometry that came away, never decoration.
     carved_chunks: usize,
+    /// Shards a carve threw, which is what every carve throws now.
+    shards: usize,
     /// The body the current beat is killing.
     target: Option<Entity>,
 }
@@ -148,6 +150,12 @@ fn tally_debris(q_new: Query<(), Added<MeshFragmentMarker>>, mut probe: ResMut<F
 #[cfg(feature = "debug")]
 fn tally_carved_chunks(q_new: Query<(), Added<CarvedChunkMarker>>, mut probe: ResMut<FinaleProbe>) {
     probe.carved_chunks += q_new.iter().count();
+}
+
+/// Count the dust, which is the only thing a carve is guaranteed to throw.
+#[cfg(feature = "debug")]
+fn tally_shards(q_new: Query<(), Added<CarveShardMarker>>, mut probe: ResMut<FinaleProbe>) {
+    probe.shards += q_new.iter().count();
 }
 
 /// Record what ONE body's geometry walk produced, at the body, before any of it
@@ -349,6 +357,7 @@ fn exhaust_asteroid(world: &mut World) {
     let mut probe = world.resource_mut::<FinaleProbe>();
     probe.mark = (probe.fragments, probe.empty);
     probe.carved_chunks = 0;
+    probe.shards = 0;
     probe.target = Some(rock);
     let mut commands = world.commands();
     apply_damage(&mut commands, node, None, 2_000_000.0, Some(centre));
@@ -367,21 +376,28 @@ fn asteroid_destroyed() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     })
 }
 
-/// The rock ended at field exhaustion, emitted bounded carve debris, and never
-/// entered the health-driven random slicer.
+/// The rock ended at field exhaustion, was SEEN ending, and never entered the
+/// health-driven random slicer.
+///
+/// One sphere takes the whole field here, so there is no island left to sever
+/// and no body is expected. Dust is what carries the moment, and the bound on
+/// chunks is what keeps a rock's end from spraying rigid bodies if a future
+/// fixture does leave islands behind.
 #[cfg(feature = "debug")]
 fn assert_asteroid_exhausted(world: &mut World) {
     let probe = world.resource::<FinaleProbe>();
     let (fragments, empty) = probe.since_mark();
     let chunks = probe.carved_chunks;
+    let shards = probe.shards;
     assert_eq!(
         fragments, 0,
         "a healthless asteroid entered the mesh slicer"
     );
     assert_eq!(empty, 0, "a healthless asteroid entered an empty finale");
+    assert!(shards > 0, "field exhaustion was not seen leaving");
     assert!(
-        (1..=3).contains(&chunks),
-        "field exhaustion emitted {chunks} carve chunks instead of a bounded 1..=3"
+        chunks <= 3,
+        "field exhaustion severed {chunks} bodies instead of a bounded few"
     );
     let destroyed = world
         .resource::<NovaEventWorld>()
@@ -393,7 +409,7 @@ fn assert_asteroid_exhausted(world: &mut World) {
     nova_probe::probe_marker(
         world,
         "outcome: the asteroid exhausts its own geometry",
-        serde_json::json!({ "fragments": fragments, "chunks": chunks, "destroyed": 1 }),
+        serde_json::json!({ "fragments": fragments, "chunks": chunks, "shards": shards, "destroyed": 1 }),
     );
 }
 

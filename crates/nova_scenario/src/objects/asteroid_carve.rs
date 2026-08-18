@@ -244,7 +244,6 @@ fn throw_severed_pieces(
                 // The crumb's own size, so the dust it becomes is the size of
                 // the thing that crumbled.
                 radius: (volume * 3.0 / (4.0 * std::f32::consts::PI)).cbrt(),
-                volume,
             });
             continue;
         }
@@ -438,7 +437,6 @@ fn carve_asteroid_fields(
                         .surface_centre()
                         .map_or(frame.translation(), |at| frame.transform_point(at)),
                     radius: (remaining_world * 3.0 / (4.0 * std::f32::consts::PI)).cbrt(),
-                    volume: remaining_world,
                 });
             }
             // Reuse the common destruction cue seam without opting into its
