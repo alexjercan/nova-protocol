@@ -2104,6 +2104,149 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .widget-mark--barfill {
     fill: var(--phosphor);
 }
+/* Shaded zones on the glass (a fade band, a hysteresis window): recessed
+   like the blast shadow but hairlined so the zone edge reads. */
+.widget-mark--band {
+    fill: var(--recess);
+    stroke: var(--edge-faint);
+}
+/* A solid body on a lane scope: unlit glass behind a hairline. */
+.widget-mark--shadow-stroke {
+    fill: var(--recess);
+    stroke: var(--edge-soft);
+}
+/* The player's own hull and its drive plume on the flight scopes. */
+.widget-mark--ship {
+    fill: var(--phosphor);
+    filter: drop-shadow(var(--glow-text));
+}
+.widget-mark--plume {
+    stroke: var(--amber);
+    stroke-width: 3;
+    stroke-linecap: round;
+    filter: drop-shadow(var(--glow-text-amber));
+}
+/* Radar furniture: the sweep cone is lit glass (opacity carries the tint so
+   the fill stays on the phosphor token), contacts are quiet blips, and the
+   lock glyphs wear the slot colors - white travel, red combat. */
+.widget-mark--cone {
+    fill: var(--phosphor);
+    opacity: 0.08;
+    stroke: none;
+}
+.widget-mark--blip {
+    fill: var(--phosphor);
+    filter: drop-shadow(var(--glow-text));
+}
+.widget-mark--navlock {
+    stroke: var(--text);
+    stroke-width: 2;
+    fill: none;
+}
+.widget-mark--combatlock {
+    stroke: var(--red);
+    stroke-width: 2;
+    fill: none;
+}
+.widget-mark--dwell {
+    stroke: var(--text);
+    stroke-width: 3;
+    fill: none;
+}
+.widget-mark--dwell.is-combat {
+    stroke: var(--red);
+}
+/* Key rows for the trainer widgets: the same terminal keys as the transport
+   deck, with a lit ON state and a red-armed stance state. Words carry the
+   state on the key face; the classes only tint. */
+.widget__keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0 0;
+}
+.widget__btn.is-on {
+    color: var(--screen);
+    background: var(--phosphor);
+    border-color: var(--phosphor);
+    box-shadow: var(--glow-key);
+}
+.widget__btn.is-hot {
+    color: var(--red);
+    border-color: var(--red);
+}
+.widget__btn--wide {
+    flex: 1 1 auto;
+}
+/* The relation matrix: side headers around clickable relation cells. */
+.widget__matrix {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    margin: 14px 0 0;
+    max-width: 480px;
+}
+.widget__mhead {
+    align-self: center;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    color: var(--phosphor-dim);
+    overflow-wrap: anywhere;
+}
+.widget__mcell {
+    padding: 8px 2px;
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.06em;
+    color: var(--phosphor-dim);
+    background: var(--recess);
+    border: 1px solid var(--edge-faint);
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+.widget__mcell.is-own {
+    color: var(--phosphor);
+}
+.widget__mcell.is-hostile {
+    color: var(--red);
+}
+.widget__mcell.is-sel {
+    border-color: var(--phosphor);
+    box-shadow: var(--glow-key);
+}
+.widget__mcell:focus-visible {
+    outline: 2px solid var(--phosphor);
+    outline-offset: 2px;
+}
+/* The HUD switchboard: wider stack cells with a kind/state eyebrow; OFF
+   cells recede but stay readable (the word carries the state). */
+.widget__stack--board {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 6px;
+}
+.widget__cell--board {
+    min-width: 0;
+    text-align: left;
+    font-size: 0.68rem;
+}
+.widget__kind {
+    display: block;
+    margin: 1px 0 3px;
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+    color: var(--phosphor-muted);
+}
+.widget__cell.is-live {
+    border-color: var(--edge-soft);
+}
+.widget__cell.is-live b {
+    color: var(--phosphor);
+}
+.widget__cell.is-off {
+    opacity: 0.55;
+    border-style: dashed;
+}
 /* Variant catalogs: editor-catalog-style tables on the wiki section pages,
    shipped prototypes with source-verified stats. The thumb slots reuse the
    .figure__placeholder upgrade path (site.ts), so a capture dropped into

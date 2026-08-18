@@ -4,11 +4,20 @@ Sides in Nova Protocol are deliberately minimal - three states, no alliances or 
 
 ## The relation model
 
-Every ship carries an allegiance - **Player**, **Enemy** or **Neutral** - and any two things resolve to one of three relations:
+Every ship carries an allegiance - **Player**, **Enemy** or **Neutral** - and any two things resolve to one of three relations: Own, Hostile or Neutral.
+
+<div class="widget" data-widget="relation-matrix">
+<p>The whole model in one grid: Player-Player and Enemy-Enemy resolve OWN, Player against Enemy resolves HOSTILE either way, and everything touching Neutral or an unmarked body (asteroids, debris, salvage) resolves NEUTRAL - even Neutral against Neutral. Non-combatants stay out of the fight by default.</p>
+</div>
+
+<details class="explain">
+<summary>Show explanation</summary>
 
 - **Own** - the same combatant side (Player-Player or Enemy-Enemy).
 - **Hostile** - opposing combatants (Player vs Enemy).
-- **Neutral** - everything else: anything marked Neutral, and any body without an allegiance at all (asteroids, debris, salvage). Non-combatants stay out of the fight by default.
+- **Neutral** - everything else: anything marked Neutral, and any body without an allegiance at all (asteroids, debris, salvage). Neutral never relates strongly, not even to another neutral - two bystander haulers are not each other's "own" in any meaningful sense.
+
+</details>
 
 ## What allegiance drives
 

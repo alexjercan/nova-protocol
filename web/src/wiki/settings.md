@@ -27,17 +27,23 @@ A single **Low / Medium / High** preset trades visual richness for performance.
 It does two things at once: it tunes the combat *juice*, and on the lower tiers
 it drops the heavier effects for weak machines.
 
-- **High** - everything on: camera shake, hit flashes, and the full particle
-  effects, rendered at your window's native resolution.
-- **Medium** - drops the camera shake but keeps the particle bursts. Still full
-  resolution.
-- **Low** - turns the combat juice off entirely (no shake, no hit flashes) and
-  is **spawn-less**: torpedo and muzzle particle bursts are not created at all.
-  Low also renders the world at a **reduced internal resolution** and upscales it
-  to fill the window - a lever aimed at fill-bound hardware (laptop iGPUs,
-  phones). The HUD and menus stay crisp and fully clickable; only the 3D world
-  softens. On a strong discrete GPU the speed win is small, so Low is a knob for
-  the low end rather than a general speed-up.
+| Preset | Camera shake | Hit flashes | Particle bursts | 3D world resolution |
+| --- | --- | --- | --- | --- |
+| High | on | on | full | native |
+| Medium | off | on | full | native |
+| Low | off | off | not spawned | reduced, upscaled |
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+Low is **spawn-less**: torpedo and muzzle particle bursts are not created at
+all, rather than created and hidden. It also renders the world at a **reduced
+internal resolution** and upscales it to fill the window - a lever aimed at
+fill-bound hardware (laptop iGPUs, phones). The HUD and menus stay crisp and
+fully clickable; only the 3D world softens. On a strong discrete GPU the speed
+win is small, so Low is a knob for the low end rather than a general speed-up.
+
+</details>
 
 ## Controls reference
 

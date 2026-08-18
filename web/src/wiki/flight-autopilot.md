@@ -41,12 +41,50 @@ The autopilot verbs are the assist. Each writes to the _same_ actuators you use 
 - **ORBIT** - circularizes and station-keeps around the dominant [gravity well](../gravity-wells/), holding a stable ring at orbital speed (`v = sqrt(mu / r)`) with micro-burns. It never self-completes - it holds until you break away.
 - **STOP** - flips to retrograde and burns until you are at rest, budgeting for the local gravity pull along your velocity.
 
-Because the autopilot flies through the real actuators, it is honest about the ship's limits - an under-thrustered build takes longer to come around than a nimble one - and it will refuse a maneuver it cannot physically achieve (for example, ORBIT will not engage a well with no stable band). See [Keybinds](../keybinds/) for the verb keys.
+<div class="widget" data-widget="goto-verb">
+<p>One GOTO leg by the numbers: the drive burns out while the arrival envelope allows, swings retrograde one flip early (the envelope budgets the coast the flip costs), brakes at 85% of what the drive can do down to a 1.5 u/s approach floor, and eases the last stretch onto the 50 u standoff with the fine RCS jets. A longer leg just means a higher peak speed - the flip always lands the braking ramp on the standoff.</p>
+</div>
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+What the scope calls the "arrival envelope" is the controller's one rule: at any distance it caps closing speed at what a flip-and-brake from here can still cancel. The flip is scheduled early by the time the swing itself takes - a hull with the shipped flight computer comes around 180 degrees in about six seconds, and that coast is budgeted into the envelope, so the brake ramp starts aligned instead of late. Braking keeps a 15% authority margin in reserve, holds a small minimum approach speed so the last stretch never crawls, and hands the final meters to RCS: arrivals settle, they do not pulse the main drive on the spot.
+
+The same machinery answers why the autopilot is honest about the ship's limits: everything above is computed from the live hull - its real mass, its real thrusters, its real flight computer. An under-thrustered build gets a shallower envelope and an earlier flip, not invisible help. And it will refuse a maneuver it cannot physically achieve: ORBIT disengages rather than fly a well with no stable band between its surface clearance and its fade band.
+
+</details>
+
+See [Keybinds](../keybinds/) for the verb keys.
+
+<figure class="figure">
+    <!-- Capture: assets/loops/goto-arrival.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/goto-arrival.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >A short loop of a GOTO arrival: the flip to
+            retrograde, the braking burn, and the ship easing
+            to rest at the standoff on RCS.</span
+        >
+    </div>
+    <figcaption class="figure__caption">The whole verb is visible on the hull: flip, brake, settle.</figcaption>
+</figure>
 
 ## RCS: fine docking thrusters
 
 For the last few meters of an approach - where a main-drive burn is too coarse - a ship can carry **RCS** (a reaction-control system): hold <kbd>Shift</kbd> and steer with the mouse (lateral and fore/aft) and the scroll wheel (up and down) to nudge the ship straight along its own axes, with **no rotation**. While you hold it the helm and camera hold still so you can concentrate on the translation, the [velocity sphere](../hud/) turns violet, and a soft burn loop plays.
 
-RCS is a **trim, not free thrust**: each ship-local axis caps at a gentle speed (about 20 m/s), so it eases you into position rather than replacing the main drive. Push an axis you are already coasting at the cap and nothing happens; the opposite direction still slows you. The autopilot uses the same thrusters under the hood - **GOTO** and **STOP** settle their arrival on RCS, braking with the fine jets in the last stretch so a ship eases to a stop instead of pulsing on the spot.
+RCS is a **trim, not free thrust**: each ship-local axis caps at a gentle speed (about 20 m/s), so it eases you into position rather than replacing the main drive.
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+The cap is per ship-local axis, relative to whatever the maneuver is holding as its reference: push an axis you are already coasting at the cap and nothing happens, while the opposite direction still slows you. The push is a single linear impulse through the center of mass, so RCS never rotates the hull, and the last 4 m/s before the cap taper off rather than hitting a wall. The autopilot uses the same thrusters under the hood - **GOTO** and **STOP** settle their arrival on RCS, braking with the fine jets in the last stretch so a ship eases to a stop instead of pulsing on the spot.
+
+</details>
 
 RCS is a controller verb granted per ship, like the autopilot verbs, and the mainline campaign flies with it **withheld** - the RCS chip only appears in the keybind dock when a scenario grants it, so you know when it is available.

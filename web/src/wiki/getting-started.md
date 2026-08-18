@@ -4,7 +4,10 @@ Nova Protocol is a build-and-fly space shooter. You take a modular ship into a s
 
 ## Launch and start
 
-The game boots into a main menu with these options:
+The game boots into a main menu. **New Game** drops you into the **Shakedown Run** - a guided tutorial scenario with a ready-made ship, so there is nothing to build first. The other doors can wait.
+
+<details class="explain">
+<summary>Show the full menu rundown</summary>
 
 - **New Game** - drops you into the **Shakedown Run**, a guided tutorial scenario with a ready-made ship, so there is nothing to build first.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
@@ -12,6 +15,8 @@ The game boots into a main menu with these options:
 - **Mods** - opens the installed-mod and online-catalog browser.
 - **Settings** - adjusts volume, graphics quality, and UI skin, and shows the control reference.
 - **Exit** - quits (hidden in the browser build).
+
+</details>
 
 <figure class="figure">
     <!-- Capture: assets/tutorial-menu.png -->
@@ -99,6 +104,16 @@ You open drifting off the dock while Capt. Halloran briefs you through the comms
 Finish that and the Shakedown is complete: the victory screen offers to continue straight into **Broadside**, chapter two - a hauler's distress call, an ambush, and the gang's torpedo gunship. (Tap <kbd>Ctrl</kbd> to clear the combat lock; tap it again to clear the nav lock.)
 
 ## The sandbox
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-sandbox-range.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-name">assets/wiki-sandbox-range.png</span>
+        <span class="figure__placeholder-note">The sandbox free-flight range from the player ship: the rock belts ahead, target hulks to port, and the F1 back-to-editor objective chip visible.</span>
+    </div>
+    <figcaption class="figure__caption">The sandbox range: nothing to win, nothing to lose but the ship.</figcaption>
+</figure>
 
 **Sandbox** opens the ship editor. Build a hull, press **Play**, and you launch into a free-flight range with nothing to win and nothing to lose but the ship:
 

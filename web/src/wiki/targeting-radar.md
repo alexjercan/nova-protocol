@@ -21,7 +21,36 @@ Locking is deliberate: there is no passive auto-targeting. You sweep the radar y
 
 ## Holding to sweep
 
-Hold <kbd>Ctrl</kbd> to run the radar: it tracks the best body on your look ray, re-targeting as you sweep, considering only candidates within a cone (about 18 degrees) around your aim. Cross the ~0.25 s hold threshold and the slot arms (your stance picks which - see below); then a **lock-on dwell** has to fill while you keep the target under your aim before the lock actually commits. The dwell takes longer the farther away the target is, and sweeping off the target before it fills cancels it - so a lock is earned by holding steady, not granted the instant you point. Re-designating to a new target starts a fresh dwell while the old lock holds. Once a lock commits it sticks; releasing just ends the sweep.
+Hold <kbd>Ctrl</kbd> to run the radar: it tracks the best body within an 18-degree cone around your aim, re-targeting as you sweep. A lock is **earned by holding steady** through a short lock-on dwell, not granted the instant you point.
+
+<div class="widget" data-widget="lock-sweep">
+<p>The sweep in numbers: a quarter-second hold threshold separates a sweep from a clearing tap; past it the slot latches from your stance (lowered = white travel lock, raised = red combat lock), and a dwell scaled by range - 0.6 s point-blank stretching to 1.5 s at 20 km - has to fill while you keep the target under your aim. Sweeping off resets the dwell; a committed lock sticks until you clear it in stages with taps.</p>
+</div>
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+The clocks, exactly: the tap/hold threshold is 0.25 s - at or past it the press is a sweep, under it a clearing tap. The slot latches from your stance *at the threshold*, not at the press, so raising weapons a tenth of a second into the hold still lands a combat lock. The dwell then grows linearly with range, from 0.6 s point-blank to 1.5 s at 20 km and beyond; the white ring on the HUD is that dwell filling. Sweeping onto empty space resets the charge; re-designating to a new target starts a fresh dwell while the old lock keeps holding underneath - so you never trade a lock for a maybe. Once a lock commits it sticks; releasing just ends the sweep.
+
+</details>
+
+<figure class="figure">
+    <!-- Capture: assets/loops/lock-dwell.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/lock-dwell.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >A short loop: CTRL held on a distant ship, the
+            white dwell ring filling clockwise, and the lock
+            snapping with its cue.</span
+        >
+    </div>
+    <figcaption class="figure__caption">The dwell ring fills while you hold steady; the snap is the commit.</figcaption>
+</figure>
 
 ## Stances and slots
 

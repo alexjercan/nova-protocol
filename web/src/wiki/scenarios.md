@@ -18,13 +18,16 @@ created by an action rather than spawned as objects.
 
 ## Objectives: events, filters, actions
 
-Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons.
+Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons. This is the vocabulary the [Shakedown Run](../getting-started/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
+
+<details class="explain">
+<summary>Show the full vocabulary</summary>
 
 - **Events**: OnStart, OnUpdate, OnTimerEnd (a keyed scenario timer finished), OnDefeated (a ship is neutralized or directly destroyed), OnDestroyed, OnNeutralized (a ship is combat-dead - its weapons are gone or its flight computer is, hull intact), OnEnter / OnExit (a trigger area), OnOrbitStart / OnOrbitStable / OnOrbitUnstable / OnOrbitEnd (orbit lifecycle edges), OnTravelLockStart / OnTravelLockEnd and OnCombatLockStart / OnCombatLockEnd ([lock](../targeting-radar/) lifecycle edges).
 - **Filters**: match by object id or type (asteroid / beacon / salvage crate), combine with not / or / and, or test a variable expression.
 - **Actions**: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind dock chip, set a variable, spawn or despawn an object, scatter a seeded field of objects, drive a HUD readout, post a story message, swap the skybox, set a ship's allegiance, pose the camera, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it. A won chapter does not cut straight to that screen: it plays a short outro of comms beats over the live world first, paced by scenario timers, so the moment lands before the overlay does.
 
-This is the vocabulary the [Shakedown Run](../getting-started/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
+</details>
 
 ## The shipped scenarios
 
@@ -36,6 +39,24 @@ This is the vocabulary the [Shakedown Run](../getting-started/) is built from - 
 - **Menu backdrops** - the living scenes behind the menus, a rotating CAROUSEL: each scene plays its act and hands off to the next. **Torpedo Gauntlet** (a corvette's PDC turrets swat torpedoes streaming in from both flanks until its hard magazines run dry and the stand falls), **Asteroid Weave** (an AI ship threading a dense rock band on real patrol waypoints, hugging its nav beacons), **Duel Cycle** (two corvettes dogfight through the open center; a siege torpedo erases the winner), and **Waystation Traffic** (a hauler convoy circling a freight stop under amber dock lights). Menu entry starts the ring at a random scene. All of it is the real simulation, not a cutscene. Mods can ship their own by flagging a scenario `menu_backdrop`.
 
 ## Browsing and replaying scenarios
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-scenarios-picker.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-scenarios-picker.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The Scenarios tab with a campaign expanded: its
+            chapters in play order under the collapsible
+            header, standalone scenarios listed below.</span
+        >
+    </div>
+    <figcaption class="figure__caption">Campaigns group their chapters; any chapter can be launched directly for a replay.</figcaption>
+</figure>
 
 The **Scenarios** tab groups a campaign under a collapsible header - click the
 `[-]`/`[+]` header to expand or fold its chapters. A campaign lists its chapters
