@@ -289,8 +289,8 @@ fn pirate_spawns_late_at_the_debris_cluster() {
     }
 }
 
-/// Both the player and the scavenger fly the cargoa corvette (base
-/// craft-ships-into-base prototypes); the scavenger is scavenger-grade - the
+/// The player and scavenger fly cargoa corvettes; the rehearsal hulk is an
+/// inert three-cell light hull. The scavenger is scavenger-grade - the
 /// weak `cargoa_turret_*_light` and a SetHealth-nerfed hull. Resolves each section's prototype ref
 /// against the base catalog to read its kind, and honors SetHealth overrides.
 #[test]
@@ -306,7 +306,19 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
             _ => None,
         })
         .collect();
-    assert_eq!(ships.len(), 2, "player and pirate only");
+    assert_eq!(ships.len(), 3, "player, inert hulk, and pirate");
+
+    let hulk = ships
+        .iter()
+        .find(|(id, _)| *id == ID_DERELICT)
+        .expect("the rehearsal hulk is a ship")
+        .1;
+    assert!(matches!(&hulk.controller, SpaceshipController::None));
+    let hulk_sections = crate::generation::spawned_ship_sections(hulk);
+    assert_eq!(hulk_sections.len(), 3);
+    assert!(hulk_sections.iter().all(|section| {
+        matches!(&section.source, SectionSource::Prototype(id) if id == "light_hull_section")
+    }));
 
     let pirate_config = ships.iter().find(|(id, _)| *id == ID_PIRATE).unwrap().1;
     let SpaceshipController::AI(pirate_ai) = &pirate_config.controller else {
@@ -321,6 +333,7 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
     // Each spawn REFERENCES a catalog ship, so the section list is a join.
     let ships: Vec<(&str, Vec<SpaceshipSectionConfig>)> = ships
         .into_iter()
+        .filter(|(id, _)| *id != ID_DERELICT)
         .map(|(id, ship)| (id, crate::generation::spawned_ship_sections(ship)))
         .collect();
 

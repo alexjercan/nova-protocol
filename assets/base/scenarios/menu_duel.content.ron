@@ -206,7 +206,6 @@
                             kind: Asteroid((
                                 radius: 1.0,
                                 texture: "self://textures/asteroid.png",
-                                durability: Durable,
                                 impact_sound: Some("self://sounds/impact.wav"),
                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                 invulnerable: false,

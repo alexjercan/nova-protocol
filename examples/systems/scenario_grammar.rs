@@ -260,7 +260,6 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                 &format!("Rock {i}"),
                 rock_position(i),
                 2.0,
-                50.0,
                 // Unsigned: the ring is cleared by hand, never radar-locked.
                 None,
             ))
@@ -591,11 +590,8 @@ fn disarm_escort(world: &mut World) {
     nova_probe::probe_marker(world, "beat: disarm the escort", json_at(t));
 }
 
-/// Destroy one round's worth of the ring, lowest id first, through the
-/// production damage path. Damage lands on the asteroid's health-carrying
-/// CHILD node, the way real rounds do - the id-carrying root has no Health
-/// (the integrity bridge in objects/asteroid.rs documents exactly this
-/// hierarchy, task 20260713-150343).
+/// Exhaust one round's worth of the ring, lowest id first, through the
+/// production located-damage path.
 #[cfg(feature = "debug")]
 fn destroy_a_round_of_rocks(world: &mut World) {
     let rocks: Vec<Entity> = scoped_entities(world, |id| id.starts_with("rock_"))
@@ -608,25 +604,17 @@ fn destroy_a_round_of_rocks(world: &mut World) {
         KILLS_PER_ROUND,
         "scenario probe: a round needs {KILLS_PER_ROUND} live rocks"
     );
-    let nodes: Vec<Entity> = {
-        let mut query = world.query_filtered::<(Entity, &ChildOf), With<Health>>();
-        query
-            .iter(world)
-            .filter(|(_, child_of)| rocks.contains(&child_of.parent()))
-            .map(|(entity, _)| entity)
-            .collect()
-    };
-    assert_eq!(
-        nodes.len(),
-        KILLS_PER_ROUND,
-        "scenario probe: each rock must carry one health node"
-    );
-    for node in nodes {
-        world.trigger(HealthApplyDamage {
-            entity: node,
-            source: None,
-            amount: 1e6,
-        });
+    for rock in rocks {
+        let node = world
+            .get::<Children>(rock)
+            .and_then(|children| children.iter().next())
+            .expect("scenario probe: a rock carries one collider node");
+        let at = world
+            .get::<GlobalTransform>(rock)
+            .map_or(Vec3::ZERO, GlobalTransform::translation);
+        let mut commands = world.commands();
+        apply_damage(&mut commands, node, None, 2_000_000.0, Some(at));
+        world.flush();
     }
     let t = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(world, "beat: destroy a round of rocks", json_at(t));
