@@ -1,0 +1,62 @@
+# The automation does not run the game: cover the 9 uncovered scenarios
+
+- STATUS: OPEN
+- PRIORITY: 82
+- TAGS: v0.11.0,test,harness,scenario
+
+Epic: `20260818-220812`. Found by `20260818-221027`. Full table:
+`tasks/20260818-221027/REPORT.md`, "The coverage table".
+
+## The finding
+
+The automation does not run the game.
+
+- **12 scenario ids are player-reachable. The probe runs 3.**
+- **5 have zero example or probe coverage**: `broadside`, `broadside_gunship`,
+  `lifeline`, `final_tally`, `asteroid_next` - that is the entire shipped
+  campaign.
+- 4 more are only reached by a random 1-in-4 menu backdrop draw, so a green run
+  proves nothing about the other three.
+- **34 of the 40 examples load a Rust fixture no player can reach.**
+
+`editor_sandbox` collapsing to 2 fps (`20260819-001252`) was not a freak
+uncovered case. It was the first uncovered case somebody happened to fly. The
+campaign is in the same state right now and nobody has flown it.
+
+## Why the fixtures happened, and why that is not a defence
+
+A fixture is faster to write, deterministic, and isolates the thing under test.
+All true, and none of it justifies 34 of 40. The result is a suite that is green
+while the game is unplayable, which is the exact failure this release exists to
+stop.
+
+Fixtures are legitimate for a `systems/` range pinning one behaviour. They are
+NOT legitimate as the only coverage of a surface a player loads.
+
+## What to do
+
+1. **Cover the campaign.** Five scenarios, zero coverage. Highest value here by
+   a distance: it is what a new player plays first.
+2. **Make the backdrop draw deterministic under the probe**, so all four
+   backdrops get run rather than one at random.
+3. **Audit the 34 fixture-only examples** against
+   `20260818-221103` (every example is playable by hand, or says why it is
+   not). The two tasks are the same audit from opposite ends - one asks whether
+   a HUMAN can load it, this asks whether it loads what a human would. Do them
+   together.
+4. **Make the coverage table a standing artifact**, not a one-off. A
+   player-reachable scenario with no case should be visible without an agent
+   spending a day finding it.
+
+## The structural blocker to solve first
+
+`editor_sandbox` cannot be loaded by any id-driven rig. It is registered into
+`GameScenarios` at editor-Play time
+(`crates/nova_editor/src/scenario.rs:203-212`), which is AFTER the
+`--scenario <id>` membership check runs (`crates/nova_core/src/lib.rs:257-266`).
+So `--scenario editor_sandbox` is refused, and the only thing that can reach it
+is a rig that clicks through the editor and presses Play.
+
+Any scenario registered late has the same problem. Decide whether late
+registration is worth keeping; if it is, the membership check needs to know
+about it, and if it is not, register the sandbox up front like everything else.
