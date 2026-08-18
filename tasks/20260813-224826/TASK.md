@@ -679,6 +679,56 @@ to say what the row now judges - cracks, plate loss, sparks, plume.
 `resolve_nova_blast_hits` commands at 185.6 ms, on the frame a ship comes apart.
 It was there before carving and it is there after.
 
+### Phase 4f - a hit carves what it destroyed - ACCEPTED (2026-08-19)
+
+Owner-accepted design for `REVIEW.md` landing blockers 1 and 2, which are one
+defect seen twice: a mark is priced from the damage a hit REQUESTED rather than
+from the damage it actually spent, and a blast requests its pressure once per
+overlapping collider.
+
+**The rule, stated once.** A body loses one cubic unit of material per
+`DAMAGE_PER_UNIT_VOLUME` hit points ACTUALLY destroyed on it. That sentence is
+already what the constant's doc claims; nothing in the code enforced it.
+
+**Where absorbed is computed.** Inside `record_damage_mark`'s queued command.
+Bevy's command queue is FIFO and `apply_damage` queues the mark before it
+triggers `HealthApplyDamage`, so the mark command reads the pre-damage pool of
+the node that is about to pay. The clamp walks up `ChildOf` to the first
+`Health` - the same node `on_damage` charges - and takes `amount.min(current)`,
+or nothing at all from a node already at zero.
+
+A body with NO pool anywhere up the chain spends the full amount in material.
+That is not a fallback, it is the asteroid rule from Phase 4d: a rock's field is
+its only durability, and clamping it to a pool it does not have would stop rocks
+carving altogether.
+
+Consequence beyond the arithmetic: a hit on an already-dead plate now records
+nothing and throws no debris. Most of a second torpedo into a chewed hull
+disappears on this alone.
+
+**How a blast prices its one crater.** Coalesced by `(blast, mark owner)`, and
+the crater is priced by the SUM of what the blast destroyed on that owner.
+
+`REVIEW.md` recommended the MAXIMUM instead, and that recommendation was correct
+against the code it was written for: summing REQUESTED pressure multiplies a
+crater by however many child colliders a body happens to have, which is
+unbounded. The absorbed clamp removes that premise. Summing absorbed damage is
+bounded by the hit points that were really in the sphere, it is the same rule
+sustained fire already gets from `DamageMark::absorb_volume`, and it is the only
+reading under which a warhead that guts twenty sections leaves a bigger hole
+than one that killed a single plate. The crater is capped at the blast's own
+radius; a hole wider than the sphere that made it is nonsense.
+
+Health stays PER COLLIDER and is not coalesced. A blast that reaches forty
+sections damages forty sections; what it may not do is make forty craters and
+forty piles of debris.
+
+**The seam.** A new `apply_blast_damage(commands, at, source, hits)` owns the
+whole per-blast pattern - health per collider, one crater per body - so the
+coalescing rule lives in exactly one place and `apply_damage` keeps its meaning
+for point weapons. Both share the clamp, the owner walk and the mark-and-spew
+body, so there is no second copy of the rule to drift.
+
 ### Phase 5 - the finale, and delete the slicer - DONE (2026-08-18)
 
 - What is left of a body at death comes apart into bounded debris with
