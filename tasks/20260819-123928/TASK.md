@@ -1,8 +1,8 @@
 # probe measures a scenario directly, no example required
 
-- STATUS: OPEN
-- PRIORITY: 60
-- TAGS: v0.11.0,harness,performance,scenario
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,done
 
 Epic: `20260818-220812`. Owner, 2026-08-19: "`scene_baseline` should be a
 FEATURE of `nova_probe_cli`... like `probe` subcommand should allow you to load
