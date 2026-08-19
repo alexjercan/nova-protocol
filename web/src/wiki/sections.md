@@ -58,24 +58,24 @@ Pick a section for the details - what it does, why it matters, and how it ties i
 
 ## Variants
 
-The standard unit-cell catalog at a glance - every child page carries the full per-kind stats, plus the per-craft semantic parts (noses, wings, pods, fuselages). Every shipped section masses 1.0; health and the kind stat are what separate them.
+The standard unit-cell catalog at a glance - every child page carries the full per-kind stats, plus the per-craft semantic parts (noses, wings, pods, fuselages). A section weighs the space it fills, so the unit cells all weigh the same and health and the kind stat are what separate them.
 
 <div class="catalog">
 <!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: reinforced_hull_section :299-303; light_hull_section :388-394; basic_controller_section :352-365; basic_thruster_section :317-343; pdc_*_turret_section :215-290 with :406-426; torpedo_section / lance_torpedo_section :513-592 with :427-447; heavy_torpedo_section :451-466 (hide_in_editor :466). -->
 <table>
 <thead>
-<tr><th>Kind</th><th>Variant</th><th>Health</th><th>Mass</th><th>Signature stat</th></tr>
+<tr><th>Kind</th><th>Variant</th><th>Health</th><th>Signature stat</th></tr>
 </thead>
 <tbody>
-<tr><td>Hull</td><td><span class="catalog__name">Reinforced Hull Section</span><span class="catalog__id">reinforced_hull_section</span></td><td class="catalog__num">200</td><td class="catalog__num">1.0</td><td>structure only</td></tr>
-<tr><td>Hull</td><td><span class="catalog__name">Light Hull Section</span><span class="catalog__id">light_hull_section</span></td><td class="catalog__num">60</td><td class="catalog__num">1.0</td><td>structure only</td></tr>
-<tr><td>Controller</td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">100</td><td class="catalog__num">1.0</td><td class="catalog__num">0.5 rad/s^2 authority</td></tr>
-<tr><td>Thruster</td><td><span class="catalog__name">Basic Thruster Section</span><span class="catalog__id">basic_thruster_section</span></td><td class="catalog__num">70</td><td class="catalog__num">1.0</td><td class="catalog__num">1.0 thrust</td></tr>
-<tr><td>Turret</td><td><span class="catalog__name">PDC Turret (Kinetic)</span><span class="catalog__id">pdc_kinetic_turret_section</span></td><td class="catalog__num">130</td><td class="catalog__num">1.0</td><td class="catalog__num">4.0 Kinetic at 100/s</td></tr>
-<tr><td>Turret</td><td><span class="catalog__name">PDC Turret (Pierce)</span><span class="catalog__id">pdc_pierce_turret_section</span></td><td class="catalog__num">130</td><td class="catalog__num">1.0</td><td class="catalog__num">2.0 Pierce at 100/s</td></tr>
-<tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Serpent)</span><span class="catalog__id">torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">1.0</td><td class="catalog__num">750 blast / 30 u</td></tr>
-<tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Lance)</span><span class="catalog__id">lance_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">1.0</td><td class="catalog__num">750 blast / 30 u</td></tr>
-<tr><td>Torpedo bay</td><td><span class="catalog__name">Siege Torpedo Bay Section<span class="catalog__flag">hidden</span></span><span class="catalog__id">heavy_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">1.0</td><td class="catalog__num">2000 blast / 45 u</td></tr>
+<tr><td>Hull</td><td><span class="catalog__name">Reinforced Hull Section</span><span class="catalog__id">reinforced_hull_section</span></td><td class="catalog__num">200</td><td>structure only</td></tr>
+<tr><td>Hull</td><td><span class="catalog__name">Light Hull Section</span><span class="catalog__id">light_hull_section</span></td><td class="catalog__num">60</td><td>structure only</td></tr>
+<tr><td>Controller</td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">100</td><td class="catalog__num">0.5 rad/s^2 authority</td></tr>
+<tr><td>Thruster</td><td><span class="catalog__name">Basic Thruster Section</span><span class="catalog__id">basic_thruster_section</span></td><td class="catalog__num">70</td><td class="catalog__num">1.0 thrust</td></tr>
+<tr><td>Turret</td><td><span class="catalog__name">PDC Turret (Kinetic)</span><span class="catalog__id">pdc_kinetic_turret_section</span></td><td class="catalog__num">130</td><td class="catalog__num">4.0 Kinetic at 100/s</td></tr>
+<tr><td>Turret</td><td><span class="catalog__name">PDC Turret (Pierce)</span><span class="catalog__id">pdc_pierce_turret_section</span></td><td class="catalog__num">130</td><td class="catalog__num">2.0 Pierce at 100/s</td></tr>
+<tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Serpent)</span><span class="catalog__id">torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">750 blast / 30 u</td></tr>
+<tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Lance)</span><span class="catalog__id">lance_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">750 blast / 30 u</td></tr>
+<tr><td>Torpedo bay</td><td><span class="catalog__name">Siege Torpedo Bay Section<span class="catalog__flag">hidden</span></span><span class="catalog__id">heavy_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">2000 blast / 45 u</td></tr>
 </tbody>
 </table>
 </div>

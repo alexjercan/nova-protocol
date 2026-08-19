@@ -403,7 +403,6 @@ mod tests {
                     id: "basic_hull_section",
                     name: "Basic Hull",
                     description: "a hull",
-                    mass: 1.0,
                     health: 100.0,
                 ),
                 kind: Hull((

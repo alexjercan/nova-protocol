@@ -29,7 +29,6 @@ shared `base` block and one kind-specific block:
             id: "my_mod_thruster",
             name: "Compact Thruster",
             description: "A light engine for small ships.",
-            mass: 0.8,
             health: 70.0,
         ),
         kind: Thruster((
@@ -46,7 +45,6 @@ shared `base` block and one kind-specific block:
 | `base.id` | string | required | Prototype key used by `source: Prototype("<id>")`. A new id adds a part; a matching id replaces the earlier part. Prefix new ids with your mod id. |
 | `base.name` | string | required | Display name in the editor palette and ship UI. |
 | `base.description` | string | required | Editor and tooltip description. |
-| `base.mass` | number | required | Density, not absolute mass. Real mass is density multiplied by collider volume. |
 | `base.health` | number | required | Hit points before the section is destroyed. |
 | `base.impact_sound` | `Option` asset ref | `None` | Sound played when this section is hit. Omitted means silent. |
 | `base.destroy_sound` | `Option` asset ref | `None` | Sound played when this section is destroyed. Omitted means silent. |
@@ -66,8 +64,10 @@ collider: Some(Cylinder(radius: 0.5, height: 1.0)),
 ```
 
 `Cuboid.size` is the full size on each axis. Capsules and cylinders extend
-along local Y. A larger collider also increases real mass because `base.mass`
-is density.
+along local Y. The collider is also what the section WEIGHS: every section runs
+at a density of 1, so its mass is the volume of this shape and a bigger box is
+a heavier part. There is no density knob - a section is solid ship, and the
+render mesh never counts.
 
 ### Damage effects
 
@@ -204,7 +204,6 @@ Section((
         id: "reinforced_hull_section",
         name: "Reinforced Hull Section",
         description: "A reinforced hull section for spaceships.",
-        mass: 1.0,
         health: 200.0,
     ),
     kind: Hull((
@@ -323,7 +322,7 @@ base: (
     collider: Some(Cuboid(size: (0.5, 0.5, 0.5))),
     link_points: [(id: "base", position: (0.0, -0.25, 0.0), normal: (0.0, -1.0, 0.0))],
     damage_effects: ([Cracks, Sparks]),
-    // name, description, mass and sounds omitted
+    // name, description and sounds omitted
 ),
 kind: Turret((
     root: (
@@ -605,7 +604,6 @@ Section((
         id: "reinforced_hull_section",
         name: "Reinforced Hull Section (Example Mod)",
         description: "Base hull, up-armored by the example mod to show section overlay by id.",
-        mass: 1.0,
         health: 400.0,
     ),
     kind: Hull((

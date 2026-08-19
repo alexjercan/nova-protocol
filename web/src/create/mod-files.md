@@ -138,7 +138,6 @@ five item kinds:
             id: "my_mod_hull",
             name: "My Hull",
             description: "A custom armor block.",
-            mass: 1.0,
             health: 150.0,
         ),
         kind: Hull((

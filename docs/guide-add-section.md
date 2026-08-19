@@ -161,7 +161,6 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
            id: "basic_shield_section".to_string(),
            name: "Basic Shield Section".to_string(),
            description: "A basic shield section for spaceships.".to_string(),
-           mass: 1.0,
            health: 100.0,
            damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
            ..default()

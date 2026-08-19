@@ -29,7 +29,6 @@
             id: "reinforced_hull_section",
             name: "Reinforced Hull Section (Example Mod)",
             description: "Base hull, up-armored by the example mod to show section overlay by id.",
-            mass: 1.0,
             health: 400.0,
             link_points: [
                 (
@@ -122,12 +121,16 @@
     // uses it, so you can see it in play. `kind: Hull` reuses the base hull mesh
     // via `dep://base/...`; a real mod could point `render_mesh` at its own
     // `self://` model instead.
+    //
+    // HEALTH is the axis a structural part is tuned on: 500 here, against the
+    // 400 of the override above and the base game's 200. A section's mass is
+    // its collider volume, so a part built on the unit cell weighs exactly what
+    // every other unit cell weighs - toughness is what tells hull apart.
     Section((
         base: (
             id: "example_plated_hull_section",
             name: "Plated Hull Section (Example Mod)",
-            description: "A brand-new section the example mod adds: heavier plating than the base hull.",
-            mass: 1.2,
+            description: "A brand-new section the example mod adds: the toughest hull on the board at 500 hp.",
             health: 500.0,
             link_points: [
                 (

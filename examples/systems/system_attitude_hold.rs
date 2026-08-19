@@ -37,7 +37,7 @@
 use std::sync::Arc;
 
 #[cfg(feature = "debug")]
-use avian3d::prelude::{ComputedAngularInertia, Rotation};
+use avian3d::prelude::{ColliderDensity, ComputedAngularInertia, Rotation};
 use bevy::{color::palettes::tailwind, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -72,6 +72,21 @@ impl Layout {
             Layout::A => "controller_rig_a",
             #[cfg(feature = "debug")]
             Layout::B => "controller_rig_b",
+        }
+    }
+
+    /// The [`ColliderDensity`] this layout stamps onto its sections after spawn.
+    ///
+    /// Content cannot say this: a section is solid ship, so every authored one
+    /// is density 1 and its mass is its volume. The invariant this probe walks
+    /// is about INERTIA, and overriding the live component is what holds the
+    /// geometry, the sockets and the command fixed while the inertia alone
+    /// moves.
+    #[cfg(feature = "debug")]
+    fn section_density(self) -> f32 {
+        match self {
+            Layout::A => 1.0,
+            Layout::B => 10.0,
         }
     }
 }
@@ -169,7 +184,35 @@ fn custom_plugin(app: &mut App) {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<RigEpoch>();
-        app.add_systems(Update, track_rig_epoch);
+        app.init_resource::<RigDensity>();
+        app.add_systems(Update, (track_rig_epoch, apply_rig_density));
+    }
+}
+
+/// The density the live layout's sections run at, read by [`apply_rig_density`].
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct RigDensity(f32);
+
+#[cfg(feature = "debug")]
+impl Default for RigDensity {
+    /// Rig A's density - the one every authored section has.
+    fn default() -> Self {
+        Self(Layout::A.section_density())
+    }
+}
+
+/// Stamp the live layout's density onto each section as it spawns, overriding
+/// the 1 that every section is built with. This is rig B's whole difference
+/// from rig A; see [`Layout::section_density`].
+#[cfg(feature = "debug")]
+fn apply_rig_density(
+    mut commands: Commands,
+    density: Res<RigDensity>,
+    q_section: Query<Entity, Added<SectionMarker>>,
+) {
+    for section in &q_section {
+        commands.entity(section).insert(ColliderDensity(density.0));
     }
 }
 
@@ -228,6 +271,9 @@ fn load_layout(world: &mut World, layout: Layout) {
         let sections = world.resource::<GameSections>();
         attitude_rig(game_assets, sections, layout)
     };
+    // Set before the load, so the sections the trigger spawns are already
+    // covered by `apply_rig_density`.
+    world.insert_resource(RigDensity(layout.section_density()));
     // Record the root the reload is about to tear down, so `rig_reset` can tell
     // the replacement apart from it.
     let mut epoch = world.resource_mut::<RigEpoch>();
@@ -251,14 +297,6 @@ fn attitude_rig(
     };
     let at = |id: &str, kind: &str, position: Vec3| {
         let config = section(kind);
-        #[cfg(feature = "debug")]
-        let config = {
-            let mut config = config;
-            if matches!(layout, Layout::B) {
-                config.base.mass *= 10.0;
-            }
-            config
-        };
         SpaceshipSectionConfig {
             id: id.to_string(),
             position,

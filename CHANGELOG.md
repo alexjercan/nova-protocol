@@ -143,6 +143,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Ships & Sections
 
+- **(breaking)** Sections lose `base.mass`. A section is solid ship: its mass IS
+  its collider volume. Delete the field from mod content, and resize the collider
+  to change what a part weighs.
 - **(breaking)** Hits are REMEMBERED where they land: a ship stores each one as
   a sphere in its own frame, so an effect can read WHERE it was hit and not only
   how much it cost.

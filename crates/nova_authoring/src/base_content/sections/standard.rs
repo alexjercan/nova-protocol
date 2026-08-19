@@ -225,7 +225,6 @@ fn pdc_turret_prototype(
             id: id.to_string(),
             name: name.to_string(),
             description: description.to_string(),
-            mass: 1.0,
             health: TURRET_BASE_HEALTH,
             impact_sound: Some(meshes.section_impact_sound.clone()),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
@@ -306,7 +305,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 damage_effects: DamageEffects(vec![DamageEffect::Cracks]),
                 name: "Reinforced Hull Section".to_string(),
                 description: "A reinforced hull section for spaceships.".to_string(),
-                mass: 1.0,
                 health: 200.0,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
@@ -331,7 +329,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 ]),
                 name: "Basic Thruster Section".to_string(),
                 description: "A basic thruster section for spaceships.".to_string(),
-                mass: 1.0,
                 // Exposed propulsion: fragile, takes more damage per hit than
                 // an armored mount.
                 health: THRUSTER_BASE_HEALTH,
@@ -367,7 +364,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
                 name: "Basic Controller Section".to_string(),
                 description: "A basic controller section for spaceships.".to_string(),
-                mass: 1.0,
                 // Command core: mid durability baseline.
                 health: CONTROLLER_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
@@ -404,7 +400,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 damage_effects: DamageEffects::default(),
                 name: "Light Hull Section".to_string(),
                 description: "A thin-walled hull section; scavenger grade.".to_string(),
-                mass: 1.0,
                 // A third of reinforced: the shakedown pirate should die in a
                 // short burst, not a slugging match ("gentle" is data).
                 health: 60.0,
@@ -470,7 +465,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 description: "A capital-grade siege torpedo battery: slow salvo, \
                               armored ordnance, ship-killing blast."
                     .to_string(),
-                mass: 1.0,
                 health: TORPEDO_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
@@ -539,7 +533,6 @@ fn torpedo_bay_prototype(
             id: id.to_string(),
             name: name.to_string(),
             description: description.to_string(),
-            mass: 1.0,
             // Torpedo bay: mid durability baseline.
             health: TORPEDO_BASE_HEALTH,
             impact_sound: Some(meshes.section_impact_sound.clone()),

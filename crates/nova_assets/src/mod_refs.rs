@@ -528,7 +528,7 @@ mod tests {
         // A section render mesh with a `#Scene0` label: validation strips the
         // label, rewrite keeps it.
         let ron = r#"Section((
-            base: (id: "hull", name: "Hull", description: "", mass: 1.0, health: 100.0),
+            base: (id: "hull", name: "Hull", description: "", health: 100.0),
             kind: Hull((render_mesh: Some("self://models/hull.glb#Scene0"))),
         ))"#;
         let content: Content = ron::from_str(ron).expect("section parses");
@@ -552,7 +552,7 @@ mod tests {
     fn turret_section_with_fire_sound(reference: &str) -> Content {
         let ron = format!(
             r#"Section((
-                base: (id: "mod_turret", name: "Mod Turret", description: "", mass: 1.0, health: 100.0),
+                base: (id: "mod_turret", name: "Mod Turret", description: "", health: 100.0),
                 kind: Turret((
                     root: (
                         offset: (0.0, 0.0, 0.0),
@@ -969,7 +969,7 @@ mod tests {
     #[test]
     fn a_bare_labeled_model_ref_is_flagged() {
         let ron = r#"Section((
-            base: (id: "hull", name: "Hull", description: "", mass: 1.0, health: 100.0),
+            base: (id: "hull", name: "Hull", description: "", health: 100.0),
             kind: Hull((render_mesh: Some("gltf/hull-01.glb#Scene0"))),
         ))"#;
         let content: Content = ron::from_str(ron).expect("section parses");

@@ -713,7 +713,7 @@ mod tests {
     /// A hull section whose render mesh is `render_mesh` (a resource ref).
     fn section(id: &str, render_mesh: &str) -> Content {
         let ron = format!(
-            r#"Section((base: (id: "{id}", name: "{id}", description: "", mass: 1.0, health: 100.0), kind: Hull((render_mesh: Some("{render_mesh}")))))"#
+            r#"Section((base: (id: "{id}", name: "{id}", description: "", health: 100.0), kind: Hull((render_mesh: Some("{render_mesh}")))))"#
         );
         ron::from_str(&ron).expect("section parses")
     }

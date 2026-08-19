@@ -331,7 +331,6 @@ pub(super) fn shoot_spawn_projectile(
                         id: "torpedo_controller".to_string(),
                         name: "Torpedo Controller".to_string(),
                         description: "The controller for the torpedo warhead".to_string(),
-                        mass: 1.0,
                         health: config.projectile_health,
                         ..default()
                     }),
@@ -356,7 +355,6 @@ pub(super) fn shoot_spawn_projectile(
                         id: "torpedo_thruster".to_string(),
                         name: "Torpedo Thruster".to_string(),
                         description: "The thruster for the torpedo".to_string(),
-                        mass: 1.0,
                         health: config.projectile_health,
                         ..default()
                     }),

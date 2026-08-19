@@ -125,8 +125,6 @@ pub(crate) fn stats(section: &SectionConfig) -> Vec<(String, String)> {
             format!("{:.2} x {:.2} x {:.2}", size.x, size.y, size.z),
         ),
         ("hp".to_string(), format!("{:.0}", section.base.health)),
-        // Authored as density; the real mass follows the collider volume.
-        ("density".to_string(), format!("{:.2}", section.base.mass)),
         (
             "sockets".to_string(),
             format!("{}", section.base.link_points.len()),

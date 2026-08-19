@@ -229,7 +229,6 @@ fn base_config(
         // set.
         name: format!("{family} // {}", title_case(spec.id)),
         description: format!("The {family}'s {} section.", spec.id.replace('_', " ")),
-        mass: 1.0,
         health: spec.health,
         impact_sound: Some(meshes.section_impact_sound.clone()),
         destroy_sound: Some(meshes.section_destroy_sound.clone()),

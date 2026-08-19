@@ -1,6 +1,6 @@
 //! The section type system shared by every ship part. A ship is a tree of
-//! sections, and every section pairs a [`BaseSectionConfig`] (health, mass,
-//! collider, sounds - the data every kind carries) with a kind-specific config
+//! sections, and every section pairs a [`BaseSectionConfig`] (health, collider,
+//! sounds - the data every kind carries) with a kind-specific config
 //! selected by the [`SectionKind`] enum. [`SectionConfig`] bundles the two, and
 //! the loaded set of authorable sections lives in the [`GameSections`] resource.
 //!
@@ -42,10 +42,11 @@ pub mod prelude {
 /// authored is what avian builds: `Cuboid.size` is the FULL side length on each
 /// axis (not half-extents), and `Capsule`/`Cylinder` extend along local Y.
 ///
-/// Physical note: [`base_section`] feeds the section's `mass` field to avian as
-/// DENSITY (`destructible_body(health, density)`), and avian derives real mass
-/// from `density * collider_volume`. A larger collider therefore makes a heavier
-/// section - intended, but worth knowing when tuning handling.
+/// Physical note: a section is solid ship, so [`base_section`] hands avian a
+/// density of 1 and the volume of the shape here IS the section's mass. A
+/// larger collider therefore makes a heavier section - intended, but worth
+/// knowing when tuning handling, and the reason the box is authored rather than
+/// taken from the render mesh.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SectionCollider {
@@ -223,10 +224,6 @@ pub struct BaseSectionConfig {
     pub name: String,
     /// Longer editor/tooltip description.
     pub description: String,
-    /// Fed to avian as DENSITY (not absolute mass): real mass is
-    /// `mass * collider_volume`, so a bigger collider is a heavier section.
-    /// See [`SectionCollider`].
-    pub mass: f32,
     /// Section hit points; reaching zero destroys the section.
     pub health: f32,
     /// The sound a hit on THIS section plays - per-target, so the target IS
@@ -372,7 +369,11 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         // can build its schematic blocks from exact authored extents
         // (`aabb_half_extents`) without decoding the avian collider.
         collider,
-        destructible_body(config.health, config.mass),
+        // Density 1, never authorable: a section is solid ship, so its mass IS
+        // the volume of the authored collider above. Exactly, not roughly - the
+        // shape is the authored box, never the render mesh - so nothing can
+        // make one part denser than another.
+        destructible_body(config.health, 1.0),
         // destructible_body is the generic Health + density + visibility bundle;
         // ExplodableEntity is what puts the section into the explode pipeline.
         ExplodableEntity,
@@ -487,7 +488,6 @@ mod tests {
         let config = BaseSectionConfig {
             name: "section".to_string(),
             health: 10.0,
-            mass: 1.0,
             link_points: unit_cube_link_points(),
             ..default()
         };
@@ -515,7 +515,6 @@ mod tests {
             id: "s".to_string(),
             name: "s".to_string(),
             description: String::new(),
-            mass: 1.0,
             health: 100.0,
             impact_sound: None,
             destroy_sound: None,
@@ -553,7 +552,6 @@ mod tests {
             id: "s".to_string(),
             name: "s".to_string(),
             description: String::new(),
-            mass: 1.0,
             health: 100.0,
             impact_sound: None,
             destroy_sound: None,

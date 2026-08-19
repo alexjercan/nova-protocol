@@ -11,7 +11,7 @@ how sections connect and handles damage, disabling, and cascading destruction.
 ## Sections (`nova_ship::sections`)
 
 A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
-`BaseSectionConfig` is shared by all kinds: `id`, `name`, `description`, `mass`,
+`BaseSectionConfig` is shared by all kinds: `id`, `name`, `description`,
 `health`, optional `impact_sound` / `destroy_sound`, optional `collider`,
 structural `link_points`, `hide_in_editor`, and `damage_effects` - the authored
 list of looks this section wears as it is damaged (see [Damage is two
@@ -90,8 +90,10 @@ the unit-cube defaults:
   `Cuboid { size }`, `Sphere { radius }`, `Capsule { radius, length }`, or
   `Cylinder { radius, height }` (the last three along local Y). `None` resolves
   to the unit cube (`Cuboid { size: (1,1,1) }`) - the shape every section had
-  before colliders were authorable. Section mass is `density * collider_volume`,
-  so a larger collider is also heavier.
+  before colliders were authorable. `base_section` hands avian a density of 1,
+  so this shape's volume IS the section's mass and a larger collider is a
+  heavier one. The render mesh never contributes; a section masses its authored
+  box.
 
 ## Building a ship
 

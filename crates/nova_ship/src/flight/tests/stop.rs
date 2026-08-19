@@ -54,7 +54,6 @@ fn scratch_scenario_built_ship_autopilot_thrusts() {
         id: id.to_string(),
         name: id.to_string(),
         description: String::new(),
-        mass: 1.0,
         health: 100.0,
         ..default()
     };
