@@ -89,6 +89,20 @@ This closes the largest open question in the original draft.
 Lose sections, `r` shrinks, the ship turns sharper. Intended, not a bug to
 design around.
 
+### BLOCKED on `20260819-173840` for the torque half
+
+The structural half stands: 8 G contains no `I`, so structure-bound ships are
+settled. The TORQUE half cannot be picked yet, and not for want of a
+measurement.
+
+`SectionConfig.mass` is used as a `ColliderDensity`. Authored ships carry 70-350
+against a default of 1.0, so the cargoa holds roughly 660x the rotational
+inertia of a same-size hull built from standard sections. No single global
+`max_torque` can serve both populations, so the density work comes FIRST and
+this task consumes its measurement.
+
+Run them in one lane. They share the spawn-and-print.
+
 ### CALIBRATION - decided 2026-08-19
 
 `load_limit` = **8 G = 78.48 m/s2**. Crossover target **10 u = 100 m**: below it
