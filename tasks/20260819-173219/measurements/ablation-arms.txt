@@ -1,0 +1,74 @@
+# Phase B3 ablation: every arm. Ratios are against the reference capture
+# taken immediately before each arm (see notes-ablation.md, section 1).
+
+== wfc_arena, scaling tier, 60 captures, 3 passes ==
+
+arm               n  step     mean      p99  ratio    delta  ratio spread  counts
+---------------------------------------------------------------------------------
+a1                3   1-1    61.20    89.56  0.502   -49.8%     0.47-0.52  ents=8872 mesh=3410 distinct=267 mats=33
+a160x90           3   1-1   101.31   145.98  0.891   -10.9%     0.86-0.92  ents=23929 mesh=9866 distinct=600 mats=33
+a2                3   1-1    81.70   111.05  0.686   -31.4%     0.68-0.69  ents=14157 mesh=5671 distinct=389 mats=33
+a6                3   1-1   152.03   200.37  1.279   +27.9%     1.26-1.39  ents=36459 mesh=15157 distinct=825 mats=33
+aai               3   1-1   123.89   184.84  1.052    +5.2%     0.96-1.06  ents=23929 mesh=9866 distinct=600 mats=33
+aclad             3   1-1   114.04   146.56  0.893   -10.7%     0.81-0.90  ents=12269 mesh=3061 distinct=542 mats=14
+adress            3   1-1   105.88   141.72  0.900   -10.0%     0.89-1.00  ents=22204 mesh=8901 distinct=523 mats=32
+afreeze           3   1-1   115.96   154.20  0.979    -2.1%     0.95-1.01  ents=23879 mesh=9814 distinct=600 mats=33
+arscale025        3   1-1   117.33   148.43  1.003    +0.3%     0.94-1.04  ents=23931 mesh=9866 distinct=600 mats=33
+athrust           3   1-1   111.31   146.91  0.977    -2.3%     0.91-1.01  ents=23929 mesh=9866 distinct=600 mats=33
+ref              30   1-1   117.81   153.02  1.000    +0.0%     1.00-1.00  ents=23929 mesh=9866 distinct=600 mats=33
+
+== wfc_arena, mechanism tier, 12 captures ==
+
+arm               n  step     mean      p99  ratio    delta  ratio spread  counts
+---------------------------------------------------------------------------------
+bcracks           1   1-1    59.90    93.25  0.521   -47.9%             -  ents=23923 mesh=9866 distinct=600 mats=320
+bcracks_clad      1   1-1    58.43    97.49  0.503   -49.7%             -  ents=12263 mesh=3061 distinct=542 mats=301
+bhide             1   1-1    29.39    40.76  0.267   -73.3%             -  ents=23929 mesh=9866 distinct=600 mats=33
+bhide1            1   1-1    27.80    56.53  0.242   -75.8%             -  ents=8872 mesh=3410 distinct=267 mats=33
+bhide_freeze      1   1-1    32.23    42.84  0.297   -70.3%             -  ents=23879 mesh=9814 distinct=600 mats=33
+bui               1   1-1   118.30   159.13  1.013    +1.3%             -  ents=23905 mesh=9866 distinct=600 mats=33
+ref               6   1-1   115.03   140.62  1.000    +0.0%     1.00-1.00  ents=23929 mesh=9866 distinct=600 mats=33
+
+== wfc_ships gallery, 54 captures, 2 passes ==
+
+arm               n  step     mean      p99  ratio    delta  ratio spread  counts
+---------------------------------------------------------------------------------
+bare11            2   1-1   124.63   154.15  0.971    -2.9%     0.97-0.98  ents=13796 mesh=2860 distinct=589 mats=0
+c11               2   1-1    66.00    94.10  0.520   -48.0%     0.50-0.54  ents=30516 mesh=12572 distinct=681 mats=413
+c17               2   1-1    80.64   113.76  0.638   -36.2%     0.63-0.65  ents=47424 mesh=19784 distinct=988 mats=595
+c3                2   1-1    33.15    59.05  0.259   -74.1%     0.24-0.27  ents=9304 mesh=3423 distinct=242 mats=147
+free11            2  7-10   127.40   159.99  1.015    +1.5%     1.01-1.02  ents=30522 mesh=12572 distinct=681 mats=32
+hide11            2   1-1    40.35    64.93  0.318   -68.2%     0.30-0.33  ents=30569 mesh=12572 distinct=681 mats=32
+noweapons11       2   1-1   130.26   159.98  1.041    +4.1%     1.03-1.05  ents=30845 mesh=13370 distinct=783 mats=32
+px160x90          2   1-1   116.71   144.98  0.917    -8.3%     0.91-0.92  ents=30522 mesh=12572 distinct=681 mats=32
+px2560x1440       2   1-1   160.80   192.73  1.275   +27.5%     1.26-1.29  ents=30522 mesh=12572 distinct=681 mats=32
+ref              28   1-1   126.85   154.71  1.000    +0.0%     1.00-1.00  ents=30522 mesh=12572 distinct=681 mats=32
+s0                2   0-1    16.74    24.78  0.131   -86.9%     0.13-0.13  ents=1124 mesh=0 distinct=0 mats=0
+s17               2   1-1   201.46   233.37  1.586   +58.6%     1.58-1.59  ents=47430 mesh=19784 distinct=988 mats=32
+s3                2   1-1    61.82    80.59  0.483   -51.7%     0.48-0.49  ents=9310 mesh=3423 distinct=242 mats=32
+thrustfx11        2   1-1   110.89   146.88  0.867   -13.3%     0.86-0.88  ents=30522 mesh=12572 distinct=681 mats=32
+
+== wfc_ships, shared-instance discriminator, 12 captures ==
+
+arm               n  step     mean      p99  ratio    delta  ratio spread  counts
+---------------------------------------------------------------------------------
+ref               6   1-1   126.14   155.88  1.000    +0.0%     1.00-1.00  ents=30522 mesh=12572 distinct=681 mats=32
+share11           2   1-1    75.26    98.07  0.599   -40.1%     0.59-0.61  ents=30522 mesh=12572 distinct=681 mats=32
+share17           2   1-1   103.54   130.56  0.818   -18.2%     0.82-0.82  ents=47430 mesh=19784 distinct=988 mats=32
+share3            2   1-1    39.47    62.11  0.308   -69.2%     0.30-0.32  ents=9310 mesh=3423 distinct=242 mats=32
+
+== the first matrix, DISCARDED: round-robin with one reference per pass,
+== taken while two other lanes ran their own binaries. noclad reads +56%.
+
+arm               n  step     mean      p99  ratio    delta  ratio spread  counts
+---------------------------------------------------------------------------------
+n1                1   1-1    81.63   125.57  0.643   -35.7%             -  ents=8655 mesh=3193 distinct=267 mats=33
+n2                1   1-1    88.86   149.75  0.700   -30.0%             -  ents=14157 mesh=5671 distinct=389 mats=33
+n4                1   1-1   127.00   214.33  1.000    +0.0%             -  ents=23929 mesh=9866 distinct=600 mats=33
+n6                1   1-1   189.79   415.88  1.494   +49.4%             -  ents=36459 mesh=15157 distinct=825 mats=33
+noai              1   1-1   126.00   240.90  0.992    -0.8%             -  ents=23964 mesh=9900 distinct=600 mats=33
+noclad            1   1-1   198.00   384.13  1.559   +55.9%             -  ents=12269 mesh=3061 distinct=542 mats=14
+nodress           1   1-1   110.61   246.84  0.871   -12.9%             -  ents=22204 mesh=8901 distinct=523 mats=32
+res160x90         1   1-1   139.55   336.97  1.099    +9.9%             -  ents=23929 mesh=9866 distinct=600 mats=33
+res2560x1440      1   1-1   335.94   639.45  2.645  +164.5%             -  ents=23929 mesh=9866 distinct=600 mats=33
+res320x180        1   1-1   115.45   178.82  0.909    -9.1%             -  ents=23929 mesh=9866 distinct=600 mats=33
