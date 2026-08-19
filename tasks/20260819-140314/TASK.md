@@ -89,19 +89,26 @@ This closes the largest open question in the original draft.
 Lose sections, `r` shrinks, the ship turns sharper. Intended, not a bug to
 design around.
 
-### BLOCKED on `20260819-173840` for the torque half
+### NOT blocked - the density scare was a misread
 
-The structural half stands: 8 G contains no `I`, so structure-bound ships are
-settled. The TORQUE half cannot be picked yet, and not for want of a
-measurement.
+Recorded, then retracted the same day. A claim that authored ships carried
+densities of 70-350 against a default of 1.0 - giving the cargoa ~660x the
+inertia of a standard hull - was built on reading `part()`'s 7th positional
+argument as mass. It is HEALTH
+(`crates/nova_authoring/src/base_content/ships/shared.rs:101`), and `PartSpec`
+has no density field.
 
-`SectionConfig.mass` is used as a `ColliderDensity`. Authored ships carry 70-350
-against a default of 1.0, so the cargoa holds roughly 660x the rotational
-inertia of a same-size hull built from standard sections. No single global
-`max_torque` can serve both populations, so the density work comes FIRST and
-this task consumes its measurement.
+Every section in shipped content is `mass: 1.0` - all 32 in the generated
+`assets/base/**/*.content.ron`. Sections already derive mass from collider
+volume at density 1.
 
-Run them in one lane. They share the spawn-and-print.
+So the cargoa is STRUCTURE-bound like everything its size: mass ~15.6, `I` ~34,
+r 2.09 u, flip ~1.83 s at 8 G against the 1-1-1's 1.55 s. That is the shape this
+model wants, and it lands for free.
+
+`20260819-173840` survives only as a cleanup: delete the vestigial
+`SectionConfig.mass` field, which is a density named mass and is 1.0 everywhere.
+It does not block this task.
 
 ### CALIBRATION - decided 2026-08-19
 
