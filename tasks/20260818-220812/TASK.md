@@ -56,9 +56,13 @@ Examples and docs:
 
 ## What "done" means for the release
 
-- A `wfc_arena` 4v4 holds frame rate, with a MEASURED worst-frame number, not a
-  mean. It is the only case out of band: 295.76 ms worst, 10.7 FPS mean, against
-  42-53 ms worst for every other case measured (`20260819-123928/NOTES.md`).
+- A `wfc_arena` 4v4 holds frame rate, with a MEASURED number - **but not yet
+  that number.** The 295.76 ms worst frame quoted from `20260819-123928/NOTES.md`
+  is NOT TRUSTWORTHY: the 4v4 capture opens on a scoreboard predicate with no
+  upper bound, and 2 of 10 repeats ran past `match ended` into a PAUSED result
+  screen. One spent 555 of its 900 frames with the simulation stopped, at 88
+  ms/frame, and still read as a plausible 93 ms mean
+  (`20260819-173219/NOTES.md`). Fix the window before quoting the figure again.
   `asteroid_field` was named here in error - it was deleted in `d20a37c4`, the
   same day this epic was written.
 - No system in a profiled fight owns a frame on its own.
