@@ -1,8 +1,8 @@
 # A dead section reads as a grey crate, not as wreckage
 
-- STATUS: OPEN
-- PRIORITY: 75
-- TAGS: v0.11.0,polish,destruction,ship
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,wontdo
 
 Epic: `20260818-220812`. Follow-up to `20260818-224219`, landed as `6a2d6eb5`.
 
@@ -72,3 +72,38 @@ Their verdict decides it, not a metric. Attach the capture.
 
 Death-frame cost must not regress: it is 2.5 ms a run at landing, against 46.2
 before.
+
+## CLOSED 2026-08-19 - not a defect
+
+Owner: "tumbling is fine".
+
+This task was filed on an INFERENCE, not on a complaint. The owner had already
+said "for sections we do tumbling which is fine IMO" when the detach was
+designed; I then read an arena capture, judged the plain boxes to look wrong,
+and opened it at p75 anyway.
+
+The capture that convinced me had TWO kinds of grey box in it - carve shards and
+detached wrecks - and I attributed the read to the wrecks. The shards were the
+real complaint, and they are gone: `6548ed8c` keyed shards on weapon class so
+explosive throws none, and `5d5e1e73` capped the rest. What remains is a
+destroyed section tumbling away wearing its own art, which is the design working.
+
+Nothing was implemented. `explode.rs` is behaviourally untouched since this was
+filed.
+
+## What is preserved, in case it ever does bother somebody
+
+The unverified hypothesis: cladding is destructible and dies BEFORE the section
+under it, so by the time a section dies its plates are already gone and the bare
+hull cuboid is all there is to detach. If that is true, "make the art follow" is
+a dead end - the plates genuinely are not there - and the options narrow to
+giving the wreck a different look, or baked fragment sets (designed and
+deliberately unscheduled in `20260818-224219`).
+
+One run answers it. Nobody has done that run.
+
+The related remnant that IS still live and unfiled: shard material is hardcoded
+`Color::srgb(0.30, 0.30, 0.33)` (`spew.rs`), so PDC chips off a brown rock read
+as foreign grey specks. Fixing it needs a walk from the mark-owner root down to
+a child's `MeshMaterial3d` plus a tint-keyed material cache to avoid asset
+churn.
