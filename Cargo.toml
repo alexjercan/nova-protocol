@@ -54,14 +54,15 @@ path = "src/lib.rs"
 #                not this category: anything whose product is a frame for
 #                human eyes rather than a verdict.
 #   screenshots/ CONTENT, for the website and the wiki. A producer that
-#                captures: page and wiki frames, webm loops, and the
-#                release-over-release frame-time baseline.
+#                captures: page and wiki frames, and webm loops. The name says
+#                which - `screenshot_*` stills, `loop_*` video - and a
+#                producer takes at most THREE frames, because a long walk
+#                cannot hold the same result twice.
 #                probe: the WALK is graded like any other autopilot script;
 #                what it PRODUCED is judged by human eyes, which is a claim
 #                probe never makes. A producer that also wires the capture
 #                gets a frame-time pass on top - the pass set follows the
-#                runtime contract, never the directory, which is how
-#                `scene_baseline` is a measurement load as well as a frame.
+#                runtime contract, never the directory.
 #                not this category: anything whose verdict is an assert, and
 #                anything a human is meant to drive.
 #
@@ -244,42 +245,123 @@ path = "examples/systems/stress_one_structure.rs"
 name = "stress_many_structures"
 path = "examples/systems/stress_many_structures.rs"
 
-# screenshots/ - capture producers for the website (gen-web-screenshots.py),
-# the webm loops, the posed lineups, and the frame-time baseline. A gallery a
-# human WORKS is playable/; a row a human only looks at is here.
+# screenshots/ - the capture producers for the website and the wiki. A gallery
+# a human WORKS is playable/; a row a human only looks at is here.
 #
-# The measurement rig behind the release-over-release frame-time baseline: it
-# boots a SHIPPED scenario and hands the running app to the capture. It asserts
-# nothing about behavior - its product is a number for the perf page - so it
-# sits with the other producers rather than with the ranges (task
-# 20260817-013618).
+# NAMING IS THE CONTRACT: `screenshot_*` produces STILLS, `loop_*` produces
+# VIDEO, so what a producer makes is readable from its name alone.
+#
+# One producer captures ONE thing, in at most THREE frames. A long scripted
+# walk cannot hold the same result twice: the fat sets these replace strung a
+# dozen captures onto one script, so a beat that drifted took every frame after
+# it with it. Duplication between producers is the accepted price - several
+# below stage the same set, and each is short enough to read in one screen.
+# The scene builders they share live in examples/screenshots/shared/.
+
+# The Drydock drift beauty set: a hero racer over a real gravity well.
 [[example]]
-name = "scene_baseline"
-path = "examples/screenshots/scene_baseline.rs"
+name = "screenshot_gravity"
+path = "examples/screenshots/screenshot_gravity.rs"
 
 [[example]]
-name = "screenshot_scene"
-path = "examples/screenshots/screenshot_scene.rs"
+name = "screenshot_hero_ship"
+path = "examples/screenshots/screenshot_hero_ship.rs"
+
+# The menu, its panels and the editor, driven by real pointer gestures over the
+# shipped app.
+[[example]]
+name = "screenshot_menu"
+path = "examples/screenshots/screenshot_menu.rs"
 
 [[example]]
-name = "screenshot_ui"
-path = "examples/screenshots/screenshot_ui.rs"
+name = "screenshot_scenario_picker"
+path = "examples/screenshots/screenshot_scenario_picker.rs"
 
 [[example]]
-name = "screenshot_combat"
-path = "examples/screenshots/screenshot_combat.rs"
+name = "screenshot_editor"
+path = "examples/screenshots/screenshot_editor.rs"
+
+# The wiki section closeups, on a turntable: the parts that fly a ship, then
+# the parts that fight with it.
+[[example]]
+name = "screenshot_section_frame"
+path = "examples/screenshots/screenshot_section_frame.rs"
 
 [[example]]
-name = "screenshot_nova_os"
-path = "examples/screenshots/screenshot_nova_os.rs"
+name = "screenshot_section_weapons"
+path = "examples/screenshots/screenshot_section_weapons.rs"
+
+# The Tab ship computer: the terminal, then an app filling the same tube.
+[[example]]
+name = "screenshot_nova_os_terminal"
+path = "examples/screenshots/screenshot_nova_os_terminal.rs"
 
 [[example]]
-name = "screenshot_sections"
-path = "examples/screenshots/screenshot_sections.rs"
+name = "screenshot_nova_os_apps"
+path = "examples/screenshots/screenshot_nova_os_apps.rs"
+
+# The Rock hollow combat set. The nav radar is shot on its own approach; the
+# rest share the hollow, which now spawns the ambush at OnStart rather than
+# after a scripted GOTO leg.
+[[example]]
+name = "screenshot_radar_lock"
+path = "examples/screenshots/screenshot_radar_lock.rs"
 
 [[example]]
-name = "screenshot_flight"
-path = "examples/screenshots/screenshot_flight.rs"
+name = "screenshot_contextual_hud"
+path = "examples/screenshots/screenshot_contextual_hud.rs"
+
+[[example]]
+name = "screenshot_combat_lock"
+path = "examples/screenshots/screenshot_combat_lock.rs"
+
+[[example]]
+name = "screenshot_combat_hud"
+path = "examples/screenshots/screenshot_combat_hud.rs"
+
+[[example]]
+name = "screenshot_combat_wide"
+path = "examples/screenshots/screenshot_combat_wide.rs"
+
+[[example]]
+name = "screenshot_hull_juice"
+path = "examples/screenshots/screenshot_hull_juice.rs"
+
+[[example]]
+name = "screenshot_torpedo_run"
+path = "examples/screenshots/screenshot_torpedo_run.rs"
+
+# The flight computer around a real well: the held orbit, then the two loud
+# beats of a leg.
+[[example]]
+name = "screenshot_orbit"
+path = "examples/screenshots/screenshot_orbit.rs"
+
+[[example]]
+name = "screenshot_goto_burn"
+path = "examples/screenshots/screenshot_goto_burn.rs"
+
+[[example]]
+name = "screenshot_flip_burn"
+path = "examples/screenshots/screenshot_flip_burn.rs"
+
+# The posed LINEUPS. Both would move to playable/ the day either grows the
+# selection layer `greeble_catalog` has; today neither registers a key at all,
+# so a hand-run is a free-fly look at a still row.
+#
+# A named row of thruster looks - the shipped drive, the proposed shell size
+# family, and the CC0 candidate models under art/part-candidates - the
+# showcase half of the thruster-shell spike (task 20260816-200255).
+[[example]]
+name = "screenshot_thruster_gallery"
+path = "examples/screenshots/screenshot_thruster_gallery.rs"
+
+# The same ship at five damage levels, side by side: the row somebody decides
+# off whether a cracked, de-plated, scorched hull reads as broken. The row and
+# its per-level closeups are one comparison, so they stay one producer.
+[[example]]
+name = "screenshot_damage_levels"
+path = "examples/screenshots/screenshot_damage_levels.rs"
 
 # The webm loop producers (scripts/capture-web-media.sh): the same capture
 # idiom as the stills, with `loop_start`/`loop_end` recording every rendered
@@ -292,28 +374,6 @@ path = "examples/screenshots/loop_torpedo_blast.rs"
 [[example]]
 name = "loop_spine_cut"
 path = "examples/screenshots/loop_spine_cut.rs"
-
-[[example]]
-name = "render_scale_shot"
-path = "examples/screenshots/render_scale_shot.rs"
-
-# The posed LINEUPS: a roster stood in a row, held still and photographed. Both
-# would move to playable/ the day either grows the selection layer
-# `greeble_catalog` has; today neither registers a key at all, so a hand-run is
-# a free-fly look at a still row.
-#
-# A named row of thruster looks - the shipped drive, the proposed shell size
-# family, and the CC0 candidate models under art/part-candidates - the
-# showcase half of the thruster-shell spike (task 20260816-200255).
-[[example]]
-name = "thruster_gallery"
-path = "examples/screenshots/thruster_gallery.rs"
-
-# The same ship at five damage levels, side by side: the row somebody decides
-# off whether a cracked, de-plated, scorched hull reads as broken.
-[[example]]
-name = "damage_levels"
-path = "examples/screenshots/damage_levels.rs"
 
 # Inherit the workspace clippy allows (type_complexity, too_many_arguments) for
 # the root package too, so the lib, binary and examples match the crates' policy.

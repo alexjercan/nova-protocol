@@ -218,23 +218,32 @@ What is on disk today, in reading order:
   measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their
   subject is the outcome chain, so pixel coordinates would only add layout
   coupling.
-- `screenshots/` - the content producers. `screenshot_scene` (the "Drydock
-  drift" beauty set), `screenshot_combat` (the "Rock hollow" set: a real GOTO
-  leg into an `OnEnter` ambush and a torpedo salvo, so it carries the travel,
-  combat, HUD and ordnance frames), `screenshot_ui`, `screenshot_sections`,
-  `screenshot_flight` (the "The ring" set: the ORBIT verb flown around a real
-  well), `screenshot_nova_os` (the Tab ship-computer), and `render_scale_shot`
-  (a real-GPU window capture proving the render-scale lever draws a correct
-  frame), plus the two webm loop producers `loop_torpedo_blast` and
-  `loop_spine_cut`. The posed LINEUPS live here too - `thruster_gallery` (the
-  shipped drive, the proposed shell family and the CC0 candidates in one named
-  row) and `damage_levels` (the same ship at five damage levels, side by side).
-  Neither registers a key, so a hand-run is a free-fly look at a still row;
-  either would move to `playable/` the day it grows `greeble_catalog`'s
-  selection layer. And so does `scene_baseline`, the release-over-release
-  measurement scene the probe sweep runs: it asserts nothing about behavior, its
-  product is a number for the perf page. See
-  [Performance and run verification](#performance-and-run-verification).
+- `screenshots/` - the content producers, and the NAME says what a run makes:
+  `screenshot_*` writes STILLS, `loop_*` writes VIDEO. One producer captures
+  ONE thing in at most THREE frames, because a long scripted walk cannot hold
+  the same result twice - the fat sets these replace strung a dozen captures
+  onto one script, so a beat that drifted took every frame after it with it.
+  Duplication between producers is the accepted price: several stage the same
+  set, and the scene builders they share live in `examples/screenshots/shared/`.
+  The stills, by set: the Drydock drift beauty shots (`screenshot_gravity`,
+  `screenshot_hero_ship`), the menu and editor walks (`screenshot_menu`,
+  `screenshot_scenario_picker`, `screenshot_editor`), the section closeups
+  (`screenshot_section_frame`, `screenshot_section_weapons`), the Tab ship
+  computer (`screenshot_nova_os_terminal`, `screenshot_nova_os_apps`), the Rock
+  hollow combat beats (`screenshot_radar_lock`, `screenshot_contextual_hud`,
+  `screenshot_combat_lock`, `screenshot_combat_hud`, `screenshot_combat_wide`,
+  `screenshot_hull_juice`, `screenshot_torpedo_run`) and the flight computer
+  around a real well (`screenshot_orbit`, `screenshot_goto_burn`,
+  `screenshot_flip_burn`). The two webm producers are `loop_torpedo_blast` and
+  `loop_spine_cut`. The posed LINEUPS live here too -
+  `screenshot_thruster_gallery` (the shipped drive, the proposed shell family
+  and the CC0 candidates in one named row) and `screenshot_damage_levels` (the
+  same ship at five damage levels, side by side, which is one comparison and so
+  one producer). Neither registers a key, so a hand-run is a free-fly look at a
+  still row; either would move to `playable/` the day it grows
+  `greeble_catalog`'s selection layer.
+  `scripts/gen-web-screenshots.py --producers` prints the list the site
+  actually consumes, so a capture flow never runs off a hand-kept array.
 
 When adding a substantial feature, add or extend the range that drives it. When
 fixing a bug, WRITE the range that reproduces it first: that is the doctrine in
@@ -454,9 +463,9 @@ staging dir, then package into `web/src/assets/`:
 
 ```sh
 export NOVA_SHOT_DIR=target/shots
-NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example screenshot_scene  --features debug
-NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example screenshot_ui     --features debug
-NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example screenshot_combat --features debug
+for shot in $(python3 scripts/gen-web-screenshots.py --producers); do
+    NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example "$shot" --features debug
+done
 python3 scripts/gen-web-screenshots.py   # validate + copy; build composites; write the 44x44 icons
 ```
 
@@ -676,7 +685,14 @@ wired no capture is inert, and its contract tells the report the frame-time
 section is empty because the program
 makes no frame-cost claim - not because a capture went missing. Frame-time
 claims are made by WIRING the capture, not by living in a directory: the four
-`stress_*` ranges and `scene_baseline` are what wire it today.
+`stress_*` ranges are what wire it today.
+
+What the report does with the numbers is REPORT them. The Performance section
+leads with the worst frame, the mean, and what each comes to in FPS, flagged
+when it is under 60; `checks.json` mirrors it under `frames`, carrying
+`graded: false`. Nothing passes or fails on a frame-time number - whether a
+scene is fast enough on this machine, in this build profile, is the reviewer's
+call and always was.
 
 The capture window is the capture crate's full 180/900 baseline for every run
 that captures at all, so probe numbers stay comparable with the sweep's; your
@@ -684,23 +700,28 @@ own `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always override it. The completion
 deadline is SIZED to that window (not a flat 120s): probe sets
 `NOVA_AUTOPILOT_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
 margin`, so a slow-but-progressing capture (a heavy scene in a dev build under
-software rendering - `scene_baseline` is the case) completes instead of
+software rendering - the `stress_*` ranges are the case) completes instead of
 tripping the hang detector; a genuine hang still fails at a window-appropriate
 bound, and your own `NOVA_AUTOPILOT_DEADLINE` overrides it. Every example's `main`
 returns `AppExit`, so a deadline expiry is a non-zero process exit the
 `process_exit` check reports. See the crate docs for the full knob list
 (`NOVA_PERF_*`).
 
-The perf sweep is the same front door: a scenario x preset matrix of the
-frame-time capture, one labeled `frametime.csv` row per cell, release-built
-(dev-profile frame numbers are not baselines):
+The perf sweep is the same front door: a preset matrix of the frame-time
+capture, one labeled `frametime.csv` row per cell, release-built (dev-profile
+frame numbers are not baselines):
 
 ```sh
-cargo run --features debug probe run scene_baseline --release \
-  --scenario asteroid_field --scenario broadside --preset high --preset low
-cargo run --features debug probe run scene_baseline --release --render sw ...  # lavapipe floor
+cargo run --features debug probe run stress_bullets --release --preset high --preset low
+cargo run --features debug probe run stress_bullets --release --render sw ...  # lavapipe floor
 cargo run --features debug probe run <scenario> --platform web   # web/WebGPU capture (scraped)
 ```
+
+`--scenario` has no host on the native side: it sets `NOVA_PERF_SCENARIO`,
+and no cataloged example reads it. Measuring a named SHIPPED scenario is
+UNDOCUMENTED until a `probe` subcommand loads one from its `.ron`. The web
+capture (`--platform web`) does still take a scenario id - `nova_perf_web`
+reads it from the URL.
 
 Every capture records run metadata (wgpu backend + GPU adapter, resolution,
 graphics preset, git SHA, host and - schema v3 - the BUILD PROFILE) so a

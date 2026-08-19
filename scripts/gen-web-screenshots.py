@@ -39,12 +39,10 @@ without any GPU-captured asset.
 Capturing the screenshots (needs a display + a GPU; use Xvfb + lavapipe headless)
 into the staging dir, then packaging them:
 
-    NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
-        cargo run --example screenshot_scene --features debug
-    NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
-        cargo run --example screenshot_ui --features debug
-    NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
-        cargo run --example screenshot_combat --features debug
+    for shot in $(python3 scripts/gen-web-screenshots.py --producers); do
+        NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
+            cargo run --example "$shot" --features debug
+    done
     python3 scripts/gen-web-screenshots.py            # stage -> web/src/assets
 
 Run from the repo root. Uses only the Python standard library (no Pillow), like
@@ -76,54 +74,49 @@ WEB_ASSETS = os.path.join(REPO_ROOT, "web", "src", "assets")
 # Shots not yet produced by an example are listed with example=None: the script
 # reports them as pending and skips them, so it stays useful as coverage grows.
 FIGURES = [
-    # name                         example
-    ("feature-gravity.png",        "screenshot_scene"),
-    ("wiki-gravity.png",           "screenshot_scene"),
-    ("wiki-sections.png",          "screenshot_scene"),
+    # name                              example
+    ("feature-gravity.png",             "screenshot_gravity"),
+    ("wiki-gravity.png",                "screenshot_gravity"),
+    ("wiki-sections.png",               "screenshot_hero_ship"),
     # The part-candidate viewer shows the seven body meshes before functional
     # modules are mounted by content. Used by the v0.10.0 release post.
     ("parts-viewer-racer-exploded.png", "parts_viewer"),
-    ("tutorial-menu.png",          "screenshot_ui"),
-    ("feature-editor.png",         "screenshot_ui"),
-    # The other two menu states the same walk drives: the Settings panel, and
-    # the Scenarios picker with a campaign's chapters indented under its header.
-    ("wiki-settings.png",          "screenshot_ui"),
-    ("news-090-scenario-campaigns.png", "screenshot_ui"),
-    ("feature-combat.png",         "screenshot_combat"),
-    ("tutorial-combat-lock.png",   "screenshot_combat"),
-    ("tutorial-radar-lock.png",    "screenshot_combat"),
-    ("feature-hud.png",            "screenshot_combat"),
-    ("feature-juice.png",          "screenshot_combat"),
-    # Own framed beats now, not aliases of the shots above.
-    ("wiki-combat.png",            "screenshot_combat"),
-    # The ordnance act ships two more figures on the combat wiki page: the salvo
-    # in flight under Torpedoes, and what the blast left under Damage types
-    # (owner's pick, 2026-08-05 - both variants were good, and the page has room
-    # for both).
-    ("wiki-combat-torpedo.png",    "screenshot_combat"),
-    ("wiki-combat-aftermath.png",  "screenshot_combat"),
-    ("wiki-hud.png",               "screenshot_combat"),
-    ("wiki-radar.png",             "screenshot_combat"),
-    ("news-090-combat-readability.png", "screenshot_combat"),
-    ("news-090-contextual-hud.png", "screenshot_combat"),
-    # The flight-computer set. `screenshot_combat` still opens on a GOTO across
-    # the field, but the autopilot beats are shot in `screenshot_flight`: it
-    # flies both verbs around a real well with a camera that flies the leg with
-    # the ship, which is the picture these three want (owner's pick,
-    # 2026-08-05, restoring the roster in the task's NOTES.md).
-    ("feature-autopilot.png",      "screenshot_flight"),
-    ("wiki-flight.png",            "screenshot_flight"),
-    ("tutorial-orbit.png",         "screenshot_flight"),
-    ("wiki-section-hull.png",      "screenshot_sections"),
-    ("wiki-section-controller.png", "screenshot_sections"),
-    ("wiki-section-thruster.png",  "screenshot_sections"),
-    ("wiki-section-turret.png",    "screenshot_sections"),
-    ("wiki-section-torpedo-bay.png", "screenshot_sections"),
-    # The ship computer: the terminal with output and an inline-completion ghost,
-    # then the ship app's schematic filling the same tube.
-    ("news-090-nova-os-terminal.png", "screenshot_nova_os"),
-    ("news-090-nova-os-apps.png",  "screenshot_nova_os"),
-    # devlog5-radar-stance-slots is built by COMPOSITES (below) from two shots.
+    ("tutorial-menu.png",               "screenshot_menu"),
+    # The other two menu states: the Settings panel over the menu, and the
+    # Scenarios picker with a campaign's chapters indented under its header.
+    ("wiki-settings.png",               "screenshot_menu"),
+    ("news-090-scenario-campaigns.png", "screenshot_scenario_picker"),
+    ("feature-editor.png",              "screenshot_editor"),
+    # The Rock hollow combat set, one producer per beat.
+    ("tutorial-radar-lock.png",         "screenshot_radar_lock"),
+    ("wiki-radar.png",                  "screenshot_radar_lock"),
+    ("news-090-contextual-hud.png",     "screenshot_contextual_hud"),
+    ("feature-combat.png",              "screenshot_combat_lock"),
+    ("tutorial-combat-lock.png",        "screenshot_combat_lock"),
+    ("feature-hud.png",                 "screenshot_combat_hud"),
+    ("wiki-hud.png",                    "screenshot_combat_hud"),
+    ("wiki-combat.png",                 "screenshot_combat_wide"),
+    ("news-090-combat-readability.png", "screenshot_combat_wide"),
+    ("feature-juice.png",               "screenshot_hull_juice"),
+    # The ordnance pair the combat wiki page carries under Torpedoes and
+    # Damage types: the salvo in flight, and what the blast left.
+    ("wiki-combat-torpedo.png",         "screenshot_torpedo_run"),
+    ("wiki-combat-aftermath.png",       "screenshot_torpedo_run"),
+    # The flight-computer set: the held ring, the departure burn, the flip.
+    ("tutorial-orbit.png",              "screenshot_orbit"),
+    ("feature-autopilot.png",           "screenshot_goto_burn"),
+    ("wiki-flight.png",                 "screenshot_flip_burn"),
+    # The section closeups: the parts that fly a ship, then the ones that
+    # fight with it.
+    ("wiki-section-controller.png",     "screenshot_section_frame"),
+    ("wiki-section-hull.png",           "screenshot_section_frame"),
+    ("wiki-section-thruster.png",       "screenshot_section_frame"),
+    ("wiki-section-turret.png",         "screenshot_section_weapons"),
+    ("wiki-section-torpedo-bay.png",    "screenshot_section_weapons"),
+    # The ship computer: the terminal with output and an inline-completion
+    # ghost, then the ship app's schematic filling the same tube.
+    ("news-090-nova-os-terminal.png",   "screenshot_nova_os_terminal"),
+    ("news-090-nova-os-apps.png",       "screenshot_nova_os_apps"),
 ]
 
 # Thumbnails are 16:9 too (the post cards size them at 300px wide).
@@ -739,6 +732,21 @@ def scenario_thumbnail_rows():
     ]
 
 
+def producers():
+    """Print each capture example the manifest names, once, in manifest order.
+
+    The capture flow reads its example list from HERE rather than from a
+    hand-kept shell array: a figure whose producer was renamed then fails to
+    be captured loudly, instead of quietly staying whatever was last copied
+    into web/src/assets."""
+    seen = []
+    for _name, example in FIGURES:
+        if example and example not in seen:
+            seen.append(example)
+    for example in seen:
+        print(example)
+
+
 def report(stage_dir):
     """Print the advisory coverage worklist. Runs no capture, never fails."""
     declared = manifest_owners()
@@ -792,7 +800,7 @@ def report_self_test():
     """Classification is rule-driven, so check the rules on a synthetic manifest:
     every reference gets an owner, and only the gaps become rows."""
     declared = {
-        "feature-hud.png": ("capturable", "screenshot_combat", True),
+        "feature-hud.png": ("capturable", "screenshot_combat_hud", True),
         "thumb-news-0.9.0.png": ("manual", "(hand-made art)", True),
         "icon-hull.png": ("manual", "(generated icon)", False),
     }
@@ -833,10 +841,16 @@ def main():
                         help="round-trip synthetic images through the PNG codec and exit")
     parser.add_argument("--report", action="store_true",
                         help="print the advisory image coverage worklist and exit 0 (copies nothing)")
+    parser.add_argument("--producers", action="store_true",
+                        help="print the capture examples the manifest names, one per line, and exit")
     args = parser.parse_args()
 
     if args.self_test:
         self_test()
+        return
+
+    if args.producers:
+        producers()
         return
 
     if args.report:

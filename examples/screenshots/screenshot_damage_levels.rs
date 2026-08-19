@@ -1,4 +1,4 @@
-//! damage_levels: the same ship at five damage levels, side by side.
+//! screenshot_damage_levels: the same ship at five damage levels, side by side.
 //!
 //! THE GATE for the erosion epic (task 20260813-224826, phase 2). Damage is now
 //! one number - the share of a body's own health that is gone - and every
@@ -47,7 +47,7 @@
 //!
 //! Hand-run:
 //! ```text
-//! cargo run --example damage_levels --features debug
+//! cargo run --example screenshot_damage_levels --features debug
 //! ```
 //! - `L` steps the camera along the row, framing one level at a time.
 //!
@@ -64,7 +64,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "damage_levels")]
+#[command(name = "screenshot_damage_levels")]
 #[command(version = "1.0.0")]
 #[command(about = "One ship at five damage levels, side by side. Autopilot-only: a posed row with no controls of its own", long_about = None)]
 struct Cli;

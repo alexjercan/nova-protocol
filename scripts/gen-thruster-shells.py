@@ -4,7 +4,7 @@
 Art candidates for the thruster-shell spike (tasks/20260816-200255/THRUSTERS.md
 section 2.5; candidates task 20260817-013639): recipe-generated drive shells
 (1x1 and larger display formats) in the cross-faction mechanical voice,
-judged in the `thruster_gallery` example. CANDIDATES ONLY - the output lands under
+judged in the `screenshot_thruster_gallery` example. CANDIDATES ONLY - the output lands under
 `art/part-candidates/shells/` (never shipped, like every other candidate);
 promotion into `assets/` with a `render_mesh` on the prototype is the
 follow-up, not this script.

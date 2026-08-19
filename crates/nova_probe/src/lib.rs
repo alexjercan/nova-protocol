@@ -55,9 +55,9 @@
 //!
 //! ```text
 //! Xvfb :95 -screen 0 1280x720x24 &
-//! NOVA_PERF=1 NOVA_PERF_SCENARIO=asteroid_field NOVA_PERF_LABEL=asteroid_field-gpu \
+//! NOVA_PERF=1 NOVA_PERF_LABEL=stress_bullets-gpu \
 //!   NOVA_PERF_OUT=/tmp/perf BEVY_ASSET_ROOT="$PWD" DISPLAY=:95 \
-//!   cargo run --release --example scene_baseline --features debug
+//!   cargo run --release --example stress_bullets --features debug
 //! # look for: `nova perf: label=... frames=... mean=..ms p99=..ms mean_fps=.. 1%low_fps=..`
 //! ```
 //!

@@ -1,4 +1,4 @@
-//! thruster_gallery: a named row of thruster LOOKS for the thruster-shell
+//! screenshot_thruster_gallery: a named row of thruster LOOKS for the thruster-shell
 //! spike (task 20260816-200255) - the current drive, the proposed shell size
 //! family, and the CC0 candidate models already imported under
 //! `art/part-candidates/`.
@@ -32,7 +32,7 @@
 //! Hand-run (free-fly with WASD; the roster idles on a slow orbit until the
 //! rig is touched):
 //! ```text
-//! cargo run --example thruster_gallery --features debug
+//! cargo run --example screenshot_thruster_gallery --features debug
 //! ```
 //!
 //! Two harnessed modes, the fleet's capture idiom:
@@ -55,7 +55,7 @@ use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "thruster_gallery")]
+#[command(name = "screenshot_thruster_gallery")]
 #[command(version = "1.0.0")]
 #[command(about = "A named row of thruster looks: today, the shell sizes, the candidates. Autopilot-only: a posed row with no controls of its own", long_about = None)]
 struct Cli;

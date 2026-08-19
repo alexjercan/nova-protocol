@@ -43,7 +43,7 @@ adds to the download whether or not the game loads it.
   recipe-generated thruster shell candidates - original work, regenerated with
   `scripts/gen-thruster-shells.py` (recipes in
   `scripts/thruster-shell-recipes/`), judged in
-  `examples/screenshots/thruster_gallery.rs` (task 20260817-013639). Not
+  `examples/screenshots/screenshot_thruster_gallery.rs` (task 20260817-013639). Not
   shipped; anything promoted into the game moves to `assets/` through the
   content builders.
 - `texture-candidates/` - texture candidates under evaluation (task

@@ -91,9 +91,9 @@ jobs:
       # `aggregate_exit` returns FAILURE on anything past OK/WARN/UNPROBEABLE
       # (UNPROBEABLE is the sanctioned no-probe-plugin opt-out, still gated on
       # its smoke checks), so this is a blocking gate. It REPLACED tests/examples_smoke.rs (task
-      # 20260805-185103 step 6): probe asserted a superset - it also grades
-      # scene_baseline, which the smoke suite skipped - and one verdict
-      # implementation beats two that could disagree.
+      # 20260805-185103 step 6): probe asserted a superset of what the smoke
+      # suite covered, and one verdict implementation beats two that could
+      # disagree.
       #
       # BLOCKING since 20260710-143138: the taffy panic (resolve.rs
       # unreachable, GitHub runners only) was observed deterministically on the
