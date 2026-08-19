@@ -232,7 +232,8 @@ path = "examples/systems/system_nova_os.rs"
 # And the STRESS ranges: the same correctness shape - exact counts, a
 # clear-and-drain assertion, a teardown that leaves nothing - staged at a scale
 # no content will ever reach, with a frame-time capture riding along. One file
-# per range, one subject each: rounds, ordnance, one huge body, many bodies.
+# per range, one subject each: rounds, ordnance, point defense working a stream
+# of it, one huge body, many bodies.
 [[example]]
 name = "stress_bullets"
 path = "examples/systems/stress_bullets.rs"
@@ -240,6 +241,10 @@ path = "examples/systems/stress_bullets.rs"
 [[example]]
 name = "stress_torpedoes"
 path = "examples/systems/stress_torpedoes.rs"
+
+[[example]]
+name = "stress_point_defense"
+path = "examples/systems/stress_point_defense.rs"
 
 [[example]]
 name = "stress_one_structure"

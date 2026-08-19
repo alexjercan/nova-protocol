@@ -45,9 +45,9 @@ pub mod prelude {
         scripted::ScriptedTorpedoOrder, torpedo_section, TorpedoArming, TorpedoBlast,
         TorpedoControllerMarker, TorpedoGuidance, TorpedoSectionConfig, TorpedoSectionConfigHelper,
         TorpedoSectionInput, TorpedoSectionPartOf, TorpedoSectionPlugin,
-        TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker, TorpedoSteering,
-        TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType,
-        TorpedoTypeConfig, TorpedoWeave,
+        TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker, TorpedoShotDownMarker,
+        TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
+        TorpedoType, TorpedoTypeConfig, TorpedoWeave,
     };
 }
 

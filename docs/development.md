@@ -207,12 +207,15 @@ What is on disk today, in reading order:
   rect, screen-to-image mapping, offscreen UI stack, `Activate` - is asserted
   live rather than one link at a time). Finally the STRESS ranges, one file
   each: `stress_bullets`,
-  `stress_torpedoes`, `stress_one_structure` and `stress_many_structures` hold
-  a thousand rounds, a thousand guided torpedoes, a thousand sections on one
+  `stress_torpedoes`, `stress_point_defense`, `stress_one_structure` and
+  `stress_many_structures` hold a thousand rounds, a thousand guided torpedoes,
+  one battery working a stream of inbound ordnance, a thousand sections on one
   body and a hundred bodies, each asserting exact counts, a drain to zero and a
   teardown that leaves nothing, with a frame-time capture riding along. Their
   scale constants are named and carry the comment that they must NEVER reflect
-  real content.
+  real content; `stress_point_defense` also reads `NOVA_STRESS_PD_MOUNTS` and
+  `NOVA_STRESS_PD_BAYS`, so one build can be swept across scales without
+  moving what it asserts.
   The UI idiom: a beat NAMES its target (`click_named` / `hover_named` /
   `ui_node_centre` / `ui_node_rect` in `nova_autopilot::input`) so a layout move
   is survivable and only a rename breaks a run; nothing reaches a widget by
