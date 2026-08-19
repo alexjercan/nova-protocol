@@ -253,7 +253,7 @@ mod tests {
         // CENTER (full containment - the hardest case).
         app.world_mut().spawn((
             EntityId::new("ship".to_string()),
-            EntityTypeName::new("spaceship".to_string()),
+            EntityTypeName::new(SPACESHIP_TYPE_NAME),
             RigidBody::Dynamic,
             Collider::sphere(0.5),
             ColliderDensity(1.0),
@@ -311,7 +311,7 @@ mod tests {
             .world_mut()
             .spawn((
                 EntityId::new("ship".to_string()),
-                EntityTypeName::new("spaceship".to_string()),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
                 RigidBody::Dynamic,
                 Collider::sphere(0.5),
                 ColliderDensity(1.0),
@@ -405,7 +405,7 @@ mod tests {
             .world_mut()
             .spawn((
                 EntityId::new("ship".to_string()),
-                EntityTypeName::new("spaceship".to_string()),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
                 RigidBody::Dynamic,
                 Transform::IDENTITY,
             ))

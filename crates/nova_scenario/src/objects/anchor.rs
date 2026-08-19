@@ -10,16 +10,13 @@ use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 
-/// The anchor scenario object: `AnchorConfig`, `ANCHOR_TYPE_NAME` and `AnchorPlugin`.
+/// The anchor scenario object: `AnchorConfig` and `AnchorPlugin`.
 pub mod prelude {
     pub use super::{
         anchor_scenario_object, AnchorBodyRadius, AnchorConfig, AnchorMarker, AnchorMass,
-        AnchorPlugin, ANCHOR_TYPE_NAME,
+        AnchorPlugin,
     };
 }
-
-/// The scenario/modding RON type name for an anchor object.
-pub const ANCHOR_TYPE_NAME: &str = "anchor";
 
 /// The scenario/modding RON surface for an anchor: the well geometry it
 /// publishes and the optional pull. Passed to [`anchor_scenario_object`].

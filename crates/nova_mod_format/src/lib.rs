@@ -27,6 +27,15 @@ pub mod deps;
 /// a fetched catalog, so old clients fail loud instead of misparsing.
 pub const PORTAL_SCHEMA_VERSION: u32 = 1;
 
+/// [`ModEntry::id`] of the base game's own bundle - the `base: true` entry, the
+/// implicit universal `dep://base` target, and the one mod a player cannot
+/// disable.
+///
+/// It lives in this engine-free crate because every side that special-cases it
+/// (the merge, the reference scope, the portal installer, the menu list, the
+/// offline lint) reaches this crate and nothing lower.
+pub const BASE_MOD_ID: &str = "base";
+
 /// A mod's SELF-DESCRIPTION, authored in its `*.bundle.ron` manifest - the
 /// Factorio `info.json` analog and the single source of truth for mod metadata
 /// (the menu list, the details panel, and the mod portal all read it).

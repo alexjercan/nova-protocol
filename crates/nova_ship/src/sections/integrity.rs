@@ -1846,7 +1846,7 @@ mod physics_tests {
 #[cfg(test)]
 mod ghost_ship_tests {
     use bevy_rand::prelude::*;
-    use nova_events::prelude::{EntityTypeName, GameEvent};
+    use nova_events::prelude::{EntityTypeName, GameEvent, SPACESHIP_TYPE_NAME};
     use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 
     use super::*;
@@ -1919,7 +1919,7 @@ mod ghost_ship_tests {
                 Transform::default(),
                 SpaceshipRootMarker,
                 EntityId::new("rig_ship"),
-                EntityTypeName::new("spaceship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
             ))
             .id()
     }

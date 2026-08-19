@@ -17,8 +17,8 @@ use crate::engine::*;
 pub mod engine;
 
 /// Glob-import surface: `use nova_events::prelude::*` brings the entity-identity
-/// components, every `On*Event`/`On*EventInfo` pair, the reflect-field name
-/// constants, and the event engine into scope.
+/// components, every `On*Event`/`On*EventInfo` pair, the reflect-field name and
+/// well-known type-name constants, and the event engine into scope.
 pub mod prelude {
     // NOTE: the derive expands to `impl EventKind for #name`, so the TRAIT must
     // be in scope wherever the derive is used. Keep the two exported together.
@@ -34,10 +34,11 @@ pub mod prelude {
         OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,
         OnOrbitEndEvent, OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnStartEvent,
         OnStartEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent,
-        OnTravelLockStartEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo,
-        ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
-        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
-        TIMER_KEY_FIELD_NAME,
+        OnTravelLockStartEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ANCHOR_TYPE_NAME,
+        ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, ENTITY_ID_COMPONENT_NAME,
+        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
+        ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME, SALVAGE_CRATE_TYPE_NAME,
+        SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME,
     };
 }
 
@@ -76,6 +77,24 @@ impl EntityTypeName {
         EntityTypeName(s.into())
     }
 }
+
+// The well-known type names live HERE, beside the component that carries them,
+// rather than beside the `nova_scenario` object that spawns each one. They are
+// a contract between the spawner and every reader, and a reader (`nova_os_ui`'s
+// map, `nova_gameplay`'s integrity tests) must not depend on `nova_scenario` to
+// name one. This crate is the floor both sides already stand on.
+/// [`EntityTypeName`] value for an authored anchor.
+pub const ANCHOR_TYPE_NAME: &str = "anchor";
+/// [`EntityTypeName`] value for an authored asteroid.
+pub const ASTEROID_TYPE_NAME: &str = "asteroid";
+/// [`EntityTypeName`] value for an authored beacon.
+pub const BEACON_TYPE_NAME: &str = "beacon";
+/// [`EntityTypeName`] value for an authored light.
+pub const LIGHT_TYPE_NAME: &str = "light";
+/// [`EntityTypeName`] value for an authored salvage crate.
+pub const SALVAGE_CRATE_TYPE_NAME: &str = "salvage_crate";
+/// [`EntityTypeName`] value for an authored spaceship.
+pub const SPACESHIP_TYPE_NAME: &str = "spaceship";
 
 /// Event kind fired once when a keyed scenario timer ends (`ontimerend`).
 #[derive(Debug, Clone, EventKind, Reflect)]

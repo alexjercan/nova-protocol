@@ -229,8 +229,19 @@ kind in the directory, split across three modules with two plugins, carrying no
 > lighting itself is authored content - a scenario with no `Light` object
 > renders black, so any new example or fixture that renders needs one.
 
-1. Create `crates/nova_scenario/src/objects/<kind>.rs`. It holds a config struct,
-   a type-name const, a marker component, a `<kind>_scenario_object(config) -> impl Bundle`
+1. Add the type-name const to `crates/nova_events/src/lib.rs`, beside
+   `EntityTypeName` and the other `*_TYPE_NAME` values, and export it from that
+   crate's prelude. It goes there, not beside the object, because a reader that
+   matches on it - `nova_os_ui`'s map, `nova_gameplay` - must not depend on
+   `nova_scenario` to name a kind (CONVENTIONS, Nova 5).
+
+   ```rust
+   /// [`EntityTypeName`] value for an authored mine.
+   pub const MINE_TYPE_NAME: &str = "mine";
+   ```
+
+2. Create `crates/nova_scenario/src/objects/<kind>.rs`. It holds a config struct,
+   a marker component, a `<kind>_scenario_object(config) -> impl Bundle`
    builder, and (optionally) a `Plugin` for any observers/systems the kind needs.
    The bundle carries the marker plus an `EntityTypeName`; the shared
    `base_scenario_object` (id, name, transform, visibility,
@@ -240,8 +251,6 @@ kind in the directory, split across three modules with two plugins, carrying no
    are static).
 
    ```rust
-   pub const MINE_TYPE_NAME: &str = "mine";
-
    #[derive(Component, Clone, Debug, Reflect)]
    pub struct MineMarker;
 
@@ -261,16 +270,16 @@ kind in the directory, split across three modules with two plugins, carrying no
    }
 
    pub mod prelude {
-       pub use super::{mine_scenario_object, MineConfig, MineMarker, MINE_TYPE_NAME};
+       pub use super::{mine_scenario_object, MineConfig, MineMarker};
    }
    ```
 
-2. Register the module in `crates/nova_scenario/src/objects/mod.rs`: add
+3. Register the module in `crates/nova_scenario/src/objects/mod.rs`: add
    `pub mod <kind>;`, re-export `<kind>::prelude::*` from the `mod.rs` prelude,
    and if the kind has a plugin add it in `ScenarioObjectsPlugin::build` (like
    `AsteroidPlugin`, which takes `render`).
 
-3. In `crates/nova_scenario/src/actions/spawn.rs` add the variant to
+4. In `crates/nova_scenario/src/actions/spawn.rs` add the variant to
    `ScenarioObjectKind` (grep for `enum ScenarioObjectKind`) and the spawn arm in
    `impl EventAction<NovaEventWorld> for ScenarioObjectConfig`:
 

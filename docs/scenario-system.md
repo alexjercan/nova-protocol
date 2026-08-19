@@ -679,7 +679,8 @@ them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
 - Filter: same pattern in `filters.rs` (`EventFilterConfig`).
 - Object: a module under `objects/` (config + bundle function, plugin in
   `objects/mod.rs`) plus a `ScenarioObjectKind` variant/match in
-  `actions/spawn.rs`.
+  `actions/spawn.rs`. Its `*_TYPE_NAME` const goes in `nova_events`, beside
+  `EntityTypeName`, so readers below `nova_scenario` can match on it.
 
 ## Find it in the code
 

@@ -254,7 +254,7 @@ mod tests {
     fn destroy(app: &mut App, id: &str) {
         let info = OnDestroyedEventInfo {
             id: id.to_string(),
-            type_name: "asteroid".to_string(),
+            type_name: ASTEROID_TYPE_NAME.to_string(),
         };
         app.world_mut()
             .run_system_once(move |mut commands: Commands| {

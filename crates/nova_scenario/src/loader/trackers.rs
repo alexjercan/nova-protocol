@@ -302,7 +302,7 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 EntityId::new("player"),
-                EntityTypeName::new("spaceship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
                 Autopilot::engage(AutopilotAction::Orbit {
                     well: old_well,
                     plan: None,
@@ -379,7 +379,7 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 EntityId::new("ship"),
-                EntityTypeName::new("spaceship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
                 Autopilot::engage(AutopilotAction::Orbit { well, plan: None }),
             ))
             .id();
@@ -477,7 +477,7 @@ mod tests {
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
                 EntityId::new("player"),
-                EntityTypeName::new("spaceship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
                 TravelLock(None),
                 CombatLock(None),
             ))
@@ -485,7 +485,7 @@ mod tests {
         app.world_mut().spawn((
             SpaceshipRootMarker,
             EntityId::new("ai"),
-            EntityTypeName::new("spaceship"),
+            EntityTypeName::new(SPACESHIP_TYPE_NAME),
             TravelLock(None),
             CombatLock(Some(old_target)),
         ));

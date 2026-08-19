@@ -30,7 +30,7 @@ pub mod prelude {
 
 use std::collections::{HashMap, HashSet};
 
-use nova_modding::prelude::Content;
+use nova_modding::prelude::{Content, BASE_MOD_ID};
 
 /// The reserved scheme for a ref to the owning mod's OWN folder.
 pub const SELF_SCHEME: &str = "self://";
@@ -97,7 +97,7 @@ impl RefScope<'_> {
             }
             // `base` is the implicit universal dependency: allowed without being
             // in `declared_deps`. Every other id must be declared.
-            if id != "base" && !self.declared_deps.contains(id) {
+            if id != BASE_MOD_ID && !self.declared_deps.contains(id) {
                 return None;
             }
             let base = self.deps.get(id)?.base?;
@@ -123,7 +123,7 @@ impl RefScope<'_> {
                 // `base` is the implicit universal dependency - `dep://base/X` is
                 // always allowed (base need not be in `meta.dependencies`). Every
                 // other id must be a declared dependency.
-                if id != "base" && !self.declared_deps.contains(id) {
+                if id != BASE_MOD_ID && !self.declared_deps.contains(id) {
                     return Some(format!(
                         "references resource '{DEP_SCHEME}{id}/{file}' but '{id}' is not a \
                          declared dependency - add '{id}' to the bundle manifest's \

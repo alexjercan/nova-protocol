@@ -6,7 +6,7 @@ use bevy::{
     state::app::StatesPlugin,
     ui::{ComputedNode, UiGlobalTransform},
 };
-use nova_events::prelude::EntityTypeName;
+use nova_events::prelude::{EntityTypeName, ASTEROID_TYPE_NAME};
 use nova_ship::prelude::*;
 
 use super::{app::*, contacts::*, scene::*, *};
@@ -90,7 +90,7 @@ fn scripted_world() -> (World, Entity, Entity) {
         GlobalTransform::from(Transform::from_xyz(50.0, 0.0, 0.0)),
     ));
     world.spawn((
-        EntityTypeName::new("asteroid"),
+        EntityTypeName::new(ASTEROID_TYPE_NAME),
         GlobalTransform::from(Transform::from_xyz(0.0, 0.0, 60.0)),
     ));
     (world, player, raider)
@@ -167,7 +167,7 @@ fn crowded_world() -> World {
     }
     for x in [30.0, 70.0] {
         world.spawn((
-            EntityTypeName::new("asteroid"),
+            EntityTypeName::new(ASTEROID_TYPE_NAME),
             GlobalTransform::from(Transform::from_xyz(x, 0.0, 0.0)),
         ));
     }

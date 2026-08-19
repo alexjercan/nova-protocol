@@ -28,12 +28,9 @@ pub mod prelude {
         asteroid_scenario_object, asteroid_seed_from_id, AsteroidConfig, AsteroidInvulnerable,
         AsteroidMarker, AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh,
         AsteroidSeed, AsteroidTexture, PlanetHeight, PlanetHeightNoise,
-        ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
+        ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
     };
 }
-
-/// The scenario/modding RON type name for an asteroid object.
-pub const ASTEROID_TYPE_NAME: &str = "asteroid";
 
 /// The scenario/modding RON surface for an asteroid object: a noise-generated
 /// rock with geometry-owned durability, textures, sounds, and optional gravity and

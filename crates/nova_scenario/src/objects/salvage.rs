@@ -13,17 +13,10 @@ use nova_hud::prelude::*;
 
 use crate::prelude::*;
 
-/// The salvage-crate scenario object, its config, `SALVAGE_CRATE_TYPE_NAME` and
-/// `SalvageCratePlugin`.
+/// The salvage-crate scenario object, its config and `SalvageCratePlugin`.
 pub mod prelude {
-    pub use super::{
-        salvage_crate_scenario_object, SalvageCrateConfig, SalvageCratePlugin,
-        SALVAGE_CRATE_TYPE_NAME,
-    };
+    pub use super::{salvage_crate_scenario_object, SalvageCrateConfig, SalvageCratePlugin};
 }
-
-/// The scenario/modding RON type name for a salvage crate object.
-pub const SALVAGE_CRATE_TYPE_NAME: &str = "salvage_crate";
 
 /// Tumble rate (radians/second) of the crate's render child.
 const CRATE_TUMBLE_RAD_PER_SEC: f32 = 0.6;
@@ -392,7 +385,7 @@ mod tests {
         // pickup volume.
         app.world_mut().spawn((
             EntityId::new("player_spaceship".to_string()),
-            EntityTypeName::new("spaceship".to_string()),
+            EntityTypeName::new(SPACESHIP_TYPE_NAME),
             RigidBody::Dynamic,
             Collider::sphere(0.5),
             ColliderDensity(1.0),

@@ -14,6 +14,10 @@ use bevy::prelude::*;
 use nova_assets::prelude::*;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_scenario::prelude::*;
+use nova_ship::prelude::{
+    BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID, LIGHT_HULL_SECTION_ID,
+    PDC_KINETIC_TURRET_SECTION_ID, REINFORCED_HULL_SECTION_ID,
+};
 
 use crate::config::PlayerSpaceshipConfig;
 
@@ -309,11 +313,11 @@ fn target_hulk(index: usize, position: Vec3) -> ScenarioObjectConfig {
             controller: SpaceshipController::None,
             hull: ShipSource::Inline(ShipHull {
                 sections: vec![
-                    hull("spine", Vec3::ZERO, "reinforced_hull_section"),
-                    hull("bow", Vec3::new(0.0, 0.0, -1.0), "light_hull_section"),
-                    hull("stern", Vec3::new(0.0, 0.0, 1.0), "light_hull_section"),
-                    hull("port", Vec3::new(-1.0, 0.0, 0.0), "light_hull_section"),
-                    hull("starboard", Vec3::new(1.0, 0.0, 0.0), "light_hull_section"),
+                    hull("spine", Vec3::ZERO, REINFORCED_HULL_SECTION_ID),
+                    hull("bow", Vec3::new(0.0, 0.0, -1.0), LIGHT_HULL_SECTION_ID),
+                    hull("stern", Vec3::new(0.0, 0.0, 1.0), LIGHT_HULL_SECTION_ID),
+                    hull("port", Vec3::new(-1.0, 0.0, 0.0), LIGHT_HULL_SECTION_ID),
+                    hull("starboard", Vec3::new(1.0, 0.0, 0.0), LIGHT_HULL_SECTION_ID),
                 ],
                 ..default()
             }),
@@ -362,25 +366,25 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
                         "controller",
                         Vec3::ZERO,
                         Quat::IDENTITY,
-                        "basic_controller_section",
+                        BASIC_CONTROLLER_SECTION_ID,
                     ),
                     section(
                         "hull_front",
                         Vec3::new(0.0, 0.0, 1.0),
                         Quat::IDENTITY,
-                        "reinforced_hull_section",
+                        REINFORCED_HULL_SECTION_ID,
                     ),
                     section(
                         "hull_back",
                         Vec3::new(0.0, 0.0, -1.0),
                         Quat::IDENTITY,
-                        "reinforced_hull_section",
+                        REINFORCED_HULL_SECTION_ID,
                     ),
                     section(
                         "thruster",
                         Vec3::new(0.0, 0.0, 2.0),
                         Quat::IDENTITY,
-                        "basic_thruster_section",
+                        BASIC_THRUSTER_SECTION_ID,
                     ),
                     section(
                         "turret",
@@ -388,7 +392,7 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
                         // bolts down by its base plate a quarter-cell in.
                         Vec3::new(0.0, 0.0, -1.75),
                         Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                        "pdc_kinetic_turret_section",
+                        PDC_KINETIC_TURRET_SECTION_ID,
                     ),
                 ],
                 ..default()

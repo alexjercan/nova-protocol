@@ -27,12 +27,9 @@ pub mod prelude {
     pub use super::{
         spaceship_scenario_object, AIControllerConfig, PlayerControllerConfig, SectionId,
         SectionSource, SpaceshipConfig, SpaceshipController, SpaceshipHull, SpaceshipModifications,
-        SpaceshipPlugin, SpaceshipSectionConfig, SPACESHIP_TYPE_NAME,
+        SpaceshipPlugin, SpaceshipSectionConfig,
     };
 }
-
-/// The scenario/modding RON type name for a spaceship object.
-pub const SPACESHIP_TYPE_NAME: &str = "spaceship";
 
 /// Who drives a spaceship scenario object: nobody, the [`PlayerControllerConfig`]
 /// player, or an [`AIControllerConfig`] bot. Authored in [`SpaceshipConfig`] and

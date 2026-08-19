@@ -210,11 +210,11 @@ pub(crate) fn create_new_spaceship(
     sections: Res<GameSections>,
     player_config: Res<PlayerSpaceshipConfig>,
 ) {
-    let Some(section) = required_section(&sections, "reinforced_hull_section") else {
+    let Some(section) = required_section(&sections, REINFORCED_HULL_SECTION_ID) else {
         return;
     };
     if !matches!(section.kind, SectionKind::Hull(_)) {
-        warn!("editor: 'reinforced_hull_section' is not a hull section - skipping");
+        warn!("editor: '{REINFORCED_HULL_SECTION_ID}' is not a hull section - skipping");
         return;
     }
     reset_preview_to_seed(
@@ -233,11 +233,11 @@ pub(crate) fn create_new_spaceship_with_controller(
     sections: Res<GameSections>,
     player_config: Res<PlayerSpaceshipConfig>,
 ) {
-    let Some(section) = required_section(&sections, "basic_controller_section") else {
+    let Some(section) = required_section(&sections, BASIC_CONTROLLER_SECTION_ID) else {
         return;
     };
     if !matches!(section.kind, SectionKind::Controller(_)) {
-        warn!("editor: 'basic_controller_section' is not a controller section - skipping");
+        warn!("editor: '{BASIC_CONTROLLER_SECTION_ID}' is not a controller section - skipping");
         return;
     }
     reset_preview_to_seed(
@@ -1017,7 +1017,9 @@ mod tests {
     #[test]
     fn a_retyped_seed_section_skips_instead_of_panicking() {
         let mut app = App::new();
-        app.insert_resource(GameSections(vec![turret_config("reinforced_hull_section")]));
+        app.insert_resource(GameSections(vec![turret_config(
+            REINFORCED_HULL_SECTION_ID,
+        )]));
         app.insert_resource(PlayerSpaceshipConfig::default());
         app.add_observer(create_new_spaceship);
         let button = app.world_mut().spawn_empty().id();
@@ -1039,7 +1041,7 @@ mod tests {
     #[test]
     fn a_present_seed_section_builds_the_preview_ship() {
         let mut app = App::new();
-        app.insert_resource(GameSections(vec![hull_config("reinforced_hull_section")]));
+        app.insert_resource(GameSections(vec![hull_config(REINFORCED_HULL_SECTION_ID)]));
         app.insert_resource(PlayerSpaceshipConfig::default());
         app.add_observer(create_new_spaceship);
         let button = app.world_mut().spawn_empty().id();

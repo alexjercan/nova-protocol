@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use nova_mod_format::BundleManifest;
+use nova_mod_format::{BundleManifest, BASE_MOD_ID};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     lint_campaign, lint_scenario, lint_ship_config, CampaignConfig, EventActionConfig,
@@ -166,7 +166,7 @@ fn bundle_dirs(parent: &Path) -> Vec<(String, PathBuf)> {
 /// Every bundle in the repo tree, base first.
 fn walk_repo_bundles() -> Vec<WalkedBundle> {
     let root = workspace_root();
-    let mut bundles = vec![read_bundle("base", &root.join("assets/base"))];
+    let mut bundles = vec![read_bundle(BASE_MOD_ID, &root.join("assets/base"))];
     for (id, dir) in bundle_dirs(&root.join("assets/mods")) {
         bundles.push(read_bundle(&id, &dir));
     }
@@ -196,7 +196,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // dependencies' ('base' is implicit and never declared). Full
     // configs, so the catalog can classify mount kinds.
     let mut visible: Vec<&SectionConfig> = sections_by_bundle
-        .get("base")
+        .get(BASE_MOD_ID)
         .map(|s| s.iter().collect())
         .unwrap_or_default();
     for dep in &bundle.manifest.meta.dependencies {
@@ -214,7 +214,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         .map(|b| (b.id.as_str(), b.ships.as_slice()))
         .collect();
     let mut visible_ships: Vec<&ShipConfig> = ships_by_bundle
-        .get("base")
+        .get(BASE_MOD_ID)
         .map(|s| s.iter().collect())
         .unwrap_or_default();
     for dep in &bundle.manifest.meta.dependencies {
@@ -272,9 +272,9 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // `base` is the implicit universal `dep://base` target: supply it from the
     // walked set so `dep://base/X` validates without a `meta.dependencies`
     // entry. (`base: None` - the static lint validates but never rewrites.)
-    if let Some(base_bundle) = bundles_by_id.get("base") {
+    if let Some(base_bundle) = bundles_by_id.get(BASE_MOD_ID) {
         dep_refs.insert(
-            "base".to_string(),
+            BASE_MOD_ID.to_string(),
             nova_assets::mod_refs::DepRef {
                 base: None,
                 resources: Some(base_bundle.manifest.resources.as_slice()),
@@ -282,7 +282,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         );
     }
     for dep_id in &bundle.manifest.meta.dependencies {
-        if dep_id == "base" {
+        if dep_id == BASE_MOD_ID {
             continue;
         }
         if let Some(dep_bundle) = bundles_by_id.get(dep_id.as_str()) {
@@ -409,7 +409,7 @@ pub fn resolve_target(arg: &str) -> Option<PathBuf> {
         return Some(direct);
     }
     let root = workspace_root();
-    if arg == "base" {
+    if arg == BASE_MOD_ID {
         return Some(root.join("assets/base"));
     }
     for parent in ["webmods", "assets/mods"] {

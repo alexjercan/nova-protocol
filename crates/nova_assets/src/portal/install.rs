@@ -10,7 +10,7 @@ use std::{
 
 use bevy::{platform::time::Instant, prelude::*};
 use nova_mod_format::PortalEntry;
-use nova_modding::prelude::InstalledCatalog;
+use nova_modding::prelude::{InstalledCatalog, BASE_MOD_ID};
 
 use super::{
     catalog::{RemoteCatalog, RemoteCatalogState},
@@ -476,7 +476,7 @@ pub(super) fn on_install_portal_mod(
     // Fail fast if any transitive dependency is neither installed nor in the
     // portal (`base` is implicit and always shipped).
     for dep in &needed {
-        if dep == "base" || is_installed(dep) {
+        if dep == BASE_MOD_ID || is_installed(dep) {
             continue;
         }
         if !catalog.entries.iter().any(|e| &e.id == dep) {
@@ -498,7 +498,7 @@ pub(super) fn on_install_portal_mod(
     // player enables this mod (on_mod_toggle warns about the uninstalled dep),
     // not silently. A true atomic dependency-set install is a possible follow-up.
     for dep in &needed {
-        if dep == "base" || is_installed(dep) {
+        if dep == BASE_MOD_ID || is_installed(dep) {
             continue;
         }
         // Record the dependency under THIS mod's id too. The dep's own job is

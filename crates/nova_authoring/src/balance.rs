@@ -37,6 +37,7 @@ use std::collections::HashMap;
 
 use bevy::math::Vec3;
 use nova_gameplay::prelude::Allegiance;
+use nova_mod_format::BASE_MOD_ID;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{SectionConfig, SectionKind};
 
@@ -604,10 +605,13 @@ pub fn audit_bundles_to_audits(
     let by_id: HashMap<&str, &crate::lint_walk::AuditBundle> =
         bundles.iter().map(|b| (b.id.as_str(), b)).collect();
     let base: &[SectionConfig] = by_id
-        .get("base")
+        .get(BASE_MOD_ID)
         .map(|b| b.sections.as_slice())
         .unwrap_or(&[]);
-    let base_ships: &[ShipConfig] = by_id.get("base").map(|b| b.ships.as_slice()).unwrap_or(&[]);
+    let base_ships: &[ShipConfig] = by_id
+        .get(BASE_MOD_ID)
+        .map(|b| b.ships.as_slice())
+        .unwrap_or(&[]);
 
     let mut audits = Vec::new();
     for bundle in bundles {
@@ -615,7 +619,7 @@ pub fn audit_bundles_to_audits(
         // the bundle's own sections win last (the runtime merge's order).
         let mut layers: Vec<&[SectionConfig]> = vec![base];
         for dep in &bundle.dependencies {
-            if dep != "base" {
+            if dep != BASE_MOD_ID {
                 if let Some(dep_bundle) = by_id.get(dep.as_str()) {
                     layers.push(dep_bundle.sections.as_slice());
                 }
@@ -626,7 +630,7 @@ pub fn audit_bundles_to_audits(
         // The same overlay again for the ships a scenario spawns by id.
         let mut ship_layers: Vec<&[ShipConfig]> = vec![base_ships];
         for dep in &bundle.dependencies {
-            if dep != "base" {
+            if dep != BASE_MOD_ID {
                 if let Some(dep_bundle) = by_id.get(dep.as_str()) {
                     ship_layers.push(dep_bundle.ships.as_slice());
                 }

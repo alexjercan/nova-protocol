@@ -87,6 +87,16 @@ pub struct SpaceshipInputSystems;
 5. Prototype, scenario, style and asset ids are runtime STRINGS. Nothing
    type-checks them, so renaming one compiles clean and fails at load. Grep
    every id you rename - examples included - and RUN what you changed.
+   An id a SECOND crate names is a `const`, and it lives in the LOWEST crate
+   both already depend on. Never reach it by adding a dependency edge - move
+   the constant DOWN and let the owner import it back up. Today that is
+   `nova_events` for `EntityTypeName` values, `nova_mod_format` for
+   `BASE_MOD_ID`, and `nova_ship::sections::catalog_ids` for base section
+   prototypes. An id with no cross-crate Rust consumer stays a literal beside
+   the builder that authors it - that entry bar is what keeps those three from
+   becoming dumping grounds. `examples/` and `crates/*/tests/` keep literals:
+   a probe run and `content lint` already go red when one drifts, which is the
+   detection shipped code does not have.
 
 ## Comments and rustdoc
 

@@ -10,7 +10,7 @@ use nova_ship::prelude::*;
 
 use crate::base_content::{
     assets::BaseContentAssets,
-    sections::{ordnance, PDC_KINETIC_SECTION_ID, PDC_MOUNT_OFFSET},
+    sections::{ordnance, PDC_MOUNT_OFFSET},
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -128,7 +128,7 @@ pub(super) const fn part(
 pub(super) const fn module(id: &'static str, center: Vec3, role: PartRole) -> PartSpec {
     PartSpec {
         id,
-        prototype: PDC_KINETIC_SECTION_ID,
+        prototype: PDC_KINETIC_TURRET_SECTION_ID,
         mesh: None,
         origin: center,
         bbox_min: v(-PDC_MOUNT_OFFSET, -PDC_MOUNT_OFFSET, -PDC_MOUNT_OFFSET),

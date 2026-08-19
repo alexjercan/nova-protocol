@@ -235,7 +235,7 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 EntityId::new("rig_ship"),
-                EntityTypeName::new("spaceship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
             ))
             .id();
         let weapon_ents = (0..weapons)

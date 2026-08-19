@@ -12,7 +12,7 @@ pub mod prelude {
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
-use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog};
+use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{GameCampaigns, GameScenarios, GameShips, NewGameStart, ShipConfig};
 use nova_ship::prelude::*;
 
@@ -177,9 +177,9 @@ pub fn register_bundles(
         // supply it so `dep://base/X` resolves and is membership-checked without a
         // `meta.dependencies` entry. Any explicit `base` in `meta.dependencies` is
         // subsumed here (and skipped below).
-        if let Some(base_bundle) = by_id.get("base").and_then(|h| bundles.get(*h)) {
+        if let Some(base_bundle) = by_id.get(BASE_MOD_ID).and_then(|h| bundles.get(*h)) {
             dep_refs.insert(
-                "base".to_string(),
+                BASE_MOD_ID.to_string(),
                 mod_refs::DepRef {
                     base: Some(base_bundle.resource_base.as_str()),
                     resources: Some(base_bundle.resources.as_slice()),
@@ -187,7 +187,7 @@ pub fn register_bundles(
             );
         }
         for dep_id in &bundle.meta.dependencies {
-            if dep_id == "base" {
+            if dep_id == BASE_MOD_ID {
                 continue;
             }
             if let Some(dep_bundle) = by_id.get(dep_id.as_str()).and_then(|h| bundles.get(*h)) {

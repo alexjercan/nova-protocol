@@ -6,6 +6,7 @@ use nova_gameplay::gravity::prelude::NovaGravitySystems;
 
 pub mod ammo;
 pub mod base_section;
+pub mod catalog_ids;
 pub mod clearance;
 pub mod controller_section;
 pub mod damage_cracks;
@@ -30,7 +31,7 @@ pub mod turret_section;
 /// `SpaceshipSectionPlugin` with `SpaceshipSectionSystems`.
 pub mod prelude {
     pub use super::{
-        ammo::prelude::*, base_section::prelude::*, clearance::prelude::*,
+        ammo::prelude::*, base_section::prelude::*, catalog_ids::prelude::*, clearance::prelude::*,
         controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
         damage_plume::prelude::*, damage_sparks::prelude::*, fixture::prelude::*,
         hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,

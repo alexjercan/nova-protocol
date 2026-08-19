@@ -7,7 +7,7 @@
 //! Touch this module when adding a kind of thing the map can show.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
-use nova_events::prelude::{EntityId, EntityTypeName};
+use nova_events::prelude::{EntityId, EntityTypeName, ASTEROID_TYPE_NAME};
 use nova_gameplay::prelude::*;
 use nova_hud::allegiance_markers::allegiance_color;
 use nova_os::prelude::*;
@@ -256,7 +256,7 @@ impl MapContacts<'_, '_> {
             out.push((entity, MapContactKind::Objective, self.sort_key(entity)));
         }
         for (entity, _, type_name) in &self.terrain {
-            if type_name.0 != "asteroid" {
+            if type_name.0 != ASTEROID_TYPE_NAME {
                 continue;
             }
             out.push((entity, MapContactKind::Terrain, self.sort_key(entity)));
@@ -363,7 +363,7 @@ impl MapContacts<'_, '_> {
             });
         }
         for (entity, gt, type_name) in &self.terrain {
-            if type_name.0 != "asteroid" {
+            if type_name.0 != ASTEROID_TYPE_NAME {
                 continue;
             }
             let world_pos = gt.translation();

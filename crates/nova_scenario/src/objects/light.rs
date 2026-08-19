@@ -13,12 +13,8 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         aimed_light_base, light_scenario_object, LightConfig, LightPlugin, ThreePointRig,
-        LIGHT_TYPE_NAME,
     };
 }
-
-/// The scenario/modding RON type name for a light object.
-pub const LIGHT_TYPE_NAME: &str = "light";
 
 /// The scenario/modding RON surface for a light. Position and rotation come from
 /// [`BaseScenarioObjectConfig`] like any other scenario object; this picks the

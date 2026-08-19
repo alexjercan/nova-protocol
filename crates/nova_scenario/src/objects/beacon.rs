@@ -13,13 +13,10 @@ use nova_ship::prelude::*;
 
 use crate::prelude::*;
 
-/// The beacon scenario object, `BeaconConfig`, `BEACON_TYPE_NAME` and `BeaconPlugin`.
+/// The beacon scenario object, `BeaconConfig` and `BeaconPlugin`.
 pub mod prelude {
-    pub use super::{beacon_scenario_object, BeaconConfig, BeaconPlugin, BEACON_TYPE_NAME};
+    pub use super::{beacon_scenario_object, BeaconConfig, BeaconPlugin};
 }
-
-/// The scenario/modding RON type name for a beacon object.
-pub const BEACON_TYPE_NAME: &str = "beacon";
 
 /// The lock scanner sees a beacon like a well-sized rock: a nav point is
 /// exactly the thing the player locks to GOTO, so it must be acquirable

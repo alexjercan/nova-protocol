@@ -10,6 +10,7 @@ use nova_assets::prelude::{
     DownloadedMods, EnabledMods, FetchPortalCatalog, InstallJobs, ModCatalog, ModInfo, ModMeta,
     PortalEntry, RemoteCatalog, RemoteCatalogState,
 };
+use nova_mod_format::BASE_MOD_ID;
 use nova_ui::{
     prelude::UiSkin,
     theme,
@@ -176,7 +177,7 @@ pub(crate) fn spawn_mod_row(
             // The base pack cannot be disabled - a muted badge, not a checkbox.
             row.spawn((
                 Name::new("Mod Base Badge"),
-                badge(BadgeKind::Mute, "base", skin),
+                badge(BadgeKind::Mute, BASE_MOD_ID, skin),
             ));
         } else {
             // The shared `checkbox` widget; still a `Button` + `MenuSfxButton` so
@@ -825,7 +826,7 @@ pub(crate) fn on_mod_toggle(
             }
         };
         for dep in deps {
-            if dep == "base" {
+            if dep == BASE_MOD_ID {
                 continue; // base is implicit, always on
             }
             if !graph.contains_key(&dep) {

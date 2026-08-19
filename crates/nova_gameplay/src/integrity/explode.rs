@@ -399,7 +399,7 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 EntityId::new("ship"),
-                EntityTypeName::new("spaceship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
             ))
             .id();
 
@@ -432,7 +432,7 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 EntityId::new("raider"),
-                EntityTypeName::new("spaceship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
             ))
             .id();
 
@@ -458,7 +458,7 @@ mod tests {
                 SpaceshipRootMarker,
                 DefeatedMarker,
                 EntityId::new("wreck"),
-                EntityTypeName::new("spaceship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
             ))
             .id();
 

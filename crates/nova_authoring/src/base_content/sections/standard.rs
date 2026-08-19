@@ -70,13 +70,6 @@ const PIERCE_PDC_BULLET_DAMAGE: f32 = KINETIC_PDC_BULLET_DAMAGE * 0.5;
 /// the rest of it, where a unit-cube turret replaces the face outright.
 const PDC_TURRET_SIZE: f32 = 0.5;
 
-/// The catalog id of the one turret every shipped craft mounts.
-///
-/// The ship builders name it rather than spelling the string, because a mount
-/// is no longer a per-craft part: the same prototype bolts onto the cargoa's
-/// nose cheeks, the cargob's pod shoulders and any hull face a builder picks.
-pub(crate) const PDC_KINETIC_SECTION_ID: &str = "pdc_kinetic_turret_section";
-
 /// How far the shared PDC's base socket sits from the mount's own centre.
 ///
 /// A mount bolts down by its base plate, so this is the ONLY offset a host
@@ -307,7 +300,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
     let sections = vec![
         SectionConfig {
             base: BaseSectionConfig {
-                id: "reinforced_hull_section".to_string(),
+                id: REINFORCED_HULL_SECTION_ID.to_string(),
                 // Material and nothing else, so the damage reads in the
                 // surface: it cracks, and its cladding leaves plate by plate.
                 damage_effects: DamageEffects(vec![DamageEffect::Cracks]),
@@ -328,7 +321,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         },
         SectionConfig {
             base: BaseSectionConfig {
-                id: "basic_thruster_section".to_string(),
+                id: BASIC_THRUSTER_SECTION_ID.to_string(),
                 // A drive is machinery and a bell: it sparks and its
                 // plume guts, and it never loses a piece of itself.
                 damage_effects: DamageEffects(vec![
@@ -370,7 +363,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         },
         SectionConfig {
             base: BaseSectionConfig {
-                id: "basic_controller_section".to_string(),
+                id: BASIC_CONTROLLER_SECTION_ID.to_string(),
                 damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
                 name: "Basic Controller Section".to_string(),
                 description: "A basic controller section for spaceships.".to_string(),
@@ -407,7 +400,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         },
         SectionConfig {
             base: BaseSectionConfig {
-                id: "light_hull_section".to_string(),
+                id: LIGHT_HULL_SECTION_ID.to_string(),
                 damage_effects: DamageEffects::default(),
                 name: "Light Hull Section".to_string(),
                 description: "A thin-walled hull section; scavenger grade.".to_string(),
@@ -428,7 +421,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         },
         pdc_turret_prototype(
             meshes,
-            PDC_KINETIC_SECTION_ID,
+            PDC_KINETIC_TURRET_SECTION_ID,
             "PDC Turret (Kinetic)",
             "A compact point-defense mount that fits any hull face. Slugs: the \
              hardest single hit, harder still on a charge, and they stop at \

@@ -45,7 +45,7 @@ use bevy::{
 // NOTE: the pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
-pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta};
+pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BASE_MOD_ID};
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipConfig};
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use serde::{Deserialize, Serialize};
@@ -56,7 +56,7 @@ pub mod prelude {
     pub use super::{
         BundleAsset, BundleAssetLoader, BundleManifest, CatalogEntry, CatalogLoader,
         CatalogManifest, Content, ContentAsset, ContentAssetLoader, InstalledCatalog, ModEntry,
-        ModMeta, ModdingLoaderError, NovaModdingPlugin,
+        ModMeta, ModdingLoaderError, NovaModdingPlugin, BASE_MOD_ID,
     };
 }
 
