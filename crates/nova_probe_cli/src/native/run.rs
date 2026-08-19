@@ -46,10 +46,11 @@ const RUN_ARTIFACTS: [&str; 12] = [
     "checks.json",
 ];
 
-/// The sweep-cell logs already in `out`. They are NUMBERED, so they cannot be
-/// listed in [`RUN_ARTIFACTS`] - and `RunArtifacts::load` globs and
-/// concatenates exactly this set, so a previous sweep's cell logs present as
-/// this run's evidence unless `clean_out_dir` removes them too.
+/// The NUMBERED logs already in `out` - a sweep's cells (`run-<i>.log`) and a
+/// repeat set's captures (`fps-run-<i>.log`). They cannot be listed in
+/// [`RUN_ARTIFACTS`] - and `RunArtifacts::load` globs and concatenates exactly
+/// this set, so a previous run's numbered logs present as this run's evidence
+/// unless `clean_out_dir` removes them too.
 fn stale_cell_logs(out: &Path) -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(out) else {
         return Vec::new();
@@ -59,7 +60,10 @@ fn stale_cell_logs(out: &Path) -> Vec<PathBuf> {
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("run-") && name.ends_with(".log"))
+                .is_some_and(|name| {
+                    (name.starts_with("run-") || name.starts_with("fps-run-"))
+                        && name.ends_with(".log")
+                })
         })
         .collect()
 }
@@ -274,48 +278,77 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     ) {
         let record = match pass {
             NativePass::FrameTime => {
-                eprintln!(
-                    "probe: fps pass: capture-only -> {}",
-                    out.join("fps-run.log").display()
-                );
-                // NOVA_PERF_CONTRACT too: the CLEAN pass owns probe-contract.json,
-                // and letting the fps pass rewrite it makes the report's "what the
-                // example wired" half describe the wrong run the moment the two
-                // passes diverge.
-                let mut env = clean_pass_env(&root, &out, &display, true);
-                env.retain(|(k, _)| {
-                    !matches!(
-                        k.as_str(),
-                        "NOVA_PERF_TIMELINE" | "NOVA_PERF_INVARIANTS" | "NOVA_PERF_CONTRACT"
-                    )
-                });
-                // The baseline capture window + a completion deadline SIZED to
-                // it, so a slow-but-progressing capture (a heavy dev scene under
-                // software rendering) completes instead of tripping the flat
-                // 120s hang detector.
-                let (window_env, deadline_secs) = fps_window_and_deadline_env();
-                env.extend(window_env);
-                // The supervisor timeout MUST exceed the in-process deadline,
-                // or probe kills the child before the deadline can complete or
-                // report; keep the operator's --timeout if it is larger.
-                let fps_timeout = Duration::from_secs((deadline_secs + 30).max(opts.timeout_secs));
-                eprintln!("probe: fps pass deadline {deadline_secs}s (window-sized)");
-                let outcome = run_supervised(
-                    &bin,
-                    &args,
-                    &root,
-                    &env,
-                    &out.join("fps-run.log"),
-                    fps_timeout,
-                )?;
-                if !outcome.success() {
-                    eprintln!("probe: fps pass did not succeed; the report will say so");
+                // One capture, or a repeat set. Each repeat is a whole
+                // separate process: a within-process repeat would share the
+                // warmed caches and the thermal state that make repeats worth
+                // taking in the first place.
+                for repeat in 1..=opts.repeat {
+                    let (log_name, label) = if opts.repeat > 1 {
+                        (
+                            format!("fps-run-{repeat}.log"),
+                            Some(repeat_label(&opts.example, repeat)),
+                        )
+                    } else {
+                        ("fps-run.log".to_string(), None)
+                    };
+                    eprintln!(
+                        "probe: fps pass{}: capture-only -> {}",
+                        if opts.repeat > 1 {
+                            format!(" {repeat}/{}", opts.repeat)
+                        } else {
+                            String::new()
+                        },
+                        out.join(&log_name).display()
+                    );
+                    // NOVA_PERF_CONTRACT too: the CLEAN pass owns probe-contract.json,
+                    // and letting the fps pass rewrite it makes the report's "what the
+                    // example wired" half describe the wrong run the moment the two
+                    // passes diverge.
+                    let mut env = clean_pass_env(&root, &out, &display, true);
+                    env.retain(|(k, _)| {
+                        !matches!(
+                            k.as_str(),
+                            "NOVA_PERF_TIMELINE" | "NOVA_PERF_INVARIANTS" | "NOVA_PERF_CONTRACT"
+                        )
+                    });
+                    if let Some(label) = label {
+                        env.retain(|(k, _)| k != "NOVA_PERF_LABEL");
+                        env.push(("NOVA_PERF_LABEL".into(), label));
+                    }
+                    // The baseline capture window + a completion deadline SIZED to
+                    // it, so a slow-but-progressing capture (a heavy dev scene under
+                    // software rendering) completes instead of tripping the flat
+                    // 120s hang detector.
+                    let (window_env, deadline_secs) = fps_window_and_deadline_env();
+                    env.extend(window_env);
+                    // The supervisor timeout MUST exceed the in-process deadline,
+                    // or probe kills the child before the deadline can complete or
+                    // report; keep the operator's --timeout if it is larger.
+                    let fps_timeout =
+                        Duration::from_secs((deadline_secs + 30).max(opts.timeout_secs));
+                    eprintln!("probe: fps pass deadline {deadline_secs}s (window-sized)");
+                    let outcome = run_supervised(
+                        &bin,
+                        &args,
+                        &root,
+                        &env,
+                        &out.join(&log_name),
+                        fps_timeout,
+                    )?;
+                    if !outcome.success() {
+                        eprintln!("probe: fps pass did not succeed; the report will say so");
+                    }
+                    passes.push(PassRecord {
+                        name: if opts.repeat > 1 {
+                            format!("fps {repeat}/{}", opts.repeat)
+                        } else {
+                            "fps".into()
+                        },
+                        success: outcome.success(),
+                        timed_out: outcome.timed_out(),
+                    });
                 }
-                PassRecord {
-                    name: "fps".into(),
-                    success: outcome.success(),
-                    timed_out: outcome.timed_out(),
-                }
+                continue;
             }
             NativePass::Profiled => {
                 // Tracing stays separate so its overhead never touches the

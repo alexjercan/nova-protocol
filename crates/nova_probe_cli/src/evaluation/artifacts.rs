@@ -125,7 +125,9 @@ impl RunArtifacts {
         // The game's logs: run.log (single run), fps-run.log (the fps pass is
         // a real game run too; its panics/errors gate), web-run.log (chromium's
         // output AND the game's - stats.rs parses `nova perf:` out of its
-        // INFO:CONSOLE lines), plus run-<n>.log (sweep cells) in cell order.
+        // INFO:CONSOLE lines), plus the NUMBERED logs - run-<n>.log (sweep
+        // cells) and fps-run-<n>.log (repeat captures). A repeat that panicked
+        // has to reach the log checks like any other run.
         let mut log_parts: Vec<String> = Vec::new();
         for name in ["run.log", "fps-run.log", "web-run.log"] {
             if let Some(contents) = loader.read(name) {
@@ -137,9 +139,10 @@ impl RunArtifacts {
                 entries
                     .filter_map(|e| e.ok().map(|e| e.path()))
                     .filter(|p| {
-                        p.file_name()
-                            .and_then(|n| n.to_str())
-                            .is_some_and(|n| n.starts_with("run-") && n.ends_with(".log"))
+                        p.file_name().and_then(|n| n.to_str()).is_some_and(|n| {
+                            (n.starts_with("run-") || n.starts_with("fps-run-"))
+                                && n.ends_with(".log")
+                        })
                     })
                     .collect()
             })

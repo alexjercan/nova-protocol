@@ -10,7 +10,10 @@ use std::path::Path;
 
 use nova_probe::prelude::*;
 
-use super::{escape, render_chart, render_frame_read, render_table, STYLE};
+use super::{
+    escape, render_chart, render_fixed_steps, render_frame_read, render_repeat_gate, render_table,
+    STYLE,
+};
 use crate::evaluation::{
     checks::violations_by_name, measured_count, overall_verdict, Check, RunArtifacts,
 };
@@ -201,6 +204,7 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
         ),
         (Some(runs), _) => {
             html.push_str(&render_frame_read(runs));
+            html.push_str(&render_repeat_gate(runs));
             html.push_str(&render_chart(runs));
             let baseline_map = artifacts
                 .baseline
@@ -213,6 +217,12 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
                 &baseline_map,
                 artifacts.baseline.is_some(),
             ));
+            // Scraped from the run log, not from the CSV: the fixed-step
+            // record is a diagnostic beside the window, not a column of the
+            // comparable schema.
+            if let Some(log) = &artifacts.log {
+                html.push_str(&render_fixed_steps(log));
+            }
             // Looped captures: scene reloads are EXCLUDED from the stats
             // above (their count is host-speed-dependent) and reported as
             // their own number - scene-loading cost stays visible instead

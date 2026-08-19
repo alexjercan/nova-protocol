@@ -11,7 +11,7 @@ usage: probe <subcommand>
   run <spec> [--all] [--out <dir>] [--correctness-only] [--samply]
   [--baseline <base-dir>] [--timeout <secs>] [--display <:N>]
   [--release] [--render gpu|sw] [--scenario <id>]... [--preset <p>]...
-  [--platform native|web]
+  [--platform native|web] [--repeat <n>]
   the post-feature check and the perf sweep. --correctness-only runs only
   the clean behavioral pass. <spec> is one example, a
   comma list (<example>,<example>), or a category dir
@@ -25,9 +25,13 @@ usage: probe <subcommand>
   searches it for the nearest previous commit dir and compares each
   example against <base>/<commit>/<example>/ when it has a frametime.csv.
   Without --baseline, probe searches the --out base, or probe-runs.
+  --repeat runs the frame-time pass n times instead of once. The report
+  then gates the repeats on their mean and median and reads the worst
+  frame only across the ones that pass - a single worst frame is ~30%
+  noise on this host and cannot prove anything on its own.
   scenario <id|file.ron> [--out <dir>] [--baseline <base-dir>] [--samply]
   [--correctness-only] [--timeout <secs>] [--display <:N>] [--release]
-  [--render gpu|sw]
+  [--render gpu|sw] [--repeat <n>]
   measure a SCENARIO, with no example involved: the game binary boots into
   it and the same passes run (clean, frame time, profiled). A positional
   ending in .ron is a loose content file - registered for the run whether
@@ -102,6 +106,10 @@ pub(crate) struct RunOptions {
     pub scenarios: Vec<String>,
     pub presets: Vec<String>,
     pub platform: Platform,
+    /// How many times the frame-time pass runs. One capture cannot prove a
+    /// tail moved, so a claim about the worst frame is made over repeats and
+    /// the report gates them; see [`crate::evaluation::frames`].
+    pub repeat: u32,
 }
 
 /// Renderer for the capture: the real GPU, or the lavapipe software
@@ -160,6 +168,15 @@ fn default_run(example: String) -> RunOptions {
         scenarios: Vec::new(),
         presets: Vec::new(),
         platform: Platform::Native,
+        repeat: 1,
+    }
+}
+
+/// Parse a `--repeat` value. Zero is not "no capture", it is a typo.
+fn parse_repeat(value: Option<&String>) -> Result<u32, String> {
+    match value.and_then(|v| v.trim().parse::<u32>().ok()) {
+        Some(n) if n >= 1 => Ok(n),
+        _ => Err("--repeat needs a count of 1 or more".into()),
     }
 }
 
@@ -268,6 +285,9 @@ fn parse_scenario(args: Vec<String>) -> Result<Cmd, String> {
             "--display" => {
                 opts.display = Some(iter.next().ok_or("--display needs e.g. :0")?.clone());
             }
+            "--repeat" => {
+                opts.repeat = parse_repeat(iter.next())?;
+            }
             "--render" => {
                 opts.render = match iter.next().map(String::as_str) {
                     Some("gpu") => Render::Gpu,
@@ -289,10 +309,10 @@ fn parse_scenario(args: Vec<String>) -> Result<Cmd, String> {
     let target = ScenarioTarget::parse(&target);
     opts.example = target.label();
     opts.scenario_target = Some(target);
-    if opts.correctness_only && (opts.samply || opts.baseline.is_some()) {
+    if opts.correctness_only && (opts.samply || opts.baseline.is_some() || opts.repeat > 1) {
         return Err(
             "--correctness-only does not combine with measurement options \
-             --samply/--baseline"
+             --samply/--baseline/--repeat"
                 .into(),
         );
     }
@@ -349,6 +369,9 @@ fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
                     _ => return Err("--platform needs native or web".into()),
                 };
             }
+            "--repeat" => {
+                opts.repeat = parse_repeat(iter.next())?;
+            }
             other if other.starts_with('-') => {
                 return Err(format!("unknown flag {other}"));
             }
@@ -365,17 +388,31 @@ fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
     // Honest-combination gates that need no catalog. Multi-spec gates live in
     // resolve because they need to know whether the spec expands.
     let matrix = !opts.scenarios.is_empty() || !opts.presets.is_empty();
-    if opts.platform == Platform::Web && (opts.samply || opts.correctness_only || matrix) {
+    if opts.platform == Platform::Web
+        && (opts.samply || opts.correctness_only || matrix || opts.repeat > 1)
+    {
         return Err(
             "--platform web captures the web frame line only; it does not combine \
-             with --correctness-only/--samply/--scenario/--preset"
+             with --correctness-only/--samply/--scenario/--preset/--repeat"
                 .into(),
         );
     }
-    if opts.correctness_only && (opts.samply || opts.baseline.is_some() || matrix) {
+    if opts.correctness_only
+        && (opts.samply || opts.baseline.is_some() || matrix || opts.repeat > 1)
+    {
         return Err(
             "--correctness-only does not combine with measurement options \
-             --samply/--baseline/--scenario/--preset"
+             --samply/--baseline/--scenario/--preset/--repeat"
+                .into(),
+        );
+    }
+    // A sweep REPLACES the frame-time pass with its matrix cells, so there is
+    // nothing for --repeat to repeat. Silently doing one capture would read as
+    // a completed sweep of repeats.
+    if matrix && opts.repeat > 1 {
+        return Err(
+            "--repeat repeats the frame-time pass, which a --scenario/--preset \
+                    sweep replaces; sweep or repeat, not both"
                 .into(),
         );
     }
@@ -616,6 +653,54 @@ mod tests {
         assert_eq!(base.render, Render::Sw);
         assert_eq!(base.timeout_secs, 900);
         assert_eq!(base.out, Some(PathBuf::from("runs/x")));
+    }
+
+    #[test]
+    fn repeat_parses_and_refuses_the_passes_it_cannot_repeat() {
+        let Ok(Cmd::RunSpec { base, .. }) = parse(&s(&["run", "x", "--repeat", "5"])) else {
+            panic!("--repeat parses on run");
+        };
+        assert_eq!(base.repeat, 5);
+        let Ok(Cmd::Scenario { base }) = parse(&s(&["scenario", "a", "--repeat", "5"])) else {
+            panic!("--repeat parses on scenario");
+        };
+        assert_eq!(base.repeat, 5);
+        // One capture is the default, and the default is not a repeat set.
+        let Ok(Cmd::RunSpec { base, .. }) = parse(&s(&["run", "x"])) else {
+            panic!("bare run parses");
+        };
+        assert_eq!(base.repeat, 1);
+
+        // Zero is a typo, not "skip the capture".
+        for bad in ["0", "-1", "many", ""] {
+            assert!(
+                parse(&s(&["run", "x", "--repeat", bad])).is_err(),
+                "--repeat {bad}"
+            );
+        }
+        assert!(
+            parse(&s(&["run", "x", "--repeat"])).is_err(),
+            "needs a value"
+        );
+
+        // The three passes that have no frame-time pass to repeat.
+        for tail in [
+            vec!["--correctness-only"],
+            vec!["--platform", "web"],
+            vec!["--scenario", "a"],
+        ] {
+            let mut args = s(&["run", "x", "--repeat", "3"]);
+            args.extend(tail.iter().map(|t| (*t).to_string()));
+            assert!(parse(&args).is_err(), "{tail:?} combined with --repeat");
+        }
+        assert!(parse(&s(&[
+            "scenario",
+            "a",
+            "--correctness-only",
+            "--repeat",
+            "3"
+        ]))
+        .is_err());
     }
 
     #[test]

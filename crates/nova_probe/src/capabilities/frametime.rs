@@ -25,6 +25,7 @@ use std::{path::PathBuf, sync::Arc};
 use bevy::{
     prelude::*,
     render::renderer::RenderAdapterInfo,
+    time::TimeSystems,
     window::{PresentMode, PrimaryWindow},
     winit::WinitSettings,
 };
@@ -244,6 +245,15 @@ struct PerfConfig {
     /// the SAME tier at `1.0` vs a fraction so the delta is pure resolution
     /// Unset leaves the tier's own default.
     render_scale_override: Option<f32>,
+    /// Optional forced `Time<Virtual>::max_delta`, in seconds
+    /// (`NOVA_PERF_MAX_DELTA` / `max_delta=`). The isolation knob for the
+    /// fixed-step loop: bevy's 0.25 s default lets one slow frame queue up to
+    /// `0.25 / timestep` fixed steps, and whether that AMPLIFIES a stutter or
+    /// merely tracks it is answerable by capping the ceiling and re-measuring.
+    /// It buys a bounded tail with simulation time debt - the discarded delta
+    /// is time the world never simulates - so it is a measurement knob here,
+    /// never a default.
+    max_delta_override: Option<f32>,
 }
 
 impl PerfConfig {
@@ -265,6 +275,9 @@ impl PerfConfig {
                 .and_then(|v| parse_resolution(&v))
                 .unwrap_or(DEFAULT_RESOLUTION),
             render_scale_override: perf_param("render_scale").and_then(|v| v.trim().parse().ok()),
+            max_delta_override: perf_param("max_delta")
+                .and_then(|v| v.trim().parse::<f32>().ok())
+                .filter(|secs| *secs > 0.0),
         }
     }
 }
@@ -377,6 +390,26 @@ struct PerfState {
     driven: u32,
     /// Per-frame wall-clock deltas, milliseconds.
     samples: Vec<f64>,
+    /// Fixed steps that ran inside each sampled frame, index-parallel to
+    /// [`Self::samples`].
+    fixed_steps: Vec<u32>,
+}
+
+/// How many fixed steps `RunFixedMainLoop` ran this frame, counted by
+/// [`perf_tally_fixed_step`] and drained once per frame by [`perf_capture`].
+///
+/// `Time<Virtual>::max_delta` (0.25 s by default) against the fixed timestep
+/// bounds this, so a slow frame can carry a burst of steps into the next one.
+/// Whether that happens is a measurement, not an assumption, which is why the
+/// count is recorded beside the frame time it belongs to.
+#[derive(Resource, Default)]
+struct FixedStepTally(u32);
+
+/// Count one fixed step. Runs in `FixedFirst`, which is inside
+/// `RunFixedMainLoop` - and that schedule runs BEFORE `Update`, so the count
+/// [`perf_capture`] drains belongs to the frame it is recorded against.
+fn perf_tally_fixed_step(mut tally: ResMut<FixedStepTally>) {
+    tally.0 += 1;
 }
 
 impl Plugin for FrameTimePlugin {
@@ -391,13 +424,14 @@ impl Plugin for FrameTimePlugin {
         app.init_resource::<ReloadGate>();
         let config = PerfConfig::resolve();
         info!(
-            "nova perf: armed (label={}, warmup={}, frames={}, res={}x{}, render_scale={:?}, out={:?}, driven={}, gated={})",
+            "nova perf: armed (label={}, warmup={}, frames={}, res={}x{}, render_scale={:?}, max_delta={:?}, out={:?}, driven={}, gated={})",
             config.label,
             config.warmup_frames,
             config.capture_frames,
             config.resolution.0,
             config.resolution.1,
             config.render_scale_override,
+            config.max_delta_override,
             config.out_dir,
             self.driver.is_some(),
             self.ready.is_some(),
@@ -407,8 +441,12 @@ impl Plugin for FrameTimePlugin {
             warmed: 0,
             driven: 0,
             samples: Vec::with_capacity(config.capture_frames as usize),
+            fixed_steps: Vec::with_capacity(config.capture_frames as usize),
         });
+        app.init_resource::<FixedStepTally>();
+        app.add_systems(FixedFirst, perf_tally_fixed_step);
         let force_render_scale = config.render_scale_override.is_some();
+        let force_max_delta = config.max_delta_override.is_some();
         app.insert_resource(config);
         // Continuous updates so an unfocused/headless window still runs flat out.
         app.insert_resource(WinitSettings::game());
@@ -417,6 +455,12 @@ impl Plugin for FrameTimePlugin {
         // over the tier's apply, which only runs on a quality change).
         if force_render_scale {
             app.add_systems(Update, perf_force_render_scale);
+        }
+        // Held every frame, not set once: a scenario load or a pause/unpause
+        // hands `Time<Virtual>` back at its default, and a ceiling that
+        // silently lifts mid-window measures neither setting.
+        if force_max_delta {
+            app.add_systems(First, perf_force_max_delta.before(TimeSystems));
         }
         // The driver runs before the capture read so its work is inside the
         // measured frame.
@@ -501,21 +545,53 @@ fn perf_force_render_scale(config: Res<PerfConfig>, budget: Option<ResMut<Graphi
     }
 }
 
+/// Pin `Time<Virtual>`'s `max_delta` to the configured override, before the
+/// clock advances this frame. Only added when the override is set; the `!=`
+/// guard keeps the resource from reading as changed every frame.
+fn perf_force_max_delta(config: Res<PerfConfig>, mut virtual_time: ResMut<Time<Virtual>>) {
+    let Some(secs) = config.max_delta_override else {
+        return;
+    };
+    let max_delta = std::time::Duration::from_secs_f32(secs);
+    if virtual_time.max_delta() != max_delta {
+        virtual_time.set_max_delta(max_delta);
+    }
+}
+
 /// Advance the capture state machine one frame: wait for the scene to be
 /// ready, discard warm-up frames, record deltas, then compute + emit stats and
 /// exit. The adapter resource feeds the run metadata (schema v2) at emit time.
 fn perf_capture(
     time: Res<Time<Real>>,
-    state_res: Res<State<GameStates>>,
+    // OPTIONAL, and the reason is a real crash: a `systems/` rig that wires
+    // `NovaProbePlugin` on a bare `App` has no `GameStates` at all, and a
+    // required `Res` there fails parameter validation and takes the whole run
+    // down the moment NOVA_PERF is set. A capture with no state machine to
+    // wait on cannot measure anything, so it stands down and releases its
+    // collector instead of holding the app to the deadline.
+    state_res: Option<Res<State<GameStates>>>,
     ready: Option<Res<PerfReadyRes>>,
     config: Res<PerfConfig>,
     adapter: Option<Res<RenderAdapterInfo>>,
     mut gate: ResMut<ReloadGate>,
     mut state: ResMut<PerfState>,
+    mut tally: ResMut<FixedStepTally>,
     mut completion: ResMut<HarnessCompletion>,
 ) {
+    // Drained unconditionally, before any early return: a count left standing
+    // would be attributed to a later frame.
+    let fixed_steps = std::mem::take(&mut tally.0);
     match state.phase {
         Phase::WaitPlaying => {
+            let Some(state_res) = state_res else {
+                warn!(
+                    "nova perf: no GameStates in this app - nothing to wait on, \
+                     capture stands down"
+                );
+                state.phase = Phase::Done;
+                completion.done(CAPTURE_COLLECTOR);
+                return;
+            };
             // `Playing` plus the example's own gate, when it named one - see
             // [`PerfReady`]. The gate is latched by `perf_watch_ready`.
             let gated =
@@ -546,10 +622,12 @@ fn perf_capture(
                 return;
             }
             state.samples.push(time.delta_secs_f64() * 1000.0);
+            state.fixed_steps.push(fixed_steps);
             if state.samples.len() as u32 >= config.capture_frames {
                 let stats = FrameStats::from_samples(&state.samples);
+                let steps = FixedStepStats::from_frames(&state.samples, &state.fixed_steps);
                 let meta = RunMeta::resolve(&config, adapter.as_deref());
-                emit_stats(&config, &stats, &meta, &gate.reload_ms);
+                emit_stats(&config, &stats, steps.as_ref(), &meta, &gate.reload_ms);
                 state.phase = Phase::Done;
                 // Negotiated, not unilateral: the watcher exits when every
                 // registered collector (this capture, the autopilot) is done.
@@ -564,8 +642,17 @@ fn perf_capture(
 /// file and append a row to the aggregated CSV (schema v3, run metadata
 /// included). The log line is always emitted - on wasm there is no filesystem,
 /// so a headless-browser driver scrapes it from the console.
-fn emit_stats(config: &PerfConfig, stats: &FrameStats, meta: &RunMeta, reload_ms: &[f64]) {
+fn emit_stats(
+    config: &PerfConfig,
+    stats: &FrameStats,
+    steps: Option<&FixedStepStats>,
+    meta: &RunMeta,
+    reload_ms: &[f64],
+) {
     info!("{}", stats.summary_line(&config.label));
+    if let Some(steps) = steps {
+        info!("{}", steps.summary_line(&config.label));
+    }
     info!(
         "nova perf: meta backend={} adapter={:?} res={} quality={} sha={} host={} profile={}",
         meta.backend,
@@ -594,7 +681,10 @@ fn emit_stats(config: &PerfConfig, stats: &FrameStats, meta: &RunMeta, reload_ms
     }
 
     let json_path = dir.join(format!("{}.json", sanitize(&config.label)));
-    if let Err(error) = std::fs::write(&json_path, stats.to_json(&config.label, meta, reload_ms)) {
+    if let Err(error) = std::fs::write(
+        &json_path,
+        stats.to_json(&config.label, meta, steps, reload_ms),
+    ) {
         warn!("nova perf: could not write {:?}: {error}", json_path);
     } else {
         info!("nova perf: wrote {:?}", json_path);

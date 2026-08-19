@@ -1,0 +1,9 @@
+label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps,backend,adapter,resolution,quality,git_sha,host,profile
+broadside#1,900,102.7637,85.3806,147.1814,99.9961,125.8374,140.7199,147.1814,9.73,7.11,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,a68fb8a1,nixos,dev
+broadside#2,900,44.9970,23.0405,180.3380,38.4824,80.4690,112.3221,180.3380,22.22,8.90,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,a68fb8a1,nixos,dev
+broadside#3,900,52.5099,32.9203,130.8296,48.6962,83.9430,103.0809,130.8296,19.04,9.70,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,a68fb8a1,nixos,dev
+broadside#4,900,40.3794,22.6502,152.0874,34.9711,70.1989,94.2665,152.0874,24.77,10.61,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,a68fb8a1,nixos,dev
+broadside#5,900,34.1411,22.5959,88.4527,31.6883,63.6704,73.4267,88.4527,29.29,13.62,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,a68fb8a1,nixos,dev
+broadside#6,900,28.1065,21.8956,66.0831,25.8642,36.9643,53.2098,66.0831,35.58,18.79,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,a68fb8a1,nixos,dev
+broadside#7,900,26.2845,21.5277,61.5472,24.3932,33.5470,38.5144,61.5472,38.05,25.96,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,a68fb8a1,nixos,dev
+broadside#8,900,26.5717,21.4783,59.1000,24.1410,34.5202,49.2047,59.1000,37.63,20.32,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,a68fb8a1,nixos,dev

@@ -614,6 +614,7 @@ cargo run --features debug probe run system_player_path            # clean + fra
 cargo run --features debug probe run system_player_path --correctness-only # clean behavioral evidence only
 cargo run --features debug probe run system_player_path --samply   # + named flamegraph
 cargo run --features debug probe run system_player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
+cargo run --features debug probe run system_player_path --repeat 5  # gated repeat set -> a usable worst frame
 cargo run --features debug probe run system_player_path,system_scenario_grammar   # comma list -> aggregate index
 cargo run --features debug probe run systems            # a whole category
 cargo run --features debug probe run --all               # the whole fleet
@@ -718,6 +719,68 @@ when it is under 60; `checks.json` mirrors it under `frames`, carrying
 `graded: false`. Nothing passes or fails on a frame-time number - whether a
 scene is fast enough on this machine, in this build profile, is the reviewer's
 call and always was.
+
+### One capture cannot prove a tail moved
+
+The worst frame is the number that matters - a stutter is a tail, and a mean
+hides it - and it is also the least repeatable thing the capture produces. Two
+captures of an UNCHANGED scene move it by tens of percent, while the mean and
+the median of the same two windows barely move at all. So a claim about the
+worst frame is made over a repeat SET, not over a run:
+
+```sh
+cargo run --features debug probe run wfc_arena --repeat 5
+```
+
+Each repeat is its own process, and each writes its own `frametime.csv` row
+labelled `<subject>#<n>`. The report then reads them as a set:
+
+- the reference is the MEDIAN of the repeats' means (and of their medians), so
+  one bad capture cannot drag the band over itself;
+- a repeat whose mean or median sits outside the band is DISCARDED - it met a
+  different machine, or a different amount of scene;
+- the tail is read only across what survives, as the median of the admitted
+  **p99** values, printed with the spread of that group. The slowest single
+  frame gets the same treatment and is printed beside it - as a reading, not
+  as the number a claim is made on. It is one sample out of nine hundred and
+  behaves like one; p99 is still a tail (the ninth-worst frame) and resolves
+  roughly twice as small a change.
+
+The spread is the point. It is the honest width of the number, and a claimed
+improvement smaller than it has not been measured. Discarding is not grading:
+`checks.json` carries the whole set under `repeats` with `graded: false`, and
+a discarded repeat says something about the machine, never about the code.
+
+Two things the band cannot do for you. It is derived from a REFERENCE HOST and
+is a property of that machine, so re-derive it elsewhere. And it catches an
+outlier, not a DRIFT: a set taken immediately after a build slides monotonically
+down as the box recovers, the reference lands in the middle of the slide, and
+the gate throws out both ends. Let the machine settle before a repeat set, and
+treat a set the gate empties as "measure it again", never as a result.
+
+### Was the window one scene?
+
+A capture also records how many FIXED STEPS ran inside each frame, bucketed by
+count in the per-run JSON (`fixed_steps`), on the summary line, and as a table
+in the report's Performance section (`checks.json` mirrors it beside `frames`).
+Bevy runs `RunFixedMainLoop` until the accumulated virtual time is spent,
+capped by `Time<Virtual>::max_delta`, so a frame that overruns the timestep
+hands its overrun to the next frame as extra steps.
+
+Two readings matter, and no percentile shows either:
+
+- **Frames that ran NO step.** In a scene slower than the timestep that means
+  the simulation was STOPPED inside the window - a pause, a menu, a result
+  screen. A window carrying them did not measure one scene, whatever its mean
+  says. In a scene faster than the timestep it is ordinary and says nothing.
+- **Frames at the top of the range.** When that count is
+  `max_delta / timestep` the clamp is firing: those frames are discarding real
+  time the world never simulates.
+
+`NOVA_PERF_MAX_DELTA=<secs>` forces the ceiling for a run, which is how a claim
+about the fixed loop gets tested instead of argued. Capping it in a SHIPPING
+build would trade a bounded tail for simulation time the world never runs, so
+it stays a measurement knob.
 
 The capture window is the capture crate's full 180/900 baseline for every run
 that captures at all, so probe numbers stay comparable with the sweep's; your

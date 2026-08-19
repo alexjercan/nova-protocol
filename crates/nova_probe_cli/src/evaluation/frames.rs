@@ -14,7 +14,11 @@ use nova_probe::prelude::*;
 
 /// Glob-import surface for the frame read.
 pub mod prelude {
-    pub use super::{frames_json, read_frames, FrameRead, SMOOTH_FPS, SMOOTH_FRAME_MS};
+    pub use super::{
+        fixed_steps_json, frames_json, read_frames, read_repeats, repeat_label, repeats_json,
+        split_repeat_label, FrameRead, RepeatCapture, RepeatRead, REPEAT_GATE_TOLERANCE,
+        SMOOTH_FPS, SMOOTH_FRAME_MS,
+    };
 }
 
 /// The line the report draws: 60 frames a second, the rate the game is meant
@@ -131,6 +135,281 @@ pub fn frames_json(runs: Option<&Vec<PerfRun>>) -> serde_json::Value {
     })
 }
 
+/// The `checks.json` mirror of the fixed-step record, scraped from the run
+/// log. Beside the checks, `graded: false`, like every other frame reading.
+///
+/// `stopped_frames` is the one an automated reader should look at: in a scene
+/// slower than the fixed timestep it means the simulation was halted inside
+/// the capture window, and that window did not measure one scene.
+pub fn fixed_steps_json(log: Option<&String>) -> serde_json::Value {
+    let reads: Vec<(String, FixedStepStats)> = log
+        .map(|log| log.lines().filter_map(parse_fixed_steps_line).collect())
+        .unwrap_or_default();
+    serde_json::json!({
+        "graded": false,
+        "note": "how many fixed steps ran inside each captured frame. Frames with \
+                 none mean the simulation was stopped inside the window; frames at \
+                 the top of the range are where Time<Virtual>::max_delta is \
+                 discarding time. Reported, never graded.",
+        "captures": reads.iter().map(|(label, steps)| serde_json::json!({
+            "label": label,
+            "mean_steps": steps.mean_steps,
+            "min_steps": steps.min_steps,
+            "max_steps": steps.max_steps,
+            "total_steps": steps.total_steps,
+            "stopped_frames": steps.stopped_frames(),
+            "frames_at_max": steps.at_ceiling().map_or(0, |b| b.frames),
+            "mean_ms_at_max": steps.at_ceiling().map(|b| b.mean_frame_ms),
+        })).collect::<Vec<_>>(),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// The REPEAT GATE.
+// ---------------------------------------------------------------------------
+
+/// Separator between a repeat set's base label and its index (`wfc_arena#3`).
+/// A capture label is free-form, so the character has to be one nothing else
+/// uses; `-` is already the sweep's preset separator.
+const REPEAT_SEPARATOR: char = '#';
+
+/// How far a repeat's mean and median may sit from the set's reference before
+/// the repeat is discarded, as a fraction.
+///
+/// MEASURED, not chosen, and it is deliberately loose. Eight captures of an
+/// unchanged shipped chapter on a settled reference host spread their means
+/// 34% and their medians 29%; a band tighter than about 12% therefore admits
+/// fewer than half the set, and the survivors are arbitrary enough that the
+/// reported tail gets NOISIER, not quieter. At this width the band still
+/// throws out the contamination it exists for - a capture taken while the box
+/// was still busy measured 3.9x the settled value - while admitting seven
+/// captures out of eight of an honest set.
+///
+/// Re-derive it on a different host. It is a property of the machine, not of
+/// the code.
+pub const REPEAT_GATE_TOLERANCE: f64 = 0.20;
+
+/// The label a repeat capture writes: `<base>#<n>`, one-based.
+pub fn repeat_label(base: &str, repeat: u32) -> String {
+    format!("{base}{REPEAT_SEPARATOR}{repeat}")
+}
+
+/// Split a capture label back into `(base, repeat index)`. A label with no
+/// separator - every non-repeat capture - reads as its own base with no index.
+pub fn split_repeat_label(label: &str) -> (&str, Option<u32>) {
+    match label.rsplit_once(REPEAT_SEPARATOR) {
+        Some((base, index)) => match index.parse() {
+            Ok(index) => (base, Some(index)),
+            Err(_) => (label, None),
+        },
+        None => (label, None),
+    }
+}
+
+/// One capture of a repeat set, with the gate's call on it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RepeatCapture {
+    /// The repeat index parsed out of the label (one-based).
+    pub index: u32,
+    /// Mean frame time over the capture window (ms).
+    pub mean_ms: f64,
+    /// Median frame time over the capture window (ms).
+    pub median_ms: f64,
+    /// The 99th-percentile frame time (ms) - the 1%-low tail.
+    pub p99_ms: f64,
+    /// The single slowest frame of the capture (ms).
+    pub worst_ms: f64,
+    /// Whether both stable statistics sat inside the band.
+    pub admitted: bool,
+}
+
+/// A repeat set read through the gate.
+///
+/// The design in one line: the mean and the median decide whether a capture
+/// COUNTS, and only then is its worst frame read. A worst frame moves by tens
+/// of percent between two captures of an unchanged scene, so it cannot police
+/// itself; the mean and the median are the stable pair, so they can.
+///
+/// The gate is only as good as the SUBJECT. On a scene whose own load depends
+/// on how fast the machine ran it - a live fight in a frame-count-bounded
+/// window - the mean is not stable either, the band discards honest captures,
+/// and the set correctly reports that it measured nothing. That reading is the
+/// point: a subject the gate empties is a subject that cannot be a baseline.
+///
+/// Nothing here grades. A discarded capture is a statement about the
+/// measurement, never about the code under it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RepeatRead {
+    /// The shared base label (`wfc_arena` for `wfc_arena#1..#n`).
+    pub label: String,
+    /// The reference the band is centred on: the MEDIAN of the captures' own
+    /// means, so the reference does not move until half the set is bad.
+    pub reference_mean_ms: f64,
+    /// The same, for the captures' medians.
+    pub reference_median_ms: f64,
+    /// Every capture in file order, gated.
+    pub captures: Vec<RepeatCapture>,
+    /// The tail a CLAIM should be made on: the median of the admitted
+    /// captures' p99. `None` when the gate admitted nothing.
+    ///
+    /// p99 rather than the slowest single frame, because the slowest single
+    /// frame is one sample and behaves like one: over eight settled captures
+    /// of an unchanged scene it spread 148% of its median against p99's 87%,
+    /// and the smallest improvement the two can resolve is 46% against 27%.
+    /// It is still a tail - the ninth-worst frame of a 900-frame window - so
+    /// it is still a stutter and not an average.
+    pub p99_ms: Option<f64>,
+    /// Spread of the admitted p99 values, as a fraction of [`Self::p99_ms`].
+    pub p99_spread: Option<f64>,
+    /// The single slowest admitted frame's median, reported BESIDE the p99 as
+    /// a diagnostic. Read it to see how deep the deepest frame went; do not
+    /// build a claim on a change in it that the spread beside it covers.
+    pub worst_ms: Option<f64>,
+    /// Spread of the admitted worst frames, as a fraction of
+    /// [`Self::worst_ms`].
+    pub worst_spread: Option<f64>,
+}
+
+impl RepeatRead {
+    /// Captures the gate admitted.
+    pub fn admitted(&self) -> usize {
+        self.captures.iter().filter(|c| c.admitted).count()
+    }
+
+    /// Captures the gate discarded as contaminated.
+    pub fn discarded(&self) -> usize {
+        self.captures.len() - self.admitted()
+    }
+}
+
+/// The median of a slice, by the same nearest-rank rule the frame percentiles
+/// use (a real observed value, never an interpolation). `None` when empty.
+fn median(values: &[f64]) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    Some(sorted[(sorted.len() - 1) / 2])
+}
+
+/// Whether `value` sits inside `tolerance` of `reference`. A non-positive
+/// reference is not a measurement, so nothing is inside it.
+fn within(value: f64, reference: f64, tolerance: f64) -> bool {
+    reference > 0.0 && ((value - reference) / reference).abs() <= tolerance
+}
+
+/// The pair a repeat set reports for one tail statistic: the MEDIAN across the
+/// admitted captures, and how far those captures spread as a fraction of it.
+/// `(None, None)` when the gate admitted nothing, or when the median is not a
+/// positive number to take a fraction of.
+fn summarize(
+    captures: &[RepeatCapture],
+    pick: fn(&RepeatCapture) -> f64,
+) -> (Option<f64>, Option<f64>) {
+    let admitted: Vec<f64> = captures.iter().filter(|c| c.admitted).map(pick).collect();
+    let value = median(&admitted);
+    let spread = value.filter(|v| *v > 0.0).map(|v| {
+        let lo = admitted.iter().copied().fold(f64::MAX, f64::min);
+        let hi = admitted.iter().copied().fold(f64::MIN, f64::max);
+        (hi - lo) / v
+    });
+    (value, spread)
+}
+
+/// Read every repeat set in `runs`. Fewer than two captures is not a set and
+/// produces no row - `read_frames` already covers a single capture, and a
+/// one-member set would admit itself by construction and report a tail with no
+/// spread, which is the false confidence this whole mechanism replaces.
+pub fn read_repeats(runs: &[PerfRun]) -> Vec<RepeatRead> {
+    let mut order: Vec<&str> = Vec::new();
+    let mut groups: std::collections::HashMap<&str, Vec<(u32, &PerfRun)>> =
+        std::collections::HashMap::new();
+    for run in runs {
+        let (base, Some(index)) = split_repeat_label(&run.label) else {
+            continue;
+        };
+        if !groups.contains_key(base) {
+            order.push(base);
+        }
+        groups.entry(base).or_default().push((index, run));
+    }
+
+    order
+        .into_iter()
+        .filter_map(|base| {
+            let mut group = groups.remove(base)?;
+            if group.len() < 2 {
+                return None;
+            }
+            group.sort_by_key(|(index, _)| *index);
+            let means: Vec<f64> = group.iter().map(|(_, run)| run.stats.mean_ms).collect();
+            let medians: Vec<f64> = group.iter().map(|(_, run)| run.stats.p50_ms).collect();
+            let reference_mean_ms = median(&means)?;
+            let reference_median_ms = median(&medians)?;
+            let captures: Vec<RepeatCapture> = group
+                .iter()
+                .map(|(index, run)| RepeatCapture {
+                    index: *index,
+                    mean_ms: run.stats.mean_ms,
+                    median_ms: run.stats.p50_ms,
+                    p99_ms: run.stats.p99_ms,
+                    worst_ms: run.stats.max_ms,
+                    admitted: within(run.stats.mean_ms, reference_mean_ms, REPEAT_GATE_TOLERANCE)
+                        && within(run.stats.p50_ms, reference_median_ms, REPEAT_GATE_TOLERANCE),
+                })
+                .collect();
+            let (p99_ms, p99_spread) = summarize(&captures, |c| c.p99_ms);
+            let (worst_ms, worst_spread) = summarize(&captures, |c| c.worst_ms);
+            Some(RepeatRead {
+                label: base.to_string(),
+                reference_mean_ms,
+                reference_median_ms,
+                captures,
+                p99_ms,
+                p99_spread,
+                worst_ms,
+                worst_spread,
+            })
+        })
+        .collect()
+}
+
+/// The `checks.json` mirror of the repeat gate. Beside the checks, never among
+/// them, for the same reason [`frames_json`] is: a discarded capture is not a
+/// failure, and `graded: false` says so to a consumer that only reads keys.
+pub fn repeats_json(runs: Option<&Vec<PerfRun>>) -> serde_json::Value {
+    let reads = runs.map(|runs| read_repeats(runs)).unwrap_or_default();
+    serde_json::json!({
+        "graded": false,
+        "tolerance": REPEAT_GATE_TOLERANCE,
+        "note": "the mean and median gate which captures COUNT; the tail is read \
+                 only across the admitted ones. Make a claim on p99_ms and check it \
+                 against p99_spread; worst_ms is a diagnostic beside it. Nothing \
+                 here passes or fails.",
+        "sets": reads.iter().map(|read| serde_json::json!({
+            "label": read.label,
+            "captures": read.captures.len(),
+            "admitted": read.admitted(),
+            "discarded": read.discarded(),
+            "reference_mean_ms": read.reference_mean_ms,
+            "reference_median_ms": read.reference_median_ms,
+            "p99_ms": read.p99_ms,
+            "p99_spread": read.p99_spread,
+            "worst_ms": read.worst_ms,
+            "worst_spread": read.worst_spread,
+            "repeats": read.captures.iter().map(|capture| serde_json::json!({
+                "index": capture.index,
+                "mean_ms": capture.mean_ms,
+                "median_ms": capture.median_ms,
+                "p99_ms": capture.p99_ms,
+                "worst_ms": capture.worst_ms,
+                "admitted": capture.admitted,
+            })).collect::<Vec<_>>(),
+        })).collect::<Vec<_>>(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -211,5 +490,155 @@ mod tests {
     fn a_run_without_a_capture_reads_an_empty_list() {
         let json = frames_json(None);
         assert_eq!(json["captures"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn a_repeat_label_round_trips() {
+        assert_eq!(repeat_label("wfc_arena", 3), "wfc_arena#3");
+        assert_eq!(split_repeat_label("wfc_arena#3"), ("wfc_arena", Some(3)));
+        // A plain capture is not a one-member repeat set.
+        assert_eq!(split_repeat_label("wfc_arena"), ("wfc_arena", None));
+        // Nor is a label that merely contains the separator.
+        assert_eq!(split_repeat_label("odd#label"), ("odd#label", None));
+    }
+
+    /// The whole design in one test: a contaminated capture is thrown out on
+    /// its MEAN, and the tail is then read only across what survived.
+    #[test]
+    fn the_gate_discards_on_the_mean_and_reads_the_tail_on_what_survives() {
+        // Four captures of an unchanged scene. #3 met a busy machine: its mean
+        // is 30% high, and so are the tails that would otherwise have owned
+        // the set.
+        let runs = vec![
+            repeat("s", 1, 26.0, 25.0, 40.0, 44.0),
+            repeat("s", 2, 26.2, 25.1, 52.0, 58.0),
+            repeat("s", 3, 34.0, 33.0, 150.0, 190.0),
+            repeat("s", 4, 25.8, 24.9, 46.0, 50.0),
+        ];
+        let reads = read_repeats(&runs);
+        assert_eq!(reads.len(), 1);
+        let read = &reads[0];
+        assert_eq!(read.label, "s");
+        assert_eq!(read.admitted(), 3);
+        assert_eq!(read.discarded(), 1);
+        assert!(!read.captures[2].admitted, "the busy capture is out");
+        // The number a claim is made on: the median of the three admitted p99
+        // values (40, 46, 52), not the 150 ms the discarded one carried.
+        assert_eq!(read.p99_ms, Some(46.0));
+        assert!((read.p99_spread.unwrap() - 12.0 / 46.0).abs() < 1e-9);
+        // The worst frame rides beside it, same treatment: median of 44, 50, 58.
+        assert_eq!(read.worst_ms, Some(50.0));
+        assert!((read.worst_spread.unwrap() - 0.28).abs() < 1e-9);
+    }
+
+    /// The reference is the MEDIAN of the means, so one bad capture cannot
+    /// drag the band over itself and start discarding the good ones.
+    #[test]
+    fn one_bad_capture_cannot_move_the_reference_onto_itself() {
+        let runs = vec![
+            repeat("s", 1, 26.0, 26.0, 40.0, 44.0),
+            repeat("s", 2, 26.0, 26.0, 42.0, 46.0),
+            repeat("s", 3, 100.0, 100.0, 300.0, 400.0),
+        ];
+        let read = &read_repeats(&runs)[0];
+        assert!((read.reference_mean_ms - 26.0).abs() < 1e-9);
+        assert_eq!(read.admitted(), 2);
+        assert_eq!(read.p99_ms, Some(40.0), "nearest-rank median of 40, 42");
+        assert_eq!(read.worst_ms, Some(44.0), "nearest-rank median of 44, 46");
+    }
+
+    /// The band is wide on purpose (see [`REPEAT_GATE_TOLERANCE`]): an honest
+    /// capture that lands 10% off the reference still counts, and one that
+    /// measured a busy machine does not.
+    #[test]
+    fn the_band_admits_an_honest_spread_and_rejects_a_busy_machine() {
+        let runs = vec![
+            repeat("s", 1, 30.0, 30.0, 60.0, 90.0),
+            repeat("s", 2, 33.0, 33.0, 66.0, 99.0),
+            repeat("s", 3, 27.0, 27.0, 54.0, 81.0),
+            repeat("s", 4, 117.0, 117.0, 250.0, 400.0),
+        ];
+        let read = &read_repeats(&runs)[0];
+        assert_eq!(read.admitted(), 3, "+/-10% is inside the band");
+        assert!(!read.captures[3].admitted, "3.9x is not");
+    }
+
+    /// A single capture is not a repeat set, and the gate must not pretend it
+    /// is - a one-member set would admit itself by construction and report a
+    /// tail with no spread, which is the false confidence this replaces.
+    #[test]
+    fn a_plain_capture_is_not_a_repeat_set() {
+        assert!(read_repeats(&[run("wfc_arena", 26.0, 44.0)]).is_empty());
+        // Nor is a set of exactly one: it would admit itself by construction.
+        assert!(read_repeats(&[repeat("wfc_arena", 1, 26.0, 26.0, 40.0, 44.0)]).is_empty());
+        assert_eq!(repeats_json(None)["sets"].as_array().unwrap().len(), 0);
+    }
+
+    /// A set the gate empties still renders: "nothing here was measurable" is
+    /// the finding, and a missing row would read as a missing run.
+    #[test]
+    fn a_set_the_gate_empties_reports_no_tail() {
+        let runs = vec![
+            repeat("z", 1, 0.0, 0.0, 0.0, 0.0),
+            repeat("z", 2, 0.0, 0.0, 0.0, 0.0),
+        ];
+        let read = &read_repeats(&runs)[0];
+        assert_eq!(read.admitted(), 0);
+        assert_eq!(read.p99_ms, None);
+        assert_eq!(read.worst_ms, None);
+        assert_eq!(read.worst_spread, None);
+    }
+
+    /// The fixed-step mirror carries the stopped-frame count - the reading
+    /// that says a window did not measure one scene - and says it grades
+    /// nothing.
+    #[test]
+    fn the_fixed_step_json_carries_the_stopped_frames() {
+        let log = "nova perf: label=wfc_arena#5 fixed_steps min=0 max=16 mean=5.419 \
+                   total=4877 buckets=0:165@69.7ms,4:187@67.2ms,16:34@354.1ms"
+            .to_string();
+        let json = fixed_steps_json(Some(&log));
+        assert_eq!(json["graded"], false);
+        assert_eq!(json["captures"][0]["label"], "wfc_arena#5");
+        assert_eq!(json["captures"][0]["stopped_frames"], 165);
+        assert_eq!(json["captures"][0]["frames_at_max"], 34);
+        assert_eq!(json["captures"][0]["max_steps"], 16);
+        // No log is an empty list, never a missing key.
+        assert_eq!(
+            fixed_steps_json(None)["captures"].as_array().unwrap().len(),
+            0
+        );
+    }
+
+    #[test]
+    fn the_repeat_json_says_it_is_not_graded() {
+        let runs = vec![
+            repeat("s", 1, 26.0, 26.0, 40.0, 44.0),
+            repeat("s", 2, 26.0, 26.0, 42.0, 46.0),
+        ];
+        let json = repeats_json(Some(&runs));
+        assert_eq!(json["graded"], false);
+        assert_eq!(json["tolerance"], REPEAT_GATE_TOLERANCE);
+        assert_eq!(json["sets"][0]["label"], "s");
+        assert_eq!(json["sets"][0]["admitted"], 2);
+        assert_eq!(json["sets"][0]["p99_ms"], 40.0);
+        assert_eq!(json["sets"][0]["repeats"][1]["index"], 2);
+        assert_eq!(json["sets"][0]["repeats"][1]["p99_ms"], 42.0);
+    }
+
+    /// One capture of a repeat set, with the four numbers the gate reads
+    /// chosen independently - the plain `run` helper ties them together.
+    fn repeat(
+        base: &str,
+        index: u32,
+        mean_ms: f64,
+        median_ms: f64,
+        p99_ms: f64,
+        max_ms: f64,
+    ) -> PerfRun {
+        let mut run = run(&repeat_label(base, index), mean_ms, max_ms);
+        run.stats.p99_ms = p99_ms;
+        run.stats.p50_ms = median_ms;
+        run
     }
 }

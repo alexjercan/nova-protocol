@@ -253,9 +253,10 @@ pub fn print_checks(checks: &[Check]) {
 /// identity (from the manifest) and the measured-coverage figure - an
 /// agent reads verdict AND measured, never verdict alone.
 ///
-/// `frames` sits BESIDE the rows rather than among them. Frame cost is
-/// reported, never graded: it carries `graded: false` and contributes nothing
-/// to `verdict` or `measured`.
+/// `frames` and `repeats` sit BESIDE the rows rather than among them. Frame
+/// cost is reported, never graded: both carry `graded: false` and contribute
+/// nothing to `verdict` or `measured`. A repeat the gate DISCARDED is a
+/// statement about the machine that measured it, not a failure of the run.
 pub fn checks_json(artifacts: &RunArtifacts, checks: &[Check]) -> serde_json::Value {
     let manifest = artifacts.manifest.as_ref();
     serde_json::json!({
@@ -264,6 +265,8 @@ pub fn checks_json(artifacts: &RunArtifacts, checks: &[Check]) -> serde_json::Va
         "reviewer_confirmation_required": true,
         "run": manifest.map(RunManifest::to_json),
         "frames": crate::evaluation::frames::frames_json(artifacts.runs.as_ref()),
+        "repeats": crate::evaluation::frames::repeats_json(artifacts.runs.as_ref()),
+        "fixed_steps": crate::evaluation::frames::fixed_steps_json(artifacts.log.as_ref()),
         "checks": checks.iter().map(|c| serde_json::json!({
             "name": c.name,
             "status": c.status.as_str(),

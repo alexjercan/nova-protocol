@@ -101,6 +101,146 @@ pub(crate) fn render_frame_read(runs: &[PerfRun]) -> String {
     html
 }
 
+/// The REPEAT GATE table, when the run captured a repeat set: one row per
+/// capture with its mean, median and worst frame, and whether the gate admitted
+/// it. Empty for a single capture - one capture is not a set, and the read
+/// above already covers it.
+///
+/// The point of the table is that the reader sees WHICH captures the reported
+/// tail came from. A gate whose workings are hidden is a gate nobody can argue
+/// with.
+pub(crate) fn render_repeat_gate(runs: &[PerfRun]) -> String {
+    let reads = read_repeats(runs);
+    if reads.is_empty() {
+        return String::new();
+    }
+    let mut html = String::new();
+    for read in &reads {
+        html.push_str(&format!(
+            "<h3>Repeat gate: {}</h3>\n<p class=\"note\">{} of {} captures admitted, \
+             band &plusmn;{:.0}% on mean and median around {:.1} ms / {:.1} ms. ",
+            escape(&read.label),
+            read.admitted(),
+            read.captures.len(),
+            REPEAT_GATE_TOLERANCE * 100.0,
+            read.reference_mean_ms,
+            read.reference_median_ms,
+        ));
+        match (read.p99_ms, read.p99_spread) {
+            (Some(p99), Some(spread)) => html.push_str(&format!(
+                "p99 across the admitted captures: <strong>{p99:.1} ms</strong> - \
+                 the median of a group spanning {:.0}% of that. The median is the \
+                 number to compare between two sets; the span is how wide the \
+                 captures under it were.</p>\n",
+                spread * 100.0
+            )),
+            // Two very different causes, and the report may not guess which:
+            // a busy machine, or a scene whose own load is not repeatable.
+            _ => html.push_str(
+                "The gate admitted nothing, so this set reports no tail. The \
+                 captures did not measure the same thing - either the machine \
+                 moved under them, or this scene's own load is not repeatable \
+                 and no number of repeats will fix it.</p>\n",
+            ),
+        }
+        html.push_str("<table>\n<thead>\n<tr>");
+        for head in ["Repeat", "Mean", "Median", "p99", "Worst", "Gate"] {
+            html.push_str(&format!("<th>{head}</th>"));
+        }
+        html.push_str("</tr>\n</thead>\n<tbody>\n");
+        for capture in &read.captures {
+            html.push_str(&format!(
+                "<tr><td>#{}</td><td>{:.2} ms</td><td>{:.2} ms</td><td>{:.2} ms</td>\
+                 <td>{:.2} ms</td><td class=\"{}\">{}</td></tr>\n",
+                capture.index,
+                capture.mean_ms,
+                capture.median_ms,
+                capture.p99_ms,
+                capture.worst_ms,
+                // SKIPPED, not failed: a discarded capture is a measurement
+                // that did not count, and red would read as a broken run.
+                if capture.admitted {
+                    "status-pass"
+                } else {
+                    "status-skipped"
+                },
+                if capture.admitted {
+                    "admitted"
+                } else {
+                    "discarded - contaminated"
+                },
+            ));
+        }
+        html.push_str("</tbody>\n</table>\n");
+        if let (Some(worst), Some(spread)) = (read.worst_ms, read.worst_spread) {
+            html.push_str(&format!(
+                "<p class=\"note\">Slowest single frame across the admitted captures: \
+                 {worst:.1} ms (median of a group spanning {:.0}% of that). It is one \
+                 sample per capture and behaves like one - read it, do not build a \
+                 claim on it.</p>\n",
+                spread * 100.0
+            ));
+        }
+    }
+    html.push_str(
+        "<p class=\"note\">A discarded capture says the machine changed under the \
+         measurement, not that the code got worse. Still reported, never graded.</p>\n",
+    );
+    html
+}
+
+/// The FIXED-STEP read, scraped out of the run log.
+///
+/// One row per capture: how many fixed steps ran inside a frame, how many
+/// frames ran NONE (the simulation was stopped - a pause, a result screen, a
+/// menu), and how many sat on the window's step ceiling and what those cost.
+///
+/// It is here because a capture window that contains a stopped simulation, or
+/// that spends frames pinned at `Time<Virtual>`'s clamp, is not measuring one
+/// scene - and no percentile above says so. Reported, never graded.
+pub(crate) fn render_fixed_steps(log: &str) -> String {
+    let reads: Vec<(String, FixedStepStats)> =
+        log.lines().filter_map(parse_fixed_steps_line).collect();
+    if reads.is_empty() {
+        return String::new();
+    }
+    let mut html = String::from("<h3>Fixed steps per frame</h3>\n<table>\n<thead>\n<tr>");
+    for head in [
+        "Capture",
+        "Steps/frame",
+        "Range",
+        "Frames with no step",
+        "Frames at the top",
+        "Their cost",
+    ] {
+        html.push_str(&format!("<th>{head}</th>"));
+    }
+    html.push_str("</tr>\n</thead>\n<tbody>\n");
+    for (label, steps) in &reads {
+        let top = steps.at_ceiling();
+        html.push_str(&format!(
+            "<tr><td>{}</td><td>{:.2}</td><td>{} - {}</td><td>{}</td>\
+             <td>{}</td><td>{}</td></tr>\n",
+            escape(label),
+            steps.mean_steps,
+            steps.min_steps,
+            steps.max_steps,
+            steps.stopped_frames(),
+            top.map_or(0, |b| b.frames),
+            top.map_or_else(|| "-".into(), |b| format!("{:.1} ms", b.mean_frame_ms)),
+        ));
+    }
+    html.push_str(
+        "</tbody>\n</table>\n<p class=\"note\">A frame runs as many fixed steps as \
+         the accumulated virtual time allows, capped by <code>Time&lt;Virtual&gt;\
+         ::max_delta</code>. Frames with NO step mean the simulation was stopped \
+         inside the window - in a scene slower than the timestep that window did \
+         not measure one scene. Frames at the top of the range are where the clamp \
+         is discarding time the world never simulates. Reported, not graded.</p>\n",
+    );
+    html
+}
+
 /// Horizontal bar chart: one row per run, bar length = mean frame time, a tick
 /// at p99, all runs on one common scale (the largest p99/max across runs), plus
 /// a dashed 16.6 ms budget line. Pure inline SVG - no script, no external lib.
@@ -277,6 +417,7 @@ body {
 }
 h1 { font-size: 1.6rem; margin-bottom: 0.2rem; }
 h2 { font-size: 1.15rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 0.3rem; }
+h3 { font-size: 1rem; margin-top: 1.4rem; margin-bottom: 0.2rem; }
 .meta { color: #555; margin: 0.2rem 0; }
 .note { color: #666; font-size: 0.9rem; }
 code { background: #eee; padding: 0.05rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
@@ -416,6 +557,58 @@ mod tests {
     #[test]
     fn no_capture_renders_no_frame_read() {
         assert!(render_frame_read(&[]).is_empty());
+    }
+
+    /// The gate has to SHOW its working: which captures it kept, which it threw
+    /// out, and how wide the number it reports actually is.
+    #[test]
+    fn the_repeat_gate_table_shows_every_capture_and_the_spread() {
+        let mut runs = vec![
+            run("s#1", 26.0, 44.0),
+            run("s#2", 26.0, 58.0),
+            run("s#3", 60.0, 300.0),
+        ];
+        // `run` ties p50 and p99 to the mean; the gate reads all of them.
+        for r in &mut runs {
+            r.stats.p50_ms = r.stats.mean_ms;
+            r.stats.p99_ms = r.stats.max_ms * 0.8;
+        }
+        let html = render_repeat_gate(&runs);
+        assert!(html.contains("Repeat gate: s"), "{html}");
+        assert!(html.contains("2 of 3 captures admitted"), "{html}");
+        assert!(html.contains("discarded - contaminated"), "{html}");
+        // The discarded row reads SKIPPED, never failed.
+        assert!(html.contains("class=\"status-skipped\""), "{html}");
+        assert!(!html.contains("status-fail"), "{html}");
+        // The headline is the median of the admitted p99 (35.2, 46.4), not
+        // the 240 ms the discarded capture carried.
+        assert!(html.contains("<strong>35.2 ms</strong>"), "{html}");
+        // The slowest single frame rides beside it, marked as one sample.
+        assert!(html.contains("44.0 ms (median"), "{html}");
+        assert!(html.contains("do not build a claim on it"), "{html}");
+        assert!(html.contains("never graded"), "{html}");
+        // A lone capture is not a set and renders nothing at all.
+        assert!(render_repeat_gate(&[run("s", 26.0, 44.0)]).is_empty());
+    }
+
+    /// The reading that caught a capture window measuring a paused result
+    /// screen: frames that ran no fixed step at all.
+    #[test]
+    fn the_fixed_step_table_shows_stopped_frames_and_the_ceiling() {
+        let log = "\
+2026-08-19T15:00:00Z INFO nova_probe: nova perf: label=wfc_arena#5 fixed_steps \
+min=0 max=16 mean=5.419 total=4877 buckets=0:165@69.7ms,4:187@67.2ms,16:34@354.1ms
+2026-08-19T15:00:00Z INFO nova_probe: unrelated line";
+        let html = render_fixed_steps(log);
+        assert!(html.contains("Fixed steps per frame"), "{html}");
+        assert!(html.contains("wfc_arena#5"), "{html}");
+        assert!(html.contains("<td>0 - 16</td>"), "{html}");
+        assert!(html.contains("<td>165</td>"), "165 stopped frames: {html}");
+        assert!(html.contains("<td>34</td>"), "34 at the ceiling: {html}");
+        assert!(html.contains("354.1 ms"), "{html}");
+        assert!(html.contains("not graded"), "{html}");
+        // A log with no capture line renders nothing rather than an empty box.
+        assert!(render_fixed_steps("nothing to see").is_empty());
     }
 
     #[test]

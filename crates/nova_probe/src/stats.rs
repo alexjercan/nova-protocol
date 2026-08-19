@@ -18,8 +18,9 @@
 /// Glob-import surface for the frame-time wire format.
 pub mod prelude {
     pub use super::{
-        append_frametime_row, parse_frametime_csv, parse_summary_line, FrameStats, PerfRun,
-        RunMeta, CSV_HEADER, CSV_HEADER_V1, CSV_HEADER_V2,
+        append_frametime_row, parse_fixed_steps_line, parse_frametime_csv, parse_summary_line,
+        FixedStepBucket, FixedStepStats, FrameStats, PerfRun, RunMeta, CSV_HEADER, CSV_HEADER_V1,
+        CSV_HEADER_V2,
     };
 }
 
@@ -50,6 +51,202 @@ pub struct FrameStats {
     /// "1% low" frame rate: the rate of the 99th-percentile-slowest frame
     /// (`1000 / p99_ms`), the standard stutter-floor figure.
     pub one_pct_low_fps: f64,
+}
+
+/// How many fixed steps ran inside each captured frame, and what a frame
+/// carrying that many steps cost. JSON-only: it is a diagnostic beside the
+/// frame window, not a column of the comparable CSV schema.
+///
+/// The question it answers is whether a slow frame AMPLIFIES itself. Bevy
+/// clamps a frame's virtual delta to `Time<Virtual>::max_delta` and then runs
+/// as many fixed steps as the accumulated time allows, so a frame that
+/// overruns the timestep hands its overrun to the next frame as extra steps.
+/// A bucket table that stays flat says the fixed loop is not the amplifier; a
+/// rising `mean_frame_ms` against `steps` says it is.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FixedStepStats {
+    /// Frames the counts cover (the capture window).
+    pub frames: usize,
+    /// Fixed steps run over the whole window.
+    pub total_steps: u64,
+    /// Fewest steps any single frame ran.
+    pub min_steps: u32,
+    /// Most steps any single frame ran - the amplification ceiling actually
+    /// reached, against the `max_delta / timestep` one that is merely allowed.
+    pub max_steps: u32,
+    /// Steps per frame, averaged over the window.
+    pub mean_steps: f64,
+    /// One entry per observed step count, ascending: how many frames ran that
+    /// many steps, and what those frames cost on average.
+    pub buckets: Vec<FixedStepBucket>,
+}
+
+/// One row of [`FixedStepStats::buckets`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct FixedStepBucket {
+    /// Fixed steps this bucket's frames ran.
+    pub steps: u32,
+    /// Frames that ran exactly [`Self::steps`] steps.
+    pub frames: usize,
+    /// Mean wall-clock cost of those frames (ms).
+    pub mean_frame_ms: f64,
+    /// Slowest of those frames (ms).
+    pub max_frame_ms: f64,
+}
+
+impl FixedStepStats {
+    /// Pair each frame time with the step count recorded for it. `None` when
+    /// there is nothing to summarize or the two series disagree in length -
+    /// a mismatch means the counts were not drained per frame, and a summary
+    /// built from it would be fiction.
+    pub fn from_frames(frame_ms: &[f64], steps: &[u32]) -> Option<Self> {
+        if frame_ms.is_empty() || frame_ms.len() != steps.len() {
+            return None;
+        }
+        let mut counts: std::collections::BTreeMap<u32, (usize, f64, f64)> =
+            std::collections::BTreeMap::new();
+        for (ms, count) in frame_ms.iter().zip(steps) {
+            let entry = counts.entry(*count).or_insert((0, 0.0, f64::MIN));
+            entry.0 += 1;
+            entry.1 += ms;
+            entry.2 = entry.2.max(*ms);
+        }
+        let total_steps: u64 = steps.iter().map(|s| u64::from(*s)).sum();
+        Some(Self {
+            frames: frame_ms.len(),
+            total_steps,
+            min_steps: *steps.iter().min().expect("non-empty"),
+            max_steps: *steps.iter().max().expect("non-empty"),
+            mean_steps: total_steps as f64 / frame_ms.len() as f64,
+            buckets: counts
+                .into_iter()
+                .map(
+                    |(steps, (frames, total_ms, max_frame_ms))| FixedStepBucket {
+                        steps,
+                        frames,
+                        mean_frame_ms: total_ms / frames as f64,
+                        max_frame_ms,
+                    },
+                )
+                .collect(),
+        })
+    }
+
+    /// A greppable one-line summary, same `nova perf:` scrape prefix as the
+    /// frame line so a log-only channel (the web capture) can carry it too.
+    pub(crate) fn summary_line(&self, label: &str) -> String {
+        let buckets = self
+            .buckets
+            .iter()
+            .map(|b| format!("{}:{}@{:.1}ms", b.steps, b.frames, b.mean_frame_ms))
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            "nova perf: label={label} fixed_steps min={} max={} mean={:.3} total={} \
+             buckets={buckets}",
+            self.min_steps, self.max_steps, self.mean_steps, self.total_steps,
+        )
+    }
+
+    /// The JSON object body (no leading key), hand-formatted like the rest of
+    /// this dev-only crate's writers.
+    fn to_json(&self) -> String {
+        let buckets = self
+            .buckets
+            .iter()
+            .map(|b| {
+                format!(
+                    "{{\"steps\": {}, \"frames\": {}, \"mean_frame_ms\": {:.4}, \
+                     \"max_frame_ms\": {:.4}}}",
+                    b.steps, b.frames, b.mean_frame_ms, b.max_frame_ms
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",\n      ");
+        format!(
+            "{{\n    \"frames\": {},\n    \"total_steps\": {},\n    \"min_steps\": {},\n    \
+             \"max_steps\": {},\n    \"mean_steps\": {:.4},\n    \"buckets\": [\n      {}\n    ]\n  }}",
+            self.frames, self.total_steps, self.min_steps, self.max_steps, self.mean_steps, buckets,
+        )
+    }
+
+    /// Frames that ran NO fixed step. In a scene slower than the timestep that
+    /// means the simulation was stopped - a pause, a result screen, a menu -
+    /// and a capture window carrying them did not measure one scene. In a scene
+    /// FASTER than the timestep it is ordinary and says nothing, which is why
+    /// this is a number to read beside [`Self::mean_steps`], never a flag.
+    pub fn stopped_frames(&self) -> usize {
+        self.buckets
+            .iter()
+            .find(|b| b.steps == 0)
+            .map_or(0, |b| b.frames)
+    }
+
+    /// Frames that ran the most steps the window ever ran, and what they cost.
+    /// When that count is `max_delta / timestep` those frames are AT the clamp:
+    /// they discarded real time the world never simulated.
+    pub fn at_ceiling(&self) -> Option<&FixedStepBucket> {
+        // By VALUE, not by position: the writer emits buckets ascending, but
+        // a scraped line is whatever the log held.
+        self.buckets.iter().max_by_key(|b| b.steps)
+    }
+}
+
+/// Parse the capture's fixed-step summary line (`nova perf: label=<l>
+/// fixed_steps ...`) back into stats. The report scrapes it out of the run log
+/// rather than re-reading the per-run JSON, for the same reason the web capture
+/// scrapes the frame line: the log is the one channel every run has.
+/// Returns `(label, FixedStepStats)`; `None` when the line is not one.
+pub fn parse_fixed_steps_line(line: &str) -> Option<(String, FixedStepStats)> {
+    let rest = line.split("nova perf: label=").nth(1)?;
+    let mut tokens = rest.split_whitespace();
+    let label = tokens.next()?.to_string();
+    if tokens.next()? != "fixed_steps" {
+        return None;
+    }
+    let mut min_steps = None;
+    let mut max_steps = None;
+    let mut mean_steps = None;
+    let mut total_steps = None;
+    let mut buckets = Vec::new();
+    for token in tokens {
+        let Some((key, value)) = token.split_once('=') else {
+            break;
+        };
+        match key {
+            "min" => min_steps = value.parse().ok(),
+            "max" => max_steps = value.parse().ok(),
+            "mean" => mean_steps = value.parse().ok(),
+            "total" => total_steps = value.parse().ok(),
+            "buckets" => {
+                for item in value.split(',') {
+                    let (steps, rest) = item.split_once(':')?;
+                    let (frames, ms) = rest.split_once('@')?;
+                    buckets.push(FixedStepBucket {
+                        steps: steps.parse().ok()?,
+                        frames: frames.parse().ok()?,
+                        mean_frame_ms: ms.trim_end_matches("ms").parse().ok()?,
+                        // The line carries the bucket MEAN only; the per-run
+                        // JSON is where a max lives. Reporting the mean twice
+                        // would invent a number.
+                        max_frame_ms: f64::NAN,
+                    });
+                }
+            }
+            _ => break,
+        }
+    }
+    Some((
+        label,
+        FixedStepStats {
+            frames: buckets.iter().map(|b| b.frames).sum(),
+            total_steps: total_steps?,
+            min_steps: min_steps?,
+            max_steps: max_steps?,
+            mean_steps: mean_steps?,
+            buckets,
+        },
+    ))
 }
 
 /// Per-run metadata recorded alongside the stats (schema v2), so a results
@@ -216,7 +413,16 @@ impl FrameStats {
     /// Render as a pretty JSON object (hand-formatted to avoid a serde dep in
     /// this dev-only crate). Schema v2: the metadata fields follow the
     /// numeric ones.
-    pub(crate) fn to_json(&self, label: &str, meta: &RunMeta, reload_ms: &[f64]) -> String {
+    pub(crate) fn to_json(
+        &self,
+        label: &str,
+        meta: &RunMeta,
+        steps: Option<&FixedStepStats>,
+        reload_ms: &[f64],
+    ) -> String {
+        let steps_field = steps
+            .map(|steps| format!(",\n  \"fixed_steps\": {}", steps.to_json()))
+            .unwrap_or_default();
         let reload_field = if reload_ms.is_empty() {
             String::new()
         } else {
@@ -236,7 +442,7 @@ impl FrameStats {
              \"p999_ms\": {:.4},\n  \"mean_fps\": {:.2},\n  \"one_pct_low_fps\": {:.2},\n  \
              \"backend\": \"{}\",\n  \"adapter\": \"{}\",\n  \"resolution\": \"{}\",\n  \
              \"quality\": \"{}\",\n  \"git_sha\": \"{}\",\n  \"host\": \"{}\",\n  \
-             \"profile\": \"{}\"{}\n}}\n",
+             \"profile\": \"{}\"{}{}\n}}\n",
             json_safe(label),
             self.frames,
             self.total_ms,
@@ -256,6 +462,7 @@ impl FrameStats {
             json_safe(&meta.git_sha),
             json_safe(&meta.host),
             json_safe(&meta.profile),
+            steps_field,
             reload_field,
         )
     }
@@ -740,9 +947,88 @@ mod tests {
     #[test]
     fn json_carries_the_meta_fields() {
         let stats = FrameStats::from_samples(&[10.0; 3]);
-        let json = stats.to_json("scene", &some_meta(), &[]);
+        let json = stats.to_json("scene", &some_meta(), None, &[]);
         assert!(json.contains("\"backend\": \"vulkan\""), "{json}");
         assert!(json.contains("\"git_sha\": \"f4bfb3af\""), "{json}");
         assert!(json.contains("\"adapter\": \"NVIDIA GeForce RTX 3060 Ti\""));
+        assert!(
+            !json.contains("fixed_steps"),
+            "a run with no step counts must not invent the key: {json}"
+        );
+    }
+
+    #[test]
+    fn fixed_steps_bucket_frames_by_step_count() {
+        // Four frames: one ran no step, two ran one, one ran three.
+        let frame_ms = [4.0, 16.0, 18.0, 60.0];
+        let steps = [0, 1, 1, 3];
+        let stats = FixedStepStats::from_frames(&frame_ms, &steps).expect("summarizes");
+        assert_eq!(stats.frames, 4);
+        assert_eq!(stats.total_steps, 5);
+        assert_eq!(stats.min_steps, 0);
+        assert_eq!(stats.max_steps, 3);
+        assert!((stats.mean_steps - 1.25).abs() < 1e-9);
+        assert_eq!(stats.buckets.len(), 3, "one row per OBSERVED count");
+        assert_eq!(stats.buckets[1].steps, 1);
+        assert_eq!(stats.buckets[1].frames, 2);
+        assert!((stats.buckets[1].mean_frame_ms - 17.0).abs() < 1e-9);
+        assert!((stats.buckets[1].max_frame_ms - 18.0).abs() < 1e-9);
+        let json = stats.to_json();
+        assert!(json.contains("\"max_steps\": 3"), "{json}");
+    }
+
+    /// A count series that does not line up with the frames is not data: the
+    /// drain missed a frame, and every bucket built from it would be shifted.
+    #[test]
+    fn fixed_steps_refuse_a_mismatched_series() {
+        assert!(FixedStepStats::from_frames(&[10.0, 11.0], &[1]).is_none());
+        assert!(FixedStepStats::from_frames(&[], &[]).is_none());
+    }
+
+    #[test]
+    fn fixed_step_summary_line_names_the_label_and_the_ceiling() {
+        let stats = FixedStepStats::from_frames(&[10.0, 40.0], &[1, 4]).expect("summarizes");
+        let line = stats.summary_line("wfc_arena");
+        assert!(line.contains("label=wfc_arena"), "{line}");
+        assert!(line.contains("fixed_steps min=1 max=4"), "{line}");
+        assert!(line.contains("buckets=1:1@10.0ms,4:1@40.0ms"), "{line}");
+    }
+
+    /// The scrape contract: whatever the capture prints, the report reads back.
+    #[test]
+    fn fixed_step_summary_line_round_trips_through_the_real_writer() {
+        let frame_ms = [70.0, 70.0, 90.0, 330.0];
+        let steps = [0, 4, 6, 16];
+        let stats = FixedStepStats::from_frames(&frame_ms, &steps).expect("summarizes");
+        let line = stats.summary_line("wfc_arena#5");
+        let (label, parsed) = parse_fixed_steps_line(&line).expect("parses");
+        assert_eq!(label, "wfc_arena#5");
+        assert_eq!(parsed.frames, 4);
+        assert_eq!(parsed.total_steps, 26);
+        assert_eq!(parsed.min_steps, 0);
+        assert_eq!(parsed.max_steps, 16);
+        assert!((parsed.mean_steps - 6.5).abs() < 5e-4);
+        // A stopped simulation inside the window is the reading that matters.
+        assert_eq!(parsed.stopped_frames(), 1);
+        let top = parsed.at_ceiling().expect("a top bucket");
+        assert_eq!(top.steps, 16);
+        assert!((top.mean_frame_ms - 330.0).abs() < 5e-2);
+
+        // Embedded in a log line with a prefix: still parses. The FRAME line is
+        // not this line and must not read as one.
+        let wrapped = format!("2026-08-19T15:40:00Z INFO nova_probe: {line}");
+        assert!(parse_fixed_steps_line(&wrapped).is_some());
+        let frame_line = FrameStats::from_samples(&frame_ms).summary_line("wfc_arena#5");
+        assert!(parse_fixed_steps_line(&frame_line).is_none());
+        assert!(parse_fixed_steps_line("unrelated log line").is_none());
+    }
+
+    /// A window with no stopped frame and no clamp reads as exactly that,
+    /// rather than as a missing measurement.
+    #[test]
+    fn a_window_that_never_stopped_reports_zero_stopped_frames() {
+        let stats = FixedStepStats::from_frames(&[60.0, 75.0], &[4, 5]).expect("summarizes");
+        assert_eq!(stats.stopped_frames(), 0);
+        assert_eq!(stats.at_ceiling().map(|b| b.steps), Some(5));
     }
 }
