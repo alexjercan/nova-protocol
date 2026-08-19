@@ -1,8 +1,8 @@
 # Damage cracks cost a material per section, and it halves the frame rate
 
 - STATUS: CLOSED
-- PRIORITY: 95
-- TAGS: v0.11.0,performance,render,ship
+- PRIORITY: 0
+- TAGS: archive,done
 
 Epic: `20260818-220812`. **The single biggest measured win in the epic: ratio
 0.52, a 2x frame-rate improvement on `wfc_arena` 4v4.**
