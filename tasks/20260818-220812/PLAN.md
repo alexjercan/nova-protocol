@@ -74,6 +74,33 @@ Using the promoted harness, so a round is cheap. Known targets:
 - Coverage holes the map named: carving has one case, NOVA OS and the editor one
   each, WFC generation unreachable from any scenario.
 
+## The loop - phases 1 to 4 REPEAT
+
+Owner, 2026-08-20: fix the damage buckets, add probe capabilities, do more
+ablation and measurement, find new bottlenecks, repeat.
+
+So phase 4 is not the end of the run - it feeds phase 1 of the next turn. Each
+turn:
+
+1. **Fix** the largest thing the last round measured, alone if it is big enough
+   to measure alone.
+2. **Extend the instrument** with whatever the fix needed and the harness did
+   not have. Every round has produced one: materials were uncounted, the fixed
+   step was unpinned, a paused clock was measurable.
+3. **Ablate and measure** to find the next bottleneck, on the cheapest subject
+   that isolates it - `wfc_ships` for per-ship cost, `stress_point_defense` for
+   projectiles, a new `stress_*` for whatever is next.
+4. **Record what was ruled OUT**, not only what was found.
+
+A turn ends when the next bottleneck is named and sized. Stop the loop when the
+largest remaining measured item is smaller than what the metric can resolve -
+at that point the honest move is to improve the metric or stop, not to guess.
+
+**The instrument compounds and that is the point.** The first round needed a
+count instrument, a peace switch and a fixed-step pin built by hand on a
+throwaway branch. The second round should need none of them, so it can spend its
+budget on the question instead of the apparatus.
+
 ## What this run does NOT do
 
 - Does not touch physics, collision, damage propagation or flight.
