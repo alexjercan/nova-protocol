@@ -240,7 +240,7 @@ When adding a substantial feature, add or extend the range that drives it. When
 fixing a bug, WRITE the range that reproduces it first: that is the doctrine in
 `CONVENTIONS.md`, and the invariant roster is what keeps it honest.
 
-Every example except `scene_baseline` is HARNESSED: it drives itself under
+Every example is HARNESSED: it drives itself under
 `NOVA_AUTOPILOT=1`, and probe is the regression suite over all of them -
 `cargo run --features debug probe run systems` (or `screenshots`, or
 `playable`) runs one category alone, and `--all` is the whole catalog, which is

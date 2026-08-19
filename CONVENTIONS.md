@@ -64,14 +64,27 @@ pub struct SpaceshipInputSystems;
    is named: a `nova_probe::probe_marker` reading `outcome: <slug>` beside the
    assert it belongs to, and that slug on the roster in
    `crates/nova_probe_cli/tests/catalog_drift.rs` - deleting an assertion then
-   fails a test instead of leaving a green run that proves less. `systems/` is
-   where correctness lives; `screenshots/` is where content does. There is no
-   third category, and a range that only measures is not a range.
-2. Gameplay randomness comes from SEEDED `bevy_rand`, never `rand::rng()`. The
+   fails a test instead of leaving a green run that proves less. `systems/`
+   still owns correctness, and a range that only measures is not a range.
+2. An example is filed by WHO it is for, in one of THREE directories.
+   `playable/` is for a human: they load it and do the thing it demonstrates,
+   through an affordance wired outside the `NOVA_AUTOPILOT` gate. `systems/` is
+   for the probe. `screenshots/` is for the website. The test for `playable/`
+   is whether a human loading it would expect to DO something - if the name
+   promises a verb, it owes the verb; the test between the other two is whether
+   a run produces an assertion or a picture. A free-fly camera is not an
+   affordance: the scenario loader hands one to every cameraless scene, so
+   "you can look at it" files under `screenshots/`.
+3. Autopilot is a SECOND driver, never a disqualifier. A `playable/` example
+   keeps its script and its captures - that is what keeps it on the probe gate
+   and in the docs pipeline. An example that silently does nothing when a human
+   loads it is the defect: it either grows the affordance and moves, or it says
+   in its `about` line that it is autopilot-only.
+4. Gameplay randomness comes from SEEDED `bevy_rand`, never `rand::rng()`. The
    thread RNG makes a run unreproducible, which silently voids every probe
    assertion built on a seeded layout. Section death drew from it for a whole
    epic before anyone noticed.
-3. Prototype, scenario, style and asset ids are runtime STRINGS. Nothing
+5. Prototype, scenario, style and asset ids are runtime STRINGS. Nothing
    type-checks them, so renaming one compiles clean and fails at load. Grep
    every id you rename - examples included - and RUN what you changed.
 
