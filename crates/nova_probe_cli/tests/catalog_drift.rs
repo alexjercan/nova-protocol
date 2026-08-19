@@ -33,8 +33,9 @@ fn catalog_matches_disk() {
     let root = repo_root();
 
     // Example roots on disk: every .rs file DIRECTLY under a category dir.
-    // Deeper files (e.g. systems/turret_gunnery/slider.rs, screenshots/shared/)
-    // are modules of a sibling root, and data/ holds no code.
+    // Deeper files (e.g. systems/system_turret_gunnery/slider.rs,
+    // screenshots/shared/) are modules of a sibling root, and data/ holds no
+    // code.
     let mut on_disk = BTreeSet::new();
     for category in std::fs::read_dir(root.join("examples")).unwrap() {
         let category = category.unwrap().path();
