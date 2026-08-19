@@ -11,8 +11,8 @@ use std::path::Path;
 use nova_probe::prelude::*;
 
 use super::{
-    escape, render_chart, render_fixed_steps, render_frame_read, render_repeat_gate, render_table,
-    STYLE,
+    escape, render_chart, render_fixed_steps, render_frame_read, render_refused_captures,
+    render_repeat_gate, render_table, STYLE,
 };
 use crate::evaluation::{
     checks::violations_by_name, measured_count, overall_verdict, Check, RunArtifacts,
@@ -191,6 +191,12 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
         .contract
         .as_ref()
         .is_some_and(|c| !c.declares(Capability::FrameTime));
+    // FIRST, and outside the match: a refused capture wrote no row, so on a run
+    // where every capture was refused there is nothing for the arms below to
+    // render and the section would otherwise read as "no capture was taken".
+    if let Some(log) = &artifacts.log {
+        html.push_str(&render_refused_captures(log));
+    }
     match (&artifacts.runs, unclaimed) {
         (None, true) => html.push_str(&format!(
             "<p class=\"note\">no frame-time claim: this example wires no \

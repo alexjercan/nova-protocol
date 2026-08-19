@@ -189,6 +189,45 @@ pub(crate) fn render_repeat_gate(runs: &[PerfRun]) -> String {
     html
 }
 
+/// The REFUSED captures, scraped out of the run log.
+///
+/// A refused capture wrote no CSV row, so it is invisible to every table built
+/// from those rows - which is exactly the shape a reader would otherwise take
+/// for a slightly smaller set. It leads the frame section because it says the
+/// numbers under it are missing on purpose.
+pub(crate) fn render_refused_captures(log: &str) -> String {
+    let aborts: Vec<CaptureAbort> = log.lines().filter_map(parse_capture_abort_line).collect();
+    if aborts.is_empty() {
+        return String::new();
+    }
+    let mut html = String::from(
+        "<h3 class=\"fail\">Refused captures</h3>\n<table>\n<thead>\n<tr>\
+         <th>Capture</th><th>Refused in</th><th>After</th><th>Window asked for</th>\
+         <th>Reason</th></tr>\n</thead>\n<tbody>\n",
+    );
+    for abort in &aborts {
+        html.push_str(&format!(
+            "<tr><td>{}</td><td>{}</td><td>{} frame(s)</td><td>{} + {}</td>\
+             <td><code>{}</code></td></tr>\n",
+            escape(&abort.label),
+            escape(&abort.phase),
+            abort.frame,
+            abort.window.0,
+            abort.window.1,
+            escape(&abort.reason),
+        ));
+    }
+    html.push_str(
+        "</tbody>\n</table>\n<p class=\"note\">These captures met a STOPPED \
+         simulation inside their window - the scene reached an end, and the frames \
+         after it draw a still picture at a plausible cost. They wrote no \
+         statistics and appear in no table below. Bound the window so it closes \
+         while the scene is still running, or measure a scene that cannot end \
+         inside it.</p>\n",
+    );
+    html
+}
+
 /// The FIXED-STEP read, scraped out of the run log.
 ///
 /// One row per capture: how many fixed steps ran inside a frame, how many
@@ -609,6 +648,24 @@ min=0 max=16 mean=5.419 total=4877 buckets=0:165@69.7ms,4:187@67.2ms,16:34@354.1
         assert!(html.contains("not graded"), "{html}");
         // A log with no capture line renders nothing rather than an empty box.
         assert!(render_fixed_steps("nothing to see").is_empty());
+    }
+
+    /// A refused capture has no row anywhere else, so the report has to say so
+    /// on its own or the set just reads as smaller.
+    #[test]
+    fn a_refused_capture_gets_its_own_table() {
+        let log = "\
+2026-08-19T15:00:00Z ERROR nova_probe: nova perf: label=wfc_arena#2 ABORTED \
+reason=simulation_stopped phase=capture frame=345 warmup=60 frames=360 - stopped
+2026-08-19T15:00:00Z INFO nova_probe: unrelated line";
+        let html = render_refused_captures(log);
+        assert!(html.contains("Refused captures"), "{html}");
+        assert!(html.contains("wfc_arena#2"), "{html}");
+        assert!(html.contains("345 frame(s)"), "{html}");
+        assert!(html.contains("60 + 360"), "{html}");
+        assert!(html.contains("simulation_stopped"), "{html}");
+        // A clean run renders nothing rather than an empty box.
+        assert!(render_refused_captures("nothing to see").is_empty());
     }
 
     #[test]

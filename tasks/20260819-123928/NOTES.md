@@ -4,6 +4,36 @@ Every number below came out of `probe scenario` / `probe run` on one machine,
 one build, one capture window. Read the ranking first; the reasoning is under
 it. Nothing here is graded: probe reports the frames and a human decides.
 
+## RETRACTED: the `wfc_arena` 4v4 row
+
+**Every `wfc_arena` number on this page is withdrawn.** The window it was taken
+through was not a measurement of the 4v4 at all:
+
+1. **It had no upper bound.** The capture opened on the scoreboard predicate and
+   then ran 900 frames whatever happened - approach, brawl, stern chase, victory,
+   result screen. The result screen PAUSES `Time<Virtual>` while still drawing
+   the whole arena, so the frames after the match ends cost real milliseconds and
+   simulate nothing. Two of ten repeats of this exact subject and tree ran into
+   one; one spent 555 of its 900 frames stopped, at 88 ms a frame, and reported a
+   perfectly plausible 93 ms mean (`20260819-173219/NOTES.md`, section 1).
+2. **It was ONE capture.** 295.76 ms is a single slowest frame out of a single
+   900-frame window. Ten honest repeats of the same subject spread their worst
+   frame 169% of its median.
+
+The window is now bounded and the capture REFUSES a stopped simulation outright
+(`20260819-173219`, phase B1), so the fault cannot recur silently. The
+replacement figure is not in yet: it needs a repeat set on an idle box, and the
+three measurement lanes are being serialised for that. **Until it lands, quote
+no `wfc_arena` frame time from this page** - not the 295.76 ms worst, not the
+93.08 ms mean, not the derived FPS.
+
+The `broadside`, `editor_sandbox` and `carve_asteroids` rows stand: none of them
+reached a paused state inside its window (checked against the fixed-step record,
+which counts a stopped frame directly - every one of their captures ran at least
+one fixed step in every frame). What still applies to them is the run-to-run
+spread noted below, and `20260819-173219`'s finding that a single capture cannot
+resolve better than about 126% on the worst frame.
+
 ## How it was measured
 
 ```sh
@@ -30,15 +60,15 @@ Worst frame first, because a stutter is a tail.
 
 | # | case | worst frame | worst FPS | 1% low FPS | mean frame | mean FPS |
 |--:|------|------------:|----------:|-----------:|-----------:|---------:|
-| 1 | `wfc_arena` 4v4 | **295.76 ms** | **3.4** | 5.1 | 93.08 ms | 10.7 |
+| 1 | `wfc_arena` 4v4 | RETRACTED | - | - | RETRACTED | - |
 | 2 | `broadside` (shipped chapter) | 52.92 ms | 18.9 | 23.6 | 26.25 ms | 38.1 |
 | 3 | `editor_sandbox` | 42.38 ms | 23.6 | 27.1 | 26.30 ms | 38.0 |
 | 4 | `carve_asteroids` (firing) | 42.39 ms | 23.6 | 34.7 | 21.09 ms | 47.4 |
 
-`wfc_arena` 4v4 is not in the same bracket as the rest. It is 5.6x the mean
-frame of anything else and its worst frame is seven times the worst frame of
-the two scenarios. Everything else in this list sits in one band around 26 ms
-mean / ~40-50 ms worst.
+The three surviving cases sit in one band around 26 ms mean / ~40-50 ms worst.
+The 4v4 is a heavier scene than any of them - that much is not in doubt, and the
+system table below still ranks WITHIN its own traced run - but HOW MUCH heavier
+is exactly what the retracted row claimed to know and did not.
 
 **Run-to-run spread on the tail.** `editor_sandbox` was measured twice with an
 unchanged scene: worst 57.87 ms then 42.38 ms, 1% low 22.8 then 27.1 FPS.
@@ -51,7 +81,7 @@ stable to 0.5%.
 Top spans of the traced run, by total span time. Shares OVERLAP (a parent span
 counts its children) so they must not be summed; they rank.
 
-### 1. `wfc_arena` 4v4 - 295.76 ms worst frame
+### 1. `wfc_arena` 4v4 - frame time RETRACTED, spans still rank
 
 | share | span | mean ms/call |
 |------:|------|-------------:|

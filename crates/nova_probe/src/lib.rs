@@ -26,6 +26,14 @@
 //!   [`bevy::prelude::Time`]`<Real>` deltas directly: wall-clock time between
 //!   frames, unaffected by the fixed-timestep clamp or a paused virtual
 //!   clock. That is the number a player feels.
+//! - **Every captured frame SIMULATED.** Because the deltas are wall-clock, a
+//!   scene whose simulation has stopped - a result screen, a pause menu, an
+//!   outcome overlay - keeps producing them, at a steady and entirely plausible
+//!   cost. The capture reads `Time<Virtual>` to detect that directly and
+//!   REFUSES the window: it logs at ERROR and writes no stats, because a
+//!   statistic over a still picture is worse than a missing one. A scene that
+//!   can reach an end therefore needs a window sized to close before it does
+//!   ([`FrameTimePlugin::window`]).
 //! - **Vsync off.** `PresentMode::AutoNoVsync` is forced on the primary window
 //!   so a fast scene is not pinned to the monitor's refresh - we want the true
 //!   per-frame cost and the headroom, not "60 fps, capped". A scene that cannot
@@ -72,8 +80,8 @@
 //! | Native env / wasm query | Default | Meaning |
 //! |-------------------------|---------|---------|
 //! | `NOVA_PERF` / `?perf`         | (unset) | Arms the plugin. |
-//! | `NOVA_PERF_WARMUP` / `warmup` | `180`   | Frames discarded after reaching `Playing` (shader compile, asset upload, spikes; also lets a combat burst saturate). |
-//! | `NOVA_PERF_FRAMES` / `frames` | `900`   | Frames captured for the stats window. |
+//! | `NOVA_PERF_WARMUP` / `warmup` | `180`   | Frames discarded after reaching `Playing` (shader compile, asset upload, spikes; also lets a combat burst saturate). Wins over an example's declared window. |
+//! | `NOVA_PERF_FRAMES` / `frames` | `900`   | Frames captured for the stats window. Wins over an example's declared window. |
 //! | `NOVA_PERF_LABEL` / `label`   | `scene` | Label recorded in the row. |
 //! | `NOVA_PERF_OUT` / (n/a)       | (none)  | Native only: dir for `<label>.json` + a `frametime.csv` row. Web has no fs, so it logs the summary line only. |
 //! | `NOVA_PERF_RES` / `res`       | `1280x720` | Forced primary-window resolution `WxH`. |

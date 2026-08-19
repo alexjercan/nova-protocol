@@ -412,12 +412,17 @@ fn main() -> bevy::app::AppExit {
         // two lines of ships flying at each other. It opens on the same
         // scoreboard predicate the driven walk advances on - both teams have
         // fired AND both have connected.
+        //
+        // And it is BOUNDED, because the far end of this window is a match that
+        // can be WON. See [`MEASURED_WINDOW`].
         app.add_plugins(
-            nova_probe::NovaProbePlugin::default().ready_frametime(|world: &World| {
-                world
-                    .get_resource::<Scoreboard>()
-                    .is_some_and(Scoreboard::fight_happened)
-            }),
+            nova_probe::NovaProbePlugin::default()
+                .ready_frametime(|world: &World| {
+                    world
+                        .get_resource::<Scoreboard>()
+                        .is_some_and(Scoreboard::fight_happened)
+                })
+                .frametime_window(MEASURED_WINDOW.0, MEASURED_WINDOW.1),
         );
         // Clean frames at the fleet's 16:9, dev overlays out of shot. The HUD
         // drops to cinematic only under capture: a hand-run keeps the level On
@@ -586,6 +591,35 @@ fn parse_ship(value: &str) -> Result<ShipSpec, String> {
 /// frame-time budget is recorded against. A photograph and a hand-run stay the
 /// duel - eight AI hulls is a load, not a composition.
 const MEASURED_SHIPS_PER_TEAM: usize = 4;
+
+/// The frame-time capture's window, `(warm-up, captured)` frames, in place of
+/// the probe's 180 + 900 baseline.
+///
+/// The far end of this window is a match that can be WON, and the result screen
+/// PAUSES the simulation while still drawing the whole arena - so a window that
+/// runs past the end measures a still picture at a plausible cost. Two of ten
+/// baseline captures did exactly that; one spent 555 of its 900 frames stopped.
+/// The capture now refuses such a window outright, which turns an over-long
+/// window from a quiet lie into a failed run - so the size here is what decides
+/// whether the subject is measurable at all.
+///
+/// Both halves are read off those ten captures, counting from the frame the
+/// readiness gate opens:
+///
+/// - the SHORTEST fight ran 525 frames past the gate before the result screen
+///   took it, so the whole window has to fit inside that with room to spare;
+/// - the warm-up can be short here in a way it cannot be for a capture that
+///   opens on `Playing`, because the gate does not open until both teams have
+///   fired AND both have connected - a minute of live combat, with the guns,
+///   the projectile pipelines and the impact effects all already exercised.
+///   60 frames covers the transient at the gate itself, and the 120 frames it
+///   gives back are 120 more frames of fight inside the bound.
+///
+/// 60 + 360 = 420 frames past the gate, 20% clear of the shortest fight
+/// measured. Shortening the window costs percentile resolution - p99 is the
+/// fourth-worst frame of 360, against the ninth-worst of 900 - and that is the
+/// price of measuring one scene instead of two.
+const MEASURED_WINDOW: (u32, u32) = (60, 360);
 
 /// Whether this binary is a probe MEASUREMENT pass rather than a photograph.
 ///

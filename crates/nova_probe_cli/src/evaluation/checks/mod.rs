@@ -15,6 +15,7 @@ pub mod prelude {
 }
 
 mod artifacts_loadable;
+mod capture_simulated;
 mod fps_within_baseline;
 mod invariants_held;
 mod log_clean;
@@ -136,6 +137,14 @@ const CHECKS: &[(&str, Option<Capability>, fn(&RunArtifacts) -> Check)] = &[
         "invariants_held",
         Some(Capability::Invariants),
         invariants_held::evaluate,
+    ),
+    // Before the comparison, because it decides whether there WAS a window to
+    // compare: a capture that met a stopped simulation measured a still
+    // picture, and every statistic downstream of it is fiction.
+    (
+        "capture_simulated",
+        Some(Capability::FrameTime),
+        capture_simulated::evaluate,
     ),
     (
         "fps_within_baseline",
@@ -302,13 +311,19 @@ mod tests {
             check(&checks, "fps_within_baseline").status,
             CheckStatus::NotApplicable(NotApplicable::InputNotSupplied("--baseline"))
         );
+        // The capture exists and no window was refused, so this one DOES
+        // grade - it needs no operator input to say so.
+        assert_eq!(
+            check(&checks, "capture_simulated").status,
+            CheckStatus::Pass
+        );
         assert_eq!(check(&checks, "log_clean").status, CheckStatus::Pass);
         assert_eq!(
             check(&checks, "artifacts_loadable").status,
             CheckStatus::Pass
         );
         assert_eq!(overall_verdict(&checks), "OK");
-        assert_eq!(measured_count(&checks), 5);
+        assert_eq!(measured_count(&checks), 6);
     }
 
     #[test]
@@ -416,7 +431,7 @@ mod tests {
         artifacts.manifest = Some(manifest);
         let json = checks_json(&artifacts, &checks);
         assert_eq!(json["verdict"], "OK");
-        assert_eq!(json["measured"], "5/7");
+        assert_eq!(json["measured"], "6/8");
         assert_eq!(json["reviewer_confirmation_required"], true);
         assert_eq!(json["run"]["example"], "playable");
         assert_eq!(json["run"]["passes"][0]["name"], "clean");

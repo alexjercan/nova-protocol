@@ -15,8 +15,8 @@ pub mod prelude {
     pub use super::{
         capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
         nova_frametime, perf_armed, perf_param, resolve_git_sha, resolve_host, FrameTimePlugin,
-        PerfDriver, PerfReady, ReloadGate, CAPTURE_COLLECTOR, DEFAULT_CAPTURE_FRAMES,
-        DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
+        PerfDriver, PerfReady, ReloadGate, ABORT_SIMULATION_STOPPED, CAPTURE_COLLECTOR,
+        DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
     };
 }
 
@@ -118,6 +118,10 @@ pub const DEFAULT_WARMUP_FRAMES: u32 = 180;
 /// Default number of frames captured into the stats window.
 pub const DEFAULT_CAPTURE_FRAMES: u32 = 900;
 
+/// Token the abort line carries when the simulation stopped inside the window.
+/// Shared with the host half, which scrapes the line out of the run log.
+pub const ABORT_SIMULATION_STOPPED: &str = "simulation_stopped";
+
 /// Default forced primary-window resolution.
 pub const DEFAULT_RESOLUTION: (f32, f32) = (1280.0, 720.0);
 
@@ -128,6 +132,7 @@ pub fn nova_frametime() -> FrameTimePlugin {
     FrameTimePlugin {
         driver: None,
         ready: None,
+        window: None,
     }
 }
 
@@ -136,6 +141,7 @@ pub fn nova_frametime() -> FrameTimePlugin {
 pub struct FrameTimePlugin {
     driver: Option<Arc<PerfDriver>>,
     ready: Option<Arc<PerfReady>>,
+    window: Option<(u32, u32)>,
 }
 
 impl FrameTimePlugin {
@@ -144,6 +150,23 @@ impl FrameTimePlugin {
     /// gate opens, so the window lands on the load the predicate names.
     pub fn ready_when(mut self, ready: impl Fn(&World) -> bool + Send + Sync + 'static) -> Self {
         self.ready = Some(Arc::new(ready));
+        self
+    }
+
+    /// Declare this scene's own capture window, `(warmup, frames)`, in place of
+    /// the [`DEFAULT_WARMUP_FRAMES`] / [`DEFAULT_CAPTURE_FRAMES`] baseline. An
+    /// operator's `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` still wins.
+    ///
+    /// For a scene that can REACH AN END - a fight that can be won, a chapter
+    /// that can be completed - the baseline window is not a free choice: the
+    /// capture must close while the scene is still running, because everything
+    /// past the end is a paused result screen and the capture refuses it
+    /// ([`ABORT_SIMULATION_STOPPED`]). Size it from a measured run of the
+    /// scene, not from a guess, and say in the example where the number came
+    /// from. A shorter window costs percentile resolution, which is the price
+    /// of measuring one scene instead of two.
+    pub fn window(mut self, warmup: u32, frames: u32) -> Self {
+        self.window = Some((warmup, frames));
         self
     }
 
@@ -258,17 +281,20 @@ struct PerfConfig {
 
 impl PerfConfig {
     /// Read the config from the active source ([`perf_param`]: env on native,
-    /// URL query on wasm), falling back to the documented defaults for anything
-    /// unset or unparseable.
-    fn resolve() -> Self {
+    /// URL query on wasm), falling back to the example's declared window
+    /// ([`FrameTimePlugin::window`]) and then to the documented defaults for
+    /// anything unset or unparseable.
+    fn resolve(declared_window: Option<(u32, u32)>) -> Self {
         fn parse_u32(key: &str, default: u32) -> u32 {
             perf_param(key)
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(default)
         }
+        let (warmup, frames) =
+            declared_window.unwrap_or((DEFAULT_WARMUP_FRAMES, DEFAULT_CAPTURE_FRAMES));
         Self {
-            warmup_frames: parse_u32("warmup", DEFAULT_WARMUP_FRAMES),
-            capture_frames: parse_u32("frames", DEFAULT_CAPTURE_FRAMES),
+            warmup_frames: parse_u32("warmup", warmup),
+            capture_frames: parse_u32("frames", frames),
             label: perf_param("label").unwrap_or_else(|| "scene".to_string()),
             out_dir: perf_param("out").map(PathBuf::from),
             resolution: perf_param("res")
@@ -379,6 +405,35 @@ enum Phase {
     Capture,
     /// Stats written, exit requested.
     Done,
+    /// The window was refused: it contained frames the simulation did not run
+    /// through. No stats were written and none will be.
+    Aborted,
+}
+
+impl Phase {
+    /// The word the abort line names the phase with.
+    fn token(self) -> &'static str {
+        match self {
+            Phase::WaitPlaying => "wait",
+            Phase::Warmup => "warmup",
+            Phase::Capture => "capture",
+            Phase::Done => "done",
+            Phase::Aborted => "aborted",
+        }
+    }
+}
+
+/// Whether the SIMULATION advanced this frame, given the app's virtual clock.
+///
+/// A capture measures wall-clock deltas, so a scene whose clock is stopped -
+/// a result screen, a pause menu, NOVA OS - still produces frames, and they
+/// still cost real milliseconds to draw. Averaged in they read as an ordinary
+/// (even a plausible) window while measuring a still picture, which is the one
+/// failure this whole capture cannot survive silently.
+///
+/// An app with no `Time<Virtual>` at all cannot pause one; nothing to refuse.
+fn simulation_running(virtual_time: Option<&Time<Virtual>>) -> bool {
+    virtual_time.is_none_or(|time| !time.is_paused() && time.relative_speed() > 0.0)
 }
 
 /// Live capture state.
@@ -422,7 +477,7 @@ impl Plugin for FrameTimePlugin {
         }
         completion::register(app, CAPTURE_COLLECTOR);
         app.init_resource::<ReloadGate>();
-        let config = PerfConfig::resolve();
+        let config = PerfConfig::resolve(self.window);
         info!(
             "nova perf: armed (label={}, warmup={}, frames={}, res={}x{}, render_scale={:?}, max_delta={:?}, out={:?}, driven={}, gated={})",
             config.label,
@@ -561,8 +616,16 @@ fn perf_force_max_delta(config: Res<PerfConfig>, mut virtual_time: ResMut<Time<V
 /// Advance the capture state machine one frame: wait for the scene to be
 /// ready, discard warm-up frames, record deltas, then compute + emit stats and
 /// exit. The adapter resource feeds the run metadata (schema v2) at emit time.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system owns the whole capture state machine; splitting it would \
+              split the frame it measures"
+)]
 fn perf_capture(
     time: Res<Time<Real>>,
+    // The SIMULATION clock, read only to find out whether it moved. Optional
+    // for the same reason `GameStates` is: a bare `App` rig may have neither.
+    virtual_time: Option<Res<Time<Virtual>>>,
     // OPTIONAL, and the reason is a real crash: a `systems/` rig that wires
     // `NovaProbePlugin` on a bare `App` has no `GameStates` at all, and a
     // required `Res` there fails parameter validation and takes the whole run
@@ -601,6 +664,10 @@ fn perf_capture(
             }
         }
         Phase::Warmup => {
+            if !simulation_running(virtual_time.as_deref()) {
+                abort_stopped(&config, &mut state, &mut completion, Phase::Warmup);
+                return;
+            }
             state.warmed += 1;
             if state.warmed >= config.warmup_frames {
                 state.phase = Phase::Capture;
@@ -621,6 +688,13 @@ fn perf_capture(
                 gate.skip_next = false;
                 return;
             }
+            // BEFORE the sample, never after: a frame the simulation did not
+            // run through is not a frame of this scene, and one of them in the
+            // window is enough to make every statistic over it a fiction.
+            if !simulation_running(virtual_time.as_deref()) {
+                abort_stopped(&config, &mut state, &mut completion, Phase::Capture);
+                return;
+            }
             state.samples.push(time.delta_secs_f64() * 1000.0);
             state.fixed_steps.push(fixed_steps);
             if state.samples.len() as u32 >= config.capture_frames {
@@ -634,8 +708,42 @@ fn perf_capture(
                 completion.done(CAPTURE_COLLECTOR);
             }
         }
-        Phase::Done => {}
+        Phase::Done | Phase::Aborted => {}
     }
+}
+
+/// Refuse the window and say so at ERROR, loudly enough that no reader has to
+/// infer it from a plausible mean.
+///
+/// It writes NO stats. A contaminated capture that emitted a row would be
+/// averaged into a repeat set by a gate built for outliers, and a stopped
+/// simulation is not an outlier: it draws the same scene at a steady cost, so
+/// the mean it produces looks exactly like an honest one. Discarding the
+/// capture is the only reading that is true.
+fn abort_stopped(
+    config: &PerfConfig,
+    state: &mut PerfState,
+    completion: &mut HarnessCompletion,
+    phase: Phase,
+) {
+    let frame = match phase {
+        Phase::Capture => state.samples.len(),
+        _ => state.warmed as usize,
+    };
+    state.phase = Phase::Aborted;
+    error!(
+        "nova perf: label={} ABORTED reason={ABORT_SIMULATION_STOPPED} phase={} frame={frame} \
+         warmup={} frames={} - Time<Virtual> was stopped (paused, or running at speed 0) \
+         inside the capture window. The scene reached an end - a result screen, a pause, an \
+         outcome overlay - and the frames after it draw a still picture at a plausible cost. \
+         No stats were written: bound the window so it closes while the scene is still \
+         running, or measure a scene that cannot end inside it.",
+        config.label,
+        phase.token(),
+        config.warmup_frames,
+        config.capture_frames,
+    );
+    completion.done(CAPTURE_COLLECTOR);
 }
 
 /// Log the summary line and, when `NOVA_PERF_OUT` is set, write a per-run JSON
@@ -784,5 +892,128 @@ mod tests {
     fn sanitize_replaces_path_hostile_chars() {
         assert_eq!(sanitize("asteroid_field-gpu"), "asteroid_field-gpu");
         assert_eq!(sanitize("a/b c:d"), "a_b_c_d");
+    }
+
+    /// The three ways a scene stops simulating while its frames keep costing
+    /// real milliseconds, and the one app that cannot do it at all.
+    #[test]
+    fn a_paused_or_stopped_virtual_clock_is_not_a_running_simulation() {
+        let mut time = Time::<Virtual>::default();
+        assert!(simulation_running(Some(&time)), "a live clock runs");
+
+        time.pause();
+        assert!(!simulation_running(Some(&time)), "a result screen");
+        time.unpause();
+
+        time.set_relative_speed(0.0);
+        assert!(!simulation_running(Some(&time)), "a clock held at zero");
+
+        // No virtual clock at all - a bare `App` rig - cannot pause one.
+        assert!(simulation_running(None));
+    }
+
+    /// The window is the example's to declare, and the operator's to override.
+    #[test]
+    fn a_declared_window_beats_the_default_and_loses_to_the_operator() {
+        // No `NOVA_PERF_*` in this process (the suite runs without them), so
+        // the declaration is what resolves.
+        if std::env::var_os("NOVA_PERF_WARMUP").is_none()
+            && std::env::var_os("NOVA_PERF_FRAMES").is_none()
+        {
+            let default = PerfConfig::resolve(None);
+            assert_eq!(default.warmup_frames, DEFAULT_WARMUP_FRAMES);
+            assert_eq!(default.capture_frames, DEFAULT_CAPTURE_FRAMES);
+
+            let declared = PerfConfig::resolve(Some((40, 320)));
+            assert_eq!(declared.warmup_frames, 40);
+            assert_eq!(declared.capture_frames, 320);
+        }
+    }
+
+    /// The state machine, driven: a window that meets a stopped simulation is
+    /// REFUSED where it stands, and the samples it already took go nowhere.
+    ///
+    /// Wired by hand rather than through the plugin because arming reads the
+    /// process environment, and a test that sets env decides what every other
+    /// test in the binary measures.
+    fn armed_app(warmup: u32, frames: u32) -> App {
+        let mut app = App::new();
+        app.init_resource::<Time<Real>>();
+        app.init_resource::<Time<Virtual>>();
+        app.init_resource::<ReloadGate>();
+        app.init_resource::<FixedStepTally>();
+        app.init_resource::<HarnessCompletion>();
+        app.insert_resource(State::new(GameStates::Playing));
+        app.insert_resource(PerfConfig {
+            warmup_frames: warmup,
+            capture_frames: frames,
+            label: "test".into(),
+            out_dir: None,
+            resolution: DEFAULT_RESOLUTION,
+            render_scale_override: None,
+            max_delta_override: None,
+        });
+        app.insert_resource(PerfState {
+            phase: Phase::WaitPlaying,
+            warmed: 0,
+            driven: 0,
+            samples: Vec::new(),
+            fixed_steps: Vec::new(),
+        });
+        app.add_systems(Update, perf_capture);
+        app
+    }
+
+    #[test]
+    fn a_capture_that_meets_a_stopped_simulation_is_refused_where_it_stands() {
+        let mut app = armed_app(2, 100);
+        // WaitPlaying, then two warm-up frames, then two captured frames.
+        for _ in 0..5 {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<PerfState>().phase, Phase::Capture);
+        assert_eq!(app.world().resource::<PerfState>().samples.len(), 2);
+
+        app.world_mut().resource_mut::<Time<Virtual>>().pause();
+        app.update();
+
+        let state = app.world().resource::<PerfState>();
+        assert_eq!(state.phase, Phase::Aborted);
+        assert_eq!(
+            state.samples.len(),
+            2,
+            "the stopped frame must not join the window"
+        );
+
+        // And it stays refused: the scene unpausing later does not make the
+        // window whole again.
+        app.world_mut().resource_mut::<Time<Virtual>>().unpause();
+        app.update();
+        assert_eq!(app.world().resource::<PerfState>().phase, Phase::Aborted);
+        assert_eq!(app.world().resource::<PerfState>().samples.len(), 2);
+    }
+
+    /// A warm-up spent on a stopped clock is refused too - the window would
+    /// open on a scene that had already ended.
+    #[test]
+    fn a_stopped_warm_up_is_refused_before_the_window_opens() {
+        let mut app = armed_app(10, 100);
+        app.update();
+        assert_eq!(app.world().resource::<PerfState>().phase, Phase::Warmup);
+        app.world_mut().resource_mut::<Time<Virtual>>().pause();
+        app.update();
+        assert_eq!(app.world().resource::<PerfState>().phase, Phase::Aborted);
+    }
+
+    /// The ordinary path still closes: an unstopped window fills and emits.
+    #[test]
+    fn an_unstopped_window_still_completes() {
+        let mut app = armed_app(1, 3);
+        for _ in 0..6 {
+            app.update();
+        }
+        let state = app.world().resource::<PerfState>();
+        assert_eq!(state.phase, Phase::Done);
+        assert_eq!(state.samples.len(), 3);
     }
 }

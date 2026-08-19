@@ -58,11 +58,17 @@ Examples and docs:
 
 - A `wfc_arena` 4v4 holds frame rate, with a MEASURED number - **but not yet
   that number.** The 295.76 ms worst frame quoted from `20260819-123928/NOTES.md`
-  is NOT TRUSTWORTHY: the 4v4 capture opens on a scoreboard predicate with no
-  upper bound, and 2 of 10 repeats ran past `match ended` into a PAUSED result
-  screen. One spent 555 of its 900 frames with the simulation stopped, at 88
-  ms/frame, and still read as a plausible 93 ms mean
-  (`20260819-173219/NOTES.md`). Fix the window before quoting the figure again.
+  is RETRACTED, and that page now says so. Two faults, either one fatal: the
+  capture opened on a scoreboard predicate with no upper bound, so 2 of 10
+  repeats ran past `match ended` into a PAUSED result screen (one spent 555 of
+  its 900 frames with the simulation stopped, at 88 ms/frame, and still read as
+  a plausible 93 ms mean); and 295.76 ms was ONE slowest frame of ONE window on
+  a subject whose worst frame spreads 169% of its median across honest repeats.
+  The INSTRUMENT is fixed (`20260819-173219` phase B1): the arena's window is
+  bounded to a fixed count of frames the simulation actually ran through, and
+  any capture that meets a stopped `Time<Virtual>` is REFUSED - it writes no
+  statistics and fails the run under its own check name. The replacement figure
+  is pending a repeat set on an idle box.
   `asteroid_field` was named here in error - it was deleted in `d20a37c4`, the
   same day this epic was written.
 - No system in a profiled fight owns a frame on its own.

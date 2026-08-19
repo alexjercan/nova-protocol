@@ -780,15 +780,30 @@ Two readings matter, and no percentile shows either:
   `max_delta / timestep` the clamp is firing: those frames are discarding real
   time the world never simulates.
 
+A stopped simulation is not merely reported, it is REFUSED. The capture reads
+`Time<Virtual>` directly, and a frame that arrives paused (or at relative speed
+zero) inside the warm-up or the window aborts the whole capture: it logs at
+ERROR naming the phase and the frame, writes NO `frametime.csv` row and no
+per-run JSON, and the `capture_simulated` check fails the run and lists every
+refused capture. A refusal rather than a flag, because a stopped scene keeps
+drawing at a steady cost - the mean and median it produces are exactly the shape
+a validity gate admits.
+
+So a scene that can REACH AN END needs a window that closes before it does. An
+example declares its own with `NovaProbePlugin::frametime_window(warmup,
+frames)`, sized from a measured run of that scene rather than guessed;
+`wfc_arena` does, because its 4v4 is a match that can be won.
+
 `NOVA_PERF_MAX_DELTA=<secs>` forces the ceiling for a run, which is how a claim
 about the fixed loop gets tested instead of argued. Capping it in a SHIPPING
 build would trade a bounded tail for simulation time the world never runs, so
 it stays a measurement knob.
 
-The capture window is the capture crate's full 180/900 baseline for every run
-that captures at all, so probe numbers stay comparable with the sweep's; your
-own `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always override it. The completion
-deadline is SIZED to that window (not a flat 120s): probe sets
+The capture window is the capture crate's full 180/900 baseline unless the
+example declared one of its own, so probe numbers stay comparable with the
+sweep's; your `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` override both. The
+completion deadline is SIZED to the BASELINE window (not a flat 120s, and a
+ceiling for any shorter one an example declares): probe sets
 `NOVA_AUTOPILOT_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
 margin`, so a slow-but-progressing capture (a heavy scene in a dev build under
 software rendering - the `stress_*` ranges are the case) completes instead of

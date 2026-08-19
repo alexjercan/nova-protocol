@@ -575,3 +575,233 @@ the world never runs; section 3 says what that costs.
   is the output of this phase, not an input.
 - No release build. Ranking only, as settled.
 
+# Phase B1: bounding the 4v4 window
+
+Phase A found the headline benchmark measuring a paused result screen one run in
+five. This phase makes that impossible to do quietly. It changes no gameplay
+system and makes nothing faster.
+
+**The measurement pass is NOT in this section yet.** All three lanes of this
+epic were running Bevy binaries on the one RTX 3060 Ti at the same time, and a
+sibling lane measured the SAME 4v4 shape at 291 ms mean against Phase A's 93 ms
+- with one configuration at 457 ms and every frame pinned at the 16-step fixed
+ceiling. Contention is not an additive offset that can be subtracted out: once a
+run enters the clamp its cost roughly quintuples. So the true 4v4 numbers, the
+re-derived smallest detectable improvement, and the numeric replacement for the
+retracted 295.76 ms all wait for a serialised pass on an idle box. Everything
+below is construction and reasoning from Phase A's raw captures.
+
+## 1. What the window contained before
+
+The capture opened on `Scoreboard::fight_happened` - both teams have fired AND
+both have connected - and then ran 180 warm-up + 900 captured frames whatever
+happened next. Nothing closed it. The autopilot script has already finished by
+then (its last step is the screenshot), and `examples/playable/wfc_arena.rs`'s
+`arena_script` has no step past that, so the window's far end was wherever 1080
+frames landed.
+
+The far end of a 4v4 is a match that can be WON. `result.rs`'s
+`detect_and_show_result` sets `MatchFlow::finishing` on elimination or on the
+180 s inactivity stalemate, and calls `Time<Virtual>::pause()` and
+`Time<Physics>::pause()` on the same frame;
+`keep_interactive_screen_owned` then holds both paused for as long as the result
+screen is up, which under a probe run is forever. The arena keeps DRAWING - same
+hulls, same debris, same lighting - so the frames keep costing 60-90 ms each
+while simulating nothing.
+
+From Phase A's raw fixed-step record (`measurements/fixed-steps.txt`), reading
+the zero-step bucket as the stopped tail (justified: the fastest frame in either
+run is 57.6 ms against a 15.625 ms timestep, so a frame can only run zero steps
+if the clock is stopped):
+
+| capture | frames stopped | where the pause landed | mean cost of the stopped frames |
+|---|--:|--:|--:|
+| `wfc_arena#10` | 555 of 900 | captured frame 345 | 88.3 ms |
+| `wfc_arena#5` | 165 of 900 | captured frame 735 | 69.7 ms |
+| the other eight | 0 | - | - |
+
+`#10` is the one that matters: **62% of that window was a still picture**, and
+it reported mean 93.41, median 85.41, p99 151.52, worst 211.91 - the most
+ordinary-looking row in the whole set. Phase A's repeat gate admitted it,
+correctly by its own rules, because a stopped simulation is not an outlier. It
+draws the same scene at a steady cost, so it lands right on the reference.
+
+Counting from the frame the readiness gate opens (add the 180 warm-up), the
+shortest fight in the ten was **525 post-gate frames**; `#5`'s was 915. The other
+eight ran past 1080 without ending - one of them, re-run during this phase, was
+still going after 11 minutes in a long-range stern chase. So the fight length is
+not merely variable, it is bimodal-looking over ten samples: either it resolves
+inside about a minute of brawl or it turns into a chase that outlasts anything.
+
+## 2. What bounds it now
+
+Two changes, and they are independent - the second is what makes the first safe
+to get wrong.
+
+**The window is declared by the SCENE.** `FrameTimePlugin::window(warmup,
+frames)` (and `NovaProbePlugin::frametime_window`) lets an example state its own
+window in place of probe's 180 + 900 baseline; an operator's `NOVA_PERF_WARMUP` /
+`NOVA_PERF_FRAMES` still wins over both. Probe's CLI used to push the baseline
+window into the child's environment unconditionally, which would have silently
+overwritten the declaration, so it now forwards those two variables only when
+the operator actually set them. The completion deadline is still sized on the
+full 180 + 900 window, which makes it a ceiling for any shorter one.
+
+`wfc_arena` declares **60 + 360**, and both halves are read off Phase A's ten
+captures rather than guessed:
+
+- **360 captured frames**, because the whole window has to fit inside the
+  SHORTEST fight measured. 60 + 360 = 420 post-gate frames against that run's
+  525, so the bound clears the worst case by 20%.
+- **60 warm-up frames**, not 180. A 180-frame warm-up is right for a capture
+  that opens at `Playing`, where the scene has just loaded. This one opens on a
+  predicate that cannot fire until both teams have fired AND both have dealt
+  damage - roughly a minute of live combat, with the guns, the projectile
+  pipelines and the impact effects all already exercised. 60 frames covers the
+  transient at the gate itself, and the 120 frames it gives back are 120 more
+  frames of fight inside the bound.
+
+The cost is percentile resolution, and it should be stated plainly rather than
+buried: p99 of 360 frames is the fourth-worst frame, against the ninth-worst of
+900. That is the price of measuring one scene instead of two.
+
+The 420-frame bound rests on ONE observation of the low tail (`#10`), so the
+measurement pass validates it: eight captures with zero refusals validates the
+window on this host; a single refusal says shorten it and re-derive.
+
+## 3. How contamination is now LOUD
+
+Detected directly, in the game, off the clock - never inferred from the numbers.
+`perf_capture` reads `Time<Virtual>` and treats a frame as capturable only while
+`!is_paused() && relative_speed() > 0.0`. A frame that fails that test inside
+either the warm-up or the capture **refuses the whole window**:
+
+- the sample is not taken, and no later sample is either;
+- an ERROR line names the capture, the phase, the frame index and the window it
+  was asked for, in a machine-scrapable form (`nova perf: label=... ABORTED
+  reason=simulation_stopped phase=... frame=... warmup=... frames=...`);
+- **no statistics are written at all** - no `frametime.csv` row, no per-run JSON.
+  A refused capture cannot be averaged into anything, by construction. This is
+  the half that matters: Phase A's gate is built for outliers, and the whole
+  problem is that this contamination does not look like one;
+- the capture releases its collector so the run still terminates cleanly.
+
+Two host-side readers then make it visible rather than merely absent:
+
+- a new check, **`capture_simulated`**, FAILS the run and names every refused
+  capture with its phase and frame. It sits before `fps_within_baseline` in the
+  roster, because it decides whether there was a window to compare;
+- `report.html` grows a **Refused captures** table, rendered before the frame
+  section and outside it - a run where every capture was refused has no rows for
+  the normal tables to draw, and would otherwise read as "no capture was taken".
+
+The existing `log_clean` check catches the ERROR line too, so the run fails
+twice for one cause. That is deliberate: one row says the log was dirty, the
+other says which window died and where.
+
+### The ramp the gate still cannot see
+
+Phase A's other protocol finding stands and is NOT fixed here: the repeat gate
+catches an outlier and cannot catch a monotone DRIFT, because its reference is
+the median of the set's own means, which lands in the middle of a slide. Their
+first `broadside` set ran 102.8 -> 26.3 ms across eight consecutive captures as
+the box recovered from a build.
+
+A cheap in-harness detection does exist and is worth naming for whoever picks
+this up: the captures of a repeat set arrive in a known ORDER, and the gate
+currently throws that away. Spearman's rank correlation between capture index
+and capture mean, over eight points, costs nothing and separates the two cases
+exactly - an outlier leaves the rank correlation near zero, a monotone recovery
+pins it at -1. It is a genuinely different signal from the band, and unlike the
+band it can only be computed on a SET. It was not built here because this phase
+had one job and adding a second statistic to the gate without a set to derive
+its threshold from would repeat the mistake this phase is correcting.
+
+The protocol rule stands regardless: do not start a repeat set on a machine that
+has just been building, or that another lane is building on.
+
+### What contention does, and why it is not only a harness problem
+
+A sibling lane measured this same 4v4 shape at 291 ms mean under three-way
+contention, against Phase A's 93 ms on a quiet box, with one arm at 457 ms and
+every frame pinned at the 16-step fixed ceiling.
+
+Phase A REJECTED fixed-timestep amplification as the CAUSE of the arena's cost,
+and that rejection stands: pinning the ceiling at four steps still produced a
+600 ms frame, so the clamp is not what makes the first slow frame. The two
+findings are consistent and worth holding together - the clamp is not a cause,
+it is a non-linear AMPLIFIER that engages once frames are slow for any reason,
+and then holds itself there as a fixed point (16 steps is 250 ms of simulation
+and those frames cost 322-354 ms, so the next frame's delta clamps again).
+
+That is not only a description of a contended CI box. It is also a description
+of a player on a weaker machine: whatever makes their first frame slow, the
+clamp is what turns it into a sustained third-of-a-second-per-frame regime
+rather than a single stutter. Worth a real look under `PERF-*`, separately from
+this task.
+
+## 4. The other three cases
+
+Checked for the same fault - an unbounded window that can reach a terminal
+state. The answer differs per case and none of them is clean by construction.
+
+**`broadside` - same fault, latent, not observed.** The chapter declares three
+`Outcome` actions: Defeat `OnDestroyed` and `OnNeutralized` for the player, and
+Victory on the outro timer. `CurrentOutcome` is mirrored into `PauseStates` by
+`nova_menu::outcome`, which runs `pause_clocks` - the same
+`Time<Virtual>::pause()` the arena's result screen calls. So a `probe scenario
+broadside` window that outlives the player, or that reaches the outro, contains
+exactly the same still picture. It did not happen in Phase A's 16 captures:
+every one of them ran at least one fixed step in every frame
+(`measurements/fixed-steps.txt`, `min=1` or better throughout), which is a
+direct measurement of "the clock never stopped", not an inference. The window is
+still unbounded; what has changed is that the failure is now loud.
+
+**`editor_sandbox` - same fault, latent, harder to reach.** The sandbox declares
+exactly one outcome, Defeat on the player's own death
+(`crates/nova_editor/src/scenario.rs`), and it chains back to itself. Nothing in
+a probe run fights the player, so reaching it needs an accident. Same verdict as
+`broadside`: unbounded window, one terminal state, now detected.
+
+**`carve_asteroids` - not this fault; a different one.** It builds its scenario
+in code with no `Outcome` action at all, and no pause path exists in it, so its
+window cannot contain a stopped simulation. But its window is not clean either:
+the capture opens at `Playing` with no readiness gate while the autopilot walk
+is still running - posing cameras, removing the firing ship, applying blast
+cases - and the walk ends around frame 230 of a 1080-frame window, so the
+capture straddles a scripted sequence and the idle scene after it. That is a
+content-heterogeneity problem, not a stopped-clock one, and it is not fixed
+here. Naming it because the same reader will ask.
+
+A general note that applies to all three: the SCENE-declared window is now the
+mechanism for fixing any of them, and none of them needs it urgently, because
+none is currently the headline benchmark.
+
+## 5. What changed in the tree
+
+| file | change |
+|---|---|
+| `crates/nova_probe/src/capabilities/frametime.rs` | `simulation_running` off `Time<Virtual>`; `Phase::Aborted` and `abort_stopped` - refuse the window, log at ERROR, write nothing, release the collector; `FrameTimePlugin::window` and the declared-window precedence in `PerfConfig::resolve` |
+| `crates/nova_probe/src/capabilities/mod.rs` | `NovaProbePlugin::frametime_window` |
+| `crates/nova_probe/src/stats.rs` | `CaptureAbort` and `parse_capture_abort_line` - the abort line is a refused capture's only record, so the host half reads it out of the log |
+| `crates/nova_probe_cli/src/evaluation/checks/capture_simulated.rs` | the new check: a refused capture FAILS the run and is named |
+| `crates/nova_probe_cli/src/evaluation/checks/mod.rs` | `capture_simulated` on the roster, before `fps_within_baseline` |
+| `crates/nova_probe_cli/src/native/env.rs` | forward `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` only when the operator set them, so an example's declared window survives |
+| `crates/nova_probe_cli/src/report/mod.rs`, `report/html.rs` | the Refused captures table, rendered outside the frame section |
+| `examples/playable/wfc_arena.rs` | `MEASURED_WINDOW = (60, 360)`, with the derivation from Phase A's captures on the constant |
+| `tasks/20260819-123928/NOTES.md`, `tasks/20260818-220812/TASK.md` | the 295.76 ms row retracted, with both reasons |
+
+## 6. Still owed
+
+1. **The measurement pass**, serialised, on an idle box: `probe run wfc_arena
+   --repeat 8` at 20% tolerance, reporting mean, median and the median admitted
+   p99, plus the re-derived smallest detectable improvement. It also validates
+   the 420-frame bound - eight captures with zero refusals, or shorten it.
+2. **The numeric replacement** for the retracted 295.76 ms, in both records.
+3. **A note on the roster**, because it will come up when the new number is
+   compared with the owner's hand-flown impression: a hand-run of `wfc_arena`
+   with no `--ship` fields a 1v1 DUEL, and only a measurement pass
+   (`perf_armed()` or the `trace` feature) fields the 4v4. So "the arena feels
+   like a stable 20-30 FPS by hand" and the probe's 4v4 number are not
+   necessarily about the same scene, and the comparison needs the roster pinned
+   on both sides before it means anything.

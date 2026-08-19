@@ -18,10 +18,66 @@
 /// Glob-import surface for the frame-time wire format.
 pub mod prelude {
     pub use super::{
-        append_frametime_row, parse_fixed_steps_line, parse_frametime_csv, parse_summary_line,
-        FixedStepBucket, FixedStepStats, FrameStats, PerfRun, RunMeta, CSV_HEADER, CSV_HEADER_V1,
-        CSV_HEADER_V2,
+        append_frametime_row, parse_capture_abort_line, parse_fixed_steps_line,
+        parse_frametime_csv, parse_summary_line, CaptureAbort, FixedStepBucket, FixedStepStats,
+        FrameStats, PerfRun, RunMeta, CSV_HEADER, CSV_HEADER_V1, CSV_HEADER_V2,
     };
+}
+
+/// A capture that REFUSED its window, scraped back out of the run log.
+///
+/// It has no CSV row and no JSON file by construction - that is what refusing
+/// means - so the log line is the whole record, and the host half reads it
+/// there. A run carrying one of these measured nothing, however plausible the
+/// rows beside it look.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptureAbort {
+    /// The capture's label (`wfc_arena#3`).
+    pub label: String,
+    /// Why the window was refused (`simulation_stopped`).
+    pub reason: String,
+    /// The phase it was refused in (`warmup` or `capture`).
+    pub phase: String,
+    /// How far into that phase the refusal landed, in frames.
+    pub frame: usize,
+    /// The window that was asked for, `(warmup, frames)`.
+    pub window: (u32, u32),
+}
+
+/// Parse the capture's abort line (`nova perf: label=<l> ABORTED ...`).
+/// `None` when the line is not one.
+pub fn parse_capture_abort_line(line: &str) -> Option<CaptureAbort> {
+    let rest = line.split("nova perf: label=").nth(1)?;
+    let mut tokens = rest.split_whitespace();
+    let label = tokens.next()?.to_string();
+    if tokens.next()? != "ABORTED" {
+        return None;
+    }
+    let mut reason = None;
+    let mut phase = None;
+    let mut frame = None;
+    let mut warmup = None;
+    let mut frames = None;
+    for token in tokens {
+        let Some((key, value)) = token.split_once('=') else {
+            break;
+        };
+        match key {
+            "reason" => reason = Some(value.to_string()),
+            "phase" => phase = Some(value.to_string()),
+            "frame" => frame = value.parse().ok(),
+            "warmup" => warmup = value.parse().ok(),
+            "frames" => frames = value.parse().ok(),
+            _ => break,
+        }
+    }
+    Some(CaptureAbort {
+        label,
+        reason: reason?,
+        phase: phase?,
+        frame: frame?,
+        window: (warmup?, frames?),
+    })
 }
 
 /// Percentile frame-time statistics over a capture window. Frame times are in
@@ -1030,5 +1086,27 @@ mod tests {
         let stats = FixedStepStats::from_frames(&[60.0, 75.0], &[4, 5]).expect("summarizes");
         assert_eq!(stats.stopped_frames(), 0);
         assert_eq!(stats.at_ceiling().map(|b| b.steps), Some(5));
+    }
+
+    /// An aborted capture writes no row, so the log line is its only record
+    /// and it has to survive a log prefix.
+    #[test]
+    fn the_abort_line_parses_back_out_of_a_prefixed_log() {
+        let line = "2026-08-19T15:40:00Z ERROR nova_probe: nova perf: label=wfc_arena#3 \
+                    ABORTED reason=simulation_stopped phase=capture frame=345 warmup=180 \
+                    frames=900 - Time<Virtual> was stopped (paused, or running at speed 0)";
+        let abort = parse_capture_abort_line(line).expect("parses");
+        assert_eq!(abort.label, "wfc_arena#3");
+        assert_eq!(abort.reason, "simulation_stopped");
+        assert_eq!(abort.phase, "capture");
+        assert_eq!(abort.frame, 345);
+        assert_eq!(abort.window, (180, 900));
+
+        // Neither of the other two `nova perf: label=` lines reads as one.
+        let stats = FrameStats::from_samples(&[60.0, 75.0]);
+        assert!(parse_capture_abort_line(&stats.summary_line("s")).is_none());
+        let steps = FixedStepStats::from_frames(&[60.0, 75.0], &[4, 5]).expect("summarizes");
+        assert!(parse_capture_abort_line(&steps.summary_line("s")).is_none());
+        assert!(parse_capture_abort_line("unrelated log line").is_none());
     }
 }

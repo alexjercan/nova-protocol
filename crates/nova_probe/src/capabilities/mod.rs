@@ -175,6 +175,14 @@ impl NovaProbePlugin {
         self
     }
 
+    /// Declare this scene's own capture window (see
+    /// [`FrameTimePlugin::window`]), for a scene that cannot run for the
+    /// baseline 180 + 900 frames without reaching an end.
+    pub fn frametime_window(mut self, warmup: u32, frames: u32) -> Self {
+        self.frametime = self.frametime.map(|plugin| plugin.window(warmup, frames));
+        self
+    }
+
     /// Register scenario variables that must never decrease.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn monotonic<I, S>(mut self, keys: I) -> Self

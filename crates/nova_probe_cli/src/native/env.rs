@@ -24,9 +24,9 @@ fn env_u32(key: &str) -> Option<u32> {
     std::env::var(key).ok().and_then(|v| v.trim().parse().ok())
 }
 
-/// Resolve the fps capture window (warmup, frames): the operator's
-/// `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES` win, else the capture crate's full
-/// 180/900 baseline window.
+/// Resolve the fps capture window (warmup, frames) probe SIZES ITS DEADLINE
+/// against: the operator's `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES` win, else the
+/// capture crate's full 180/900 baseline window.
 ///
 /// ONE window, not a per-category default: under the category policy the fps
 /// pass runs only for a frame-time category, and those exist to be compared
@@ -34,6 +34,11 @@ fn env_u32(key: &str) -> Option<u32> {
 /// incomparable with the sweep's. (This replaced a short non-`perf/` window
 /// that the policy made unreachable: the categories it served no longer run
 /// an fps pass at all.)
+///
+/// It is a DEADLINE size, not an instruction: an example may declare a shorter
+/// window of its own (`FrameTimePlugin::window`) because its scene cannot run
+/// for 900 frames, and probe must not overwrite that from here - which is why
+/// the two env vars are only passed on when the operator actually set them.
 fn resolve_fps_window() -> (u32, u32) {
     (
         env_u32("NOVA_PERF_WARMUP").unwrap_or(nova_probe::DEFAULT_WARMUP_FRAMES),
@@ -49,20 +54,26 @@ fn fps_deadline_secs(warmup: u32, frames: u32) -> u64 {
     (f64::from(warmup + frames) / FPS_FLOOR).ceil() as u64 + FPS_LOAD_MARGIN_SECS
 }
 
-/// Env for the fps pass: the resolved capture window set EXPLICITLY (so the
-/// deadline matches the exact window the child measures) plus the
-/// window-sized [`DEADLINE_ENV`]. Returns the deadline seconds too, so the
-/// caller can raise the supervisor timeout above it. The operator's
-/// `NOVA_PERF_WARMUP`/`FRAMES` are already folded in by
-/// [`resolve_fps_window`]; their [`DEADLINE_ENV`] wins here (pushed only
-/// when unset).
+/// Env for the fps pass: the operator's capture window when they pinned one,
+/// plus the window-sized [`DEADLINE_ENV`]. Returns the deadline seconds too, so
+/// the caller can raise the supervisor timeout above it. Their [`DEADLINE_ENV`]
+/// wins here (pushed only when unset).
+///
+/// The window vars are forwarded ONLY when the operator set them. Probe used to
+/// push the baseline 180/900 unconditionally, which silently overwrote an
+/// example's own declared window - and a window is a property of the SCENE (a
+/// fight that ends, a chapter that completes) that the host cannot know. The
+/// deadline is still sized on the full baseline window, so it stays a ceiling
+/// for any shorter one.
 pub(crate) fn fps_window_and_deadline_env() -> (Vec<(String, String)>, u64) {
     let (warmup, frames) = resolve_fps_window();
     let deadline = fps_deadline_secs(warmup, frames);
-    let mut env = vec![
-        ("NOVA_PERF_WARMUP".into(), warmup.to_string()),
-        ("NOVA_PERF_FRAMES".into(), frames.to_string()),
-    ];
+    let mut env = Vec::new();
+    for (key, value) in [("NOVA_PERF_WARMUP", warmup), ("NOVA_PERF_FRAMES", frames)] {
+        if std::env::var_os(key).is_some() {
+            env.push((key.into(), value.to_string()));
+        }
+    }
     if std::env::var_os(DEADLINE_ENV).is_none() {
         env.push((DEADLINE_ENV.into(), deadline.to_string()));
     }
@@ -262,17 +273,21 @@ mod tests {
         assert!(baseline > short, "a bigger window gets a bigger deadline");
     }
 
+    /// The deadline is sized on the baseline window, and the window itself is
+    /// LEFT ALONE - an example that declared a shorter one keeps it.
     #[test]
-    fn fps_window_and_deadline_env_sets_window_and_deadline() {
+    fn fps_env_sizes_the_deadline_without_pinning_the_window() {
         if std::env::var_os("NOVA_PERF_WARMUP").is_none()
             && std::env::var_os("NOVA_PERF_FRAMES").is_none()
             && std::env::var_os(DEADLINE_ENV).is_none()
         {
             let (env, deadline) = fps_window_and_deadline_env();
             assert_eq!(deadline, 585);
-            assert!(env
-                .iter()
-                .any(|(k, v)| k == "NOVA_PERF_FRAMES" && v == "900"));
+            assert!(
+                !env.iter()
+                    .any(|(k, _)| k == "NOVA_PERF_FRAMES" || k == "NOVA_PERF_WARMUP"),
+                "an unpinned window must not be forced on the child: {env:?}"
+            );
             assert!(env
                 .iter()
                 .any(|(k, v)| k == "NOVA_AUTOPILOT_DEADLINE" && v == "585"));
