@@ -25,6 +25,10 @@ this file points at it.
   task; use network research only when local sources are insufficient.
 - Checks/records: use proof-bearing DoD and task-local NOTES, REVIEW, and RETRO;
   run only the affected checks below.
+- Design artifacts: a rendered explainer built to settle a design - HTML page,
+  diagram, chart - is COMMITTED to its task folder, not left in a scratchpad.
+  Self-contained, no external hosts. It records the reasoning a TASK.md
+  summarises, so a reader can re-derive the decision.
 - Changelog/docs: `CONVENTIONS.md` owns the rules, including the release
   baseline. `docs/` is the dev book source, not scratch; transient notes live
   outside the repo.
