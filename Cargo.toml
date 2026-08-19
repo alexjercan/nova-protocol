@@ -46,10 +46,13 @@ path = "src/lib.rs"
 #   screenshots/ CONTENT. A producer that captures: website and wiki frames,
 #                galleries a human judges, and the release-over-release
 #                frame-time baseline.
-#                probe: correctness passes only - the WALK is graded like any
-#                other autopilot script; what it produced is judged by human
-#                eyes (or by the perf page), which is a claim probe never
-#                makes.
+#                probe: the WALK is graded like any other autopilot script;
+#                what it PRODUCED is judged by human eyes, which is a claim
+#                probe never makes. A producer that also wires the capture
+#                gets a frame-time pass on top - the pass set follows the
+#                runtime contract, never the directory, which is how
+#                `scene_baseline` and `wfc_arena` are measurement loads as
+#                well as frames.
 #                not this category: anything whose verdict is an assert.
 #
 # Blocks are listed in reading order within each category.

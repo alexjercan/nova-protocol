@@ -165,6 +165,16 @@ impl NovaProbePlugin {
         self
     }
 
+    /// Hold this example's frame-time capture until `ready` holds (see
+    /// [`FrameTimePlugin::ready_when`]).
+    pub fn ready_frametime(
+        mut self,
+        ready: impl Fn(&World) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        self.frametime = self.frametime.map(|plugin| plugin.ready_when(ready));
+        self
+    }
+
     /// Register scenario variables that must never decrease.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn monotonic<I, S>(mut self, keys: I) -> Self

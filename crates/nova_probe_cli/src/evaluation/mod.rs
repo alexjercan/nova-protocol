@@ -24,6 +24,7 @@
 //! signal (the recorder flushes per entry).
 
 pub mod artifacts;
+pub mod budgets;
 pub mod catalog;
 pub mod checks;
 pub mod manifest;
@@ -41,8 +42,8 @@ pub(crate) mod fixtures;
 /// - one grades a run's checks, the other grades a sweep's rows.
 pub mod prelude {
     pub use super::{
-        artifacts::prelude::*, catalog::prelude::*, checks::prelude::*, manifest::prelude::*,
-        profile::prelude::*,
+        artifacts::prelude::*, budgets::prelude::*, catalog::prelude::*, checks::prelude::*,
+        manifest::prelude::*, profile::prelude::*,
     };
 }
 
