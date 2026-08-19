@@ -653,10 +653,9 @@ body with a new origin, and it reads the grain from a different place.
 ## Built-in scenarios
 
 The builders live under
-`crates/nova_authoring/src/base_content/scenarios/`. `sandbox/` owns
-`asteroid_field` and `asteroid_next`; `main_menu/` gives each menu backdrop its
-own file; and `nova_protocol/` owns the campaign chapters plus shared cast and
-pacing vocabulary. Its `shakedown/` module builds the New Game starter - the
+`crates/nova_authoring/src/base_content/scenarios/`. `main_menu/` gives each
+menu backdrop its own file, and `nova_protocol/` owns the campaign chapters plus
+shared cast and pacing vocabulary. Its `shakedown/` module builds the New Game starter - the
 beat-chain reference: one `beat` counter gates every handler, and count
 milestones run on `OnUpdate` handlers keyed on the counter (handler order
 within one event is not load-bearing). The builders are an OFFLINE inventory,

@@ -151,8 +151,6 @@ launchable by id.
 | `broadside_gunship` | Broadside: Rust Tally | yes | chapter 2 part 2: the gunship boss |
 | `lifeline` | Lifeline | no | chapter 3 part 1: convoy defense |
 | `final_tally` | Final Tally | yes | chapter 3 finale: the anchorage |
-| `asteroid_field` | Asteroid Field | no | the combat and gravity sandbox |
-| `asteroid_next` | Asteroid Field - Next | yes | a relay that loops the sandbox |
 | `menu_waystation` | Waystation Traffic | yes | menu backdrop: hauler convoy (carousel: hands off to the gauntlet) |
 | `menu_gauntlet` | Torpedo Gauntlet | yes | menu backdrop: a doomed point-defense stand (hands off to the weave) |
 | `menu_weave` | Asteroid Weave | yes | menu backdrop: waypoint run through a dense rock band (hands off to the duel) |
@@ -218,13 +216,12 @@ All under `dep://base/sounds/`: `dry_fire.wav`, `explosion.wav`,
 (UI chrome sounds - menu clicks, objective chimes - are engine assets, not
 base bundle resources, and are NOT dep-referenceable.)
 
-### Images (10)
+### Images (9)
 
-- `textures/cubemap.png` - the stock skybox (chapter 1 / sandbox)
+- `textures/cubemap.png` - the stock skybox (chapter 1)
 - `textures/cubemap_alt.png` - the alternate skybox (chapters 2-3)
 - `textures/asteroid.png` - the asteroid surface texture
-- `thumbnails/asteroid_field.png`, `thumbnails/shakedown_run.png`,
-  `thumbnails/broadside.png`, `thumbnails/broadside_gunship.png`,
+- `thumbnails/shakedown_run.png`, `thumbnails/broadside.png`, `thumbnails/broadside_gunship.png`,
   `thumbnails/lifeline.png`, `thumbnails/final_tally.png` - the picker plates
 - `banner.png` - the base mod's banner
 
@@ -257,7 +254,7 @@ The builders behind this page live under
 `crates/nova_authoring/src/base_content/`: `sections/standard.rs` owns generic
 section prototypes, `sections/ordnance.rs` the torpedo types, `styles.rs` the
 skin styles, `ships/` owns semantic parts and complete craft,
-`scenarios/` groups mainline, main-menu, and sandbox scenarios, and
+`scenarios/` groups mainline and main-menu scenarios, and
 `campaigns.rs` owns campaign membership. If this page and the generated RON
 ever disagree, the RON is the
 truth and this page has a bug - the `content_ron_parity` test pins the RON to

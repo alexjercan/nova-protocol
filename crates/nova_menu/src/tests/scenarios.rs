@@ -521,7 +521,7 @@ fn picker_rows_render_flat_name_sorted() {
     app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
         picker_scenario("shakedown", "Shakedown Run", false),
         picker_scenario("broadside", "Broadside", false),
-        picker_scenario("asteroid_field", "Asteroid Field", false),
+        picker_scenario("drift_yard", "Drift Yard", false),
         picker_scenario(TEST_BACKDROP_ID, "Menu Ambience", true),
     ])));
     app.world_mut()
@@ -532,8 +532,8 @@ fn picker_rows_render_flat_name_sorted() {
     assert_eq!(
         scenario_row_labels_in_order(&mut app),
         vec![
-            "Asteroid Field".to_string(),
             "Broadside".to_string(),
+            "Drift Yard".to_string(),
             "Shakedown Run".to_string(),
         ],
         "rows render sorted by display name; the hidden backdrop does not render"

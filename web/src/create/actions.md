@@ -386,7 +386,7 @@ Queue a switch to another scenario by id - a hard cut, a delayed cut, or a
 modal hold behind the outcome overlay.
 
 ```ron
-NextScenario((scenario_id: "asteroid_next", linger: true)),
+NextScenario((scenario_id: "broadside_gunship", linger: true)),
 ```
 
 <details class="explain">

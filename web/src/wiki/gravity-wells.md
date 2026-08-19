@@ -42,7 +42,7 @@ Who feels it: piloted ships (player and AI alike), torpedoes and turret rounds -
 
 ## Sphere of influence
 
-A well's reach follows from its mass alone: the sphere of influence is where the raw pull has decayed to a fixed cutoff (0.25 u/s^2), so `soi = sqrt(mu / 0.25)` - the body's drawn size never sets it. The Shakedown planetoid reaches 329 u, about 3.3 km on the HUD; the sandbox Gravity Rock (mass 45000) reaches 424 u. Outside it, the well does not exist as far as your ship is concerned.
+A well's reach follows from its mass alone: the sphere of influence is where the raw pull has decayed to a fixed cutoff (0.25 u/s^2), so `soi = sqrt(mu / 0.25)` - the body's drawn size never sets it. The Shakedown planetoid reaches 329 u, about 3.3 km on the HUD; the Final Tally anchorage rock (mass 45000) reaches 424 u. Outside it, the well does not exist as far as your ship is concerned.
 
 ## The dominant well
 

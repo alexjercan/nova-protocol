@@ -733,8 +733,7 @@ fn belt_knots_keep_every_beat_pocket_clear() {
     );
 }
 
-/// Player death restarts the run (linger: Enter confirms), matching
-/// the asteroid_field pattern.
+/// Player death restarts the run (linger: Enter confirms).
 #[test]
 fn player_death_routes_back_to_shakedown() {
     let config = scenario();

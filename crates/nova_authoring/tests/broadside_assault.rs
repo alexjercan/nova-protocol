@@ -60,10 +60,6 @@ const BROADSIDE_GUNSHIP_RON: &str =
     include_str!("../../../assets/base/scenarios/broadside_gunship.content.ron");
 const SHAKEDOWN_RON: &str =
     include_str!("../../../assets/base/scenarios/shakedown_run.content.ron");
-const ASTEROID_FIELD_RON: &str =
-    include_str!("../../../assets/base/scenarios/asteroid_field.content.ron");
-const ASTEROID_NEXT_RON: &str =
-    include_str!("../../../assets/base/scenarios/asteroid_next.content.ron");
 const BASE_BUNDLE_RON: &str = include_str!("../../../assets/base/base.bundle.ron");
 
 /// The sections a spawn flies, joined through the built-in ship catalog: a
@@ -734,11 +730,10 @@ fn base_bundle_ships_broadside() {
     );
 }
 
-/// The story chain, pinned at both ends: shakedown's chapter win chains into
-/// broadside behind a Victory overlay, and the asteroid_field retrofits
-/// (outcome) declare their outcomes instead of switching silently.
+/// The story chain, pinned at the shakedown end: the chapter win chains
+/// into broadside behind a Victory overlay rather than switching silently.
 #[test]
-fn story_chain_declares_outcomes_at_both_ends() {
+fn the_shakedown_chain_declares_its_outcome() {
     let shakedown = scenario_from(SHAKEDOWN_RON);
     let chapter_win = shakedown
         .events
@@ -768,48 +763,6 @@ fn story_chain_declares_outcomes_at_both_ends() {
         })
         .expect("chain action present");
     assert!(chained.linger, "the chain lingers behind the overlay");
-
-    let field = scenario_from(ASTEROID_FIELD_RON);
-    let field_death = field
-        .events
-        .iter()
-        .find(|e| {
-            matches!(e.name, EventConfig::OnDestroyed)
-                && e.filters.iter().any(|f| matches!(
-                    f,
-                    EventFilterConfig::Entity(entity) if entity.id.as_deref() == Some("player_spaceship")
-                ))
-        })
-        .expect("asteroid_field has a player-death handler");
-    assert!(
-        field_death.actions.iter().any(|a| matches!(
-            a,
-            EventActionConfig::Outcome(o) if o.outcome == ScenarioOutcomeKind::Defeat
-        )),
-        "the sandbox death restart declares Defeat (R1.8 retrofit)"
-    );
-
-    // The OTHER half of the retrofit (slice - the first application was lost in
-    // a retry): the zone-clear switch to asteroid_next declares Victory.
-    let zone_clear = field
-        .events
-        .iter()
-        .find(|e| {
-            e.actions.iter().any(|a| {
-                matches!(
-                    a,
-                    EventActionConfig::NextScenario(next) if next.scenario_id == "asteroid_next"
-                )
-            })
-        })
-        .expect("asteroid_field has the zone-clear switch");
-    assert!(
-        zone_clear.actions.iter().any(|a| matches!(
-            a,
-            EventActionConfig::Outcome(o) if o.outcome == ScenarioOutcomeKind::Victory
-        )),
-        "zone-clear declares Victory (R1.8's second half, review R1.1)"
-    );
 }
 
 /// Part two is entered only through part one's checkpoint: hidden from the
@@ -834,28 +787,6 @@ fn the_gunship_part_is_hidden_and_stages_itself() {
             "part two's OnStart spawns '{id}'"
         );
     }
-}
-
-/// The sandbox is a Scenarios-picker entry again (: it had been hidden under a
-/// never-true "mid-story stage" premise, leaving finished content unreachable),
-/// while its relay continuation stays hidden exactly like the gunship part.
-#[test]
-fn the_sandbox_is_listed_and_its_relay_is_not() {
-    let field = scenario_from(ASTEROID_FIELD_RON);
-    assert!(
-        !field.hidden,
-        "the sandbox is a Scenarios-picker entry (20260721-160842)"
-    );
-    assert!(
-        field.thumbnail.is_some(),
-        "picker entries carry the placeholder thumbnail"
-    );
-
-    let relay = scenario_from(ASTEROID_NEXT_RON);
-    assert!(
-        relay.hidden,
-        "the relay continuation never appears in the picker"
-    );
 }
 
 /// The hard-cover tier (spike F4): five invulnerable boulders shared by

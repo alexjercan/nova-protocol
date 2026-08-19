@@ -29,8 +29,7 @@
 //!
 //! The per-scenario invariant PINS for base's own encounters live in their own
 //! tests (broadside_assault.rs); this module is the repo-wide generalization
-//! that also covers content nobody hand-pinned (asteroid_field, installed
-//! mods). `balance_audit_gate` runs it in CI; the `content` CLI's `lint` runs
+//! that also covers content nobody hand-pinned (installed mods). `balance_audit_gate` runs it in CI; the `content` CLI's `lint` runs
 //! it in one pass with the reference checks (the balance audit was folded into
 //! `lint`).
 

@@ -35,7 +35,6 @@ Objectives are wired with a three-layer reactive system. An **event** fires unde
 - **Broadside** - chapter two: the scavengers come back in force. Answer a stranded yacht's distress call across an asteroid cover field and break a two-corvette ambush; that win is a checkpoint, and the fight continues into the gang's gunship - screen its torpedoes with your PDC and take it apart section by section. Dying to the gunship retries the gunship, not the ambush, and hard boulders in the field now genuinely block incoming fire - use them.
 - **Lifeline** - chapter three, part one: the gang hits back where it hurts. Screen a stalled two-ship convoy against three telegraphed raider waves until the relief wing arrives - a live countdown on the HUD, a protect objective instead of kill-all, and the convoy genuinely draws fire (the convoy ships fly the player's flag). Winning the Broadside chapter continues here, and winning here continues to the finale.
 - **Final Tally** - chapter three's finale, reached from Lifeline's victory: the trace ends at the gang's claim - a cracked megahauler anchorage deep in a planetoid's gravity well, ringed by a belt. Survey the anchorage with a travel lock, break the orbital picket riding the well, and finish the gang's flagship when it casts off with its escort. The campaign closes properly here.
-- **Asteroid Field** - a combat and gravity sandbox: a dense field, a planetoid to orbit, a fully outfitted ship and an AI drone. (A tiny _Asteroid Field - Next_ loops it.)
 - **Menu backdrops** - the living scenes behind the menus, a rotating CAROUSEL: each scene plays its act and hands off to the next. **Torpedo Gauntlet** (a corvette's PDC turrets swat torpedoes streaming in from both flanks until its hard magazines run dry and the stand falls), **Asteroid Weave** (an AI ship threading a dense rock band on real patrol waypoints, hugging its nav beacons), **Duel Cycle** (two corvettes dogfight through the open center; a siege torpedo erases the winner), and **Waystation Traffic** (a hauler convoy circling a freight stop under amber dock lights). Menu entry starts the ring at a random scene. All of it is the real simulation, not a cutscene. Mods can ship their own by flagging a scenario `menu_backdrop`.
 
 ## Browsing and replaying scenarios
@@ -63,7 +62,7 @@ The **Scenarios** tab groups a campaign under a collapsible header - click the
 in play order, including mid-story chapters that the story reaches automatically
 (the Broadside gunship phase, the Final Tally finale): they show under the
 campaign header so you can launch any chapter directly for a replay without
-flying the whole arc again. Scenarios that belong to no campaign (Asteroid Field,
-standalone mod scenarios) list on their own below the campaigns.
+flying the whole arc again. Scenarios that belong to no campaign (standalone
+mod scenarios) list on their own below the campaigns.
 
 You can author your own scenarios and mods in RON - see the [Create docs](../../create/).

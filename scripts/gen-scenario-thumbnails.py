@@ -64,7 +64,6 @@ HEIGHT = 180
 # bundle's `resources`). No scenario points at another mod's art any more.
 SCENARIOS = [
     # --- base (the built-in scenarios; builders in nova_assets) ---
-    ("asteroid_field", "Asteroid Field", "assets/base/thumbnails/asteroid_field.png"),
     ("shakedown_run", "Shakedown Run", "assets/base/thumbnails/shakedown_run.png"),
     ("broadside", "Broadside", "assets/base/thumbnails/broadside.png"),
     ("broadside_gunship", "Broadside: Rust Tally",

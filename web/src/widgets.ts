@@ -63,7 +63,7 @@ const ORBIT_BAND_SAFETY = 0.9; // state.rs:386
 // Shipped fixture: the Shakedown Run planetoid (crates/nova_authoring/src/
 // base_content/scenarios/nova_protocol/shakedown/mod.rs).
 const SHAKEDOWN_PLANETOID_MU = 27000; // shakedown/mod.rs:85
-const SANDBOX_ROCK_MU = 45000; // scenarios/sandbox/asteroid_field.rs:68
+const ANCHOR_ROCK_MU = 45000; // scenarios/nova_protocol/final_tally.rs:183
 
 // Radar locking (crates/nova_ship/src/input/targeting/).
 const RADAR_TAP_SECS = 0.25; // gesture.rs:18
@@ -2531,8 +2531,8 @@ function initGravityWell(host: HTMLElement): void {
         "p",
         "widget__note",
         "Defaults are the Shakedown Run planetoid (mass 27000, drawn rock " +
-            "~90 u): a 329 u sphere of influence. The sandbox Gravity Rock " +
-            "authors 45000. The drawn rock is bigger than the body's " +
+            "~90 u): a 329 u sphere of influence. The Final Tally anchorage " +
+            "rock authors 45000. The drawn rock is bigger than the body's " +
             "authored nominal radius; the surface clamp bites at the drawn " +
             "surface."
     );
@@ -2586,7 +2586,7 @@ function initDominantWell(host: HTMLElement): void {
     const readout = el("p", "widget__readout");
 
     const muA = SHAKEDOWN_PLANETOID_MU;
-    const muB = SANDBOX_ROCK_MU;
+    const muB = ANCHOR_ROCK_MU;
     let owner: number | null = null;
     let cursor: SVGLineElement;
     let dotA: SVGCircleElement;
@@ -2782,9 +2782,9 @@ function initDominantWell(host: HTMLElement): void {
     const note = el(
         "p",
         "widget__note",
-        "Well A is the Shakedown planetoid (mass 27000), well B the sandbox " +
-            "Gravity Rock (mass 45000); both drawn at 60 u here so the " +
-            "curves stay legible. The pick and the 1.10x margin are the " +
+        "Well A is the Shakedown planetoid (mass 27000), well B the Final " +
+            "Tally anchorage rock (mass 45000); both drawn at 60 u here so " +
+            "the curves stay legible. The pick and the 1.10x margin are the " +
             "game's own dominant_well rule."
     );
 

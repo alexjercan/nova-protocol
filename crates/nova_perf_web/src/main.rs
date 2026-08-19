@@ -10,7 +10,8 @@
 //! `run_report`/`perf_report`/`perf_trace` bins and the `sweep|web|profile`
 //! aliases were).
 //!
-//! Same measurement as `examples/screenshots/scene_baseline`, but its config comes
+//! It boots the real game app, loads a named shipped scenario and hands the
+//! running app to the frame-time capture. Its config comes
 //! from the cross-platform perf-param source ([`perf_param`]: the URL query
 //! string on wasm, `NOVA_PERF_*` env vars on native), so Trunk can build it
 //! into the wasm bundle and a headless browser can drive it by URL. No
@@ -26,7 +27,7 @@ use nova_core::prelude::*;
 use nova_probe::prelude::*;
 
 fn main() {
-    let scenario_id = perf_param("scenario").unwrap_or_else(|| "asteroid_field".to_string());
+    let scenario_id = perf_param("scenario").unwrap_or_else(|| "broadside".to_string());
 
     let loader_id = scenario_id.clone();
     let mut app = AppBuilder::new()
