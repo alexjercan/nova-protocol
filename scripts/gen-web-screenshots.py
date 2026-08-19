@@ -170,7 +170,7 @@ ASPECT_TOLERANCE = 0.02
 # --- coverage report (`--report`, advisory) -----------------------------------
 
 # Owner classes, in report sort order. `capturable` names a game render some
-# `examples/screenshots/` producer can make; `manual` is authored art no
+# cataloged example can capture; `manual` is authored art no
 # automation can produce; `historical` illustrates an older shipped version, so
 # the current build can only approximate it.
 OWNERS = ("capturable", "manual", "historical")

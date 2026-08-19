@@ -1,6 +1,6 @@
 # Giving a generated ship a front
 
-Design note, 2026-08-16. Written against `examples/screenshots/wfc_ships.rs` on
+Design note, 2026-08-16. Written against `examples/playable/wfc_ships.rs` on
 branch `wfc-layout`.
 
 The complaint it answers: looking at any render of the `wfc_ships` row, drives

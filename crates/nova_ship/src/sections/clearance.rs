@@ -26,7 +26,7 @@
 //! plate is. It is also why the ship is read into a [`SkinStructure`] here - the
 //! skin and this rule want the same two facts about a cell.
 //!
-//! ONE copy, two callers. The generator ([`examples/screenshots/wfc_ships.rs`])
+//! ONE copy, two callers. The generator ([`examples/playable/wfc_ships.rs`])
 //! collapses ships that cannot break it, and the editor refuses a placement that
 //! would. Two copies of a constraint this subtle drift apart.
 //!

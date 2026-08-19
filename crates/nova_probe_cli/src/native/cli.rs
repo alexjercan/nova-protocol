@@ -14,7 +14,7 @@ usage: probe <subcommand>
   the post-feature check and the perf sweep. --correctness-only runs only
   the clean behavioral pass. <spec> is one example, a
   comma list (player_path,scenario_grammar), or a category dir
-  (systems|screenshots). --all runs the whole
+  (playable|systems|screenshots). --all runs the whole
   catalog - nothing is excluded.
   Runs write to <out|probe-runs>/<short-commit>/<example>/ and
   write an aggregated index.html/index.json + probe-all.json above

@@ -126,19 +126,25 @@ single source of truth, listed in curriculum reading order.
 
 ### The category contract
 
-A category is not a folder - it is a promise about what its examples prove
-and what the probe harness does with them. Pick the category by what your
-example PROVES, not by what it happens to spawn.
+A category is not a folder - it is a promise about WHO an example is for. Pick
+the category by its audience, not by what it happens to spawn.
 
-| Category | What it proves | What probe does with it | Disqualifies an example |
+| Category | Who it is for | What probe does with it | Disqualifies an example |
 |-|-|-|-|
-| `systems/` | CORRECTNESS: a behavior, staged and asserted, every claim named on the invariant roster | runtime contract decides; native trace is automatic | its product is a frame for human eyes rather than a verdict |
-| `screenshots/` | CONTENT: frames for the website and the wiki, galleries a human judges, the frame-time baseline | runtime contract decides; native trace is automatic | its verdict is an assert |
+| `playable/` | A HUMAN: somebody loads it and does the thing it demonstrates, through an affordance wired outside the `NOVA_AUTOPILOT` gate | runtime contract decides; native trace is automatic | its only affordance is the free-fly camera every cameraless scene already gets |
+| `systems/` | The PROBE: a behavior staged and asserted, every claim named on the invariant roster | runtime contract decides; native trace is automatic | its product is a frame for human eyes rather than a verdict |
+| `screenshots/` | The WEBSITE and the wiki: frames, webm loops, posed lineups, the frame-time baseline | runtime contract decides; native trace is automatic | its verdict is an assert, or a human is meant to drive it |
 
-Two categories, not five: `sections/`, `ui/` and `stress/` were dissolved into
-these in v0.11.0 (task 20260817-013618). A per-section range and a staged UI
-flow are both correctness ranges, and a stress range is a correctness range
-that also happens to carry a number.
+The test between `playable/` and the other two: would a human loading this
+expect to DO something? If the name promises a verb, it owes the verb. The test
+between `systems/` and `screenshots/` is what a run PRODUCES - an assertion, or
+a picture.
+
+Three categories, not five and no longer two: `sections/`, `ui/` and `stress/`
+dissolved into `systems/` and `screenshots/`, then `playable/` split back out
+of `screenshots/` for the examples a person actually works (v0.11.0, tasks
+20260817-013618 and 20260818-221103). Autopilot in a `playable/` example is a
+SECOND driver, for captures and for the run gate - never the only one.
 
 Run policy is DECLARED by the example at runtime, through the probe plugins it
 wires (`nova_probe::contract`); probe reads it back from `probe-contract.json`.
@@ -153,6 +159,19 @@ root `Cargo.toml`, and review enforces it.
 
 What is on disk today, in reading order:
 
+- `playable/` - what a person loads and works. The hulls first: `carve_asteroids`
+  (fly a PDC rig at a row of shipped-size rocks and hole one by hand) and
+  `wfc_arena` (a match bench for wave-function-collapse hulls, with a lobby, a
+  pause menu, a result board and a `--ship TEAM:player` slot that puts you in
+  one of them). Then the benches and galleries, each with its own keys:
+  `wfc_ships` (`R` re-rolls the collapsed row), `shape_bench` and `block_bench`
+  (`L` cycles the style, `C` strips the cladding), `greeble_catalog` (a
+  selection ring, a focus turntable, pedestal and cell-frame toggles),
+  `parts_viewer` (a paged grid, a focus turntable and a reassembled recipe ship
+  with an explode toggle), `widget_zoo` (every `nova_ui` widget factory, live
+  and clickable in both skins) and `compare_asteroids` / `compare_planets` (the
+  number keys re-dress the focus subject). All of them still walk and capture
+  under `NOVA_AUTOPILOT`, which is what keeps them on the probe gate.
 - `systems/` - the correctness ranges. The section curriculum first:
   `attitude_hold` (PD attitude), `thrust_and_plume` (burn -> thrust + plume
   shader), `hull_damage` (damage -> destroy -> ship survives, and the mass
@@ -206,17 +225,16 @@ What is on disk today, in reading order:
   `screenshot_flight` (the "The ring" set: the ORBIT verb flown around a real
   well), `screenshot_nova_os` (the Tab ship-computer), and `render_scale_shot`
   (a real-GPU window capture proving the render-scale lever draws a correct
-  frame). The galleries a human judges live here too - `parts_viewer`,
-  `widget_zoo` (every `nova_ui` widget factory, live and in both skins),
-  `wfc_ships`, `wfc_arena` (the reusable text-field/list/button reference plus
-  its lobby, match pause and dynamic result loop), `shape_bench`, `block_bench`, `thruster_gallery`,
-  `greeble_catalog`, `compare_asteroids`, `compare_planets`, `carve_asteroids`
-  (the carve range: what a hit takes out of a rock at each size and each price)
-  and `damage_levels` (the damage-look range: a section at every `DamageLevel`,
-  clad and bare) - and so does
-  `scene_baseline`, the release-over-release measurement scene the probe sweep
-  runs: it asserts nothing about behavior, its product is a number for the perf
-  page. See [Performance and run verification](#performance-and-run-verification).
+  frame), plus the two webm loop producers `loop_torpedo_blast` and
+  `loop_spine_cut`. The posed LINEUPS live here too - `thruster_gallery` (the
+  shipped drive, the proposed shell family and the CC0 candidates in one named
+  row) and `damage_levels` (the same ship at five damage levels, side by side).
+  Neither registers a key, so a hand-run is a free-fly look at a still row;
+  either would move to `playable/` the day it grows `greeble_catalog`'s
+  selection layer. And so does `scene_baseline`, the release-over-release
+  measurement scene the probe sweep runs: it asserts nothing about behavior, its
+  product is a number for the perf page. See
+  [Performance and run verification](#performance-and-run-verification).
 
 When adding a substantial feature, add or extend the range that drives it. When
 fixing a bug, WRITE the range that reproduces it first: that is the doctrine in
@@ -224,14 +242,15 @@ fixing a bug, WRITE the range that reproduces it first: that is the doctrine in
 
 Every example except `scene_baseline` is HARNESSED: it drives itself under
 `NOVA_AUTOPILOT=1`, and probe is the regression suite over all of them -
-`cargo run --features debug probe run systems` (or `screenshots`) runs one
-category alone, and `--all` is the whole catalog, which is what CI runs. Each
-example must reach `Playing` and exit without panic; every `systems/` range
-additionally carries panic-on-failure behavior assertions with completion
-backstops (a stalled script fails instead of passing vacuously). The rosters
-are pinned by the display-free `systems_ranges_assert_their_invariant_roster`,
-so an invariant cannot be deleted into a still-green run. The screenshot
-producers carry no behavior assertions of their own - they drive the shipped
+`cargo run --features debug probe run systems` (or `screenshots`, or
+`playable`) runs one category alone, and `--all` is the whole catalog, which is
+what CI runs. Each example must reach `Playing` and exit without panic; every
+`systems/` range additionally carries panic-on-failure behavior assertions with
+completion backstops (a stalled script fails instead of passing vacuously). The
+rosters are pinned by the display-free
+`systems_ranges_assert_their_invariant_roster`, so an invariant cannot be
+deleted into a still-green run. The `screenshots/` and `playable/` examples
+carry no behavior assertions of their own - they drive the shipped
 scenes to capture frames - but every one walks an `AutopilotPlugin` step
 timeline, so a beat that never resolves is an error exit naming that step, and
 every one wires `nova_probe::nova_timeline()` + `nova_probe::nova_invariants()`,
@@ -463,7 +482,7 @@ manifest and the shipped assets, and prints each gap with an owner class:
 
 | Class | Meaning |
 | --- | --- |
-| `capturable` | A game render an `examples/screenshots/` producer can make. |
+| `capturable` | A game render a cataloged example can capture. |
 | `manual` | Authored art (post-card thumbnails, icons, diagrams) - no automation produces it. |
 | `historical` | A figure for an older shipped version; the current build can only approximate it. |
 

@@ -325,10 +325,10 @@ The monitor sounds like it looks, when SND is up: a key tick per character, a he
 ## In the WFC arena
 
 <!-- The arena is a developer example, not shipped content: Cargo.toml example
-     entry, examples/screenshots/wfc_arena.rs:70-80. NOVA OS freezes the match
-     and closing resumes it: examples/screenshots/wfc_arena/result.rs:425-446;
-     Escape stays with NOVA OS while open: examples/screenshots/wfc_arena/pause.rs:51.
+     entry, examples/playable/wfc_arena.rs:70-80. NOVA OS freezes the match
+     and closing resumes it: examples/playable/wfc_arena/result.rs:425-446;
+     Escape stays with NOVA OS while open: examples/playable/wfc_arena/pause.rs:51.
      Rebinds survive restart / return-to-lobby for the same hull:
-     examples/screenshots/wfc_arena/lobby.rs:531-533,559-568,608-633. -->
+     examples/playable/wfc_arena/lobby.rs:531-533,559-568,608-633. -->
 
 The WFC arena - the developer match bench that fields wave-function-collapse ships, run from a source checkout with `cargo run --example wfc_arena` - carries the full computer when you fly a `player` slot. Opening NOVA OS mid-match freezes the entire fight, both teams hold in place while you read the map or service a section, and closing it resumes the brawl where it stood; the arena's own Escape pause menu waits its turn while the computer is open. Rebinds you make in the SHIP app stick to that hull through a match restart and a return to the lobby - reroll the seed and the new hull starts fresh.

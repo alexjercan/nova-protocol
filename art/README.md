@@ -37,7 +37,7 @@ adds to the download whether or not the game loads it.
       variant) needs the zip.
 - `part-candidates/` - GENERATED part `.glb` candidates for the parts-based
   ship building spike (task 20260812-100246), browsed by
-  `examples/screenshots/parts_viewer.rs`. Regenerate with
+  `examples/playable/parts_viewer.rs`. Regenerate with
   `scripts/cut-obj-into-parts.py` (recipes in `scripts/part-recipes/`,
   blocks/craft conversions recorded in the task SPIKE). `shells/` holds the
   recipe-generated thruster shell candidates - original work, regenerated with
