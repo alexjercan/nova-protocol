@@ -31,8 +31,9 @@ event handlers; each pairs an event with filters (all must pass) and actions
 
 - `LoadScenario(ScenarioConfig)` - trigger to load: look one up in
   `GameScenarios`, `commands.trigger(LoadScenario(cfg.clone()))` (see
-  `examples/systems/scenario_grammar.rs`). Load tears down the previous scenario, spawns
-  the camera, input context, one handler per event, fires `OnStart`. No engine
+  `examples/systems/system_scenario_grammar.rs`). Load tears down the previous
+  scenario, spawns the camera, input context, one handler per event, fires
+  `OnStart`. No engine
   light: a scene is lit by the `Light` objects it authors, and one that authors
   none renders black.
 - `ScenarioLoaded` - fired after a load; carries `scenario_id`,

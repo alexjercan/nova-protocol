@@ -1,4 +1,4 @@
-//! destruction_finale: every destructible body leaves its OWN art behind.
+//! system_destruction_finale: every destructible body leaves its OWN art behind.
 //!
 //! One player ship carrying four section kinds - a controller, a reinforced
 //! hull, a thruster and a turret - plus an asteroid off the beam. The script
@@ -42,7 +42,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example destruction_finale --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_destruction_finale --features debug
 //! # look for: `finale probe: the turret left 1 body wearing its own art`,
 //! #           `outcome: no death came apart into nothing`,
 //! #           `autopilot: cycle complete, no panic`
@@ -56,7 +56,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "destruction_finale")]
+#[command(name = "system_destruction_finale")]
 #[command(version = "1.0.0")]
 #[command(about = "Every destructible body breaks into its own art. Autopilot-only correctness range", long_about = None)]
 struct Cli;

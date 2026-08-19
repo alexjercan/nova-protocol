@@ -1,4 +1,4 @@
-//! sandbox_soak: the editor sandbox, entered the way a player enters it, then
+//! bug_sandbox_soak: the editor sandbox, entered the way a player enters it, then
 //! LEFT ALONE.
 //!
 //! The walk is the owner's - main menu, Sandbox, New Ship, Play - and then the
@@ -29,7 +29,7 @@
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=400 \
-//!   cargo run --example sandbox_soak --features debug
+//!   cargo run --example bug_sandbox_soak --features debug
 //! # look for: `sandbox_soak: the step fits its timestep ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -40,7 +40,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "sandbox_soak")]
+#[command(name = "bug_sandbox_soak")]
 #[command(version = "1.0.0")]
 #[command(about = "The editor sandbox, entered and then left alone. Autopilot-only correctness range - sitting still IS the gesture", long_about = None)]
 struct Cli;

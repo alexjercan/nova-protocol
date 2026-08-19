@@ -1,4 +1,4 @@
-//! nova_os: the Tab ship computer, driven the way a player drives it - opened
+//! system_nova_os: the Tab ship computer, driven the way a player drives it - opened
 //! with a keystroke and clicked THROUGH the CRT glass.
 //!
 //! ONE SUBJECT: the NOVA OS as a live system. Its parts are unit-tested well
@@ -25,7 +25,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example nova_os --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_nova_os --features debug
 //! # named beats, each waiting on the world rather than on a dwell: load the
 //! # range; Tab the computer open and wait for the RASTER to finish opening
 //! # (a click on a collapsing raster lands where the picture no longer is);
@@ -57,7 +57,7 @@ use nova_protocol::nova_os_ui::{
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "nova_os")]
+#[command(name = "system_nova_os")]
 #[command(version = "1.0.0")]
 #[command(about = "The Tab NOVA OS ship computer, clicked through its CRT glass. Autopilot-only correctness range", long_about = None)]
 struct Cli;

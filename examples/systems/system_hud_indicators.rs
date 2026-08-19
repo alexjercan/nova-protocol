@@ -1,4 +1,4 @@
-//! hud_indicators: the screen-projected HUD indicators, verified live.
+//! system_hud_indicators: the screen-projected HUD indicators, verified live.
 //!
 //! Tasks 20260708-165700/165701/165702: the torpedo-lock reticle, the
 //! locked-target readout, the autopilot destination marker and the turret
@@ -18,7 +18,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example hud_indicators --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_hud_indicators --features debug
 //! # named beats, each one waiting on the world or on its own short dwell:
 //! # wait for the player ship to spawn, then perform the REAL radar gesture
 //! # (raise, hold CTRL, commit) - nothing locks passively in the
@@ -44,7 +44,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "hud_indicators")]
+#[command(name = "system_hud_indicators")]
 #[command(version = "1.0.0")]
 #[command(about = "A test range for the screen-projected HUD indicators. Autopilot-only correctness range", long_about = None)]
 struct Cli;
@@ -203,7 +203,7 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
     player_sections.push(SpaceshipSectionConfig {
         id: "player_turret".to_string(),
         position: Vec3::new(0.0, 0.0, -0.75),
-        // Matches the turret placement in turret_gunnery so the base sits
+        // Matches the turret placement in system_turret_gunnery so the base sits
         // upright.
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
         source: SectionSource::Inline(section("pdc_kinetic_turret_section")),

@@ -296,7 +296,7 @@ pub(super) fn reconcile_slider_track_skins(
 /// `despawn_related().try_insert(..)` does NOT achieve that: `try_insert` is
 /// silenced but `despawn_related` still queues through the default handler,
 /// which the game escalates to a panic under `NOVA_AUTOPILOT` (see
-/// examples/systems/menu_boot.rs). Verified directly: queueing
+/// examples/systems/system_menu_boot.rs). Verified directly: queueing
 /// `despawn_related::<Children>()` at a despawned entity under
 /// `FallbackErrorHandler(panic)` panics in `bevy_ecs`'s error handler.
 ///

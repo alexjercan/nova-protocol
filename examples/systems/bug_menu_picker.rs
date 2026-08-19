@@ -1,4 +1,4 @@
-//! menu_picker: drive the main menu's Scenarios picker and MEASURE it.
+//! bug_menu_picker: drive the main menu's Scenarios picker and MEASURE it.
 //!
 //! Boots the exact app the `nova_protocol` binary runs (via the shared
 //! [`editor_app`]), clicks Scenarios, then selects every scenario row in turn -
@@ -19,7 +19,7 @@
 //!
 //! Run (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example menu_picker --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example bug_menu_picker --features debug
 //! # look for: `scenarios pane widths:` per row, then
 //! #           `scenarios pane widths HELD` / `... CHANGED`,
 //! #           then `nova harness: reached Playing` and
@@ -39,7 +39,7 @@ use nova_protocol::prelude::*;
 use nova_ui::widget::Selected;
 
 #[derive(Parser)]
-#[command(name = "menu_picker")]
+#[command(name = "bug_menu_picker")]
 #[command(version = "1.0.0")]
 #[command(about = "Drive the Scenarios picker and measure its pane widths. Autopilot-only correctness range", long_about = None)]
 struct Cli;

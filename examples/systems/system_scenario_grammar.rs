@@ -1,4 +1,4 @@
-//! scenario_grammar: the scenario LANGUAGE, end to end - config in code,
+//! system_scenario_grammar: the scenario LANGUAGE, end to end - config in code,
 //! loaded with variables, event handlers, filters and actions, and asserted
 //! live over repeated rounds.
 //!
@@ -18,12 +18,12 @@
 //! error-exits naming itself.
 //!
 //! Building the `ScenarioConfig` in code (instead of loading a named one from
-//! `GameScenarios`, which menu_boot's boot flow covers) is the modding
+//! `GameScenarios`, which system_menu_boot's boot flow covers) is the modding
 //! surface, and it is what keeps this fixture story-free.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example scenario_grammar --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_scenario_grammar --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `scenario probe: variables seeded`,
 //! #           `scenario probe: round 1 ticked ...`,
@@ -38,7 +38,7 @@ use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "scenario_grammar")]
+#[command(name = "system_scenario_grammar")]
 #[command(version = "1.0.0")]
 #[command(about = "Scenario language showcase: variables, events, filters and actions over repeated rounds. Autopilot-only correctness range", long_about = None)]
 struct Cli;

@@ -142,88 +142,88 @@ path = "examples/playable/compare_planets.rs"
 # systems/ - the section curriculum first: one range per ship section, each
 # walking a named roster of invariants across several rounds.
 [[example]]
-name = "attitude_hold"
-path = "examples/systems/attitude_hold.rs"
+name = "system_attitude_hold"
+path = "examples/systems/system_attitude_hold.rs"
 
 [[example]]
-name = "thrust_and_plume"
-path = "examples/systems/thrust_and_plume.rs"
+name = "system_thrust_and_plume"
+path = "examples/systems/system_thrust_and_plume.rs"
 
 [[example]]
-name = "hull_damage"
-path = "examples/systems/hull_damage.rs"
+name = "system_hull_damage"
+path = "examples/systems/system_hull_damage.rs"
 
 [[example]]
-name = "destruction_finale"
-path = "examples/systems/destruction_finale.rs"
+name = "system_destruction_finale"
+path = "examples/systems/system_destruction_finale.rs"
 
 [[example]]
-name = "turret_gunnery"
-path = "examples/systems/turret_gunnery.rs"
+name = "system_turret_gunnery"
+path = "examples/systems/system_turret_gunnery.rs"
 
 [[example]]
-name = "torpedo_launch"
-path = "examples/systems/torpedo_launch.rs"
+name = "system_torpedo_launch"
+path = "examples/systems/system_torpedo_launch.rs"
 
 [[example]]
-name = "blast_penetration"
-path = "examples/systems/blast_penetration.rs"
+name = "system_blast_penetration"
+path = "examples/systems/system_blast_penetration.rs"
 
 [[example]]
-name = "section_severing"
-path = "examples/systems/section_severing.rs"
+name = "system_section_severing"
+path = "examples/systems/system_section_severing.rs"
 
 # Then the cross-cutting systems, at a coarser grain. Every fixture is a
 # `ScenarioConfig` built in Rust and loaded with `LoadScenario`, so the compiler
 # catches scenario-grammar changes and no shipped story content is reachable
 # from here.
 [[example]]
-name = "scenario_grammar"
-path = "examples/systems/scenario_grammar.rs"
+name = "system_scenario_grammar"
+path = "examples/systems/system_scenario_grammar.rs"
 
 [[example]]
-name = "player_path"
-path = "examples/systems/player_path.rs"
+name = "system_player_path"
+path = "examples/systems/system_player_path.rs"
 
 [[example]]
-name = "outcomes"
-path = "examples/systems/outcomes.rs"
+name = "system_outcomes"
+path = "examples/systems/system_outcomes.rs"
 
 [[example]]
-name = "neutralized_quiet"
-path = "examples/systems/neutralized_quiet.rs"
+name = "bug_neutralized_quiet"
+path = "examples/systems/bug_neutralized_quiet.rs"
 
 [[example]]
-name = "borrowed_battery"
-path = "examples/systems/borrowed_battery.rs"
+name = "system_borrowed_battery"
+path = "examples/systems/system_borrowed_battery.rs"
 
 # Then the interface, staged and driven by synthesized pointer input. The
 # subject is still a behavior with a verdict (a build refusal, an indicator's
 # screen position, a boot transition, a pane width held across selections) -
 # a UI flow whose product were a frame would belong in screenshots/.
 [[example]]
-name = "ship_editor"
-path = "examples/systems/ship_editor.rs"
+name = "system_ship_editor"
+path = "examples/systems/system_ship_editor.rs"
 
 [[example]]
-name = "sandbox_soak"
-path = "examples/systems/sandbox_soak.rs"
+name = "bug_sandbox_soak"
+path = "examples/systems/bug_sandbox_soak.rs"
 
 [[example]]
-name = "hud_indicators"
-path = "examples/systems/hud_indicators.rs"
+name = "system_hud_indicators"
+path = "examples/systems/system_hud_indicators.rs"
 
 [[example]]
-name = "menu_boot"
-path = "examples/systems/menu_boot.rs"
+name = "system_menu_boot"
+path = "examples/systems/system_menu_boot.rs"
 
 [[example]]
-name = "menu_picker"
-path = "examples/systems/menu_picker.rs"
+name = "bug_menu_picker"
+path = "examples/systems/bug_menu_picker.rs"
 
 [[example]]
-name = "nova_os"
-path = "examples/systems/nova_os.rs"
+name = "system_nova_os"
+path = "examples/systems/system_nova_os.rs"
 
 # And the STRESS ranges: the same correctness shape - exact counts, a
 # clear-and-drain assertion, a teardown that leaves nothing - staged at a scale

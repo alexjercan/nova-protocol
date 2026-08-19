@@ -262,7 +262,7 @@ fn on_destroyed_entity(
 /// burst of generic cubes on this branch, and the trouble with it was not that
 /// it looked bad, it was that it looked like SOMETHING - so a body that had
 /// silently failed to come apart was indistinguishable from one that had come
-/// apart badly. The `destruction_finale` range asserts this branch never runs on
+/// apart badly. The `system_destruction_finale` range asserts this branch never runs on
 /// shipped content.
 ///
 /// Despawns the body on every path. It is the only thing that despawns a

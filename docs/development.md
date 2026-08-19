@@ -16,12 +16,12 @@
 cargo run                         # the game (boots into the main menu)
 cargo run -- --scenario broadside # the game, straight into one scenario
 cargo run --features dev          # + debug tooling (inspector, wireframe)
-cargo run --example scenario_grammar   # run an example
+cargo run --example system_scenario_grammar   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
 cargo check && cargo fmt          # before committing
 cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
 cargo run content lint   # validate content: refs + balance + input overlaps (also: gen)
-cargo run --features debug probe run player_path          # run-harness check (correctness + perf)
+cargo run --features debug probe run system_player_path          # run-harness check (correctness + perf)
 ```
 
 Notes that keep the suite honest and fast:
@@ -172,28 +172,35 @@ What is on disk today, in reading order:
   and clickable in both skins) and `compare_asteroids` / `compare_planets` (the
   number keys re-dress the focus subject). All of them still walk and capture
   under `NOVA_AUTOPILOT`, which is what keeps them on the probe gate.
-- `systems/` - the correctness ranges. The section curriculum first:
-  `attitude_hold` (PD attitude), `thrust_and_plume` (burn -> thrust + plume
-  shader), `hull_damage` (damage -> destroy -> ship survives, and the mass
-  properties the losses move), `destruction_finale` (every destructible body -
-  gltf section, procedural section, multi-part turret, asteroid - breaking into
-  its OWN art rather than generic cubes, on one budget), `turret_gunnery` and
-  `torpedo_launch` (the
+- `systems/` - the correctness ranges. Every name carries a prefix for the KIND
+  of check it is - `system_` functionality, `bug_` a regression range for a
+  defect that was found, `stress_` load - and `examples/systems/README.md` owns
+  the rule. The section curriculum first: `system_attitude_hold` (PD attitude),
+  `system_thrust_and_plume` (burn -> thrust + plume shader),
+  `system_hull_damage` (damage -> destroy -> ship survives, and the mass
+  properties the losses move), `system_destruction_finale` (every destructible
+  body - gltf section, procedural section, multi-part turret, asteroid -
+  breaking into its OWN art rather than generic cubes, on one budget),
+  `system_turret_gunnery` and `system_torpedo_launch` (the
   weapon ranges, the latter also the PN lead-a-crosser deep-dive). Then the
   cross-cutting systems, every fixture a `ScenarioConfig` written in Rust and
-  loaded with `LoadScenario`: `scenario_grammar` (the scenario language -
-  variables, events, filters, actions), `player_path` (a scenario played
-  through the real input pipeline: lock, kill, travel-lock, GOTO), `outcomes`
+  loaded with `LoadScenario`: `system_scenario_grammar` (the scenario language -
+  variables, events, filters, actions), `system_player_path` (a scenario played
+  through the real input pipeline: lock, kill, travel-lock, GOTO),
+  `system_outcomes`
   (die -> the Defeat overlay -> Retry -> a clean reload -> kill -> the
   objective and the CHECKPOINT -> Continue -> the chained scenario),
-  `neutralized_quiet` (a wreck's point defence stands down) and
-  `borrowed_battery` (the Flight Computer works idle player PDCs). Then the
-  interface, driven by synthesized pointer input: `ship_editor` (build a ship
-  and inspect it, refusals included), `hud_indicators` (where a
-  screen-projected indicator lands), `menu_boot` (the shipped boot flow) and
-  `menu_picker` (the Scenarios picker, whose pane split must not depend on the
-  selection - real fonts, real taffy, which a headless unit rig cannot measure
-  at all) and `nova_os` (the Tab ship computer, opened with a keystroke and
+  `bug_neutralized_quiet` (a wreck's point defence stands down) and
+  `system_borrowed_battery` (the Flight Computer works idle player PDCs). Then
+  the interface, driven by synthesized pointer input: `system_ship_editor`
+  (build a ship and inspect it, refusals included), `system_hud_indicators`
+  (where a screen-projected indicator lands), `system_menu_boot` (the shipped
+  boot flow) and
+  `bug_menu_picker` (the Scenarios picker, whose pane split must not depend on
+  the selection - real fonts, real taffy, which a headless unit rig cannot
+  measure at all), `bug_sandbox_soak` (the editor sandbox entered and then left
+  alone, holding one physics step to its own timestep) and
+  `system_nova_os` (the Tab ship computer, opened with a keystroke and
   clicked THROUGH the CRT glass, so the whole forwarded-pointer chain - window
   rect, screen-to-image mapping, offscreen UI stack, `Activate` - is asserted
   live rather than one link at a time). Finally the STRESS ranges, one file
@@ -214,7 +221,7 @@ What is on disk today, in reading order:
   (`nova_os_window_px_showing`), since a node laid out by an offscreen camera
   reports a rect in a space no cursor can be placed in. A driven run that still
   cannot reach a target says so and states its COVERAGE in the verdict -
-  `menu_picker` names any row it gave up on and fails outright below two
+  `bug_menu_picker` names any row it gave up on and fails outright below two
   measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their
   subject is the outcome chain, so pixel coordinates would only add layout
   coupling.
@@ -288,12 +295,13 @@ the mute). `NOVA_MUTE=0` forces sound through a harness run;
 A bug becomes a RANGE (`CONVENTIONS.md`): reproduce it in `examples/systems/`
 before the fix, and the fix is what turns the range green. A unit/App test
 still pins a system-level mechanism, but anything that only manifests in a
-composed scene belongs in a range (for example, `menu_boot` runs the shipped
-boot flow with the ECS fallback error handler swapped to panic, so unhandled
-command errors on those transitions fail CI). A range's pin is an
+composed scene belongs in a range (for example, `system_menu_boot` runs the
+shipped boot flow with the ECS fallback error handler swapped to panic, so
+unhandled command errors on those transitions fail CI). A range's pin is an
 autopilot-script assertion (a named step whose `on_enter` asserts, reached only
 once the steps before it have waited on the world - see
-`hull_damage`/`hud_indicators` for the style) carrying an `outcome: <slug>`
+`system_hull_damage`/`system_hud_indicators` for the style) carrying an
+`outcome: <slug>`
 marker on the roster; CI's probe sweep runs it on every push. Caveat: the handler swap
 does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
 at queue time).
@@ -600,11 +608,11 @@ and assembles one reviewable report. The POST-FEATURE CHECK - "did my change
 break behavior or perf?" - is one command:
 
 ```sh
-cargo run --features debug probe run player_path            # clean + frame time + trace -> report
-cargo run --features debug probe run player_path --correctness-only # clean behavioral evidence only
-cargo run --features debug probe run player_path --samply   # + named flamegraph
-cargo run --features debug probe run player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
-cargo run --features debug probe run player_path,scenario_grammar   # comma list -> aggregate index
+cargo run --features debug probe run system_player_path            # clean + frame time + trace -> report
+cargo run --features debug probe run system_player_path --correctness-only # clean behavioral evidence only
+cargo run --features debug probe run system_player_path --samply   # + named flamegraph
+cargo run --features debug probe run system_player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
+cargo run --features debug probe run system_player_path,system_scenario_grammar   # comma list -> aggregate index
 cargo run --features debug probe run systems            # a whole category
 cargo run --features debug probe run --all               # the whole fleet
 ```
@@ -658,7 +666,7 @@ yourself - probe preserves any of the three it finds already set, and prints
 which ones it left alone:
 
 ```sh
-NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run player_path
+NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run system_player_path
 ```
 
 `XDG_CACHE_HOME` is deliberately NOT redirected (the shader cache lives there,
@@ -752,7 +760,7 @@ timestamps (wall-clock and frame counts vary across hosts):
 
 ```sh
 NOVA_PERF_TIMELINE=/tmp/run.jsonl NOVA_AUTOPILOT=1 \
-  cargo run --example player_path --features debug
+  cargo run --example system_player_path --features debug
 ```
 
 The timeline is native-only (no fs in the browser) and inert without the env
@@ -795,8 +803,8 @@ frame times, so a profiled run RANKS systems while the clean capture owns the
 FPS truth (never mix the two):
 
 ```sh
-cargo run --features debug probe run scenario_grammar          # trace + report table
-cargo run --features debug probe run scenario_grammar --samply # + flamegraph
+cargo run --features debug probe run system_scenario_grammar          # trace + report table
+cargo run --features debug probe run system_scenario_grammar --samply # + flamegraph
 ```
 
 The profiled pass builds with `--features debug,trace` (bevy's per-system
@@ -824,10 +832,10 @@ Continuous INVARIANTS ride the same stream: set `NOVA_PERF_INVARIANTS=1` (or
 asserts what the engine guarantees - health within `0..=max` and finite,
 velocities finite (plus an absurd-speed bound at 10x a ship's soft
 `FlightSpeedCap`), scenario Number variables finite, registered monotonic
-variables never decreasing (opt-in per example: `player_path` registers
-`target_down`/`leg`, `scenario_grammar` seven counters and latches,
-`outcomes` `hostile_down`), and a total entity-count leak bound. A monotonic
-is one-way within a SCENARIO LIFE, not for the process: the memory is
+variables never decreasing (opt-in per example: `system_player_path` registers
+`target_down`/`leg`, `system_scenario_grammar` seven counters and latches,
+`system_outcomes` `hostile_down`), and a total entity-count leak bound. A
+monotonic is one-way within a SCENARIO LIFE, not for the process: the memory is
 forgotten on `ScenarioLoaded`, so an example that replays through its loop
 point re-seeds its latches without taking a false regression. Violations warn,
 land on the timeline as `kind: "invariant"` entries, and feed the report's

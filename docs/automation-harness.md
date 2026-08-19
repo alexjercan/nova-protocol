@@ -87,7 +87,7 @@ of them are one `jq` query away instead of a picture to squint at.
 Xvfb :95 -screen 0 1280x720x24 &
 NOVA_AUTOPILOT=1 NOVA_PERF_SNAPSHOT=/tmp/snap.jsonl \
   NOVA_PERF_SNAPSHOT_FRAMES=600,600 BEVY_ASSET_ROOT="$PWD" DISPLAY=:95 \
-  cargo run --example turret_gunnery --features debug
+  cargo run --example system_turret_gunnery --features debug
 jq -S '.ships[0].sections[] | {id, class, health}' /tmp/snap.jsonl
 ```
 
@@ -182,13 +182,14 @@ so above the fixed rate most `Update` frames carry no solve pass at all and N
 unchanged frames can all precede the recompute the beat is waiting for. Sample
 in `FixedPostUpdate` after `PhysicsSystems::Prepare`, so one sample is one
 pass, and carry any second fact the beat needs (an entity count, say) in the
-same sample rather than reading it live off the world. `hull_damage`'s
+same sample rather than reading it live off the world. `system_hull_damage`'s
 `ComSettle` is the worked example.
 
 The rule is "sample where the quantity is WRITTEN", not "sample on the fixed
-schedule" - `turret_gunnery`'s `AimSettle` stays on `Update` precisely because
-its aim error is produced by `SmoothLookRotationPlugin` in `PostUpdate`, so
-consecutive fixed ticks inside one frame would read the same value and saturate
+schedule" - `system_turret_gunnery`'s `AimSettle` stays on `Update` precisely
+because its aim error is produced by `SmoothLookRotationPlugin` in
+`PostUpdate`, so consecutive fixed ticks inside one frame would read the same
+value and saturate
 the streak mid-slew. What that costs is framerate independence, which you buy
 back separately: a per-frame delta threshold means a different physical
 threshold at every framerate, so compare a RATE against `Time::delta_secs()`.
@@ -202,9 +203,9 @@ explains it. Gate on the stimulus and the world having stopped changing; assert
 on where it ended up. When the two must read the same quantity, give the beat a
 margin - the driver enters the next step on the FOLLOWING frame, so a beat that
 opened at exactly the assert's threshold on a falling value hands the assert a
-failing one (`attitude_hold`'s `OFFSET_BEAT_MARGIN_SECS`, and
-`turret_gunnery`'s `GATE_TRAVEL_BEAT_MARGIN` over a sweep that is not even
-monotonic).
+failing one (`system_attitude_hold`'s `OFFSET_BEAT_MARGIN_SECS`, and
+`system_turret_gunnery`'s `GATE_TRAVEL_BEAT_MARGIN` over a sweep that is not
+even monotonic).
 
 Where the invariant has no separate stimulus-side observable - "the torpedo
 detonated", "the burn accelerated" - the beat is the stimulus plus a bounded
@@ -216,8 +217,8 @@ assert decides.
 ### Before and after: the mass-properties script
 
 The old shape - the retired `com_range` example, whose beats now live in
-`hull_damage` - was a wall-clock runway plus one closure that re-derived a
-step machine from booleans:
+`system_hull_damage` - was a wall-clock runway plus one closure that re-derived
+a step machine from booleans:
 
 ```rust
 app.add_plugins(
@@ -242,7 +243,7 @@ fn com_range_script(world: &mut World, elapsed: f32) {
 ```
 
 The new shape is the beats themselves, each waiting on the world
-(`examples/systems/hull_damage.rs`):
+(`examples/systems/system_hull_damage.rs`):
 
 ```rust
 app.add_plugins(
@@ -345,7 +346,7 @@ Then arm it from the shell - `driven_app` is the crate's own example, the
 
 ```sh
 NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app
-NOVA_SHOT=390x844 cargo run --example scenario_grammar
+NOVA_SHOT=390x844 cargo run --example system_scenario_grammar
 NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_SHOT_DIR=target/shots \
   cargo run --example screenshot_gravity --features debug
 ```

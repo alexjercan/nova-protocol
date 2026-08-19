@@ -167,8 +167,8 @@ impl Plugin for InvariantsPlugin {
 /// outgoing scenario's variables outlive the load and are overwritten in place
 /// when the incoming `OnStart` re-seeds them, so a one-way latch reads 1 -> 0
 /// with no gap. Examples that replay a scenario (the round loop in
-/// `player_path`) would otherwise take a false `monotonic_regression` on every
-/// round boundary.
+/// `system_player_path`) would otherwise take a false `monotonic_regression`
+/// on every round boundary.
 fn forget_monotonic_on_load(_: On<ScenarioLoaded>, mut state: ResMut<InvariantState>) {
     state.monotonic_last.clear();
 }
@@ -584,9 +584,10 @@ mod tests {
 
     #[test]
     fn a_gapless_reload_resets_monotonic_memory() {
-        // The reload the round loops in `player_path` and `outcomes` take: the
-        // outgoing scenario's variables are never absent for a checked frame,
-        // they are overwritten in place by the incoming OnStart. Only
+        // The reload the round loops in `system_player_path` and
+        // `system_outcomes` take: the outgoing scenario's variables are never
+        // absent for a checked frame, they are overwritten in place by the
+        // incoming OnStart. Only
         // `ScenarioLoaded` marks the boundary, so 1 -> 0 across it is a fresh
         // life rather than a regression.
         let mut app = App::new();

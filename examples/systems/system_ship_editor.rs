@@ -1,4 +1,4 @@
-//! ship_editor: the ship editor, BUILT and INSPECTED through synthesized pointer input.
+//! system_ship_editor: the ship editor, BUILT and INSPECTED through synthesized pointer input.
 //!
 //! This runs the exact same editor the `nova_protocol` binary launches (via the shared
 //! [`editor_app`]), just with the autopilot + screenshot harness attached. Every beat is a real
@@ -32,7 +32,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example ship_editor --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_ship_editor --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `editor: ...` verdict lines per beat,
 //! #           `autopilot: cycle complete, no panic`
@@ -45,7 +45,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "ship_editor")]
+#[command(name = "system_ship_editor")]
 #[command(version = "1.0.0")]
 #[command(about = "The nova_protocol ship editor, built and inspected by synthesized pointer input. Autopilot-only correctness range - run the game to use the editor", long_about = None)]
 struct Cli;
@@ -68,7 +68,7 @@ fn main() -> bevy::app::AppExit {
         // likely to be sitting in - and nothing else in the catalog can load
         // it, because the editor registers it at hand-off instead of shipping
         // it in `GameScenarios`. Ungated, the window closed while the walk was
-        // still clicking gallery tiles: the row said `ship_editor` and meant
+        // still clicking gallery tiles: the row said `system_ship_editor` and meant
         // the editor's build UI.
         app.add_plugins(
             nova_probe::NovaProbePlugin::default().ready_frametime(|world: &World| {
@@ -125,7 +125,7 @@ fn framelog(app: &mut App) {
 fn report_frame(world: &mut World) {
     let delta = world.resource::<Time<Real>>().delta_secs_f64() * 1000.0;
     // `Entities::len` is the high-water mark of allocated rows rather than the
-    // live count, so sum the archetypes (same reading as `sandbox_soak`).
+    // live count, so sum the archetypes (same reading as `bug_sandbox_soak`).
     let entities: u32 = world
         .archetypes()
         .iter()

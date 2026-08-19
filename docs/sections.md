@@ -297,9 +297,10 @@ eight generic pieces, and the ship adds its own `ShipIntegrityPlugin` on top:
   that decides whether a body HAS geometry - it reports an empty
   `ExplodeFragments` when it finds none, and the finale reads that one answer.
   There is NO FALLBACK: an empty walk emits nothing and logs it, and
-  `destruction_finale` asserts that never happens. The generic cube burst that
-  used to run there made a body which had silently failed to come apart look like
-  a body that had come apart badly, so the bug behind it survived every playtest
+  `system_destruction_finale` asserts that never happens. The generic cube burst
+  that used to run there made a body which had silently failed to come apart
+  look like a body that had come apart badly, so the bug behind it survived
+  every playtest
   that saw it. **How a destroyed section itself comes apart is being replaced and
   is deliberately not written up here.**
 - `neutralize.rs` - combat-death: fires `OnNeutralized` when a ship stops

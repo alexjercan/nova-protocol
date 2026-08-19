@@ -1,4 +1,4 @@
-//! thrust_and_plume: a drive turns throttle into acceleration and into plume.
+//! system_thrust_and_plume: a drive turns throttle into acceleration and into plume.
 //!
 //! One minimal ship (controller + hull + main drive, no player input) burns
 //! at whatever throttle is written into [`ThrusterSectionInput`] - the seam
@@ -24,7 +24,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example thrust_and_plume --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_thrust_and_plume --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `burn probe: full burn accelerates the hull ...`,
 //! #           `burn probe: partial throttle is proportional ...`,
@@ -46,7 +46,7 @@ use nova_protocol::nova_ship::sections::thruster_section::ThrusterExhaustMateria
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "thrust_and_plume")]
+#[command(name = "system_thrust_and_plume")]
 #[command(version = "1.0.0")]
 #[command(about = "Thruster section: throttle drives thrust and the plume shader, proportionally. Autopilot-only correctness range", long_about = None)]
 struct Cli;

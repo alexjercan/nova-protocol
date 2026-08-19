@@ -183,7 +183,7 @@ juice, settings. The ship stack (input, sections, flight, camera, physics) is
   meaningful inside `Playing`; leaving `Playing` resets it.
 - `GameAssetsStates { Loading, Processing, Loaded }` (`nova_assets`) - asset
   pipeline. Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)` - see
-  `examples/systems/scenario_grammar.rs`.
+  `examples/systems/system_scenario_grammar.rs`.
 
 The top-level lifecycle, the pause overlay nested inside `Playing`, and the asset
 pipeline that gates entry:

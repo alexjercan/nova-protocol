@@ -29,8 +29,8 @@ use cli::{parse, Cmd, USAGE};
 /// example is the same aggregate shape with one row:
 ///
 /// ```text
-/// cargo run --features debug probe run player_path       # clean + declared frame time + trace + report
-/// cargo run --features debug probe run player_path,scenario_grammar  # comma list -> aggregate
+/// cargo run --features debug probe run system_player_path       # clean + declared frame time + trace + report
+/// cargo run --features debug probe run system_player_path,system_scenario_grammar  # comma list -> aggregate
 /// cargo run --features debug probe run ui                # a category dir's examples
 /// cargo run --features debug probe run --all             # the whole catalog
 /// cargo run --features debug probe report <run-dir>      # re-render (manifest-gated)

@@ -1,4 +1,4 @@
-//! neutralized_quiet: a hull is neutralized with a torpedo in flight, and its
+//! bug_neutralized_quiet: a hull is neutralized with a torpedo in flight, and its
 //! point defence goes quiet.
 //!
 //! The claim is behavioural and it is about a WRECK. Neutralization is a
@@ -30,7 +30,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example neutralized_quiet --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example bug_neutralized_quiet --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `neutralized_quiet: live hull defending - mount on torpedo ...`,
 //! #           `neutralized_quiet: the wreck is quiet with a torpedo ... u out`,
@@ -45,7 +45,7 @@ use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "neutralized_quiet")]
+#[command(name = "bug_neutralized_quiet")]
 #[command(version = "1.0.0")]
 #[command(about = "A neutralized hull stops defending itself while a torpedo flies past. Autopilot-only correctness range", long_about = None)]
 struct Cli;

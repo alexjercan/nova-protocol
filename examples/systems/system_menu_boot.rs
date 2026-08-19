@@ -1,4 +1,4 @@
-//! menu_boot: the shipped boot flow, driven by a real pointer click.
+//! system_menu_boot: the shipped boot flow, driven by a real pointer click.
 //!
 //! Boots the exact app the `nova_protocol` binary runs (via the shared
 //! [`editor_app`]: main menu over the ambience backdrop) and clicks New Game
@@ -30,7 +30,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example menu_boot --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_menu_boot --features debug
 //! # look for: `menu_boot: clicked New Game`,
 //! #           `nova harness: reached Playing`,
 //! #           `menu_boot: the menu tore down and gameplay state is up`,
@@ -43,7 +43,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "menu_boot")]
+#[command(name = "system_menu_boot")]
 #[command(version = "1.0.0")]
 #[command(about = "The shipped menu boot flow, driven by a real pointer click. Autopilot-only correctness range - run the game to use the menu", long_about = None)]
 struct Cli;

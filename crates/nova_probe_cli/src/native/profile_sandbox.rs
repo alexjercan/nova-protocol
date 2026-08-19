@@ -37,7 +37,7 @@
 //! deliberate "probe my real installed mods" run possible:
 //!
 //! ```text
-//! NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run player_path
+//! NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run system_player_path
 //! ```
 //!
 //! ## Deliberate non-goals

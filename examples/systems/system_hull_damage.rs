@@ -1,10 +1,10 @@
-//! hull_damage: hull sections through the damage pipeline, and the mass
+//! system_hull_damage: hull sections through the damage pipeline, and the mass
 //! properties that follow them.
 //!
 //! One player ship of five sections - a spine along +Z (controller, hull1,
 //! hull2, thruster) with hull3 mounted beside hull2 - takes scripted damage.
 //! The side mount is load-bearing, not decoration. This range keeps its focused
-//! leaf-removal and COM checks; `section_severing` covers interior destruction
+//! leaf-removal and COM checks; `system_section_severing` covers interior destruction
 //! and physical graph splits. This run absorbed the former COM range (task 20260709-140620): the per-section
 //! damage slice and the ship-wide "does avian's centre of mass follow a lost
 //! section?" deep-dive are the same rig, walked in one script.
@@ -41,7 +41,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example hull_damage --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_hull_damage --features debug
 //! # look for: `hull probe: round 1 - damage lands, the section dies, the ship survives`,
 //! #           `hull probe: round 1 - the com follows the surviving sections`,
 //! #           `hull probe: every invariant held again after the reload`,
@@ -57,7 +57,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "hull_damage")]
+#[command(name = "system_hull_damage")]
 #[command(version = "1.0.0")]
 #[command(about = "Hull sections: damage, destruction, and the mass properties that follow. Autopilot-only correctness range - the O/K keys are a debug aid, not the subject", long_about = None)]
 struct Cli;
@@ -365,7 +365,7 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         }),
         // A four-section spine plus one side-mounted hull. This established
         // range keeps a simple leaf removal for its COM assertions; the
-        // `section_severing` range owns interior cuts and wreck-body motion.
+        // `system_section_severing` range owns interior cuts and wreck-body motion.
         hull: ShipSource::Inline(ShipHull {
             sections: vec![
                 at(

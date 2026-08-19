@@ -95,9 +95,9 @@ fn catalog_matches_disk() {
 /// label) rather than a step of its own, so it is still emitted only from a
 /// line that a failing invariant would never reach:
 ///
-/// - `damage invariants hold after reload` (hull_damage)
-/// - `turret invariants hold after reload` (turret_gunnery)
-/// - `launch chain holds in the crossing scene` (torpedo_launch)
+/// - `damage invariants hold after reload` (system_hull_damage)
+/// - `turret invariants hold after reload` (system_turret_gunnery)
+/// - `launch chain holds in the crossing scene` (system_torpedo_launch)
 ///
 /// The same reading covers a claim a STEP PREDICATE already held when the
 /// reporting hook ran (`the live hull defends itself`, `the defeat overlay
@@ -108,7 +108,7 @@ fn catalog_matches_disk() {
 /// HOLD is what the runs themselves prove, by panicking.
 const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     (
-        "attitude_hold",
+        "system_attitude_hold",
         &[
             "attitude command swept",
             "attitude tracks",
@@ -117,7 +117,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "thrust_and_plume",
+        "system_thrust_and_plume",
         &[
             "burn accelerates",
             "plume material exists",
@@ -127,7 +127,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "hull_damage",
+        "system_hull_damage",
         &[
             "partial hit exact",
             "section destroyed",
@@ -140,7 +140,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "destruction_finale",
+        "system_destruction_finale",
         &[
             "the turret breaks into its own art",
             "the thruster breaks into its own art",
@@ -152,7 +152,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "turret_gunnery",
+        "system_turret_gunnery",
         &[
             "turret fired",
             "range target hit",
@@ -161,7 +161,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "torpedo_launch",
+        "system_torpedo_launch",
         &[
             "the scene switch took the ordnance",
             "torpedo fired",
@@ -173,7 +173,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "blast_penetration",
+        "system_blast_penetration",
         &[
             "destroyed section attenuates pressure",
             "surviving section stops pressure",
@@ -183,7 +183,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "section_severing",
+        "system_section_severing",
         &[
             "interior section becomes a hole",
             "detached component gets a rigid body",
@@ -192,7 +192,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "scenario_grammar",
+        "system_scenario_grammar",
         &[
             "onstart seeds variables and objectives",
             "the round arithmetic closes the round",
@@ -203,7 +203,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "player_path",
+        "system_player_path",
         &[
             "the combat lock is on the prey",
             "the scenario saw the kill",
@@ -212,7 +212,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "outcomes",
+        "system_outcomes",
         &[
             "the defeat overlay comes up on death",
             "the retry reload clears the outcome",
@@ -223,7 +223,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "neutralized_quiet",
+        "bug_neutralized_quiet",
         &[
             "the live hull defends itself",
             "the wreck holds no defence target",
@@ -235,7 +235,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "borrowed_battery",
+        "system_borrowed_battery",
         &[
             "the computer claims an idle mount",
             "the cold hull fires inside the bearing gate",
@@ -244,7 +244,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "ship_editor",
+        "system_ship_editor",
         &[
             "new ship carries its controller",
             "two clicks place two sections",
@@ -266,14 +266,14 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "sandbox_soak",
+        "bug_sandbox_soak",
         &[
             "an untouched field costs the narrow phase nothing",
             "the physics step fits its own timestep",
         ],
     ),
     (
-        "hud_indicators",
+        "system_hud_indicators",
         &[
             "the lock is live under the sweep",
             "the focus meter fills during the dwell",
@@ -291,11 +291,11 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "menu_boot",
+        "system_menu_boot",
         &["new game reaches gameplay", "the menu tore down"],
     ),
     (
-        "menu_picker",
+        "bug_menu_picker",
         &[
             "the row click selects the row",
             "two or more rows measured",
@@ -303,7 +303,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "nova_os",
+        "system_nova_os",
         &[
             "tab opens the computer",
             "the ship app owns the screen",

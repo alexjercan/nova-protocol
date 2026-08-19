@@ -13,7 +13,7 @@ usage: probe <subcommand>
   [--platform native|web]
   the post-feature check and the perf sweep. --correctness-only runs only
   the clean behavioral pass. <spec> is one example, a
-  comma list (player_path,scenario_grammar), or a category dir
+  comma list (system_player_path,system_scenario_grammar), or a category dir
   (playable|systems|screenshots). --all runs the whole
   catalog - nothing is excluded.
   Runs write to <out|probe-runs>/<short-commit>/<example>/ and

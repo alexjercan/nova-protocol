@@ -370,7 +370,7 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** An asteroid without an authored `seed` derives its silhouette
   from its object id: one rock per id still, but the same rock on every load
   instead of a fresh draw.
-- `neutralized_quiet` no longer flakes: its control half latches the first
+- `bug_neutralized_quiet` no longer flakes: its control half latches the first
   defending mount instead of re-reading a trigger that drops for a frame while
   the barrel slews.
 - A freshly spawned ship no longer swings off its spawn attitude before flying:
@@ -426,17 +426,20 @@ does NOT get an entry - and it is the only place they are written down.
 - The profile table counts deferred command flushes, where observers actually run, and the run report leads its frame section with worst frame, mean and the implied FPS, flagged under 60.
 - Each `screenshots/` producer captures ONE thing in at most three frames, and its name says what it makes: `screenshot_*` stills, `loop_*` video.
 - Make the asteroid gate hold real PDC fire on a shipped-size rock.
-- The `destruction_finale` range kills a gltf section, a procedural one, a multi-part turret and an asteroid, asserting each breaks into its own art on one per-body budget.
+- The `system_destruction_finale` range kills a gltf section, a procedural one, a multi-part turret and an asteroid, asserting each breaks into its own art on one per-body budget.
 - Controller mods author `steering_lag` in seconds instead of internal PD frequency and damping fields; mixed stacks use the fastest live computer. **(breaking)**
 - A driven run turns the wheel (`scroll_lines` / `scroll_pixels`), so a scripted beat reaches a row past the fold instead of skipping it.
-- `menu_picker` scrolls the picker and now measures every scenario row, none skipped.
-- The `nova_os` range opens the ship computer with Tab and clicks a widget THROUGH the CRT glass, asserting the whole forwarded-pointer chain live.
+- `bug_menu_picker` scrolls the picker and now measures every scenario row, none skipped.
+- The `system_nova_os` range opens the ship computer with Tab and clicks a widget THROUGH the CRT glass, asserting the whole forwarded-pointer chain live.
 - Fixed: a synthesized click never reached the NOVA OS screen - the forwarded pointer read a button stream `bevy_picking` does not write.
 - Fixed: the NOVA OS glass was measured in physical pixels against a logical cursor, so every click missed by the display's scale factor.
 - Probe accepts `-h` and `--help` at the root, `run`, and `report` command levels.
 - The bug-to-range doctrine is written down (`CONVENTIONS.md`): reproduce a bug
   as a `systems/` range before the fix, and name every claim on the invariant
   roster.
+- Every `systems/` range is named for the KIND of check it is: `system_`
+  functionality, `bug_` a regression range, `stress_` load.
+  `examples/systems/README.md` is the rule. **(breaking)**
 - Four single-file stress ranges replace the `many_*` sweeps: a thousand rounds,
   a thousand torpedoes, a thousand sections on one hull, a hundred hulls - each
   with exact counts and a drain to zero.

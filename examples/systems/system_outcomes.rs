@@ -1,4 +1,4 @@
-//! outcomes: the whole outcome arc, composed and walked in a live app.
+//! system_outcomes: the whole outcome arc, composed and walked in a live app.
 //!
 //! Die -> the Defeat overlay -> Retry -> a demonstrably CLEAN reload -> kill
 //! the hostile -> the objective completes and the CHECKPOINT lands -> Continue
@@ -18,7 +18,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example outcomes --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_outcomes --features debug
 //! # look for: `outcomes: defeat overlay up, retrying`,
 //! #           `outcomes: reload is clean`,
 //! #           `outcomes: victory + checkpoint queued for 'outcome_probe_b'`,
@@ -32,7 +32,7 @@ use nova_authoring::scenario_helpers::number;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "outcomes")]
+#[command(name = "system_outcomes")]
 #[command(version = "1.0.0")]
 #[command(about = "The composed outcome arc: Defeat, Retry, Victory, CHECKPOINT and the chain. Autopilot-only correctness range", long_about = None)]
 struct Cli;

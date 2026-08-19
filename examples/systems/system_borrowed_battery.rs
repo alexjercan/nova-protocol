@@ -1,4 +1,4 @@
-//! borrowed_battery: the Flight Computer works the player's idle PDCs, and
+//! system_borrowed_battery: the Flight Computer works the player's idle PDCs, and
 //! hands one straight back the moment the player locks something.
 //!
 //! The claim is an OWNERSHIP one, and it is about a PLAYER hull. Per-turret
@@ -21,7 +21,7 @@
 //!   30 u off its flank. They fly through its 150 u envelope and fuze far
 //!   away, so the defender is never damaged and the stream never stops.
 //! - The lock is written onto the player's own `CombatLock` slot - the state
-//!   the CTRL radar gesture lands, which `systems/player_path` drives with the
+//!   the CTRL radar gesture lands, which `systems/system_player_path` drives with the
 //!   real keys. What THIS range is about is what the mounts do about it.
 //!
 //! What the run walks: open the tubes -> watch an idle mount get claimed ->
@@ -31,7 +31,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example borrowed_battery --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_borrowed_battery --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `borrowed_battery: the computer claimed mount ...`,
 //! #           `borrowed_battery: cold hull firing - aim error ... deg`,
@@ -46,7 +46,7 @@ use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "borrowed_battery")]
+#[command(name = "system_borrowed_battery")]
 #[command(version = "1.0.0")]
 #[command(about = "The flight computer works an idle player battery, and gives a mount back on a lock. Autopilot-only correctness range", long_about = None)]
 struct Cli;
@@ -545,7 +545,7 @@ fn report_the_cold_shot(world: &mut World) {
 }
 
 /// Lock a target. The write lands on the player's own `CombatLock` slot - the
-/// state the CTRL radar gesture commits, which `systems/player_path` drives
+/// state the CTRL radar gesture commits, which `systems/system_player_path` drives
 /// with the real keys; what THIS range is about is what the mounts do about it.
 #[cfg(feature = "debug")]
 fn lock_the_boat(world: &mut World) {

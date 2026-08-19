@@ -1,4 +1,4 @@
-//! section_severing: a destroyed interior section becomes a real hole and
+//! system_section_severing: a destroyed interior section becomes a real hole and
 //! detaches the structure behind it as an independent wreck body.
 //!
 //! BLUE is the controller-bearing command component. RED is the bridge that is
@@ -7,7 +7,7 @@
 //! Headless smoke test:
 //!
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example section_severing --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_section_severing --features debug
 //! ```
 
 use avian3d::prelude::*;
@@ -16,7 +16,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "section_severing")]
+#[command(name = "system_section_severing")]
 #[command(version = "1.0.0")]
 #[command(about = "Interior section destruction and physical wreck severing. Autopilot-only correctness range", long_about = None)]
 struct Cli;

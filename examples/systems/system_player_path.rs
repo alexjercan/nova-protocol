@@ -1,4 +1,4 @@
-//! player_path: a playable scenario, played - by the real input pipeline, and
+//! system_player_path: a playable scenario, played - by the real input pipeline, and
 //! played AGAIN through the same loop point.
 //!
 //! One armed player ship, one hostile rock dead ahead, one nav beacon
@@ -27,7 +27,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example player_path --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_player_path --features debug
 //! # look for: `autopilot: step `round 1: sweep the prey into a combat lock` begins`,
 //! #           `player_path: round 1 - prey destroyed, waypoint locked, GOTO closing at ...`,
 //! #           `player_path: round 2 - prey destroyed, waypoint locked, GOTO closing at ...`,
@@ -41,7 +41,7 @@ use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "player_path")]
+#[command(name = "system_player_path")]
 #[command(version = "1.0.0")]
 #[command(about = "A playable scenario driven through the real input pipeline, watched by its own event handlers. Autopilot-only correctness range", long_about = None)]
 struct Cli;
@@ -160,7 +160,7 @@ fn main() -> bevy::app::AppExit {
                 // throttles unfocused smoke windows too hard for a
                 // multi-second flight leg (it arrives fine standalone and
                 // interactively, and the area/OnEnter machinery is exercised
-                // by the shipped scenarios and by systems/scenario_grammar).
+                // by the shipped scenarios and by systems/system_scenario_grammar).
                 // The `arrived` handler stays in the scenario for interactive
                 // runs.
                 .step(format!("round {round}: engage the goto and start closing"))

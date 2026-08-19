@@ -189,8 +189,8 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
 9. **Example.**
    Add `examples/systems/<what it proves>.rs`, modelled on the existing
-   per-section ranges (`attitude_hold.rs` and `thrust_and_plume.rs` are the
-   most compact), plus its
+   per-section ranges (`system_attitude_hold.rs` and
+   `system_thrust_and_plume.rs` are the most compact), plus its
    `[[example]]` block in the root Cargo.toml (auto-discovery is off; the
    catalog is the source of truth) - `catalog_matches_disk` in
    `crates/nova_probe_cli/tests/catalog_drift.rs` fails until disk and catalog

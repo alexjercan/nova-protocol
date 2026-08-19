@@ -1,4 +1,4 @@
-//! blast_penetration: explosive falloff, structural shielding and salvo ordering.
+//! system_blast_penetration: explosive falloff, structural shielding and salvo ordering.
 //!
 //! Three lanes isolate the blast-pressure rules on compound rigid bodies:
 //!
@@ -16,7 +16,7 @@
 //! Headless smoke test:
 //!
 //! ```text
-//! NOVA_AUTOPILOT=1 cargo run --example blast_penetration --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_blast_penetration --features debug
 //! ```
 
 use avian3d::prelude::*;
@@ -25,7 +25,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "blast_penetration")]
+#[command(name = "system_blast_penetration")]
 #[command(version = "1.0.0")]
 #[command(about = "A layered-section range for explosive pressure. Autopilot-only correctness range", long_about = None)]
 struct Cli;
