@@ -121,7 +121,8 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "attitude command swept",
             "attitude tracks",
             "attitude reconverges after reload",
-            "attitude response is inertia invariant",
+            "attitude ceiling is the hull structural limit",
+            "attitude ignores mass at fixed geometry",
         ],
     ),
     (
@@ -370,7 +371,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 135;
+const SYSTEMS_INVARIANTS: usize = 136;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

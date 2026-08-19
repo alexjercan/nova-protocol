@@ -24,8 +24,8 @@ use nova_ui::{
 
 use crate::{
     config::{
-        EditorKeyLegend, PlacementStatus, PlayerSpaceshipConfig, SectionChoice, SkinToggleCheckbox,
-        StyleChoice, StyleList,
+        AttitudeReadout, EditorKeyLegend, PlacementStatus, PlayerSpaceshipConfig, SectionChoice,
+        SkinToggleCheckbox, StyleChoice, StyleList,
     },
     gallery::{EditorCamera, EditorChrome, GalleryAction},
     placement::{
@@ -192,6 +192,25 @@ pub(crate) fn setup_editor_scene(
                     Name::new("Create New Spaceship Button V1"),
                     themed_button("New Hull Ship"),
                     observe(create_new_spaceship),
+                ));
+                // The attitude readout, under the ship buttons and above the
+                // tools: it is a property of the hull being built, and it moves
+                // with every part placed. Without it a hull that is too big to
+                // turn reads as the game being broken rather than as a hull
+                // that wants another computer.
+                rail.spawn((
+                    Name::new("Attitude Readout"),
+                    AttitudeReadout,
+                    Text::new(""),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextColor(theme::PHOSPHOR_MUTED),
+                    Node {
+                        margin: UiRect::vertical(px(4)),
+                        ..default()
+                    },
                 ));
 
                 rail.spawn(separator());

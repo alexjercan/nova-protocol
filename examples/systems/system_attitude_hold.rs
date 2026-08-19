@@ -7,15 +7,16 @@
 //! the section under test is the PD that turns "desired rotation" into
 //! torque.
 //!
-//! The scripted run walks FOUR named invariants across three rounds and two
+//! The scripted run walks FIVE named invariants across three rounds and two
 //! rig layouts, so "the PD tracks" is not one lucky sample:
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: attitude command swept` | the command swept, and sits clear of the spawn attitude, so a frozen hull cannot pass |
 //! | 2 | `outcome: attitude tracks` | the hull is inside [`TRACK_TOLERANCE_RAD`] of it |
-//! | 3 | `outcome: attitude response is inertia invariant` | a 10x-inertia copy tracks with comparable error |
-//! | 4 | `outcome: attitude reconverges after reload` | a fresh rig re-converges from identity |
+//! | 3 | `outcome: attitude ceiling is the hull structural limit` | the ceiling nobody authored is 8 G over this rig's own arm |
+//! | 4 | `outcome: attitude ignores mass at fixed geometry` | a 10x-mass copy of the same shape turns the same, because the structure binds |
+//! | 5 | `outcome: attitude reconverges after reload` | a fresh rig re-converges from identity |
 //!
 //! Every beat waits on a world value - the rig being up, the command having
 //! swept clear of where that rig spawned - never on a runway, so a slow load
@@ -54,12 +55,14 @@ struct Cli;
 const COMMAND_RAD_PER_SEC: f32 = 0.15;
 
 /// Which rig layout a load builds. Layout B has the same geometry at 10x
-/// density, so every principal inertia is 10x while the command is unchanged.
+/// density, so every principal inertia is 10x while the arm - and therefore
+/// the structural ceiling - is unchanged.
 #[derive(Clone, Copy)]
 enum Layout {
     /// Controller + one hull, in a line along +Z.
     A,
-    /// Layout A with every section at 10x density.
+    /// Layout A with every section at 10x density: 10x the inertia, the same
+    /// structural arm.
     #[cfg(feature = "debug")]
     B,
 }
@@ -563,9 +566,47 @@ fn assert_rig_a_tracks(world: &mut World) {
         "outcome: attitude tracks",
         serde_json::json!({ "t": elapsed, "error_rad": error }),
     );
+    // The ceiling nobody authored. Two 1 u sections put this rig's centre of
+    // mass between them and its furthest face 1.0 u (10 m) out, so 8 G of hull
+    // load limit divides down to 7.85 rad/s2 - and its computer carries 200x
+    // the torque that needs, so the metal is what answers.
+    let ceiling = live_ceiling(world);
+    assert!(
+        (ceiling - RIG_STRUCTURAL_CEILING).abs() < CEILING_TOLERANCE,
+        "attitude probe: this rig's structural ceiling is \
+         {RIG_STRUCTURAL_CEILING} rad/s2 (8 G over a 10 m arm), got {ceiling:.3}"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: attitude ceiling is the hull structural limit",
+        serde_json::json!({ "t": elapsed, "ceiling_rad_per_s2": ceiling }),
+    );
     let mut epoch = world.resource_mut::<RigEpoch>();
     epoch.reference_inertia = Some(inertia);
     epoch.reference_error = Some(error);
+}
+
+/// This rig's structural ceiling, rad/s2, written out rather than derived: the
+/// probe has to be an independent oracle, and `8 * 9.81 / (1.0 u * 10 m)` is
+/// the whole derivation.
+#[cfg(feature = "debug")]
+const RIG_STRUCTURAL_CEILING: f32 = 7.848;
+
+/// How far the live ceiling may sit off it. Wide enough for the vector
+/// envelope's centripetal bite at the sweep rate (0.15 rad/s costs about
+/// 3e-5 rad/s2), narrow enough that the wrong ceiling cannot hide.
+#[cfg(feature = "debug")]
+const CEILING_TOLERANCE: f32 = 0.05;
+
+/// The acceleration ceiling the stack pass derived for the live rig, summed
+/// over its computers the way the flight layer reads it.
+#[cfg(feature = "debug")]
+fn live_ceiling(world: &mut World) -> f32 {
+    let mut query = world.query_filtered::<&PDController, With<ControllerSectionMarker>>();
+    query
+        .iter(world)
+        .map(|pd| pd.max_angular_acceleration)
+        .sum()
 }
 
 /// Round 2, same layout: invariant 4 - a FRESH rig, spawned at identity while
@@ -581,8 +622,10 @@ fn assert_reload_tracks(world: &mut World) {
     );
 }
 
-/// Round 3: the same command and controller produce comparable tracking on a
-/// geometrically identical hull with 10x inertia.
+/// Round 3: mass does not enter a structure-bound hull's ceiling. The same
+/// command and controller produce comparable tracking on a geometrically
+/// identical hull with 10x the mass, because the arm - not the inertia - is
+/// what stops this rig, and the arm did not move.
 #[cfg(feature = "debug")]
 fn assert_rig_b_tracks(world: &mut World) {
     let (_, error) = assert_tracking(world, "rig b");
@@ -599,20 +642,30 @@ fn assert_rig_b_tracks(world: &mut World) {
         (ratio - 10.0).abs() < 0.2,
         "attitude probe: rig b must have 10x inertia, got {ratio:.2}x"
     );
+    // Structure-bound, so the ceiling has no inertia in it at all and the
+    // heavier copy must land on the SAME number - not merely a similar one.
+    let ceiling = live_ceiling(world);
+    assert!(
+        (ceiling - RIG_STRUCTURAL_CEILING).abs() < CEILING_TOLERANCE,
+        "attitude probe: 10x the mass moved the ceiling from \
+         {RIG_STRUCTURAL_CEILING} to {ceiling:.3} rad/s2 - the arm did not move, \
+         so the ceiling must not either"
+    );
     assert!(
         error <= reference_error + 0.05,
-        "attitude probe: 10x inertia changed tracking error from \
+        "attitude probe: 10x mass changed tracking error from \
          {reference_error:.3} to {error:.3} rad"
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(
         world,
-        "outcome: attitude response is inertia invariant",
+        "outcome: attitude ignores mass at fixed geometry",
         serde_json::json!({
             "t": elapsed,
             "error_rad": error,
             "reference_error_rad": reference_error,
             "inertia_ratio": ratio,
+            "ceiling_rad_per_s2": ceiling,
         }),
     );
 }

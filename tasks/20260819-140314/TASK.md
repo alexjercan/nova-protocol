@@ -284,12 +284,75 @@ thrusters cannot torque. Do not read it as the latter.
   self correcting, but it will read as a bug the first time a half-dead ship
   handles sharper than it did intact. Decide whether that is a feature.
 
+## BUILT - 2026-08-19
+
+The model is code. `NOTES.md` carries every reading; this is the shape of it.
+
+- **`crates/nova_events/src/scale.rs`** owns `METERS_PER_UNIT = 10.0` and
+  `LOAD_LIMIT = 8 * 9.81`, exported through `nova_events::prelude`. `nova_ui`
+  gained the one downward edge to `nova_events` and `nova_ui::units` now
+  RE-EXPORTS the constant, so the readout and the physics share one definition
+  and the American spelling is the only one in the workspace. `nova_events` is
+  the deepest crate both `nova_ship` and `nova_ui` can reach; a dedicated leaf
+  crate would have been a second way to say the same thing.
+- **`crates/nova_ship/src/physics/attitude.rs`** owns `AttitudeEnvelope`
+  (the two ceilings, which binds, the vector envelope, the sustained rate),
+  `structural_arm` (centre of mass to the outer FACE of the furthest section)
+  and `hull_mass_properties` (avian's own arithmetic, for a caller with no
+  rigid body).
+- **`ControllerSectionConfig.max_angular_acceleration` is deleted**, replaced by
+  `max_torque: 1501`. `STACK_AUTHORITY_LIMIT`, `authority_weight` and the
+  authority half of `stack_curve` go with it; torque sums linearly and the
+  structure caps it. `STACK_PRECISION_LIMIT` stays.
+- **`update_controller_stack_tuning`** derives the ceiling every fixed tick from
+  the root's inertia, the live sections' arm and the current spin, and shares it
+  out by each computer's torque.
+- **The torpedo takes the model with no exemption** at `max_torque: 50`.
+- **The build screen shows it**: `crates/nova_editor/src/attitude.rs` prints
+  "Turn 5.23 rad/s2, structure-limited" in the rail while sections are placed,
+  from the same avian arithmetic. The gallery's controller card now shows
+  TORQUE, which is the section's own number. This is the minimum viable
+  readout; the engineer's panel is still `20260812-131912`.
+- **Coverage**: `flight/tests/stacking.rs` rewritten around size (a fighter, a
+  cruiser and a torque-bound barge); `system_attitude_hold` swapped its
+  "inertia invariant" claim for `attitude ceiling is the hull structural limit`
+  and `attitude ignores mass at fixed geometry`, both green in a live run.
+
+### Measured, against what the explainer predicted
+
+| hull | predicted flip | measured flip | agreed |
+|---|---|---|---|
+| 1-1-1 | 1.55 s | 1.55 s | yes |
+| racer | 1.87 s | 1.87 s | yes |
+| cargoa | 2.10 s | 2.10 s | yes |
+| cargob | 2.17 s | 2.17 s | yes |
+
+Mass properties agree to 0.2 %. WFC hulls, which nobody had measured, flip in
+3.2 s to 3.4 s and are structure-bound - but with only 1.1x to 3.5x of torque
+headroom, so they are the first content near the crossover. Table in `NOTES.md`.
+
+### Where the game disagreed, and the game won
+
+- The torpedo's arm is 1.0 u, not the tiny one assumed: its ceiling is
+  7.85 rad/s2, a 21 % REDUCTION on today's authored 10.0, not the 3x rise the
+  record expected.
+- A flown flip is about 1.8x the bang-bang figure, because the helm slews at
+  `0.9 * sqrt(pi * alpha) / 2`. Both sides of the comparison move together.
+- The precision curve is now unpaid on structure-bound hulls: stacking costs a
+  fighter a few per cent of peak rate for overshoot that was already zero.
+  Left in as decided; flagged in `NOTES.md`.
+
 ## Done when
 
-- The model is decided and RECORDED here before code moves.
+- The model is decided and RECORDED here before code moves. DONE.
 - Measured turn rates for a 1-1-1, a mid hull and a capital, before and after,
-  with the owner flying them - their verdict decides, not the arithmetic.
-- The thruster-torque question is answered either way, with a reason.
-- Shipped content is retuned or the divergence is listed and scheduled.
+  with the owner flying them - their verdict decides, not the arithmetic. The
+  arithmetic and the harness are above; the OWNER FLIGHT is outstanding.
+- The thruster-torque question is answered either way, with a reason. DONE -
+  `flight/thrusters.rs` is untouched.
+- Shipped content is retuned or the divergence is listed and scheduled. DONE for
+  the authored fleet; WFC's near-crossover headroom is listed in `NOTES.md` and
+  is the retune the owner asked to judge by feel.
 - The RELEASE this lands in shows the ceiling and the binding limit on the build
-  screen. Built by `20260812-131912`, not here - but not shipped without.
+  screen. Built by `20260812-131912`, not here - but not shipped without. The
+  rail readout above is the interim; the panel is still owed.

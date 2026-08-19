@@ -27,11 +27,15 @@ You point the hull by mouse or stick - the controller section turns the ship tow
 
 Because thrusters sit wherever you bolted them, an off-center burn would spin the ship. The flight computer prevents that: it sets each engine's throttle to deliver the commanded forward thrust while cancelling the twist through the live center of mass, recruiting off-axis thrusters purely for counter-torque when the firing set cannot balance itself. An asymmetric or battle-damaged ship still flies straight (any tiny leftover spin is mopped up by the steering) - see [Thruster](../sections/thruster/).
 
-## Size-independent handling
+## Size decides the handling
 
-A controller authors angular acceleration, so the flight computer applies the torque the live hull inertia requires. The same controller therefore gives a stripped craft and a capital hull the same baseline turn response. Ship classes differ only when their controller prototypes deliberately author different handling.
+<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :23, METERS_PER_UNIT 10.0 :14) and crates/nova_ship/src/physics/attitude.rs (the two ceilings :70-86, the arm and what shortens it :131-164). "About two seconds": a bang-bang 180 is 2 * sqrt(pi / ceiling) (guidance.rs:302-303), and the shipped corvette's 2.76 u arm (attitude.rs:138) gives 78.48 / 27.6 = 2.84 rad/s2, so 2.10 s. -->
 
-A hull can mount several [controllers](../sections/controller/) and steers better for it, but on a curve that tops out at twice one controller's authority. Stacking also adds precision: the hull starts braking its turn earlier and stops on the commanded heading instead of swinging back.
+How hard a hull turns is the lower of two limits: what its flight computers twist it with against the mass they swing, and what its own metal survives. Hull takes 8 G, measured out at the furthest section from the centre of mass, so a long ship on a long arm has the gentler limit. Nothing authors the result - it falls out of the hull you built. A small craft whips around; a hauler handles like the freighter it is.
+
+Every shipped craft is held by its structure rather than by its computers. Two things come with that: a hull that has lost its nose turns sharper than it did intact, because the arm got shorter, and a hull already deep in a hard turn has less authority left to tighten with.
+
+A hull can mount several [controllers](../sections/controller/) and their torque adds, but on a structure-bound craft that buys no extra turn rate - only a hull heavy enough to run its computers out first gains from a stack. What stacking always buys is precision: the hull starts braking its turn earlier and stops on the commanded heading instead of swinging back.
 
 ## The autopilot flies the hull
 
@@ -48,7 +52,7 @@ The autopilot verbs are the assist. Each writes to the _same_ actuators you use 
 <details class="explain">
 <summary>Show explanation</summary>
 
-What the scope calls the "arrival envelope" is the controller's one rule: at any distance it caps closing speed at what a flip-and-brake from here can still cancel. The flip is scheduled early by the time the swing itself takes - a hull with the shipped flight computer comes around 180 degrees in about six seconds, and that coast is budgeted into the envelope, so the brake ramp starts aligned instead of late. Braking keeps a 15% authority margin in reserve, holds a small minimum approach speed so the last stretch never crawls, and hands the final meters to RCS: arrivals settle, they do not pulse the main drive on the spot.
+What the scope calls the "arrival envelope" is the controller's one rule: at any distance it caps closing speed at what a flip-and-brake from here can still cancel. The flip is scheduled early by the time the swing itself takes - the shipped craft come around 180 degrees in about two seconds, a heavier hull takes longer, and whatever that coast costs is budgeted into the envelope, so the brake ramp starts aligned instead of late. Braking keeps a 15% authority margin in reserve, holds a small minimum approach speed so the last stretch never crawls, and hands the final meters to RCS: arrivals settle, they do not pulse the main drive on the spot.
 
 The same machinery answers why the autopilot is honest about the ship's limits: everything above is computed from the live hull - its real mass, its real thrusters, its real flight computer. An under-thrustered build gets a shallower envelope and an earlier flip, not invisible help. And it will refuse a maneuver it cannot physically achieve: ORBIT disengages rather than fly a well with no stable band between its surface clearance and its fade band.
 

@@ -24,7 +24,7 @@ readings](#damage-is-two-readings)).
 |--------------|--------------|
 | `Hull`       | Passive structure/armor. Just a `render_mesh`. |
 | `Thruster`   | Forward thrust (`magnitude`); drives the exhaust visual. |
-| `Controller` | Attitude controller (`steering_lag`, `max_angular_acceleration`); lag derives the internal PD gains. Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop (see below). |
+| `Controller` | Attitude controller (`steering_lag`, `max_torque`); lag derives the internal PD gains, torque feeds the hull's attitude envelope (see below). Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop. |
 | `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
 | `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
 
@@ -40,11 +40,41 @@ all: a ship's skin is DERIVED from the structure it wraps by `nova_ship`'s
 section up with
 `sections.get_section("basic_thruster_section")`.
 
-### Stacked controllers share one loop
+### The attitude envelope, and how controllers stack into it
+
+How hard a hull may turn is DERIVED, not authored. `AttitudeEnvelope`
+(`crates/nova_ship/src/physics/attitude.rs`) is two ceilings and the lower of
+them:
+
+```
+alpha_max = min( sum(max_torque) / I ,  LOAD_LIMIT / (r * METERS_PER_UNIT) )
+                 \___ propulsive ___/   \________ structural ________/
+```
+
+- `I` is the hull's largest principal moment of angular inertia, read off
+  avian's `ComputedAngularInertia`. No formula for it lives in Nova: it is the
+  second moment of where the mass actually sits, so no curve in any single
+  length can stand in for it.
+- `r` is the structural arm, from the hull's centre of mass to the outer FACE
+  of its furthest live section, in world units. `structural_arm` derives it;
+  `BodyRadius` is a scenario-obstacle radius and is not it.
+- `LOAD_LIMIT` and `METERS_PER_UNIT` are in `crates/nova_events/src/scale.rs` -
+  one definition each, shared by the physics and by the player-facing
+  formatter in `nova_ui::units`.
+
+The two structural loads are perpendicular components of one acceleration at
+the tip, so they add as a VECTOR: `alpha^2 + omega^4 <= (LOAD_LIMIT / r_m)^2`.
+A hull already in a hard turn has spent its margin, and its sustained rate is
+`sqrt(LOAD_LIMIT / r_m)`. Past that corner the centripetal load alone is over
+the limit and the full ceiling comes back, so an over-spun hull can always shed
+rate.
+
+Two consequences to expect rather than debug. A small hull is STRUCTURE-bound,
+so fitting more computers to it changes nothing at all. A hull that loses
+sections shortens its arm and turns SHARPER than it did intact.
 
 Every live controller torques the hull in parallel, so a hull with several of
-them would multiply both its gains and acceleration authority by the section
-count.
+them would multiply both its gains and the applied torque by the section count.
 `update_controller_stack_tuning`
 (`crates/nova_ship/src/sections/controller_section.rs`) prevents that: it runs
 first in `FixedUpdate` (`ControllerSectionSystems::SyncStack`), derives ONE
@@ -52,20 +82,16 @@ ship-level attitude loop per root, and writes each live controller a share of
 it into its `PDController`. The authored numbers stay put in
 `ControllerSectionTuning`, which is what the pass re-derives from when a
 controller dies. The smallest live `steering_lag` supplies the stack's base
-response; acceleration authority is ranked independently.
+response.
 
-The ship-level loop, for `n` live controllers on the curve
-`stack_curve(n, limit) = limit - (limit - 1) / n`:
+The ship-level loop, for `n` live controllers:
 
-- acceleration authority: each controller's authored
-  `max_angular_acceleration` at its rank weight, summing to
-  `stack_curve(n, 2.0)` of the strongest - 1.00 / 1.50 / 1.75 / 1.90 at n = 1
-  / 2 / 4 / 10, with a hard ceiling of 2x. The PD converts each principal-axis
-  acceleration into the torque required by the live inertia, so hull size does
-  not change handling by default.
-- P gain: DIVIDED by `stack_curve(n, 1.5)`, which increases the effective
-  steering lag so the stack brakes earlier and lands on the commanded attitude
-  instead of sailing past it.
+- authority: the envelope above. Torque SUMS across controllers, with no curve
+  and no cap of its own, because the structural ceiling already caps the
+  result. Each controller's share is its own fraction of the hull's torque.
+- P gain: DIVIDED by `stack_curve(n, 1.5) = 1.5 - 0.5 / n`, which increases the
+  effective steering lag so the stack brakes earlier and lands on the commanded
+  attitude instead of sailing past it.
 - D gain: held at exactly one fastest computer's worth. This is not tuning: `kd * dt`
   crosses 2 at two controllers on the shipped tuning, and past that the PD
   limit-cycles instead of parking (the corkscrew that used to follow a
@@ -74,6 +100,11 @@ The ship-level loop, for `n` live controllers on the curve
 `ship_turn_rate` (`flight/guidance.rs`) then sums the live acceleration shares,
 which is why the flight layer is ordered after `SyncStack`. `n = 1` is the
 identity case.
+
+The precision division is the one part of the stack that a structure-bound hull
+does not pay for: it has no extra authority to spend, so a stack costs it a few
+per cent of peak rate and a tick or two of onset in exchange for landing
+cleaner. Measured in `flight/tests/stacking.rs`, which prints the table.
 
 ### Meshes and colliders (authorable)
 

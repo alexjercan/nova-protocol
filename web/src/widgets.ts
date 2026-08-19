@@ -47,8 +47,9 @@ const EXPLOSIVE_SECTION_TRANSMISSION = 0.65; // damage.rs:394
 // surviving layer stops the wave (damage.rs:445-447; ray walk 494-551).
 
 // Flight computer stacking (crates/nova_ship/src/sections/controller_section.rs).
-const STACK_AUTHORITY_LIMIT = 2.0; // controller_section.rs:239
-const STACK_PRECISION_LIMIT = 1.5; // controller_section.rs:246
+// Torque itself sums with no curve and no cap (:389-392); the only curve left
+// is the one on precision.
+const STACK_PRECISION_LIMIT = 1.5; // controller_section.rs:259
 
 // Gravity wells (crates/nova_gameplay/src/gravity.rs). Mass (`mu`) is the ONLY
 // authored gravity quantity: both the pull `a = mu / r^2` and the reach (the
@@ -87,15 +88,23 @@ const TURN_RATE_MIN_DEG = 10; // state.rs:368
 const TURN_RATE_MAX_DEG = 240; // state.rs:369
 const RCS_ACCEL = 1.5; // state.rs:392
 const RCS_SPEED_CAP = 2.0; // state.rs:389
-const CONTROLLER_ANGULAR_ACCEL = 0.5; // rad/s^2, standard.rs:359
-// Display policy: 1 world unit reads as 10 m on the HUD
-// (crates/nova_ui/src/units.rs:13). Widgets keep raw u like the game code.
-const METRES_PER_UNIT = 10; // units.rs:13
+// One world unit is 10 m for physics and for the HUD alike
+// (crates/nova_events/src/scale.rs:14). Widgets keep raw u like the game code.
+const METERS_PER_UNIT = 10; // scale.rs:14
+
+// The attitude envelope (crates/nova_ship/src/physics/attitude.rs:72-93): a
+// hull's turn ceiling is the lower of its computers' torque over its inertia
+// and the structural load limit over its arm. Nothing authors the ceiling.
+const LOAD_LIMIT = 8 * 9.81; // m/s^2, scale.rs:23
+const CONTROLLER_MAX_TORQUE = 1501; // standard.rs:384
+// The shipped corvette's structural arm: centre of mass to the outer FACE of
+// its furthest section (attitude.rs:146-164). The GOTO widget flies this hull.
+const CORVETTE_ARM_U = 2.76;
 
 // Catalog fixtures (crates/nova_authoring/src/base_content/sections/standard.rs).
-const LIGHT_HULL_HP = 60; // standard.rs:428-434 (light_hull_section)
-const TORPEDO_BLAST_DAMAGE = 750; // standard.rs:658 (Serpent/Lance warhead)
-const TORPEDO_BLAST_RADIUS = 30; // standard.rs:650
+const LIGHT_HULL_HP = 60; // standard.rs:400-419 (light_hull_section)
+const TORPEDO_BLAST_DAMAGE = 750; // standard.rs:573 (Serpent/Lance warhead)
+const TORPEDO_BLAST_RADIUS = 30; // standard.rs:565
 
 // ---- pure models (mirror the Rust rules) ----------------------------------
 
@@ -262,9 +271,42 @@ export function blastFront(
     };
 }
 
-// controller_section.rs:257-259.
+// The precision curve, and only the precision curve: authority has none of its
+// own (controller_section.rs:267-269).
 export function stackCurve(n: number, limit: number): number {
     return limit - (limit - 1) / Math.max(1, n);
+}
+
+// The two ceilings and the lower one (attitude.rs:72-93). Inertia is the
+// hull's largest principal moment; the arm runs from the centre of mass to the
+// outer face of the furthest live section, in world units.
+export function torqueCeiling(torque: number, inertia: number): number {
+    return inertia > 0 ? Math.max(torque, 0) / inertia : Infinity;
+}
+export function structuralCeiling(armUnits: number): number {
+    const arm = Math.max(armUnits, 0) * METERS_PER_UNIT;
+    return arm > 0 ? LOAD_LIMIT / arm : Infinity;
+}
+export function attitudeCeiling(
+    torque: number,
+    inertia: number,
+    armUnits: number
+): number {
+    return Math.min(
+        torqueCeiling(torque, inertia),
+        structuralCeiling(armUnits)
+    );
+}
+
+// The rate at which the centripetal load alone spends the whole structural
+// budget: hold it and nothing is left to turn harder with (attitude.rs:108-110).
+export function sustainedTurnRate(armUnits: number): number {
+    return Math.sqrt(structuralCeiling(armUnits));
+}
+
+// A bang-bang 180 at `alpha` takes `2 * sqrt(pi / alpha)` (guidance.rs:302-303).
+export function flipSeconds(alpha: number): number {
+    return alpha > 0 ? 2 * Math.sqrt(Math.PI / alpha) : Infinity;
 }
 
 // SOI from mass alone: the distance where the raw inverse-square pull decays
@@ -486,7 +528,7 @@ export function relation(a: Side, b: Side): "own" | "hostile" | "neutral" {
     return a === b ? "own" : "hostile";
 }
 
-// The hull's average turn rate from its authored angular acceleration
+// The hull's average turn rate from its DERIVED attitude ceiling
 // (guidance.rs:306-314): a bang-bang 180 at `alpha` averages
 // `sqrt(pi * alpha) / 2`, scaled and clamped by the flight settings.
 export function hullTurnRate(alpha: number): number {
@@ -550,7 +592,7 @@ export function gotoSim(
 } {
     const standoff = ARRIVAL_STANDOFF + Math.max(targetRadius, 0); // autopilot.rs:296
     const park = targetDistance - standoff;
-    const turnRate = hullTurnRate(CONTROLLER_ANGULAR_ACCEL);
+    const turnRate = hullTurnRate(structuralCeiling(CORVETTE_ARM_U));
     const lead = Math.PI / turnRate + ARRIVAL_SPOOL_PAD; // autopilot.rs:209
     const braking = accel * DECEL_MARGIN;
     const dt = 1 / 60;
@@ -2055,16 +2097,34 @@ function initBlastLayers(host: HTMLElement): void {
 
 // ---- controller-stacking --------------------------------------------------
 
-// The stacking curve: authority(n) = limit - (limit - 1) / n. Peak turn rate
-// grows with the square root of the budget (the wiki table's own numbers).
+interface StackRig {
+    name: string;
+    detail: string;
+    inertia: number; // largest principal moment of angular inertia
+    arm: number; // structural arm, world units
+}
+
+// The three measured rigs (crates/nova_ship/src/flight/tests/stacking.rs, rig
+// table :283-305, built from unit cuboids at density :95-146): cells in a
+// line, the last at twenty times the density. Inertia and arm are what avian
+// and `structural_arm` measure for them, not authored numbers.
+const STACK_RIGS: StackRig[] = [
+    { name: "fighter", detail: "3 cells", inertia: 2.5, arm: 1.5 },
+    { name: "cruiser", detail: "15 cells", inertia: 282.5, arm: 7.5 },
+    { name: "barge", detail: "15 dense cells", inertia: 5650, arm: 7.5 },
+];
+
+// The attitude envelope drawn against computer count: the torque ceiling rises
+// linearly, the structural ceiling stands still, and the hull gets the lower
+// of the two. A hull whose torque line already sits above the structural one
+// gains nothing from a stack - which is every hull the game ships.
 function initControllerStacking(host: HTMLElement): void {
     header(
         host,
-        "The stacking curve",
-        "Each extra controller grows the steering budget by " +
-            "limit - (limit - 1) / n toward a hard x2.00 ceiling: the " +
-            "second is worth half the first, the tenth is nearly dead " +
-            "weight."
+        "The two ceilings",
+        "A hull turns at the LOWER of its computers' torque over its " +
+            "inertia and 8 G over its structural arm. Add computers and " +
+            "watch which one answers."
     );
 
     const N_MAX = 10;
@@ -2072,20 +2132,25 @@ function initControllerStacking(host: HTMLElement): void {
     const X1 = 550;
     const Y0 = 174;
     const Y1 = 12;
-    const A_MIN = 0.9;
-    const A_MAX = 2.1;
+    const A_MIN = 0.1;
+    const A_MAX = 10000;
+    const LOG_MIN = Math.log10(A_MIN);
+    const LOG_SPAN = Math.log10(A_MAX) - LOG_MIN;
     const x = (n: number): number => X0 + ((n - 1) / (N_MAX - 1)) * (X1 - X0);
-    const y = (a: number): number =>
-        Y0 - ((a - A_MIN) / (A_MAX - A_MIN)) * (Y0 - Y1);
+    const y = (a: number): number => {
+        const frac = (Math.log10(clamp(a, A_MIN, A_MAX)) - LOG_MIN) / LOG_SPAN;
+        return Y0 - frac * (Y0 - Y1);
+    };
 
     const svg = svgEl("svg", {
         viewBox: "0 0 560 200",
         role: "img",
         "aria-label":
-            "Steering budget against controller count: a curve rising from " +
-            "1.0 toward a ceiling of 2.0 with sharply diminishing returns.",
+            "Turn ceiling against computer count on a logarithmic scale: a " +
+            "rising torque line, a flat structural line, and the lower of " +
+            "the two as the ceiling the hull actually gets.",
     });
-    for (const a of [1.0, 1.5, 2.0]) {
+    for (const a of [0.1, 1, 10, 100, 1000, 10000]) {
         svg.appendChild(
             svgEl("line", {
                 x1: String(X0),
@@ -2104,7 +2169,7 @@ function initControllerStacking(host: HTMLElement): void {
                     "text-anchor": "end",
                     class: "widget-mark--axis",
                 },
-                `x${a.toFixed(1)}`
+                String(a)
             )
         );
     }
@@ -2122,46 +2187,63 @@ function initControllerStacking(host: HTMLElement): void {
             )
         );
     }
-    // The ceiling is a limit, not a fault: quiet dashed line, named.
-    svg.appendChild(
-        svgEl("line", {
-            x1: String(X0),
-            y1: String(y(STACK_AUTHORITY_LIMIT)),
-            x2: String(X1),
-            y2: String(y(STACK_AUTHORITY_LIMIT)),
-            class: "widget-mark--old",
-        })
+
+    // The structural ceiling: a hard limit the player can do nothing about, so
+    // it wears the gate colour.
+    const structuralLine = svgEl("line", {
+        x1: String(X0),
+        x2: String(X1),
+        class: "widget-mark--gate",
+    });
+    svg.appendChild(structuralLine);
+    const structuralLabel = svgEl(
+        "text",
+        {
+            x: String(X1 - 2),
+            "text-anchor": "end",
+            class: "widget-mark--label-gate",
+        },
+        "structure: 8 G / arm"
     );
-    svg.appendChild(
-        svgEl(
-            "text",
-            {
-                x: String(X1 - 2),
-                y: String(y(STACK_AUTHORITY_LIMIT) - 6),
-                "text-anchor": "end",
-                class: "widget-mark--label-old",
-            },
-            "ceiling x2.00 - never reached"
-        )
+    svg.appendChild(structuralLabel);
+    const torqueLine = svgEl("path", { d: "", class: "widget-mark--old" });
+    svg.appendChild(torqueLine);
+    // Named on the curve rather than at the frame edge: on a torque-bound hull
+    // the two lines meet, and two right-aligned labels would sit on top of
+    // each other exactly where the reader needs to tell them apart.
+    const LABEL_N = 4;
+    const torqueLabel = svgEl(
+        "text",
+        {
+            x: String(x(LABEL_N)),
+            "text-anchor": "middle",
+            class: "widget-mark--label-old",
+        },
+        "computers: torque / inertia"
     );
-    const points: string[] = [];
-    for (let n = 1; n <= N_MAX; n += 0.25) {
-        const a = stackCurve(n, STACK_AUTHORITY_LIMIT);
-        points.push(`${x(n).toFixed(1)},${y(a).toFixed(1)}`);
-    }
-    svg.appendChild(
-        svgEl("path", { d: `M${points.join(" L")}`, class: "widget-mark--now" })
-    );
+    svg.appendChild(torqueLabel);
+    const ceilingLine = svgEl("path", { d: "", class: "widget-mark--now" });
+    svg.appendChild(ceilingLine);
+    const ceilingDots: SVGCircleElement[] = [];
     for (let n = 1; n <= N_MAX; n++) {
-        svg.appendChild(
-            svgEl("circle", {
-                cx: String(x(n)),
-                cy: String(y(stackCurve(n, STACK_AUTHORITY_LIMIT))),
-                r: "3",
-                class: "widget-mark--dot-now",
-            })
-        );
+        const dot = svgEl("circle", {
+            cx: String(x(n)),
+            r: "3",
+            class: "widget-mark--dot-now",
+        });
+        ceilingDots.push(dot);
+        svg.appendChild(dot);
     }
+    const ceilingLabel = svgEl(
+        "text",
+        {
+            x: String(X0 + 4),
+            "text-anchor": "start",
+            class: "widget-mark--label-now",
+        },
+        "what the hull gets"
+    );
+    svg.appendChild(ceilingLabel);
     const cursorDot = svgEl("circle", {
         r: "6",
         class: "widget-mark--dot-now",
@@ -2171,33 +2253,90 @@ function initControllerStacking(host: HTMLElement): void {
     plot.appendChild(svg);
 
     const stats = el("div", "widget__stats");
-    const budget = stat(stats, "steering budget");
-    const peak = stat(stats, "peak turn rate");
-    const precision = stat(stats, "stop-on-heading precision");
+    const ceilingStat = stat(stats, "turn ceiling");
+    const bindsStat = stat(stats, "what binds");
+    const flipStat = stat(stats, "180 flip");
+    const sustainedStat = stat(stats, "sustained turn");
+    const precisionStat = stat(stats, "stop-on-heading precision");
     const readout = el("p", "widget__readout");
 
     const update = (): void => {
+        const rig = STACK_RIGS[Number(rigControl.input.value)];
         const n = Number(nControl.input.value);
-        const authority = stackCurve(n, STACK_AUTHORITY_LIMIT);
+        const structural = structuralCeiling(rig.arm);
+        const torqueAt = (count: number): number =>
+            torqueCeiling(count * CONTROLLER_MAX_TORQUE, rig.inertia);
+        const ceiling = Math.min(torqueAt(n), structural);
+        const torqueBound = torqueAt(n) < structural;
+
+        structuralLine.setAttribute("y1", String(y(structural)));
+        structuralLine.setAttribute("y2", String(y(structural)));
+        structuralLabel.setAttribute("y", String(y(structural) - 6));
+        const torquePoints: string[] = [];
+        const ceilingPoints: string[] = [];
+        for (let step = 1; step <= N_MAX; step += 0.25) {
+            torquePoints.push(
+                `${x(step).toFixed(1)},${y(torqueAt(step)).toFixed(1)}`
+            );
+            ceilingPoints.push(
+                `${x(step).toFixed(1)},${y(Math.min(torqueAt(step), structural)).toFixed(1)}`
+            );
+        }
+        torqueLine.setAttribute("d", `M${torquePoints.join(" L")}`);
+        ceilingLine.setAttribute("d", `M${ceilingPoints.join(" L")}`);
+        ceilingDots.forEach((dot, index) => {
+            const count = index + 1;
+            dot.setAttribute(
+                "cy",
+                String(y(Math.min(torqueAt(count), structural)))
+            );
+        });
+        torqueLabel.setAttribute("y", String(y(torqueAt(LABEL_N)) - 8));
+        ceilingLabel.setAttribute(
+            "y",
+            String(y(Math.min(torqueAt(1), structural)) - 8)
+        );
         cursorDot.setAttribute("cx", String(x(n)));
-        cursorDot.setAttribute("cy", String(y(authority)));
-        budget.textContent = `x${authority.toFixed(2)}`;
-        peak.textContent = `~x${Math.sqrt(authority).toFixed(2)}`;
-        precision.textContent = `x${stackCurve(n, STACK_PRECISION_LIMIT).toFixed(2)}`;
-        if (n === 1) {
+        cursorDot.setAttribute("cy", String(y(ceiling)));
+
+        ceilingStat.textContent = `${ceiling.toFixed(2)} rad/s^2`;
+        bindsStat.textContent = torqueBound
+            ? "torque-limited"
+            : "structure-limited";
+        flipStat.textContent = `${flipSeconds(ceiling).toFixed(2)} s`;
+        sustainedStat.textContent = `${((sustainedTurnRate(rig.arm) * 180) / Math.PI).toFixed(0)} deg/s`;
+        precisionStat.textContent = `x${stackCurve(n, STACK_PRECISION_LIMIT).toFixed(2)}`;
+
+        if (torqueBound) {
+            const meet = Math.ceil(
+                (structural * rig.inertia) / CONTROLLER_MAX_TORQUE
+            );
             readout.textContent =
-                "One controller: the baseline. The second is the biggest " +
-                "single gain you can bolt on.";
+                `The ${rig.name} runs out of computer before it runs out of ` +
+                `metal. Each one is worth another ${torqueAt(1).toFixed(2)} ` +
+                `rad/s^2, up to the ${structural.toFixed(2)} its length ` +
+                `allows - reached at ${meet} computers, after which the ` +
+                "extras only buy precision.";
         } else {
-            const marginal = 1 / (n * (n - 1));
             readout.textContent =
-                `Controller #${n} added +${marginal.toFixed(3)} to the ` +
-                "budget. Past a pair, the honest reason to stack is " +
-                "redundancy: lose one and the ship keeps steering.";
+                `The ${rig.name} would tear first: ${n} computer` +
+                `${n === 1 ? "" : "s"} put ${torqueAt(n).toFixed(0)} rad/s^2 ` +
+                `on the table and the hull can use ${structural.toFixed(2)}. ` +
+                "More computers buy no turn rate at all - only precision, " +
+                "and redundancy.";
         }
     };
+    const rigControl = control(
+        "Hull",
+        0,
+        STACK_RIGS.length - 1,
+        1,
+        0,
+        (v) => `${STACK_RIGS[v].name} (${STACK_RIGS[v].detail})`,
+        update
+    );
     const nControl = control(
-        "Controllers",
+        "Computers",
         1,
         N_MAX,
         1,
@@ -2206,12 +2345,24 @@ function initControllerStacking(host: HTMLElement): void {
         update
     );
     const controls = el("div", "widget__controls");
+    controls.appendChild(rigControl.row);
     controls.appendChild(nControl.row);
+
+    const note = el(
+        "p",
+        "widget__note",
+        "The hulls are the harness's own rigs: unit cells in a line, the " +
+            "last at twenty times the density. Every craft the game ships " +
+            "today is structure-limited like the first two. Sustained turn " +
+            "is the rate at which the centripetal load alone spends the " +
+            "whole 8 G budget, leaving nothing to turn harder with."
+    );
 
     host.appendChild(controls);
     host.appendChild(plot);
     host.appendChild(stats);
     host.appendChild(readout);
+    host.appendChild(note);
     update();
 }
 
@@ -2444,7 +2595,7 @@ function initGravityWell(host: HTMLElement): void {
                     : "INVERSE SQUARE";
         zoneStat.textContent = zone;
         soiStat.textContent = `${Math.round(soi)} u (${(
-            (soi * METRES_PER_UNIT) /
+            (soi * METERS_PER_UNIT) /
             1000
         ).toFixed(1)} km on the HUD)`;
         const band = orbitBand(bodyR, soi);
@@ -2971,7 +3122,7 @@ function initGotoVerb(host: HTMLElement): void {
         );
         // The arrival envelope: the fastest speed the flip still recovers
         // from, drawn against distance travelled.
-        const turnRate = hullTurnRate(CONTROLLER_ANGULAR_ACCEL);
+        const turnRate = hullTurnRate(structuralCeiling(CORVETTE_ARM_U));
         const lead = Math.PI / turnRate + ARRIVAL_SPOOL_PAD;
         const env: string[] = [];
         for (let p = 0; p <= park; p += targetDistance / 200) {
@@ -3142,10 +3293,11 @@ function initGotoVerb(host: HTMLElement): void {
         "p",
         "widget__note",
         "Simplified to one dimension: no gravity, one forward drive group " +
-            "(so the brake angle is a full 180 at the shipped controller's " +
-            "0.5 rad/s^2), a stationary target. The envelope, flip line, " +
-            "85% brake margin, 1.5 u/s approach floor, standoff and RCS " +
-            "settle are the game's own rules."
+            "(so the brake angle is a full 180), a stationary target. The " +
+            "hull is the shipped corvette, held by its own structure to " +
+            "2.84 rad/s^2. The envelope, flip line, 85% brake margin, " +
+            "1.5 u/s approach floor, standoff and RCS settle are the game's " +
+            "own rules."
     );
 
     host.appendChild(controls);

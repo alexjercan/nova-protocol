@@ -1,6 +1,11 @@
-//! Stacked flight computers, measured rather than felt: onset, peak rate,
-//! overshoot, settling and residual spin for a commanded 90 degree turn,
-//! across controller counts and hull sizes.
+//! The attitude model, measured rather than felt: onset, peak rate, overshoot,
+//! settling and residual spin for a commanded turn, across controller counts
+//! and hull sizes.
+//!
+//! The table exists to show SIZE, which is the thing the flat acceleration
+//! model had none of. A small hull is structure-bound and sharp and gains
+//! nothing from more computers; a big enough hull is torque-bound and buys its
+//! physics back one computer at a time until the structure catches it.
 //!
 //! The rig drives the SHIPPED helm - `ship_turn_rate` then `slew_rotation`,
 //! the two lines the player's mouse path and the AI brain both run - with the
@@ -15,9 +20,7 @@ use super::support::*;
 use crate::{
     flight::{autopilot::autopilot_system, ship_turn_rate, slew_rotation, NovaFlightSystems},
     prelude::*,
-    sections::controller_section::{
-        update_controller_section_rotation_input, update_controller_stack_tuning,
-    },
+    sections::controller_section::update_controller_section_rotation_input,
 };
 
 /// Where the pilot is pointing. Parked for the whole run: the maneuver is a
@@ -67,24 +70,34 @@ fn helm_app() -> App {
     app.init_resource::<Helm>();
     app.add_systems(
         FixedUpdate,
-        (update_controller_stack_tuning, slew_helm)
-            .chain()
+        slew_helm
             .in_set(NovaFlightSystems)
-            // Pinned inside the flight chain: the stack split feeds the helm's
-            // turn-rate budget, the helm feeds the command copy, and the
-            // autopilot writes the same command (idle here, but ambiguous
-            // ordering against a writer is a trap either way).
+            // Pinned inside the flight chain: `flight_app` runs the stack split
+            // ahead of the whole chain, the helm reads the ceiling it wrote and
+            // feeds the command copy, and the autopilot writes the same command
+            // (idle here, but ambiguous ordering against a writer is a trap
+            // either way).
             .after(autopilot_system)
             .before(update_controller_section_rotation_input),
     );
     app
 }
 
-/// A hull of `hull_sections` unit cuboids strung along z carrying
-/// `controllers` flight computers at the origin. The computers are massless so
-/// the table isolates the stack itself; a real one is a section like any
-/// other, and its mass is one more reason the tenth is not worth mounting.
-fn spawn_stacked_ship(app: &mut App, hull_sections: usize, controllers: usize) -> Entity {
+/// A hull of `hull_sections` unit cuboids strung along z at `density`,
+/// carrying `controllers` flight computers at the origin.
+///
+/// The computers are massless so the table isolates the stack itself; a real
+/// one is a section like any other, and its mass at radius is one more reason
+/// the tenth is not worth mounting. `density` is how the table gets a
+/// TORQUE-bound hull without a hundred colliders: inertia scales with it and
+/// the structural arm does not, which is the same crossover a longer hull
+/// reaches by growing.
+fn spawn_stacked_ship(
+    app: &mut App,
+    hull_sections: usize,
+    density: f32,
+    controllers: usize,
+) -> Entity {
     let ship = app
         .world_mut()
         .spawn((
@@ -99,9 +112,13 @@ fn spawn_stacked_ship(app: &mut App, hull_sections: usize, controllers: usize) -
         app.world_mut().spawn((
             ChildOf(ship),
             Name::new("hull"),
+            // `SectionMarker` + `SectionCollider` are what the structural arm
+            // is measured over, exactly as on a scenario-built hull.
+            SectionMarker,
+            SectionCollider::Cuboid { size: Vec3::ONE },
             Transform::from_xyz(0.0, 0.0, first + index as f32),
             Collider::cuboid(1.0, 1.0, 1.0),
-            ColliderDensity(1.0),
+            ColliderDensity(density),
         ));
     }
     for _ in 0..controllers {
@@ -112,13 +129,15 @@ fn spawn_stacked_ship(app: &mut App, hull_sections: usize, controllers: usize) -
             ControllerSectionRotationInput::default(),
             ControllerSectionTuning {
                 steering_lag: 0.5,
-                // The shipped budget (`basic_controller_section`).
-                max_angular_acceleration: 0.5,
+                // The shipped torque (`basic_controller_section`).
+                max_torque: 1501.0,
             },
             PDController {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                max_angular_acceleration: 0.5,
+                // Derived by the stack pass on the first tick; a bundle cannot
+                // know a ceiling that belongs to the hull.
+                max_angular_acceleration: 0.0,
             },
             PDControllerTarget(ship),
             Transform::default(),
@@ -175,9 +194,9 @@ fn wrapped_delta(previous: f32, yaw: f32) -> f32 {
 /// remaining error. A near-180 FLIP is long enough to settle into tracking
 /// the command, which is where the turn-rate budget - and therefore the
 /// authority curve - shows up.
-fn measure(hull_sections: usize, controllers: usize, command: f32, seconds: f32) -> Maneuver {
+fn measure(hull: Hull, controllers: usize, command: f32, seconds: f32) -> Maneuver {
     let mut app = helm_app();
-    let ship = spawn_stacked_ship(&mut app, hull_sections, controllers);
+    let ship = spawn_stacked_ship(&mut app, hull.sections, hull.density, controllers);
     settle(&mut app);
 
     app.world_mut().resource_mut::<Helm>().0 = Quat::from_rotation_y(command);
@@ -240,10 +259,50 @@ fn measure(hull_sections: usize, controllers: usize, command: f32, seconds: f32)
     }
 }
 
-/// Hull sizes the table walks, with the run length each turn needs. A
-/// 3-section fighter, a 9-section cruiser, and a 15-section barge whose
-/// largest principal inertia (~282) is two orders past the fighter's.
-const HULLS: [(usize, f32, f32); 3] = [(3, 6.0, 8.0), (9, 12.0, 18.0), (15, 18.0, 30.0)];
+/// One row of the hull table.
+#[derive(Clone, Copy, Debug)]
+struct Hull {
+    /// Display name, so a failure says which craft broke.
+    name: &'static str,
+    /// Unit cuboids strung along z. Also fixes the structural arm, at
+    /// `sections / 2` world units.
+    sections: usize,
+    /// Collider density, which buys inertia without buying arm.
+    density: f32,
+    /// Whether one computer is enough to reach this hull's structural
+    /// ceiling. The whole point of the table: the answer differs by size, and
+    /// it decides whether stacking is felt at all.
+    structure_bound: bool,
+    /// Run length for a snap 90 and for a near-180 flip, seconds.
+    seconds: (f32, f32),
+}
+
+/// The hull sizes the table walks. A fighter and a cruiser that both run out
+/// of METAL before they run out of computer, and a barge that runs out of
+/// computer first - the case the flat acceleration model could not express.
+const HULLS: [Hull; 3] = [
+    Hull {
+        name: "fighter",
+        sections: 3,
+        density: 1.0,
+        structure_bound: true,
+        seconds: (6.0, 8.0),
+    },
+    Hull {
+        name: "cruiser",
+        sections: 15,
+        density: 1.0,
+        structure_bound: true,
+        seconds: (10.0, 16.0),
+    },
+    Hull {
+        name: "barge",
+        sections: 15,
+        density: 20.0,
+        structure_bound: false,
+        seconds: (18.0, 30.0),
+    },
+];
 const STACKS: [usize; 4] = [1, 2, 4, 10];
 /// The two turns: a snap 90 and a 170 degree flip (short of 180 so the
 /// commanded direction stays unambiguous).
@@ -252,9 +311,9 @@ const TURNS: [f32; 2] = [90.0, 170.0];
 /// The acceptance table. Prints with `--nocapture`; the assertions below it
 /// are the contract it exists to hold.
 #[test]
-fn stacking_turns_a_hull_better_with_diminishing_returns() {
+fn size_decides_the_turn_and_stacking_only_helps_a_torque_bound_hull() {
     println!(
-        "{:>5} {:>5} {:>5} {:>8} {:>10} {:>8} {:>9} {:>8} {:>6} {:>9}",
+        "{:>5} {:>8} {:>5} {:>8} {:>10} {:>8} {:>9} {:>8} {:>6} {:>9}",
         "turn",
         "hull",
         "ctrl",
@@ -267,17 +326,18 @@ fn stacking_turns_a_hull_better_with_diminishing_returns() {
         "residual"
     );
     for turn in TURNS {
-        for (hull, snap_seconds, flip_seconds) in HULLS {
+        for hull in HULLS {
             let seconds = if turn > 90.0 {
-                flip_seconds
+                hull.seconds.1
             } else {
-                snap_seconds
+                hull.seconds.0
             };
+            let name = hull.name;
             let mut baseline: Option<Maneuver> = None;
             for controllers in STACKS {
                 let run = measure(hull, controllers, turn.to_radians(), seconds);
                 println!(
-                    "{turn:>5.0} {hull:>5} {controllers:>5} {:>8.2} {:>10.1} {:>8.2} {:>9.2} \
+                    "{turn:>5.0} {name:>8} {controllers:>5} {:>8.2} {:>10.1} {:>8.2} {:>9.2} \
                      {:>8.2} {:>6} {:>9.3}",
                     run.onset,
                     run.peak_rate,
@@ -289,13 +349,13 @@ fn stacking_turns_a_hull_better_with_diminishing_returns() {
                 );
 
                 // The hull answers the helm at once whatever it weighs. The
-                // bound is the 15-section barge on one computer - the heaviest,
-                // least authoritative case in the table - and it is still
-                // moving within half a second, on pure angular acceleration
-                // with no lag term anywhere in the loop.
+                // bound is the barge on one computer - the heaviest, least
+                // authoritative case in the table - and it is still moving
+                // within half a second, on pure angular acceleration with no
+                // lag term anywhere in the loop.
                 assert!(
                     run.onset < 0.55,
-                    "hull {hull} x{controllers}: onset {} s is sluggish",
+                    "hull {name} x{controllers}: onset {} s is sluggish",
                     run.onset
                 );
                 // No stack may leave the hull ringing or buzzing: this is the
@@ -304,37 +364,39 @@ fn stacking_turns_a_hull_better_with_diminishing_returns() {
                 // limit-cycles instead of parking.
                 assert!(
                     run.residual < 0.5,
-                    "hull {hull} x{controllers}: {} deg/s left over - the stack \
+                    "hull {name} x{controllers}: {} deg/s left over - the stack \
                      is sitting on a limit cycle",
                     run.residual
                 );
                 assert!(
                     run.settle < seconds - 0.5,
-                    "turn {turn} hull {hull} x{controllers}: never settled within \
+                    "turn {turn} hull {name} x{controllers}: never settled within \
                      {seconds} s"
                 );
 
                 match baseline {
                     None => baseline = Some(run),
                     Some(one) => {
-                        // Diminishing returns, hard: the whole stack is worth at
-                        // most sqrt(2) of one computer's turn rate, because
-                        // acceleration authority is capped at 2x and rate grows
-                        // with its square root.
-                        assert!(
-                            run.peak_rate <= one.peak_rate * 1.45,
-                            "hull {hull} x{controllers}: {} deg/s is past the \
-                             sqrt(2) ceiling on {} deg/s",
-                            run.peak_rate,
-                            one.peak_rate
-                        );
+                        if hull.structure_bound {
+                            // The hull's metal, not its computers, sets its
+                            // ceiling - so a stack buys NO rate at all. This is
+                            // the assertion the old x2 authority curve fails.
+                            assert!(
+                                run.peak_rate <= one.peak_rate * 1.05,
+                                "structure-bound {name} x{controllers}: {} deg/s \
+                                 past one computer's {} deg/s - the metal, not \
+                                 the computer, is the limit",
+                                run.peak_rate,
+                                one.peak_rate
+                            );
+                        }
                         // The precision half is bought with rate on a SHORT
                         // turn, where the hull rides the arrest ramp the whole
                         // way and a stack starts braking earlier. Bounded, so a
                         // retune that made stacking a rate loss would fail here.
                         assert!(
                             run.peak_rate >= one.peak_rate * 0.8,
-                            "hull {hull} x{controllers}: {} deg/s gives up too \
+                            "hull {name} x{controllers}: {} deg/s gives up too \
                              much of {} deg/s",
                             run.peak_rate,
                             one.peak_rate
@@ -343,14 +405,19 @@ fn stacking_turns_a_hull_better_with_diminishing_returns() {
                         // never land worse than one computer lands.
                         assert!(
                             run.overshoot <= one.overshoot + 0.2,
-                            "hull {hull} x{controllers}: overshoot grew from {} \
+                            "hull {name} x{controllers}: overshoot grew from {} \
                              to {} deg",
                             one.overshoot,
                             run.overshoot
                         );
+                        // Onset may slip by a tick or two and no more. On a
+                        // structure-bound hull the stack buys no authority to
+                        // pay for its earlier braking, so the precision split
+                        // is a small unpaid cost there; a hull that sat there
+                        // waiting would blow this.
                         assert!(
-                            run.onset <= one.onset + 1e-3,
-                            "hull {hull} x{controllers}: onset grew from {} to \
+                            run.onset <= one.onset + 2.5 / 60.0,
+                            "hull {name} x{controllers}: onset grew from {} to \
                              {} s",
                             one.onset,
                             run.onset
@@ -362,45 +429,78 @@ fn stacking_turns_a_hull_better_with_diminishing_returns() {
     }
 }
 
-/// The second computer must be a real upgrade and the tenth must not, on the
-/// hull and turn where the turn-rate budget decides the outcome: a 9-section
-/// cruiser flipping far enough to settle into tracking its commanded slew
-/// instead of riding the arrest ramp the whole way.
+/// The complaint that opened the attitude work: a minimal hull used to turn at
+/// exactly the rate a barge turned at. It must not any more, and the reason has
+/// to be the hull rather than the computer - all three carry the same one.
+///
+/// Measured on TRAVERSE, how long the turn takes, rather than on peak rate: a
+/// torque-starved hull lags its own slewed command and then catches up faster
+/// than the command ever moved, so its peak flatters it.
 #[test]
-fn the_second_computer_is_worth_it_and_the_tenth_is_not() {
-    let (hull, seconds, flip) = (9, 18.0, 170.0f32.to_radians());
-    let one = measure(hull, 1, flip, seconds);
-    let two = measure(hull, 2, flip, seconds);
-    let four = measure(hull, 4, flip, seconds);
-    let ten = measure(hull, 10, flip, seconds);
+fn a_small_hull_out_turns_a_big_one_on_the_same_computer() {
+    let flip = 170.0f32.to_radians();
+    let traverse = |hull: Hull| measure(hull, 1, flip, hull.seconds.1).traverse;
+    let fighter = traverse(HULLS[0]);
+    let cruiser = traverse(HULLS[1]);
+    let barge = traverse(HULLS[2]);
 
     assert!(
-        two.peak_rate > one.peak_rate * 1.05,
-        "a second computer must be felt: {} -> {} deg/s",
-        one.peak_rate,
-        two.peak_rate
+        cruiser > fighter * 1.4,
+        "a 15-section cruiser must be far slower round than a 3-section \
+         fighter: {cruiser} vs {fighter} s"
     );
     assert!(
-        ten.peak_rate < four.peak_rate * 1.08,
-        "the tenth computer must be nearly pointless: {} -> {} deg/s",
-        four.peak_rate,
-        ten.peak_rate
-    );
-    // Turn rate grows with the square root of acceleration authority, so a 2x
-    // authority cap gives a sqrt(2) rate cap.
-    assert!(
-        ten.peak_rate < one.peak_rate * 1.45,
-        "the whole stack must stay under the sqrt(2) ceiling: {} -> {} deg/s",
-        one.peak_rate,
-        ten.peak_rate
+        barge > cruiser * 1.4,
+        "and the barge slower again than the cruiser: {barge} vs {cruiser} s"
     );
 }
 
-/// The precision half of the curve: a stack brakes earlier and removes
-/// overshoot without materially delaying the turn.
+/// Fitting computers to a hull that cannot turn: torque adds with no curve, so
+/// the second one is worth a whole second one - and then the structure catches
+/// the stack, and the wall it stops at is the one a LIGHT hull of the same
+/// length is already up against.
+#[test]
+fn a_torque_bound_hull_buys_its_physics_back_and_no_more() {
+    let barge = HULLS[2];
+    let (seconds, flip) = (barge.seconds.1, 170.0f32.to_radians());
+    let one = measure(barge, 1, flip, seconds);
+    let two = measure(barge, 2, flip, seconds);
+    let four = measure(barge, 4, flip, seconds);
+    let ten = measure(barge, 10, flip, seconds);
+
+    assert!(
+        two.traverse < one.traverse * 0.85,
+        "a second computer must be worth a whole second computer: {} -> {} s",
+        one.traverse,
+        two.traverse
+    );
+    assert!(
+        ten.traverse > four.traverse * 0.98,
+        "the structure must have caught the stack by four: {} -> {} s",
+        four.traverse,
+        ten.traverse
+    );
+    // The wall is the HULL's, not a curve somebody authored: the cruiser is the
+    // same 15 sections at a twentieth of the mass, so it has the same arm and
+    // the same structural ceiling, and the two land on the same number.
+    let cruiser = measure(HULLS[1], 4, flip, HULLS[1].seconds.1);
+    assert!(
+        (four.peak_rate / cruiser.peak_rate - 1.0).abs() < 0.02,
+        "a barge with enough computers must turn exactly like a light hull of \
+         the same length: {} vs {} deg/s",
+        four.peak_rate,
+        cruiser.peak_rate
+    );
+}
+
+/// The precision half of the stack, which SURVIVES the model change: a stack
+/// brakes earlier and removes overshoot without materially delaying the turn.
+/// The barge, where one computer overshoots enough for the difference to mean
+/// something.
 #[test]
 fn stacking_reduces_overshoot_without_a_material_delay() {
-    let (hull, seconds, snap) = (15, 18.0, 90.0f32.to_radians());
+    let hull = HULLS[2];
+    let (seconds, snap) = (hull.seconds.0, 90.0f32.to_radians());
     let one = measure(hull, 1, snap, seconds);
     let four = measure(hull, 4, snap, seconds);
     let ten = measure(hull, 10, snap, seconds);
@@ -439,10 +539,15 @@ fn stacking_reduces_overshoot_without_a_material_delay() {
 /// stranded. The flight layer already drops the autopilot on the LAST
 /// computer (`a_dead_flight_computer_disengages_the_autopilot`); this is the
 /// other half of that rule.
+///
+/// On the barge, because a torque-bound hull is the only one that FEELS the
+/// loss - a structure-bound hull keeps its ceiling and notices nothing, which
+/// is the model working and not a hole in the coverage.
 #[test]
 fn losing_one_of_two_computers_degrades_handling_instead_of_stranding_the_hull() {
+    let barge = HULLS[2];
     let mut app = helm_app();
-    let ship = spawn_stacked_ship(&mut app, 9, 2);
+    let ship = spawn_stacked_ship(&mut app, barge.sections, barge.density, 2);
     settle(&mut app);
 
     let controllers: Vec<Entity> = app
@@ -466,14 +571,11 @@ fn losing_one_of_two_computers_degrades_handling_instead_of_stranding_the_hull()
     app.world_mut().resource_mut::<Helm>().0 = Quat::from_rotation_y(core::f32::consts::FRAC_PI_2);
     run(&mut app, 600);
 
+    let survivor = budget(&app);
     assert!(
-        (stacked - 0.75).abs() < 1e-3,
-        "two computers carry 1.5 shares, got {stacked}"
-    );
-    assert!(
-        (budget(&app) - 0.5).abs() < 1e-3,
-        "the survivor must re-derive to exactly one computer, got {}",
-        budget(&app)
+        (stacked / survivor - 2.0).abs() < 5e-2,
+        "two computers must carry twice the torque-bound ceiling: {stacked} -> \
+         {survivor}"
     );
     // Degraded, not stranded: the hull still answers the command it was given
     // after the loss, and still parks on it.

@@ -100,7 +100,11 @@ const WIKI_PAGES = [
         summary:
             "The steering system that rotates the ship toward a heading; required to fly.",
         related: ["sections", "flight-autopilot"],
-        headings: ["Stacking controllers", "Variants"],
+        headings: [
+            "What sets how hard a ship turns",
+            "Stacking controllers",
+            "Variants",
+        ],
     },
     {
         slug: "sections/thruster",

@@ -65,8 +65,9 @@ fn scratch_scenario_built_ship_autopilot_thrusts() {
             controller_section(ControllerSectionConfig {
                 steering_lag: 0.5,
                 // This test isolates scenario assembly and STOP plumbing, not
-                // production handling.
-                max_angular_acceleration: 100.0,
+                // production handling; the rig runs no stack pass, so the PD
+                // keeps whatever ceiling the bundle seeds.
+                max_torque: 100.0,
                 render_mesh: None,
                 ..default()
             }),

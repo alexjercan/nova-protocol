@@ -5,12 +5,14 @@
 //! (`1.24 km`); speed and closing speed in m/s to one decimal (`50.0 m/s`,
 //! `+200.0 m/s`).
 //!
-//! Display-only. World-space transforms, physics, content RON and AI tuning
-//! keep raw world units; only the strings a player reads pass through here.
+//! The FORMATTING is display-only: world-space transforms, content RON and AI
+//! tuning keep raw world units, and only the strings a player reads pass
+//! through here. The SCALE itself is not - it is
+//! [`nova_events::scale::METERS_PER_UNIT`], shared with the physics that turns
+//! a G limit into a turn-rate ceiling, so a readout and a hull cannot disagree
+//! about how long a metre is.
 
-/// Metres shown per world unit (D6: 1 u = 10 m). Multiply a world-space
-/// distance or speed by this before labelling it for the player.
-pub const METRES_PER_UNIT: f32 = 10.0;
+pub use nova_events::scale::METERS_PER_UNIT;
 
 /// Distance threshold, in displayed metres, at/above which [`distance`]
 /// switches from integer metres to kilometres. Exactly `1000 m` reads as
@@ -27,7 +29,7 @@ pub const KM_THRESHOLD_M: f32 = 1000.0;
 /// assert_eq!(distance(150.0), "1.50 km");
 /// ```
 pub fn distance(units: f32) -> String {
-    let metres = units * METRES_PER_UNIT;
+    let metres = units * METERS_PER_UNIT;
     // Switch on the ROUNDED metres, not the raw product, so the last
     // half-metre below the threshold reads `1.00 km` instead of printing a
     // four-digit `1000 m` the km branch exists to avoid.
@@ -46,7 +48,7 @@ pub fn distance(units: f32) -> String {
 /// assert_eq!(speed(5.0), "50.0 m/s");
 /// ```
 pub fn speed(units_per_s: f32) -> String {
-    format!("{:.1} m/s", units_per_s * METRES_PER_UNIT)
+    format!("{:.1} m/s", units_per_s * METERS_PER_UNIT)
 }
 
 /// Format a closing speed (world units per second) as signed metres per second
@@ -58,7 +60,7 @@ pub fn speed(units_per_s: f32) -> String {
 /// assert_eq!(closing_speed(-3.21), "-32.1 m/s");
 /// ```
 pub fn closing_speed(units_per_s: f32) -> String {
-    format!("{:+.1} m/s", units_per_s * METRES_PER_UNIT)
+    format!("{:+.1} m/s", units_per_s * METERS_PER_UNIT)
 }
 
 #[cfg(test)]

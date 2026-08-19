@@ -104,6 +104,12 @@ pub(crate) struct SectionGhost {
 #[derive(Component)]
 pub(crate) struct PlacementStatus;
 
+/// The rail's attitude readout: what the hull under construction would turn
+/// like, and which of the two ceilings says so. Repainted from the build state
+/// by `crate::attitude::sync_attitude_readout`.
+#[derive(Component)]
+pub(crate) struct AttitudeReadout;
+
 /// The editor's key legend, bottom-left. Its text follows the armed tool, so
 /// the keys that do nothing in the current mode are not listed and the line
 /// stays short enough to read rather than long enough to ignore.

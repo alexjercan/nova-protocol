@@ -383,7 +383,7 @@ fn readout_value(line: &str) -> f32 {
     } else {
         value
     };
-    metres / nova_ui::units::METRES_PER_UNIT
+    metres / nova_ui::units::METERS_PER_UNIT
 }
 
 /// Raise the stance (RMB), the first half of the live radar gesture.

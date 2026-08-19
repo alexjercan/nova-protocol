@@ -374,11 +374,14 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
             },
             kind: SectionKind::Controller(ControllerSectionConfig {
                 steering_lag: 0.5,
-                // 0.5 rad/s2 gives a bang-bang 180 an ideal 5.0 second turn:
-                // 2 * sqrt(pi / 0.5). The 0.9 command-rate trim leaves damping
-                // headroom and reproduces the established cast handling while
-                // remaining independent of hull inertia.
-                max_angular_acceleration: 0.5,
+                // What a hull DOES with this is `min(torque / inertia, load
+                // limit / arm)`, so every hull that ships today is structure-
+                // bound and this number is invisible on all of them - it has 12x
+                // to 115x of headroom over what their metal takes. It is the
+                // capital's knob, and it is provisional: the crossover it was
+                // pinned against sits three times further out than the largest
+                // hull in the game.
+                max_torque: 1501.0,
                 // Full flight-verb loadout by default (no WithheldVerbs on the
                 // built controller). Scenarios withhold a verb via a
                 // `DisableVerb` section modification or the `SetControllerVerb`

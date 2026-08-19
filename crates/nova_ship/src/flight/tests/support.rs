@@ -19,6 +19,7 @@ use crate::{
     sections::{
         controller_section::{
             sync_controller_section_forces, update_controller_section_rotation_input,
+            update_controller_stack_tuning,
         },
         thruster_section::thruster_impulse_system,
     },
@@ -57,6 +58,10 @@ fn unfinished_flight_app() -> App {
     app.add_systems(
         FixedUpdate,
         (
+            // The production pass that derives each hull's attitude ceiling.
+            // First in the chain: everything below reads what it writes, and a
+            // rig that skipped it would fly on a ceiling nobody derived.
+            update_controller_stack_tuning,
             autopilot_system,
             manual_burn_system,
             rcs_burn_system,
@@ -118,8 +123,10 @@ pub(super) fn spawn_ship(app: &mut App) -> (Entity, Entity, Entity) {
                 damping_ratio: 4.0,
                 // Deliberately high authority: the generic rig pins the
                 // command rate at its ceiling so maneuver tests exercise
-                // outcomes, not production handling. Baseline 0.5 coverage
-                // lives in the scratch-scenario and off-axis rigs.
+                // outcomes, not production handling. This controller carries no
+                // `ControllerSectionTuning`, so the stack pass skips it and the
+                // value stands. Model-derived coverage lives in the
+                // scratch-scenario rig and in `stacking`.
                 max_angular_acceleration: 100.0,
             },
             PDControllerTarget(ship),
@@ -267,7 +274,12 @@ pub(super) fn spawn_damage_shifted_single_drive(
         PDController {
             frequency: 4.0,
             damping_ratio: 4.0,
-            max_angular_acceleration: 0.5, // shipped acceleration authority
+            // Shipped-scale authority - the 1-1-1's 8 G over a 15 m arm - so
+            // the wrench allocation is exercised against a ceiling a real hull
+            // has. Written out rather than derived: this rig's controller
+            // carries no `ControllerSectionTuning`, so the stack pass leaves
+            // it alone, and its ballast puts the real arm somewhere else.
+            max_angular_acceleration: 5.232,
         },
         PDControllerTarget(ship),
         Transform::from_xyz(0.0, 0.0, 0.0),
@@ -407,7 +419,9 @@ pub(super) fn diag_ship(app: &mut App) -> (Entity, Entity) {
         PDController {
             frequency: 4.0,
             damping_ratio: 4.0,
-            max_angular_acceleration: 0.5,
+            // 8 G over this rig's 25 m arm - five sections along z, so the
+            // furthest face is 2.5 u out.
+            max_angular_acceleration: 3.139,
         },
         PDControllerTarget(ship),
     ));

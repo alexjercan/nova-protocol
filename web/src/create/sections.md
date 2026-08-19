@@ -269,7 +269,7 @@ to fly.
 ```ron
 kind: Controller((
     steering_lag: 0.5,
-    max_angular_acceleration: 0.5,
+    max_torque: 1501.0,
 )),
 ```
 
@@ -278,28 +278,61 @@ kind: Controller((
   laggier and brake earlier; smaller values track more tightly. The value must
   be positive and finite. Very small values are allowed but can make the
   fixed-step controller unstable. This is not a startup delay or total turn
-  time: the computer reacts immediately, and acceleration still limits large
-  turns.
-- `max_angular_acceleration` - the maximum angular acceleration on each
-  principal axis, in rad/s2. The controller derives the torque required for the
-  live hull inertia.
+  time: the computer reacts immediately, and the hull's turn ceiling still
+  limits large turns.
+- `max_torque` - how hard this computer's reaction wheels twist the hull, in
+  torque units. Every shipped controller carries `1501.0`. Controllers on one
+  hull ADD: two are twice the torque, with no cap and no stacking curve.
 - `render_mesh` (optional) - custom mesh; omit for the default body.
-
-A hull may mount several controllers, but they do NOT each steer it: the ship
-derives one attitude loop and shares it out, so the two numbers above are what
-this section is worth to a hull carrying it alone. Stacking grows angular
-acceleration authority on a curve capped at **twice** the strongest
-controller's value (1.5x at two, 1.9x at ten) and spends the rest of the gain on
-precision. A mixed stack uses the smallest live `steering_lag` as its base, then
-adds braking margin for the larger authority budget. Hull inertia does not
-change the authored handling; author a different acceleration when a prototype
-must turn faster or slower.
 - `render_mesh_transform` (optional) - visual-only position, rotation and scale.
 - `lock_on_sound`, `lock_off_sound`, `radar_deny_sound`,
   `radar_retarget_sound`, `safety_on_sound`, `rcs_loop_sound` (all optional) - the computer's
   radar/lock and weapons-safety feedback ticks, asset refs like the meshes
   (`dep://base/sounds/lock_on.wav` etc. for the base cues); an omitted cue is
   silent. Your ship's computer can have its own voice.
+
+### What a hull does with the torque
+
+A hull may mount several controllers, but they do NOT each steer it: the ship
+derives ONE attitude loop and shares it out. The turn ceiling it derives is
+never authored:
+
+<!-- Numbers verified against crates/nova_ship/src/physics/attitude.rs (envelope :72-88, arm :146-164, sustained rate :108-110, vector load :121-130), crates/nova_events/src/scale.rs (METERS_PER_UNIT 10.0 :14, LOAD_LIMIT 8 * 9.81 :23), crates/nova_ship/src/sections/controller_section.rs (linear torque sum :385-388, STACK_PRECISION_LIMIT 1.5 :259, stack_curve :267-269, smallest steering_lag :379-383) and crates/nova_authoring/src/base_content/sections/standard.rs (steering_lag 0.5 :376, max_torque 1501.0 :384). -->
+
+```text
+ceiling = min( sum(max_torque) / I , 78.48 / (r * 10) )   rad/s2
+```
+
+- `I` - the hull's largest principal moment of angular inertia, measured by the
+  physics engine from the live section colliders and their densities.
+- `r` - the structural arm in world units: the distance from the hull's centre
+  of mass to the outer FACE of its furthest live section.
+- `78.48` m/s2 is 8 G, the load hull metal takes. One global constant, the same
+  for every ship and every mod.
+- `10` is metres per world unit.
+
+So `max_torque` is the only handling number you author, and it binds only on a
+hull heavy enough that its computers give up before its metal does. Everything
+that ships is on the second term: the hull would tear first, so fitting more
+computers buys it no turn rate at all. Size and shape set the rest. A long hull
+has a long arm and a low ceiling; a short one is sharp. Author a bigger
+`max_torque` for a capital-scale hull that reads sluggish, not for a small one -
+a small one is already at its limit.
+
+Three consequences to author around:
+
+- **Damage sharpens a hull.** Losing sections shortens `r`, which raises the
+  ceiling. A wreck turns harder than it did intact.
+- **A hard turn spends the margin.** Write `r_m` for the arm in metres
+  (`r * 10`). The turning load `alpha * r_m` and the centripetal load
+  `omega^2 * r_m` add as a vector, and that sum is what must stay under 8 G. So
+  a hull holds `sqrt(78.48 / r_m)` rad/s indefinitely and has no authority left
+  to tighten past it.
+- **Stacking buys precision, not authority.** A stack starts arresting a turn
+  earlier and lands on the commanded attitude instead of swinging past. That
+  gain approaches x1.5 from below: x1.25 at two computers, x1.375 at four,
+  x1.45 at ten. A mixed stack takes its response from the smallest live
+  `steering_lag`.
 
 ## Turret
 

@@ -340,7 +340,14 @@ pub(super) fn shoot_spawn_projectile(
                     ControllerSectionRenderMarker,
                     controller_section(ControllerSectionConfig {
                         steering_lag: 0.5,
-                        max_angular_acceleration: 10.0,
+                        // A torpedo is a hull like any other under the attitude
+                        // model, and this leaves it structure-bound like every
+                        // other: two 1 u sections put its arm at 1.0 u, whose
+                        // structural ceiling needs about 6.5 of torque, so 50
+                        // is comfortably past it and the warhead turns at what
+                        // its airframe takes rather than at what its computer
+                        // can push.
+                        max_torque: 50.0,
                         render_mesh: None,
                         // A torpedo's guidance computer has no radar/safety
                         // voice; the player-controller cue lookup never matches

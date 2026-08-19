@@ -298,7 +298,8 @@ fn thruster_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
 fn controller_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
     SectionKind::Controller(ControllerSectionConfig {
         steering_lag: 0.5,
-        max_angular_acceleration: 0.5,
+        // The catalog controller's torque; see `sections::standard`.
+        max_torque: 1501.0,
         render_mesh: spec.mesh.map(mesh_ref),
         render_mesh_transform: render_transform(spec),
         lock_on_sound: Some(meshes.controller_lock_on_sound.clone()),

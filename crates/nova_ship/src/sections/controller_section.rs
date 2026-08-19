@@ -1,18 +1,19 @@
 //! A section of a spaceship that can control its rotation using a PD controller.
 //!
 //! A hull may carry several controllers; they share one attitude loop rather
-//! than each running their own, and the share is what makes stacking a
-//! diminishing return (see [`update_controller_stack_tuning`]).
+//! than each running their own, and the share is what turns their summed torque
+//! into one hull-wide ceiling (see [`update_controller_stack_tuning`]).
 
 use avian3d::prelude::*;
-use bevy::{platform::collections::HashSet, prelude::*};
+use bevy::{ecs::entity::EntityHashMap, platform::collections::HashSet, prelude::*};
 use nova_gameplay::prelude::{
-    AssetRef, ControllerSectionMarker, SectionClass, SectionInactiveMarker,
+    AssetRef, ControllerSectionMarker, SectionClass, SectionInactiveMarker, SectionMarker,
 };
 
 use crate::prelude::{
-    PDController, PDControllerInput, PDControllerOutput, PDControllerSystems, PDControllerTarget,
-    RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf,
+    structural_arm, AttitudeEnvelope, PDController, PDControllerInput, PDControllerOutput,
+    PDControllerSystems, PDControllerTarget, RenderMeshTransform, SectionCollider,
+    SectionRenderMeshTransform, SectionRenderOf,
 };
 
 /// The controller-section spawners, its config, authored tuning and rotation input, and the
@@ -31,8 +32,14 @@ pub mod prelude {
 pub struct ControllerSectionConfig {
     /// Approximate time the hull trails a continuously moving steering command, in seconds.
     pub steering_lag: f32,
-    /// Maximum angular acceleration on each principal axis, in rad/s2.
-    pub max_angular_acceleration: f32,
+    /// How hard this computer's reaction wheels twist the hull, in torque units.
+    ///
+    /// Controllers ADD: two computers are twice the torque, with no cap and no
+    /// stacking curve, because the hull's own structural ceiling already caps
+    /// the result. What the ship gets out of it is
+    /// [`AttitudeEnvelope`] - torque over the hull's inertia, or the load limit
+    /// over its arm, whichever gives up first.
+    pub max_torque: f32,
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
     #[reflect(ignore)]
     #[cfg_attr(
@@ -150,7 +157,7 @@ impl Default for ControllerSectionConfig {
     fn default() -> Self {
         Self {
             steering_lag: 0.5,
-            max_angular_acceleration: 0.5,
+            max_torque: DEFAULT_MAX_TORQUE,
             render_mesh: None,
             render_mesh_transform: None,
             lock_on_sound: None,
@@ -176,12 +183,15 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
         SectionClass::Controller,
         ControllerSectionTuning {
             steering_lag: config.steering_lag,
-            max_angular_acceleration: config.max_angular_acceleration,
+            max_torque: config.max_torque,
         },
         PDController {
             frequency,
             damping_ratio: INTERNAL_DAMPING_RATIO,
-            max_angular_acceleration: config.max_angular_acceleration,
+            // Seeded at zero and filled in by `update_controller_stack_tuning`
+            // on the first fixed tick: the ceiling is a property of the HULL,
+            // and a section bundle cannot know one.
+            max_angular_acceleration: 0.0,
         },
         ControllerSectionRotationInput::default(),
         ControllerSectionSounds::from_config(&config),
@@ -199,9 +209,20 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
 pub struct ControllerSectionTuning {
     /// Approximate time the hull trails a continuously moving steering command, in seconds.
     pub steering_lag: f32,
-    /// Maximum angular acceleration on each principal axis, in rad/s2.
-    pub max_angular_acceleration: f32,
+    /// How hard this computer twists the hull, in torque units. See
+    /// [`ControllerSectionConfig::max_torque`].
+    pub max_torque: f32,
 }
+
+/// The torque one shipped flight computer carries.
+///
+/// PROVISIONAL, and a floor rather than an estimate: it was pinned by putting
+/// the structure/torque crossover at a 10 u hull, and the largest hull in the
+/// game is 2.93 u, so the inertia at that radius is an extrapolation and every
+/// measured hull comes out heavier than the curve it was read off. Nothing that
+/// ships can settle it, and nothing that ships can see it either - all four
+/// reference hulls are structure-bound with 12x to 115x of headroom.
+const DEFAULT_MAX_TORQUE: f32 = 1501.0;
 
 /// The hidden response profile. At the shipped 0.5 second lag this derives the
 /// former frequency 4 / damping 4 gains exactly.
@@ -225,46 +246,63 @@ fn frequency_from_steering_lag(steering_lag: f32) -> f32 {
     }
 }
 
-/// Ceiling on a stack's acceleration authority, as a multiple of its
-/// strongest controller. Deliberately small: a hull with ten computers may
-/// turn twice as hard as one with one computer and never more.
-///
-/// Both limits are constants rather than authored fields on purpose. A curve
-/// a mod could raise is a curve a mod could flatten back into the linear
-/// stacking the ceiling exists to prevent, and per-hull handling is already
-/// authorable through the knob that should carry it - a controller's own
-/// `max_angular_acceleration`. (There is a mechanical reason too: the section layer sits
-/// under the flight layer and must not read `FlightSettings`, where the rest
-/// of the flight-feel tunables live.)
-const STACK_AUTHORITY_LIMIT: f32 = 2.0;
-
 /// Ceiling on a stack's precision gain - how much earlier than a single
 /// computer the stack starts arresting the turn. Costs command-tracking lag
 /// one for one (the hull trails a moving command by `rate / slope`), so it
-/// stays well under the authority limit: a stacked hull should read as
-/// deliberate, not as detached from the helm.
+/// stays small: a stacked hull should read as deliberate, not as detached from
+/// the helm.
+///
+/// A constant rather than an authored field on purpose: a curve a mod could
+/// raise is a curve a mod could flatten. (There is a mechanical reason too: the
+/// section layer sits under the flight layer and must not read
+/// `FlightSettings`, where the rest of the flight-feel tunables live.)
 const STACK_PRECISION_LIMIT: f32 = 1.5;
 
-/// The stacking curve: `limit - (limit - 1) / n`, worth 1.0 at `n = 1` and
+/// The precision curve: `limit - (limit - 1) / n`, worth 1.0 at `n = 1` and
 /// approaching `limit` from below.
 ///
-/// Chosen for the ASYMPTOTE rather than the growth rate. The n-th unit is
-/// worth `(limit - 1) / (n * (n - 1))` - half the total gain arrives with the
-/// second controller, three quarters by the fourth, and the tenth is worth
-/// 0.6% of one controller. A sum-like curve (linear, or the harmonic series)
-/// has no ceiling, so a hull could always buy more authority by bolting on
-/// more computers; this one cannot be farmed.
+/// Chosen for the ASYMPTOTE rather than the growth rate, so a hull cannot farm
+/// arbitrarily early braking by bolting on computers. AUTHORITY has no curve of
+/// its own - torque sums and the structure caps it.
 fn stack_curve(n: f32, limit: f32) -> f32 {
     limit - (limit - 1.0) / n.max(1.0)
 }
 
-/// What the `rank`-th strongest controller adds to the acceleration authority,
-/// as a fraction of its authored limit. These are the marginal steps of
-/// [`stack_curve`], so identical controllers follow the curve exactly.
-fn authority_weight(rank: usize) -> f32 {
-    match rank {
-        0 => 1.0,
-        rank => (STACK_AUTHORITY_LIMIT - 1.0) / ((rank + 1) * rank) as f32,
+/// The mass properties and spin the attitude ceiling is derived from. Avian
+/// keeps the centre of mass in the body's local frame, which is the frame a
+/// section's `Transform` is already in.
+type HullBody<'w> = (
+    &'w ComputedCenterOfMass,
+    &'w ComputedAngularInertia,
+    &'w AngularVelocity,
+);
+
+/// Live sections, as the arm needs them: where the section sits on the hull and
+/// how big its authored box is.
+type HullSection<'w> = (&'w Transform, Option<&'w SectionCollider>, &'w ChildOf);
+
+/// The structural arm of every hull with live sections, keyed by root.
+///
+/// ONE pass over every live section rather than one pass per hull: the arm
+/// needs each section's offset from its own root's centre of mass, and
+/// re-filtering the section query per hull is quadratic in a busy scene.
+fn hull_arms(
+    arms: &mut EntityHashMap<f32>,
+    q_root: &Query<HullBody>,
+    q_section: &Query<HullSection, (With<SectionMarker>, Without<SectionInactiveMarker>)>,
+) {
+    arms.clear();
+    for (transform, collider, &ChildOf(root)) in q_section {
+        let Ok((center_of_mass, _, _)) = q_root.get(root) else {
+            continue;
+        };
+        let half_extents = collider.copied().unwrap_or_default().aabb_half_extents();
+        let arm = structural_arm(
+            center_of_mass.0,
+            [(transform.translation, transform.rotation, half_extents)],
+        );
+        let entry = arms.entry(root).or_insert(0.0);
+        *entry = entry.max(arm);
     }
 }
 
@@ -272,19 +310,21 @@ fn authority_weight(rank: usize) -> f32 {
 /// across the sections that provide it.
 ///
 /// Each controller runs its own PD and adds its own torque, so a naive stack
-/// multiplies gains and acceleration authority by the section count. Ten times
-/// the damping gain is also
-/// numerically unstable at the fixed timestep (`kd * dt` passes 2 at two
-/// computers on the shipped tuning, which is the bang-bang limit cycle that
-/// used to corkscrew released hulls). So the pass derives ship-level totals
-/// and hands each controller a SHARE of them; because every controller sees
-/// the same hull state, the shares re-sum to exactly the totals:
+/// multiplies gains AND the applied torque by the section count. Ten times the
+/// damping gain is numerically unstable at the fixed timestep (`kd * dt` passes
+/// 2 at two computers on the shipped tuning, which is the bang-bang limit cycle
+/// that used to corkscrew released hulls). So the pass derives ship-level
+/// totals and hands each controller a SHARE of them; because every controller
+/// sees the same hull state, the shares re-sum to exactly the totals:
 ///
-/// - **Authority** (`max_angular_acceleration`) grows on [`stack_curve`] toward
-///   [`STACK_AUTHORITY_LIMIT`]. It is size-independent because the PD converts
-///   the acceleration limit to the torque each hull requires.
+/// - **Authority** is the [`AttitudeEnvelope`]: the computers' summed
+///   `max_torque` over the hull's largest principal inertia, or the global load
+///   limit over the hull's structural arm, whichever gives up first. Torque
+///   stacks linearly and needs no curve of its own, because the structure
+///   already caps the result - fit enough computers and the hull turns at its
+///   own limit and no harder.
 /// - **Response** starts from the smallest authored `steering_lag`, independent
-///   of which controller supplies the most acceleration authority.
+///   of which controller supplies the most torque.
 /// - **Precision** (the P gain) is DIVIDED by [`stack_curve`] toward
 ///   [`STACK_PRECISION_LIMIT`], which lowers the ratio `kp / kd` the hull
 ///   coasts down to the command on. A shallower ratio means the stack starts
@@ -293,16 +333,16 @@ fn authority_weight(rank: usize) -> f32 {
 /// - **Damping** (the D gain) stays at the fastest computer's single-controller
 ///   value, which keeps the stack numerically stable at any size.
 ///
-/// The split leaves onset untouched: at rest the D term is zero, so the first
-/// tick still spends the full authority. Stacking makes a hull heavier-handed,
-/// never slower to answer.
-///
-/// A single controller is the identity case - `stack_curve(1) = 1` - so
-/// small craft fly exactly as they did before stacking existed.
+/// The ceiling is re-derived every tick on purpose: the arm, the inertia and
+/// the spin all move while the ship is flying and dying, so a hull that lost
+/// its nose turns sharper and a hull already in a hard turn has less left.
 pub(crate) fn update_controller_stack_tuning(
-    // One buffer, reused: this runs on every fixed tick for every hull in the
+    // Two buffers, reused: this runs on every fixed tick for every hull in the
     // scene, so it must not allocate per ship per tick.
     mut stacks: Local<Vec<(Entity, Entity, ControllerSectionTuning)>>,
+    mut arms: Local<EntityHashMap<f32>>,
+    q_root: Query<HullBody>,
+    q_section: Query<HullSection, (With<SectionMarker>, Without<SectionInactiveMarker>)>,
     mut q_controller: Query<
         (
             Entity,
@@ -316,20 +356,15 @@ pub(crate) fn update_controller_stack_tuning(
         ),
     >,
 ) {
+    hull_arms(&mut arms, &q_root, &q_section);
+
     stacks.clear();
     for (entity, tuning, _, &ChildOf(root)) in &q_controller {
         stacks.push((root, entity, *tuning));
     }
-    // Hull, then strongest computer first: the rank weights are a diminishing
-    // series, so the budget must spend the biggest weight on the biggest
-    // computer. Sorting by root also groups each hull into one contiguous run.
-    stacks.sort_unstable_by(|(left_root, _, left), (right_root, _, right)| {
-        left_root.cmp(right_root).then(
-            right
-                .max_angular_acceleration
-                .total_cmp(&left.max_angular_acceleration),
-        )
-    });
+    // Sorted by root so each hull is one contiguous run. Rank inside a run no
+    // longer means anything: torque sums, so the order it sums in does not.
+    stacks.sort_unstable_by_key(|(root, _, _)| *root);
 
     let mut start = 0;
     while start < stacks.len() {
@@ -347,19 +382,33 @@ pub(crate) fn update_controller_stack_tuning(
             .min_by(f32::total_cmp)
             .unwrap_or(0.0);
         let base_frequency = frequency_from_steering_lag(steering_lag);
-        let budget: f32 = stack
+        let total_torque: f32 = stack
             .iter()
-            .enumerate()
-            .map(|(rank, (_, _, tuning))| tuning.max_angular_acceleration * authority_weight(rank))
+            .map(|(_, _, tuning)| tuning.max_torque.max(0.0))
             .sum();
+        // A root avian has not measured yet reads as a point mass: both
+        // ceilings come out infinite, which is the honest answer while the
+        // colliders are still being linked and neither can be asked.
+        let (inertia, arm, spin) = match q_root.get(root) {
+            Ok((_, angular_inertia, angular_velocity)) => (
+                angular_inertia
+                    .principal_angular_inertia_with_local_frame()
+                    .0
+                    .max_element(),
+                arms.get(&root).copied().unwrap_or(0.0),
+                angular_velocity.length(),
+            ),
+            Err(_) => (0.0, 0.0, 0.0),
+        };
+        let budget = AttitudeEnvelope::new(total_torque, inertia, arm).available(spin);
         let precision = stack_curve(stack.len() as f32, STACK_PRECISION_LIMIT);
 
-        for (rank, (_, entity, tuning)) in stack.iter().enumerate() {
+        for (_, entity, tuning) in stack {
             // Share of the ship-level loop this section carries. Weighting it
-            // by the section's own contribution keeps the live value readable
-            // as what this computer is worth to this hull.
-            let share = if budget > 0.0 {
-                tuning.max_angular_acceleration * authority_weight(rank) / budget
+            // by the section's own torque keeps the live value readable as what
+            // this computer is worth to this hull.
+            let share = if total_torque > 0.0 {
+                tuning.max_torque.max(0.0) / total_torque
             } else {
                 1.0 / stack.len() as f32
             };
@@ -707,51 +756,65 @@ fn insert_controller_section_render(
 mod tests {
     use super::*;
 
-    /// The stacking curve's shape is the feature: a real ceiling, most of the
+    /// The precision curve's shape is the feature: a real ceiling, most of the
     /// gain on the second unit, and a tenth unit that is not worth mounting.
     #[test]
-    fn the_stack_curve_starts_at_one_and_converges_on_its_limit() {
-        // Authority: 1.00, 1.50, 1.75, 1.90 -> 2.00.
-        let authority = |n: f32| stack_curve(n, STACK_AUTHORITY_LIMIT);
+    fn the_precision_curve_starts_at_one_and_converges_on_its_limit() {
+        // 1.00, 1.25, 1.375, 1.45 -> 1.50.
+        let precision = |n: f32| stack_curve(n, STACK_PRECISION_LIMIT);
         assert!(
-            (authority(1.0) - 1.0).abs() < 1e-6,
+            (precision(1.0) - 1.0).abs() < 1e-6,
             "one computer is the identity"
         );
-        assert!((authority(2.0) - 1.5).abs() < 1e-6);
-        assert!((authority(4.0) - 1.75).abs() < 1e-6);
-        assert!((authority(10.0) - 1.9).abs() < 1e-6);
+        assert!((precision(2.0) - 1.25).abs() < 1e-6);
+        assert!((precision(4.0) - 1.375).abs() < 1e-6);
+        assert!((precision(10.0) - 1.45).abs() < 1e-6);
         assert!(
-            authority(1000.0) < STACK_AUTHORITY_LIMIT,
+            precision(1000.0) < STACK_PRECISION_LIMIT,
             "the limit is an asymptote, never reached"
         );
-        // The second computer is worth 50 times the tenth.
-        let second = authority(2.0) - authority(1.0);
-        let tenth = authority(10.0) - authority(9.0);
-        assert!(
-            (second / tenth - 45.0).abs() < 1.0,
-            "second {second}, tenth {tenth}"
-        );
-        // Precision: 1.00, 1.25, 1.375, 1.45 -> 1.50.
-        let precision = |n: f32| stack_curve(n, STACK_PRECISION_LIMIT);
-        assert!((precision(1.0) - 1.0).abs() < 1e-6);
-        assert!((precision(2.0) - 1.25).abs() < 1e-6);
-        assert!((precision(10.0) - 1.45).abs() < 1e-6);
         // Degenerate counts stay on the identity rather than exploding.
-        assert!((authority(0.0) - 1.0).abs() < 1e-6);
+        assert!((precision(0.0) - 1.0).abs() < 1e-6);
     }
 
-    /// The per-rank weights ARE the curve, taken one step at a time, so a
-    /// stack of identical computers spends exactly the curve's budget.
+    /// The arm reaches the outer face of the FURTHEST live section, measured
+    /// from the hull's centre of mass - and a section the hull lost stops
+    /// counting, which is what makes a damaged hull turn sharper.
     #[test]
-    fn the_authority_weights_sum_to_the_stack_curve() {
-        for n in 1..=10usize {
-            let summed: f32 = (0..n).map(authority_weight).sum();
-            let curve = stack_curve(n as f32, STACK_AUTHORITY_LIMIT);
-            assert!(
-                (summed - curve).abs() < 1e-5,
-                "n = {n}: weights sum to {summed}, curve says {curve}"
-            );
-        }
+    fn the_hull_arm_reaches_the_furthest_live_section() {
+        let mut app = stack_app();
+        let (root, _) = spawn_hull(&mut app, 5, 1.0);
+        spawn_computers(&mut app, root, 1);
+        // A nose out past the rest of the hull, so exactly one section owns
+        // the arm and losing it has somewhere to fall to.
+        let nose = app
+            .world_mut()
+            .spawn((
+                ChildOf(root),
+                SectionMarker,
+                Transform::from_xyz(0.0, 0.0, 3.0),
+                SectionCollider::Cuboid { size: Vec3::ONE },
+            ))
+            .id();
+        app.world_mut().run_schedule(FixedUpdate);
+        assert!(
+            (hull_arm(&app, root) - 3.5).abs() < 1e-4,
+            "the nose owns the arm at 3.5 u, got {}",
+            hull_arm(&app, root)
+        );
+
+        // Blow the nose off: the arm shrinks even though the section is still
+        // parented, because the pass only counts LIVE structure - and a
+        // shorter arm is a higher ceiling, so the wreck turns sharper.
+        app.world_mut()
+            .entity_mut(nose)
+            .insert(SectionInactiveMarker);
+        app.world_mut().run_schedule(FixedUpdate);
+        assert!(
+            (hull_arm(&app, root) - 2.5).abs() < 1e-4,
+            "a lost nose shortens the arm, got {}",
+            hull_arm(&app, root)
+        );
     }
 
     fn stack_app() -> App {
@@ -763,13 +826,66 @@ mod tests {
     fn tuning() -> ControllerSectionTuning {
         ControllerSectionTuning {
             steering_lag: 0.5,
-            max_angular_acceleration: 0.5,
+            max_torque: DEFAULT_MAX_TORQUE,
         }
     }
 
-    fn spawn_stack(app: &mut App, count: usize) -> (Entity, Vec<Entity>) {
-        let root = app.world_mut().spawn_empty().id();
-        let controllers = (0..count)
+    /// The mass properties avian would compute for a line of `count` unit
+    /// cubes at `density`, written straight onto the root so the stack pass can
+    /// be exercised without a physics step. `density` buys inertia without
+    /// buying arm, which is how a short rig reaches the torque-bound regime.
+    fn spawn_hull(app: &mut App, count: usize, density: f32) -> (Entity, Vec<Entity>) {
+        let first = -((count as f32) - 1.0) * 0.5;
+        let transverse = ((0..count)
+            .map(|index| (first + index as f32).powi(2))
+            .sum::<f32>()
+            + count as f32 / 6.0)
+            * density;
+        let root = app
+            .world_mut()
+            .spawn((
+                ComputedCenterOfMass(Vec3::ZERO),
+                ComputedAngularInertia::new(Vec3::new(
+                    transverse,
+                    transverse,
+                    count as f32 * density / 6.0,
+                )),
+                AngularVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let sections = (0..count)
+            .map(|index| {
+                app.world_mut()
+                    .spawn((
+                        ChildOf(root),
+                        SectionMarker,
+                        Transform::from_xyz(0.0, 0.0, first + index as f32),
+                        SectionCollider::Cuboid { size: Vec3::ONE },
+                    ))
+                    .id()
+            })
+            .collect();
+        (root, sections)
+    }
+
+    /// The arm the pass derived, read back out of the ceiling it wrote: the
+    /// shipped hulls are all structure-bound, so `LOAD_LIMIT / ceiling` in
+    /// metres is exactly the arm that produced it.
+    fn hull_arm(app: &App, root: Entity) -> f32 {
+        let budget: f32 = app
+            .world()
+            .iter_entities()
+            .filter(|entity| entity.get::<ChildOf>().map(|c| c.0) == Some(root))
+            .filter_map(|entity| entity.get::<PDController>())
+            .map(|pd| pd.max_angular_acceleration)
+            .sum();
+        nova_events::prelude::LOAD_LIMIT / budget / nova_events::prelude::METERS_PER_UNIT
+    }
+
+    /// `count` shipped computers on `root`, massless so the rig isolates the
+    /// stack from what mounting one would cost in inertia.
+    fn spawn_computers(app: &mut App, root: Entity, count: usize) -> Vec<Entity> {
+        (0..count)
             .map(|_| {
                 app.world_mut()
                     .spawn((
@@ -779,12 +895,17 @@ mod tests {
                         PDController {
                             frequency: 4.0,
                             damping_ratio: 4.0,
-                            max_angular_acceleration: 0.5,
+                            max_angular_acceleration: 0.0,
                         },
                     ))
                     .id()
             })
-            .collect();
+            .collect()
+    }
+
+    fn spawn_stack(app: &mut App, count: usize) -> (Entity, Vec<Entity>) {
+        let (root, _) = spawn_hull(app, 3, 1.0);
+        let controllers = spawn_computers(app, root, count);
         (root, controllers)
     }
 
@@ -805,10 +926,11 @@ mod tests {
             })
     }
 
+    /// The reference hull, end to end: one computer on three unit cubes lands
+    /// on the structural ceiling the whole model was calibrated against, and
+    /// nothing about it is authored.
     #[test]
-    fn a_lone_controller_keeps_its_authored_tuning() {
-        // Every shipped hull carries exactly one computer, so the identity
-        // case is the whole fleet's handling: it must not move at all.
+    fn a_lone_controller_gets_the_hull_structural_ceiling() {
         let mut app = stack_app();
         let (_, controllers) = spawn_stack(&mut app, 1);
         app.world_mut().run_schedule(FixedUpdate);
@@ -816,12 +938,17 @@ mod tests {
         let live = *app.world().get::<PDController>(controllers[0]).unwrap();
         assert_eq!(live.frequency, 4.0);
         assert_eq!(live.damping_ratio, 4.0);
-        assert_eq!(live.max_angular_acceleration, 0.5);
+        assert!(
+            (live.max_angular_acceleration - 5.232).abs() < 1e-2,
+            "8 G over a 15 m arm is 5.23 rad/s2, got {}",
+            live.max_angular_acceleration
+        );
     }
 
-    /// Stacking splits ONE loop rather than running several: acceleration
-    /// authority grows on the curve, the P gain drops by the precision curve,
-    /// and the D gain - the numerically dangerous one - does not move.
+    /// Stacking splits ONE loop rather than running several. On a
+    /// structure-bound hull the extra torque buys no authority at all - the
+    /// hull would tear first - while the P gain still drops by the precision
+    /// curve and the D gain, the numerically dangerous one, does not move.
     #[test]
     fn a_stack_shares_one_attitude_loop() {
         let mut app = stack_app();
@@ -833,8 +960,8 @@ mod tests {
         let (kp_four, kd_four, authority_four) = stack_loop(&app, &four);
 
         assert!(
-            (authority_four / authority_one - 1.75).abs() < 1e-3,
-            "four computers must carry the curve's authority, got {}",
+            (authority_four / authority_one - 1.0).abs() < 1e-3,
+            "a structure-bound hull gains nothing from computers, got {}",
             authority_four / authority_one
         );
         assert!(
@@ -850,51 +977,91 @@ mod tests {
         );
     }
 
+    /// Torque stacks LINEARLY where it is the limit that binds, with no curve
+    /// and no cap of its own - and stops the moment the structure catches it.
+    #[test]
+    fn a_torque_bound_hull_buys_its_physics_back_and_stops_there() {
+        let mut app = stack_app();
+        // Fifteen sections at twenty times the density: four times the inertia
+        // the same arm can carry, so this hull is torque-bound where the
+        // reference 1-1-1 is structure-bound.
+        let (root, _) = spawn_hull(&mut app, 15, 20.0);
+        let controllers = spawn_computers(&mut app, root, 8);
+
+        let budget = |app: &mut App, live: usize| {
+            for (index, controller) in controllers.iter().enumerate() {
+                let mut entity = app.world_mut().entity_mut(*controller);
+                if index < live {
+                    entity.remove::<SectionInactiveMarker>();
+                } else {
+                    entity.insert(SectionInactiveMarker);
+                }
+            }
+            app.world_mut().run_schedule(FixedUpdate);
+            stack_loop(app, &controllers[..live]).2
+        };
+
+        let one = budget(&mut app, 1);
+        let two = budget(&mut app, 2);
+        assert!(
+            (two / one - 2.0).abs() < 1e-2,
+            "torque stacks linearly on a torque-bound hull, got {}",
+            two / one
+        );
+        // Eight computers overshoot the structural ceiling, and it catches them.
+        let eight = budget(&mut app, 8);
+        assert!(
+            eight < one * 8.0 * 0.9,
+            "the structure must catch the stack, got {eight} from {one}"
+        );
+        assert!(
+            (eight - 1.0464).abs() < 1e-2,
+            "8 G over a 75 m arm is 1.046 rad/s2, got {eight}"
+        );
+    }
+
     /// Redundancy: a stack that loses a computer re-derives itself into a
-    /// smaller stack - handling degrades, the hull keeps flying.
+    /// smaller stack - the loop degrades, the hull keeps flying.
     #[test]
     fn losing_one_controller_degrades_the_stack_instead_of_killing_it() {
         let mut app = stack_app();
         let (_, controllers) = spawn_stack(&mut app, 3);
         app.world_mut().run_schedule(FixedUpdate);
-        let (_, _, three) = stack_loop(&app, &controllers);
+        let (kp_three, _, three) = stack_loop(&app, &controllers);
 
         app.world_mut()
             .entity_mut(controllers[1])
             .insert(SectionInactiveMarker);
         app.world_mut().run_schedule(FixedUpdate);
         let survivors = [controllers[0], controllers[2]];
-        let (_, _, two) = stack_loop(&app, &survivors);
+        let (kp_two, _, two) = stack_loop(&app, &survivors);
 
         assert!(
-            (three / 0.5 - 5.0 / 3.0).abs() < 1e-3,
-            "three computers carry 1.667 shares, got {}",
-            three / 0.5
+            (three - two).abs() < 1e-3,
+            "a structure-bound hull keeps its ceiling, {three} -> {two}"
         );
         assert!(
-            (two / 0.5 - 1.5).abs() < 1e-3,
-            "the survivors must re-derive two-computer authority, got {}",
-            two / 0.5
+            kp_two > kp_three,
+            "the survivors must re-derive two-computer precision, {kp_three} -> {kp_two}"
         );
-        assert!(two > 0.5, "two survivors still out-steer one computer");
     }
 
     #[test]
     fn a_mixed_stack_uses_the_smallest_steering_lag() {
         let mut app = stack_app();
-        let root = app.world_mut().spawn_empty().id();
-        for (steering_lag, max_angular_acceleration) in [(0.8, 0.5), (0.25, 0.125)] {
+        let (root, _) = spawn_hull(&mut app, 3, 1.0);
+        for (steering_lag, max_torque) in [(0.8, 1501.0), (0.25, 375.0)] {
             app.world_mut().spawn((
                 ChildOf(root),
                 ControllerSectionMarker,
                 ControllerSectionTuning {
                     steering_lag,
-                    max_angular_acceleration,
+                    max_torque,
                 },
                 PDController {
                     frequency: 1.0,
                     damping_ratio: 1.0,
-                    max_angular_acceleration,
+                    max_angular_acceleration: 0.0,
                 },
             ));
         }
@@ -914,50 +1081,48 @@ mod tests {
         );
     }
 
-    /// A weaker computer bolted onto a strong one is worth its own weight at
-    /// the second rank, not the strong one's. Rank uses authored acceleration.
+    /// A bigger computer carries a bigger share of the one loop, because the
+    /// share is its fraction of the hull's torque.
     #[test]
-    fn a_mixed_stack_ranks_by_authored_acceleration() {
+    fn a_mixed_stack_shares_the_loop_by_torque() {
         let mut app = stack_app();
-        let root = app.world_mut().spawn_empty().id();
-        let spawn = |app: &mut App, max_angular_acceleration: f32| {
+        let (root, _) = spawn_hull(&mut app, 3, 1.0);
+        let spawn = |app: &mut App, max_torque: f32| {
             app.world_mut()
                 .spawn((
                     ChildOf(root),
                     ControllerSectionMarker,
                     ControllerSectionTuning {
-                        max_angular_acceleration,
+                        max_torque,
                         ..tuning()
                     },
                     PDController {
                         frequency: 4.0,
                         damping_ratio: 4.0,
-                        max_angular_acceleration,
+                        max_angular_acceleration: 0.0,
                     },
                 ))
                 .id()
         };
-        // Weak one first, so a pass that trusted spawn order would rank wrong.
-        let weak = spawn(&mut app, 0.125);
-        let strong = spawn(&mut app, 0.5);
+        // Weak one first, so a pass that trusted spawn order would share wrong.
+        let weak = spawn(&mut app, 500.0);
+        let strong = spawn(&mut app, 1500.0);
         app.world_mut().run_schedule(FixedUpdate);
 
-        let (_, _, budget) = stack_loop(&app, &[weak, strong]);
+        let strong_share = app
+            .world()
+            .get::<PDController>(strong)
+            .unwrap()
+            .max_angular_acceleration;
+        let weak_share = app
+            .world()
+            .get::<PDController>(weak)
+            .unwrap()
+            .max_angular_acceleration;
         assert!(
-            (budget - 0.5625).abs() < 1e-3,
-            "0.5 at full weight plus 0.125 at half, got {budget}"
-        );
-        assert!(
-            app.world()
-                .get::<PDController>(strong)
-                .unwrap()
-                .max_angular_acceleration
-                > app
-                    .world()
-                    .get::<PDController>(weak)
-                    .unwrap()
-                    .max_angular_acceleration,
-            "the strong computer must carry the larger share"
+            (strong_share / weak_share - 3.0).abs() < 1e-3,
+            "three times the torque carries three times the share, got {}",
+            strong_share / weak_share
         );
     }
 
@@ -1136,7 +1301,6 @@ mod tests {
                 Transform::default(),
                 controller_section(ControllerSectionConfig {
                     steering_lag: 0.5,
-                    max_angular_acceleration: 0.5,
                     ..Default::default()
                 }),
             ))

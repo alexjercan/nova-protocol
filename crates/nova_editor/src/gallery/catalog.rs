@@ -142,9 +142,13 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
             vec![("thrust".to_string(), format!("{:.2}", thruster.magnitude))]
         }
         SectionKind::Controller(controller) => vec![
+            // Torque, not turn rate: what this computer twists with is the
+            // section's own number, and what a HULL does with it depends on
+            // the hull. The rail's attitude readout answers that one, for the
+            // ship actually being built.
             (
-                "turn accel".to_string(),
-                format!("{:.2} rad/s2", controller.max_angular_acceleration),
+                "torque".to_string(),
+                format!("{:.0}", controller.max_torque),
             ),
             (
                 "steering lag".to_string(),

@@ -2,6 +2,7 @@
 //! hand it off to a scenario simulation.
 //!
 //! Structure:
+//! - `attitude`  - what the hull under construction would turn like
 //! - `config`    - the build-state resources + preview markers
 //! - `preview`   - the one place a section config becomes preview entities
 //! - `placement` - creating a ship + the pointer place/preview/delete observers
@@ -22,6 +23,7 @@ use nova_assets::prelude::{GameAssets, GameAssetsStates};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
+mod attitude;
 mod config;
 mod gallery;
 mod keybind;
@@ -32,6 +34,7 @@ mod skin;
 mod snap;
 mod ui;
 
+use attitude::sync_attitude_readout;
 use config::{PlacementPose, PlacementPreview, PlayerSpaceshipConfig, SectionChoice};
 use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
@@ -211,6 +214,7 @@ fn editor_plugin(app: &mut App) {
         (
             sync_tool_selection,
             sync_key_legend,
+            sync_attitude_readout,
             sync_skin_toggle,
             sync_style_list,
             pick_section_under_pointer,

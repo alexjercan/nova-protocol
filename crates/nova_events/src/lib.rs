@@ -7,6 +7,11 @@
 //! engine-light glue: `nova_gameplay` emits these events and `nova_scenario`
 //! filters and dispatches on them. It also owns the [`engine`] that queues and
 //! dispatches those events.
+//!
+//! It also owns [`scale`], the world's physical constants. Those are not
+//! events; they live here because this is the deepest crate BOTH the physics
+//! side (`nova_ship`) and the display side (`nova_ui`) can reach, and the scale
+//! has to have exactly one definition in the workspace.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
@@ -15,10 +20,12 @@ use nova_events_macros::EventKind;
 use crate::engine::*;
 
 pub mod engine;
+pub mod scale;
 
 /// Glob-import surface: `use nova_events::prelude::*` brings the entity-identity
 /// components, every `On*Event`/`On*EventInfo` pair, the reflect-field name and
-/// well-known type-name constants, and the event engine into scope.
+/// well-known type-name constants, the world-scale constants, and the event
+/// engine into scope.
 pub mod prelude {
     // NOTE: the derive expands to `impl EventKind for #name`, so the TRAIT must
     // be in scope wherever the derive is used. Keep the two exported together.
@@ -29,6 +36,7 @@ pub mod prelude {
             CommandsGameEventExt, EventAction, EventFilter, EventHandler, EventHandlerIndex,
             EventKind, EventWorld, GameEvent, GameEventInfo, GameEventsPlugin,
         },
+        scale::{LOAD_LIMIT, METERS_PER_UNIT},
         EntityId, EntityTypeName, LockEventInfo, OnCombatLockEndEvent, OnCombatLockStartEvent,
         OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
         OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,

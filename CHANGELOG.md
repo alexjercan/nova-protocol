@@ -119,14 +119,19 @@ does NOT get an entry - and it is the only place they are written down.
   instead of the whole body turning red.
 - Wreck debris leaves with the wreck: a body's pieces inherit its drift and spin
   instead of hanging where it died.
-- **(breaking)** A hull may carry several flight computers and steers better
-  for it, on a curve capped at twice its strongest computer. Authority does
-  not stack linearly.
-- **(breaking)** Controller `max_torque` becomes `max_angular_acceleration` in
-  rad/s2; equal controllers now turn hulls consistently at every size.
+- **(breaking)** How hard a ship turns is physics now: the lower of its
+  computers' torque over its inertia and an 8 G hull limit over its length.
+  Small craft turn 2-3x sharper; capitals are barges.
+- **(breaking)** Controller `max_torque` is rescaled to 1501. Computers stack
+  LINEARLY up to the hull's structural limit, so a small ship is already at
+  that limit and gains nothing from more.
+- A damaged hull turns sharper: losing sections shortens the arm the structural
+  limit is measured over.
 - Losing one computer on a stacked hull degrades handling to the smaller stack
   instead of casting the ship adrift; autopilot and neutralization key on "no
   computer LEFT".
+- The build screen shows the hull's turn ceiling and which limit sets it while
+  sections are being placed.
 - Wreck fragments despawn after 30 seconds instead of persisting until scenario
   teardown.
 - AI patrol legs steer around sized bodies: a leg blocked by an asteroid's

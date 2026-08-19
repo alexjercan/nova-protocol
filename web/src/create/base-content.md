@@ -35,7 +35,7 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 |---|---|---|---|---|
 | `reinforced_hull_section` | Hull | Reinforced Hull Section | 200 | the armor workhorse |
 | `basic_thruster_section` | Thruster | Basic Thruster Section | 70 | magnitude 1.0; one socket, on the `-Z` face it bolts by - the rest of the part is barrel, nozzle and plume |
-| `basic_controller_section` | Controller | Basic Controller Section | 100 | steering lag 0.5 s, turn acceleration 0.5 rad/s2 |
+| `basic_controller_section` | Controller | Basic Controller Section | 100 | steering lag 0.5 s, max torque 1501.0; the hull derives its own turn ceiling from that torque, its inertia and its length |
 | `light_hull_section` | Hull | Light Hull Section | 60 | scavenger-grade hull |
 | `pdc_kinetic_turret_section` | Turret | PDC Turret (Kinetic) | 130 | the one turret every craft mounts, on a 0.5 mount box; fits any hull face. Kinetic 4.0/hit at 100 rps, ammo 500, +200 after 3 s idle |
 | `pdc_pierce_turret_section` | Turret | PDC Turret (Pierce) | 130 | the same 500-round, +200 after 3 s idle gun loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through |
