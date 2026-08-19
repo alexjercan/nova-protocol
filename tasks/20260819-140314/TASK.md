@@ -1,6 +1,6 @@
 # Attitude control by physics: a structural ceiling and a torque budget
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 76
 - TAGS: v0.11.0,spike,physics,ship,flight
 
