@@ -440,6 +440,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Every `systems/` range is named for the KIND of check it is: `system_`
   functionality, `bug_` a regression range, `stress_` load.
   `examples/systems/README.md` is the rule. **(breaking)**
+- No `systems/` range asserts a millisecond. `bug_sandbox_soak` holds the
+  unshot rock field to colliding as HULLS and records its physics cost instead
+  of gating on it.
 - Four single-file stress ranges replace the `many_*` sweeps: a thousand rounds,
   a thousand torpedoes, a thousand sections on one hull, a hundred hulls - each
   with exact counts and a drain to zero.

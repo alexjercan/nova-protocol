@@ -104,6 +104,13 @@ fn catalog_matches_disk() {
 /// comes up on death`): the hook is unreachable unless the predicate held, so
 /// the marker still cannot be emitted by a run that failed the claim.
 ///
+/// Two slugs are RECORDED OBSERVATIONS rather than claims - `the idle contact
+/// cost is recorded` and `the settled step cost is recorded` (bug_sandbox_soak)
+/// carry milliseconds, which are a fact about the host that ran them and can
+/// never be asserted on a shared runner. They are on the roster so the evidence
+/// cannot be deleted quietly; the range's asserted claim beside them is
+/// structural.
+///
 /// What this test bounds is that every invariant is NAMED. That the invariants
 /// HOLD is what the runs themselves prove, by panicking.
 const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
@@ -268,8 +275,9 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     (
         "bug_sandbox_soak",
         &[
-            "an untouched field costs the narrow phase nothing",
-            "the physics step fits its own timestep",
+            "every unshot rock collides as a hull",
+            "the idle contact cost is recorded",
+            "the settled step cost is recorded",
         ],
     ),
     (
@@ -353,7 +361,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 131;
+const SYSTEMS_INVARIANTS: usize = 132;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

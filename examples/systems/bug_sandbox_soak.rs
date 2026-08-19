@@ -7,33 +7,41 @@
 //! after Play and then fell to 2 FPS on its own, with no input, no spawning,
 //! and a flat entity count.
 //!
-//! What it claims, and why neither claim is a frame rate: an FPS number is a
-//! statement about the box that ran it, but the two facts underneath the
-//! collapse are not.
+//! It ASSERTS one thing and RECORDS the rest. The one thing is structural:
+//! every rock in the settled field collides as a HULL. avian sleeps only
+//! TOUCHING contact pairs, so a belt whose neighbours overlap at the AABB and
+//! never meet keeps every one of those pairs in the ACTIVE set and re-manifolds
+//! them every step forever - and trimesh against trimesh is the most expensive
+//! manifold parry can be asked for. That is the defect, and a rock's collider
+//! shape is the same fact on any box.
 //!
-//! 1. ONE physics step has to fit inside the fixed timestep it is scheduled
-//!    at. When it does not, bevy's fixed loop tries to catch up, and
-//!    `Time<Virtual>`'s `max_delta` lets one rendered frame pay for sixteen
-//!    steps at the shipped 64 Hz. A step 1.4x over budget therefore does not
-//!    cost 1.4x - it saturates the accumulator and pins the frame at sixteen
-//!    steps, which is the 2 FPS floor and the reason F1 back to the editor
-//!    "fixes" it instantly.
-//! 2. Contact work over an untouched rock field has to be near zero. avian
-//!    sleeps only TOUCHING contact pairs, so a belt whose neighbours overlap
-//!    at the AABB and never meet keeps every one of those pairs in the ACTIVE
-//!    set and re-manifolds them every step, forever.
+//! It does NOT assert TIME. Milliseconds are a statement about the host, not
+//! about the code: load on this box moved these numbers 4x, and a timing gate
+//! on a shared runner generates false alarms instead of catching regressions.
+//! The step cost, the narrow-phase cost, the contact pairs and the constraints
+//! they hold are recorded as probe evidence and flagged past
+//! [`FIXED_TIMESTEP_MS`] / [`IDLE_CONTACT_NOTICE_MS`] with a WARN for a
+//! reviewer to judge. They are how the collapse was diagnosed and they stay;
+//! they are not a verdict. Same reading as the probe's own
+//! `fps_within_baseline`. Do not turn them back into asserts.
 //!
-//! Both are read from avian's own diagnostics, so a slow GPU makes the run
-//! longer without making it lie.
+//! The frame numbers underneath, for reading a flagged run: bevy's fixed loop
+//! catches up on an overrun, and `Time<Virtual>`'s `max_delta` lets one
+//! rendered frame pay for sixteen steps at the shipped 64 Hz. A step 1.4x over
+//! the timestep therefore does not cost 1.4x - it saturates the accumulator and
+//! pins the frame at sixteen steps, which is the 2 FPS floor and the reason F1
+//! back to the editor "fixes" it instantly.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=400 \
 //!   cargo run --example bug_sandbox_soak --features debug
-//! # look for: `sandbox_soak: the step fits its timestep ...`,
+//! # look for: `sandbox_soak: N unshot rocks, none colliding as a trimesh`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+#[cfg(feature = "debug")]
+use avian3d::prelude::Collider;
 #[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
@@ -147,8 +155,8 @@ fn sandbox_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .until(elapsed(soak_secs()))
         .deadline(soak_secs() + 120.0)
         .add()
-        .step("soak: the range is still affordable")
-        .on_enter(the_range_is_still_affordable)
+        .step("soak: read the settled scene")
+        .on_enter(read_the_settled_scene)
         .until(frames(1))
         .add()
 }
@@ -166,8 +174,8 @@ fn scenario_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .until(elapsed(soak_secs()))
         .deadline(soak_secs() + 120.0)
         .add()
-        .step("soak: the range is still affordable")
-        .on_enter(the_range_is_still_affordable)
+        .step("soak: read the settled scene")
+        .on_enter(read_the_settled_scene)
         .until(frames(1))
         .add()
 }
@@ -220,55 +228,102 @@ const STEP_TIME: &str = "avian/total_step_time";
 #[cfg(feature = "debug")]
 const UPDATE_CONTACTS: &str = "avian/collision/update_contacts";
 
-/// The shipped fixed timestep, in milliseconds. A step that costs more than
-/// this cannot be paid for at rate, and bevy's catch-up turns the overrun into
-/// a saturated accumulator rather than a proportional slowdown.
+/// The shipped fixed timestep, in milliseconds. What a recorded step cost is
+/// READ against: a step over it cannot be paid for at rate, and bevy's catch-up
+/// turns the overrun into a saturated accumulator rather than a proportional
+/// slowdown. A reference for a reviewer, never a gate - see the module doc.
 #[cfg(feature = "debug")]
 const FIXED_TIMESTEP_MS: f64 = 1000.0 / 64.0;
 
-/// What the narrow phase may cost over a field nothing is touching. Three
-/// orders below the timestep and two above what the fix measures, so the claim
-/// is about the SHAPE of the work rather than the speed of the box.
+/// Where a recorded narrow-phase cost over an untouched field is worth a WARN.
+/// Three orders below the timestep and two above what the fix measures, so a
+/// flag means the SHAPE of the work changed rather than that the host was busy.
+/// Same nature as `FPS_WARN_THRESHOLD_PCT`: one tunable, and never a failure.
 #[cfg(feature = "debug")]
-const IDLE_CONTACT_BUDGET_MS: f64 = 5.0;
+const IDLE_CONTACT_NOTICE_MS: f64 = 5.0;
 
-/// Read the settled scene's physics cost and hold it to the two facts that
-/// decide whether the frame loop can keep up at all.
+/// Every rock in the settled field, and how many collide as a TRIMESH.
+///
+/// `None` when the world carries no asteroid at all, which is a run that
+/// measured an empty scene. The collider hangs on the rock's collider node,
+/// a child of the marked root.
 #[cfg(feature = "debug")]
-fn the_range_is_still_affordable(world: &mut World) {
+fn rock_collider_shapes(world: &World) -> Option<(usize, usize)> {
+    let mut roots = world.try_query_filtered::<&Children, With<AsteroidMarker>>()?;
+    let (mut rocks, mut trimeshes) = (0, 0);
+    for children in roots.iter(world) {
+        for child in children.iter() {
+            let Some(collider) = world.get::<Collider>(child) else {
+                continue;
+            };
+            rocks += 1;
+            if collider.shape().as_trimesh().is_some() {
+                trimeshes += 1;
+            }
+        }
+    }
+    Some((rocks, trimeshes))
+}
+
+/// Assert the collider shape the fix installed, and RECORD what the settled
+/// scene costs. The split is the point: one is a fact about the code, the rest
+/// are facts about the box that ran it.
+#[cfg(feature = "debug")]
+fn read_the_settled_scene(world: &mut World) {
     let step_ms = avian_ms(world, STEP_TIME);
     let contacts_ms = avian_ms(world, UPDATE_CONTACTS);
     let pairs = avian_ms(world, "avian/collision/contact_count");
     let constraints = avian_ms(world, "avian/solver/contact_constraint_count");
 
+    let (rocks, trimeshes) =
+        rock_collider_shapes(world).expect("the settled sandbox carries an asteroid field");
     assert!(
-        contacts_ms < IDLE_CONTACT_BUDGET_MS,
-        "sitting still over an untouched field, the narrow phase costs \
-         {contacts_ms:.2} ms a step across {pairs:.0} contact pairs holding \
-         {constraints:.0} constraints - work on pairs that never touch"
+        rocks > 0,
+        "the soak found no rock collider at all - the field never spawned, and \
+         a run that read an empty scene proves nothing"
+    );
+    assert_eq!(
+        trimeshes, 0,
+        "{trimeshes} of {rocks} unshot rocks collide as their drawn surface; \
+         avian holds every never-touching pair in the active set and \
+         re-manifolds it each step, and trimesh against trimesh is the most \
+         expensive manifold there is"
     );
     nova_probe::probe_marker(
         world,
-        "outcome: an untouched field costs the narrow phase nothing",
-        serde_json::json!({ "update_contacts_ms": contacts_ms, "contact_pairs": pairs }),
+        "outcome: every unshot rock collides as a hull",
+        serde_json::json!({ "rocks": rocks, "trimesh_rocks": trimeshes }),
     );
 
-    assert!(
-        step_ms < FIXED_TIMESTEP_MS,
-        "one physics step costs {step_ms:.2} ms against a \
-         {FIXED_TIMESTEP_MS:.2} ms timestep; the fixed loop cannot run it at \
-         rate, and the catch-up pins the frame at the accumulator ceiling"
+    nova_probe::probe_marker(
+        world,
+        "outcome: the idle contact cost is recorded",
+        serde_json::json!({
+            "update_contacts_ms": contacts_ms,
+            "contact_pairs": pairs,
+            "contact_constraints": constraints,
+            "notice_ms": IDLE_CONTACT_NOTICE_MS,
+        }),
     );
     nova_probe::probe_marker(
         world,
-        "outcome: the physics step fits its own timestep",
+        "outcome: the settled step cost is recorded",
         serde_json::json!({ "step_ms": step_ms, "timestep_ms": FIXED_TIMESTEP_MS }),
     );
 
+    info!("sandbox_soak: {rocks} unshot rocks, none colliding as a trimesh");
     info!(
-        "sandbox_soak: the step fits its timestep at {step_ms:.2} ms, narrow phase \
-         {contacts_ms:.2} ms over {pairs:.0} pairs"
+        "sandbox_soak: step {step_ms:.2} ms against a {FIXED_TIMESTEP_MS:.2} ms \
+         timestep, narrow phase {contacts_ms:.2} ms over {pairs:.0} pairs \
+         holding {constraints:.0} constraints"
     );
+    if contacts_ms >= IDLE_CONTACT_NOTICE_MS || step_ms >= FIXED_TIMESTEP_MS {
+        warn!(
+            "sandbox_soak: the settled scene reads expensive ({contacts_ms:.2} ms \
+             narrow phase, {step_ms:.2} ms step). Host-noisy by nature - judge it \
+             against a quiet run before believing it"
+        );
+    }
 }
 
 /// One line per [`SAMPLE_SECS`]: the frame, the live entity count, how many
