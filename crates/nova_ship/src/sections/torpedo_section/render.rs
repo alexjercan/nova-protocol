@@ -99,8 +99,8 @@ pub(super) fn insert_torpedo_render(
 /// The mesh is built nose down -Y: the body rides the torpedo's CONTROLLER
 /// section, whose authored `Transform` turns the section a quarter turn about X
 /// (`shoot_spawn_projectile`), which lands -Y on the torpedo's own -Z, the way
-/// it flies. Only the mesh is shared - `SectionCracks` clones the material
-/// per section anyway, so a hit torpedo still grades on its own.
+/// it flies. Only the mesh is shared: the material carries the launched type's
+/// tint, so it is built per launch.
 #[derive(Resource, Debug)]
 pub(crate) struct DefaultTorpedoRender {
     mesh: Handle<Mesh>,
@@ -154,11 +154,10 @@ pub(super) fn insert_torpedo_controller_render(
     }
 
     // The type's tint, so two ordnance types read apart in the frame BEFORE
-    // their flight paths have had time to diverge. The warhead's material is
-    // already built per projectile (`SectionCracks` clones it per section
-    // anyway), so a per-type colour costs nothing the shared MESH handle above
-    // was protecting. A torpedo spawned with no type - a bare test fixture -
-    // keeps the old neutral grey.
+    // their flight paths have had time to diverge. It costs a material per
+    // LAUNCH, which the shared MESH handle above is what protects against
+    // mattering. A torpedo spawned with no type - a bare test fixture - keeps
+    // the old neutral grey.
     let tint = torpedo_type
         .map(|torpedo_type| torpedo_type.tint)
         .unwrap_or(Color::srgb(0.8, 0.8, 0.8));

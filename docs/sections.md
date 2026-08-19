@@ -600,13 +600,36 @@ that wants a look nobody authored inserts its own component and touches neither.
 
 | variant | component | what it does |
 |---|---|---|
-| `Cracks` | `DamageCracks` | Fractures the section's own material clone, glows through when critical, burns out cold when dead. Replaced SCORCH, a whole-body red tint that fought every authored paint scheme and said nothing about WHERE a section was failing. |
+| `Cracks` | `DamageCracks` | Fractures the section's surface, glows through when critical, burns out cold when dead. Replaced SCORCH, a whole-body red tint that fought every authored paint scheme and said nothing about WHERE a section was failing. |
 | `Sparks` | `DamageSparks` | Throws sparks, faster the worse it is, past level 0.35. Removes nothing. |
 | `Plume` | `DamagePlume` | Guts and flickers a thruster's exhaust past level 0.35, floored at 25 percent so it never reads as SHUT DOWN. Touches no thrust. |
 
 `Default` is `[Cracks]` and not the empty list, so unchanged content and
 third-party mods keep behaving; `DamageEffects::none()` is the explicit "wears
 nothing", because "I want none" and "I did not say" are different statements.
+
+### Why cracks are QUANTISED
+
+A section does not carry its own cracked material. Its damage level snaps to one
+of `SECTION_CRACK_BUCKETS` steps (`damage_cracks.rs`), and the mesh swaps to the
+material shared by every section drawn from the same source material at the same
+step. Nothing is ever written into a built material, so no section can crack a
+neighbour that shares its gltf art.
+
+The reason is BINNING. A draw call bins on the material, so a value per section
+is a bin per section mesh: an eleven-ship `wfc_ships` gallery held 2,652 section
+meshes in 2,652 bins of one instance each, the worst case there is for
+`write_binned_instance_buffers`, and it cost roughly half the frame rate. It is
+also why cladding was always free - `owning_section` stops at a `SectionFixture`,
+so 10,936 plates kept the 32 shared materials they were painted with and batched
+normally. Buckets put sections on the same footing: source materials times
+buckets, whatever the fleet size, with bucket 0 the pristine step so an
+undamaged fleet batches as if the effect were not there.
+
+The registry (`SectionCracksMaterials`) builds a bucket the first time something
+reaches it and forgets a source material the moment nothing draws from it. Both
+matter: a torpedo warhead is tinted per LAUNCH, so eager buckets would cost eight
+materials a shot and a registry that never forgot would keep them.
 
 The rule the vocabulary is kept honest by: **NO SHIP SECTION LOSES GEOMETRY.**
 Every effect here is a material or a particle, and the only thing that changes a
@@ -759,11 +782,12 @@ per contact. A symmetric rule - ram damage - wants both.
   per muzzle: it must never allocate per shot, and
   `default_projectile_render_allocates_no_assets_per_shot` pins that. Its meshes
   come from `sections::nose_cone_mesh` (a cylinder and a cone, merged), which
-  the torpedo warhead's `DefaultTorpedoRender` shares. The warhead colours ITS copy of that
-  mesh from the launched `TorpedoType`'s tint - the material was already per
-  projectile (`SectionCracksMaterial` clones a section's material per section,
-  for the same reason), so per-type colour costs nothing the shared mesh handle
-  protects. Note the cracks clone is an `ExtendedMaterial` rather than a
+  the torpedo warhead's `DefaultTorpedoRender` shares. The warhead colours ITS
+  copy of that mesh with a `StandardMaterial` built per LAUNCH from the
+  `TorpedoType`'s tint, which is what makes it the awkward case for the cracks
+  registry: a per-instance source material is a registry key nothing else will
+  ever reuse, which is why buckets are built lazily and dropped when the source
+  goes. Note a cracked material is an `ExtendedMaterial` rather than a
   `StandardMaterial`, which is why a section also keeps a `FragmentMaterial`
   pointing at its pristine standard material.
 

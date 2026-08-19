@@ -19,29 +19,39 @@
 //! rather than a hue they read against any paint. The burnt endpoint the tint
 //! ended on is kept - it is what makes a dead section read as wreckage.
 //!
-//! # Per-section material clones
+//! # Shared bucket materials
 //!
 //! Sections render via gltf `WorldAssetRoot` scenes, and a gltf scene's
 //! materials are shared handles across every instance of the same mesh - so
 //! writing a damage level into a material in place would crack every section
-//! that shares that mesh at once. Each rendered mesh therefore gets a private
-//! [`SectionCracksMaterial`] built from its own pristine `StandardMaterial`,
-//! which this module owns and writes to.
+//! that shares that mesh at once. Damage is therefore QUANTISED into
+//! [`SECTION_CRACK_BUCKETS`] steps and a mesh SWAPS to the shared
+//! [`SectionCracksMaterial`] for its `(source material, bucket)` pair. Nothing
+//! is ever written into a built material, so no section can crack a neighbour.
+//!
+//! Quantising is what keeps the material count off the fleet size. Draw calls
+//! bin on the material, so a continuous value per section put every section
+//! mesh in a bin of its own - 2,652 bins of one instance each on an eleven-ship
+//! gallery, and roughly half the frame rate. Buckets cap the bins at source
+//! materials times [`SECTION_CRACK_BUCKETS`] however many ships are in the
+//! scene, and bucket 0 is the pristine step, so an undamaged fleet batches as
+//! if the effect were not there.
 //!
 //! The cracked material is also what a dead section wears as it tumbles away:
-//! destruction detaches the art rather than re-drawing it, so the last damage
-//! level written here is the one the wreck leaves with.
+//! destruction detaches the art rather than re-drawing it, so the last bucket
+//! swapped in here is the one the wreck leaves with.
 //!
 //! # Timing
 //!
 //! Capture keys on `Added<MeshMaterial3d<StandardMaterial>>`, which fires the
 //! frame a mesh appears - whether it is a synchronous cuboid or an
 //! asynchronously instantiated gltf node - so it does not depend on any
-//! scene-ready signal. The handle can exist before its asset does, so the clone
+//! scene-ready signal. The handle can exist before its asset does, so the swap
 //! is retried until the asset arrives rather than dropped.
 
 use bevy::{
     pbr::{ExtendedMaterial, MaterialExtension},
+    platform::collections::HashMap,
     prelude::*,
     render::render_resource::AsBindGroup,
     shader::ShaderRef,
@@ -54,11 +64,11 @@ use nova_gameplay::prelude::{DamageLevelPlugin, Health, SectionInactiveMarker};
 use crate::sections::damage_effects::prelude::{DamageEffects, DamageEffectsPlugin};
 use crate::sections::fixture::prelude::SectionFixture;
 
-/// `DamageCracks`, `SectionCracks`, the cracks material and its plugin.
+/// `DamageCracks`, `SectionCracks`, the cracks materials and their plugin.
 pub mod prelude {
     pub use super::{
-        DamageCracks, SectionCracks, SectionCracksMaterial, SectionCracksMaterialExt,
-        SectionCracksPlugin, SECTION_CRACK_SCALE,
+        crack_bucket, DamageCracks, SectionCracks, SectionCracksMaterial, SectionCracksMaterialExt,
+        SectionCracksMaterials, SectionCracksPlugin, SECTION_CRACK_BUCKETS, SECTION_CRACK_SCALE,
     };
 }
 
@@ -68,6 +78,32 @@ pub mod prelude {
 /// fractures on one - enough to read as a broken plate rather than as a texture,
 /// and few enough that the finer octaves have room to be seen.
 pub const SECTION_CRACK_SCALE: f32 = 2.5;
+
+/// How many steps a section's surface degrades through, pristine included.
+///
+/// This is the number of material bins a single source material can produce, so
+/// it is the whole reason the effect does not cost the frame: bins are capped at
+/// source materials times this, whatever the fleet size. Raising it is cheap and
+/// lowering it is free; what it buys is how smoothly a surface goes from painted
+/// to burnt, and what it costs is bins.
+pub const SECTION_CRACK_BUCKETS: usize = 8;
+
+/// The bucket a damage level snaps to: 0 pristine, `SECTION_CRACK_BUCKETS - 1`
+/// burnt out.
+///
+/// Nearest rather than floor, so a section is never drawn a whole step less
+/// damaged than it is, and so the pristine bucket is a narrow band around zero
+/// rather than a whole step of real damage that draws as untouched.
+pub fn crack_bucket(damage: f32) -> usize {
+    // The clamp bounds the product to 0..=top, so the cast cannot wrap.
+    let top = SECTION_CRACK_BUCKETS - 1;
+    (damage.clamp(0.0, 1.0) * top as f32).round() as usize
+}
+
+/// The damage value bucket `bucket` is drawn at.
+fn bucket_damage(bucket: usize) -> f32 {
+    bucket as f32 / (SECTION_CRACK_BUCKETS - 1) as f32
+}
 
 /// The section material: a standard PBR material with fractures cut into it.
 pub type SectionCracksMaterial = ExtendedMaterial<StandardMaterial, SectionCracksMaterialExt>;
@@ -90,7 +126,7 @@ pub struct SectionCracksMaterialExt {
 }
 
 impl SectionCracksMaterialExt {
-    /// A pristine section's extension.
+    /// The extension for a section drawn `damage` far gone.
     #[cfg_attr(
         not(target_arch = "wasm32"),
         expect(
@@ -98,9 +134,9 @@ impl SectionCracksMaterialExt {
             reason = "the webgl2 padding fields exist only on wasm32, and there this update is what fills them"
         )
     )]
-    pub fn new() -> Self {
+    pub fn new(damage: f32) -> Self {
         Self {
-            damage: 0.0,
+            damage,
             scale: SECTION_CRACK_SCALE,
             ..default()
         }
@@ -129,8 +165,70 @@ pub struct DamageCracks;
 pub struct SectionCracks {
     /// The section entity whose [`DamageLevel`] drives this mesh.
     pub section: Entity,
-    /// The private material this component owns and writes to each frame.
+    /// The pristine material this mesh was painted with, and the key its bucket
+    /// materials are built under.
+    ///
+    /// Held STRONG: it is the only reference left once the mesh's
+    /// `MeshMaterial3d<StandardMaterial>` is swapped away, and a later bucket
+    /// has to be built from it. It is also what makes the key sound - a source
+    /// that cannot be dropped cannot have its [`AssetId`] handed to something
+    /// else.
+    pub source: Handle<StandardMaterial>,
+    /// Which of the [`SECTION_CRACK_BUCKETS`] steps this mesh is drawn at.
+    pub bucket: usize,
+    /// The shared material for that bucket, which this mesh draws with.
     pub material: Handle<SectionCracksMaterial>,
+}
+
+/// Every cracked material built so far, keyed by the source material it was
+/// built from and the bucket it draws.
+///
+/// The one place a [`SectionCracksMaterial`] is ever created, so it is also the
+/// bound on how many exist: source materials times [`SECTION_CRACK_BUCKETS`].
+/// Buckets are built ON DEMAND rather than up front, because a source can be
+/// per-instance - a torpedo warhead is tinted per launch - and eight materials
+/// per shot would cost more than the fleet does.
+#[derive(Resource, Default, Debug)]
+pub struct SectionCracksMaterials {
+    by_source: HashMap<
+        AssetId<StandardMaterial>,
+        [Option<Handle<SectionCracksMaterial>>; SECTION_CRACK_BUCKETS],
+    >,
+}
+
+impl SectionCracksMaterials {
+    /// The shared material `source` draws with at `bucket`, building it the
+    /// first time. `None` while the source asset itself has not loaded.
+    fn material(
+        &mut self,
+        source: &Handle<StandardMaterial>,
+        bucket: usize,
+        standard: &Assets<StandardMaterial>,
+        cracked: &mut Assets<SectionCracksMaterial>,
+    ) -> Option<Handle<SectionCracksMaterial>> {
+        if let Some(handle) = self
+            .by_source
+            .get(&source.id())
+            .and_then(|buckets| buckets[bucket].clone())
+        {
+            return Some(handle);
+        }
+        // Read the source BEFORE taking an entry: a handle whose asset has not
+        // loaded gets no entry, so an unresolved mesh cannot leave one behind.
+        let pristine = standard.get(source)?.clone();
+        let handle = cracked.add(SectionCracksMaterial {
+            base: pristine,
+            extension: SectionCracksMaterialExt::new(bucket_damage(bucket)),
+        });
+        self.by_source.entry(source.id()).or_default()[bucket] = Some(handle.clone());
+        Some(handle)
+    }
+
+    /// How many source materials have bucket materials built. Test and
+    /// instrument surface.
+    pub fn sources(&self) -> usize {
+        self.by_source.len()
+    }
 }
 
 /// A section mesh awaiting material capture.
@@ -138,7 +236,7 @@ pub struct SectionCracks {
 /// Its `StandardMaterial` handle may exist before the asset itself resolves
 /// (async gltf load), so marking is decoupled from capture: [`mark_section_meshes`]
 /// tags the mesh once (doing the `ChildOf` walk), and [`resolve_pending_cracks`]
-/// retries the clone every frame until the asset is available - self-re-arming,
+/// retries the swap every frame until the asset is available - self-re-arming,
 /// so a not-yet-loaded material can never silently drop the mesh out of grading.
 #[derive(Component, Clone, Copy, Debug)]
 struct PendingSectionCracks {
@@ -155,10 +253,12 @@ impl Plugin for SectionCracksPlugin {
         debug!("SectionCracksPlugin: build");
 
         app.register_type::<DamageCracks>();
+        app.init_resource::<SectionCracksMaterials>();
         app.add_plugins(MaterialPlugin::<SectionCracksMaterial>::default());
         app.add_systems(
             Update,
             (
+                forget_dead_sources,
                 mark_section_meshes,
                 resolve_pending_cracks,
                 grade_section_cracks,
@@ -200,8 +300,29 @@ fn owning_section(
     }
 }
 
+/// Drop the bucket materials of any source material that is gone.
+///
+/// Without this the registry is a leak rather than a cache: a torpedo warhead is
+/// tinted per launch, so a long fight would leave one dead entry - and its
+/// bucket materials - behind per shot fired. [`SectionCracks`] holds the only
+/// strong reference to a source, so the event fires exactly when the last mesh
+/// drawn from it is gone.
+fn forget_dead_sources(
+    mut registry: ResMut<SectionCracksMaterials>,
+    mut events: MessageReader<AssetEvent<StandardMaterial>>,
+) {
+    for event in events.read() {
+        match event {
+            AssetEvent::Unused { id } | AssetEvent::Removed { id } => {
+                registry.by_source.remove(id);
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Tag every freshly-spawned section mesh for capture. The `ChildOf` walk
-/// happens here, once per mesh; the material clone is deferred to
+/// happens here, once per mesh; the material swap is deferred to
 /// [`resolve_pending_cracks`] so a not-yet-loaded asset does not drop the mesh.
 #[expect(
     clippy::type_complexity,
@@ -239,29 +360,31 @@ fn mark_section_meshes(
     }
 }
 
-/// Build each pending mesh's private cracks material from its pristine standard
-/// one, once that asset is available. Retries until it loads; this query is
-/// normally empty.
+/// Swap each pending mesh onto the shared material for its section's bucket,
+/// once its pristine material is available. Retries until it loads; this query
+/// is normally empty.
+///
+/// The bucket is read here rather than left to [`grade_section_cracks`] so a
+/// mesh that appears on an already-battered section - a gltf node that finished
+/// loading mid-fight - is drawn right on its first frame.
 fn resolve_pending_cracks(
     mut commands: Commands,
     standard: Res<Assets<StandardMaterial>>,
     mut cracked: ResMut<Assets<SectionCracksMaterial>>,
+    mut registry: ResMut<SectionCracksMaterials>,
     q_pending: Query<(
         Entity,
         &MeshMaterial3d<StandardMaterial>,
         &PendingSectionCracks,
     )>,
+    q_level: Query<&DamageLevel, With<SectionMarker>>,
 ) {
     for (entity, material, pending) in &q_pending {
-        let Some(pristine) = standard.get(&material.0).cloned() else {
+        let bucket = crack_bucket(q_level.get(pending.section).map_or(0.0, |level| level.0));
+        let Some(handle) = registry.material(&material.0, bucket, &standard, &mut cracked) else {
             // Asset not loaded yet; keep the pending marker and retry next frame.
             continue;
         };
-
-        let handle = cracked.add(SectionCracksMaterial {
-            base: pristine,
-            extension: SectionCracksMaterialExt::new(),
-        });
 
         // NOTE: same despawn race as `mark_section_meshes`.
         commands
@@ -270,6 +393,8 @@ fn resolve_pending_cracks(
                 MeshMaterial3d(handle.clone()),
                 SectionCracks {
                     section: pending.section,
+                    source: material.0.clone(),
+                    bucket,
                     material: handle,
                 },
             ))
@@ -278,32 +403,39 @@ fn resolve_pending_cracks(
     }
 }
 
-/// Write every captured mesh's section damage into its material.
+/// Swap every captured mesh onto the shared material for its section's current
+/// bucket.
 ///
-/// Written only when it differs from what the material already holds, so an
-/// idle ship does not re-flag its materials as changed every frame.
+/// Only on a bucket CHANGE, which is at most [`SECTION_CRACK_BUCKETS`] - 1 times
+/// in a mesh's life: an idle ship touches nothing, and a fight writes no
+/// material at all.
 fn grade_section_cracks(
-    mut materials: ResMut<Assets<SectionCracksMaterial>>,
-    q_cracks: Query<&SectionCracks>,
+    mut commands: Commands,
+    standard: Res<Assets<StandardMaterial>>,
+    mut cracked: ResMut<Assets<SectionCracksMaterial>>,
+    mut registry: ResMut<SectionCracksMaterials>,
+    mut q_cracks: Query<(Entity, &mut SectionCracks)>,
     q_level: Query<&DamageLevel, With<SectionMarker>>,
 ) {
-    for cracks in &q_cracks {
+    for (entity, mut cracks) in &mut q_cracks {
         // The SAME level the carve reads, so a section's surface and its shape
         // cannot disagree about how far gone it is.
         let damage = q_level.get(cracks.section).map_or(0.0, |level| level.0);
-
-        // Read first; only take a mutable (change-flagging) borrow on a real
-        // change.
-        let Some(current) = materials.get(&cracks.material) else {
-            continue;
-        };
-        if current.extension.damage == damage {
+        let bucket = crack_bucket(damage);
+        if bucket == cracks.bucket {
             continue;
         }
-        let Some(mut material) = materials.get_mut(&cracks.material) else {
+        let Some(handle) = registry.material(&cracks.source, bucket, &standard, &mut cracked)
+        else {
             continue;
         };
-        material.extension.damage = damage;
+
+        // NOTE: same despawn race as `mark_section_meshes`.
+        commands
+            .entity(entity)
+            .try_insert(MeshMaterial3d(handle.clone()));
+        cracks.bucket = bucket;
+        cracks.material = handle;
     }
 }
 
@@ -328,9 +460,11 @@ mod tests {
         app.add_plugins(DamageEffectsPlugin { render: true });
         app.init_asset::<StandardMaterial>();
         app.init_asset::<SectionCracksMaterial>();
+        app.init_resource::<SectionCracksMaterials>();
         app.add_systems(
             Update,
             (
+                forget_dead_sources,
                 mark_section_meshes,
                 resolve_pending_cracks,
                 grade_section_cracks,
@@ -374,6 +508,13 @@ mod tests {
             .damage
     }
 
+    /// How many distinct cracked materials exist.
+    fn crack_materials(app: &App) -> usize {
+        app.world()
+            .resource::<Assets<SectionCracksMaterial>>()
+            .len()
+    }
+
     /// THE claim: a section's own health drives its own surface, and a shared
     /// gltf material is never written to.
     #[test]
@@ -400,8 +541,8 @@ mod tests {
         app.update();
 
         assert!(
-            (damage_of(&app, hurt_mesh) - 0.75).abs() < 1e-5,
-            "a section cracks by the share of its health that is gone"
+            (damage_of(&app, hurt_mesh) - bucket_damage(crack_bucket(0.75))).abs() < 1e-5,
+            "a section cracks by the share of its health that is gone, to the nearest bucket"
         );
         assert_eq!(
             damage_of(&app, whole_mesh),
@@ -577,6 +718,120 @@ mod tests {
         assert!(
             app.world().get::<SectionCracks>(mesh).is_none(),
             "the walk stops at the uncracked section, it does not carry on up"
+        );
+    }
+
+    /// The quantiser: pristine is a bucket of its own, dead is the last one,
+    /// and a level in between snaps to the NEAREST step rather than down to it.
+    #[test]
+    fn a_damage_level_snaps_to_the_nearest_bucket() {
+        let top = SECTION_CRACK_BUCKETS - 1;
+        let step = 1.0 / top as f32;
+
+        assert_eq!(crack_bucket(0.0), 0);
+        assert_eq!(crack_bucket(1.0), top);
+        assert_eq!(crack_bucket(2.0), top, "an out-of-range level clamps");
+        assert_eq!(
+            crack_bucket(step * 0.49),
+            0,
+            "just under half a step still reads pristine"
+        );
+        assert_eq!(
+            crack_bucket(step * 0.51),
+            1,
+            "just over half a step wears the first crack"
+        );
+        assert_eq!(bucket_damage(0), 0.0);
+        assert_eq!(bucket_damage(top), 1.0);
+    }
+
+    /// THE claim the frame rate rests on: what bounds the material count is the
+    /// bucket count, not how many sections are on screen. One material per
+    /// section mesh made every section its own draw bin and cost roughly half
+    /// the frame rate on an eleven-ship gallery.
+    #[test]
+    fn sections_draw_through_at_most_one_material_per_bucket() {
+        let mut app = cracks_app();
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+
+        let sections: Vec<_> = (0..40)
+            .map(|_| section_with_mesh(&mut app, &shared))
+            .collect();
+
+        app.update();
+        app.update();
+
+        assert_eq!(
+            crack_materials(&app),
+            1,
+            "an undamaged fleet draws through the pristine bucket alone"
+        );
+
+        // A different damage level for every section, so one material per
+        // section would be forty of them.
+        for (index, (section, _)) in sections.iter().enumerate() {
+            app.world_mut().get_mut::<Health>(*section).unwrap().current =
+                100.0 - index as f32 * 2.5;
+        }
+        app.update();
+
+        assert_eq!(
+            crack_materials(&app),
+            SECTION_CRACK_BUCKETS,
+            "forty damage levels draw through the buckets and nothing more"
+        );
+        assert_eq!(
+            app.world()
+                .get::<SectionCracks>(sections[0].1)
+                .unwrap()
+                .material
+                .id(),
+            app.world()
+                .get::<SectionCracks>(sections[1].1)
+                .unwrap()
+                .material
+                .id(),
+            "two sections in the same bucket share one material"
+        );
+    }
+
+    /// A source material that dies takes its bucket materials with it.
+    ///
+    /// The registry is a cache, not a ledger: a torpedo warhead is tinted per
+    /// LAUNCH, so remembering every source ever seen would grow the material
+    /// store by a bucket set per shot fired.
+    #[test]
+    fn bucket_materials_die_with_the_source_they_were_built_from() {
+        let mut app = cracks_app();
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+        let (_, mesh) = section_with_mesh(&mut app, &shared);
+        // The captured mesh must hold the LAST strong handle to the source.
+        drop(shared);
+
+        app.update();
+        app.update();
+        assert_eq!(crack_materials(&app), 1);
+
+        app.world_mut().entity_mut(mesh).despawn();
+        for _ in 0..4 {
+            app.update();
+        }
+
+        assert_eq!(
+            app.world().resource::<SectionCracksMaterials>().sources(),
+            0,
+            "the registry forgets a source nothing draws from"
+        );
+        assert_eq!(
+            crack_materials(&app),
+            0,
+            "and its bucket materials go with it"
         );
     }
 

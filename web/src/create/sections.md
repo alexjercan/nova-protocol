@@ -83,9 +83,16 @@ damage_effects: ([Cracks, Sparks, Plume]),
 | `Sparks` | The section throws sparks, faster the worse it is. |
 | `Plume` | The section's exhaust guts and flickers. Thrusters only - it grades the exhaust cone, so a section with none shows nothing. |
 
-`Cracks` grades from the first hit. `Sparks` and `Plume` both start once the
-section is properly hurt - past 35 percent of its own health gone - so a scratch
-does not make a part read as broken.
+`Cracks` grades in EIGHT steps from painted to burnt, so the first fractures
+show once about a fourteenth of the section's own health is gone and every step
+after that is a seventh. Stepping it is what keeps a fleet's damage off the
+frame rate - a continuous value per section put every section mesh in a draw bin
+of its own. `Sparks` and `Plume` both start once the section is properly hurt -
+past 35 percent of its own health gone - so a scratch does not make a part read
+as broken.
+
+<!-- Numbers verified against crates/nova_ship/src/sections/damage_cracks.rs (SECTION_CRACK_BUCKETS 8 :90, crack_bucket rounds to nearest :98-102). -->
+
 
 Omitting the field means `([Cracks])`. Author `([])` for a section that should
 never show damage at all - saying "none" and saying nothing are different.

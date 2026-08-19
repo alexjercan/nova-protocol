@@ -333,6 +333,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Performance
 
+- Damage cracks draw from eight SHARED materials per source instead of one per
+  section mesh: a 4v4 arena runs 2,046 section meshes through 288 materials
+  instead of 2,046, and the frame rate doubles.
 - A piece of debris takes its collider from at most 64 strided points instead
   of every vertex of an unwelded triangle soup: the same shape for a fifth of
   the price, and slightly more of them come back usable.
