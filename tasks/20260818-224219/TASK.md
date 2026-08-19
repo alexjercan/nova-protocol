@@ -1,8 +1,8 @@
 # Destroyed things detach and tumble; delete the slicer
 
-- STATUS: OPEN
-- PRIORITY: 88
-- TAGS: v0.11.0,performance,bug,destruction,ship
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,performance,destruction,ship
 
 Epic: `20260818-220812`.
 
