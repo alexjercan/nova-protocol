@@ -535,13 +535,20 @@ for its pressure pass.
 
 ### What a carve leaves
 
-`CarveSpew { entity, at, radius }` fires whenever a mark changed a body's shape,
-in world space. `spew.rs` observes it and throws 2 to 7 shards sized off the
-crater: kinematic, no collider, `TempEntity(2.5)`. They are born INSIDE the body
-they came off, so a dynamic body with a collider would spawn interpenetrating and
-the solver would shove the two apart - a ship kicking itself sideways every time
-it was shot. An event rather than a direct spawn, so a mod that wants a puff or
-nothing at all replaces the observer instead of patching the carve.
+`CarveSpew { entity, at, radius, kind }` fires whenever a mark changed a body's
+shape, in world space. `kind` is the weapon class that paid for the carve, and
+it is what decides the look: `spew.rs` keys a `ShardLook` off it, one entry per
+`DamageType`. Kinetic and Pierce throw 2 to 7 shards of one fixed size
+(`ShardLook::size`, 0.12u) - kinematic, no collider, `TempEntity(2.5)` - and
+hold identical values in two SEPARATE entries, so giving a penetrator its own
+debris is editing a number rather than splitting a branch. Explosive throws nothing: a
+warhead's fireball already covers the frames the geometry changes in, the crater
+is permanent evidence afterwards, and a cut that severs throws real geometry
+anyway. Shards are born INSIDE the body they came off, so a dynamic body with a
+collider would spawn interpenetrating and the solver would shove the two apart -
+a ship kicking itself sideways every time it was shot. An event rather than a
+direct spawn, so a mod that wants a puff or nothing at all replaces the observer
+instead of patching the carve.
 
 Real geometry leaves a body only where a carve actually SEVERED it, and only the
 body being cut knows that. `chunk.rs` is what a severed piece spawns through;

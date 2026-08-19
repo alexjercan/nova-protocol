@@ -617,7 +617,14 @@ fn destroy_a_round_of_rocks(world: &mut World) {
             .get::<GlobalTransform>(rock)
             .map_or(Vec3::ZERO, GlobalTransform::translation);
         let mut commands = world.commands();
-        apply_damage(&mut commands, node, None, 2_000_000.0, Some(at));
+        apply_damage(
+            &mut commands,
+            node,
+            None,
+            2_000_000.0,
+            DamageType::Kinetic,
+            Some(at),
+        );
         world.flush();
     }
     let t = world.resource::<Time>().elapsed_secs();

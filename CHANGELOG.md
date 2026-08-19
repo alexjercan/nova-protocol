@@ -144,20 +144,22 @@ does NOT get an entry - and it is the only place they are written down.
 ### Ships & Sections
 
 - **(breaking)** Hits are REMEMBERED where they land: a ship stores each one as
-  a sphere, which is what throws shards off the spot that was hit.
+  a sphere in its own frame, so an effect can read WHERE it was hit and not only
+  how much it cost.
 - The plate that stopped the round dies and comes off, leaving a hole in the
   cladding onto the hull underneath.
 - Ships do not CARVE. Sections and cladding keep their authored shape and show
   damage through cracks and lost plates. Only asteroids change shape.
 - Damage is TWO readings now: how far gone a body is (cracks, sparks) and where
-  it was hit (the shards). Nothing on a ship loses geometry.
+  it was hit (the chips a round knocks off it). Nothing on a ship loses geometry.
 - Sections AUTHOR the damage looks they wear (`base.damage_effects`): `Cracks`,
   `Sparks`, `Plume`. Omitted means `[Cracks]`, so a section shows damage without
   saying anything; author `[]` for one that never shows it.
 - New PLUME effect: a damaged drive's exhaust guts and flickers without ever
   reading as shut down, and delivers exactly the thrust it authored.
-- A hit THROWS material off the spot it landed on: shards sized and counted by
-  how big the hit was, on ships and rocks alike.
+- Bullets CHIP what they hit: a kinetic or pierce round throws chips off ships
+  and rocks alike, more of them for a bigger hit. A torpedo throws none - its
+  fireball is the cue.
 - **(breaking)** Ships collapse structurally: a hull below a fraction of its
   as-built health (0.05 by default) comes apart. Authorable as
   `collapse_threshold`.

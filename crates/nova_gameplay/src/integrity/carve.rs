@@ -50,6 +50,7 @@
 use bevy::prelude::*;
 
 use super::health::prelude::{Health, HealthZeroMarker};
+use crate::damage::prelude::DamageType;
 
 /// `CarveSpew`, `DamageMark`, `DamageMarks`, `mark_radius`,
 /// `record_damage_mark` and `record_blast_marks`.
@@ -306,11 +307,11 @@ fn absorbed_by(world: &World, target: Entity, amount: f32) -> f32 {
 }
 
 /// Cut one crater of `world_radius` into `owner` at `at` (WORLD space) and
-/// announce what came off.
+/// announce what came off, as `kind` took it off.
 ///
 /// The one place a mark is written, so the frame conversion and the spew that
 /// follows it cannot drift between the single-hit and the blast paths.
-fn carve_body(world: &mut World, owner: Entity, at: Vec3, world_radius: f32) {
+fn carve_body(world: &mut World, owner: Entity, at: Vec3, world_radius: f32, kind: DamageType) {
     let Some(frame) = world.get::<GlobalTransform>(owner).copied() else {
         return;
     };
@@ -341,10 +342,12 @@ fn carve_body(world: &mut World, owner: Entity, at: Vec3, world_radius: f32) {
         entity: owner,
         at,
         radius: world_radius,
+        kind,
     });
 }
 
-/// Remember that `target` was hit at `at` (WORLD space) for `amount`.
+/// Remember that `target` was hit at `at` (WORLD space) for `amount` by a
+/// `kind` round.
 ///
 /// Queued rather than done here because the work is a walk up the hierarchy and
 /// a transform read, neither of which a `Commands`-only caller has. Called from
@@ -360,7 +363,13 @@ fn carve_body(world: &mut World, owner: Entity, at: Vec3, world_radius: f32) {
 /// normal case for most of a scenario - a bare prop has no shape to change -
 /// and it is what keeps this off the critical path for everything that does not
 /// opt in.
-pub fn record_damage_mark(commands: &mut Commands, target: Entity, at: Vec3, amount: f32) {
+pub fn record_damage_mark(
+    commands: &mut Commands,
+    target: Entity,
+    at: Vec3,
+    amount: f32,
+    kind: DamageType,
+) {
     // Cheap pre-filter on the REQUESTED amount. Absorption only ever reduces
     // it, so a hit too small to carve at full price cannot become big enough
     // once clamped, and a graze never costs a command.
@@ -376,7 +385,7 @@ pub fn record_damage_mark(commands: &mut Commands, target: Entity, at: Vec3, amo
         let Some(owner) = mark_owner(world, target) else {
             return;
         };
-        carve_body(world, owner, at, world_radius);
+        carve_body(world, owner, at, world_radius, kind);
     });
 }
 
@@ -407,6 +416,7 @@ pub fn record_blast_marks(
     at: Vec3,
     max_radius: f32,
     hits: Vec<(Entity, f32)>,
+    kind: DamageType,
 ) {
     commands.queue(move |world: &mut World| {
         // A linear scan, because a blast reaches a handful of BODIES however
@@ -431,7 +441,7 @@ pub fn record_blast_marks(
             if world_radius < MARK_MIN_RADIUS {
                 continue;
             }
-            carve_body(world, owner, at, world_radius);
+            carve_body(world, owner, at, world_radius, kind);
         }
     });
 }
@@ -440,13 +450,14 @@ pub fn record_blast_marks(
 /// leaving.
 ///
 /// Fired only when a mark changed the body's shape. Repeated fire into one
-/// crater grows it, so every paid hit announces what it removed. Both fields
-/// are in WORLD space: a spectator does not care what frame the body keeps its
-/// marks in.
+/// crater grows it, so every paid hit announces what it removed. `at` and
+/// `radius` are in WORLD space: a spectator does not care what frame the body
+/// keeps its marks in.
 ///
-/// An event rather than a direct spawn so the gameplay half stays free of
-/// meshes and the look is replaceable: a mod that wants sparks, a puff, or
-/// nothing at all observes this instead of patching the carve.
+/// [`kind`](Self::kind) says what TOOK the material, and nothing here says what
+/// that should look like - including whether it should be seen at all. A carve
+/// reports a fact; the observer owns the read, so a mod that wants sparks, a
+/// puff, or nothing observes this instead of patching the carve.
 #[derive(EntityEvent, Clone, Copy, Debug)]
 pub struct CarveSpew {
     /// The body that lost the material.
@@ -455,6 +466,8 @@ pub struct CarveSpew {
     pub at: Vec3,
     /// The crater's radius, in world units.
     pub radius: f32,
+    /// The weapon class that cut it.
+    pub kind: DamageType,
 }
 
 /// The nearest entity at or above `target` that remembers marks.
@@ -679,7 +692,7 @@ mod tests {
         let mut app = App::new();
         let body = app.world_mut().spawn(DamageMarks::default()).id();
         let mut commands = app.world_mut().commands();
-        record_damage_mark(&mut commands, body, Vec3::ZERO, 0.01);
+        record_damage_mark(&mut commands, body, Vec3::ZERO, 0.01, DamageType::Kinetic);
         app.world_mut().flush();
 
         assert!(app.world().get::<DamageMarks>(body).unwrap().0.is_empty());
@@ -702,7 +715,13 @@ mod tests {
         let plate = app.world_mut().spawn(ChildOf(section)).id();
 
         let mut commands = app.world_mut().commands();
-        record_damage_mark(&mut commands, plate, Vec3::new(11.0, 0.0, 0.0), 200.0);
+        record_damage_mark(
+            &mut commands,
+            plate,
+            Vec3::new(11.0, 0.0, 0.0),
+            200.0,
+            DamageType::Kinetic,
+        );
         app.world_mut().flush();
 
         assert!(
@@ -731,7 +750,7 @@ mod tests {
         let node = app.world_mut().spawn(ChildOf(root)).id();
 
         let mut commands = app.world_mut().commands();
-        record_damage_mark(&mut commands, node, Vec3::ZERO, 600.0);
+        record_damage_mark(&mut commands, node, Vec3::ZERO, 600.0, DamageType::Kinetic);
         app.world_mut().flush();
 
         let marks = &app.world().get::<DamageMarks>(root).unwrap().0;
@@ -761,7 +780,7 @@ mod tests {
             .id();
 
         let mut commands = app.world_mut().commands();
-        record_damage_mark(&mut commands, plate, Vec3::ZERO, 100.0);
+        record_damage_mark(&mut commands, plate, Vec3::ZERO, 100.0, DamageType::Kinetic);
         app.world_mut().flush();
 
         let marks = &app.world().get::<DamageMarks>(root).unwrap().0;
@@ -800,7 +819,7 @@ mod tests {
             let plate = plate.id();
 
             let mut commands = app.world_mut().commands();
-            record_damage_mark(&mut commands, plate, Vec3::ZERO, 500.0);
+            record_damage_mark(&mut commands, plate, Vec3::ZERO, 500.0, DamageType::Kinetic);
             app.world_mut().flush();
 
             assert!(
@@ -831,7 +850,14 @@ mod tests {
 
         let mut commands = app.world_mut().commands();
         for _ in 0..2 {
-            apply_damage(&mut commands, plate, None, 60.0, Some(Vec3::ZERO));
+            apply_damage(
+                &mut commands,
+                plate,
+                None,
+                60.0,
+                DamageType::Kinetic,
+                Some(Vec3::ZERO),
+            );
         }
         app.world_mut().flush();
 
@@ -853,7 +879,7 @@ mod tests {
         let mut app = App::new();
         let prop = app.world_mut().spawn(GlobalTransform::IDENTITY).id();
         let mut commands = app.world_mut().commands();
-        record_damage_mark(&mut commands, prop, Vec3::ZERO, 200.0);
+        record_damage_mark(&mut commands, prop, Vec3::ZERO, 200.0, DamageType::Kinetic);
         app.world_mut().flush();
 
         assert!(app.world().get::<DamageMarks>(prop).is_none());

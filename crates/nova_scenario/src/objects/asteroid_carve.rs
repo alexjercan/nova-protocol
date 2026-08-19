@@ -319,6 +319,11 @@ fn throw_severed_pieces(
                 // The crumb's own size, so the dust it becomes is the size of
                 // the thing that crumbled.
                 radius: (volume * 3.0 / (4.0 * std::f32::consts::PI)).cbrt(),
+                // A crumb is severed material, not a weapon's impact, and it is
+                // seen leaving whatever cut the rock. Kinetic is the class
+                // whose look IS chips off a solid, which is what a crumb is;
+                // this is not a claim about what fired.
+                kind: DamageType::Kinetic,
             });
             continue;
         }

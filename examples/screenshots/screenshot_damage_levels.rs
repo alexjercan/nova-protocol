@@ -272,7 +272,14 @@ fn hit_columns(world: &mut World) {
             },
         };
         let mut commands = world.commands();
-        apply_damage(&mut commands, target, None, *amount, Some(at));
+        apply_damage(
+            &mut commands,
+            target,
+            None,
+            *amount,
+            DamageType::Kinetic,
+            Some(at),
+        );
         world.flush();
         info!("damage levels: column {index} took {amount} at {at}");
     }

@@ -370,6 +370,7 @@ fn carve_asteroid_once(world: &mut World) {
         node,
         None,
         1200.0,
+        DamageType::Kinetic,
         Some(centre + Vec3::Z * surface),
     );
     world.flush();
@@ -411,7 +412,14 @@ fn exhaust_asteroid(world: &mut World) {
     probe.shards = 0;
     probe.target = Some(rock);
     let mut commands = world.commands();
-    apply_damage(&mut commands, node, None, 2_000_000.0, Some(centre));
+    apply_damage(
+        &mut commands,
+        node,
+        None,
+        2_000_000.0,
+        DamageType::Kinetic,
+        Some(centre),
+    );
     world.flush();
 }
 

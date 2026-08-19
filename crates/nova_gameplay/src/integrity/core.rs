@@ -23,7 +23,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use super::{components::prelude::*, health::prelude::*};
-use crate::damage::prelude::apply_damage;
+use crate::damage::prelude::{apply_damage, DamageType};
 
 /// `IntegrityCorePlugin` and `IntegritySystems`.
 pub mod prelude {
@@ -102,8 +102,10 @@ fn on_collider_of_spawn_insert_collision_events(
 /// another body.
 ///
 /// A ram carries its own velocity in the amount (the formula is
-/// mass x relative speed), so it needs no damage type and no speed curve of its
-/// own - it goes straight to [`apply_damage`].
+/// mass x relative speed), so it needs no speed curve of its own - it goes
+/// straight to [`apply_damage`]. It enters as KINETIC, which is what a ram is:
+/// solid meeting solid, and the one class whose debris is chips off the
+/// surface.
 fn on_impact_collision_deal_damage(
     collision: On<CollisionStart>,
     mut commands: Commands,
@@ -151,7 +153,14 @@ fn on_impact_collision_deal_damage(
         .get(collider2)
         .ok()
         .map(|transform| transform.translation());
-    apply_damage(&mut commands, collider1, Some(collider2), amount, at);
+    apply_damage(
+        &mut commands,
+        collider1,
+        Some(collider2),
+        amount,
+        DamageType::Kinetic,
+        at,
+    );
 }
 
 /// Hit points a ram deals: the impulse term plus the energy the collision

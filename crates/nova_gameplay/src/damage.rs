@@ -272,16 +272,21 @@ pub fn damage_type_color(kind: DamageType) -> Color {
 /// nowhere - a scripted `destroy`, a test rig - and costs the target nothing
 /// but its shape staying whole.
 ///
+/// `kind` rides along for the same store. Health does not read it - damage is
+/// still one number - but what a hit LOOKS like is a property of the weapon
+/// class, so the carve has to know which one paid.
+///
 /// [`DamageMarks`]: crate::integrity::carve::DamageMarks
 pub fn apply_damage(
     commands: &mut Commands,
     target: Entity,
     source: Option<Entity>,
     amount: f32,
+    kind: DamageType,
     at: Option<Vec3>,
 ) {
     if let Some(at) = at {
-        record_damage_mark(commands, target, at, amount);
+        record_damage_mark(commands, target, at, amount, kind);
     }
     commands.trigger(HealthApplyDamage {
         entity: target,
@@ -294,7 +299,9 @@ pub fn apply_damage(
 /// crater PER BODY.
 ///
 /// `hits` is `(collider, pressure)` for every collider the blast reached, `at`
-/// is its centre in WORLD space and `max_radius` its own reach.
+/// is its centre in WORLD space, `max_radius` its own reach and `kind` the
+/// blast's own damage type, which the carve passes on to whatever draws the
+/// debris.
 ///
 /// The split is the whole point of a separate entry. A blast that reaches forty
 /// sections has to damage forty sections, so health stays per collider and
@@ -311,8 +318,9 @@ pub fn apply_blast_damage(
     max_radius: f32,
     source: Option<Entity>,
     hits: &[(Entity, f32)],
+    kind: DamageType,
 ) {
-    record_blast_marks(commands, at, max_radius, hits.to_vec());
+    record_blast_marks(commands, at, max_radius, hits.to_vec(), kind);
     for &(target, amount) in hits {
         commands.trigger(HealthApplyDamage {
             entity: target,
@@ -424,6 +432,7 @@ pub fn spend_piercing_damage(
         target,
         source,
         hit_bite(damage, closing_speed),
+        damage.kind,
         at,
     );
     pierce_remainder(damage, target_health, closing_speed)
@@ -615,6 +624,7 @@ struct BlastGroup {
     collider: Entity,
     at: Vec3,
     radius: f32,
+    kind: DamageType,
     hits: Vec<(Entity, f32)>,
 }
 
@@ -680,6 +690,7 @@ fn resolve_nova_blast_hits(
                 collider: hit.blast_collider,
                 at: blast_position.0,
                 radius: blast.radius,
+                kind: blast.kind,
                 hits: vec![(hit.target_collider, amount)],
             }),
         }
@@ -696,6 +707,7 @@ fn resolve_nova_blast_hits(
             group.radius,
             Some(group.collider),
             &group.hits,
+            group.kind,
         );
     }
 }

@@ -319,7 +319,14 @@ fn apply_blast_cases(world: &mut World) {
             let at = column_position(4) + two_spot_surface(place);
             for _ in 0..rounds {
                 let mut commands = world.commands();
-                apply_damage(&mut commands, node, None, PDC_DAMAGE, Some(at));
+                apply_damage(
+                    &mut commands,
+                    node,
+                    None,
+                    PDC_DAMAGE,
+                    DamageType::Kinetic,
+                    Some(at),
+                );
                 world.flush();
             }
         }
@@ -334,6 +341,7 @@ fn apply_blast_cases(world: &mut World) {
                 node,
                 None,
                 damage,
+                DamageType::Kinetic,
                 // The pattern is unit space; the rock's node carries the scale.
                 Some(column_position(3) + local * ROCK_RADIUS),
             );
@@ -659,7 +667,14 @@ fn sustained_pdc_driver(world: &mut World, _frame: u32) {
     };
     let at = column_position(1) + surface_point(Vec3::Z);
     let mut commands = world.commands();
-    apply_damage(&mut commands, node, None, PDC_DAMAGE, Some(at));
+    apply_damage(
+        &mut commands,
+        node,
+        None,
+        PDC_DAMAGE,
+        DamageType::Kinetic,
+        Some(at),
+    );
     world.flush();
 }
 
