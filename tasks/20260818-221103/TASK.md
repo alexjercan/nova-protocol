@@ -1,8 +1,8 @@
 # Split the examples three ways: playable, systems, screenshots
 
-- STATUS: OPEN
-- PRIORITY: 70
-- TAGS: v0.11.0, example, docs
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,example,docs
 
 Epic: `20260818-220812`. Owner: "I want some examples where both the player and
 autopilot can play them: e.g I want to be able to carve an asteroid by hand,
