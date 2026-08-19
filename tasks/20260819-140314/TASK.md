@@ -89,6 +89,55 @@ This closes the largest open question in the original draft.
 Lose sections, `r` shrinks, the ship turns sharper. Intended, not a bug to
 design around.
 
+### CALIBRATION - decided 2026-08-19
+
+`load_limit` = **8 G = 78.48 m/s2**. Crossover target **10 u = 100 m**: below it
+structure binds, above it torque binds.
+
+**The scale is load-bearing and was nearly missed.** Nova runs at 1 world unit =
+10 METRES (`turret_section/aim.rs:21`, "Nova's scale is 100 u = 1 km"). A G limit
+is a real acceleration, so the ceiling is
+
+```
+alpha_ceiling = load_limit / (r_units * METRES_PER_UNIT)
+```
+
+and dropping the conversion makes every ship ten times sharper than intended. An
+earlier draft of this calibration did exactly that and landed on 2 G, which at
+true scale flips a 1-1-1 in 3.10 s against today's 5.00 s - it would not have
+fixed the complaint that opened the task.
+
+**`METRES_PER_UNIT` does not exist as a constant.** The scale lives in one doc
+comment on an unrelated range constant. It becomes a named const as part of this
+work, because the model reads it.
+
+Expected flip times at 8 G, bang-bang 180:
+
+| ship | r | flip | binds |
+|---|---|---|---|
+| 1-1-1 | 1.5 u / 15 m | 1.55 s | structure |
+| cargoa corvette | ~2.45 u / 24.5 m | 1.98 s | structure |
+| mid hull | 5 u / 50 m | 2.83 s | structure |
+| capital | 15 u / 150 m | 8.14 s | TORQUE |
+
+Today every one of them flips in 5.00 s. So small ships sharpen by up to 3.2x
+and capitals get 1.6x SLOWER - that second half is the retune cost, and it is
+intended: a capital should be a barge.
+
+### `max_torque` is NOT yet a number - measure, do not derive
+
+The crossover fixes `max_torque` only once the inertia is known, and `I` is the
+one quantity here nobody has measured. A provisional 1501 falls out of assuming
+`I(r) = 2.5 * (r/1.5)^3.5`, whose anchor is exact - three unit cubes in a line
+about their COM is 2.5 - but whose **3.5 exponent is a guess**. A hollow-shell
+hull scales as `r^4` and a solid one as `r^5`; across the range to 10 u that
+spread is roughly 25x in `max_torque`.
+
+So: spawn the shipped hulls, read avian's `ComputedAngularInertia` and the
+furthest-section radius, and back-solve `max_torque` from the real pair. It is a
+spawn-and-print job, not a derivation, and it must happen before any content is
+retuned against a wrong number.
+
 ### `load_limit` has no physical derivation, and that is fine
 
 1 g is a made-up test point, not a measurement. It is "how strong is spaceship
