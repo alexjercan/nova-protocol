@@ -435,9 +435,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Four single-file stress ranges replace the `many_*` sweeps: a thousand rounds,
   a thousand torpedoes, a thousand sections on one hull, a hundred hulls - each
   with exact counts and a drain to zero.
-- Examples are two categories now: `systems/` asserts (the former `sections/`,
-  `ui/` and stress ranges, renamed for what they prove) and `screenshots/`
-  captures. **(breaking)**
+- Examples are filed by WHO they are for: `playable/` a person works,
+  `systems/` asserts, `screenshots/` captures. Every autopilot-only example
+  now says so in its `--help`. **(breaking)**
 - Every `systems/` range names its invariants as `outcome:` markers on the
   `catalog_drift` roster, so a deleted assertion fails a test instead of
   passing green.
@@ -457,7 +457,7 @@ does NOT get an entry - and it is the only place they are written down.
   per-style captures.
 - `wfc_arena` grows number-row camera poses (frame, broadside, shoulders,
   top-down) and the shared idle orbit; grave/tilde hides the readout in
-  hand-runs of all three screenshot examples.
+  hand-runs of all three bench examples.
 - New `thruster_gallery` example: the shipped drive, the proposed thruster
   shell size family and the CC0 candidate models in one named row, in the
   fleet capture idiom.
@@ -487,7 +487,7 @@ does NOT get an entry - and it is the only place they are written down.
   `--check`.
 - The three mesh scripts share one stdlib-only glTF writer,
   `scripts/nova_glb.py`; the 21 shipped ship-part meshes re-cut byte-identical.
-- New `wfc_ships` screenshot producer: wave function collapse over the section
+- New `wfc_ships` example: wave function collapse over the section
   catalog, where the adjacency rules ARE the link points. Every hull goes
   through `lint_scenario`.
 - `wfc_ships` collapses STRUCTURE and nothing else - it builds no skin and
