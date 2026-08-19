@@ -7,9 +7,12 @@
 //! that way.
 //!
 //! Sized off the crater, so the read is honest: a bullet chips two flakes, a
-//! warhead throws a handful of slabs. Nothing here decides how much material
-//! was lost - [`mark_radius`](super::carve::mark_radius) already priced that
-//! out of the damage.
+//! warhead throws a handful. Bounded at BOTH ends, because a crater is not
+//! bounded - a warhead into a body with no health pool to clamp what it paid
+//! carves a hole several units across, and a chip a fixed fraction of that is
+//! the size of the sections it just hit. Nothing here decides how much material
+//! was lost - [`mark_radius`](super::carve::mark_radius) already priced that out
+//! of the damage.
 //!
 //! # Dust, and only dust
 //!
@@ -75,6 +78,15 @@ const SHARD_OF_CRATER: f32 = 0.22;
 /// The smallest shard drawn, in world units. Below this it is a spark, and
 /// sparks are a different effect with a different meaning.
 const SHARD_MIN_SIZE: f32 = 0.05;
+/// The biggest shard drawn, in world units.
+///
+/// A piece holding [`CHUNK_MIN_VOLUME`](super::chunk::CHUNK_MIN_VOLUME) is real
+/// material: it is worth a collider, a solver step and a player's attention. A
+/// shard is decoration and carries none of that, so it has to stay clearly
+/// under the line rather than beside it - half the side of that cube, an eighth
+/// of its volume. At the line itself a chip is a cube the size of a ship
+/// section, which reads as the hull coming apart rather than as a hit on it.
+const SHARD_MAX_SIZE: f32 = 0.5;
 
 /// How fast shards leave, in units per second.
 const SPEW_SPEED_MIN: f32 = 2.0;
@@ -127,6 +139,14 @@ fn shard_assets(
         ..default()
     });
     (mesh, material)
+}
+
+/// How big one shard off a crater of `radius` is, in world units.
+///
+/// Pure, like [`shard_count`], and clamped at both ends for the same kind of
+/// reason: under the floor a chip is a spark, over the ceiling it is material.
+fn shard_size(radius: f32) -> f32 {
+    (radius * SHARD_OF_CRATER).clamp(SHARD_MIN_SIZE, SHARD_MAX_SIZE)
 }
 
 /// How many shards a crater of `radius` throws.
@@ -215,7 +235,7 @@ fn spew_carved_material(
         .get_or_insert_with(|| shard_assets(&mut meshes, &mut materials))
         .clone();
 
-    let size = (spew.radius * SHARD_OF_CRATER).max(SHARD_MIN_SIZE);
+    let size = shard_size(spew.radius);
     let count = shard_count(spew.radius);
     trace!(
         "spew_carved_material: {count} shard(s) off {:?} at {}",
@@ -249,8 +269,8 @@ fn spew_carved_material(
 mod tests {
     use super::*;
     use crate::integrity::{
-        carve::prelude::{DamageMark, DamageMarks},
-        chunk::prelude::CarvedChunkMarker,
+        carve::prelude::{mark_radius, DamageMark, DamageMarks},
+        chunk::prelude::{CarvedChunkMarker, CHUNK_MIN_VOLUME},
     };
 
     fn spew_app() -> App {
@@ -278,6 +298,39 @@ mod tests {
         assert!(shard_count(0.5) >= SPEW_MIN);
         assert!(shard_count(0.5) <= shard_count(1.5));
         assert_eq!(shard_count(100.0), SPEW_MAX);
+    }
+
+    /// The line between decoration and material. A shard has no collider and no
+    /// mass, so however big the hole it came out of, it must never reach the
+    /// size at which a piece is worth simulating as a body of its own.
+    #[test]
+    fn no_crater_throws_a_shard_the_size_of_real_material() {
+        let chunk_side = CHUNK_MIN_VOLUME.cbrt();
+        assert!(
+            SHARD_MAX_SIZE < chunk_side,
+            "a shard may reach {SHARD_MAX_SIZE}, and material starts at {chunk_side}"
+        );
+        // The uncapped case that put section-sized cubes beside a hull: a
+        // warhead into a body with no health pool pays the whole warhead.
+        for damage in [750.0f32, 2000.0, 2_000_000.0] {
+            let size = shard_size(mark_radius(damage));
+            assert!(
+                size.powi(3) * 8.0 <= CHUNK_MIN_VOLUME,
+                "{damage} damage threw a {size}u shard"
+            );
+        }
+    }
+
+    /// The ceiling is for warheads and must not reach down to bullet dust: a
+    /// PDC crater is well under it, so a fired round chips exactly what it did.
+    #[test]
+    fn a_bullet_still_chips_the_flake_its_own_crater_earns() {
+        let round = mark_radius(4.0);
+        assert!(
+            shard_size(round) < SHARD_MAX_SIZE,
+            "the cap reached down into bullet dust"
+        );
+        assert!((shard_size(round) - round * SHARD_OF_CRATER).abs() < 1e-6);
     }
 
     /// THE claim: material comes off, and it comes off OUTWARD. A shard thrown
