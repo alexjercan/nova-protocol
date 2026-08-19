@@ -77,6 +77,29 @@ Examples and docs:
 - `/wiki`, `/create` and the dev book describe the game that actually shipped,
   and the wiki leads with visuals.
 
+## What may be traded for frame rate, and what may NOT
+
+Owner, 2026-08-20, and this governs every optimisation in the epic.
+
+**PRESENTATION is negotiable.** If the game feels and looks the same with
+simpler, faster code, take the simpler code. Damage cracks quantised into eight
+buckets instead of a continuous per-section value is the worked example: the
+signal a player needs is "that section looks wrong", not "that section is 47%
+damaged". Nobody will ever see the difference, and it is worth a 2x.
+
+**PHYSICS and GAMEPLAY LOGIC are NOT.** They are the main focus of the game.
+Approximating them to buy frames trades the thing people are here for. Be
+careful around the detail: a shortcut in the solver, in collision, in damage
+propagation or in flight is not the same kind of trade as a shortcut in a
+material.
+
+The test to apply before proposing any optimisation: **would a player notice
+this as a change to what the game DOES, or only to how it looks?** Only the
+second is on the table by default. The first needs the owner, every time.
+
+Corollary for ablation work: a measured 10% in physics is a worse lead than a
+measured 10% in presentation, even though the numbers match.
+
 ## Standing measurement rule
 
 A performance claim without a before and an after is not a result. Report the
