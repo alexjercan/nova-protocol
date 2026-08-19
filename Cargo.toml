@@ -394,6 +394,11 @@ nova_authoring = { path = "crates/nova_authoring" }
 # Optional: only the `debug` feature links the probe host into the game
 # binary, so release/dist builds never carry it.
 nova_probe_cli = { path = "crates/nova_probe_cli", optional = true }
+# The IN-GAME half, behind the same feature. A scenario has no example file to
+# wire capabilities for it, so `probe scenario <id|path>` measures the game
+# binary itself and the binary has to carry the collectors. Every capability is
+# env-gated: an ordinary `cargo run --features debug` wires nothing.
+nova_probe = { path = "crates/nova_probe", optional = true }
 
 [dev-dependencies]
 avian3d = { version = "0.7" }
@@ -525,6 +530,7 @@ debug = [
   "bevy/track_location",
   "dep:nova_probe_cli",
   "nova_probe_cli?/debug",
+  "dep:nova_probe",
 ]
 dev = ["debug"]
 # The automatic PROFILED pass: bevy's per-system spans are
@@ -532,7 +538,7 @@ dev = ["debug"]
 # trace writer (output path via the TRACE_CHROME env var). Tracing overhead
 # contaminates frame times, so never combine a trace build with an FPS
 # capture - two passes, one clean, one profiled.
-trace = ["bevy/trace", "bevy/trace_chrome"]
+trace = ["nova_core/trace", "bevy/trace", "bevy/trace_chrome"]
 
 [workspace.lints.rust]
 # dead_code = "allow"

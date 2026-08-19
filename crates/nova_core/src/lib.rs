@@ -61,7 +61,7 @@ pub mod prelude {
     pub use nova_scenario::prelude::*;
     pub use nova_ship::prelude::*;
 
-    pub use super::{editor_app, run_app, AppBuilder};
+    pub use super::{editor_app, run_app, AppBuilder, StartupScenario};
 }
 
 /// Build the editor application - the exact app the `nova_protocol` binary runs.
@@ -71,14 +71,37 @@ pub mod prelude {
 /// example (`examples/systems/system_ship_editor.rs`) launch the identical app instead of each open-coding it, so
 /// the example exercises the same editor the game ships.
 ///
-/// `startup_scenario` is the binary's `--scenario <id>` flag: `Some(id)` boots
-/// straight into that scenario instead of the main menu (see
+/// `startup` is the binary's `--scenario` / `--scenario-file` flags: `Some(..)`
+/// boots straight into that scenario instead of the main menu (see
 /// [`AppBuilder::with_startup_scenario`]).
-pub fn editor_app(render: bool, startup_scenario: Option<ScenarioId>) -> App {
+pub fn editor_app(render: bool, startup: Option<StartupScenario>) -> App {
     AppBuilder::new()
         .with_rendering(render)
-        .with_startup_scenario(startup_scenario)
+        .with_startup_scenario(startup)
         .build()
+}
+
+/// What the app boots into instead of the main menu.
+///
+/// The id form resolves against the merged [`GameScenarios`] registry, so it
+/// reaches shipped content, an enabled mod's content and the editor sandbox
+/// alike. The file form reaches content that is not installed at all: a loose
+/// `*.content.ron` a contributor is authoring or measuring, registered into the
+/// same registry before anything resolves an id against it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StartupScenario {
+    /// A scenario id from the merged registry.
+    Id(ScenarioId),
+    /// A loose content file. Every scenario in it is registered; the run boots
+    /// into `id` when one is named, else the file's FIRST scenario. Native
+    /// only - the wasm bundle has neither a filesystem nor a command line.
+    #[cfg(not(target_arch = "wasm32"))]
+    File {
+        /// Path to the `*.content.ron` file, resolved against the process cwd.
+        path: std::path::PathBuf,
+        /// Which of the file's scenarios to boot into.
+        id: Option<ScenarioId>,
+    },
 }
 
 /// Run `app` and translate bevy's [`AppExit`] into a process exit code.
@@ -104,7 +127,7 @@ pub struct AppBuilder {
     app: App,
     use_default_plugins: bool,
     render: bool,
-    startup_scenario: Option<ScenarioId>,
+    startup_scenario: Option<StartupScenario>,
 }
 
 impl Default for AppBuilder {
@@ -157,18 +180,18 @@ impl AppBuilder {
     }
 
     /// Boot straight into one scenario instead of the main menu - the game
-    /// binary's `--scenario <id>` flag.
+    /// binary's `--scenario <id>` / `--scenario-file <path>` flags.
     ///
     /// The menu plugin is still added (the pause overlay, the outcome screens
     /// and the New Game loader all live there); only the `Loaded` handoff
-    /// changes target, and `build` writes the menu's own [`NewGameScenario`]
+    /// changes target, and it writes the menu's own [`NewGameScenario`]
     /// override so the scenario comes up through the SAME OnEnter(Playing)
     /// loader - and the same non-blocking load screen - a click on Play uses.
     ///
     /// No effect on an app that supplied its own game plugins: those never had
     /// a menu to skip.
-    pub fn with_startup_scenario(mut self, id: Option<ScenarioId>) -> Self {
-        self.startup_scenario = id;
+    pub fn with_startup_scenario(mut self, startup: Option<StartupScenario>) -> Self {
+        self.startup_scenario = startup;
         self
     }
 
@@ -224,43 +247,60 @@ impl AppBuilder {
         #[cfg(feature = "debug")]
         self.app.add_plugins(DebugPlugin);
 
-        // `--scenario <id>`: enter through the menu's own New Game door rather
-        // than opening a second loader path. Only a menu app has a menu to
-        // skip, so an app with its own game plugins ignores the flag.
+        // `--scenario <id>` / `--scenario-file <path>`: enter through the menu's
+        // own New Game door rather than opening a second loader path. Only a
+        // menu app has a menu to skip, so an app with its own game plugins
+        // ignores the flags.
         let startup_scenario = if has_menu {
             self.startup_scenario.clone()
         } else {
             None
         };
-        if let Some(id) = &startup_scenario {
+        if startup_scenario.is_some() {
             self.app.insert_resource(GameMode::NewGame);
-            self.app.insert_resource(NewGameScenario(Some(id.clone())));
         }
         let boot_to_menu = has_menu && startup_scenario.is_none();
 
         // NOTE: only advance when still in Loading - the screenshot harness
         // (NOVA_SHOT) force-sets Playing on the first frame, and this hook firing
         // seconds later must not yank the app backwards into the menu.
+        //
+        // AFTER the editor's sandbox registration: the sandbox is the one
+        // scenario with no content file behind it, and a membership check that
+        // ran first would refuse the id the editor is about to publish.
         self.app.add_systems(
             OnEnter(GameAssetsStates::Loaded),
             (
-                move |state: Res<State<GameStates>>,
-                      mut next: ResMut<NextState<GameStates>>,
-                      scenarios: Option<Res<GameScenarios>>,
-                      mut exit: MessageWriter<AppExit>| {
+                (move |state: Res<State<GameStates>>,
+                       mut next: ResMut<NextState<GameStates>>,
+                       mut scenarios: Option<ResMut<GameScenarios>>,
+                       pick: Option<ResMut<NewGameScenario>>,
+                       mut exit: MessageWriter<AppExit>| {
                     if *state.get() != GameStates::Loading {
                         return;
                     }
                     // The merged registry only exists here, once the bundle
                     // merge has run - which is why an unknown `--scenario` id
                     // cannot be refused before the window opens.
-                    if let Some(id) = startup_scenario.as_deref() {
-                        let empty = GameScenarios::default();
-                        let scenarios = scenarios.as_deref().unwrap_or(&empty);
-                        if !scenarios.contains_key(id) {
-                            report_unknown_startup_scenario(id, scenarios);
-                            exit.write(AppExit::error());
-                            return;
+                    if let Some(startup) = &startup_scenario {
+                        let mut empty = GameScenarios::default();
+                        let scenarios = scenarios.as_deref_mut().unwrap_or(&mut empty);
+                        match resolve_startup_scenario(startup, scenarios) {
+                            Err(message) => {
+                                eprintln!("error: {message}");
+                                exit.write(AppExit::error());
+                                return;
+                            }
+                            Ok(id) if !scenarios.contains_key(&id) => {
+                                report_unknown_startup_scenario(&id, scenarios);
+                                exit.write(AppExit::error());
+                                return;
+                            }
+                            Ok(id) => {
+                                if let Some(mut pick) = pick {
+                                    pick.0 = Some(id);
+                                }
+                            }
                         }
                     }
                     next.set(if boot_to_menu {
@@ -268,12 +308,39 @@ impl AppBuilder {
                     } else {
                         GameStates::Playing
                     });
-                },
+                })
+                .after(EditorSandboxSystems),
                 setup_status_ui,
             ),
         );
 
         self.app
+    }
+}
+
+/// Resolve a [`StartupScenario`] to the id the run boots into, registering a
+/// loose file's scenarios into `scenarios` on the way.
+///
+/// Registration happens HERE rather than in its own system so the membership
+/// check that follows cannot observe the registry without them.
+fn resolve_startup_scenario(
+    startup: &StartupScenario,
+    scenarios: &mut GameScenarios,
+) -> Result<ScenarioId, String> {
+    // The loose-file variant is native-only, so wasm never reads the registry.
+    #[cfg(target_arch = "wasm32")]
+    let _ = scenarios;
+    match startup {
+        StartupScenario::Id(id) => Ok(id.clone()),
+        #[cfg(not(target_arch = "wasm32"))]
+        StartupScenario::File { path, id } => {
+            let loaded = nova_assets::loose::read_loose_scenarios(path)?;
+            let first = loaded[0].id.clone();
+            for scenario in loaded {
+                scenarios.insert(scenario.id.clone(), scenario);
+            }
+            Ok(id.clone().unwrap_or(first))
+        }
     }
 }
 

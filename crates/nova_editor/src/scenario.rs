@@ -206,14 +206,40 @@ pub(crate) fn setup_scenario(
 ) {
     let scenario = sandbox_scenario(&game_assets, &player_config);
 
-    // Register before loading: the DEFEAT overlay's Retry releases a queued
-    // `NextScenario`, which resolves the id against this registry. Without the
-    // entry the retry logs "not found" and unloads.
+    // Re-register with the ship the editor just built: the boot-time entry
+    // (`register_sandbox_scenario`) carries the DEFAULT hull, and the DEFEAT
+    // overlay's Retry resolves the queued `NextScenario` against this registry.
     if let Some(mut scenarios) = scenarios {
         scenarios.insert(scenario.id.clone(), scenario.clone());
     }
 
     commands.trigger(LoadScenario(scenario));
+}
+
+/// Whether the sandbox is absent from [`GameScenarios`] - the run condition of
+/// the repair pass below.
+pub(crate) fn sandbox_unregistered(scenarios: Option<Res<GameScenarios>>) -> bool {
+    scenarios.is_some_and(|scenarios| !scenarios.contains_key(SANDBOX_ID))
+}
+
+/// Put the sandbox in [`GameScenarios`] with the DEFAULT hull, so its id exists
+/// before anything asks for it by name.
+///
+/// The sandbox used to register only on the editor's Play hand-off, which made
+/// it the one scenario no id-driven caller could reach: the game binary's
+/// `--scenario` membership check, the picker's hidden launch and the probe's
+/// scenario runner all resolve ids against this registry long before Play. It
+/// is registered here for the same reason every shipped scenario is registered
+/// at load - an id nothing can name is not content.
+///
+/// [`setup_scenario`] overwrites the entry with the built ship on hand-off.
+pub(crate) fn register_sandbox_scenario(
+    game_assets: Res<GameAssets>,
+    player_config: Res<PlayerSpaceshipConfig>,
+    mut scenarios: ResMut<GameScenarios>,
+) {
+    let scenario = sandbox_scenario(&game_assets, &player_config);
+    scenarios.insert(scenario.id.clone(), scenario);
 }
 
 /// Build the sandbox: two rock belts, a hulk corridor, three dormant pickets,
@@ -715,6 +741,7 @@ fn sandbox_events(
 
 #[cfg(test)]
 mod tests {
+    use bevy::ecs::system::RunSystemOnce;
     use nova_gameplay::prelude::{GravitySettings, GravityWell};
 
     use super::*;
@@ -1091,6 +1118,47 @@ mod tests {
         assert!(
             !registered.menu_backdrop,
             "and out of the menu's backdrop rotation"
+        );
+    }
+
+    /// The repair trigger. `register_bundles` rebuilds `GameScenarios` from
+    /// content files every time the installed set changes, and this scenario
+    /// has no content file to be rebuilt from - so the id silently leaves the
+    /// registry unless something notices it is gone.
+    #[test]
+    fn a_registry_rebuilt_from_content_reads_as_missing_the_sandbox() {
+        let mut world = World::new();
+        // What a merge produces: every shipped id, and not this one.
+        let mut merged = GameScenarios::default();
+        merged.insert(
+            "some_shipped_scenario".to_string(),
+            ScenarioConfig::new(
+                "some_shipped_scenario".to_string(),
+                "Shipped".to_string(),
+                AssetRef::from("base/textures/cubemap.png"),
+            ),
+        );
+        world.insert_resource(merged);
+        assert!(
+            world
+                .run_system_once(sandbox_unregistered)
+                .expect("the condition runs"),
+            "a merged registry never carries the sandbox"
+        );
+
+        world.resource_mut::<GameScenarios>().insert(
+            SANDBOX_ID.to_string(),
+            ScenarioConfig::new(
+                SANDBOX_ID.to_string(),
+                "Editor Sandbox".to_string(),
+                AssetRef::from("base/textures/cubemap.png"),
+            ),
+        );
+        assert!(
+            !world
+                .run_system_once(sandbox_unregistered)
+                .expect("the condition runs"),
+            "and the repair stops once the id is back"
         );
     }
 

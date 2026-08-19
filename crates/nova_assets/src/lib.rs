@@ -22,6 +22,8 @@ mod merge;
 mod mod_set;
 mod plugin;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod loose;
 pub mod mod_cache;
 pub mod mod_prefs;
 pub mod mod_refs;

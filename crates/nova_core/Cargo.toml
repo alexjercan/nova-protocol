@@ -39,4 +39,9 @@ bevy = { version = "0.19.0", features = ["webgpu"] }
 workspace = true
 
 [features]
+# The PROFILED probe pass. bevy is a transitive dependency of the game BINARY
+# through this crate, so the root package cannot reach it: its own `bevy` entry
+# is a dev-dependency, and a `cargo build --bin` never resolves those. Routing
+# the feature here is what puts the per-system spans in the binary probe runs.
+trace = ["bevy/trace", "bevy/trace_chrome"]
 debug = ["nova_debug", "bevy/track_location", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_os_ui/debug", "nova_menu/debug", "nova_scenario/debug"]

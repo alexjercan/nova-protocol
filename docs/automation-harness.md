@@ -32,11 +32,19 @@ whose same-named types would otherwise resolve to an inert twin.
 | `completion` | The registration and exit protocol every driver reports to | Ending a run once, when everyone is finished |
 
 `nova_probe_cli` (the game binary's `probe` subcommand, debug feature only) is the host layer above: it arms the
-harness variables, spawns an example as a child process and turns the output
+harness variables, spawns a subject as a child process and turns the output
 into a correctness and performance report. It arms the variables below -
 including a window-sized `NOVA_AUTOPILOT_DEADLINE` for its fps pass, which your
-own value overrides. Its in-game half, `nova_probe`, is what the example itself
+own value overrides. Its in-game half, `nova_probe`, is what the subject
 wires to collect the evidence.
+
+The subject is usually an example, which wires the collectors itself. For
+`probe scenario` it is the GAME BINARY: `src/main.rs` adds
+`nova_probe::NovaProbePlugin` and the `nova_autopilot()` preset under the same
+`debug` feature that carries the `probe` subcommand. Both are inert without
+their variables, so a plain `cargo run --features debug` behaves exactly as
+before - and a scenario becomes measurable without an example file existing for
+it.
 
 ## The environment contract
 

@@ -72,7 +72,7 @@ fn main() -> bevy::app::AppExit {
     let comparison: Option<String> = None;
 
     // The same editor app the game binary runs - not a bespoke copy.
-    let mut app = editor_app(true, comparison.clone());
+    let mut app = editor_app(true, comparison.clone().map(StartupScenario::Id));
 
     #[cfg(feature = "debug")]
     {

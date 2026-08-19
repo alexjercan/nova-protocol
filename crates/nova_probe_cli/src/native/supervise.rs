@@ -63,6 +63,11 @@ pub(crate) fn ensure_display(
     ))
 }
 
+/// Cargo target name of the game binary, and the file `cargo build` leaves in
+/// `target/<profile>/`. `probe scenario` measures THIS rather than an example:
+/// a scenario is data, and the program that runs the data is the game.
+pub(crate) const GAME_BIN: &str = "nova-protocol";
+
 /// Build the example with the given feature set, streaming cargo output.
 pub(crate) fn build_example(
     root: &Path,
@@ -70,9 +75,23 @@ pub(crate) fn build_example(
     features: &str,
     profile: Option<&str>,
 ) -> Result<(), String> {
+    build_target(root, ["--example", example], features, profile)
+}
+
+/// Build the game binary with the given feature set.
+pub(crate) fn build_game(root: &Path, features: &str, profile: Option<&str>) -> Result<(), String> {
+    build_target(root, ["--bin", GAME_BIN], features, profile)
+}
+
+fn build_target(
+    root: &Path,
+    select: [&str; 2],
+    features: &str,
+    profile: Option<&str>,
+) -> Result<(), String> {
     let mut cmd = Command::new("cargo");
     cmd.current_dir(root)
-        .args(["build", "--example", example, "--features", features]);
+        .args(["build", select[0], select[1], "--features", features]);
     if let Some(profile) = profile {
         cmd.args(["--profile", profile]);
         // Frame pointers for honest sampled stacks; only ever combined
@@ -87,7 +106,7 @@ pub(crate) fn build_example(
         .status()
         .map_err(|e| format!("could not run cargo: {e}"))?;
     if !status.success() {
-        return Err(format!("cargo build --example {example} failed"));
+        return Err(format!("cargo build {} {} failed", select[0], select[1]));
     }
     Ok(())
 }

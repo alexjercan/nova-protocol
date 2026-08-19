@@ -18,6 +18,12 @@ struct Cli {
     #[cfg(not(target_arch = "wasm32"))]
     #[arg(long, value_name = "ID")]
     scenario: Option<String>,
+    /// Register the scenarios in this loose `*.content.ron` and boot into one,
+    /// without installing it as a mod. `--scenario` picks which; without it,
+    /// the file's first scenario.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[arg(long, value_name = "PATH")]
+    scenario_file: Option<std::path::PathBuf>,
     #[cfg(feature = "debug")]
     #[arg(long)]
     debugdump: bool,
@@ -66,11 +72,25 @@ fn main() -> ExitCode {
 
     // The wasm bundle has no command line to carry a scenario id.
     #[cfg(not(target_arch = "wasm32"))]
-    let startup_scenario = cli.scenario.clone();
+    let startup_scenario = match (cli.scenario_file.clone(), cli.scenario.clone()) {
+        (Some(path), id) => Some(StartupScenario::File { path, id }),
+        (None, Some(id)) => Some(StartupScenario::Id(id)),
+        (None, None) => None,
+    };
     #[cfg(target_arch = "wasm32")]
     let startup_scenario = None;
 
     let mut app = editor_app(render, startup_scenario);
+
+    // The probe collectors ride the SHIPPED app, so `probe scenario <id|path>`
+    // measures the same binary a player runs instead of an example standing in
+    // for it. Each capability is env-gated; an unarmed run wires nothing. The
+    // autopilot is what makes such a run terminate.
+    #[cfg(feature = "debug")]
+    {
+        app.add_plugins(nova_probe::NovaProbePlugin::default());
+        app.add_plugins(nova_protocol::nova_debug::harness::nova_autopilot());
+    }
 
     #[cfg(feature = "debug")]
     if cli.debugdump {

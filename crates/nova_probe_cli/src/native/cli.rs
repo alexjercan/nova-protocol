@@ -1,5 +1,6 @@
 //! The `probe` command line: usage text, flags, and the parsed [`Cmd`].
-//! Pure - resolution against the example catalog happens later.
+//! Pure - resolution against the example catalog (and, for a scenario, against
+//! the game's own registry) happens later.
 
 use std::path::PathBuf;
 
@@ -13,9 +14,9 @@ usage: probe <subcommand>
   [--platform native|web]
   the post-feature check and the perf sweep. --correctness-only runs only
   the clean behavioral pass. <spec> is one example, a
-  comma list (system_player_path,system_scenario_grammar), or a category dir
+  comma list (<example>,<example>), or a category dir
   (playable|systems|screenshots). --all runs the whole
-  catalog - nothing is excluded.
+  catalog - nothing is excluded; `probe run` alone lists it.
   Runs write to <out|probe-runs>/<short-commit>/<example>/ and
   write an aggregated index.html/index.json + probe-all.json above
   them, even for one example. Matrix flags (--scenario/--preset,
@@ -24,14 +25,72 @@ usage: probe <subcommand>
   searches it for the nearest previous commit dir and compares each
   example against <base>/<commit>/<example>/ when it has a frametime.csv.
   Without --baseline, probe searches the --out base, or probe-runs.
+  scenario <id|file.ron> [--out <dir>] [--baseline <base-dir>] [--samply]
+  [--correctness-only] [--timeout <secs>] [--display <:N>] [--release]
+  [--render gpu|sw]
+  measure a SCENARIO, with no example involved: the game binary boots into
+  it and the same passes run (clean, frame time, profiled). A positional
+  ending in .ron is a loose content file - registered for the run whether
+  or not it ships in the catalog; anything else is an id from the merged
+  registry.
   report <run-dir>... [--baseline <run-dir>]
   re-render the report (probe-run.json dirs) or the aggregate index
   (probe-all.json dirs); refuses dirs probe did not produce";
+
+/// What `probe scenario` measures. Decided by SUFFIX so parsing stays pure: a
+/// positional ending in `.ron` is a file, anything else an id.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ScenarioTarget {
+    /// An id resolved against the merged registry inside the game binary.
+    Id(String),
+    /// A loose `*.content.ron`, registered for the run and never installed.
+    File(PathBuf),
+}
+
+impl ScenarioTarget {
+    /// Classify a positional. Pure - a path that does not exist is refused by
+    /// the child, which is the half that can also say what the file contained.
+    pub(crate) fn parse(token: &str) -> Self {
+        if token.ends_with(".ron") {
+            Self::File(PathBuf::from(token))
+        } else {
+            Self::Id(token.to_string())
+        }
+    }
+
+    /// The run label: the id, or the file's stem with `.content` trimmed.
+    pub(crate) fn label(&self) -> String {
+        match self {
+            Self::Id(id) => id.clone(),
+            Self::File(path) => path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .map(|name| {
+                    name.trim_end_matches(".ron")
+                        .trim_end_matches(".content")
+                        .to_string()
+                })
+                .filter(|stem| !stem.is_empty())
+                .unwrap_or_else(|| "scenario".into()),
+        }
+    }
+
+    /// The arguments the game binary is launched with.
+    pub(crate) fn args(&self) -> Vec<String> {
+        match self {
+            Self::Id(id) => vec!["--scenario".into(), id.clone()],
+            Self::File(path) => vec!["--scenario-file".into(), path.display().to_string()],
+        }
+    }
+}
 
 /// Parsed `probe run` options.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RunOptions {
     pub example: String,
+    /// Set by `probe scenario`: the passes build and run the GAME BINARY
+    /// pointed at this target instead of a cataloged example.
+    pub scenario_target: Option<ScenarioTarget>,
     pub out: Option<PathBuf>,
     pub samply: bool,
     pub correctness_only: bool,
@@ -76,6 +135,10 @@ pub(crate) enum Cmd {
         all: bool,
         base: RunOptions,
     },
+    /// A `probe scenario` target, measured through the game binary. No catalog
+    /// is consulted: the id resolves inside the child, against the same merged
+    /// registry the game itself reads.
+    Scenario { base: RunOptions },
     Report {
         dirs: Vec<PathBuf>,
         baseline: Option<PathBuf>,
@@ -85,6 +148,7 @@ pub(crate) enum Cmd {
 fn default_run(example: String) -> RunOptions {
     RunOptions {
         example,
+        scenario_target: None,
         out: None,
         samply: false,
         correctness_only: false,
@@ -99,7 +163,7 @@ fn default_run(example: String) -> RunOptions {
     }
 }
 
-/// Parse the CLI: `run` and `report`. (The deprecated `sweep|web|profile`
+/// Parse the CLI: `run`, `scenario` and `report`. (The deprecated `sweep|web|profile`
 /// aliases and the `trace` verb retired at the v0.8.0 cut. Native runs render
 /// the top-N table in-report, and `probe report` re-renders it from the run
 /// dir.)
@@ -113,6 +177,14 @@ pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
                 Ok(Cmd::Help)
             } else {
                 parse_run(args)
+            }
+        }
+        Some("scenario") => {
+            let args = iter.cloned().collect::<Vec<_>>();
+            if requests_help(&args) {
+                Ok(Cmd::Help)
+            } else {
+                parse_scenario(args)
             }
         }
         Some("report") => {
@@ -165,6 +237,66 @@ pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
 fn requests_help(args: &[String]) -> bool {
     args.iter()
         .any(|arg| matches!(arg.as_str(), "-h" | "--help"))
+}
+
+/// Parse `probe scenario <id|file.ron> [flags]`. The measurement flags are
+/// `run`'s; the spec flags (--all, --scenario, --preset, --platform) are not -
+/// the positional IS the scenario, and there is no catalog to expand.
+fn parse_scenario(args: Vec<String>) -> Result<Cmd, String> {
+    let mut target: Option<String> = None;
+    let mut opts = default_run(String::new());
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--samply" => opts.samply = true,
+            "--correctness-only" => opts.correctness_only = true,
+            "--release" => opts.release = true,
+            "--out" => {
+                opts.out = Some(PathBuf::from(iter.next().ok_or("--out needs a directory")?));
+            }
+            "--baseline" => {
+                opts.baseline = Some(PathBuf::from(
+                    iter.next().ok_or("--baseline needs a run dir")?,
+                ));
+            }
+            "--timeout" => {
+                opts.timeout_secs = iter
+                    .next()
+                    .and_then(|v| v.parse().ok())
+                    .ok_or("--timeout needs seconds")?;
+            }
+            "--display" => {
+                opts.display = Some(iter.next().ok_or("--display needs e.g. :0")?.clone());
+            }
+            "--render" => {
+                opts.render = match iter.next().map(String::as_str) {
+                    Some("gpu") => Render::Gpu,
+                    Some("sw") => Render::Sw,
+                    _ => return Err("--render needs gpu or sw".into()),
+                };
+            }
+            other if other.starts_with('-') => {
+                return Err(format!("unknown flag {other}"));
+            }
+            other => {
+                if target.replace(other.to_string()).is_some() {
+                    return Err("scenario takes exactly one id or file".into());
+                }
+            }
+        }
+    }
+    let target = target.ok_or("scenario needs an id or a .ron file")?;
+    let target = ScenarioTarget::parse(&target);
+    opts.example = target.label();
+    opts.scenario_target = Some(target);
+    if opts.correctness_only && (opts.samply || opts.baseline.is_some()) {
+        return Err(
+            "--correctness-only does not combine with measurement options \
+             --samply/--baseline"
+                .into(),
+        );
+    }
+    Ok(Cmd::Scenario { base: opts })
 }
 
 fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
@@ -331,6 +463,8 @@ mod tests {
             s(&["run", "playable", "-h"]),
             s(&["report", "--help"]),
             s(&["report", "runs/x", "-h"]),
+            s(&["scenario", "--help"]),
+            s(&["scenario", "some_id", "-h"]),
         ] {
             assert_eq!(parse(&args), Ok(Cmd::Help), "{args:?}");
         }
@@ -415,6 +549,73 @@ mod tests {
         };
         assert_eq!(tokens, s(&["some_scenario"]));
         assert_eq!(base.platform, Platform::Web);
+    }
+
+    /// The positional is the subject, and its FORM says which kind. An id
+    /// never touches the filesystem here; a `.ron` never touches the registry.
+    #[test]
+    fn a_scenario_positional_is_an_id_or_a_ron_file() {
+        let Ok(Cmd::Scenario { base }) = parse(&s(&["scenario", "some_scenario"])) else {
+            panic!("an id parses");
+        };
+        assert_eq!(
+            base.scenario_target,
+            Some(ScenarioTarget::Id("some_scenario".into()))
+        );
+        assert_eq!(base.example, "some_scenario", "the label is the id");
+        assert_eq!(
+            base.scenario_target.unwrap().args(),
+            s(&["--scenario", "some_scenario"])
+        );
+
+        let Ok(Cmd::Scenario { base }) = parse(&s(&["scenario", "mods/x/thing.content.ron"]))
+        else {
+            panic!("a file parses");
+        };
+        let target = base.scenario_target.expect("a target");
+        assert_eq!(
+            target,
+            ScenarioTarget::File(PathBuf::from("mods/x/thing.content.ron"))
+        );
+        assert_eq!(
+            base.example, "thing",
+            "the label drops the .content.ron suffix"
+        );
+        assert_eq!(
+            target.args(),
+            s(&["--scenario-file", "mods/x/thing.content.ron"])
+        );
+    }
+
+    #[test]
+    fn scenario_takes_one_subject_and_the_measurement_flags() {
+        assert!(parse(&s(&["scenario"])).is_err(), "a subject is required");
+        assert!(parse(&s(&["scenario", "a", "b"])).is_err(), "exactly one");
+        // The spec axes belong to `run`: there is no catalog to expand here.
+        for flag in ["--all", "--scenario", "--preset", "--platform"] {
+            assert!(
+                parse(&s(&["scenario", "a", flag, "value"])).is_err(),
+                "{flag}"
+            );
+        }
+        let Ok(Cmd::Scenario { base }) = parse(&s(&[
+            "scenario",
+            "a",
+            "--release",
+            "--render",
+            "sw",
+            "--samply",
+            "--timeout",
+            "900",
+            "--out",
+            "runs/x",
+        ])) else {
+            panic!("the measurement flags parse");
+        };
+        assert!(base.release && base.samply);
+        assert_eq!(base.render, Render::Sw);
+        assert_eq!(base.timeout_secs, 900);
+        assert_eq!(base.out, Some(PathBuf::from("runs/x")));
     }
 
     #[test]

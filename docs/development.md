@@ -615,6 +615,8 @@ cargo run --features debug probe run system_player_path --baseline probe-runs  #
 cargo run --features debug probe run system_player_path,system_scenario_grammar   # comma list -> aggregate index
 cargo run --features debug probe run systems            # a whole category
 cargo run --features debug probe run --all               # the whole fleet
+cargo run --features debug probe scenario broadside      # a SCENARIO by id, no example involved
+cargo run --features debug probe scenario assets/base/scenarios/broadside.content.ron  # ... or by file
 ```
 
 It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours),
@@ -630,9 +632,22 @@ report` only re-renders dirs that have one. The commit root also gets
 example. `--correctness-only` runs only the clean pass: timeline, invariants,
 autopilot assertions, completion, reached-Playing, and log checks remain armed,
 while frame-time and traced passes are omitted. CI uses this mode; release
-verification uses the full run. Two verbs is the whole surface - `run` and `report`; the transitional
-`sweep|web|profile` aliases and the `trace` verb retired at the v0.8.0 cut
-(retired commands error with a pointer to the `run` form).
+verification uses the full run. Three verbs are the whole surface - `run`,
+`scenario` and `report`; the transitional `sweep|web|profile` aliases and the
+`trace` verb retired at the v0.8.0 cut (retired commands error with a pointer
+to the `run` form).
+
+`probe scenario` takes those same passes to a scenario, with nothing in
+between: the SHIPPED GAME BINARY is the program, launched with `--scenario
+<id>` or `--scenario-file <path.ron>` and carrying the probe collectors under
+its `debug` feature. A positional ending in `.ron` is a loose content file,
+registered for that run whether or not it is installed - so a scenario a
+contributor or a mod author is still writing is measurable without adding it to
+any catalog. Its `self://` art resolves against the nearest enclosing
+`*.bundle.ron` folder, the same place the merge would have resolved it. There
+is no spec to expand and no aggregate: one subject, one run dir, the same
+`report.html` + `checks.json`. Measuring a scenario needs NO example, no
+`[[example]]` block and no Rust file - that is the point of the verb.
 
 Every run spec resolves to a list. A single example is just a one-item list;
 comma lists, category dir names, and `--all` expand against the `[[example]]`

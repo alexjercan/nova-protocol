@@ -435,6 +435,8 @@ does NOT get an entry - and it is the only place they are written down.
 - The `system_nova_os` range opens the ship computer with Tab and clicks a widget THROUGH the CRT glass, asserting the whole forwarded-pointer chain live.
 - Fixed: a synthesized click never reached the NOVA OS screen - the forwarded pointer read a button stream `bevy_picking` does not write.
 - Fixed: the NOVA OS glass was measured in physical pixels against a logical cursor, so every click missed by the display's scale factor.
+- `probe scenario <id|file.ron>` measures a scenario through the game binary - no example, no `[[example]]` block. A loose content file works whether or not it ships.
+- `--scenario-file <path>` boots the game into a loose `*.content.ron` without installing it, and `--scenario editor_sandbox` now resolves.
 - Probe accepts `-h` and `--help` at the root, `run`, and `report` command levels.
 - The bug-to-range doctrine is written down (`CONVENTIONS.md`): reproduce a bug
   as a `systems/` range before the fix, and name every claim on the invariant

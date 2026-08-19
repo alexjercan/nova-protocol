@@ -1,5 +1,9 @@
-//! One example through the harness passes: clean, declared frame time, traced,
+//! One SUBJECT through the harness passes: clean, declared frame time, traced,
 //! optional samply, then the run report.
+//!
+//! The subject is a cataloged example, or - for `probe scenario` - the game
+//! binary pointed at a scenario. The passes are identical either way; only what
+//! gets built and which arguments the child carries differ.
 
 use std::{
     path::{Path, PathBuf},
@@ -16,7 +20,7 @@ use super::{
         trace_pass_env,
     },
     paths::{default_output_root, repo_root, resolve_full_git_sha},
-    supervise::{build_example, ensure_display, run_supervised},
+    supervise::{build_example, build_game, ensure_display, run_supervised, GAME_BIN},
     web::web_capture,
 };
 use crate::{
@@ -88,6 +92,39 @@ enum NativePass {
     FrameTime,
     Profiled,
     Samply,
+}
+
+/// Build this run's subject with `features` into `profile`.
+fn build_subject(
+    root: &Path,
+    opts: &RunOptions,
+    features: &str,
+    profile: Option<&str>,
+) -> Result<(), String> {
+    if opts.scenario_target.is_some() {
+        build_game(root, features, profile)
+    } else {
+        build_example(root, &opts.example, features, profile)
+    }
+}
+
+/// Where `cargo build` left this run's subject.
+fn subject_bin(root: &Path, opts: &RunOptions, profile_dir: &str) -> PathBuf {
+    let target = root.join("target").join(profile_dir);
+    if opts.scenario_target.is_some() {
+        target.join(GAME_BIN)
+    } else {
+        target.join("examples").join(&opts.example)
+    }
+}
+
+/// The arguments every child run carries. An example takes none; the game
+/// binary takes the flag that points it at the scenario.
+fn subject_args(opts: &RunOptions) -> Vec<String> {
+    opts.scenario_target
+        .as_ref()
+        .map(super::cli::ScenarioTarget::args)
+        .unwrap_or_default()
 }
 
 fn post_clean_passes(
@@ -176,12 +213,10 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     } else {
         ("debug", None)
     };
-    build_example(&root, &opts.example, build_features, cargo_profile)?;
-    let bin = root
-        .join("target")
-        .join(profile_dir)
-        .join("examples")
-        .join(&opts.example);
+    build_subject(&root, opts, build_features, cargo_profile)?;
+    let bin = subject_bin(&root, opts, profile_dir);
+    let args = subject_args(opts);
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
     for (i, (scenario, preset)) in cells.iter().enumerate() {
         let cell_name = match (scenario, preset) {
             (Some(s), Some(p)) => format!("clean {s}-{p}"),
@@ -212,7 +247,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
             preset.as_deref(),
             opts.render,
         ));
-        let outcome = run_supervised(&bin, &[], &root, &env, &out.join(&log_name), timeout)?;
+        let outcome = run_supervised(&bin, &args, &root, &env, &out.join(&log_name), timeout)?;
         if !outcome.success() {
             eprintln!("probe: {cell_name} did not succeed; the report will say so");
         }
@@ -267,7 +302,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                 eprintln!("probe: fps pass deadline {deadline_secs}s (window-sized)");
                 let outcome = run_supervised(
                     &bin,
-                    &[],
+                    &args,
                     &root,
                     &env,
                     &out.join("fps-run.log"),
@@ -286,7 +321,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                 // Tracing stays separate so its overhead never touches the
                 // frame-time pass. Failures degrade to a missing trace.
                 eprintln!("probe: profiled pass: building with tracing");
-                match build_example(&root, &opts.example, "debug,trace", None) {
+                match build_subject(&root, opts, "debug,trace", None) {
                     Err(e) => {
                         eprintln!("probe: profiled build failed ({e}); continuing without a trace");
                         PassRecord {
@@ -296,17 +331,13 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                         }
                     }
                     Ok(()) => {
-                        let trace_bin = root
-                            .join("target")
-                            .join("debug")
-                            .join("examples")
-                            .join(&opts.example);
+                        let trace_bin = subject_bin(&root, opts, "debug");
                         let env = trace_pass_env(&root, &out, &display);
                         eprintln!("probe: traced run -> {}", out.join("trace.json").display());
                         // Tracing throttles the run hard; give it double time.
                         let outcome = run_supervised(
                             &trace_bin,
-                            &[],
+                            &args,
                             &root,
                             &env,
                             &out.join("trace-run.log"),
@@ -329,7 +360,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                 // Samply is tolerant: a missing or blocked profiler records
                 // the attempted auxiliary pass but never fails a check.
                 eprintln!("probe: samply pass");
-                match build_example(&root, &opts.example, "debug", Some("profiling")) {
+                match build_subject(&root, opts, "debug", Some("profiling")) {
                     Err(e) => {
                         eprintln!("probe: samply build failed ({e}); flamegraph skipped");
                         PassRecord {
@@ -339,19 +370,23 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                         }
                     }
                     Ok(()) => {
-                        let sbin = root.join("target/profiling/examples").join(&opts.example);
+                        let sbin = subject_bin(&root, opts, "profiling");
                         let samply_env = samply_pass_env(&root, &out, &display);
                         let samply = Path::new("samply");
                         let profile_out = out.join("samply-profile.json.gz");
+                        let mut samply_args = vec![
+                            "record".to_string(),
+                            "--save-only".to_string(),
+                            "-o".to_string(),
+                            profile_out.display().to_string(),
+                            sbin.display().to_string(),
+                        ];
+                        samply_args.extend(subject_args(opts));
+                        let samply_args: Vec<&str> =
+                            samply_args.iter().map(String::as_str).collect();
                         let outcome = run_supervised(
                             samply,
-                            &[
-                                "record",
-                                "--save-only",
-                                "-o",
-                                &profile_out.display().to_string(),
-                                &sbin.display().to_string(),
-                            ],
+                            &samply_args,
                             &root,
                             &samply_env,
                             &out.join("samply-run.log"),
