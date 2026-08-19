@@ -107,9 +107,20 @@ earlier draft of this calibration did exactly that and landed on 2 G, which at
 true scale flips a 1-1-1 in 3.10 s against today's 5.00 s - it would not have
 fixed the complaint that opened the task.
 
-**`METRES_PER_UNIT` does not exist as a constant.** The scale lives in one doc
-comment on an unrelated range constant. It becomes a named const as part of this
-work, because the model reads it.
+**`METRES_PER_UNIT` exists, but not where physics can reach it.** Corrected
+2026-08-19: it is `crates/nova_ui/src/units.rs:13`, `= 10.0`. The earlier claim
+here that no constant existed was wrong.
+
+It is however declared DISPLAY-ONLY - `units.rs:8`: "World-space transforms,
+physics, content RON and AI tuning keep raw world units; only the strings a
+player reads pass through here" - and `nova_ship` does not depend on `nova_ui`
+(checked both manifests). So this work still needs the scale on the physics
+side, by PROMOTING that constant into a crate both can see, never by declaring a
+second one. Two constants that must agree is the same fault as a re-typed id
+(`20260819-131004`), and this one goes wrong silently by a factor of ten.
+
+No existing leaf serves both: `nova_ship` sees `nova_events`, `nova_ui` does
+not. Picking the home is part of the implementation.
 
 Expected flip times at 8 G, bang-bang 180:
 
@@ -137,6 +148,18 @@ So: spawn the shipped hulls, read avian's `ComputedAngularInertia` and the
 furthest-section radius, and back-solve `max_torque` from the real pair. It is a
 spawn-and-print job, not a derivation, and it must happen before any content is
 retuned against a wrong number.
+
+**A shipped hull already contradicts the law**, which settles the argument. The
+cargoa's authored 4.9 x 3.2 x 1.6 u box is at most 30 unit cells with a yaw
+inertia of 85; the assumed `r^3.5` wants 6 sections and `I = 13.9`, so the real
+hull is 6.1x heavier in inertia than the law predicts. A two-point fit through
+the 1-1-1 anchor and that box wants `p = 7.2`, which is not a scaling law at all
+- it is proof that authored hulls do not follow one. **1501 is a floor, not an
+estimate.**
+
+What the gap does NOT touch: the 1-1-1, cargoa and mid-hull flip times contain
+no `I` at all - they are structure-bound, so `load_limit` alone fixes them. Only
+the capital end waits on the measurement.
 
 ### `load_limit` has no physical derivation, and that is fine
 

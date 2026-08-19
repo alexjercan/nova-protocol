@@ -1,0 +1,2540 @@
+<title>Attitude control by physics - structural ceiling and torque budget</title>
+
+<style>
+/* ------------------------------------------------------------------ *
+ * TOKENS
+ * Drafting sheet: cool grey board, white plates, graphite ink.
+ * Series hues are instrument-panel caution amber (structural) and
+ * signal teal (propulsive). Both validated for CVD separation against
+ * their own mode surface.
+ * ------------------------------------------------------------------ */
+:root {
+  --sheet:            #E4E6E8;
+  --panel:            #EFF1F2;
+  --panel-2:          #E9ECED;
+  --ink:              #14171A;
+  --ink-2:            #414951;
+  --ink-3:            #6B747C;
+  --rule:             #C6CBCF;
+  --rule-2:           #A6ADB3;
+  --structural:       #B26A00;
+  --propulsive:       #00789A;
+  --oxide:            #A8342A;
+  --tint-structural:  rgba(178,106,0,0.11);
+  --tint-propulsive:  rgba(0,120,154,0.10);
+  --tint-oxide:       rgba(168,52,42,0.09);
+  --grid:             rgba(20,23,26,0.09);
+  --grid-minor:       rgba(20,23,26,0.045);
+  --focus:            #00789A;
+
+  --ff-display: "IBM Plex Sans Condensed", "Roboto Condensed", "Archivo Narrow", "Liberation Sans Narrow", "Helvetica Neue", Arial, sans-serif;
+  --ff-body: "Source Sans 3", "Source Sans Pro", "Noto Sans", "Segoe UI", system-ui, "DejaVu Sans", sans-serif;
+  --ff-mono: "JetBrains Mono", "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sheet:            #101315;
+    --panel:            #171B1E;
+    --panel-2:          #1C2124;
+    --ink:              #E3E7EA;
+    --ink-2:            #A3ADB4;
+    --ink-3:            #737E86;
+    --rule:             #2B3237;
+    --rule-2:           #414A50;
+    --structural:       #C68420;
+    --propulsive:       #1E93B0;
+    --oxide:            #D9614C;
+    --tint-structural:  rgba(198,132,32,0.15);
+    --tint-propulsive:  rgba(30,147,176,0.13);
+    --tint-oxide:       rgba(217,97,76,0.13);
+    --grid:             rgba(227,231,234,0.10);
+    --grid-minor:       rgba(227,231,234,0.05);
+    --focus:            #1E93B0;
+  }
+}
+
+:root[data-theme="dark"] {
+  --sheet:            #101315;
+  --panel:            #171B1E;
+  --panel-2:          #1C2124;
+  --ink:              #E3E7EA;
+  --ink-2:            #A3ADB4;
+  --ink-3:            #737E86;
+  --rule:             #2B3237;
+  --rule-2:           #414A50;
+  --structural:       #C68420;
+  --propulsive:       #1E93B0;
+  --oxide:            #D9614C;
+  --tint-structural:  rgba(198,132,32,0.15);
+  --tint-propulsive:  rgba(30,147,176,0.13);
+  --tint-oxide:       rgba(217,97,76,0.13);
+  --grid:             rgba(227,231,234,0.10);
+  --grid-minor:       rgba(227,231,234,0.05);
+  --focus:            #1E93B0;
+}
+
+:root[data-theme="light"] {
+  --sheet:            #E4E6E8;
+  --panel:            #EFF1F2;
+  --panel-2:          #E9ECED;
+  --ink:              #14171A;
+  --ink-2:            #414951;
+  --ink-3:            #6B747C;
+  --rule:             #C6CBCF;
+  --rule-2:           #A6ADB3;
+  --structural:       #B26A00;
+  --propulsive:       #00789A;
+  --oxide:            #A8342A;
+  --tint-structural:  rgba(178,106,0,0.11);
+  --tint-propulsive:  rgba(0,120,154,0.10);
+  --tint-oxide:       rgba(168,52,42,0.09);
+  --grid:             rgba(20,23,26,0.09);
+  --grid-minor:       rgba(20,23,26,0.045);
+  --focus:            #00789A;
+}
+
+/* ------------------------------------------------------------------ *
+ * BASE
+ * ------------------------------------------------------------------ */
+html { -webkit-text-size-adjust: 100%; }
+
+.page {
+  background: var(--sheet);
+  color: var(--ink);
+  font-family: var(--ff-body);
+  font-size: 16px;
+  line-height: 1.62;
+  padding: clamp(1rem, 3vw, 2.75rem) clamp(0.9rem, 3vw, 2.5rem) 5rem;
+  overflow-x: hidden;
+}
+
+.doc {
+  max-width: 1160px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.5rem, 5vw, 4rem);
+}
+
+:where(a):focus-visible,
+:where(button):focus-visible,
+:where(input):focus-visible,
+:where(summary):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 1px;
+}
+
+a { color: var(--ink); text-decoration-color: var(--rule-2); text-underline-offset: 2px; }
+a:hover { text-decoration-color: var(--focus); }
+
+/* ------------------------------------------------------------------ *
+ * TITLE BLOCK -- a drawing sheet's title block, not a hero.
+ * ------------------------------------------------------------------ */
+.titleblock {
+  border: 1px solid var(--rule-2);
+  background: var(--panel);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.tb-row { display: contents; }
+.tb-cell {
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+.tb-cell + .tb-cell { border-left: 1px solid var(--rule); }
+.tb-key {
+  font-family: var(--ff-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: block;
+}
+.tb-val {
+  font-family: var(--ff-mono);
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tb-title {
+  grid-column: 1 / -1;
+  padding: 1rem 0.85rem 1.15rem;
+  border-bottom: 1px solid var(--rule);
+}
+.tb-title h1 {
+  font-family: var(--ff-display);
+  font-size: clamp(1.6rem, 4.4vw, 2.45rem);
+  line-height: 1.06;
+  letter-spacing: -0.012em;
+  font-weight: 600;
+  margin: 0.15rem 0 0;
+  text-wrap: balance;
+  max-width: 36ch;
+}
+.tb-strip {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1px;
+  background: var(--rule);
+}
+.tb-strip > div {
+  flex: 1 1 8.5rem;
+  background: var(--panel);
+  padding: 0.45rem 0.85rem 0.55rem;
+}
+.tb-title + .tb-strip { border-top: 0; }
+.tb-cell:last-child, .tb-strip { border-bottom: 0; }
+
+.lede {
+  font-size: clamp(1.02rem, 2.1vw, 1.14rem);
+  line-height: 1.55;
+  color: var(--ink);
+  max-width: 60ch;
+  margin: 1.35rem 0 0;
+}
+.lede b { font-weight: 600; }
+
+/* ------------------------------------------------------------------ *
+ * SECTIONS -- numbered like report clauses; the number is a real
+ * cross-reference target, used by the plate captions.
+ * ------------------------------------------------------------------ */
+.sec {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  column-gap: 1.6rem;
+}
+.sec-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--rule-2);
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.sec-idx {
+  font-family: var(--ff-mono);
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+  width: 3rem;
+  flex: 0 0 3rem;
+  font-variant-numeric: tabular-nums;
+}
+.sec-head h2 {
+  font-family: var(--ff-display);
+  font-size: clamp(1.18rem, 2.6vw, 1.42rem);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sec-tag {
+  font-family: var(--ff-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.sec-body {
+  grid-column: 2;
+  border-left: 1px solid var(--rule);
+  padding-left: 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  min-width: 0;
+}
+.sec-body > p { margin: 0; max-width: 68ch; }
+.sec-body > ul { margin: 0; padding-left: 1.15rem; max-width: 68ch; display: flex; flex-direction: column; gap: 0.5rem; }
+.sec-body > ul li::marker { color: var(--ink-3); }
+
+h3 {
+  font-family: var(--ff-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  font-weight: 500;
+  margin: 0.8rem 0 -0.35rem;
+}
+
+strong { font-weight: 600; }
+em { font-style: normal; font-weight: 600; color: var(--ink); }
+
+.kbd, code {
+  font-family: var(--ff-mono);
+  font-size: 0.86em;
+  background: var(--panel-2);
+  border: 1px solid var(--rule);
+  padding: 0.02em 0.3em;
+  color: var(--ink-2);
+}
+
+/* equations */
+.eq {
+  font-family: var(--ff-mono);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-3);
+  padding: 0.85rem 1rem;
+  margin: 0;
+  overflow-x: auto;
+  color: var(--ink);
+  white-space: pre;
+}
+.eq .an { color: var(--ink-3); }
+
+/* note block */
+.note {
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  padding: 0.8rem 1rem 0.85rem;
+  font-size: 0.9375rem;
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.note > p { margin: 0; }
+.note-label {
+  font-family: var(--ff-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.note.src { border-left: 3px solid var(--propulsive); }
+.note.warn { border-left: 3px solid var(--oxide); }
+.note.hist { border-left: 3px solid var(--structural); }
+.src-path {
+  font-family: var(--ff-mono);
+  font-size: 0.78rem;
+  line-height: 1.75;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+/* ------------------------------------------------------------------ *
+ * PLATES -- figures set as plates in a technical report.
+ * ------------------------------------------------------------------ */
+.plate {
+  border: 1px solid var(--rule-2);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+}
+.plate-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap;
+}
+.plate-no {
+  font-family: var(--ff-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.plate-title {
+  font-family: var(--ff-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.plate-canvas-wrap { padding: 0.6rem; overflow-x: auto; }
+.plate canvas { display: block; width: 100%; }
+#cv-cross { height: 400px; min-width: 520px; }
+#cv-ship { height: 380px; min-width: 520px; }
+#cv-env { height: 400px; min-width: 460px; }
+#cv-ctl { height: 420px; min-width: 580px; }
+.plate-cap {
+  border-top: 1px solid var(--rule);
+  padding: 0.6rem 0.9rem 0.7rem;
+  font-family: var(--ff-mono);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.plate-cap b { color: var(--ink-2); font-weight: 500; }
+
+/* legend */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.15rem;
+  padding: 0.5rem 0.9rem 0.6rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--ff-mono);
+  font-size: 0.72rem;
+  color: var(--ink-2);
+}
+.legend span { display: inline-flex; align-items: center; gap: 0.45rem; }
+.swatch { width: 18px; height: 0; border-top-width: 2.5px; border-top-style: solid; flex: 0 0 18px; }
+.sw-struct { border-top-color: var(--structural); }
+.sw-struct-d { border-top-color: var(--structural); border-top-style: dashed; }
+.sw-prop { border-top-color: var(--propulsive); border-top-style: dashed; }
+.sw-prop-s { border-top-color: var(--propulsive); }
+.sw-min { border-top-color: var(--ink); border-top-width: 7px; opacity: 0.34; }
+.sw-cur { border-top-color: var(--ink-3); border-top-style: dotted; }
+
+/* ------------------------------------------------------------------ *
+ * CONSOLE -- the interactive block. Reads as an instrument, not a card.
+ * ------------------------------------------------------------------ */
+.console {
+  border: 1px solid var(--rule-2);
+  background: var(--panel);
+}
+.console-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--rule-2);
+  background: var(--panel-2);
+  flex-wrap: wrap;
+}
+.console-head .plate-title { font-size: 0.95rem; }
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0;
+  background: var(--rule);
+}
+.ctl {
+  background: var(--panel);
+  padding: 0.75rem 0.9rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.ctl label {
+  font-family: var(--ff-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.15rem 0.6rem;
+}
+.ctl .val {
+  font-family: var(--ff-mono);
+  font-size: 0.9rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ctl .hint { font-family: var(--ff-mono); font-size: 0.66rem; color: var(--ink-3); letter-spacing: 0.02em; }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  margin: 0.35rem 0 0.1rem;
+  height: 18px;
+  cursor: ew-resize;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px; background: var(--rule-2); border-radius: 0;
+}
+input[type="range"]::-moz-range-track {
+  height: 3px; background: var(--rule-2); border-radius: 0;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 11px; height: 17px; margin-top: -7px;
+  background: var(--ink); border: 0; border-radius: 1px;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 11px; height: 17px;
+  background: var(--ink); border: 0; border-radius: 1px;
+}
+
+.readouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+  background: var(--rule);
+  gap: 1px;
+}
+.ro {
+  background: var(--panel);
+  padding: 0.7rem 0.9rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.ro-k {
+  font-family: var(--ff-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.ro-v {
+  font-family: var(--ff-mono);
+  font-size: clamp(1.15rem, 3.4vw, 1.5rem);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.ro-u { font-size: 0.75rem; color: var(--ink-3); }
+.ro-sub { font-family: var(--ff-mono); font-size: 0.7rem; color: var(--ink-3); }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--ff-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.14rem 0.5rem 0.18rem;
+  border: 1px solid currentColor;
+  align-self: flex-start;
+}
+.pill::before {
+  content: "";
+  width: 7px; height: 7px;
+  background: currentColor;
+  flex: 0 0 7px;
+}
+.pill.struct { color: var(--structural); background: var(--tint-structural); }
+.pill.torque { color: var(--propulsive); background: var(--tint-propulsive); }
+
+.btn {
+  font-family: var(--ff-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  background: var(--panel-2);
+  color: var(--ink-2);
+  border: 1px solid var(--rule-2);
+  padding: 0.28rem 0.7rem 0.32rem;
+  cursor: pointer;
+}
+.btn:hover { color: var(--ink); border-color: var(--ink-3); }
+
+/* ------------------------------------------------------------------ *
+ * TABLE
+ * ------------------------------------------------------------------ */
+.tw { overflow-x: auto; border: 1px solid var(--rule-2); background: var(--panel); }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 660px;
+  font-family: var(--ff-mono);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+table.mini { min-width: 560px; }
+caption {
+  text-align: left;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--rule-2);
+  font-size: 0.6875rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--panel-2);
+}
+th, td { padding: 0.45rem 0.75rem; text-align: right; border-bottom: 1px solid var(--rule); }
+th:first-child, td:first-child { text-align: left; }
+thead th {
+  font-weight: 500;
+  color: var(--ink-3);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--rule-2);
+  vertical-align: bottom;
+}
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr.live td { background: var(--panel-2); }
+tbody tr.live td:first-child { box-shadow: inset 3px 0 0 var(--oxide); }
+td.bind-s { color: var(--structural); }
+td.bind-t { color: var(--propulsive); }
+td.num { color: var(--ink); }
+
+/* open questions */
+.qlist { display: flex; flex-direction: column; gap: 1px; background: var(--rule); border: 1px solid var(--rule-2); }
+.q { background: var(--panel); padding: 0.9rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.q-head { display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }
+.q-no { font-family: var(--ff-mono); font-size: 0.72rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.q-t { font-family: var(--ff-display); font-size: 1.02rem; font-weight: 600; }
+.q-state {
+  font-family: var(--ff-mono); font-size: 0.64rem; letter-spacing: 0.13em;
+  text-transform: uppercase; color: var(--oxide); border: 1px solid currentColor;
+  padding: 0.08rem 0.42rem 0.12rem; background: var(--tint-oxide);
+}
+.q-state.calm { color: var(--ink-3); background: transparent; }
+.q p { margin: 0; font-size: 0.95rem; color: var(--ink-2); max-width: 72ch; }
+
+/* footer */
+.colophon {
+  border-top: 1px solid var(--rule-2);
+  padding-top: 0.9rem;
+  font-family: var(--ff-mono);
+  font-size: 0.72rem;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.5rem;
+}
+
+@media (max-width: 720px) {
+  .sec { grid-template-columns: 1fr; }
+  .sec-body { grid-column: 1; border-left: 0; padding-left: 0; }
+  .sec-idx { width: auto; flex: 0 0 auto; }
+  .titleblock { grid-template-columns: 1fr; }
+  .tb-cell + .tb-cell { border-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+</style>
+
+<div class="page">
+<div class="doc">
+
+  <!-- ============================ TITLE BLOCK ============================ -->
+  <header class="titleblock">
+    <div class="tb-title">
+      <span class="tb-key">Nova Protocol / flight / spike</span>
+      <h1>Attitude control by physics: a structural ceiling and a torque budget</h1>
+    </div>
+    <div class="tb-strip">
+      <div><span class="tb-key">Task</span><span class="tb-val">20260819-140314</span></div>
+      <div><span class="tb-key">Epic</span><span class="tb-val">20260818-220812</span></div>
+      <div><span class="tb-key">Scale</span><span class="tb-val">1 u = 10 m</span></div>
+      <div><span class="tb-key">load_limit</span><span class="tb-val">8 G = 78.48 m/s2</span></div>
+      <div><span class="tb-key">Crossover</span><span class="tb-val">10 u = 100 m</span></div>
+      <div><span class="tb-key">max_torque</span><span class="tb-val">Not yet measured</span></div>
+      <div><span class="tb-key">Status</span><span class="tb-val">Model settled; retune open</span></div>
+    </div>
+    <div class="tb-strip">
+      <div style="flex:1 1 100%">
+        <p class="lede">A minimal 1-1-1 ship turns at exactly the same rate as a hundred-section
+        capital. That is not a bug - it is <b>2b03a2f8</b>, "Make controller authority size-independent
+        in acceleration units", doing precisely what it says. The model settled on 2026-08-19 is that
+        attitude authority is bounded by <b>two</b> limits, not one, and that the binding limit is
+        different for a fighter and for a capital. Two authored knobs carry it, one authored knob is
+        deleted, and size falls out of the physics instead of being legislated in either direction.
+        <b>Every radius here is given in world units and in metres.</b> Nova runs at 1 u = 10 m; an
+        earlier pass of this calibration dropped that conversion and came out ten times too sharp,
+        which is <b>03</b>. And <b>max_torque is still not a number</b> - the crossover pins it only
+        once the inertia is measured, which is <b>06</b>.</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================ 01 THE KNOBS ============================ -->
+  <section class="sec">
+    <div class="sec-head">
+      <span class="sec-idx">01</span>
+      <h2>Two knobs. One deletion.</h2>
+      <span class="sec-tag">Read this one first</span>
+    </div>
+    <div class="sec-body">
+      <p><strong>Delete <code>max_angular_acceleration: 0.5</code> from the controller.</strong> It
+      stops being authored and starts being computed. That is the whole change. Everything below is
+      how it gets computed.</p>
+
+      <p><strong>Add <code>max_torque</code> to the controller.</strong> How hard this computer's
+      reaction wheels twist the ship. Two computers, twice the torque. No cap, no curve, no stacking
+      rule. <strong>It has no settled value yet</strong>, and that is <b>06</b>.</p>
+
+      <p><strong>Add <code>load_limit</code>, one global constant.</strong> How many G the hull takes
+      before it tears. <strong>8 G = 78.48 m/s2</strong>, decided 2026-08-19. Not authored per
+      section: hull metal is hull metal, so there is never a "which section's limit" question to
+      answer.</p>
+
+      <p>The game already has the rest. Every frame it knows the ship's inertia <code>I</code> and
+      the distance <code>r</code> from the centre of mass to the furthest section. <code>r</code> is
+      a distance in world units and <code>load_limit</code> is a real acceleration, so the structural
+      line carries the scale conversion - that is <b>03</b>, and it is where the previous draft of
+      this page was wrong by a factor of ten:</p>
+
+      <pre class="eq">torque ceiling      = total max_torque / I                  <span class="an">can I push that hard?</span>
+structural ceiling  = load_limit / (r * METRES_PER_UNIT)    <span class="an">will it survive it?</span>
+turn acceleration   = min( the two )                        <span class="an">whichever gives up first</span>
+
+<span class="an">METRES_PER_UNIT = 10        load_limit = 8 G = 78.48 m/s2</span></pre>
+
+      <div class="tw">
+        <table class="mini">
+          <caption>The same controller, one of it, on three ships</caption>
+          <thead>
+            <tr>
+              <th>Ship</th>
+              <th>I<br>t u2</th>
+              <th>r<br>u</th>
+              <th>r<br>m</th>
+              <th>Torque ceiling<br>rad/s2</th>
+              <th>Structural ceiling<br>rad/s2</th>
+              <th>Turn acceleration<br>rad/s2</th>
+              <th>Flip 180<br>s</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-knobs"></tbody>
+        </table>
+      </div>
+
+      <p>Same controller, same constant, and the answer comes out different because the ships are
+      different. On the fighter the torque ceiling is <span id="k-head">115</span>x higher than the
+      hull will take, so the structure binds and the ship is sharp. On the capital <code>I</code> has
+      gone up <span id="k-iratio">3,162</span> times while <code>r</code> has only gone up 10, so the torque ceiling falls
+      straight through the structural one and the ship is a barge. A capital has to spend real
+      tonnage on attitude control to get back to its own structural limit. That is <b>08</b>.</p>
+
+      <p>The middle row is the one to trust. The <b>cargoa corvette</b> is a hull that ships today -
+      4.9 x 3.2 x 1.6 u, so 49 x 32 x 16 m - and it flips in <b>1.98 s</b> against today's 5.00 s.
+      That number is pure structural arithmetic: it does not touch <code>I</code>, so none of the
+      uncertainty in <b>06</b> reaches it.</p>
+
+      <h3>What each knob does to feel</h3>
+      <ul>
+        <li><code>max_torque</code> is the capital's knob. A 1-1-1 already carries about
+        <span id="k-head-2">115</span>x more torque than its hull will take, so you can halve it and
+        a fighter pilot will not feel a thing.</li>
+        <li><code>load_limit</code> is the fighter's knob. Every hull inside the crossover is
+        structure-limited and feels it immediately. A torque-limited hull does not feel it at all
+        until it has bought enough torque to reach its own structure.</li>
+      </ul>
+
+      <p>The two barely overlap, so tuning one does not smear across everything. That is the point of
+      there being exactly two.</p>
+    </div>
+  </section>
+
+  <!-- ============================ 02 THE DEFECT ============================ -->
+  <section class="sec">
+    <div class="sec-head">
+      <span class="sec-idx">02</span>
+      <h2>The defect is that the model has no size in it</h2>
+      <span class="sec-tag">Working as specified</span>
+    </div>
+    <div class="sec-body">
+      <p>The complaint is that a 1-1-1 - controller, hull, thruster - "is impossible to handle, it's
+      very hard, turns slow and meh". Every number behind that feeling is deliberate.
+      <code>max_angular_acceleration: 0.5</code> rad/s2 was chosen for a target flip time, from
+      the bang-bang relation:</p>
+
+      <pre class="eq">t_180 = 2 * sqrt(pi / alpha)      <span class="an">= 5.01 s at alpha = 0.5</span>
+w_avg = sqrt(pi * alpha) / 2      <span class="an">= 0.627 rad/s = 36 deg/s</span></pre>
+
+      <p>Five seconds for a 180 is a fine number for a capital ship. It is an absurd number for
+      three sections bolted together, and the current model has no way to tell the two apart -
+      the PD converts the acceleration limit into whatever torque each hull needs, so the same
+      0.5 rad/s2 lands on every hull in the game.</p>
+
+      <div class="note hist">
+        <span class="note-label">History - each model was half the physics</span>
+        <p><b>Before 2b03a2f8:</b> <code>max_torque</code>, the <em>propulsive</em> limit alone.
+        Correct as far as it went, but with no structural cap it over-punished size, because
+        inertia carries <code>r^2</code>. Big ships were unsteerable.</p>
+        <p><b>Now:</b> <code>max_angular_acceleration</code>, the <em>structural</em> limit alone,
+        and flat. Correct as far as it goes, but size stopped mattering at all.</p>
+        <p>Neither was wrong. Neither was complete.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ 03 THE SCALE TRAP ============================ -->
+  <section class="sec">
+    <div class="sec-head">
+      <span class="sec-idx">03</span>
+      <h2>One world unit is ten metres, and forgetting it costs a factor of ten</h2>
+      <span class="sec-tag">Read before any number below</span>
+    </div>
+    <div class="sec-body">
+      <p>Nova runs at <strong>1 world unit = 10 metres</strong>. One hull section is a unit cube, so
+      a section is 1 u = 10 m on a side and a 1-1-1 ship is 3 u (30 m) long. A <code>load_limit</code> in G is a
+      real acceleration in m/s2, but <code>r</code> comes out of the physics world in units, so the
+      two do not divide until one of them is converted:</p>
+
+      <pre class="eq">alpha_ceiling = load_limit / (r_units * METRES_PER_UNIT)      <span class="an">METRES_PER_UNIT = 10</span>
+
+<span class="an">1-1-1:</span>    r = 1.5 u   = 15 m     ->  78.48 / 15  = 5.23 rad/s2
+<span class="an">cargoa:</span>   r = 2.45 u  = 24.5 m   ->  78.48 / 24.5 = 3.20 rad/s2
+<span class="an">capital:</span>  r = 15 u    = 150 m    ->  78.48 / 150 = 0.52 rad/s2</pre>
+
+      <div class="note warn">
+        <span class="note-label">The near miss - this page was wrong by 10x until 2026-08-19</span>
+        <p>An earlier draft read the radii as metres. A 1-1-1's <code>r</code> became 1.5 m instead
+        of its true 1.5 u (15 m), every structural ceiling came out ten times too high, and the ship
+        classes were nonsense - a "capital" whose 15 u (150 m) arm read as 15 m, and a "1-1-1" three
+        metres long instead of 3 u (30 m). Calibrating against those numbers
+        landed on <b>2 G</b>, and 2 G at true scale flips a 1-1-1 in <b>3.10 s</b> against today's
+        5.00 s. It would have shipped a change nobody could feel, and would not have fixed the
+        complaint that opened the task.</p>
+        <p>Inertia was <em>not</em> wrong the same way. <code>I</code> is a game-unit quantity and
+        the anchor <code>I(1-1-1) = 2.5</code> stands as it is: three unit cubes of mass 1 in a line
+        about their centre of mass is exactly <code>2 * 1^2 + 3 * (1/6) = 2.5</code>. Only the
+        structural side crosses into SI, so only the structural side needed the conversion.</p>
+      </div>
+
+      <h3>Where the constant lives, and why the model cannot just use it</h3>
+
+      <p><code>METRES_PER_UNIT = 10.0</code> does exist - in <code>nova_ui::units</code> - but its
+      own module doc says <b>"Display-only. World-space transforms, physics, content RON and AI
+      tuning keep raw world units; only the strings a player reads pass through here."</b> It is a
+      formatting policy, and <code>nova_ship</code> does not depend on <code>nova_ui</code> at all,
+      so the physics cannot reach it. The scale is otherwise recorded in a single doc comment on an
+      unrelated gunnery range constant. This model needs the scale as a <em>physics</em> constant, so
+      the work has to promote it into a crate both sides can see rather than declare a second one.</p>
+
+      <div class="note src">
+        <span class="note-label">Verified against the tree at master</span>
+        <p class="src-path">crates/nova_ui/src/units.rs:13 - pub const METRES_PER_UNIT: f32 = 10.0;<br>
+        crates/nova_ui/src/units.rs:8 - "Display-only... physics ... keep raw world units"<br>
+        crates/nova_ship/src/sections/turret_section/aim.rs:21 - "Nova's scale is 100 u = 1 km"<br>
+        crates/nova_ship/src/sections/turret_section/aim.rs:16 - the cargoa hull is 4.9 x 3.2 x 1.6 u<br>
+        = 49 x 32 x 16 m at 1 u = 10 m</p>
+      </div>
+
+      <p>Every radius on the rest of this page is written both ways. The sliders are in world units
+      and read out in metres beside them.</p>
+    </div>
+  </section>
+
+  <!-- ============================ 04 THE MODEL ============================ -->
+  <section class="sec">
+    <div class="sec-head">
+      <span class="sec-idx">04</span>
+      <h2>Two independent limits; the real one binds first</h2>
+      <span class="sec-tag">The model</span>
+    </div>
+    <div class="sec-body">
+      <pre class="eq">alpha_max = min( total max_torque / I ,  load_limit / (r * METRES_PER_UNIT) )
+             \____ propulsive ____/      \________ structural ________/</pre>
+
+      <ul>
+        <li><code>I</code> is angular inertia, in game units. <code>pd_controller.rs</code> already
+        reads <code>ComputedAngularInertia</code>, so it is present where it is needed.</li>
+        <li><code>r</code> is the distance from the <em>centre of mass</em> to the furthest section -
+        not the geometric centre - in world units. <code>BodyRadius</code> is already in
+        <code>nova_ship::prelude</code>.</li>
+        <li><code>load_limit</code> is the structural load the hull tolerates at that point, in
+        m/s2. One constant for the whole game, set to 8 G = 78.48 m/s2.</li>
+      </ul>
+
+      <p>The calibration decided on 2026-08-19 is those two numbers and one more: the
+      <strong>crossover sits at 10 u = 100 m</strong>. Below it structure binds; above it torque
+      binds. Only the crossover involves <code>max_torque</code>, which is why <code>max_torque</code>
+      is the one quantity here that is still open.</p>
+
+      <p><strong>Small ship:</strong> <code>I</code> is tiny, so <code>max_torque / I</code> is
+      enormous. The structure binds. <strong>Capital:</strong> <code>I</code> is enormous, so
+      <code>max_torque / I</code> collapses. The torque ceiling binds. Two different reasons for two
+      different ships, both physical, and one expression covers both.</p>
+
+      <div class="plate">
+        <div class="plate-head">
+          <span class="plate-no">Plate 1</span>
+          <span class="plate-title">Where the two limits cross</span>
+          <span class="sec-tag">log-log, live</span>
+        </div>
+        <div class="plate-canvas-wrap"><canvas id="cv-cross" role="img"
+          aria-label="Log-log plot of angular acceleration limit against hull radius, with the radius axis labelled in world units and again in metres. The structural limit falls as one over r; the propulsive limit falls far more steeply; the achievable ceiling is the lower of the two, and the crossover at ten world units marks where a hull stops being structure-limited and becomes torque-limited."></canvas></div>
+        <div class="legend">
+          <span><i class="swatch sw-struct"></i>Structural  load_limit / (r * 10)</span>
+          <span><i class="swatch sw-prop"></i>Propulsive  max_torque / I</span>
+          <span><i class="swatch sw-min"></i>min() - the achievable ceiling</span>
+          <span><i class="swatch sw-cur"></i>Current model  0.5 rad/s2, flat</span>
+        </div>
+        <div class="plate-cap">
+          <b>The thesis in one image.</b> The dotted horizontal is today's model: one number for
+          every hull, crossing both curves. It is far too low for a fighter and, on a large enough
+          hull, higher than either physical limit allows. The radius axis is in world units, with
+          metres repeated underneath. Drag the console in <b>05</b> to move the ship cursor and the
+          crossover. Both curves are drawn for a hull carrying <b>one</b> controller; fitting more
+          lifts the propulsive curve, which is <b>08</b>.
+        </div>
+      </div>
+
+      <div class="note src">
+        <span class="note-label">Modelling assumption - stated because it is not derived</span>
+        <p>The structural curve is arithmetic. The propulsive curve needs a scaling law for
+        <code>I</code>, and there is not one in the tree. A controller's authored
+        <code>max_torque</code> does <em>not</em> grow with the hull, so the numerator is held at one
+        controller. The denominator is anchored exactly - <code>I = 2.5</code> for the 1-1-1, three
+        unit cubes in a line about their centre of mass - and then <b>guessed</b> onwards as
+        <code>I(r) = 2.5 * (r / 1.5)^3.5</code>, with <code>r</code> in world units.</p>
+        <p>The exponent is the guess. <code>I ~ M r^2</code>, so <code>p = 3.5</code> is the claim
+        that hull mass grows as <code>r^1.5</code> - between a line and a shell. A hollow-shell hull
+        would give <code>p = 4</code> and a solid one <code>p = 5</code>. The <em>slope</em> is what
+        the propulsive argument rests on, and <b>06</b> is what it costs to have it wrong.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ 05 SIZE FOR FREE ============================ -->
+  <section class="sec">
+    <div class="sec-head">
+      <span class="sec-idx">05</span>
+      <h2>Size falls out for free</h2>
+      <span class="sec-tag">Nobody has to invent it</span>
+    </div>
+    <div class="sec-body">
+      <p>A point at distance <code>r</code> from the axis feels tangential acceleration
+      <code>alpha * r</code> and centripetal acceleration <code>omega^2 * r</code>. Both scale with
+      <code>r</code>. So the same structural limit binds harder on a bigger ship, and the two
+      familiar handling numbers appear without anyone authoring a size curve. Write
+      <code>r_m = r * METRES_PER_UNIT</code> for the arm in metres:</p>
+
+      <pre class="eq">alpha_max = load_limit / r_m           <span class="an">rate of change of turn rate</span>
+omega_max = sqrt(load_limit / r_m)     <span class="an">sustained turn rate</span></pre>
+
+      <div class="plate">
+        <div class="plate-head">
+          <span class="plate-no">Plate 2</span>
+          <span class="plate-title">Where r is measured, and what the tip feels</span>
+        </div>
+        <div class="plate-canvas-wrap"><canvas id="cv-ship" role="img"
+          aria-label="Top-down ship schematic. The centre of mass sits aft of the geometric centre. An arrow marks r from the centre of mass to the furthest section. At that section, a tangential vector alpha times r and a centripetal vector omega squared times r sum to a resultant that must stay inside a circle of radius load_limit."></canvas></div>
+        <div class="plate-cap">
+          <b>r runs from the centre of mass, not the geometric centre.</b> A heavy engine block aft
+          pulls the COM aft, which lengthens the arm to the nose and lowers the whole ship's
+          ceiling. Each cell drawn is one hull section: a 1 u cube, so 10 m on a side. The dashed
+          circle at the tip is <code>load_limit</code>: the vector sum of the two loads must stay
+          inside it. That constraint is <b>07</b>.
+        </div>
+      </div>
+
+      <!-- ---------------------- INTERACTIVE CONSOLE ---------------------- -->
+      <div class="console" id="console">
+        <div class="console-head">
+          <span class="plate-title">Envelope console</span>
+          <span class="sec-tag">One controller; drives plates 1 to 4 and the table in 06</span>
+        </div>
+        <div class="controls">
+          <div class="ctl">
+            <label for="in-r">Hull radius r <span class="val" id="v-r">1.50 u (15.0 m)</span></label>
+            <input type="range" id="in-r" min="1" max="25" step="0.05" value="1.5">
+            <span class="hint" id="h-r">COM to furthest section; 1 u = 10 m</span>
+          </div>
+          <div class="ctl">
+            <label for="in-g">load_limit <span class="val" id="v-g">8.00 G (78.48 m/s2)</span></label>
+            <input type="range" id="in-g" min="1" max="20" step="0.25" value="8">
+            <span class="hint" id="h-g">settled at 8 G; 1 G = 9.81 m/s2</span>
+          </div>
+          <div class="ctl">
+            <label for="in-rx">Crossover target <span class="val" id="v-rx">10.0 u (100 m)</span></label>
+            <input type="range" id="in-rx" min="2" max="25" step="0.1" value="10">
+            <span class="hint" id="h-rx">pins max_torque at 1501</span>
+          </div>
+          <div class="ctl">
+            <label for="in-p">Inertia exponent p <span class="val" id="v-p">3.50</span></label>
+            <input type="range" id="in-p" min="3" max="5" step="0.05" value="3.5">
+            <span class="hint" id="h-p">I ~ r^p; 3.5 is a GUESS, shell 4, solid 5</span>
+          </div>
+        </div>
+        <div class="readouts">
+          <div class="ro">
+            <span class="ro-k">Binding limit</span>
+            <span class="pill struct" id="v-bind">Structure</span>
+            <span class="ro-sub" id="v-margin">-</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">Ceiling alpha</span>
+            <span class="ro-v"><span id="v-alpha">5.23</span> <span class="ro-u">rad/s2</span></span>
+            <span class="ro-sub" id="v-alpha-x">-</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">Bang-bang 180</span>
+            <span class="ro-v"><span id="v-flip">1.6</span> <span class="ro-u">s</span></span>
+            <span class="ro-sub" id="v-flip-x">-</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">Sustained turn rate</span>
+            <span class="ro-v"><span id="v-omega">131.1</span> <span class="ro-u">deg/s</span></span>
+            <span class="ro-sub">omega_max = sqrt(load_limit / r_m)</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">Hull scale</span>
+            <span class="ro-v"><span id="v-n">3</span> <span class="ro-u">sections</span></span>
+            <span class="ro-sub" id="v-inertia">I = 2.50 t u2</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">max_torque, provisional</span>
+            <span class="ro-v"><span id="v-torque">1501</span></span>
+            <span class="ro-sub" id="v-torque-x">t u2/s2 - falls out of the crossover</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tw">
+        <table>
+          <caption>Four hulls, one controller each, computed live from the console settings</caption>
+          <thead>
+            <tr>
+              <th>Hull</th>
+              <th>r<br>u</th>
+              <th>r<br>m</th>
+              <th>Sections</th>
+              <th>Structural<br>rad/s2</th>
+              <th>Propulsive<br>rad/s2</th>
+              <th>Binds</th>
+              <th>Ceiling<br>rad/s2</th>
+              <th>Flip 180<br>s</th>
+              <th>vs today<br>5.00 s</th>
+              <th>Turn rate<br>deg/s</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <span class="note-label">Nothing downstream has to move for these numbers</span>
+        <p><code>FlightSettings</code> already clamps the planned turn rate to
+        <code>turn_rate_max_deg: 240.0</code> with a <code>turn_rate_scale: 0.9</code> trim
+        (<code>flight/state.rs:367</code>). A 1-1-1's 131.1 deg/s sustained rate and its
+        116 deg/s bang-bang average both sit inside that clamp, so the guidance layer accepts the
+        new ceilings without a retune of its own. The bang-bang <em>peak</em> is 232 deg/s, which
+        clears 240 with 3 % to spare - the tightest fit on the page, and the first thing to re-check
+        if <code>load_limit</code> is raised above 8 G. The 36 deg/s quoted in <b>02</b> is the raw
+        optimum for today's flat 0.5; the 0.9 trim takes what is actually commanded to about
+        32 deg/s.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 MAX_TORQUE IS NOT A NUMBER ==================== -->
+  <section class="sec">
+    <div class="sec-head">
+      <span class="sec-idx">06</span>
+      <h2>max_torque is not a number yet - measure it, do not derive it</h2>
+      <span class="sec-tag">The honest gap</span>
+    </div>
+    <div class="sec-body">
+      <p>Setting the crossover at 10 u (100 m) fixes <code>max_torque</code> the moment <code>I</code> is
+      known, and <code>I</code> is the one quantity on this page nobody has measured. The
+      <span id="m-prov">1501</span> the console reports is what falls out of assuming
+      <code>I(r) = 2.5 * (r / 1.5)^3.5</code>. That anchor is exact. <strong>The 3.5 is a
+      guess.</strong></p>
+
+      <pre class="eq">max_torque = I(r_x) * load_limit / (r_x * METRES_PER_UNIT)
+
+<span class="an">at p = 3.5:</span>  I(10 u = 100 m) = 1913   ->  max_torque = 1501
+<span class="an">at p = 4.0:</span>  I(10 u = 100 m) = 4938   ->  max_torque = 3876   <span class="an">hollow shell</span>
+<span class="an">at p = 5.0:</span>  I(10 u = 100 m) = 32922  ->  max_torque = 25837  <span class="an">solid</span></pre>
+
+      <div class="tw">
+        <table class="mini">
+          <caption>What the unmeasured exponent costs - drag p on the console in 05</caption>
+          <thead>
+            <tr>
+              <th>I ~ r^p</th>
+              <th>Hull mass</th>
+              <th>I at 10 u<br>100 m</th>
+              <th>max_torque</th>
+              <th>vs p = 3.5</th>
+              <th>Capital flip<br>s</th>
+              <th>r_wall<br>u / m</th>
+              <th>Sections<br>at 15 u / 150 m</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-sens"></tbody>
+        </table>
+      </div>
+
+      <p>Across the exponent band a shell and a solid bracket, <code>max_torque</code> moves by
+      <span id="m-spread">6.7</span>x, and from the guessed 3.5 up to a solid 5 it moves by
+      <span id="m-spread2">17</span>x. Pin the crossover against a 15 u (150 m) capital rather than a
+      10 u (100 m) mid hull and the same band reads 32x. The task record rounds all of that to "roughly 25x"; the
+      point survives any of those figures, which is that <strong>the provisional number could be an
+      order of magnitude out and nothing on this page would look different.</strong></p>
+
+      <h3>The shipped cargoa says the guess is low</h3>
+
+      <p>Take the corvette's authored envelope literally. 4.9 x 3.2 x 1.6 u - 49 x 32 x 16 m - is
+      5 x 3 x 2 unit cells, so at most 30 sections; the assumed law wants
+      <span id="m-cargo-n">6</span>. Filling that box with unit cubes of mass 1 gives a yaw inertia
+      of exactly <code>80 + 30/6 = 85</code>, against the law's <span id="m-cargo-i">13.9</span> -
+      the law is <span id="m-cargo-x">6.1</span>x light. Fitting a power law through the 1-1-1
+      anchor and that box wants <code>p = 7.2</code>, which is not a scaling law at all. It is the
+      model saying a three-section line at 1.5 u (15 m) is a degenerate thing to anchor on.</p>
+
+      <div class="note warn">
+        <span class="note-label">What has to happen before content is retuned</span>
+        <p>Spawn the shipped hulls, read avian's <code>ComputedAngularInertia</code> and the
+        furthest-section radius off each one, and back-solve <code>max_torque</code> from the real
+        pair. It is a spawn-and-print job, not a derivation, and it is cheap.
+        <code>pd_controller.rs</code> already has the component in hand. Retuning content against
+        1501 before that measurement exists would tune the campaign to an arithmetic artefact.</p>
+      </div>
+
+      <div class="note src">
+        <span class="note-label">What the gap does NOT touch</span>
+        <p>Three of the four reference flips are pure structural arithmetic and do not contain
+        <code>I</code> at all: <b>1-1-1 1.55 s</b>, <b>cargoa 1.98 s</b>, <b>mid hull 2.83 s</b>.
+        Those are as settled as <code>load_limit</code> is. Only the <b>capital's 8.14 s</b> moves
+        with the exponent, and it moves the safe way - a heavier inertia law makes a capital slower
+        still, never sharper. So the retune of small and mid content can start now; only the capital
+        end of it waits on the measurement.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ 07 THE ENVELOPE ============================ -->
+  <section class="sec">
+    <div class="sec-head">
+      <span class="sec-idx">07</span>
+      <h2>The two loads add as a vector, so a hard turn spends the margin</h2>
+      <span class="sec-tag">The flight envelope</span>
+    </div>
+    <div class="sec-body">
+      <p>The tangential and centripetal loads are not bounded separately. They are perpendicular
+      components of one acceleration at the tip, so they add as a vector. The arm is in metres here,
+      <code>r_m = r * METRES_PER_UNIT</code>, because <code>load_limit</code> is in m/s2:</p>
+
+      <pre class="eq">sqrt( (alpha * r_m)^2 + (omega^2 * r_m)^2 )  &lt;=  load_limit
+
+<span class="an">divide through by r_m:</span>   alpha^2 + omega^4  &lt;=  (load_limit / r_m)^2</pre>
+
+      <p>That is an envelope, and it has the shape every pilot recognises. At rest the whole budget
+      is available as <code>alpha</code>. At <code>omega_max</code> the centripetal load has eaten
+      the entire budget and <code>alpha</code> is zero: the ship is holding the turn and can do
+      nothing else. <strong>A big ship becomes committed to the turn</strong> - not by a rule
+      somebody wrote, but because the arithmetic leaves it no margin.</p>
+
+      <div class="plate">
+        <div class="plate-head">
+          <span class="plate-no">Plate 3</span>
+          <span class="plate-title">Flight envelope - turn rate against rate of change</span>
+          <button class="btn" id="btn-play" type="button" aria-live="off">Pause</button>
+        </div>
+        <div class="plate-canvas-wrap"><canvas id="cv-env" role="img"
+          aria-label="Flight envelope plot. Horizontal axis is turn rate omega, vertical axis is angular acceleration alpha. The boundary is a quarter-shaped curve running from full alpha at zero omega down to zero alpha at maximum omega, clipped flat at the top wherever the torque limit is lower. Envelopes for three hull sizes are nested, the capital's being much the smallest. A point rides the boundary from rest into a fully committed turn and back."></canvas></div>
+        <div class="readouts" style="border-top:1px solid var(--rule)">
+          <div class="ro">
+            <span class="ro-k">Phase</span>
+            <span class="ro-v" style="font-size:0.95rem" id="v-phase">Spin up</span>
+            <span class="ro-sub" id="v-t">t = 0.00 s</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">Turn rate</span>
+            <span class="ro-v"><span id="v-w">0</span> <span class="ro-u">deg/s</span></span>
+            <span class="ro-sub">omega</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">Tangential load</span>
+            <span class="ro-v"><span id="v-lt">0.00</span> <span class="ro-u">G</span></span>
+            <span class="ro-sub">alpha * r_m</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">Centripetal load</span>
+            <span class="ro-v"><span id="v-lc">0.00</span> <span class="ro-u">G</span></span>
+            <span class="ro-sub">omega^2 * r_m</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">Resultant</span>
+            <span class="ro-v"><span id="v-lr">0.00</span> <span class="ro-u">G</span></span>
+            <span class="ro-sub">held at load_limit on the boundary</span>
+          </div>
+        </div>
+        <div class="plate-cap">
+          <b>Axes are fixed to the 1-1-1's envelope - r = 1.5 u (15 m) - so the collapse with size
+          is visible.</b> The point is integrated in real time at the console's settings; a large
+          hull genuinely takes many seconds to reach its own corner, which is the mechanic. The two
+          load readouts trade against each other while the resultant sits on the limit throughout.
+        </div>
+      </div>
+
+      <div class="note">
+        <span class="note-label">The bang-bang 180 is a reference figure, not an envelope solution</span>
+        <p>Every flip time on this page is the standard <code>2 * sqrt(pi / alpha)</code>, which is
+        what the task record uses and what today's 5.00 s was set by. It assumes <code>alpha</code>
+        stays available all the way to the halfway point, and the envelope above does not quite allow
+        that: <code>omega</code> saturates first. Integrating the true boundary gives <b>1.83 s</b>
+        for the 1-1-1 against its bang-bang 1.55 s, <b>2.34 s</b> for the cargoa, <b>3.35 s</b> for
+        the mid hull, and <b>8.15 s</b> for the capital - which barely moves, because a
+        torque-limited hull spends its flip under the flat clip rather than out on the arc. The
+        comparison against today's 5.00 s stays like-for-like because both sides are computed the
+        same way.</p>
+      </div>
+
+      <div class="note warn">
+        <span class="note-label">Risk - an invisible envelope reads as sluggishness</span>
+        <p>This diagram is the mechanic. If the player cannot see it, a physically correct limit is
+        indistinguishable from arbitrary heaviness - which is exactly the report that opened this
+        task. A load readout on the HUD, or the hull protesting as the resultant approaches
+        <code>load_limit</code>, is what converts a constraint into something a pilot can fly.
+        Without it this work can land correct and still feel worse. The build-screen half of the
+        same problem is <b>09.7</b>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 THE HULL YOU CANNOT TURN ==================== -->
+  <section class="sec">
+    <div class="sec-head">
+      <span class="sec-idx">08</span>
+      <h2>What if the ship is so big I cannot turn it?</h2>
+      <span class="sec-tag">Fit controllers, and pay for them</span>
+    </div>
+    <div class="sec-body">
+      <p>Then fit controllers. Torque adds: a thousand controllers is a thousand times the torque,
+      and nothing in the model caps the sum. This is why stacking needs no rule of its own.
+      Controllers add torque, the structure caps the result, and the ceiling is the same
+      <code>min()</code> it always was. <code>STACK_AUTHORITY_LIMIT</code> goes, and nothing takes
+      its place.</p>
+
+      <p>Fitting them is not free, though, and the model already knows why. A controller is a
+      section and a section has mass. Mass at radius <code>d</code> in world units from the centre
+      of mass adds <code>m * d^2</code> to the very inertia it is trying to overcome, so the wheels
+      turn up on both sides of the fraction:</p>
+
+      <pre class="eq">alpha_torque(n) = n * max_torque / ( I_hull + n * m_ctl * d^2 )
+                                              \___ what the wheels cost ___/
+
+n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class="an">the mounting wall</span></pre>
+
+      <p>The wall does not depend on how many you fit. It depends only on where you bolt them.
+      Amidships, <code>d</code> is small, the wall sits far above the hull's structural ceiling, and
+      enough wheels will always reach it. Out at the tip, <code>d = r</code>, and the wall can sit
+      <em>below</em> the structural ceiling - at which point no number of wheels ever gets there.
+      Setting the two equal gives the hull size where tip mounting stops working at all. Both sides
+      cross the scale here, so <code>METRES_PER_UNIT</code> appears in the answer:</p>
+
+      <pre class="eq">r_wall = max_torque * METRES_PER_UNIT / ( load_limit * m_ctl )     <span class="an">world units</span>
+       = <span id="k-wall">191.3</span> u  =  <span id="k-wall-m">1913</span> m                      <span class="an">at the console's settings</span></pre>
+
+      <p>None of that was authored. It is what reaction wheels do, and it arrives free with doing
+      the inertia correctly.</p>
+
+      <div class="note warn">
+        <span class="note-label">At the provisional calibration this trap is theoretical</span>
+        <p>Pin <code>max_torque</code> through the crossover and the <code>load_limit</code> cancels
+        out of <code>r_wall</code> entirely: it reduces to <code>I(r_x) / (m_ctl * r_x)</code>, so
+        raising or lowering the G limit does not move it. What does move it is the exponent from
+        <b>06</b>. At the guessed <code>p = 3.5</code> the wall stands at
+        <b>191 u (1913 m)</b> - about 13x the radius of the capital in the table above, so tip
+        mounting is not currently a way to lose. At <code>p = 3</code> it falls to <b>74 u (741 m)</b> and starts
+        to bite; at a solid <code>p = 5</code> it runs out to <b>3292 u (32,922 m)</b> and is pure
+        theory. Which of those is true is the same measurement.</p>
+      </div>
+
+      <div class="plate">
+        <div class="plate-head">
+          <span class="plate-no">Plate 4</span>
+          <span class="plate-title">Fitting controllers to a hull that cannot turn</span>
+          <span class="sec-tag">log-log, live</span>
+        </div>
+        <div class="controls">
+          <div class="ctl">
+            <label for="in-cr">Hull radius, this plate <span class="val" id="v-cr">60.0 u (600 m)</span></label>
+            <input type="range" id="in-cr" min="10" max="300" step="1" value="60">
+            <span class="hint" id="h-cr">about 759 sections</span>
+          </div>
+          <div class="ctl">
+            <label for="in-dm">Mounting radius d <span class="val" id="v-dm">6.0 u (60 m)</span></label>
+            <input type="range" id="in-dm" min="0.02" max="1" step="0.01" value="0.1">
+            <span class="hint" id="h-dm">0.10 r - amidships</span>
+          </div>
+        </div>
+        <div class="plate-canvas-wrap"><canvas id="cv-ctl" role="img"
+          aria-label="Log-log plot of the torque ceiling against the number of controllers fitted. Each curve rises in proportion to the count while the hull's own inertia dominates, then flattens onto a horizontal wall set by the mass the controllers themselves add at their mounting radius. The curve for controllers mounted amidships flattens far above the flat structural ceiling and crosses it after a few hundred units. The curve for controllers at the wingtips flattens below the structural ceiling and never crosses it."></canvas></div>
+        <div class="legend">
+          <span><i class="swatch sw-struct-d"></i>Structural ceiling  load_limit / (r * 10)</span>
+          <span><i class="swatch sw-prop-s"></i>Torque ceiling at your mounting radius</span>
+          <span><i class="swatch sw-prop"></i>Same, with the wheels out at the tip</span>
+          <span><i class="swatch sw-min"></i>min() - what the ship actually gets</span>
+        </div>
+        <div class="readouts" style="border-top:1px solid var(--rule)">
+          <div class="ro">
+            <span class="ro-k">Hull</span>
+            <span class="ro-v"><span id="c-n">759</span> <span class="ro-u">sections</span></span>
+            <span class="ro-sub" id="c-i">I = 1.0e6 t u2</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">One controller</span>
+            <span class="ro-v"><span id="c-one">1.5e-3</span> <span class="ro-u">rad/s2</span></span>
+            <span class="ro-sub" id="c-one-x">180 flip: 92 s</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">To reach the hull limit</span>
+            <span class="ro-v"><span id="c-need">89</span> <span class="ro-u">units</span></span>
+            <span class="ro-sub" id="c-need-x">at d = 6.0 u (60 m)</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">Same, at the tip</span>
+            <span class="ro-v"><span id="c-tip">129</span></span>
+            <span class="ro-sub" id="c-tip-x">units, with d = r</span>
+          </div>
+          <div class="ro">
+            <span class="ro-k">Tip-mounting wall</span>
+            <span class="ro-v"><span id="c-wall">191.3</span> <span class="ro-u">u</span></span>
+            <span class="ro-sub" id="c-wall-x">= 1913 m - largest hull the tips still turn</span>
+          </div>
+        </div>
+        <div class="plate-cap">
+          <b>Where you bolt them decides whether more of them helps.</b> Both curves climb in
+          proportion to the count while the hull's own inertia dominates, then flatten onto their own
+          wall. Amidships the wall is far above the hull limit, so the structure catches you first
+          and the ship gets its physics back. At the tip the wall can land under the hull limit, and
+          then the ship has bought inertia and nothing else - drive the hull slider past
+          <b>191 u (1913 m)</b> to see it happen. Controller mass is one section, 1 t, and it is
+          counted in <code>I</code> but not in <code>r</code> - these wheels are fitted inside the
+          hull, not bolted onto its outside. <code>max_torque</code>, <code>load_limit</code> and the
+          exponent come from the console in <b>05</b>; the hull radius here is its own.
+        </div>
+      </div>
+
+      <p><strong>Size stays dominant, and that is the point.</strong> A capital that fills itself
+      with reaction wheels still stops dead at its own structural ceiling, and that ceiling is
+      <span id="v-sizelever">10.0</span>x below a 1-1-1's - the plain ratio of 15 u (150 m) to
+      1.5 u (15 m). Controllers buy a big ship its physics back. They do not buy it a fighter's.</p>
+
+      <div class="note src">
+        <span class="note-label">What this replaces</span>
+        <p class="src-path">crates/nova_ship/src/sections/controller_section.rs:239 -
+        STACK_AUTHORITY_LIMIT = 2.0<br>
+        crates/nova_ship/src/sections/controller_section.rs:246 -
+        STACK_PRECISION_LIMIT = 1.5<br>
+        crates/nova_ship/src/sections/controller_section.rs:257 -
+        stack_curve(n, limit) = limit - (limit - 1) / n</p>
+        <p>The authority half of this goes, and no curve replaces it: torque is summed and the
+        structure caps it. The precision half is a separate claim about gain tuning and PD stability
+        at the fixed timestep, and nothing here argues against it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 09 SETTLED AND STILL OPEN ==================== -->
+  <section class="sec">
+    <div class="sec-head">
+      <span class="sec-idx">09</span>
+      <h2>Settled, and what is left open</h2>
+      <span class="sec-tag">Owner review, 2026-08-19</span>
+    </div>
+    <div class="sec-body">
+      <div class="qlist">
+
+        <div class="q">
+          <div class="q-head">
+            <span class="q-no">09.1</span>
+            <span class="q-t">Two authored knobs, and no third</span>
+            <span class="q-state calm">Settled</span>
+          </div>
+          <p><code>max_torque</code> on the controller, <code>load_limit</code> global,
+          <code>max_angular_acceleration</code> deleted and not replaced. The bar a third knob had to
+          clear was that a modder reads it without a physics lesson, and nothing else cleared it. It
+          is not only a taste call: the structural ceiling already caps the result, so any further
+          fraction laid on top would be a fudge factor doing a job physics has done. Stacking gets no
+          rule for the same reason - controllers add torque and the hull stops them.</p>
+        </div>
+
+        <div class="q">
+          <div class="q-head">
+            <span class="q-no">09.2</span>
+            <span class="q-t">load_limit is one global constant, not a per-section knob</span>
+            <span class="q-state calm">Settled - refinement deferred</span>
+          </div>
+          <p>Hull metal is hull metal, so there is no "which section's limit binds" question to
+          answer and no new field on every section. The honest refinement -
+          <code>min over sections of (strength_s / r_s)</code>, so one fragile part on a long boom
+          limits the whole ship and moving it inboard measurably improves handling - is a real design
+          lever and a possible <em>later</em> pass. It is out of scope here, and nothing on this page
+          depends on it.</p>
+        </div>
+
+        <div class="q">
+          <div class="q-head">
+            <span class="q-no">09.3</span>
+            <span class="q-t">Thrusters do not change</span>
+            <span class="q-state calm">Settled</span>
+          </div>
+          <p><code>flight/thrusters.rs</code> keeps the convex QP that deliberately <em>nulls</em>
+          net torque, so engines give pure translation and the PD controller owns rotation alone.
+          Off-axis engines genuinely do produce torque - <code>thruster_impulse_system</code> calls
+          <code>apply_linear_impulse_at_point</code> - and a player who exploits that to swing a ship
+          is doing something legitimate and stays able to. It is not an entry in the torque budget
+          and the model does not account for it. The balancer buys clean, predictable translation and
+          a single owner for rotation, and that is worth more than the recovered authority.</p>
+          <p class="src-path">crates/nova_ship/src/flight/thrusters.rs:151 - the QP;
+          :32 - LATERAL_PENALTY = 0.05<br>
+          crates/nova_ship/src/sections/thruster_section.rs:373 - apply_linear_impulse_at_point</p>
+          <p>The comment at <code>thruster_section.rs:361</code> about "a COM-centered engine torques
+          the ship it must not touch" is about a stale-pose bug. It is not a claim that thrusters
+          cannot torque, and must not be read as one.</p>
+        </div>
+
+        <div class="q">
+          <div class="q-head">
+            <span class="q-no">09.4</span>
+            <span class="q-t">A damaged ship's envelope moves, and that is the feature</span>
+            <span class="q-state calm">Settled</span>
+          </div>
+          <p>Both <code>r</code> and <code>I</code> change as sections die. Lose the nose and
+          <code>r</code> shrinks, so the structural ceiling <em>rises</em> and the ship turns sharper
+          than it did intact. Intended. Lose a controller and the torque ceiling drops, which a
+          torque-limited hull feels at once and a structure-limited one does not feel at all. Both
+          are the model working. The only requirement is that the HUD makes it legible at the moment
+          it happens, so a player reads it as damage and not as a bug.</p>
+        </div>
+
+        <div class="q">
+          <div class="q-head">
+            <span class="q-no">09.5</span>
+            <span class="q-t">load_limit = 8 G has no physical derivation, and does not need one</span>
+            <span class="q-state calm">Settled 2026-08-19</span>
+          </div>
+          <p>8 G is a chosen test point. There is no measurement behind it and no reference to appeal
+          to: the question it answers is "how strong is spaceship hull metal", which is a game-design
+          choice and nothing else. What makes it defensible is where it sits. It is the
+          <em>single</em> dial that sets the whole size curve - raise it and every ship sharpens,
+          lower it and everything commits harder - while the ratios between ship sizes are fixed by
+          geometry whatever it is set to. The 10x between a 1-1-1 at 1.5 u (15 m) and a capital at
+          15 u (150 m) does not move when the dial does. One number to playtest, and the first one to
+          tune.</p>
+          <p>What the dial was worth getting right: the same calibration read at the wrong scale
+          gave 2 G, and 2 G flips a 1-1-1 in 3.10 s where 8 G flips it in 1.55 s. Against today's
+          5.00 s the first is a change a player might not notice. See <b>03</b>.</p>
+        </div>
+
+        <div class="q">
+          <div class="q-head">
+            <span class="q-no">09.6</span>
+            <span class="q-t">max_torque waits on a measurement</span>
+            <span class="q-state">Open - blocks the capital-end retune</span>
+          </div>
+          <p>The provisional 1501 is the crossover divided by a guessed inertia law, and the guess is
+          worth an order of magnitude. Spawn the shipped hulls, read
+          <code>ComputedAngularInertia</code> and the furthest-section radius, back-solve. Cheap, and
+          it must land before any capital is retuned. Nothing structure-limited waits on it: the
+          1-1-1, cargoa and mid-hull flip times contain no <code>I</code> at all. Detail is
+          <b>06</b>.</p>
+        </div>
+
+        <div class="q">
+          <div class="q-head">
+            <span class="q-no">09.7</span>
+            <span class="q-t">The build screen has to show the number</span>
+            <span class="q-state">Open</span>
+          </div>
+          <p>A big enough hull genuinely cannot turn. That is correct and it stays, but it is a pit if
+          a player only finds out by flying it. While sections are being placed the build screen has
+          to show the resulting turn acceleration <em>and</em> which limit binds -
+          "0.03 rad/s2, torque-limited" - so that fitting controllers is a visible decision instead of
+          a hidden requirement. The frame-rate lesson from <code>20260819-012130</code> applies
+          exactly: a correct number nobody can see reads as the game being broken.</p>
+        </div>
+
+        <div class="q">
+          <div class="q-head">
+            <span class="q-no">09.8</span>
+            <span class="q-t">The retune is the expensive half</span>
+            <span class="q-state">Open - size it first</span>
+          </div>
+          <p>Every authored ship's handling changes, and the direction is not the same at both ends.
+          Small ships <strong>sharpen by up to 3.2x</strong> - a 1-1-1 goes from 5.00 s to 1.55 s,
+          the cargoa corvette to 1.98 s - while a capital gets <strong>1.6x slower</strong>, 5.00 s
+          out to 8.14 s. Both halves are intended: a capital should be a barge, and that second half
+          is the retune cost.</p>
+          <p>The surface is small where it is authored - 5 hulls in
+          <code>assets/base/ships/base.content.ron</code> and 4 controller sections carrying
+          <code>max_angular_acceleration: 0.5</code>, generated from <code>nova_authoring</code>
+          builders, not hand-edited. The surface is unbounded where it is generated:
+          <code>wfc_ships</code> produces hulls with no notion of a structural budget at all, so it
+          needs a rule that assigns one. The campaign is tuned to current feel; that tuning is what
+          actually has to be re-flown.</p>
+          <p class="src-path">crates/nova_authoring/src/base_content/sections/standard.rs:392<br>
+          crates/nova_authoring/src/base_content/ships/shared.rs:302</p>
+        </div>
+
+      </div>
+
+      <div class="note">
+        <span class="note-label">Done when</span>
+        <p>The model is recorded before code moves. Measured turn rates for a 1-1-1, a mid hull and
+        a capital, before and after, <em>with the owner flying them</em> - their verdict decides,
+        not the arithmetic on this page. The build screen reports the ceiling and the binding limit
+        while a hull is being assembled. Shipped content is retuned, or the divergence is listed and
+        scheduled.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="colophon">
+    <span>Nova Protocol / flight spike</span>
+    <span>All figures derived from the stated relations, from the console state, or from the tree at master.</span>
+    <span>Plates 1-4 redraw on theme change.</span>
+    <span>Every radius is given in world units and in metres; 1 u = 10 m.</span>
+  </footer>
+
+</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------- *
+   * MODEL
+   *
+   * UNITS DISCIPLINE. Every length in this script is in WORLD UNITS and
+   * every variable holding one is named `...Units`. Metres exist only at
+   * the boundary with load_limit (an SI acceleration) and in what a reader
+   * sees, and every variable holding one is named `...Metres`. The single
+   * bridge is METRES_PER_UNIT. The previous revision of this page had no
+   * such bridge and read units as metres, which put every structural
+   * ceiling on it 10x too high.
+   * ---------------------------------------------------------------- */
+  var METRES_PER_UNIT = 10.0; // nova_ui::units::METRES_PER_UNIT; the model needs it as physics
+  var G = 9.81;               // m/s2, one G
+  var R_REF_U = 1.5;          // world units -- the 1-1-1's radius, 1.5 u = 15 m
+  var N_REF = 3;              // sections at R_REF_U
+  var I_REF = 2.5;            // t u2, the 1-1-1: 2 * 1^2 + 3 * (1/6), three unit cubes in a line
+  var M_CTL = 1.0;            // t, one section -- and a controller is one section
+  var CUR_ALPHA = 0.5;        // rad/s2, today's flat authority
+  var CUR_FLIP = 2 * Math.sqrt(Math.PI / 0.5); // 5.01 s, what every hull does today
+  var DEG = 180 / Math.PI;
+
+  // The only place the two systems meet. Nothing else in this script may
+  // multiply or divide by 10.
+  function metres(rUnits) { return rUnits * METRES_PER_UNIT; }
+
+  // rUnits / rxUnits / crUnits are WORLD UNITS. gLimit is in G. p is the
+  // inertia exponent, guessed at 3.5 and the whole subject of section 06.
+  var state = { rUnits: 1.5, gLimit: 8.0, rxUnits: 10.0, p: 3.5, crUnits: 60.0, dfrac: 0.10 };
+
+  function loadLimit()          { return state.gLimit * G; }                                  // m/s2
+  function inertia(rUnits)      { return I_REF * Math.pow(rUnits / R_REF_U, state.p); }       // t u2
+  // max_torque is PROVISIONAL: it is whatever puts the crossover at rxUnits given the
+  // guessed inertia law. Section 06 is why it is not a settled number.
+  function maxTorque()          { return inertia(state.rxUnits) * alphaStruct(state.rxUnits); }
+  function alphaStruct(rUnits)  { return loadLimit() / metres(rUnits); }
+  function alphaTorque(rUnits)  { return maxTorque() / inertia(rUnits); }   // one controller
+  function alphaCeil(rUnits)    { return Math.min(alphaStruct(rUnits), alphaTorque(rUnits)); }
+  function omegaMax(rUnits)     { return Math.sqrt(loadLimit() / metres(rUnits)); }
+  function flip(a)              { return 2 * Math.sqrt(Math.PI / a); }
+  // M ~ r^(p-2), so N ~ r^(p-2) too: p = 4 is a shell, p = 5 is solid.
+  function sections(rUnits)     { return N_REF * Math.pow(rUnits / R_REF_U, state.p - 2); }
+  function crossover()          { return state.rxUnits; }   // pinned by construction
+
+  var SHIPS = [
+    { name: "1-1-1 minimal",   r: 1.5 },
+    { name: "cargoa corvette", r: 2.45 },
+    { name: "Mid hull",        r: 5.0 },
+    { name: "Capital",         r: 15.0 }
+  ];
+
+  /* ---------------------------------------------------------------- *
+   * CANVAS PLUMBING
+   * ---------------------------------------------------------------- */
+  var cs = getComputedStyle(document.documentElement);
+  function tok(n) { return cs.getPropertyValue(n).trim(); }
+  var C = {};
+  function readTokens() {
+    cs = getComputedStyle(document.documentElement);
+    C = {
+      ink: tok("--ink"), ink2: tok("--ink-2"), ink3: tok("--ink-3"),
+      rule: tok("--rule"), rule2: tok("--rule-2"),
+      panel: tok("--panel"), panel2: tok("--panel-2"),
+      st: tok("--structural"), pr: tok("--propulsive"), ox: tok("--oxide"),
+      tst: tok("--tint-structural"), tpr: tok("--tint-propulsive"), tox: tok("--tint-oxide"),
+      grid: tok("--grid"), gridm: tok("--grid-minor"),
+      mono: tok("--ff-mono") || "monospace"
+    };
+  }
+  readTokens();
+
+  function fit(cv) {
+    var dpr = Math.max(1, window.devicePixelRatio || 1);
+    var w = cv.clientWidth, h = cv.clientHeight;
+    if (w === 0 || h === 0) return null;
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    var ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    return { ctx: ctx, w: w, h: h };
+  }
+  function font(ctx, px, weight) {
+    ctx.font = (weight ? weight + " " : "") + px + "px " + C.mono;
+  }
+  function line(ctx, x1, y1, x2, y2, color, width, dash) {
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = width || 1;
+    ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.restore();
+  }
+  function poly(ctx, pts, color, width, dash) {
+    if (pts.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = width || 2;
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.stroke(); ctx.restore();
+  }
+  function dot(ctx, x, y, r, fillC, ringC) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = fillC; ctx.fill();
+    if (ringC) { ctx.lineWidth = 2; ctx.strokeStyle = ringC; ctx.stroke(); }
+    ctx.restore();
+  }
+  function label(ctx, txt, x, y, color, px, align, base, weight) {
+    ctx.save();
+    font(ctx, px || 10, weight);
+    ctx.fillStyle = color;
+    ctx.textAlign = align || "left";
+    ctx.textBaseline = base || "alphabetic";
+    ctx.fillText(txt, x, y);
+    ctx.restore();
+  }
+  function arrow(ctx, x1, y1, x2, y2, color, width) {
+    var a = Math.atan2(y2 - y1, x2 - x1), h = 7;
+    line(ctx, x1, y1, x2, y2, color, width || 2);
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - h * Math.cos(a - 0.38), y2 - h * Math.sin(a - 0.38));
+    ctx.lineTo(x2 - h * Math.cos(a + 0.38), y2 - h * Math.sin(a + 0.38));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  function fmt(x, d) {
+    if (!isFinite(x)) return "-";
+    return x.toFixed(d === undefined ? 2 : d);
+  }
+  // Three-ish significant figures across the six decades these plates cover.
+  function sig(x) {
+    if (!isFinite(x)) return "-";
+    var a = Math.abs(x);
+    if (a >= 1e5) return x.toExponential(1).replace("e+", "e");
+    if (a >= 100) return x.toFixed(0);
+    if (a >= 10) return x.toFixed(1);
+    if (a >= 1) return x.toFixed(2);
+    if (a >= 0.01) return x.toFixed(3);
+    if (a === 0) return "0";
+    return x.toExponential(1).replace("e+", "e");
+  }
+  // Decade tick labels: plain below three decimals, exponent notation past it.
+  function decLbl(v) {
+    var e = Math.round(Math.log10(v));
+    if (e >= 0) return String(Math.round(Math.pow(10, e)));
+    if (e >= -3) return v.toFixed(-e);
+    return "1e" + e;
+  }
+  // Every length a reader sees is written BOTH ways. There is no formatter on
+  // this page that emits a bare radius, which is the point of there being only
+  // these two.
+  function du(rUnits, dp) {
+    dp = dp === undefined ? 2 : dp;
+    var mm = metres(rUnits);
+    return fmt(rUnits, dp) + " u (" + fmtMetres(mm) + " m)";
+  }
+  function fmtMetres(mm) {
+    if (mm >= 1000) return Math.round(mm).toLocaleString("en");
+    return mm >= 100 ? fmt(mm, 0) : fmt(mm, 1);
+  }
+  function duTight(rUnits, dp) {
+    if (dp === undefined) dp = rUnits < 10 ? 2 : 1;
+    return fmt(rUnits, dp) + " u / " + fmtMetres(metres(rUnits)) + " m";
+  }
+  // Label with a surface-coloured backing plate, so annotations stay legible
+  // where they land on a curve or a gridline.
+  function chip(ctx, txt, x, y, color, px, align, weight) {
+    px = px || 10;
+    ctx.save();
+    font(ctx, px, weight);
+    var w = ctx.measureText(txt).width, pad = 3;
+    var x0 = align === "right" ? x - w : (align === "center" ? x - w / 2 : x);
+    ctx.fillStyle = C.panel;
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(x0 - pad, y - px - 1, w + pad * 2, px + 6);
+    ctx.restore();
+    label(ctx, txt, x, y, color, px, align, "alphabetic", weight);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * PLATE 1 -- crossover, log-log
+   * ---------------------------------------------------------------- */
+  var cvCross = document.getElementById("cv-cross");
+
+  function drawCross() {
+    var fr = fit(cvCross); if (!fr) return;
+    var ctx = fr.ctx, W = fr.w, H = fr.h;
+    var m = { l: 56, r: 16, t: 20, b: 58 };
+    var pw = W - m.l - m.r, ph = H - m.t - m.b;
+
+    // X is WORLD UNITS throughout; the second tick row converts to metres.
+    var X0 = 1, X1 = 30;
+    var lo = Infinity, hi = -Infinity, probe, rv;
+    for (probe = 0; probe <= 40; probe++) {
+      rv = Math.pow(10, Math.log10(X0) + (Math.log10(X1) - Math.log10(X0)) * probe / 40);
+      lo = Math.min(lo, alphaStruct(rv), alphaTorque(rv));
+      hi = Math.max(hi, alphaStruct(rv), alphaTorque(rv));
+    }
+    lo = Math.min(lo, CUR_ALPHA); hi = Math.max(hi, CUR_ALPHA);
+    var Y0 = Math.pow(10, Math.floor(Math.log10(lo)));
+    var Y1 = Math.pow(10, Math.ceil(Math.log10(hi)));
+    if (Y1 / Y0 > 1e8) Y0 = Y1 / 1e8;
+
+    var lx0 = Math.log10(X0), lx1 = Math.log10(X1);
+    var ly0 = Math.log10(Y0), ly1 = Math.log10(Y1);
+    function px(rUnits) { return m.l + (Math.log10(rUnits) - lx0) / (lx1 - lx0) * pw; }
+    function py(a) {
+      var v = Math.min(Y1, Math.max(Y0, a));
+      return m.t + ph - (Math.log10(v) - ly0) / (ly1 - ly0) * ph;
+    }
+
+    // grid
+    var dec, k;
+    for (dec = Math.round(ly0); dec <= Math.round(ly1); dec++) {
+      for (k = 1; k <= 9; k++) {
+        var yv = k * Math.pow(10, dec);
+        if (yv < Y0 || yv > Y1) continue;
+        line(ctx, m.l, py(yv), m.l + pw, py(yv), k === 1 ? C.grid : C.gridm, 1);
+        if (k === 1) label(ctx, decLbl(yv), m.l - 8, py(yv) + 3, C.ink3, 10, "right");
+      }
+    }
+    // two tick rows: world units, then the same ticks in metres
+    var xticks = [1, 1.5, 2, 2.45, 3, 5, 7, 10, 15, 20, 30];
+    var narrow = pw < 380;
+    for (k = 0; k < xticks.length; k++) {
+      var xv = xticks[k];
+      if (xv < X0 || xv > X1) continue;
+      if (narrow && (xv === 1.5 || xv === 2.45 || xv === 7)) continue;
+      line(ctx, px(xv), m.t, px(xv), m.t + ph, C.gridm, 1);
+      label(ctx, String(xv), px(xv), m.t + ph + 14, C.ink3, 10, "center");
+      label(ctx, fmt(metres(xv), 0), px(xv), m.t + ph + 27, C.ink3, 9, "center");
+    }
+    line(ctx, m.l, m.t + ph, m.l + pw, m.t + ph, C.rule2, 1);
+    line(ctx, m.l, m.t, m.l, m.t + ph, C.rule2, 1);
+    label(ctx, "u", m.l - 8, m.t + ph + 14, C.ink3, 10, "right");
+    label(ctx, "m", m.l - 8, m.t + ph + 27, C.ink3, 9, "right");
+    label(ctx, "HULL RADIUS r  (world units, then metres; 1 u = 10 m)",
+      m.l + pw, m.t + ph + 45, C.ink3, 10, "right");
+    ctx.save();
+    ctx.translate(13, m.t + ph / 2); ctx.rotate(-Math.PI / 2);
+    label(ctx, "ALPHA LIMIT  (rad/s2)", 0, 0, C.ink3, 10, "center");
+    ctx.restore();
+
+    // region shading at the crossover
+    var xc = crossover();
+    if (xc > X0 && xc < X1) {
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = C.tst;
+      ctx.fillRect(m.l, m.t, px(xc) - m.l, ph);
+      ctx.fillStyle = C.tpr;
+      ctx.fillRect(px(xc), m.t, m.l + pw - px(xc), ph);
+      ctx.restore();
+    }
+
+    // curves
+    var ps = [], pp = [], pm = [], i, rU, N = 260;
+    for (i = 0; i <= N; i++) {
+      rU = Math.pow(10, lx0 + (lx1 - lx0) * i / N);
+      var s = alphaStruct(rU), t = alphaTorque(rU);
+      if (s <= Y1 && s >= Y0) ps.push([px(rU), py(s)]);
+      if (t <= Y1 && t >= Y0) pp.push([px(rU), py(t)]);
+      var mn = Math.min(s, t);
+      if (mn <= Y1 && mn >= Y0) pm.push([px(rU), py(mn)]);
+    }
+
+    // current model reference
+    line(ctx, m.l, py(CUR_ALPHA), m.l + pw, py(CUR_ALPHA), C.ink3, 1.5, [2, 3]);
+    chip(ctx, "CURRENT  0.5 rad/s2  -  every hull", m.l + pw - 6, py(CUR_ALPHA) - 7, C.ink3, 10, "right");
+
+    // min() first, as a wide halo, so the limit curves stay legible on top of it
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    poly(ctx, pm, C.ink, 7);
+    ctx.restore();
+    poly(ctx, pp, C.pr, 2.5, [7, 4]);
+    poly(ctx, ps, C.st, 2.5);
+
+    // crossover mark
+    if (xc > X0 && xc < X1) {
+      var yc = alphaStruct(xc);
+      line(ctx, px(xc), m.t, px(xc), py(yc), C.ink3, 1, [3, 3]);
+      dot(ctx, px(xc), py(yc), 4.5, C.panel, C.ink);
+      chip(ctx, "CROSSOVER  r = " + duTight(xc), px(xc) - 8, m.t + 12, C.ink2, 10, "right", "500");
+      chip(ctx, "STRUCTURE-LIMITED", m.l + 6, m.t + ph - 8, C.st, 10, "left", "500");
+      chip(ctx, "TORQUE-LIMITED", m.l + pw - 6, m.t + ph - 8, C.pr, 10, "right", "500");
+    }
+
+    // named ships -- staggered, because the fighter and the corvette sit close
+    // together on a log axis and their dual-unit sublines would otherwise collide
+    for (i = 0; i < SHIPS.length; i++) {
+      var srU = SHIPS[i].r, sa = alphaCeil(srU);
+      if (srU < X0 || srU > X1 || sa < Y0 || sa > Y1) continue;
+      var yName = py(sa) + 17 + (i % 2) * 27;
+      dot(ctx, px(srU), py(sa), 3.6, C.ink, C.panel);
+      chip(ctx, SHIPS[i].name, px(srU) + 8, yName, C.ink2, 10, "left");
+      chip(ctx, duTight(srU), px(srU) + 8, yName + 12, C.ink3, 9, "left");
+    }
+
+    // live ship cursor -- label parked at the top of the rule, clear of the curves
+    var lrU = state.rUnits, la = alphaCeil(lrU);
+    if (lrU >= X0 && lrU <= X1) {
+      line(ctx, px(lrU), m.t + 26, px(lrU), m.t + ph, C.ox, 1.5);
+      var side = px(lrU) > m.l + pw * 0.6 ? "right" : "left";
+      var off = side === "right" ? -7 : 7;
+      chip(ctx, "YOUR SHIP  r " + duTight(lrU) + "  /  alpha " + sig(la),
+        px(lrU) + off, m.t + 22, C.ox, 10, side, "500");
+      if (la >= Y0 && la <= Y1) dot(ctx, px(lrU), py(la), 5, C.ox, C.panel);
+    }
+  }
+
+  /* ---------------------------------------------------------------- *
+   * PLATE 2 -- ship schematic
+   * ---------------------------------------------------------------- */
+  var cvShip = document.getElementById("cv-ship");
+
+  function drawShip() {
+    var fr = fit(cvShip); if (!fr) return;
+    var ctx = fr.ctx, W = fr.w, H = fr.h;
+
+    // Hull as a grid of sections in ship-local units. +x forward.
+    // r is laid out horizontally so the two loads read as a clean orthogonal
+    // pair: tangential straight up, centripetal straight back along r.
+    var cell = Math.min(46, Math.max(17, W / 20));
+    var blocks = [
+      [-3, 0], [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0], [3, 0], [4, 0],
+      [-2, -1], [-1, -1], [0, -1], [-2, 1], [-1, 1], [0, 1],
+      [-3, -2], [-3, 2], [-2, -2], [-2, 2]
+    ];
+    var tip = [4, 0];            // furthest section from the COM
+    var comX = -1.15, comY = 0;  // COM sits aft of the geometric centre: heavy engine block
+    var geoX = 0.5, geoY = 0;
+
+    var cx = Math.max(cell * 4, W / 2 - cell * 2.1), cy = H * 0.47;
+    function sx(u) { return cx + u * cell; }
+    function sy(v) { return cy + v * cell; }
+
+    // hull
+    ctx.save();
+    ctx.lineWidth = 1;
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      var isTip = (b[0] === tip[0] && b[1] === tip[1]);
+      ctx.fillStyle = isTip ? C.tst : C.panel2;
+      ctx.strokeStyle = isTip ? C.st : C.rule2;
+      ctx.lineWidth = isTip ? 2.25 : 1.25;
+      ctx.fillRect(sx(b[0]) - cell / 2, sy(b[1]) - cell / 2, cell, cell);
+      ctx.strokeRect(sx(b[0]) - cell / 2, sy(b[1]) - cell / 2, cell, cell);
+    }
+    ctx.restore();
+
+    // geometric centre
+    var gxp = sx(geoX), gyp = sy(geoY);
+    line(ctx, gxp - 7, gyp, gxp + 7, gyp, C.ink3, 1);
+    line(ctx, gxp, gyp - 7, gxp, gyp + 7, C.ink3, 1);
+    line(ctx, gxp, gyp + 7, gxp, gyp + cell * 1.9, C.rule2, 1, [2, 3]);
+    chip(ctx, "geometric centre", gxp, gyp + cell * 1.9 + 12, C.ink3, 10, "center");
+
+    // centre of mass -- standard quartered symbol
+    var mxp = sx(comX), myp = sy(comY), mr = 8;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(mxp, myp, mr, 0, Math.PI * 2);
+    ctx.fillStyle = C.panel; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(mxp, myp); ctx.arc(mxp, myp, mr, Math.PI, Math.PI * 1.5); ctx.closePath();
+    ctx.fillStyle = C.ink; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(mxp, myp); ctx.arc(mxp, myp, mr, 0, Math.PI * 0.5); ctx.closePath();
+    ctx.fill();
+    ctx.beginPath(); ctx.arc(mxp, myp, mr, 0, Math.PI * 2);
+    ctx.lineWidth = 1.5; ctx.strokeStyle = C.ink; ctx.stroke();
+    ctx.restore();
+    line(ctx, mxp, myp - 9, mxp, myp - cell * 2.7, C.rule2, 1, [2, 3]);
+    chip(ctx, "centre of mass", mxp, myp - cell * 2.7 - 5, C.ink, 10, "center", "500");
+
+    // r arrow, COM -> outer face of the furthest section, horizontal
+    var txp = sx(tip[0]) + cell / 2, typ = sy(tip[1]);
+    arrow(ctx, mxp, myp, txp, typ, C.ink, 1.75);
+    chip(ctx, "r", (mxp + txp) / 2, typ - 9, C.ink, 13, "center", "600");
+
+    // load circle at the tip
+    var lr = Math.min(84, cell * 1.7);
+    chip(ctx, "furthest section", txp, typ + lr + 16, C.st, 10, "left", "500");
+    chip(ctx, "one unit cube = 1 u = 10 m", txp, typ + lr + 30, C.ink3, 10, "left");
+    chip(ctx, "sets r for the whole hull", txp, typ + lr + 43, C.ink3, 10, "left");
+    ctx.save();
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = C.ink3; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(txp, typ, lr, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    chip(ctx, "load_limit", txp + lr * 0.71 + 5, typ + lr * 0.71, C.ink3, 10, "left");
+
+    // load vectors at the tip: tangential straight up, centripetal back along r
+    var magT = lr * 0.78, magC = lr * 0.62;
+    var tx2 = txp, ty2 = typ - magT;
+    var cx2 = txp - magC, cy2 = typ;
+    arrow(ctx, txp, typ, tx2, ty2, C.st, 2.5);
+    arrow(ctx, txp, typ, cx2, cy2, C.pr, 2.5);
+    // resultant closes the rectangle
+    var rx2 = cx2, ry2 = ty2;
+    ctx.save(); ctx.setLineDash([3, 3]);
+    line(ctx, tx2, ty2, rx2, ry2, C.rule2, 1);
+    line(ctx, cx2, cy2, rx2, ry2, C.rule2, 1);
+    ctx.restore();
+    arrow(ctx, txp, typ, rx2, ry2, C.ink, 2);
+
+    chip(ctx, "alpha * r", tx2 + 7, ty2 + 4, C.st, 11, "left", "600");
+    chip(ctx, "omega^2 * r", cx2 - 7, cy2 + 16, C.pr, 11, "right", "600");
+    chip(ctx, "resultant", rx2 - 7, ry2 - 5, C.ink, 11, "right", "600");
+    chip(ctx, "must stay inside load_limit", rx2 - 7, ry2 + 9, C.ink3, 10, "right");
+
+    // live numeric strip -- r always both ways
+    var yv = H - 12;
+    var aC = alphaCeil(state.rUnits);
+    label(ctx,
+      "r = " + du(state.rUnits) + "    load_limit = " + fmt(state.gLimit, 2) +
+      " G = " + fmt(loadLimit(), 2) + " m/s2    alpha_max = " + sig(aC) +
+      " rad/s2    omega_max = " + fmt(omegaMax(state.rUnits) * DEG, 1) + " deg/s",
+      12, yv, C.ink2, 11, "left");
+  }
+
+  /* ---------------------------------------------------------------- *
+   * PLATE 3 -- flight envelope, animated
+   * ---------------------------------------------------------------- */
+  var cvEnv = document.getElementById("cv-env");
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var traj = [], trajDur = 0, trajCapped = false, playing = true, tSim = 0, lastTs = 0, envVisible = true;
+  var HOLD = 0.9, MAXT = 14;
+
+  function buildTraj() {
+    var rU = state.rUnits, aS = alphaStruct(rU), aT = alphaTorque(rU), wM = omegaMax(rU);
+    function alphaAt(w) {
+      var s = aS * aS - Math.pow(w, 4);
+      return Math.min(aT, s > 0 ? Math.sqrt(s) : 0);
+    }
+    var pts = [], w = 0, t = 0, dt = 0.005;
+    while (w < wM * 0.985 && t < MAXT) {
+      pts.push([t, w, alphaAt(w)]);
+      w += alphaAt(w) * dt;
+      t += dt;
+    }
+    pts.push([t, w, alphaAt(w)]);
+    traj = pts;
+    trajDur = t;
+    trajCapped = (w < wM * 0.985);
+    tSim = 0;
+  }
+
+  function sampleTraj(t) {
+    if (!traj.length) return [0, 0, 0];
+    if (t <= 0) return traj[0];
+    if (t >= trajDur) return traj[traj.length - 1];
+    var i = Math.min(traj.length - 1, Math.floor(t / trajDur * (traj.length - 1)));
+    return traj[i];
+  }
+
+  // cycle: 0..dur spin up | hold | dur..0 unwind | hold
+  function cycleState(tc) {
+    var d = trajDur;
+    var top = trajCapped ? "Still winding up - cut at 14 s" : "Margin spent - committed";
+    if (tc < d) return { t: tc, phase: "Spin up - riding the boundary" };
+    if (tc < d + HOLD) return { t: d, phase: top };
+    if (tc < 2 * d + HOLD) return { t: d - (tc - d - HOLD), phase: "Unwind" };
+    return { t: 0, phase: "At rest - full budget available" };
+  }
+  function cycleLen() { return 2 * trajDur + 2 * HOLD; }
+
+  function drawEnv(tc) {
+    var fr = fit(cvEnv); if (!fr) return;
+    var ctx = fr.ctx, W = fr.w, H = fr.h;
+    var m = { l: 56, r: 118, t: 20, b: 44 };
+    var pw = W - m.l - m.r, ph = H - m.t - m.b;
+    if (pw < 60) { m.r = 16; pw = W - m.l - m.r; }
+
+    // axes fixed to the 1-1-1 reference envelope, r = 1.5 u (15 m)
+    var aRef = alphaStruct(R_REF_U), wRef = Math.sqrt(aRef);
+    var X1 = wRef * 1.10, Y1 = aRef * 1.10;
+    function px(w) { return m.l + w / X1 * pw; }
+    function py(a) { return m.t + ph - a / Y1 * ph; }
+
+    // grid
+    var i, k;
+    for (i = 0; i <= 5; i++) {
+      var gy = m.t + ph * i / 5;
+      line(ctx, m.l, gy, m.l + pw, gy, C.gridm, 1);
+      label(ctx, fmt(Y1 * (1 - i / 5), 1), m.l - 8, gy + 3, C.ink3, 10, "right");
+    }
+    for (i = 0; i <= 5; i++) {
+      var gx = m.l + pw * i / 5;
+      line(ctx, gx, m.t, gx, m.t + ph, C.gridm, 1);
+      label(ctx, fmt(X1 * i / 5 * DEG, 0), gx, m.t + ph + 15, C.ink3, 10, "center");
+    }
+    line(ctx, m.l, m.t + ph, m.l + pw, m.t + ph, C.rule2, 1);
+    line(ctx, m.l, m.t, m.l, m.t + ph, C.rule2, 1);
+    label(ctx, "TURN RATE omega  (deg/s)", m.l + pw, m.t + ph + 32, C.ink3, 10, "right");
+    ctx.save();
+    ctx.translate(14, m.t + ph / 2); ctx.rotate(-Math.PI / 2);
+    label(ctx, "ALPHA  (rad/s2)", 0, 0, C.ink3, 10, "center");
+    ctx.restore();
+
+    function boundary(rUnits) {
+      var aS = alphaStruct(rUnits), aT = alphaTorque(rUnits), wM = Math.sqrt(aS), pts = [], n = 160;
+      for (var j = 0; j <= n; j++) {
+        var w = wM * j / n;
+        var s = aS * aS - Math.pow(w, 4);
+        var a = Math.min(aT, s > 0 ? Math.sqrt(s) : 0);
+        pts.push([px(w), py(a)]);
+      }
+      return { pts: pts, aS: aS, aT: aT, wM: wM };
+    }
+
+    // ghost envelopes for the named hulls
+    for (i = 0; i < SHIPS.length; i++) {
+      if (Math.abs(SHIPS[i].r - state.rUnits) < 0.001) continue;
+      var gb = boundary(SHIPS[i].r);
+      var gp = gb.pts.slice();
+      gp.push([px(gb.wM), py(0)]);
+      poly(ctx, gp, C.rule2, 1, [3, 3]);
+      var lbx = px(gb.wM), lby = py(0);
+      label(ctx, SHIPS[i].name + "  " + duTight(SHIPS[i].r), lbx - 4, lby - 6 - (i % 2) * 12,
+        C.ink3, 9, "right");
+    }
+
+    // the live hull's envelope
+    var b = boundary(state.rUnits);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(px(0), py(0));
+    for (i = 0; i < b.pts.length; i++) ctx.lineTo(b.pts[i][0], b.pts[i][1]);
+    ctx.lineTo(px(b.wM), py(0));
+    ctx.closePath();
+    ctx.fillStyle = C.tst; ctx.fill();
+    ctx.restore();
+
+    // split the boundary: torque-clipped flat top vs structural arc
+    var flatPts = [], arcPts = [];
+    for (i = 0; i < b.pts.length; i++) {
+      var w = b.wM * i / (b.pts.length - 1);
+      var s = b.aS * b.aS - Math.pow(w, 4);
+      var sVal = s > 0 ? Math.sqrt(s) : 0;
+      if (b.aT < sVal - 1e-9) flatPts.push(b.pts[i]); else arcPts.push(b.pts[i]);
+    }
+    if (flatPts.length > 1) {
+      poly(ctx, flatPts, C.pr, 3);
+      label(ctx, "TORQUE CLIP", flatPts[0][0] + 8, flatPts[0][1] - 8, C.pr, 10, "left", "alphabetic", "500");
+    }
+    if (arcPts.length > 1) poly(ctx, arcPts, C.st, 3);
+
+    // corner annotations
+    label(ctx, "alpha_max", px(0) + 8, py(Math.min(b.aS, b.aT)) - 9, C.st, 10, "left", "alphabetic", "500");
+    label(ctx, "omega_max", px(b.wM) + 6, py(0) - 4, C.st, 10, "left", "alphabetic", "500");
+
+    // trajectory and moving point
+    var cyc = cycleState(tc);
+    var upTo = cyc.t;
+    var tp = [], nSeg = 90;
+    for (i = 0; i <= nSeg; i++) {
+      var s2 = sampleTraj(upTo * i / nSeg);
+      tp.push([px(s2[1]), py(s2[2])]);
+    }
+    if (reduceMotion.matches) {
+      var full = [];
+      for (i = 0; i <= nSeg; i++) {
+        var s3 = sampleTraj(trajDur * i / nSeg);
+        full.push([px(s3[1]), py(s3[2])]);
+      }
+      poly(ctx, full, C.ink, 2, [5, 3]);
+      var e = sampleTraj(trajDur);
+      dot(ctx, px(e[1]), py(e[2]), 6, C.ox, C.panel);
+      updateEnvReadout(trajDur, trajCapped ? "Still winding up - cut at 14 s" : "Margin spent - committed", e);
+    } else {
+      poly(ctx, tp, C.ink, 2);
+      var cur = sampleTraj(upTo);
+      dot(ctx, px(cur[1]), py(cur[2]), 6, C.ox, C.panel);
+      updateEnvReadout(upTo, cyc.phase, cur);
+    }
+
+    // side legend
+    var lx = m.l + pw + 12, ly = m.t + 12;
+    if (m.r > 60) {
+      label(ctx, "ENVELOPE", lx, ly, C.ink2, 10, "left", "alphabetic", "500"); ly += 15;
+      label(ctx, "r = " + fmt(state.rUnits, 2) + " u", lx, ly, C.ink3, 10); ly += 13;
+      label(ctx, "  = " + fmt(metres(state.rUnits), 1) + " m", lx, ly, C.ink3, 10); ly += 13;
+      label(ctx, "N ~ " + Math.round(sections(state.rUnits)), lx, ly, C.ink3, 10); ly += 20;
+      line(ctx, lx, ly - 4, lx + 16, ly - 4, C.st, 3);
+      label(ctx, "structural", lx + 22, ly, C.ink3, 10); ly += 16;
+      line(ctx, lx, ly - 4, lx + 16, ly - 4, C.pr, 3);
+      label(ctx, "torque clip", lx + 22, ly, C.ink3, 10); ly += 16;
+      line(ctx, lx, ly - 4, lx + 16, ly - 4, C.ink, 2);
+      label(ctx, "flown path", lx + 22, ly, C.ink3, 10); ly += 16;
+      dot(ctx, lx + 8, ly - 4, 4, C.ox);
+      label(ctx, "ship", lx + 22, ly, C.ink3, 10);
+    }
+  }
+
+  var elPhase = document.getElementById("v-phase"),
+      elT = document.getElementById("v-t"),
+      elW = document.getElementById("v-w"),
+      elLt = document.getElementById("v-lt"),
+      elLc = document.getElementById("v-lc"),
+      elLr = document.getElementById("v-lr");
+
+  function updateEnvReadout(t, phase, s) {
+    // Loads are real accelerations, so the arm has to be in METRES here.
+    var w = s[1], a = s[2], rMetres = metres(state.rUnits);
+    var lt = a * rMetres, lc = w * w * rMetres;
+    elPhase.textContent = phase;
+    elT.textContent = "t = " + fmt(t, 2) + " s";
+    elW.textContent = fmt(w * DEG, 0);
+    elLt.textContent = fmt(lt / G, 2);
+    elLc.textContent = fmt(lc / G, 2);
+    elLr.textContent = fmt(Math.sqrt(lt * lt + lc * lc) / G, 2);
+  }
+
+  var btnPlay = document.getElementById("btn-play");
+  btnPlay.addEventListener("click", function () {
+    playing = !playing;
+    btnPlay.textContent = playing ? "Pause" : "Play";
+    if (playing) { lastTs = 0; requestAnimationFrame(tick); }
+  });
+  if (reduceMotion.matches) { playing = false; btnPlay.textContent = "Play"; }
+
+  function tick(ts) {
+    if (!playing || reduceMotion.matches) return;
+    if (!lastTs) lastTs = ts;
+    var dt = Math.min(0.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+    if (envVisible) {
+      tSim = (tSim + dt) % cycleLen();
+      drawEnv(tSim);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (es) {
+      envVisible = es[0].isIntersecting;
+    }, { threshold: 0.01 }).observe(cvEnv);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * PLATE 4 -- controllers against a hull that cannot turn
+   *
+   * n controllers each contribute max_torque, and each parks M_CTL of mass
+   * at radius d, so they appear in both the numerator and the denominator.
+   * The asymptote max_torque / (M_CTL d^2) is the whole story of the plate.
+   * ---------------------------------------------------------------- */
+  var cvCtl = document.getElementById("cv-ctl");
+  var CTL_NMAX = 10000;
+
+  // Every radius in this block -- RUnits, dUnits -- is WORLD UNITS, because
+  // inertia is a game-unit quantity. Only ctlWall() crosses into metres, and it
+  // says so by carrying METRES_PER_UNIT explicitly.
+  function ctlD()                        { return Math.max(0.02, state.dfrac) * state.crUnits; }
+  function ctlAlpha(n, RUnits, dUnits)   { return n * maxTorque() / (inertia(RUnits) + n * M_CTL * dUnits * dUnits); }
+  function ctlAsym(dUnits)               { return maxTorque() / (M_CTL * dUnits * dUnits); }
+  function ctlNeed(RUnits, dUnits) {
+    var aS = alphaStruct(RUnits), den = maxTorque() - aS * M_CTL * dUnits * dUnits;
+    if (den <= 0) return Infinity;                 // the wall sits under the hull limit
+    return aS * inertia(RUnits) / den;
+  }
+  // world units. load_limit cancels when max_torque is pinned by the crossover.
+  function ctlWall() { return maxTorque() * METRES_PER_UNIT / (loadLimit() * M_CTL); }
+
+  function drawCtl() {
+    var fr = fit(cvCtl); if (!fr) return;
+    var ctx = fr.ctx, W = fr.w, H = fr.h;
+    var m = { l: 58, r: 150, t: 22, b: 46 };
+    var pw = W - m.l - m.r, ph = H - m.t - m.b;
+    if (pw < 60) { m.r = 16; pw = W - m.l - m.r; }
+
+    var R = state.crUnits, d = ctlD(), aS = alphaStruct(R);
+    var X0 = 1, X1 = CTL_NMAX;
+
+    var lo = Math.min(ctlAlpha(1, R, d), ctlAlpha(1, R, R), aS);
+    var hi = Math.max(ctlAlpha(X1, R, d), ctlAlpha(X1, R, R), aS);
+    var Y0 = Math.pow(10, Math.floor(Math.log10(lo)));
+    var Y1 = Math.pow(10, Math.ceil(Math.log10(hi)));
+    if (Y1 <= Y0) Y1 = Y0 * 10;
+
+    var lx0 = Math.log10(X0), lx1 = Math.log10(X1);
+    var ly0 = Math.log10(Y0), ly1 = Math.log10(Y1);
+    function px(n) { return m.l + (Math.log10(n) - lx0) / (lx1 - lx0) * pw; }
+    function py(a) {
+      var v = Math.min(Y1, Math.max(Y0, a));
+      return m.t + ph - (Math.log10(v) - ly0) / (ly1 - ly0) * ph;
+    }
+
+    // grid
+    var dec, k, i;
+    for (dec = Math.round(ly0); dec <= Math.round(ly1); dec++) {
+      for (k = 1; k <= 9; k++) {
+        var yv = k * Math.pow(10, dec);
+        if (yv < Y0 || yv > Y1) continue;
+        line(ctx, m.l, py(yv), m.l + pw, py(yv), k === 1 ? C.grid : C.gridm, 1);
+        if (k === 1) label(ctx, decLbl(yv), m.l - 8, py(yv) + 3, C.ink3, 10, "right");
+      }
+    }
+    var xt = [1, 3, 10, 30, 100, 300, 1000, 3000, 10000];
+    for (k = 0; k < xt.length; k++) {
+      if (xt[k] > X1) continue;
+      line(ctx, px(xt[k]), m.t, px(xt[k]), m.t + ph, C.gridm, 1);
+      label(ctx, String(xt[k]), px(xt[k]), m.t + ph + 15, C.ink3, 10, "center");
+    }
+    line(ctx, m.l, m.t + ph, m.l + pw, m.t + ph, C.rule2, 1);
+    line(ctx, m.l, m.t, m.l, m.t + ph, C.rule2, 1);
+    label(ctx, "CONTROLLERS FITTED n", m.l + pw, m.t + ph + 33, C.ink3, 10, "right");
+    ctx.save();
+    ctx.translate(14, m.t + ph / 2); ctx.rotate(-Math.PI / 2);
+    label(ctx, "TORQUE CEILING  (rad/s2)", 0, 0, C.ink3, 10, "center");
+    ctx.restore();
+
+    // curves
+    var pTip = [], pLive = [], pMin = [], n, av;
+    for (i = 0; i <= 220; i++) {
+      n = Math.pow(10, lx0 + (lx1 - lx0) * i / 220);
+      av = ctlAlpha(n, R, d);
+      pTip.push([px(n), py(ctlAlpha(n, R, R))]);
+      pLive.push([px(n), py(av)]);
+      pMin.push([px(n), py(Math.min(av, aS))]);
+    }
+
+    // what the ship actually gets, as the wide halo plate 1 uses
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    poly(ctx, pMin, C.ink, 7);
+    ctx.restore();
+
+    // the tip wall, drawn only when it bites
+    var tipA = ctlAsym(R);
+    if (tipA < aS && tipA > Y0) {
+      line(ctx, m.l, py(tipA), m.l + pw, py(tipA), C.pr, 1, [2, 3]);
+      // drop the caption under its own line when the structural line is close above
+      var tipGap = py(tipA) - py(aS);
+      chip(ctx, "TIP WALL  " + sig(tipA), m.l + 6,
+        tipGap < 22 ? py(tipA) + 14 : py(tipA) - 6, C.pr, 10, "left", "500");
+    }
+
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    poly(ctx, pTip, C.pr, 2, [7, 4]);
+    ctx.restore();
+    poly(ctx, pLive, C.pr, 2.5);
+
+    // the structural ceiling is flat: fitting wheels never moves it
+    line(ctx, m.l, py(aS), m.l + pw, py(aS), C.st, 2.5, [6, 4]);
+    chip(ctx, "STRUCTURAL CEILING  " + sig(aS), m.l + pw - 6, py(aS) - 7, C.st, 10, "right", "500");
+
+    // where the live mounting reaches the hull limit, if it ever does
+    var need = ctlNeed(R, d);
+    if (isFinite(need) && need >= X0 && need <= X1) {
+      line(ctx, px(need), py(aS), px(need), m.t + ph, C.ox, 1.5);
+      dot(ctx, px(need), py(aS), 5, C.ox, C.panel);
+      var side = px(need) > m.l + pw * 0.62 ? "right" : "left";
+      chip(ctx, "n = " + Math.ceil(need) + " reaches it", px(need) + (side === "right" ? -8 : 8),
+        py(aS) + 20, C.ox, 10, side, "500");
+    } else if (!isFinite(need)) {
+      chip(ctx, "NO NUMBER OF THEM REACHES IT", m.l + 6, m.t + 14, C.ox, 10, "left", "500");
+    } else if (need > X1) {
+      chip(ctx, "REACHES IT AT n = " + Math.ceil(need) + ", OFF THIS SCALE",
+        m.l + 6, m.t + 14, C.ox, 10, "left", "500");
+    }
+
+    // direct labels on the curve ends; the hull block is parked at the foot of
+    // the gutter so a curve that runs to the top of the plot cannot collide with it
+    if (m.r > 60) {
+      var lex = m.l + pw + 10;
+      var yLo = m.t + 12, yHi = m.t + ph - 46;
+      function park(y) { return Math.max(yLo, Math.min(yHi, y)); }
+      var yLive = park(pLive[pLive.length - 1][1]);
+      var yTip = park(pTip[pTip.length - 1][1]);
+      if (Math.abs(yLive - yTip) < 26) yTip = park(yLive + 26);
+      if (Math.abs(yLive - yTip) < 26) yLive = park(yTip - 26);
+      label(ctx, "d = " + duTight(d), lex, yLive - 4, C.pr, 10, "left", "alphabetic", "600");
+      label(ctx, "walls at " + sig(ctlAsym(d)), lex, yLive + 10, C.ink3, 10);
+      label(ctx, "d = r, at the tip", lex, yTip - 4, C.pr, 10, "left", "alphabetic", "600");
+      label(ctx, "walls at " + sig(tipA), lex, yTip + 10, C.ink3, 10);
+      label(ctx, "HULL  r = " + fmt(R, 0) + " u", lex, m.t + ph - 26, C.ink2, 10, "left", "alphabetic", "500");
+      label(ctx, "      = " + fmt(metres(R), 0) + " m", lex, m.t + ph - 13, C.ink2, 10, "left", "alphabetic", "500");
+      label(ctx, "N ~ " + Math.round(sections(R)), lex, m.t + ph, C.ink3, 10);
+    }
+  }
+
+  /* ---------------------------------------------------------------- *
+   * READOUTS + TABLE
+   * ---------------------------------------------------------------- */
+  function el(id) { return document.getElementById(id); }
+
+  var elVr = el("v-r"),
+      elHr = el("h-r"),
+      elVg = el("v-g"),
+      elHg = el("h-g"),
+      elVrx = el("v-rx"),
+      elHrx = el("h-rx"),
+      elVp = el("v-p"),
+      elHp = el("h-p"),
+      elTorque = el("v-torque"),
+      elTorqueX = el("v-torque-x"),
+      elBind = el("v-bind"),
+      elMargin = el("v-margin"),
+      elAlpha = el("v-alpha"),
+      elAlphaX = el("v-alpha-x"),
+      elFlip = el("v-flip"),
+      elFlipX = el("v-flip-x"),
+      elOmega = el("v-omega"),
+      elN = el("v-n"),
+      elInertia = el("v-inertia"),
+      elSize = el("v-sizelever"),
+      elKhead = el("k-head"),
+      elKhead2 = el("k-head-2"),
+      elKwall = el("k-wall"),
+      elKwallM = el("k-wall-m"),
+      elKiratio = el("k-iratio"),
+      elMprov = el("m-prov"),
+      elMspread = el("m-spread"),
+      elMspread2 = el("m-spread2"),
+      elMcargoN = el("m-cargo-n"),
+      elMcargoI = el("m-cargo-i"),
+      elMcargoX = el("m-cargo-x"),
+      tbody = el("tbl-body"),
+      tknobs = el("tbl-knobs"),
+      tsens = el("tbl-sens");
+
+  function refreshReadouts() {
+    var rU = state.rUnits, s = alphaStruct(rU), t = alphaTorque(rU), a = Math.min(s, t);
+    elVr.textContent = du(rU, 2);
+    elHr.textContent = "COM to furthest section; 1 u = 10 m";
+    elVg.textContent = fmt(state.gLimit, 2) + " G (" + fmt(loadLimit(), 2) + " m/s2)";
+    elHg.textContent = (state.gLimit === 8 ? "settled at 8 G" : "8 G is the settled value") + "; 1 G = 9.81 m/s2";
+    elVrx.textContent = du(state.rxUnits, 1);
+    elHrx.textContent = "pins max_torque at " + sig(maxTorque());
+    elVp.textContent = fmt(state.p, 2);
+    elHp.textContent = "I ~ r^p; 3.5 is a GUESS, shell 4, solid 5";
+    elTorque.textContent = sig(maxTorque());
+    elTorqueX.textContent = Math.abs(maxTorque() - 1501) / 1501 < 0.005
+      ? "t u2/s2 - provisional, NOT measured"
+      : "t u2/s2 - " + fmt(maxTorque() / 1501, 2) + "x the provisional 1501";
+
+    var structBinds = s <= t;
+    elBind.className = "pill " + (structBinds ? "struct" : "torque");
+    elBind.textContent = structBinds ? "Structure" : "Torque";
+    elMargin.textContent = structBinds
+      ? "torque has " + fmt(t / s, 1) + "x headroom"
+      : "structure has " + fmt(s / t, 1) + "x headroom";
+
+    elAlpha.textContent = sig(a);
+    elAlphaX.textContent = fmt(a / CUR_ALPHA, 1) + "x today's flat 0.5";
+    elFlip.textContent = fmt(flip(a), 2);
+    elFlipX.textContent = fmt(CUR_FLIP / flip(a), 2) + "x today's 5.00 s on every hull";
+    elOmega.textContent = fmt(omegaMax(rU) * DEG, 1);
+    elN.textContent = String(Math.round(sections(rU)));
+    elInertia.textContent = "I = " + sig(inertia(rU)) + " t u2";
+
+    // 01: the same controller on three ships, and the headroom the fighter has
+    var head = alphaTorque(R_REF_U) / alphaStruct(R_REF_U);
+    elKhead.textContent = fmt(head, 0);
+    elKhead2.textContent = fmt(head, 0);
+    elKwall.textContent = fmt(ctlWall(), 1);
+    elKwallM.textContent = Math.round(metres(ctlWall())).toLocaleString("en");
+    elKiratio.textContent = Math.round(inertia(15) / inertia(R_REF_U)).toLocaleString("en");
+    elSize.textContent = fmt(alphaStruct(R_REF_U) / alphaStruct(15), 1);
+
+    var knobs = [
+      { name: "1-1-1 fighter", r: R_REF_U },
+      { name: "cargoa corvette", r: 2.45 },
+      { name: "Capital", r: 15 }
+    ], kh = "", j, krU, ks, kt;
+    for (j = 0; j < knobs.length; j++) {
+      krU = knobs[j].r; ks = alphaStruct(krU); kt = alphaTorque(krU);
+      kh += "<tr><td>" + knobs[j].name + "</td>"
+        + '<td class="num">' + sig(inertia(krU)) + "</td>"
+        + '<td class="num">' + fmt(krU, 2) + "</td>"
+        + '<td class="num">' + fmt(metres(krU), 1) + "</td>"
+        + '<td class="bind-t">' + sig(kt) + "</td>"
+        + '<td class="bind-s">' + sig(ks) + "</td>"
+        + '<td class="' + (ks <= kt ? "bind-s" : "bind-t") + '">' + sig(Math.min(ks, kt)) + "</td>"
+        + '<td class="num">' + fmt(flip(Math.min(ks, kt)), 2) + "</td></tr>";
+    }
+    tknobs.innerHTML = kh;
+
+    refreshSensitivity();
+    refreshCtlReadouts();
+
+    // table
+    var rows = SHIPS.slice();
+    var isNamed = rows.some(function (x) { return Math.abs(x.r - rU) < 0.001; });
+    if (!isNamed) rows.push({ name: "Your ship", r: rU, live: true });
+    rows.sort(function (x, y) { return x.r - y.r; });
+
+    var html = "";
+    for (var i = 0; i < rows.length; i++) {
+      var rrU = rows[i].r, ss = alphaStruct(rrU), tt = alphaTorque(rrU), aa = Math.min(ss, tt);
+      var sb = ss <= tt;
+      var live = rows[i].live || Math.abs(rrU - rU) < 0.001;
+      var ratio = CUR_FLIP / flip(aa);
+      html += '<tr class="' + (live ? "live" : "") + '">'
+        + "<td>" + rows[i].name + "</td>"
+        + '<td class="num">' + fmt(rrU, 2) + "</td>"
+        + '<td class="num">' + fmt(metres(rrU), 1) + "</td>"
+        + "<td>" + Math.round(sections(rrU)) + "</td>"
+        + '<td class="bind-s">' + sig(ss) + "</td>"
+        + '<td class="bind-t">' + sig(tt) + "</td>"
+        + '<td class="' + (sb ? "bind-s" : "bind-t") + '">' + (sb ? "structure" : "torque") + "</td>"
+        + '<td class="num">' + sig(aa) + "</td>"
+        + '<td class="num">' + fmt(flip(aa), 2) + "</td>"
+        + '<td class="num">' + (ratio >= 1 ? fmt(ratio, 2) + "x sharper" : fmt(1 / ratio, 2) + "x slower") + "</td>"
+        + '<td class="num">' + fmt(omegaMax(rrU) * DEG, 1) + "</td>"
+        + "</tr>";
+    }
+    tbody.innerHTML = html;
+  }
+
+  /* 06: what the unmeasured exponent costs. Recomputed at the console's
+     load_limit and crossover, with p swept independently of the p slider. */
+  function refreshSensitivity() {
+    var pSaved = state.p, rows = [3.0, 3.5, 4.0, 4.5, 5.0], html = "", i;
+    function at(p) {
+      state.p = p;
+      var T = maxTorque(), cap = Math.min(alphaStruct(15), alphaTorque(15));
+      return { T: T, capFlip: flip(cap), wall: ctlWall(), i10: inertia(10), n15: sections(15) };
+    }
+    var base = at(3.5).T;
+    var mass = { "3": "r^1 - a line", "3.5": "r^1.5 - the guess", "4": "r^2 - hollow shell",
+                 "4.5": "r^2.5", "5": "r^3 - solid" };
+    for (i = 0; i < rows.length; i++) {
+      var p = rows[i], v = at(p), key = String(p);
+      html += '<tr class="' + (Math.abs(pSaved - p) < 0.026 ? "live" : "") + '">'
+        + "<td>p = " + fmt(p, 1) + "</td>"
+        + "<td>M ~ " + (mass[key] || "r^" + fmt(p - 2, 1)) + "</td>"
+        + '<td class="num">' + sig(v.i10) + "</td>"
+        + '<td class="num">' + sig(v.T) + "</td>"
+        + '<td class="num">' + fmt(v.T / base, 2) + "x</td>"
+        + '<td class="bind-t">' + fmt(v.capFlip, 2) + "</td>"
+        + '<td class="num">' + fmt(v.wall, 0) + " u / " + Math.round(metres(v.wall)).toLocaleString("en") + " m</td>"
+        + '<td class="num">' + Math.round(v.n15) + "</td></tr>";
+    }
+    var t35 = at(3.5).T, t40 = at(4.0).T, t50 = at(5.0).T;
+    state.p = pSaved;
+    tsens.innerHTML = html;
+    elMprov.textContent = sig(t35);
+    elMspread.textContent = fmt(t50 / t40, 1);
+    elMspread2.textContent = fmt(t50 / t35, 0);
+    elMcargoN.textContent = String(Math.round(sections(2.45)));
+    elMcargoI.textContent = sig(inertia(2.45));
+    elMcargoX.textContent = fmt(85 / inertia(2.45), 1);
+  }
+
+  /* plate 4 readouts */
+  var elVcr = el("v-cr"), elHcr = el("h-cr"),
+      elVdm = el("v-dm"), elHdm = el("h-dm"),
+      elCn = el("c-n"), elCi = el("c-i"),
+      elCone = el("c-one"), elConeX = el("c-one-x"),
+      elCneed = el("c-need"), elCneedX = el("c-need-x"),
+      elCtip = el("c-tip"), elCtipX = el("c-tip-x"),
+      elCwall = el("c-wall"), elCwallX = el("c-wall-x");
+
+  function refreshCtlReadouts() {
+    var RUnits = state.crUnits, dUnits = ctlD(), aS = alphaStruct(RUnits);
+    elVcr.textContent = du(RUnits, 1);
+    elHcr.textContent = "about " + Math.round(sections(RUnits)) + " sections";
+    elVdm.textContent = du(dUnits, 1);
+    elHdm.textContent = fmt(state.dfrac, 2) + " r - "
+      + (state.dfrac < 0.35 ? "amidships" : (state.dfrac < 0.8 ? "outboard" : "at the wingtips"));
+
+    elCn.textContent = String(Math.round(sections(RUnits)));
+    elCi.textContent = "I = " + sig(inertia(RUnits)) + " t u2";
+
+    var one = ctlAlpha(1, RUnits, dUnits);
+    elCone.textContent = sig(one);
+    elConeX.textContent = "180 flip: " + fmt(flip(one), 0) + " s";
+
+    var need = ctlNeed(RUnits, dUnits), tipNeed = ctlNeed(RUnits, RUnits);
+    elCneed.textContent = isFinite(need) ? String(Math.ceil(need)) : "never";
+    elCneedX.textContent = "at d = " + du(dUnits, 1);
+    elCtip.textContent = isFinite(tipNeed) ? String(Math.ceil(tipNeed)) : "never";
+    elCtipX.textContent = isFinite(tipNeed)
+      ? "units, with d = r"
+      : "walls out at " + fmt(ctlAsym(RUnits) / aS * 100, 0) + " % of the limit";
+    elCwall.textContent = fmt(ctlWall(), 1);
+    elCwallX.textContent = "= " + Math.round(metres(ctlWall())).toLocaleString("en")
+      + " m - largest hull the tips still turn";
+  }
+
+  /* ---------------------------------------------------------------- *
+   * WIRING
+   * ---------------------------------------------------------------- */
+  function redrawAll() {
+    readTokens();
+    drawCross();
+    drawShip();
+    drawCtl();
+    drawEnv(reduceMotion.matches ? trajDur : tSim);
+  }
+
+  function onStateChange(rebuild) {
+    if (rebuild) { buildTraj(); tSim = 0; }
+    refreshReadouts();
+    redrawAll();
+  }
+
+  // Slider values are WORLD UNITS (in-r, in-rx, in-cr), G (in-g), a bare
+  // exponent (in-p) or a fraction of r (in-dm). Nothing here is metres.
+  el("in-r").addEventListener("input", function (e) {
+    state.rUnits = parseFloat(e.target.value); onStateChange(true);
+  });
+  el("in-g").addEventListener("input", function (e) {
+    state.gLimit = parseFloat(e.target.value); onStateChange(true);
+  });
+  el("in-rx").addEventListener("input", function (e) {
+    state.rxUnits = parseFloat(e.target.value); onStateChange(true);
+  });
+  el("in-p").addEventListener("input", function (e) {
+    state.p = parseFloat(e.target.value); onStateChange(true);
+  });
+  el("in-cr").addEventListener("input", function (e) {
+    state.crUnits = parseFloat(e.target.value); refreshReadouts(); drawCtl();
+  });
+  el("in-dm").addEventListener("input", function (e) {
+    state.dfrac = parseFloat(e.target.value); refreshReadouts(); drawCtl();
+  });
+
+  var rid;
+  window.addEventListener("resize", function () {
+    clearTimeout(rid);
+    rid = setTimeout(redrawAll, 120);
+  });
+
+  // theme: OS preference and the viewer's explicit toggle
+  var mq = window.matchMedia("(prefers-color-scheme: dark)");
+  if (mq.addEventListener) mq.addEventListener("change", redrawAll);
+  else if (mq.addListener) mq.addListener(redrawAll);
+  new MutationObserver(redrawAll).observe(document.documentElement, {
+    attributes: true, attributeFilter: ["data-theme", "class", "style"]
+  });
+  if (reduceMotion.addEventListener) reduceMotion.addEventListener("change", redrawAll);
+
+  buildTraj();
+  refreshReadouts();
+  redrawAll();
+  if (playing && !reduceMotion.matches) requestAnimationFrame(tick);
+})();
+</script>
