@@ -45,18 +45,73 @@ alpha_max = min( torque_available / I ,  a_limit / r )
 
 Two different reasons for two different ships, both physical. That is the model.
 
-## Owner decisions already made
+## Owner decisions - SETTLED, do not reopen
 
-- **`r` is measured from the CENTRE OF MASS** to the furthest section, not the
-  geometric centre.
-- **The flight computer is a FRACTION of the ceiling**, not a source of
-  authority: `alpha_commanded = alpha_ceiling * f`, `f` in 0..1. The hull owns
-  the ceiling; the computer decides how close to it you dare fly. This is
-  envelope protection - a better computer models the hull more precisely and can
-  ride nearer the edge without overshooting.
-- Stacking follows rather than being imposed: `f_total = 1 - (1 - f)^n`.
-  Asymptotic to 1.0, needs no cap, because you cannot exceed physics. The
-  current "capped at twice its strongest computer" rule goes.
+Reviewed 2026-08-19. **Exactly TWO authored knobs, and both must be readable by
+a modder without a physics lesson.** That bar killed a third.
+
+- **`max_torque`, on the controller.** How hard this computer twists the ship.
+  Controllers ADD: two computers, twice the torque. No cap, no curve.
+- **`load_limit`, ONE GLOBAL CONSTANT.** Not authored per section. Hull metal is
+  hull metal, so there is no "which section's limit" question to answer. A
+  per-section limit - `min over sections of (strength_s / r_s)`, so a fragile
+  part on a long boom limits the ship - is a possible LATER refinement and is
+  explicitly not in this task.
+- **`max_angular_acceleration` is DELETED.** It becomes computed, not authored.
+  That is the whole point: angular acceleration should depend on the ship.
+- **`r` from the CENTRE OF MASS** to the furthest section, not the geometric
+  centre.
+
+### `envelope_fraction` was proposed and REJECTED
+
+An earlier draft gave the controller a second knob - what fraction of the
+structural ceiling it dares command, stacking as `1 - (1 - f)^n`. Owner: "feels
+like it adds a wtf param... I want the controller to have instantly readable
+knobs".
+
+They are right, and it does not survive scrutiny either: **the structural
+ceiling already caps the result.** Install enough torque and you turn at the
+hull's limit; physics stops you there. A second fraction on top is a fudge
+factor doing a job already done. Dropping it also deletes the `1 - (1 - f)^n`
+stacking rule outright, which existed only to serve it.
+
+So stacking needs no rule at all. Controllers add torque; structure caps it.
+
+### Thrusters MUST NOT CHANGE
+
+Settled. `flight/thrusters.rs` keeps its torque-nulling balancer. An off-axis
+engine creating angular momentum is a legitimate player trick and stays one -
+it is NOT part of the torque budget and the model does not account for it.
+This closes the largest open question in the original draft.
+
+### A damaged ship's envelope moves, and that is a FEATURE
+
+Lose sections, `r` shrinks, the ship turns sharper. Intended, not a bug to
+design around.
+
+### `load_limit` has no physical derivation, and that is fine
+
+1 g is a made-up test point, not a measurement. It is "how strong is spaceship
+hull metal", which is a game-design choice. It is also the SINGLE dial that sets
+the whole size curve - raise it and every ship sharpens, lower it and everything
+commits harder - while the RATIOS between ship sizes stay fixed by geometry
+whatever it is set to. One number to playtest, and the first one to tune.
+
+### The pit this design digs, and the UI that fills it
+
+A big enough ship genuinely cannot turn. That is correct physics and it must
+stay, but it is a trap if a player finds out by flying it.
+
+Adding controllers works - 1000 controllers is 1000x the torque - and it is not
+free, because a controller has mass and mass at radius `r` adds `m*r^2` to
+inertia. Wheels on the wingtips nearly cancel themselves; wheels amidships pay
+off. Real spacecraft engineering, free from the model.
+
+**But none of that is discoverable without a readout.** The build screen must
+show the resulting turn rate AND which limit binds ("0.03 rad/s2,
+torque-limited") while sections are being placed. Without it this design is a
+pit, and the frame-rate lesson from `20260819-012130` applies: a correct number
+nobody can see reads as the game being broken.
 
 ## What the tree already has
 
@@ -68,10 +123,8 @@ Two different reasons for two different ships, both physical. That is the model.
   axis thrusters DO produce torque - `thruster_impulse_system` calls
   `apply_linear_impulse_at_point` - the balancer deliberately cancels it.
 
-That balancer is the seam. Under this model a side-mounted engine is a genuine
-source of turn authority, and nulling it is throwing away propulsion the ship
-paid mass for. Decide whether thrusters CONTRIBUTE to the torque budget or stay
-translation-only, and say why.
+That balancer STAYS. See the settled decisions above - thrusters are out of the
+torque budget and out of this task.
 
 Note: `thruster_section.rs:361`'s comment about "a COM-centered engine torques
 the ship it must not touch" is about a STALE-POSE bug, not a claim that
@@ -82,10 +135,7 @@ thrusters cannot torque. Do not read it as the latter.
 - **The loads combine as a VECTOR**: `sqrt((alpha*r)^2 + (omega^2*r)^2) <=
   a_limit`, not each bounded separately. A ship already in a hard turn has spent
   its margin and cannot also change rate quickly - big ships become committed to
-  the turn. Falls straight out of doing it correctly.
-- **The limit is PER SECTION**: `min over sections of (strength_s / r_s)`. A
-  fragile part on a long boom limits the whole ship. Hull layout becomes a
-  handling decision.
+  the turn. Falls straight out of doing it correctly, and adds no knob.
 
 ## Risks to size before committing
 
