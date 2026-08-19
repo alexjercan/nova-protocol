@@ -158,6 +158,10 @@ name = "system_destruction_finale"
 path = "examples/systems/system_destruction_finale.rs"
 
 [[example]]
+name = "bug_carve_apply"
+path = "examples/systems/bug_carve_apply.rs"
+
+[[example]]
 name = "system_turret_gunnery"
 path = "examples/systems/system_turret_gunnery.rs"
 

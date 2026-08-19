@@ -40,6 +40,18 @@
 //! volume throttle below already allows and is the whole reason a held burst
 //! no longer costs the frame rate.
 //!
+//! The swap is PLACEMENT and nothing else. Everything a carve produces -
+//! including the pieces it cut free - arrives built, because the only thing
+//! that ever asks a grid a question is the worker that already holds one:
+//! [`CarveApplyReport`] counts the grids that reach the main thread, and one
+//! per rock is the whole budget.
+//!
+//! On wasm there is no worker to move to - `AsyncComputeTaskPool` there is the
+//! browser's own task queue on the one thread the page has - so the split buys
+//! no parallelism. It still buys the frame: the work lands between ticks with
+//! the rest of the carve rather than inside the system that swaps the result
+//! in, and it is one job instead of one job plus a per-piece tail.
+//!
 //! # What it swaps, and what it must not break
 //!
 //! A remesh replaces the drawn `Mesh3d` and rebuilds the `Collider` as a
@@ -73,7 +85,7 @@ use super::{
 /// `AsteroidField`, `AsteroidCarvePlugin` and the rock mesh they share with the
 /// spawn path.
 pub mod prelude {
-    pub use super::{pristine_rock_mesh, AsteroidCarvePlugin, AsteroidField};
+    pub use super::{pristine_rock_mesh, AsteroidCarvePlugin, AsteroidField, CarveApplyReport};
 }
 
 /// How wide one field cell is, in WORLD units.
@@ -190,6 +202,43 @@ impl AsteroidField {
     }
 }
 
+/// The worst frame the swap-in has had, and what it took delivery of.
+///
+/// [`collect_asteroid_remeshes`] is the one step the module's off-thread
+/// promise cannot cover - a finished carve has to become observable somewhere -
+/// so the promise it makes instead is that the swap does no WORK. `grids` is
+/// what witnesses that, and it is a count rather than a clock: a
+/// [`SignedField`] is a quarter of a megabyte and every question you can ask
+/// one is a scan of all of it, so a swap holding more grids than it has rocks
+/// is a swap doing the worker's geometry on the main thread. That is invisible
+/// in the result - the same rock, the same pieces, the same collider - and
+/// differs only in which frame pays for it.
+///
+/// Ranked by `grids` and then by `millis`, so the record survives the frames
+/// after it.
+#[derive(Resource, Clone, Copy, Debug, Default)]
+pub struct CarveApplyReport {
+    /// Finished carves that frame took delivery of.
+    pub delivered: usize,
+    /// Whole grids they handed it. ONE per delivery: the rock's own new solid.
+    /// A piece arrives as finished geometry and brings no grid with it.
+    pub grids: usize,
+    /// Bodies that frame cut free.
+    pub pieces: usize,
+    /// What that frame's swap cost, in milliseconds. A fact about the HOST that
+    /// ran it - record it, never gate on it.
+    pub millis: f32,
+}
+
+impl CarveApplyReport {
+    /// Keep `frame` if it is worse than what is already recorded.
+    fn worst(&mut self, frame: Self) {
+        if (frame.grids, frame.millis) > (self.grids, self.millis) {
+            *self = frame;
+        }
+    }
+}
+
 /// Cells per axis for a rock whose field spans `half_extent` in its own unit
 /// space and is drawn at `radius`.
 ///
@@ -279,49 +328,106 @@ struct Parent {
     material: Option<MeshMaterial3d<AsteroidSurfaceMaterial>>,
 }
 
+/// One piece a carve cut free, already measured and - where it is big enough to
+/// be a body - already meshed and collided.
+///
+/// Built on the worker that still holds the grid, and it is the whole reason a
+/// piece does not travel as one. Every question you can ask a [`SignedField`]
+/// is a scan of all of it: where its surface sits, how much it holds, what it
+/// meshes to. Asked on the main thread, once per piece, that was a whole frame:
+/// three rocks landing together with five pieces between them measured 17.5 ms
+/// against a 0.02 ms median.
+struct CarvedPiece {
+    /// Its middle, in the PARENT's unit space, which is where it has to appear.
+    at: Vec3,
+    /// How much material it holds, in WORLD cubic units.
+    volume: f32,
+    /// Its geometry about its own middle, or `None` when it is too small to be
+    /// a body and goes out as dust.
+    body: Option<PieceBody>,
+}
+
+/// What a piece is drawn and collided with, in ITS own space.
+struct PieceBody {
+    /// The surface, recentred on the piece's own middle.
+    mesh: Mesh,
+    /// The collider that surface makes.
+    collider: Collider,
+}
+
+/// Measure one severed island and, if it is worth simulating, build its body.
+/// Pure, and run off the main thread.
+///
+/// A piece big enough to matter is meshed by the SAME surface nets the rock is,
+/// off its own field - so it is exactly the geometry that left the rock, not an
+/// approximation of it and not a generic lump. Recentred on its own middle,
+/// because it is about to be a body and a body's origin should be inside it.
+///
+/// A piece SMALLER than [`CHUNK_MIN_VOLUME`] gets no body and is announced as a
+/// carve instead, which turns it into dust. A cut across a rock does not end at
+/// a clean line: it leaves crumbs all round the rim where the slab thinned out,
+/// and a run of the gallery produced eighteen of them off one cut. Eighteen
+/// rigid bodies of a few cells each is litter that costs a solver step; the same
+/// eighteen as puffs of dust is what a cut through rock looks like anyway.
+///
+/// `cubic_scale` turns the grid's own cubic units into world ones. The
+/// threshold is a world size and the grid does not know how big the rock it
+/// came off is drawn, so the caller has to say.
+fn sever_piece(island: &SignedField, cubic_scale: f32) -> Option<CarvedPiece> {
+    let at = island.surface_centre()?;
+    let volume = island.solid_volume() * cubic_scale;
+    if volume < CHUNK_MIN_VOLUME {
+        return Some(CarvedPiece {
+            at,
+            volume,
+            body: None,
+        });
+    }
+
+    let mut mesh = island.surface().build();
+    // About its own middle: the field meshes in the ROCK's space, and a body
+    // drawn far from its own origin tumbles about a point outside itself.
+    mesh.translate_by(-at);
+
+    let Some(collider) = chunk_collider(&mesh) else {
+        debug!("sever_piece: a piece had no usable bounds, dropped");
+        return None;
+    };
+
+    Some(CarvedPiece {
+        at,
+        volume,
+        body: Some(PieceBody { mesh, collider }),
+    })
+}
+
 /// Put every severed piece into the world.
 ///
-/// A piece big enough to be worth simulating becomes a body of its own, meshed
-/// by the SAME surface nets the rock is, off its own field - so it is exactly
-/// the geometry that left the rock, not an approximation of it and not a
-/// generic lump. Recentred on its own middle, because it is about to be a body
-/// and a body's origin should be inside it.
+/// Placement only: the geometry arrived built ([`sever_piece`]), so what is
+/// left here is one transform and one spawn per piece.
 ///
 /// Velocity is `v + omega x r`: a piece off a tumbling rock carries the tumble,
 /// which is what makes it read as material that came loose rather than as
 /// something spawned nearby. The spin it inherits outright - a rigid body's
 /// pieces all turn at the body's rate.
-///
-/// A piece SMALLER than [`CHUNK_MIN_VOLUME`] is announced as a carve instead,
-/// which turns it into dust. A cut across a rock does not end at a clean line:
-/// it leaves crumbs all round the rim where the slab thinned out, and a run of
-/// the gallery produced eighteen of them off one cut. Eighteen rigid bodies of
-/// a few cells each is litter that costs a solver step; the same eighteen as
-/// puffs of dust is what a cut through rock looks like anyway.
 fn throw_severed_pieces(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     parent: &Parent,
-    islands: &[SignedField],
-) {
-    // Volumes are measured in the rock's own unit space, so they have to be
-    // scaled into world units before the world's threshold means anything.
+    pieces: Vec<CarvedPiece>,
+) -> usize {
     let (scale, rotation, _) = parent.frame.to_scale_rotation_translation();
-    let cubic = scale.x * scale.y * scale.z;
+    let mut thrown = 0;
 
-    for island in islands {
-        let Some(middle) = island.surface_centre() else {
-            continue;
-        };
-        let at = parent.frame.transform_point(middle);
-        let volume = island.solid_volume() * cubic;
-        if volume < CHUNK_MIN_VOLUME {
+    for piece in pieces {
+        let at = parent.frame.transform_point(piece.at);
+        let Some(body) = piece.body else {
             commands.trigger(CarveSpew {
                 entity: parent.node,
                 at,
                 // The crumb's own size, so the dust it becomes is the size of
                 // the thing that crumbled.
-                radius: (volume * 3.0 / (4.0 * std::f32::consts::PI)).cbrt(),
+                radius: (piece.volume * 3.0 / (4.0 * std::f32::consts::PI)).cbrt(),
                 // A crumb is severed material, not a weapon's impact, and it is
                 // seen leaving whatever cut the rock. Kinetic is the class
                 // whose look IS chips off a solid, which is what a crumb is;
@@ -329,24 +435,13 @@ fn throw_severed_pieces(
                 kind: DamageType::Kinetic,
             });
             continue;
-        }
-
-        let mut mesh = island.surface().build();
-        // About its own middle: the field meshes in the ROCK's space, and a
-        // body drawn far from its own origin tumbles about a point outside
-        // itself.
-        mesh.translate_by(-middle);
-
-        let Some(collider) = chunk_collider(&mesh) else {
-            debug!("throw_severed_pieces: a piece had no usable bounds, dropped");
-            continue;
         };
 
-        let piece = spawn_carved_chunk(
+        let spawned = spawn_carved_chunk(
             commands,
             ChunkSpawn {
                 name: "Severed Rock".to_string(),
-                mesh: meshes.add(mesh),
+                mesh: meshes.add(body.mesh),
                 transform: Transform {
                     translation: at,
                     rotation,
@@ -354,14 +449,17 @@ fn throw_severed_pieces(
                 },
                 velocity: parent.linear + parent.angular.cross(at - parent.centre),
                 spin: parent.angular,
-                collider,
+                collider: body.collider,
             },
         );
         // A chunk is handed back undressed - see `spawn_carved_chunk`.
         if let Some(material) = parent.material.clone() {
-            commands.entity(piece).insert(material);
+            commands.entity(spawned).insert(material);
         }
+        thrown += 1;
     }
+
+    thrown
 }
 
 /// Everything a remesh built off one candidate, waiting for the main thread to
@@ -373,9 +471,12 @@ fn throw_severed_pieces(
 /// chunk that leaves a hole nothing filled.
 struct CarvedSurface {
     /// The solid the surface was built from, islands already taken out.
+    ///
+    /// The ONE grid a swap takes delivery of. A piece brings none - see
+    /// [`CarvedPiece`] and [`CarveApplyReport`].
     field: SignedField,
-    /// The pieces the carve cut free.
-    islands: Vec<SignedField>,
+    /// The pieces the carve cut free, already built.
+    pieces: Vec<CarvedPiece>,
     /// The surface that solid meshes to.
     surface: Mesh,
     /// Its trimesh, or `None` when the surface makes no usable collider.
@@ -399,13 +500,23 @@ struct AsteroidFieldSeeding(Task<SignedField>);
 #[derive(Component)]
 struct AsteroidRemesh(Task<CarvedSurface>);
 
-/// Split, mesh and collide one candidate solid. Pure, and run off the main
-/// thread.
+/// Split, mesh and collide one candidate solid AND everything it cut free.
+/// Pure, and run off the main thread.
+///
+/// Everything: the swap-in that takes this result has to be able to place it
+/// without asking a grid anything. `cubic_scale` is there for the same reason -
+/// it is what turns a piece's volume into the world units its threshold is
+/// written in.
 ///
 /// `tracked` is the caller's running volume, which is right whenever nothing
 /// severed - splitting is the one operation that removes material without
 /// reporting how much, so it is the one case that pays for a scan.
-fn carve_surface(node: Entity, mut candidate: SignedField, tracked: f32) -> CarvedSurface {
+fn carve_surface(
+    node: Entity,
+    mut candidate: SignedField,
+    tracked: f32,
+    cubic_scale: f32,
+) -> CarvedSurface {
     let started = Instant::now();
     let islands = candidate.split_off_islands();
     let severed = started.elapsed();
@@ -414,6 +525,13 @@ fn carve_surface(node: Entity, mut candidate: SignedField, tracked: f32) -> Carv
         true => tracked,
         false => candidate.solid_volume(),
     };
+
+    let started = Instant::now();
+    let pieces: Vec<CarvedPiece> = islands
+        .iter()
+        .filter_map(|island| sever_piece(island, cubic_scale))
+        .collect();
+    let pieced = started.elapsed();
 
     let started = Instant::now();
     let built = candidate.surface();
@@ -433,18 +551,19 @@ fn carve_surface(node: Entity, mut candidate: SignedField, tracked: f32) -> Carv
     let rebuilt = started.elapsed();
 
     debug!(
-        "carve_surface: {node:?} sever {:.1} ms, remesh {:.1} ms, collider {:.1} ms, \
-         {} piece(s), {} tri(s), unit radius {surviving:.2}",
+        "carve_surface: {node:?} sever {:.1} ms, pieces {:.1} ms, remesh {:.1} ms, \
+         collider {:.1} ms, {} piece(s), {} tri(s), unit radius {surviving:.2}",
         severed.as_secs_f32() * 1000.0,
+        pieced.as_secs_f32() * 1000.0,
         remeshed.as_secs_f32() * 1000.0,
         rebuilt.as_secs_f32() * 1000.0,
-        islands.len(),
+        pieces.len(),
         surface.indices().map_or(0, |i| i.len() / 3),
     );
 
     CarvedSurface {
         field: candidate,
-        islands,
+        pieces,
         surface,
         collider,
         volume,
@@ -525,9 +644,12 @@ fn collect_asteroid_field_seeds(
 /// one mark reaches, which is bounded by the mark and not by the grid.
 fn carve_asteroid_fields(
     mut commands: Commands,
-    mut q_nodes: Query<(Entity, &DamageMarks, &mut AsteroidField), Without<AsteroidRemesh>>,
+    mut q_nodes: Query<
+        (Entity, &DamageMarks, &mut AsteroidField, &GlobalTransform),
+        Without<AsteroidRemesh>,
+    >,
 ) {
-    for (node, marks, mut field) in &mut q_nodes {
+    for (node, marks, mut field, frame) in &mut q_nodes {
         if marks.0.is_empty() {
             continue;
         }
@@ -557,8 +679,13 @@ fn carve_asteroid_fields(
         // the old mesh around a different internal solid.
         let candidate = field.field.clone();
         let tracked = field.volume;
+        // The node's own scale, which is fixed at spawn: the grid is the rock's
+        // unit space and the piece threshold is a world size, so the worker has
+        // to be told the ratio it cannot see.
+        let (scale, _, _) = frame.to_scale_rotation_translation();
+        let cubic_scale = (scale.x * scale.y * scale.z).abs();
         let task = AsyncComputeTaskPool::get()
-            .spawn(async move { carve_surface(node, candidate, tracked) });
+            .spawn(async move { carve_surface(node, candidate, tracked, cubic_scale) });
         commands.entity(node).insert(AsteroidRemesh(task));
     }
 }
@@ -575,6 +702,7 @@ fn carve_asteroid_fields(
 fn collect_asteroid_remeshes(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut report: ResMut<CarveApplyReport>,
     mut q_remeshing: Query<(
         Entity,
         &mut AsteroidRemesh,
@@ -599,12 +727,18 @@ fn collect_asteroid_remeshes(
         Option<&AngularVelocity>,
     )>,
 ) {
+    let started = Instant::now();
+    let mut frame_cost = CarveApplyReport::default();
+
     for (node, mut remeshing, mut field, ChildOf(root), frame, mesh, chunk_material) in
         &mut q_remeshing
     {
         let Some(carved) = block_on(poll_once(&mut remeshing.0)) else {
             continue;
         };
+        frame_cost.delivered += 1;
+        // The rock's own new solid, and nothing else - see `CarveApplyReport`.
+        frame_cost.grids += 1;
         commands.entity(node).remove::<AsteroidRemesh>();
         let Ok((nominal, body, id, type_name)) = q_asteroid.get(*root) else {
             continue;
@@ -639,7 +773,8 @@ fn collect_asteroid_remeshes(
             // root's destruction. Nothing is thrown for the solid that is left:
             // the hit that took it already threw the dust it was priced for, and
             // a second puff for the same material is the same round paid twice.
-            throw_severed_pieces(&mut commands, &mut meshes, &parent, &carved.islands);
+            frame_cost.pieces +=
+                throw_severed_pieces(&mut commands, &mut meshes, &parent, carved.pieces);
             // Reuse the common destruction cue seam without opting into its
             // health or random-fragment finale.
             commands.entity(node).insert(IntegrityDestroyMarker);
@@ -660,9 +795,10 @@ fn collect_asteroid_remeshes(
             continue;
         };
 
-        // Validation succeeded. Only now may the field and its islands become
+        // Validation succeeded. Only now may the field and its pieces become
         // observable.
-        throw_severed_pieces(&mut commands, &mut meshes, &parent, &carved.islands);
+        frame_cost.pieces +=
+            throw_severed_pieces(&mut commands, &mut meshes, &parent, carved.pieces);
         field.field = carved.field;
         field.volume = carved.volume;
         field.meshed_volume = carved.volume;
@@ -690,6 +826,15 @@ fn collect_asteroid_remeshes(
             commands.entity(*root).insert(BodyRadius(shrunk));
         }
     }
+
+    if frame_cost.delivered > 0 {
+        frame_cost.millis = started.elapsed().as_secs_f32() * 1000.0;
+        debug!(
+            "collect_asteroid_remeshes: {} delivery(s), {} grid(s), {} piece(s), {:.2} ms",
+            frame_cost.delivered, frame_cost.grids, frame_cost.pieces, frame_cost.millis,
+        );
+        report.worst(frame_cost);
+    }
 }
 
 /// Gives asteroids a carvable field and remeshes them as they are hit.
@@ -707,6 +852,7 @@ impl Plugin for AsteroidCarvePlugin {
         debug!("AsteroidCarvePlugin: build");
 
         let _ = self.render;
+        app.init_resource::<CarveApplyReport>();
         // Collect first, so a task started last frame has had a whole frame to
         // finish and the rock it belongs to is free to take the next mark in
         // the same update.
@@ -760,6 +906,11 @@ mod tests {
     /// the motion it had. Everything about it is read off the rock's frame, so
     /// a piece off a rock at the far end of a scenario must not appear at the
     /// world origin at unit scale.
+    ///
+    /// Across the thread split on purpose: the island is measured and built the
+    /// way the worker builds it, and only the result is handed to the placement
+    /// half. A piece that survived the crossing wrongly would land exactly like
+    /// one the placement half got wrong.
     #[test]
     fn a_severed_piece_carries_the_rock_it_left() {
         use bevy::ecs::system::RunSystemOnce;
@@ -777,6 +928,14 @@ mod tests {
         let offset = Vec3::new(2.0, 0.0, 0.0);
         let island = SignedField::sample(16, 4.0, move |at| at.distance(offset) - 1.0);
         let cell = island.cell_size();
+        // What the worker hands over, built exactly as the carve builds it.
+        let piece = sever_piece(&island, scale * scale * scale).expect("the island is a body");
+        assert!(
+            piece.body.is_some(),
+            "delivery guard: the island is big enough to be a body, not dust"
+        );
+        // The throw CONSUMES its pieces; the closure it runs inside is FnMut.
+        let mut piece = Some(piece);
 
         let rock = app.world_mut().spawn_empty().id();
         app.world_mut()
@@ -795,7 +954,7 @@ mod tests {
                             angular,
                             material: None,
                         },
-                        std::slice::from_ref(&island),
+                        vec![piece.take().expect("the throw runs once")],
                     );
                 },
             )
