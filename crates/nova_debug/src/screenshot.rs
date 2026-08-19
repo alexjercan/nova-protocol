@@ -11,6 +11,12 @@
 //! (the F11 overlay toggle): a screenshot should work whether or not the dev
 //! overlays are currently shown, so the system runs every frame in `Update`
 //! outside the [`DebugSystems`](crate::DebugSystems) run condition.
+//!
+//! Host targets only - the crate root compiles this module out under
+//! `target_arch = "wasm32"`. Both halves of what it does are host-shaped: the
+//! wall clock the filename comes from is a panicking stub in a wasm bundle, and
+//! `save_to_disk` writes through `std::fs` to a Downloads directory a browser
+//! does not have.
 
 use std::{
     path::PathBuf,

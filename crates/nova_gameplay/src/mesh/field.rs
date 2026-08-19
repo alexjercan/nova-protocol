@@ -203,8 +203,8 @@ impl SignedField {
         // carry the sign.
         let outside = self.cell_size();
         let mut islands = Vec::new();
-        for label in 0..=count {
-            if label == biggest || sizes[label] == 0 {
+        for (label, size) in sizes.iter().enumerate() {
+            if label == biggest || *size == 0 {
                 continue;
             }
             let mut island = self.clone();
@@ -512,7 +512,9 @@ mod tests {
             panic!("a built mesh has positions");
         };
         positions
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|face| std::array::from_fn(|slot| Vec3::from_array(face[slot])))
             .collect()
     }

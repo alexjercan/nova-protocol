@@ -96,8 +96,8 @@ const FIELD_CELL_WORLD: f32 = 0.5;
 ///
 /// A cap on the CELL COUNT is a cap on a frame, because everything about a
 /// field is `count^3`: the seed, the corner scans, the remesh, the collider.
-/// At `64^3` one carve measured 43 ms of main-thread work on one desktop core
-/// - 17 to remesh 28,000 triangles, 11 to rebuild the collider, 3 to test
+/// At `64^3` one carve measured 43 ms of main-thread work on one desktop
+/// core - 17 to remesh 28,000 triangles, 11 to rebuild the collider, 3 to test
 /// connectivity and the rest in whole-grid scans - a first hit seeded in 19 ms,
 /// and a rock cost 39 ms to spawn. Held PDC fire pays the carve on every second
 /// frame, which is what put the asteroid field at 25 fps. `40^3` is a quarter of
@@ -134,9 +134,9 @@ const FIELD_MARGIN: f32 = 1.08;
 /// UNIT space.
 ///
 /// Unit space and not world space, because that is the frame the node's mesh
-/// and collider already live in - the node carries `Transform::from_scale(radius)`
-/// - and it is the frame [`DamageMarks`] on the same entity are recorded in.
-/// Nothing here has to know how big the rock is.
+/// and collider already live in (the node carries
+/// `Transform::from_scale(radius)`), and it is the frame [`DamageMarks`] on the
+/// same entity are recorded in. Nothing here has to know how big the rock is.
 #[derive(Component, Debug)]
 pub struct AsteroidField {
     /// The solid, carved by every mark seen so far.
@@ -675,12 +675,10 @@ fn collect_asteroid_remeshes(
         // The density rides along unchanged, so avian re-derives mass from the
         // volume that is actually left: a carved rock is a lighter rock.
         node.insert(ColliderDensity(1.0));
-        match mesh {
-            Some(_) => {
-                node.insert(Mesh3d(meshes.add(carved.surface)));
-            }
-            // Headless: the node never had a drawn mesh and must not grow one.
-            None => {}
+        // A `None` here is headless: the node never had a drawn mesh and must
+        // not grow one.
+        if mesh.is_some() {
+            node.insert(Mesh3d(meshes.add(carved.surface)));
         }
 
         // Only ever DOWN. Everything sized off a rock's surface - standoff

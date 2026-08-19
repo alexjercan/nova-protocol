@@ -91,6 +91,13 @@ pub struct SectionCracksMaterialExt {
 
 impl SectionCracksMaterialExt {
     /// A pristine section's extension.
+    #[cfg_attr(
+        not(target_arch = "wasm32"),
+        expect(
+            clippy::needless_update,
+            reason = "the webgl2 padding fields exist only on wasm32, and there this update is what fills them"
+        )
+    )]
     pub fn new() -> Self {
         Self {
             damage: 0.0,

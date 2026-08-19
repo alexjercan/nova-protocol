@@ -61,9 +61,15 @@ jobs:
       # One clippy pass, workspace-wide, with the debug feature on. `debug`
       # fans out to every crate's debug feature (nova_debug has none - it IS
       # the debug tooling - and cargo is fine with that), so this lints the
-      # debug-gated code too. The default-features and wasm gaps are covered by
-      # the two cheap `check` jobs below rather than by a second clippy pass,
-      # which would cost a near-full second build on 2 cores.
+      # debug-gated code too. The HOST default-features gap is covered by the
+      # cheap `check` job below rather than by a second clippy pass here, which
+      # would cost a near-full second build on 2 cores. The wasm gap gets its
+      # own clippy pass, because the target is where its extra bans are correct.
+      #
+      # This pass must NOT see ci/wasm-clippy/clippy.toml: on a host target
+      # `bevy::platform::time::Instant::now` resolves to the std path that file
+      # bans, so its list would flag correct code here. There is no repository
+      # root clippy.toml, and only the wasm job sets CLIPPY_CONF_DIR.
       #
       # `-D warnings` is what makes this a gate rather than a report, and it is
       # what catches the unused imports and dead code a refactor leaves behind.
@@ -147,11 +153,11 @@ jobs:
           RUST_BACKTRACE: full
         run: xvfb-run --auto-servernum cargo test -p nova_autopilot --test autopilot_example
 
-  # The two configurations the `check` job above cannot see, each a plain
-  # `cargo check` rather than a clippy pass: they exist to catch dead code and
-  # unused imports that only appear OUTSIDE `--features debug` on the host
-  # target, which is precisely what a large refactor produces. They run in
-  # parallel with the 60-minute gate above, so they cost no wall clock.
+  # The two configurations the `check` job above cannot see. They exist to catch
+  # dead code and unused imports that only appear OUTSIDE `--features debug` on
+  # the host target, which is precisely what a large refactor produces; the wasm
+  # one also carries the panicking-std-API gate described on its own step. They
+  # run in parallel with the 60-minute gate above, so they cost no wall clock.
   #
   # Neither shares a build with `check`: `debug` flips bevy/track_location, and
   # wasm is a different target, so both would pay a full build inside that job
@@ -180,7 +186,7 @@ jobs:
         run: cargo check --workspace --all-targets
 
   wasm:
-    name: check / wasm32
+    name: clippy / wasm32
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -200,12 +206,28 @@ jobs:
       # `cfg(not(target_arch = "wasm32"))` at all. The root package reaches it
       # only through a wasm-target-gated optional dependency (the `probe`
       # subcommand), so this check never pulls it in through the game either.
-      - name: Check wasm32
+      #
+      # clippy rather than check, and CLIPPY_CONF_DIR rather than a root
+      # clippy.toml, because of ci/wasm-clippy/clippy.toml: it bans the std APIs
+      # that COMPILE for wasm32 and then panic at runtime - a class of bug no
+      # `cargo check` on this target can see, and a std `Instant::now` killed the
+      # web build on load for a whole cycle. Those bans are only correct on this
+      # target: natively `bevy::platform::time` re-exports std's clock, so the
+      # same list would flag correct code in the `check` job above. Keeping the
+      # config out of the repository root is what confines it to this job - do
+      # not move it, and do not add a root clippy.toml that duplicates it.
+      #
+      # `-- -D warnings` instead of the old RUSTFLAGS: it matches the `check`
+      # job, it is what promotes the clippy lints, and it leaves
+      # .cargo/config.toml's `--cfg=web_sys_unstable_apis` in place (an env
+      # RUSTFLAGS overrides the config's target rustflags outright, so the old
+      # form silently built a different wasm graph than trunk does).
+      - name: Clippy wasm32
         env:
-          RUSTFLAGS: -D warnings
+          CLIPPY_CONF_DIR: ci/wasm-clippy
         run: >-
-          cargo check --workspace --exclude nova_probe_cli
-          --target wasm32-unknown-unknown
+          cargo clippy --workspace --exclude nova_probe_cli
+          --target wasm32-unknown-unknown -- -D warnings
 
   # The dependency-license gate. The shipped manifest
   # (credits/THIRD-PARTY-LICENSES.md) is GENERATED at build/release time, not

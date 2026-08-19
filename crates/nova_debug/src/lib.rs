@@ -26,6 +26,11 @@ use crate::{
 pub mod gravity;
 pub mod harness;
 pub mod inspector;
+// Host-only: the hotkey stamps the file with the wall clock and writes it
+// through `std::fs`, and wasm32-unknown-unknown has neither - `SystemTime::now`
+// is a panicking stub there, and there is no Downloads directory to write to.
+// A browser saves an image from the canvas, which is a different feature.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod screenshot;
 pub mod sections;
 pub mod wireframe;
@@ -57,6 +62,8 @@ pub mod prelude {
         },
     };
 
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE};
     pub use super::{
         debugdump,
         harness::{
@@ -66,7 +73,6 @@ pub mod prelude {
             scenario_variable_is, script_reports_done, section_gone, shoot, CaptureLog,
             LoopCapturePlugin, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES, SHOT_DEADLINE_SECS,
         },
-        screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE},
         DebugPlugin,
     };
 }
@@ -92,10 +98,11 @@ pub struct DebugSystems;
 
 /// A plugin that adds various debugging tools.
 ///
-/// Adds the world inspector, wireframe/section/gravity overlays and the
-/// screenshot hotkey as sub-plugins, inserts [`DebugEnabled`], and owns the one
-/// `toggle_debug_mode` that reads F11 for the whole layer; the overlay
-/// sub-plugins run under the [`DebugSystems`] set gated on [`DebugEnabled`].
+/// Adds the world inspector, wireframe/section/gravity overlays and - on host
+/// targets - the screenshot hotkey as sub-plugins, inserts [`DebugEnabled`], and
+/// owns the one `toggle_debug_mode` that reads F11 for the whole layer; the
+/// overlay sub-plugins run under the [`DebugSystems`] set gated on
+/// [`DebugEnabled`].
 pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
@@ -104,6 +111,7 @@ impl Plugin for DebugPlugin {
         app.add_plugins(WireframeDebugPlugin);
         app.add_plugins(sections::SectionsDebugPlugin);
         app.add_plugins(gravity::GravityDebugPlugin);
+        #[cfg(not(target_arch = "wasm32"))]
         app.add_plugins(screenshot::ScreenshotHotkeyPlugin);
 
         // NOTE: a dev build boots with the WHOLE debug layer off, and F11

@@ -93,6 +93,13 @@ pub struct AsteroidSurfaceMaterialExt {
 
 impl AsteroidSurfaceMaterialExt {
     /// The extension a rock wearing `texture` wants.
+    #[cfg_attr(
+        not(target_arch = "wasm32"),
+        expect(
+            clippy::needless_update,
+            reason = "the webgl2 padding fields exist only on wasm32, and there this update is what fills them"
+        )
+    )]
     pub fn new(texture: Handle<Image>) -> Self {
         Self {
             tiling: ROCK_TEXTURE_TILING,

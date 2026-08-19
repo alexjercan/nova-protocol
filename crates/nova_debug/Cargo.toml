@@ -10,7 +10,6 @@ description = "Debugging utilities for the Nova Protocol game"
 avian3d = { version = "0.7", features = ["diagnostic_ui"] }
 bevy = { version = "0.19.0", features = ["track_location"] }
 bevy-inspector-egui = { version = "0.37" }
-dirs = "6"
 itertools = { version = "0.15.0" }
 bevy_mod_debugdump = { version = "0.16" }
 nova_autopilot = { path = "../nova_autopilot" }
@@ -19,6 +18,12 @@ nova_gameplay = { path = "../nova_gameplay" }
 nova_ship = { path = "../nova_ship" }
 nova_hud = { path = "../nova_hud" }
 nova_scenario = { path = "../nova_scenario" }
+
+# The screenshot hotkey's Downloads directory, and the only thing that wants it.
+# Both the module and this dependency are compiled out for wasm32, which has no
+# such directory to resolve.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+dirs = "6"
 
 [lints]
 workspace = true

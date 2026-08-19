@@ -1,0 +1,23 @@
+# Clippy configuration for the wasm32 lint pass ONLY.
+#
+# This file lives in its own directory, NOT the repository root, and is reached
+# solely through `CLIPPY_CONF_DIR=ci/wasm-clippy` on the `clippy / wasm32` CI job.
+# The separation is load-bearing: on a native target `bevy_platform` re-exports
+# std's clock, so `bevy::platform::time::Instant::now` resolves to the very path
+# banned below and a root-level copy of this file would flag correct code. Under
+# `target_arch = "wasm32"` + `feature = "web"` the same re-export points at
+# `web_time::Instant`, so only genuine `std` calls match here.
+#
+# Everything listed is a std API that COMPILES CLEAN for wasm32-unknown-unknown
+# and then panics, traps, or kills the module at runtime. `cargo check` cannot
+# see any of it - that is why this pass exists.
+
+disallowed-methods = [
+  { path = "std::time::Instant::now", reason = "panicking stub on wasm32-unknown-unknown; use bevy::platform::time::Instant" },
+  { path = "std::time::SystemTime::now", reason = "panicking stub on wasm32-unknown-unknown; there is no wall clock in the browser bundle" },
+  { path = "std::time::SystemTime::elapsed", reason = "calls SystemTime::now internally, so it panics on wasm32-unknown-unknown" },
+  { path = "std::thread::sleep", reason = "panics on wasm32-unknown-unknown; block on a Bevy timer or an async task instead" },
+  { path = "std::thread::spawn", reason = "panics on wasm32-unknown-unknown; use bevy::tasks for work that must run off the main thread" },
+  { path = "std::process::exit", reason = "a browser tab is not a process; send AppExit instead" },
+  { path = "std::process::abort", reason = "traps the wasm module with no diagnostic; send AppExit instead" },
+]

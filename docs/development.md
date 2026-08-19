@@ -105,7 +105,9 @@ feature is spelled `debug`, with `dev` as an alias for it (root `Cargo.toml`);
 `crates/nova_debug/src/screenshot.rs`) to a screenshot: it captures the primary
 window and saves it to your Downloads directory as `<unix-millis>.png`. The
 capture is intentionally not gated on `DebugEnabled`, so it works whether or not
-the overlays are shown.
+the overlays are shown. Native only: the module is compiled out under
+`target_arch = "wasm32"`, which has neither a Downloads directory nor a wall
+clock.
 
 Two debug-only CLI flags exist, both parsed in `src/main.rs` and both compiled
 in only under the `debug` feature:
