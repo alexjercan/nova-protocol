@@ -627,19 +627,11 @@ fn collect_asteroid_remeshes(
             debug!(
                 "collect_asteroid_remeshes: {node:?} exhausted at {remaining_world:.2} cubic units"
             );
-            // The candidate is terminal, so its islands and final dust commit
-            // together with the root's destruction.
+            // The candidate is terminal, so its islands commit together with the
+            // root's destruction. Nothing is thrown for the solid that is left:
+            // the hit that took it already threw the dust it was priced for, and
+            // a second puff for the same material is the same round paid twice.
             throw_severed_pieces(&mut commands, &mut meshes, &parent, &carved.islands);
-            if remaining_world > 0.0 {
-                commands.trigger(CarveSpew {
-                    entity: node,
-                    at: carved
-                        .field
-                        .surface_centre()
-                        .map_or(frame.translation(), |at| frame.transform_point(at)),
-                    radius: (remaining_world * 3.0 / (4.0 * std::f32::consts::PI)).cbrt(),
-                });
-            }
             // Reuse the common destruction cue seam without opting into its
             // health or random-fragment finale.
             commands.entity(node).insert(IntegrityDestroyMarker);

@@ -431,9 +431,10 @@ fn asteroid_destroyed() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 /// health-driven random slicer.
 ///
 /// One sphere takes the whole field here, so there is no island left to sever
-/// and no body is expected. Dust is what carries the moment, and the bound on
-/// chunks is what keeps a rock's end from spraying rigid bodies if a future
-/// fixture does leave islands behind.
+/// and no body is expected. What carries the moment is the dust the ENDING HIT
+/// threw - a rock's end spawns nothing of its own - and the bound on chunks is
+/// what keeps that end from spraying rigid bodies if a future fixture does
+/// leave islands behind.
 #[cfg(feature = "debug")]
 fn assert_asteroid_exhausted(world: &mut World) {
     let probe = world.resource::<FinaleProbe>();
@@ -445,7 +446,7 @@ fn assert_asteroid_exhausted(world: &mut World) {
         silent, 0,
         "a healthless asteroid entered the section finale"
     );
-    assert!(shards > 0, "field exhaustion was not seen leaving");
+    assert!(shards > 0, "the hit that ended the rock threw no dust");
     assert!(
         chunks <= 3,
         "field exhaustion severed {chunks} bodies instead of a bounded few"

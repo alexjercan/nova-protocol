@@ -70,36 +70,35 @@ pub const CHUNK_GRACE_SECS: f32 = 0.5;
 
 /// How long a chunk survives before it despawns.
 ///
-/// The same span sliced wreck fragments get. A chunk is debris: an unattended
-/// scene that keeps carving rocks - a menu backdrop, a long mission - would
-/// otherwise accumulate physics bodies without bound.
+/// The same span a detached wreck gets ([`explode`](super::explode)), so the
+/// field clears at one rate whatever put debris on it. A chunk is debris: an
+/// unattended scene that keeps carving rocks - a menu backdrop, a long mission -
+/// would otherwise accumulate physics bodies without bound.
 pub const CHUNK_LIFETIME_SECS: f32 = 30.0;
 
 /// The thinnest a chunk's collider may be, in the mesh's own units.
 ///
-/// Ship art is full of FLAT panels, and a cut across one leaves coplanar
-/// vertices. parry hulls those into a shape with no volume, avian gives a
-/// volumeless dynamic body zero mass AND zero inertia, and the solver divides
-/// by it: the body's swept AABB comes back NaN and avian asserts on it frames
+/// A piece cut thin enough to come away coplanar hulls into a shape with no
+/// volume. parry returns that hull rather than declining it, avian gives a
+/// volumeless dynamic body zero mass AND zero inertia, and the solver divides by
+/// it: the body's swept AABB comes back NaN and avian asserts on it frames
 /// later, deep inside `update_solver_body_aabbs`
-/// (`assertion failed: b.min.cmple(b.max).all()`). That took down a
-/// capital-scale fight the first time sections fragmented for real.
+/// (`assertion failed: b.min.cmple(b.max).all()`).
 ///
-/// Asteroids never found this. A rock is a blob and every piece of one has
-/// volume; it took section art to produce a flat shard.
+/// A rock is a blob and most pieces of one have volume, so this is the floor
+/// under the flattest crumbs a cut shaves off the rim rather than a common case.
 const CHUNK_MIN_THICKNESS: f32 = 0.02;
 
 /// The most points [`chunk_collider`] hands to the convex hull.
 ///
-/// A piece coming off a body is an unwelded TRIANGLE SOUP - its position count
-/// is exactly three per triangle, measured on 804 of 804 death fragments - so
-/// every corner reaches parry twice more than it needs to. And the hull is not
-/// linear in the count: 34 points cost 7 us, 2020 cost 139 us and 5268 cost
-/// 1488 us, so the handful of dense pieces in a wreck dominate a whole frame's
-/// colliders.
+/// A piece coming off a body is an unwelded TRIANGLE SOUP - `TriangleMeshBuilder`
+/// emits three positions per triangle and shares none - so every corner reaches
+/// parry twice more than it needs to. And the hull is not linear in the count:
+/// 34 points cost 7 us, 2020 cost 139 us and 5268 cost 1488 us, so the handful
+/// of dense pieces a cut frees dominate a whole frame's colliders.
 ///
 /// A hull is a SHELL, and a strided sample across the surface describes the same
-/// shell. Priced over 924 real fragments the mean fell from 94.0 us to 16.4 us,
+/// shell. Priced over 924 sampled pieces the mean fell from 94.0 us to 16.4 us,
 /// and MORE of them came back with usable mass (681 against 673) - fewer
 /// near-duplicate points is fewer degenerate faces for parry to reject.
 const HULL_POINT_CAP: usize = 64;
