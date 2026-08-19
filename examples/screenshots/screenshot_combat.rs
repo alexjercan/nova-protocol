@@ -96,7 +96,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "screenshot_combat")]
 #[command(version = "1.0.0")]
-#[command(about = "The Rock hollow travel, combat and HUD set", long_about = None)]
+#[command(about = "The Rock hollow travel, combat and HUD set. Autopilot-only: the scripted camera cut between the acts IS the set", long_about = None)]
 struct Cli;
 
 /// Scenario id of the player's ship - the ambush event filters on it.

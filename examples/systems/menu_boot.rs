@@ -45,7 +45,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "menu_boot")]
 #[command(version = "1.0.0")]
-#[command(about = "The shipped menu boot flow, driven by a real pointer click", long_about = None)]
+#[command(about = "The shipped menu boot flow, driven by a real pointer click. Autopilot-only correctness range - run the game to use the menu", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {

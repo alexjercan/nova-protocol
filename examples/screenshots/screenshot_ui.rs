@@ -48,7 +48,7 @@ use nova_ui::widget::Selected;
 #[derive(Parser)]
 #[command(name = "screenshot_ui")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the menu/editor web screenshots via the shipped app", long_about = None)]
+#[command(about = "Capture the menu/editor web screenshots via the shipped app. Autopilot-only: a scripted pointer walk over the real menu", long_about = None)]
 struct Cli;
 
 /// Seconds a step may sit before it is called a stall. Sized with headroom for a

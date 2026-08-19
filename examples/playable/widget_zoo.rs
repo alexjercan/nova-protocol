@@ -38,12 +38,22 @@ use bevy::{
         TrackClick, ValueChange,
     },
 };
+use clap::Parser;
 use nova_protocol::prelude::GameStates;
 use nova_ui::{
     prelude::*,
     widget::{ButtonSpec, UiText},
     NovaUiPlugin,
 };
+
+#[derive(Parser)]
+#[command(name = "widget_zoo")]
+#[command(version = "1.0.0")]
+#[command(
+    about = "Every nova_ui widget factory, live and clickable, in both skins",
+    long_about = None
+)]
+struct Cli;
 
 // The `Name`s the harness clicks by. Resolving a target by name rather than by
 // coordinates is what makes a run survive a layout move: only a RENAME breaks a
@@ -61,6 +71,7 @@ const TOGGLE_SECOND: &str = "Zoo Toggle Second";
 const SLIDER: &str = "Zoo Slider";
 
 fn main() -> AppExit {
+    let _ = Cli::parse();
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {

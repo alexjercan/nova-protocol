@@ -42,7 +42,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "sandbox_soak")]
 #[command(version = "1.0.0")]
-#[command(about = "The editor sandbox, entered and then left alone", long_about = None)]
+#[command(about = "The editor sandbox, entered and then left alone. Autopilot-only correctness range - sitting still IS the gesture", long_about = None)]
 struct Cli;
 
 /// Soak a SHIPPED scenario by id instead of walking the editor, so the

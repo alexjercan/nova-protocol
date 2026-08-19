@@ -41,7 +41,7 @@ use nova_ui::widget::Selected;
 #[derive(Parser)]
 #[command(name = "menu_picker")]
 #[command(version = "1.0.0")]
-#[command(about = "Drive the Scenarios picker and measure its pane widths", long_about = None)]
+#[command(about = "Drive the Scenarios picker and measure its pane widths. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The step DEADLINE, not the pacing budget: the walk is frame-counted (roughly

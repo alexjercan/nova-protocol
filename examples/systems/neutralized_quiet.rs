@@ -47,7 +47,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "neutralized_quiet")]
 #[command(version = "1.0.0")]
-#[command(about = "A neutralized hull stops defending itself while a torpedo flies past", long_about = None)]
+#[command(about = "A neutralized hull stops defending itself while a torpedo flies past. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The scenario the range loads under.

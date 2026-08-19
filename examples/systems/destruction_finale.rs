@@ -58,7 +58,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "destruction_finale")]
 #[command(version = "1.0.0")]
-#[command(about = "Every destructible body breaks into its own art", long_about = None)]
+#[command(about = "Every destructible body breaks into its own art. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The scenario object id of the asteroid the last round kills. Named rather

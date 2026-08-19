@@ -48,7 +48,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "thrust_and_plume")]
 #[command(version = "1.0.0")]
-#[command(about = "Thruster section: throttle drives thrust and the plume shader, proportionally", long_about = None)]
+#[command(about = "Thruster section: throttle drives thrust and the plume shader, proportionally. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The throttle the script holds. A resource rather than a hard-coded 1.0 so

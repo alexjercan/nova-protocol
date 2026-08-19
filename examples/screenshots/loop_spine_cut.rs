@@ -41,7 +41,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "loop_spine_cut")]
 #[command(version = "1.0.0")]
-#[command(about = "The spine-cut webm loop: a severed engine block drifts off a corvette", long_about = None)]
+#[command(about = "The spine-cut webm loop: a severed engine block drifts off a corvette. Autopilot-only: every actor is scripted or inert", long_about = None)]
 struct Cli;
 
 /// The loop this example records - the webm's file stem.

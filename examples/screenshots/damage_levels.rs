@@ -66,7 +66,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "damage_levels")]
 #[command(version = "1.0.0")]
-#[command(about = "One ship at five damage levels, side by side", long_about = None)]
+#[command(about = "One ship at five damage levels, side by side. Autopilot-only: a posed row with no controls of its own", long_about = None)]
 struct Cli;
 
 /// The levels the row stands at, left to right.

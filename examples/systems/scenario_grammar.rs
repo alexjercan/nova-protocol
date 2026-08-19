@@ -40,7 +40,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "scenario_grammar")]
 #[command(version = "1.0.0")]
-#[command(about = "Scenario language showcase: variables, events, filters and actions over repeated rounds", long_about = None)]
+#[command(about = "Scenario language showcase: variables, events, filters and actions over repeated rounds. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The scenario this example builds and loads. Shared with the smoke-test

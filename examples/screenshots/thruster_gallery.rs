@@ -57,7 +57,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "thruster_gallery")]
 #[command(version = "1.0.0")]
-#[command(about = "A named row of thruster looks: today, the shell sizes, the candidates", long_about = None)]
+#[command(about = "A named row of thruster looks: today, the shell sizes, the candidates. Autopilot-only: a posed row with no controls of its own", long_about = None)]
 struct Cli;
 
 /// Centre-to-centre spacing across a row, wide enough for the 5x5 shells plus

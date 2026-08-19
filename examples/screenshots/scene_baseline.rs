@@ -47,7 +47,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "scene_baseline")]
 #[command(version = "1.0.0")]
-#[command(about = "Boot a heavy scenario and capture its frame-time baseline", long_about = None)]
+#[command(about = "Boot a heavy scenario and capture its frame-time baseline. Autopilot-only: an env-driven measurement rig, with nothing to fly", long_about = None)]
 struct Cli {
     /// Shipped scenario id to load and measure. Overridden by
     /// `NOVA_PERF_SCENARIO` when set.

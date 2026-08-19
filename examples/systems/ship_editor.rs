@@ -47,7 +47,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "ship_editor")]
 #[command(version = "1.0.0")]
-#[command(about = "The nova_protocol ship editor, wired to the smoke-test harness", long_about = None)]
+#[command(about = "The nova_protocol ship editor, built and inspected by synthesized pointer input. Autopilot-only correctness range - run the game to use the editor", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {

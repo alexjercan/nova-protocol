@@ -48,7 +48,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "borrowed_battery")]
 #[command(version = "1.0.0")]
-#[command(about = "The flight computer works an idle player battery, and gives a mount back on a lock", long_about = None)]
+#[command(about = "The flight computer works an idle player battery, and gives a mount back on a lock. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The scenario the range loads under.

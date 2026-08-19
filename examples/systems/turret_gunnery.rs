@@ -57,7 +57,7 @@ use slider::{slider, SliderWidgetPlugin};
 #[derive(Parser)]
 #[command(name = "turret_gunnery")]
 #[command(version = "1.0.0")]
-#[command(about = "A test range for the PDC turret section in nova_protocol", long_about = None)]
+#[command(about = "A test range for the PDC turret section in nova_protocol. Autopilot-only correctness range - the hand-held trigger is a debug aid, not the subject", long_about = None)]
 struct Cli;
 
 /// Id of the gate that sweeps across the front for the turret to track.

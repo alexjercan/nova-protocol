@@ -47,7 +47,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "stress_torpedoes")]
 #[command(version = "1.0.0")]
-#[command(about = "Stress range: a thousand guided torpedoes in flight at once", long_about = None)]
+#[command(about = "Stress range: a thousand guided torpedoes in flight at once. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// ABSURD SCALE, and deliberately so: this number must never reflect real

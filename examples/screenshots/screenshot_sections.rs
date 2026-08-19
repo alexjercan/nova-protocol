@@ -47,7 +47,7 @@ mod kit;
 #[derive(Parser)]
 #[command(name = "screenshot_sections")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the wiki ship-section detail shots", long_about = None)]
+#[command(about = "Capture the wiki ship-section detail shots. Autopilot-only: five posed closeups on a scripted turntable", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {

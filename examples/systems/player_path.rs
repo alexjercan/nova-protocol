@@ -43,7 +43,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "player_path")]
 #[command(version = "1.0.0")]
-#[command(about = "A playable scenario driven through the real input pipeline, watched by its own event handlers", long_about = None)]
+#[command(about = "A playable scenario driven through the real input pipeline, watched by its own event handlers. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 const SCENARIO_ID: &str = "playable_run";

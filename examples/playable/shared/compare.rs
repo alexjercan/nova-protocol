@@ -10,7 +10,7 @@
 //! sampler per image without `.meta` sidecars. Included with
 //! `#[path = "shared/compare.rs"] mod compare;` - one level down so
 //! `catalog_matches_disk` does not read it as an example root (same rule as
-//! `kit.rs`).
+//! `screenshots/shared/kit.rs`).
 
 // Each producer includes the whole kit; what one leaves unused the other needs.
 #![allow(dead_code)]

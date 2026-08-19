@@ -18,7 +18,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "section_severing")]
 #[command(version = "1.0.0")]
-#[command(about = "Interior section destruction and physical wreck severing", long_about = None)]
+#[command(about = "Interior section destruction and physical wreck severing. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]

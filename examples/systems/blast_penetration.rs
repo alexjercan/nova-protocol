@@ -27,7 +27,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "blast_penetration")]
 #[command(version = "1.0.0")]
-#[command(about = "A layered-section range for explosive pressure", long_about = None)]
+#[command(about = "A layered-section range for explosive pressure. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 const BLAST_RADIUS: f32 = 4.0;

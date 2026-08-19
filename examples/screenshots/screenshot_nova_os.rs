@@ -47,7 +47,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "screenshot_nova_os")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the Tab NOVA OS ship-computer for HTML fidelity work", long_about = None)]
+#[command(about = "Capture the Tab NOVA OS ship-computer for the site's two figures. Autopilot-only: a scripted command walk", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {

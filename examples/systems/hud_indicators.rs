@@ -46,7 +46,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "hud_indicators")]
 #[command(version = "1.0.0")]
-#[command(about = "A test range for the screen-projected HUD indicators", long_about = None)]
+#[command(about = "A test range for the screen-projected HUD indicators. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// How far (px) an indicator's center may sit from the fresh projection of

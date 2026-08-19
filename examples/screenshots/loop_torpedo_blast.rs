@@ -48,7 +48,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "loop_torpedo_blast")]
 #[command(version = "1.0.0")]
-#[command(about = "The torpedo-blast webm loop: a salvo carves a corvette's outer hull", long_about = None)]
+#[command(about = "The torpedo-blast webm loop: a salvo carves a corvette's outer hull. Autopilot-only: every actor is scripted or inert", long_about = None)]
 struct Cli;
 
 /// The loop this example records - the webm's file stem.

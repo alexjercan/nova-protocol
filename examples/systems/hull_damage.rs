@@ -59,7 +59,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "hull_damage")]
 #[command(version = "1.0.0")]
-#[command(about = "Hull sections: damage, destruction, and the mass properties that follow", long_about = None)]
+#[command(about = "Hull sections: damage, destruction, and the mass properties that follow. Autopilot-only correctness range - the O/K keys are a debug aid, not the subject", long_about = None)]
 struct Cli;
 
 /// The partial hit the probe lands first, well under the hull's health.

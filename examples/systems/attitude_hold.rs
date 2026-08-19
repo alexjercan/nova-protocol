@@ -45,7 +45,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "attitude_hold")]
 #[command(version = "1.0.0")]
-#[command(about = "PD attitude control: a minimal ship chases a rotating attitude command", long_about = None)]
+#[command(about = "PD attitude control: a minimal ship chases a rotating attitude command. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// How fast the commanded attitude sweeps, radians per second. Slow enough

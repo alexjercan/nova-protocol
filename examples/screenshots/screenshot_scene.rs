@@ -52,7 +52,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "screenshot_scene")]
 #[command(version = "1.0.0")]
-#[command(about = "The Drydock drift beauty set for the website's 3D shots", long_about = None)]
+#[command(about = "The Drydock drift beauty set for the website's 3D shots. Autopilot-only: a posed set behind a scripted camera", long_about = None)]
 struct Cli;
 
 /// The planetoid's scenario id.

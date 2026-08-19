@@ -54,7 +54,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "torpedo_launch")]
 #[command(version = "1.0.0")]
-#[command(about = "A test range for the torpedo bay section in nova_protocol", long_about = None)]
+#[command(about = "A test range for the torpedo bay section in nova_protocol. Autopilot-only correctness range - the hand-held trigger is a debug aid, not the subject", long_about = None)]
 struct Cli;
 
 /// Id of the one gate that drifts, so the range can single it out and drive it.

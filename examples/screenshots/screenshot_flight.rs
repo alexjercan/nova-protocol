@@ -82,7 +82,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "screenshot_flight")]
 #[command(version = "1.0.0")]
-#[command(about = "The Ring orbit and flight-computer set", long_about = None)]
+#[command(about = "The Ring orbit and flight-computer set. Autopilot-only: the camera flies the leg with the ship", long_about = None)]
 struct Cli;
 
 /// The planetoid's scenario id.

@@ -34,7 +34,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "outcomes")]
 #[command(version = "1.0.0")]
-#[command(about = "The composed outcome arc: Defeat, Retry, Victory, CHECKPOINT and the chain", long_about = None)]
+#[command(about = "The composed outcome arc: Defeat, Retry, Victory, CHECKPOINT and the chain. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The scenario the run boots into and retries.

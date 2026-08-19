@@ -43,7 +43,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "render_scale_shot")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture a shipped scenario at a graphics preset (render-scale proof)", long_about = None)]
+#[command(about = "Capture a shipped scenario at a graphics preset (render-scale proof). Autopilot-only: its product is one PNG", long_about = None)]
 struct Cli {
     /// Shipped scenario id to load. Overridden by `NOVA_PERF_SCENARIO` when set.
     #[arg(long, default_value = "asteroid_field")]

@@ -59,7 +59,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "nova_os")]
 #[command(version = "1.0.0")]
-#[command(about = "The Tab NOVA OS ship computer, clicked through its CRT glass", long_about = None)]
+#[command(about = "The Tab NOVA OS ship computer, clicked through its CRT glass. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {
