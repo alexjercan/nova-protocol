@@ -7,7 +7,9 @@
 //! Touch this module when changing what an authored asteroid spawns as.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+// NOTE: bevy's platform Instant, not std's - `std::time::Instant::now` panics
+// on wasm32-unknown-unknown, which this crate ships to.
+use bevy::{platform::time::Instant, prelude::*};
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
@@ -149,7 +151,7 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
     // `asteroid_carve` for why building the shipped mesh a second way was a
     // visible pop on the first hit, and `asteroid_surface` for why a planet
     // generator made every rock look like a ball with lumps on it.
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     let mesh = pristine_rock_mesh(seed, config.radius);
     debug!(
         "asteroid_scenario_object: meshed seed {seed} at radius {:.1} in {:.1} ms",

@@ -25,7 +25,9 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use bevy::prelude::*;
+// NOTE: bevy's platform Instant, not std's - `std::time::Instant::now` panics
+// on wasm32-unknown-unknown, which this crate ships to.
+use bevy::{platform::time::Instant, prelude::*};
 use nova_scenario::prelude::SectionSource;
 use nova_ship::prelude::*;
 
@@ -118,7 +120,7 @@ pub(crate) fn sync_editor_skin(
         return;
     }
 
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     strip(&mut commands, &q_plates);
     // The style goes on the preview ROOT, which is where `dress_skin_plate`'s
     // ancestor walk looks for it - the same walk that finds a flown ship's on

@@ -54,7 +54,10 @@
 //! there now.
 
 use avian3d::prelude::{AngularVelocity, Collider, ColliderDensity, LinearVelocity};
+// NOTE: bevy's platform Instant, not std's - `std::time::Instant::now` panics
+// on wasm32-unknown-unknown, which this crate ships to.
 use bevy::{
+    platform::time::Instant,
     prelude::*,
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
@@ -403,7 +406,7 @@ struct AsteroidRemesh(Task<CarvedSurface>);
 /// severed - splitting is the one operation that removes material without
 /// reporting how much, so it is the one case that pays for a scan.
 fn carve_surface(node: Entity, mut candidate: SignedField, tracked: f32) -> CarvedSurface {
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     let islands = candidate.split_off_islands();
     let severed = started.elapsed();
 
@@ -412,7 +415,7 @@ fn carve_surface(node: Entity, mut candidate: SignedField, tracked: f32) -> Carv
         false => candidate.solid_volume(),
     };
 
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     let built = candidate.surface();
     // Off the DRAWN surface, not off a second whole-grid pass over the cell
     // vertices it was just built from: same answer, and the margin keeps the
@@ -425,7 +428,7 @@ fn carve_surface(node: Entity, mut candidate: SignedField, tracked: f32) -> Carv
     let surface = built.build();
     let remeshed = started.elapsed();
 
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     let collider = Collider::trimesh_from_mesh(&surface);
     let rebuilt = started.elapsed();
 
