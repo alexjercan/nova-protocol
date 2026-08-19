@@ -1,8 +1,8 @@
 # The automation does not run the game: cover the 9 uncovered scenarios
 
-- STATUS: OPEN
-- PRIORITY: 82
-- TAGS: v0.11.0,test,harness,scenario
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,wontdo
 
 Epic: `20260818-220812`. Found by `20260818-221027`. Full table:
 `tasks/20260818-221027/REPORT.md`, "The coverage table".
@@ -80,3 +80,25 @@ is a rig that clicks through the editor and presses Play.
 Any scenario registered late has the same problem. Decide whether late
 registration is worth keeping; if it is, the membership check needs to know
 about it, and if it is not, register the sandbox up front like everything else.
+
+## CLOSED 2026-08-19 - not doing it
+
+Owner: "I don't care what the first task says we will not do it."
+
+The finding stands and is worth keeping: the probe runs 3 of the 12 scenarios a
+player can reach, 5 have no coverage at all, and 34 of 40 examples loaded a
+fixture no player could reach. That is how `editor_sandbox` ran at 2 FPS for a
+whole cycle without anything noticing.
+
+What changed is the answer. Rather than bolting a roster sweep onto
+`scene_baseline`, `scene_baseline` is DELETED and measuring a scenario becomes a
+`probe` subcommand - `20260819-123928`. An example is the wrong shape for
+"point the tool at this scenario".
+
+The example half of the audit landed separately as the three-way split
+(`20260818-221103`), so the fixture-only concern is addressed.
+
+The min_ms contended-run idea recorded here also does not survive: per-example
+budgets are gone entirely (`budgets.rs` deleted) because judging a frame rate is
+a human reading the report, not a script asserting a number. Detecting a
+contended run is now a REPORTING concern - see `20260819-123928`.
