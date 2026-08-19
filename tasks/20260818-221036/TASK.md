@@ -1,8 +1,8 @@
 # Mesh the rock's surface, not its volume
 
-- STATUS: OPEN
-- PRIORITY: 80
-- TAGS: v0.11.0,performance,asteroid,spike
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,wontdo
 
 Epic: `20260818-220812`. Owner's own observation: the asteroid does a `count^3`
 split "but we only need the surface, not the entire volume".
@@ -46,3 +46,32 @@ Cuts the seed, the remesh AND the volume measurement, so it compounds with
 - The `count^3` claim in the `FIELD_RESOLUTION_MAX` doc is rewritten to
   whatever is then true, because that doc is currently the best description of
   the cost model in the tree.
+
+## CLOSED 2026-08-19 - measured, and it does not buy a frame
+
+Owner: "it is an interesting idea, but sure, not sure how complex it would get
+so let's say we can close it."
+
+The measurement that settles it is `20260819-123928/NOTES.md`. The claim in this
+task is still TRUE of the algorithm - `SignedField` really does walk `count^3`
+cells - but the cost it was ranked on has moved out from under it:
+
+- Seed and remesh run on `AsyncComputeTaskPool`, not in a frame.
+- `FIELD_RESOLUTION_MAX` is 40, not 64, so the headline square-cube argument was
+  written against 262,144 cells and the game ships 64,000.
+- The whole carve path costs **0.12 ms/frame** under sustained fire.
+- The one carve spike that IS a frame is the APPLY step,
+  `collect_asteroid_remeshes` at 19.24 ms. A narrower band produces the same
+  mesh and the same collider, so it would not shrink that by a byte.
+
+This was also the largest change in the epic, against a case measured at 42 ms
+worst - while `wfc_arena` 4v4 sits at 295 ms owned by rendering, the avian
+solver and the projectile broad phase. Wrong end of the board.
+
+## What was real and is NOT preserved by closing
+
+A narrow band would still cut how LONG a remesh takes on the worker - which is
+how long a shot rock wears its placeholder - and how much memory a field holds.
+That is a latency and footprint argument, and nobody has complained about
+either. If a rock is ever seen wearing its placeholder too long, this is the
+technique, and the reasoning above is why it was not done for frame rate.
