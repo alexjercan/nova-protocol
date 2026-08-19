@@ -48,6 +48,26 @@ NOT legitimate as the only coverage of a surface a player loads.
    player-reachable scenario with no case should be visible without an agent
    spending a day finding it.
 
+## Make a contended run detectable, or the numbers keep lying
+
+Added 2026-08-19, after a `frametime.csv` row was read as an editor defect and
+filed at p92 when it was really another agent's `rustc` on the same box. Cost:
+one task and one agent run.
+
+`frametime.csv` already carries `min_ms` beside `mean_ms`, and that is the tell:
+**a run whose MINIMUM frame is several times its own historical minimum is a
+contended run, not a regression.** A mean dragged up by real stalls keeps a
+normal minimum; a busy host raises the floor.
+
+Make the tooling say so rather than leaving it to prose. The report warned about
+host load in words and the very next row in the same document was read as a
+finding anyway - a warning nobody applies is not a control.
+
+Cheapest useful version: record the minimum alongside each budget, and have the
+budget check report SUSPECT rather than FAIL when the floor has moved as much as
+the mean. A contended run should not be able to look like a regression, and it
+should not be able to hide one either.
+
 ## The structural blocker to solve first
 
 `editor_sandbox` cannot be loaded by any id-driven rig. It is registered into

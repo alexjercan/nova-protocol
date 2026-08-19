@@ -1,64 +1,83 @@
-# The editor build UI runs at 118 ms mean and hitches for 2.4 seconds
+# The first gallery open costs a 67 ms frame
 
 - STATUS: OPEN
-- PRIORITY: 92
-- TAGS: v0.11.0,performance,bug,editor
+- PRIORITY: 30
+- TAGS: v0.11.0, performance, editor
 
-Epic: `20260818-220812`. Found by `20260818-221027` while auditing what the
-probe actually measures. Evidence: `tasks/20260818-221027/REPORT.md` section 2.
+Epic: `20260818-220812`. Evidence: `NOTES.md` beside this file.
 
-## The finding
+## This task used to claim something false
 
-The editor's BUILD UI - the surface a player uses to assemble a ship - runs at a
-**mean of 118 ms with a 2378 ms worst frame**, dev build, 1280x720.
+It was filed at p92 as "the editor build UI runs at 118 ms mean and hitches for
+2.4 seconds", off a `frametime.csv` row reading `mean=117.851ms
+max=2377.557ms`.
 
-That is a worse tail than any stress range in the tree, on a screen a player
-sits in for minutes at a time, and it was on nobody's list.
+**That row measured the BOX, not the editor.** Same machine, same GPU, same
+forced 1280x720 window, same walk, editor byte-identical: **17.4 ms mean, 16.6
+ms p50** on a quiet host. Three independent proofs it was contention:
 
-Measured, one run:
+- The row's own MINIMUM frame is 83.05 ms (p50 96.7). A mean dragged up by
+  stalls has a normal minimum; this cost was charged to every frame.
+- Across the 112 beats the two runs share, the slowdown ratio has a median of
+  **5.8x**, with 97 of 112 between 4x and 8x - including a beat that only reads
+  a `usize` off a static screen (0.18 s against 0.04 s). No editor code differs
+  between that beat and the ones doing real work.
+- The same night on the same box, `scene_baseline` read min 80.75 ms at 00:24
+  and min 18.50 ms twelve minutes later. The editor row was captured 00:34-00:36
+  at min 83.05. Two unrelated scenes sharing an 85 ms floor is the host.
 
-```text
-21:34:41  nova perf: warm-up done, capturing 900 frames
-21:36:27  nova perf: label=ship_editor mean=117.851ms max=2377.557ms
-21:36:48  on_load_scenario: loaded scenario 'editor_sandbox'
-```
+Reproduced live: same binary three minutes apart, 17.4 ms at load 1.5 against
+42.8 ms at load 16 with another agent's `rustc` running.
 
-## How it hid
+**The contention was almost certainly self-inflicted** - parallel agents
+building on the same box while a frame-time capture ran.
 
-`probe run ship_editor` has been writing a `frametime.csv` row labelled
-`ship_editor` whose numbers are the build UI, and no reader could tell. The
-capture opens on `GameStates::Playing`, and the EDITOR runs inside `Playing`
-(`crates/nova_editor/src/lib.rs:107`), so the window closed 21 seconds before
-the sandbox it was named after even loaded.
+Two other claims died with it:
 
-`FrameTimePlugin::ready_when` (landed with the harness) fixes the aim - the
-capture now holds until `CurrentScenario` names `editor_sandbox`. The
-consequence is that the build UI's cost is now UNMEASURED again, because the
-number that was accidentally covering it has been pointed somewhere else. It
-needs its own case.
+- It was NOT the `Time<Virtual>::max_delta` catch-up. 944 of 1108 frames run
+  exactly ONE fixed step, and `avian/total_step_time` is 0.17 ms in the build
+  UI against the 22.0 ms that drove the sandbox collapse. Sixteen of those is
+  2.7 ms - 1% of the frame. The step count follows frame length, it does not
+  drive it.
+- The editor carries NO trimesh colliders. `preview.rs:71` removes `Collider`
+  from every `PreviewRole::Display` entity - gallery tiles and the placement
+  ghost both - and build sections only ever get cuboid/sphere/capsule/cylinder
+  from `SectionCollider::to_collider()`. Every `trimesh_from_mesh` in the tree
+  is asteroid code that never runs in the Editor state.
 
-## What to do
+`65 fps` on F1 and `118 ms` were never in conflict. Quiet p50 is 16.6 ms, which
+is 60 fps on that exact surface, and in runs that reached Play the build UI and
+the flown sandbox cost the SAME and moved together with host load.
 
-1. Give the build UI its own profiling case and its own budget. It is a player
-   surface; it belongs in the coverage table as one.
-2. Then find the 2378 ms frame. A 2.4 second hitch is not a tuning problem, it
-   is one thing. The gallery, the previews and the palette all render real
-   meshes; a preview render or a palette rebuild on selection is the obvious
-   first place to look, but this has not been profiled and the guess is worth
-   nothing without a measurement.
-3. The mean matters separately from the tail. 118 ms is 8 fps as a STEADY
-   state, which suggests the UI is doing per-frame work proportional to
-   something it should be caching.
+## What is actually left
 
-## Do not confuse this with `20260819-001252`
+On a quiet box the worst build-view frame is **66.7 ms, on the FIRST gallery
+open** - the frame the overlay and its 12 preview tiles spawn. Later opens cost
+10-25 ms over baseline.
 
-That task is the sandbox collapsing to 2 fps after 30-45 s of play. This is the
-build UI, before Play is ever pressed. They are different surfaces and there is
-no evidence they share a cause - though if one turns out to explain the other,
-that is worth knowing and either task can absorb the other.
+Unprofiled candidate: `crates/nova_core/src/lib.rs:331` sets
+`synchronous_pipeline_compilation: true` game-wide, deliberately, under task
+`20260805-111329`. If that is it, the first draw of a new mesh/material combo
+compiles on the main thread. Those same gallery beats are also the ten whose
+contended-vs-quiet ratio exceeded 10x, so whatever the gallery does once is what
+contention amplified into the 2.4 s frame.
 
-Note the tension to resolve: the 2 FPS investigation found that pressing F1 from
-the collapsed sandbox returns to the editor at **65 fps**. That is the same
-editor. Either the two measurements disagree, or the build UI is only expensive
-under the gallery interaction the `ship_editor` walk drives. Establish which
-before optimising anything.
+67 ms once, on a deliberate user action, is a small thing. Priority reflects
+that.
+
+## Also unmeasured
+
+- The 2378 ms frame was never reproduced. ~3800 build-UI frames over three runs;
+  worst quiet is 66.7 ms, worst loaded is 206 ms.
+- `sync_editor_skin` (`skin.rs:62`) respawns every plate on a structure-signature
+  change. That scales with ship size and was measured only on an 8-section ship.
+- Dev profile, one box, one GPU, native only. No release, no software renderer,
+  no wasm.
+
+## Tooling note landed with this
+
+`examples/systems/ship_editor.rs` gained an env-gated per-frame diagnostic
+(`NOVA_EDITOR_FRAMELOG`): wall time, fixed-step count, live entity count and
+avian step time per frame, using `Time<Real>` because `Time<Virtual>` is clamped
+by `max_delta` and would report 250 ms for a one-second frame. It is what turned
+"the editor is slow" into "the box was busy", and it is off by default.

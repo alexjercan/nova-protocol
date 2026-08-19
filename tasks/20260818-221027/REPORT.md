@@ -179,7 +179,7 @@ at a scale no content reaches, and saying so is the point.
 | # | case | mean ms | worst ms | what it actually measures |
 | --: | --- | --: | --: | --- |
 | 1 | `stress_torpedoes` | 114-150 | 536-582 | 1000 guided torpedoes from 200 bays. Engine ceiling. No player load resembles it. |
-| 2 | `ship_editor` (the editor's BUILD UI) | 118 | 2378 | The editor at rest with a 2-section ship on screen. One sample. **A player load, and nobody was looking at it.** |
+| 2 | `ship_editor` (the editor's BUILD UI) | ~~118~~ | ~~2378~~ | **RETRACTED 2026-08-19 - this row measured a CONTENDED BOX, not the editor.** Quiet host, same binary, same walk: 17.4 ms mean / 16.6 p50. The row's own minimum frame is 83.05 ms, which is a per-frame cost, not a stall. Nor was the window "at rest": it holds 96 autopilot beats, most of the walk. See `tasks/20260819-012130/`. |
 | 3 | `stress_one_structure` | 39-44 | 132-145 | One 1000-section hull. Engine ceiling. |
 | 4 | `wfc_arena` 4v4 | 62-72 | 123-487 | Eight collapsed hulls fighting, with deaths inside the window. A REAL fight, on a fixture roster no scenario ships. Tail not repeatable. |
 | 5 | `stress_many_structures` | 25-34 | 65-145 | 100 hulls of 10 sections. Engine ceiling. |
