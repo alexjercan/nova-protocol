@@ -480,11 +480,25 @@ fn column_ship(sections: &GameSections, level_index: usize) -> ScenarioObjectCon
                     Vec3::new(0.0, 0.0, 0.0),
                 ),
                 at("hull", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
-                at(
-                    "turret",
-                    "pdc_kinetic_turret_section",
-                    Vec3::new(1.0, 0.0, 0.0),
-                ),
+                SpaceshipSectionConfig {
+                    id: "turret".to_string(),
+                    // Seated on the controller's +X face, not a whole cell out
+                    // from it. The shared PDC is a HALF-size section whose only
+                    // socket is its base plate, a quarter unit in from its own
+                    // centre, and the stock controller offers the unit cube's
+                    // face centre at +0.5 - so the mount stands at 0.75 and is
+                    // rolled to put that plate against the face. A whole-unit
+                    // step leaves the plate hanging in vacuum and the graph
+                    // reports the gun disconnected. A real ship never has to
+                    // know this: `ships::shared::link_points` moves the HULL's
+                    // socket out by `PDC_MOUNT_OFFSET` to meet the turret,
+                    // where a rig built from stock prototypes gets the generic
+                    // sockets and has to place the turret to meet them.
+                    position: Vec3::new(0.75, 0.0, 0.0),
+                    rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
+                    source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
+                    modifications: vec![],
+                },
                 at(
                     "thruster",
                     "basic_thruster_section",
