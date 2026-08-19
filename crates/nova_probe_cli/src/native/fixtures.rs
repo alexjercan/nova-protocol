@@ -6,14 +6,18 @@ pub fn s(args: &[&str]) -> Vec<String> {
 }
 
 /// A stand-in example catalog covering every category the specs use.
+///
+/// Every name here is INVENTED. Spec resolution is pure - the catalog is an
+/// argument - so a real example name in this table would read as a dependency
+/// on the repo's examples, which is exactly what the driver must not have.
 pub fn catalog() -> Vec<crate::CatalogExample> {
     [
         ("controller_section", "sections"),
         ("scenario", "gameplay"),
         ("playable", "gameplay"),
-        ("screenshot_scene", "screenshots"),
-        ("render_scale_shot", "screenshots"),
-        ("scene_baseline", "stress"),
+        ("shot_alpha", "screenshots"),
+        ("shot_beta", "screenshots"),
+        ("many_things", "stress"),
         ("many_bodies", "stress"),
         ("outcomes", "systems"),
     ]

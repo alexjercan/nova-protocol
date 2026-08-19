@@ -10,7 +10,7 @@ use std::path::Path;
 
 use nova_probe::prelude::*;
 
-use super::{escape, render_chart, render_table, STYLE};
+use super::{escape, render_chart, render_frame_read, render_table, STYLE};
 use crate::evaluation::{
     checks::violations_by_name, measured_count, overall_verdict, Check, RunArtifacts,
 };
@@ -200,6 +200,7 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
              automatically when the program declares the capability.</p>\n",
         ),
         (Some(runs), _) => {
+            html.push_str(&render_frame_read(runs));
             html.push_str(&render_chart(runs));
             let baseline_map = artifacts
                 .baseline
@@ -296,6 +297,10 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
          such thing - neither means \"held\". An UNPROBEABLE verdict means the \
          run graded no claim at all: the example wires no probe plugin, the \
          sanctioned opt-out - confirm that is intentional for this example.</li>\n\
+         <li>Read the frame call at the top of Performance yourself: nothing \
+         grades it. Under 60 fps is bad; decide whether it is bad ENOUGH for \
+         this scene, this machine and this build profile (a dev build is not a \
+         baseline).</li>\n\
          <li>If <code>fps_within_baseline</code> is WARN: was the host quiet? Is the \
          delta consistent across labels, or one noisy row?</li>\n\
          <li>Scan the timeline: do the script beats and scenario events tell the \
@@ -335,6 +340,9 @@ mod tests {
             "<h2>Correctness</h2>",
             "onupdate pulses collapsed",
             "<h2>Performance</h2>",
+            // The frame read leads the section, and says it grades nothing.
+            "FPS worst frame",
+            "Reported, not graded",
             "<h2>Profile</h2>",
             "must not be summed",
             "<h2>Log</h2>",

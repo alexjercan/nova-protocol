@@ -428,7 +428,7 @@ fn finish_report(
     .map_err(|e| format!("could not write report.html: {e}"))?;
     std::fs::write(
         out.join("checks.json"),
-        format!("{:#}\n", checks_json(&checks, artifacts.manifest.as_ref())),
+        format!("{:#}\n", checks_json(&artifacts, &checks)),
     )
     .map_err(|e| format!("could not write checks.json: {e}"))?;
 

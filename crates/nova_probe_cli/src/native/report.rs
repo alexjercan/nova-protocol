@@ -57,7 +57,7 @@ pub(crate) fn report(dir: &Path, baseline: Option<&Path>) -> Result<ExitCode, St
     .map_err(|e| format!("could not write report.html: {e}"))?;
     std::fs::write(
         dir.join("checks.json"),
-        format!("{:#}\n", checks_json(&checks, artifacts.manifest.as_ref())),
+        format!("{:#}\n", checks_json(&artifacts, &checks)),
     )
     .map_err(|e| format!("could not write checks.json: {e}"))?;
     println!("probe: {verdict} - {}", dir.join("report.html").display());

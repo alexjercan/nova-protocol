@@ -125,10 +125,7 @@ mod tests {
     #[test]
     fn the_screenshots_category_expands_like_any_other() {
         let resolved = resolve_spec(&s(&["screenshots"]), false, &catalog()).unwrap();
-        assert_eq!(
-            resolved.examples,
-            s(&["screenshot_scene", "render_scale_shot"])
-        );
+        assert_eq!(resolved.examples, s(&["shot_alpha", "shot_beta"]));
         assert!(resolved.multi);
     }
 
@@ -141,9 +138,9 @@ mod tests {
                 "controller_section",
                 "scenario",
                 "playable",
-                "screenshot_scene",
-                "render_scale_shot",
-                "scene_baseline",
+                "shot_alpha",
+                "shot_beta",
+                "many_things",
                 "many_bodies",
                 "outcomes"
             ]),

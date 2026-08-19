@@ -22,11 +22,15 @@
 //! hosts); profile shares are for RANKING and never summed into a pie
 //! (parent and child spans overlap); a truncated timeline IS the crash
 //! signal (the recorder flushes per entry).
+//!
+//! Frame COST is not on that roster at all. [`frames`] reads a capture for a
+//! human - worst frame, mean, the FPS each comes to, and whether that is
+//! under 60 - and no check passes or fails on the number.
 
 pub mod artifacts;
-pub mod budgets;
 pub mod catalog;
 pub mod checks;
+pub mod frames;
 pub mod manifest;
 pub mod profile;
 
@@ -42,7 +46,7 @@ pub(crate) mod fixtures;
 /// - one grades a run's checks, the other grades a sweep's rows.
 pub mod prelude {
     pub use super::{
-        artifacts::prelude::*, budgets::prelude::*, catalog::prelude::*, checks::prelude::*,
+        artifacts::prelude::*, catalog::prelude::*, checks::prelude::*, frames::prelude::*,
         manifest::prelude::*, profile::prelude::*,
     };
 }

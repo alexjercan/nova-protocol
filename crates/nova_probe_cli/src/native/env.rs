@@ -290,13 +290,13 @@ mod tests {
 
     #[test]
     fn sweep_cell_env_sets_label_and_sw_floor() {
-        let env = sweep_cell_env(Some("asteroid_field"), Some("low"), Render::Sw);
+        let env = sweep_cell_env(Some("some_scenario"), Some("low"), Render::Sw);
         let get = |k: &str| env.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone());
-        assert_eq!(get("NOVA_PERF_SCENARIO").as_deref(), Some("asteroid_field"));
+        assert_eq!(get("NOVA_PERF_SCENARIO").as_deref(), Some("some_scenario"));
         assert_eq!(get("NOVA_PERF_QUALITY").as_deref(), Some("low"));
         assert_eq!(
             get("NOVA_PERF_LABEL").as_deref(),
-            Some("asteroid_field-low"),
+            Some("some_scenario-low"),
             "the sweep's label convention"
         );
         assert_eq!(get("WGPU_BACKEND").as_deref(), Some("vulkan"));

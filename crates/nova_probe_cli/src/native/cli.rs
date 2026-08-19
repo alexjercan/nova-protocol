@@ -153,7 +153,7 @@ pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
         ),
         Some(alias @ ("sweep" | "web" | "profile")) => Err(format!(
             "`{alias}` retired (deprecated for one cycle, removed at v0.8.0): \
-             use `probe run` - the sweep is `run scene_baseline --release \
+             use `probe run` - the sweep is `run <example> --release \
              --scenario ... --preset ...`, web is `run <scenario> --platform web`, \
              profiling is part of `run <example>`; add `--samply` for a flamegraph"
         )),
@@ -369,7 +369,7 @@ mod tests {
 
         let Ok(Cmd::RunSpec { tokens, base, .. }) = parse(&s(&[
             "run",
-            "scene_baseline",
+            "many_things",
             "--release",
             "--render",
             "sw",
@@ -382,7 +382,7 @@ mod tests {
         ])) else {
             panic!("sweep-shaped run parses");
         };
-        assert_eq!(tokens, s(&["scene_baseline"]));
+        assert_eq!(tokens, s(&["many_things"]));
         assert!(base.release);
         assert_eq!(base.render, Render::Sw);
         assert_eq!(base.scenarios, s(&["a", "b"]));
@@ -409,11 +409,11 @@ mod tests {
         // Web alone is fine (the positional is a scenario id, resolved
         // past the catalog at dispatch).
         let Ok(Cmd::RunSpec { tokens, base, .. }) =
-            parse(&s(&["run", "asteroid_field", "--platform", "web"]))
+            parse(&s(&["run", "some_scenario", "--platform", "web"]))
         else {
             panic!("web run parses");
         };
-        assert_eq!(tokens, s(&["asteroid_field"]));
+        assert_eq!(tokens, s(&["some_scenario"]));
         assert_eq!(base.platform, Platform::Web);
     }
 

@@ -19,6 +19,8 @@ use std::collections::HashMap;
 
 use nova_probe::prelude::*;
 
+use crate::evaluation::frames::prelude::*;
+
 /// Glob-import surface for both renderers.
 pub mod prelude {
     pub use super::{aggregate::prelude::*, html::prelude::*};
@@ -58,6 +60,47 @@ pub(crate) fn escape(text: &str) -> String {
         .replace('\'', "&#39;")
 }
 
+/// The FRAME READ that leads the Performance section: for each capture, the
+/// worst frame, the mean, and what each comes to in FPS, with the under-60
+/// rows called out in words and in colour.
+///
+/// It is the first thing in the section on purpose. A reader wants one number
+/// and one word - "23 FPS, BAD" - and the percentile table below is what they
+/// open next if that word surprised them. Nothing here is a gate: probe
+/// reports frame cost and a human judges it (see
+/// [`crate::evaluation::frames`]).
+pub(crate) fn render_frame_read(runs: &[PerfRun]) -> String {
+    let reads = read_frames(runs);
+    if reads.is_empty() {
+        return String::new();
+    }
+    let mut html = String::from("<div class=\"frameread\">\n");
+    for read in &reads {
+        html.push_str(&format!(
+            "<div class=\"call {}\">\
+             <span class=\"who\">{}</span>\
+             <span class=\"headline\">{:.0} FPS worst frame &#183; {:.0} FPS mean</span>\
+             <span class=\"say\">{}</span>\
+             <span class=\"detail\">worst frame {:.1} ms, mean {:.1} ms \
+             (60 fps is {:.1} ms)</span></div>\n",
+            read.class(),
+            escape(&read.label),
+            read.worst_fps,
+            read.mean_fps,
+            read.verdict(),
+            read.worst_ms,
+            read.mean_ms,
+            SMOOTH_FRAME_MS,
+        ));
+    }
+    html.push_str(
+        "<p class=\"note\">Reported, not graded. No check passes or fails on a \
+         frame-time number - whether this scene is fast enough on this machine \
+         is the reader's call.</p>\n</div>\n",
+    );
+    html
+}
+
 /// Horizontal bar chart: one row per run, bar length = mean frame time, a tick
 /// at p99, all runs on one common scale (the largest p99/max across runs), plus
 /// a dashed 16.6 ms budget line. Pure inline SVG - no script, no external lib.
@@ -85,12 +128,12 @@ pub(crate) fn render_chart(runs: &[PerfRun]) -> String {
          role=\"img\" aria-label=\"mean frame time per run\">\n"
     );
 
-    // 16.6 ms budget line, if it falls within the plotted range.
-    let budget_ms = 16.6;
-    if budget_ms <= scale {
-        let x = x_of(budget_ms);
+    // The 60 fps line, if it falls within the plotted range.
+    let smooth_ms = SMOOTH_FRAME_MS;
+    if smooth_ms <= scale {
+        let x = x_of(smooth_ms);
         svg.push_str(&format!(
-            "<line class=\"budget\" x1=\"{x:.1}\" y1=\"{:.1}\" x2=\"{x:.1}\" y2=\"{:.1}\"/>\n",
+            "<line class=\"smooth\" x1=\"{x:.1}\" y1=\"{:.1}\" x2=\"{x:.1}\" y2=\"{:.1}\"/>\n",
             TOP - 4.0,
             height - 10.0
         ));
@@ -99,8 +142,8 @@ pub(crate) fn render_chart(runs: &[PerfRun]) -> String {
     for (i, run) in runs.iter().enumerate() {
         let y = TOP + ROW_H * i as f64;
         let bar_len = x_of(run.stats.mean_ms) - LABEL_W;
-        let over_budget = run.stats.mean_ms > budget_ms;
-        let bar_class = if over_budget { "bar over" } else { "bar" };
+        let slow = run.stats.mean_ms > smooth_ms;
+        let bar_class = if slow { "bar over" } else { "bar" };
         svg.push_str(&format!(
             "<text class=\"rowlabel\" x=\"{:.1}\" y=\"{:.1}\">{}</text>\n",
             LABEL_W - 6.0,
@@ -136,7 +179,7 @@ pub(crate) fn render_chart(runs: &[PerfRun]) -> String {
     // SVG, so the separators live in the string itself.
     svg.push_str(&format!(
         "<text class=\"legend\" x=\"{LABEL_W:.0}\" y=\"{:.1}\">\
-         bar = mean&#160;&#160;|&#160;&#160;tick = p99&#160;&#160;|&#160;&#160;dashed = 60 fps budget</text>\n",
+         bar = mean&#160;&#160;|&#160;&#160;tick = p99&#160;&#160;|&#160;&#160;dashed = 60 fps</text>\n",
         height - 7.0
     ));
     svg.push_str("</svg>\n");
@@ -253,7 +296,20 @@ td.delta.none { color: #bbb; }
 .chart .bar { fill: #3576c4; }
 .chart .bar.over { fill: #c46a35; }
 .chart .p99 { stroke: #1a1a1a; stroke-width: 1.5; }
-.chart .budget { stroke: #087f23; stroke-width: 1.2; stroke-dasharray: 3 3; }
+.chart .smooth { stroke: #087f23; stroke-width: 1.2; stroke-dasharray: 3 3; }
+.frameread { margin: 0.6rem 0 1rem; }
+.frameread .call {
+  display: grid; grid-template-columns: minmax(9rem, auto) 1fr; gap: 0.1rem 0.8rem;
+  padding: 0.7rem 0.9rem; border-radius: 6px; margin-bottom: 0.5rem;
+  border-left: 5px solid currentColor;
+}
+.frameread .who { grid-row: span 3; align-self: center; font-weight: 600; font-size: 0.95rem; }
+.frameread .headline { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.frameread .say { font-weight: 700; letter-spacing: 0.02em; font-size: 0.9rem; }
+.frameread .detail { font-size: 0.85rem; opacity: 0.75; font-variant-numeric: tabular-nums; }
+.frameread .call.good { background: #e3f4e6; color: #0b6623; }
+.frameread .call.mixed { background: #fff3d6; color: #7a5b00; }
+.frameread .call.bad { background: #fbe3e4; color: #8f1013; }
 .chart .legend { font-size: 11px; fill: #777; }
 footer { margin-top: 2.5rem; color: #888; font-size: 0.85rem; border-top: 1px solid #ddd; padding-top: 0.6rem; }
 .banner { padding: 0.8rem 1rem; border-radius: 6px; font-weight: 600; margin: 1rem 0; }
@@ -312,6 +368,54 @@ mod tests {
     #[test]
     fn escape_neutralizes_html_metacharacters() {
         assert_eq!(escape("a<b>&\"'"), "a&lt;b&gt;&amp;&quot;&#39;");
+    }
+
+    /// One capture, with the two numbers the frame read is made of.
+    fn run(label: &str, mean_ms: f64, max_ms: f64) -> PerfRun {
+        PerfRun {
+            label: label.into(),
+            stats: FrameStats {
+                frames: 900,
+                total_ms: mean_ms * 900.0,
+                mean_ms,
+                min_ms: mean_ms * 0.5,
+                max_ms,
+                p50_ms: mean_ms,
+                p95_ms: mean_ms * 1.5,
+                p99_ms: mean_ms * 2.0,
+                p999_ms: max_ms,
+                mean_fps: 1000.0 / mean_ms,
+                one_pct_low_fps: 500.0 / mean_ms,
+            },
+            meta: RunMeta::unknown(),
+        }
+    }
+
+    /// The reader's headline: the FPS, the word, and the fact that neither is
+    /// a gate. A slow row is flagged `bad` so the colour matches the words.
+    #[test]
+    fn the_frame_read_leads_with_fps_and_says_it_grades_nothing() {
+        let html = render_frame_read(&[run("slow_scene", 40.0, 200.0)]);
+        assert!(html.contains("class=\"call bad\""), "{html}");
+        assert!(html.contains("FPS IS UNDER 60 - BAD"), "{html}");
+        assert!(html.contains("25 FPS mean"), "{html}");
+        assert!(html.contains("5 FPS worst frame"), "{html}");
+        assert!(html.contains("Reported, not graded"), "{html}");
+    }
+
+    #[test]
+    fn a_capture_holding_the_line_reads_good() {
+        let html = render_frame_read(&[run("quick", 8.0, 12.0)]);
+        assert!(html.contains("class=\"call good\""), "{html}");
+        assert!(html.contains("GOOD"), "{html}");
+        assert!(!html.contains("BAD"), "{html}");
+    }
+
+    /// Nothing to read is nothing rendered - an empty box would say a capture
+    /// happened and read as fine.
+    #[test]
+    fn no_capture_renders_no_frame_read() {
+        assert!(render_frame_read(&[]).is_empty());
     }
 
     #[test]

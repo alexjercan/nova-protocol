@@ -16,7 +16,6 @@ pub mod prelude {
 
 mod artifacts_loadable;
 mod fps_within_baseline;
-mod frame_within_budget;
 mod invariants_held;
 mod log_clean;
 mod process_exit;
@@ -143,14 +142,6 @@ const CHECKS: &[(&str, Option<Capability>, fn(&RunArtifacts) -> Check)] = &[
         Some(Capability::FrameTime),
         fps_within_baseline::evaluate,
     ),
-    // The HARD frame gate, beside the soft one: a recorded budget needs no
-    // baseline and no reviewer, and it reads the WORST frame rather than the
-    // mean.
-    (
-        "frame_within_budget",
-        Some(Capability::FrameTime),
-        frame_within_budget::evaluate,
-    ),
     ("log_clean", None, log_clean::evaluate),
     // Last because it grades the EVIDENCE rather than the run: when it fails,
     // it is the reason the rows above read the way they do.
@@ -261,12 +252,18 @@ pub fn print_checks(checks: &[Check]) {
 /// The machine-readable mirror of the verdict rows, plus the run's
 /// identity (from the manifest) and the measured-coverage figure - an
 /// agent reads verdict AND measured, never verdict alone.
-pub fn checks_json(checks: &[Check], manifest: Option<&RunManifest>) -> serde_json::Value {
+///
+/// `frames` sits BESIDE the rows rather than among them. Frame cost is
+/// reported, never graded: it carries `graded: false` and contributes nothing
+/// to `verdict` or `measured`.
+pub fn checks_json(artifacts: &RunArtifacts, checks: &[Check]) -> serde_json::Value {
+    let manifest = artifacts.manifest.as_ref();
     serde_json::json!({
         "verdict": overall_verdict(checks),
         "measured": format!("{}/{}", measured_count(checks), checks.len()),
         "reviewer_confirmation_required": true,
         "run": manifest.map(RunManifest::to_json),
+        "frames": crate::evaluation::frames::frames_json(artifacts.runs.as_ref()),
         "checks": checks.iter().map(|c| serde_json::json!({
             "name": c.name,
             "status": c.status.as_str(),
@@ -301,12 +298,6 @@ mod tests {
         assert_eq!(
             check(&checks, "fps_within_baseline").status,
             CheckStatus::NotApplicable(NotApplicable::InputNotSupplied("--baseline"))
-        );
-        // The fixture is not a profiling case, so no budget is recorded for
-        // its label - N/A, and the coverage figure is unchanged by it.
-        assert_eq!(
-            check(&checks, "frame_within_budget").status,
-            CheckStatus::NotApplicable(NotApplicable::InputNotComparable("recorded budget"))
         );
         assert_eq!(check(&checks, "log_clean").status, CheckStatus::Pass);
         assert_eq!(
@@ -402,7 +393,7 @@ mod tests {
 
     #[test]
     fn checks_json_mirrors_rows_with_coverage_and_run_identity() {
-        let artifacts = RunArtifacts::load(&fixture(), None).expect("fixture loads");
+        let mut artifacts = RunArtifacts::load(&fixture(), None).expect("fixture loads");
         let checks = evaluate_checks(&artifacts);
         let manifest = RunManifest {
             example: "playable".into(),
@@ -419,12 +410,16 @@ mod tests {
                 timed_out: false,
             }],
         };
-        let json = checks_json(&checks, Some(&manifest));
+        artifacts.manifest = Some(manifest);
+        let json = checks_json(&artifacts, &checks);
         assert_eq!(json["verdict"], "OK");
-        assert_eq!(json["measured"], "5/8");
+        assert_eq!(json["measured"], "5/7");
         assert_eq!(json["reviewer_confirmation_required"], true);
         assert_eq!(json["run"]["example"], "playable");
         assert_eq!(json["run"]["passes"][0]["name"], "clean");
+        // The frame read rides beside the rows, and says it is not one.
+        assert_eq!(json["frames"]["graded"], false);
+        assert_eq!(json["frames"]["captures"][0]["label"], "scene-high");
         assert_eq!(json["checks"].as_array().unwrap().len(), checks.len());
         // process_exit leads the rows and carries structured data.
         assert_eq!(json["checks"][0]["name"], "process_exit");
