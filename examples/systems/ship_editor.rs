@@ -82,9 +82,68 @@ fn main() -> bevy::app::AppExit {
         app.init_resource::<EditorProbe>();
         app.add_plugins(editor_script());
         app.add_plugins(nova_screenshot());
+        framelog(&mut app);
     }
 
     app.run()
+}
+
+/// Arms the per-frame diagnostic below. Off by default: it writes a line every
+/// frame, which is a diagnostic instrument and not a thing a smoke run wants.
+#[cfg(feature = "debug")]
+const FRAMELOG_ENV: &str = "NOVA_EDITOR_FRAMELOG";
+
+/// Per-frame wall time and fixed-step count, so a slow beat can be told from a
+/// slow editor.
+///
+/// The frame-time CAPTURE reports one mean and one max over a 900-frame window
+/// and cannot say which gesture paid for them. This writes a line per frame,
+/// which the `autopilot: step ... begins` lines split into beats.
+///
+/// `Time<Real>` on purpose: `Time<Virtual>` is clamped by `max_delta`, so a
+/// frame that took a second of wall clock reports 250 ms there.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct FrameLog {
+    /// Fixed steps run since the last report.
+    steps: u32,
+    /// Rendered frames since the run started.
+    index: u32,
+}
+
+#[cfg(feature = "debug")]
+fn framelog(app: &mut App) {
+    if std::env::var(FRAMELOG_ENV).is_err() {
+        return;
+    }
+    app.init_resource::<FrameLog>();
+    app.add_systems(FixedUpdate, |mut log: ResMut<FrameLog>| log.steps += 1);
+    app.add_systems(Last, report_frame);
+}
+
+#[cfg(feature = "debug")]
+fn report_frame(world: &mut World) {
+    let delta = world.resource::<Time<Real>>().delta_secs_f64() * 1000.0;
+    // `Entities::len` is the high-water mark of allocated rows rather than the
+    // live count, so sum the archetypes (same reading as `sandbox_soak`).
+    let entities: u32 = world
+        .archetypes()
+        .iter()
+        .map(bevy::ecs::archetype::Archetype::len)
+        .sum();
+    let step_ms = world
+        .resource::<bevy::diagnostic::DiagnosticsStore>()
+        .iter()
+        .find(|diagnostic| diagnostic.path().as_str() == "avian/total_step_time")
+        .and_then(bevy::diagnostic::Diagnostic::smoothed)
+        .unwrap_or_default();
+    let mut log = world.resource_mut::<FrameLog>();
+    let steps = std::mem::take(&mut log.steps);
+    log.index += 1;
+    let index = log.index;
+    info!(
+        "framelog f={index} ms={delta:.1} steps={steps} entities={entities} step_ms={step_ms:.2}"
+    );
 }
 
 /// The scenario Play hands off to: the editor's own open range, registered at
