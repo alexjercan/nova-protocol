@@ -3,8 +3,10 @@
 //!
 //! The player starts parked on station at the origin, which is where every
 //! combat framing in the set is measured from. Included by each hollow producer
-//! with `#[path = "shared/hollow.rs"] mod hollow;` beside `mod kit;`, which it
-//! reads its hulls and its rock field from.
+//! with `#[path = "shared/hollow.rs"] mod hollow;`. It pulls in `shared/kit.rs`
+//! ITSELF, so a producer that includes this must not also include the kit by
+//! `#[path]` - two path copies of one file are two distinct modules with two
+//! distinct `NearField` types.
 //!
 //! What it holds:
 //!
@@ -19,11 +21,12 @@
 // the unused half is not dead code, it is another scene's tool.
 #![allow(dead_code)]
 
+#[path = "kit.rs"]
+mod kit;
+
 use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_enhanced_input::prelude::Binding;
 use nova_protocol::prelude::*;
-
-use crate::kit;
 
 /// Scenario id of the player's ship.
 pub const PLAYER_ID: &str = "hollow_player";

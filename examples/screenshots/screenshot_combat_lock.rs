@@ -26,9 +26,6 @@
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
-#[path = "shared/kit.rs"]
-mod kit;
-
 #[path = "shared/hollow.rs"]
 mod hollow;
 
