@@ -56,8 +56,11 @@ Examples and docs:
 
 ## What "done" means for the release
 
-- The `asteroid_field` sandbox and a `wfc_arena` 4v4 both hold frame rate, with
-  a MEASURED worst-frame number, not a mean.
+- A `wfc_arena` 4v4 holds frame rate, with a MEASURED worst-frame number, not a
+  mean. It is the only case out of band: 295.76 ms worst, 10.7 FPS mean, against
+  42-53 ms worst for every other case measured (`20260819-123928/NOTES.md`).
+  `asteroid_field` was named here in error - it was deleted in `d20a37c4`, the
+  same day this epic was written.
 - No system in a profiled fight owns a frame on its own.
 - A human can load every shipped example and do something in it, or read one
   line in its description saying it is a capture rig.
