@@ -54,6 +54,14 @@ pub enum GameAssetsStates {
     Processing,
     /// Everything is loaded and registered; gameplay can start.
     Loaded,
+    /// A declared asset did not resolve, so the run cannot continue.
+    ///
+    /// Without this the loader simply never finishes: `bevy_asset_loader` waits
+    /// on a handle that will never resolve, the loading screen sits there, and
+    /// nothing is logged. One renamed `.glb` under `assets/base/` used to hang
+    /// a shipped build forever with no way to tell why. Reaching this state is
+    /// always a content bug, never a player's problem.
+    Failed,
 }
 
 /// A plugin that loads game assets and sets up the game.
@@ -111,16 +119,22 @@ impl Plugin for GameAssetsPlugin {
         // that screen. bevy_asset_loader keys its schedules per state VALUE, so
         // two loading states on one enum chain cleanly.
         app.init_state::<GameAssetsStates>();
+        // Both states carry a failure exit. A collection declares its paths in
+        // Rust while the files live under `assets/`, so the two drift the
+        // moment one is renamed - and the drift is not a compile error.
         app.add_loading_state(
             LoadingState::new(GameAssetsStates::Boot)
                 .continue_to_state(GameAssetsStates::Loading)
+                .on_failure_continue_to_state(GameAssetsStates::Failed)
                 .load_collection::<BootAssets>(),
         );
         app.add_loading_state(
             LoadingState::new(GameAssetsStates::Loading)
                 .continue_to_state(GameAssetsStates::Processing)
+                .on_failure_continue_to_state(GameAssetsStates::Failed)
                 .load_collection::<GameAssets>(),
         );
+        app.add_systems(OnEnter(GameAssetsStates::Failed), report_failed_assets);
         // Publish the preloaded UI font once Boot resolves it. Filled at
         // OnExit(Boot) - which runs BEFORE OnEnter(Loading) in the state
         // transition - so `nova_core`'s loading screen, spawned at
@@ -181,4 +195,19 @@ impl Plugin for GameAssetsPlugin {
                 .run_if(not(in_state(GameAssetsStates::Loading))),
         );
     }
+}
+
+/// Say, once and loudly, that the run is over because an asset is missing.
+///
+/// `bevy_asset_loader` reports WHICH handle failed through its own log, so this
+/// does not try to name the file. What it adds is the verdict: the state is
+/// terminal, nothing downstream will ever run, and a loading screen that never
+/// finishes is this and not a slow disk.
+fn report_failed_assets() {
+    error!(
+        "asset loading FAILED - a path declared in a collection \
+         (crates/nova_assets/src/collections.rs) does not resolve under assets/. \
+         The bevy_asset_loader errors above name the handle. Nothing past this \
+         point runs; the loading screen will not advance."
+    );
 }

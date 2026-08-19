@@ -341,6 +341,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Fixes
 
+- A missing or renamed asset now says so and stops, instead of leaving the
+  loading screen turning forever with nothing logged.
 - Treat a torpedo outliving its launch bay as a missing optional effect.
 - Fixed: a crater captured hits by its own accumulated size, so every merge
   widened it and one hole ate the rock. Shooting a fresh place now opens a
