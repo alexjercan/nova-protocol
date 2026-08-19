@@ -102,9 +102,10 @@ Every section in shipped content is `mass: 1.0` - all 32 in the generated
 `assets/base/**/*.content.ron`. Sections already derive mass from collider
 volume at density 1.
 
-So the cargoa is STRUCTURE-bound like everything its size: mass ~15.6, `I` ~34,
-r 2.09 u, flip ~1.83 s at 8 G against the 1-1-1's 1.55 s. That is the shape this
-model wants, and it lands for free.
+So the cargoa is STRUCTURE-bound like everything its size. Measured, not
+estimated - see the readings below: mass 15.86, `I_yy` 35.73, r 2.76 u / 27.6 m,
+flip 2.10 s at 8 G against the 1-1-1's 1.55 s, with 14.8x of torque headroom.
+That is the shape this model wants, and it lands for free.
 
 `20260819-173840` survives only as a cleanup: delete the vestigial
 `SectionConfig.mass` field, which is a density named mass and is 1.0 everywhere.
@@ -148,39 +149,63 @@ Expected flip times at 8 G, bang-bang 180:
 | ship | r | flip | binds |
 |---|---|---|---|
 | 1-1-1 | 1.5 u / 15 m | 1.55 s | structure |
-| cargoa corvette | ~2.45 u / 24.5 m | 1.98 s | structure |
-| mid hull | 5 u / 50 m | 2.83 s | structure |
-| capital | 15 u / 150 m | 8.14 s | TORQUE |
+| racer yacht | 2.18 u / 21.8 m | 1.87 s | structure |
+| cargoa corvette | 2.76 u / 27.6 m | 2.10 s | structure |
+| cargob hauler | 2.93 u / 29.3 m | 2.17 s | structure |
+| mid hull (hypothetical) | 5 u / 50 m | 2.83 s | structure |
+| capital (hypothetical) | 15 u / 150 m | 8.14 s | TORQUE |
 
-Today every one of them flips in 5.00 s. So small ships sharpen by up to 3.2x
-and capitals get 1.6x SLOWER - that second half is the retune cost, and it is
-intended: a capital should be a barge.
+The three named craft are MEASURED (below). `r` runs from the measured COM to
+the OUTER FACE of the furthest section - the rule that gives the 1-1-1 its
+1.5 u. State it: to the section's CENTRE the cargoa reads 2.25 u and to its
+furthest CORNER 2.88 u, which is 1.90 s to 2.15 s in flip time. Half the
+bounding box, 2.45 u, is a different quantity again - the COM sits 0.24 u aft
+of the geometric centre - and is not used.
 
-### `max_torque` is NOT yet a number - measure, do not derive
+Today every one of them flips in 5.00 s. So everything that ships sharpens by
+2.3x to 3.2x and capitals get 1.6x SLOWER - that second half is the retune cost,
+and it is intended: a capital should be a barge.
 
-The crossover fixes `max_torque` only once the inertia is known, and `I` is the
-one quantity here nobody has measured. A provisional 1501 falls out of assuming
+### MEASURED - the shipped fleet's mass properties
+
+Read out of avian on 2026-08-19: each hull spawned as its authored
+`SectionCollider::Cuboid` children at `ColliderDensity(1.0)` under one
+`RigidBody::Dynamic`, then `ComputedMass` / `ComputedCenterOfMass` /
+`ComputedAngularInertia`. Reproduces a parallel-axis sum to 4 dp, so the two
+methods agree and neither is an assumption. The collider is the AUTHORED BOX,
+not the GLB - the mesh is render-only.
+
+| hull | colliders | mass | `I_yy` | r (face) | binds | headroom |
+|---|---|---|---|---|---|---|
+| 1-1-1 | 3 | 3.00 | 2.50 | 1.50 u / 15.0 m | structure | 115x |
+| racer | 7 | 8.28 | 10.86 | 2.18 u / 21.8 m | structure | 38x |
+| cargoa | 9 | 15.86 | 35.73 | 2.76 u / 27.6 m | structure | 15x |
+| cargob | 9 | 18.95 | 48.79 | 2.93 u / 29.3 m | structure | 12x |
+
+Cargob and the racer are UNREMARKABLE: same pattern, same density, no surprises.
+
+### `max_torque` is NOT yet a number - and no hull can settle it
+
+The crossover fixes `max_torque` only once `I` at 10 u is known, and the largest
+hull in the game is 2.93 u. A provisional 1501 falls out of
 `I(r) = 2.5 * (r/1.5)^3.5`, whose anchor is exact - three unit cubes in a line
-about their COM is 2.5 - but whose **3.5 exponent is a guess**. A hollow-shell
-hull scales as `r^4` and a solid one as `r^5`; across the range to 10 u that
-spread is roughly 25x in `max_torque`.
+about their COM is 2.5 - but whose **3.5 exponent is a guess**. All three
+shipped hulls come out HEAVIER than that curve predicts (1.18x, 1.69x, 1.87x),
+so **1501 is a floor, not an estimate.**
 
-So: spawn the shipped hulls, read avian's `ComputedAngularInertia` and the
-furthest-section radius, and back-solve `max_torque` from the real pair. It is a
-spawn-and-print job, not a derivation, and it must happen before any content is
-retuned against a wrong number.
+**`I` is not a function of `r`, so there is no exponent to find.** Anchored on
+the 1-1-1 the shipped hulls want p = 3.94, 4.36, 4.43, and a single p = 4.33
+holds all four to 14 %. Drop the anchor and fit the three against each other and
+the slope is 5.04 - a 3.9x disagreement in `max_torque` at the crossover. `I` is
+the second moment of where the mass sits: the cargoa's fuselage is 43 % of its
+mass and 16 % of its yaw inertia, its nose 16 % of the mass and 31 % of the
+inertia. **No inertia formula belongs in the code.** avian computes it exactly
+and `pd_controller.rs` already reads `ComputedAngularInertia`; the `I(r)` curve
+is a drawing aid for the explainer's plates and nothing else.
 
-**A shipped hull already contradicts the law**, which settles the argument. The
-cargoa's authored 4.9 x 3.2 x 1.6 u box is at most 30 unit cells with a yaw
-inertia of 85; the assumed `r^3.5` wants 6 sections and `I = 13.9`, so the real
-hull is 6.1x heavier in inertia than the law predicts. A two-point fit through
-the 1-1-1 anchor and that box wants `p = 7.2`, which is not a scaling law at all
-- it is proof that authored hulls do not follow one. **1501 is a floor, not an
-estimate.**
-
-What the gap does NOT touch: the 1-1-1, cargoa and mid-hull flip times contain
-no `I` at all - they are structure-bound, so `load_limit` alone fixes them. Only
-the capital end waits on the measurement.
+What the gap does NOT touch: every shipped hull is structure-bound, so its flip
+time contains no `I` at all and `load_limit` alone fixes it. Only the
+hypothetical capital end waits, and it moves the safe way.
 
 ### `load_limit` has no physical derivation, and that is fine
 
@@ -219,9 +244,12 @@ nobody can see reads as the game being broken.
 
 ## What the tree already has
 
-- `BodyRadius` is in `nova_ship::prelude`.
 - `pd_controller.rs` already reads `ComputedAngularInertia`, so `I` is present
-  where it is needed.
+  where it is needed, exact, and needs no formula.
+- `BodyRadius` is in `nova_ship::prelude` but does NOT serve as `r`. It is the
+  geometric radius of a scenario OBSTACLE (`flight/state.rs:7`), derived for
+  asteroids and left unset on ships - "fine for ships and debris". The
+  COM-to-furthest-face arm has to be derived; do not reach for this component.
 - **`flight/thrusters.rs` already solves a convex QP that NULLS net torque**, so
   engines give pure translation and the PD controller owns rotation alone. Off
   axis thrusters DO produce torque - `thruster_impulse_system` calls
@@ -263,3 +291,5 @@ thrusters cannot torque. Do not read it as the latter.
   with the owner flying them - their verdict decides, not the arithmetic.
 - The thruster-torque question is answered either way, with a reason.
 - Shipped content is retuned or the divergence is listed and scheduled.
+- The RELEASE this lands in shows the ceiling and the binding limit on the build
+  screen. Built by `20260812-131912`, not here - but not shipped without.

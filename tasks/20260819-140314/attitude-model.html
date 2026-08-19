@@ -632,7 +632,8 @@ td.num { color: var(--ink); }
       <div><span class="tb-key">Scale</span><span class="tb-val">1 u = 10 m</span></div>
       <div><span class="tb-key">load_limit</span><span class="tb-val">8 G = 78.48 m/s2</span></div>
       <div><span class="tb-key">Crossover</span><span class="tb-val">10 u = 100 m</span></div>
-      <div><span class="tb-key">max_torque</span><span class="tb-val">Not yet measured</span></div>
+      <div><span class="tb-key">max_torque</span><span class="tb-val">1501 provisional</span></div>
+      <div><span class="tb-key">Shipped I</span><span class="tb-val">Measured 2026-08-19</span></div>
       <div><span class="tb-key">Status</span><span class="tb-val">Model settled; retune open</span></div>
     </div>
     <div class="tb-strip">
@@ -645,8 +646,10 @@ td.num { color: var(--ink); }
         deleted, and size falls out of the physics instead of being legislated in either direction.
         <b>Every radius here is given in world units and in metres.</b> Nova runs at 1 u = 10 m; an
         earlier pass of this calibration dropped that conversion and came out ten times too sharp,
-        which is <b>03</b>. And <b>max_torque is still not a number</b> - the crossover pins it only
-        once the inertia is measured, which is <b>06</b>.</p>
+        which is <b>03</b>. Every hull that ships has had its inertia, mass and centre of mass
+        <b>measured</b> out of avian, and every one of them lands structure-bound and sharper -
+        that is <b>06</b>. The one thing still genuinely open is <b>the content retune</b>,
+        <b>09.8</b>.</p>
       </div>
     </div>
   </header>
@@ -665,7 +668,8 @@ td.num { color: var(--ink); }
 
       <p><strong>Add <code>max_torque</code> to the controller.</strong> How hard this computer's
       reaction wheels twist the ship. Two computers, twice the torque. No cap, no curve, no stacking
-      rule. <strong>It has no settled value yet</strong>, and that is <b>06</b>.</p>
+      rule. <strong>It has no settled value yet</strong> - the shipped hulls are measured but nothing
+      the size of the crossover exists to measure, and that is <b>06</b>.</p>
 
       <p><strong>Add <code>load_limit</code>, one global constant.</strong> How many G the hull takes
       before it tears. <strong>8 G = 78.48 m/s2</strong>, decided 2026-08-19. Not authored per
@@ -710,10 +714,14 @@ turn acceleration   = min( the two )                        <span class="an">whi
       straight through the structural one and the ship is a barge. A capital has to spend real
       tonnage on attitude control to get back to its own structural limit. That is <b>08</b>.</p>
 
-      <p>The middle row is the one to trust. The <b>cargoa corvette</b> is a hull that ships today -
-      4.9 x 3.2 x 1.6 u, so 49 x 32 x 16 m - and it flips in <b>1.98 s</b> against today's 5.00 s.
-      That number is pure structural arithmetic: it does not touch <code>I</code>, so none of the
-      uncertainty in <b>06</b> reaches it.</p>
+      <p>The middle row is the one to trust, because it is the only one taken from a hull that
+      exists. The <b>cargoa corvette</b> ships today - 4.9 x 3.2 x 1.6 u, so 49 x 32 x 16 m - and its
+      mass, inertia and centre of mass are read straight out of avian: <b>15.86 t</b>,
+      <code>I = 35.73</code>, arm <b>2.76 u (27.6 m)</b>. It comes out <em>structure-bound</em>, with
+      its torque ceiling standing <b>14.8x</b> above what its hull will take, and it flips in
+      <b>2.10 s</b> against today's 5.00 s. A real shipped corvette sitting one row below the
+      idealised 1-1-1 and behaving like one is the strongest evidence on this page that the model is
+      right. The readings are <b>06</b>.</p>
 
       <h3>What each knob does to feel</h3>
       <ul>
@@ -778,9 +786,15 @@ w_avg = sqrt(pi * alpha) / 2      <span class="an">= 0.627 rad/s = 36 deg/s</spa
 
       <pre class="eq">alpha_ceiling = load_limit / (r_units * METRES_PER_UNIT)      <span class="an">METRES_PER_UNIT = 10</span>
 
-<span class="an">1-1-1:</span>    r = 1.5 u   = 15 m     ->  78.48 / 15  = 5.23 rad/s2
-<span class="an">cargoa:</span>   r = 2.45 u  = 24.5 m   ->  78.48 / 24.5 = 3.20 rad/s2
-<span class="an">capital:</span>  r = 15 u    = 150 m    ->  78.48 / 150 = 0.52 rad/s2</pre>
+<span class="an">1-1-1:</span>    r = 1.50 u  = 15.0 m   ->  78.48 / 15.0 = 5.23 rad/s2
+<span class="an">racer:</span>    r = 2.18 u  = 21.8 m   ->  78.48 / 21.8 = 3.60 rad/s2
+<span class="an">cargoa:</span>   r = 2.76 u  = 27.6 m   ->  78.48 / 27.6 = 2.84 rad/s2
+<span class="an">cargob:</span>   r = 2.93 u  = 29.3 m   ->  78.48 / 29.3 = 2.68 rad/s2
+<span class="an">capital:</span>  r = 15.0 u  = 150 m    ->  78.48 / 150  = 0.52 rad/s2
+
+<span class="an">The three named craft are MEASURED arms - centre of mass out of avian, not
+half the bounding box. See 06. The capital is hypothetical; nothing that
+size ships.</span></pre>
 
       <div class="note warn">
         <span class="note-label">The near miss - this page was wrong by 10x until 2026-08-19</span>
@@ -813,7 +827,8 @@ w_avg = sqrt(pi * alpha) / 2      <span class="an">= 0.627 rad/s = 36 deg/s</spa
         crates/nova_ui/src/units.rs:8 - "Display-only... physics ... keep raw world units"<br>
         crates/nova_ship/src/sections/turret_section/aim.rs:21 - "Nova's scale is 100 u = 1 km"<br>
         crates/nova_ship/src/sections/turret_section/aim.rs:16 - the cargoa hull is 4.9 x 3.2 x 1.6 u<br>
-        = 49 x 32 x 16 m at 1 u = 10 m</p>
+        = 49 x 32 x 16 m at 1 u = 10 m<br>
+        crates/nova_authoring/src/base_content/ships/cargo_a.rs:16 - the authored part boxes</p>
       </div>
 
       <p>Every radius on the rest of this page is written both ways. The sliders are in world units
@@ -833,11 +848,14 @@ w_avg = sqrt(pi * alpha) / 2      <span class="an">= 0.627 rad/s = 36 deg/s</spa
              \____ propulsive ____/      \________ structural ________/</pre>
 
       <ul>
-        <li><code>I</code> is angular inertia, in game units. <code>pd_controller.rs</code> already
-        reads <code>ComputedAngularInertia</code>, so it is present where it is needed.</li>
+        <li><code>I</code> is angular inertia, in game units. It is <em>not</em> a function of
+        <code>r</code> and no formula for it belongs in the code: avian already computes it exactly
+        from the real mass distribution, and <code>pd_controller.rs</code> already reads
+        <code>ComputedAngularInertia</code>. That is <b>06</b>.</li>
         <li><code>r</code> is the distance from the <em>centre of mass</em> to the furthest section -
-        not the geometric centre - in world units. <code>BodyRadius</code> is already in
-        <code>nova_ship::prelude</code>.</li>
+        not the geometric centre - in world units, taken to that section's outer face.
+        <code>BodyRadius</code> is in <code>nova_ship::prelude</code>, but it is a scenario-obstacle
+        radius that ships leave unset, so this arm has to be derived rather than read off it.</li>
         <li><code>load_limit</code> is the structural load the hull tolerates at that point, in
         m/s2. One constant for the whole game, set to 8 G = 78.48 m/s2.</li>
       </ul>
@@ -876,18 +894,24 @@ w_avg = sqrt(pi * alpha) / 2      <span class="an">= 0.627 rad/s = 36 deg/s</spa
         </div>
       </div>
 
-      <div class="note src">
-        <span class="note-label">Modelling assumption - stated because it is not derived</span>
-        <p>The structural curve is arithmetic. The propulsive curve needs a scaling law for
-        <code>I</code>, and there is not one in the tree. A controller's authored
-        <code>max_torque</code> does <em>not</em> grow with the hull, so the numerator is held at one
-        controller. The denominator is anchored exactly - <code>I = 2.5</code> for the 1-1-1, three
-        unit cubes in a line about their centre of mass - and then <b>guessed</b> onwards as
-        <code>I(r) = 2.5 * (r / 1.5)^3.5</code>, with <code>r</code> in world units.</p>
-        <p>The exponent is the guess. <code>I ~ M r^2</code>, so <code>p = 3.5</code> is the claim
-        that hull mass grows as <code>r^1.5</code> - between a line and a shell. A hollow-shell hull
-        would give <code>p = 4</code> and a solid one <code>p = 5</code>. The <em>slope</em> is what
-        the propulsive argument rests on, and <b>06</b> is what it costs to have it wrong.</p>
+      <div class="note warn">
+        <span class="note-label">The propulsive curve is a DRAFTING DEVICE, not a prediction</span>
+        <p>The structural curve is arithmetic and holds for any hull. The propulsive curve is not:
+        drawing <code>max_torque / I</code> against a radius needs <code>I</code> to be a function of
+        <code>r</code>, and <strong>it is not one.</strong> <code>I</code> is a moment of the actual
+        mass distribution - two hulls with the same furthest-section arm can differ in it by any
+        factor you like, depending on where the mass sits. The curve here is
+        <code>I(r) = 2.5 * (r / 1.5)^p</code>, anchored exactly on the 1-1-1 (three unit cubes in a
+        line about their centre of mass is <code>2 * 1^2 + 3 * (1/6) = 2.5</code>) and swept onwards
+        by an exponent. It exists so the plate has a second line to cross. <strong>Nothing like it
+        goes into the code</strong>, where avian computes <code>I</code> exactly and
+        <code>pd_controller.rs</code> already reads it.</p>
+        <p>The readings in <b>06</b> say what the device is worth: across the 1.5 u to 2.9 u the
+        fleet actually covers, <code>p = 3.5</code> runs 1.2x to 1.9x light and no single exponent
+        survives being fitted two different ways. Extrapolated to the 10 u crossover that
+        disagreement is worth <b>3.9x</b> in <code>max_torque</code>, which is why the number is
+        provisional - and why the ship dots on this plate are placed at their <em>measured</em>
+        <code>I</code> and never at the curve's.</p>
       </div>
     </div>
   </section>
@@ -948,9 +972,9 @@ omega_max = sqrt(load_limit / r_m)     <span class="an">sustained turn rate</spa
             <span class="hint" id="h-rx">pins max_torque at 1501</span>
           </div>
           <div class="ctl">
-            <label for="in-p">Inertia exponent p <span class="val" id="v-p">3.50</span></label>
+            <label for="in-p">Curve exponent p <span class="val" id="v-p">3.50</span></label>
             <input type="range" id="in-p" min="3" max="5" step="0.05" value="3.5">
-            <span class="hint" id="h-p">I ~ r^p; 3.5 is a GUESS, shell 4, solid 5</span>
+            <span class="hint" id="h-p">shape of the torque curve only - predicts NO real ship</span>
           </div>
         </div>
         <div class="readouts">
@@ -980,6 +1004,11 @@ omega_max = sqrt(load_limit / r_m)     <span class="an">sustained turn rate</spa
             <span class="ro-sub" id="v-inertia">I = 2.50 t u2</span>
           </div>
           <div class="ro">
+            <span class="ro-k">Torque headroom</span>
+            <span class="ro-v"><span id="v-head">115</span><span class="ro-u">x</span></span>
+            <span class="ro-sub">structural ceiling vs torque ceiling</span>
+          </div>
+          <div class="ro">
             <span class="ro-k">max_torque, provisional</span>
             <span class="ro-v"><span id="v-torque">1501</span></span>
             <span class="ro-sub" id="v-torque-x">t u2/s2 - falls out of the crossover</span>
@@ -989,13 +1018,13 @@ omega_max = sqrt(load_limit / r_m)     <span class="an">sustained turn rate</spa
 
       <div class="tw">
         <table>
-          <caption>Four hulls, one controller each, computed live from the console settings</caption>
+          <caption>Six hulls, one controller each. Measured I where the hull ships; curve I where it does not</caption>
           <thead>
             <tr>
               <th>Hull</th>
               <th>r<br>u</th>
               <th>r<br>m</th>
-              <th>Sections</th>
+              <th>I<br>t u2</th>
               <th>Structural<br>rad/s2</th>
               <th>Propulsive<br>rad/s2</th>
               <th>Binds</th>
@@ -1028,25 +1057,100 @@ omega_max = sqrt(load_limit / r_m)     <span class="an">sustained turn rate</spa
   <section class="sec">
     <div class="sec-head">
       <span class="sec-idx">06</span>
-      <h2>max_torque is not a number yet - measure it, do not derive it</h2>
-      <span class="sec-tag">The honest gap</span>
+      <h2>I is measured now, and it is not a function of r</h2>
+      <span class="sec-tag">The honest gap, narrowed</span>
     </div>
     <div class="sec-body">
-      <p>Setting the crossover at 10 u (100 m) fixes <code>max_torque</code> the moment <code>I</code> is
-      known, and <code>I</code> is the one quantity on this page nobody has measured. The
-      <span id="m-prov">1501</span> the console reports is what falls out of assuming
-      <code>I(r) = 2.5 * (r / 1.5)^3.5</code>. That anchor is exact. <strong>The 3.5 is a
-      guess.</strong></p>
-
-      <pre class="eq">max_torque = I(r_x) * load_limit / (r_x * METRES_PER_UNIT)
-
-<span class="an">at p = 3.5:</span>  I(10 u = 100 m) = 1913   ->  max_torque = 1501
-<span class="an">at p = 4.0:</span>  I(10 u = 100 m) = 4938   ->  max_torque = 3876   <span class="an">hollow shell</span>
-<span class="an">at p = 5.0:</span>  I(10 u = 100 m) = 32922  ->  max_torque = 25837  <span class="an">solid</span></pre>
+      <p>Every hull in the game was spawned and its mass properties read out of avian's
+      <code>ComputedMass</code>, <code>ComputedCenterOfMass</code> and
+      <code>ComputedAngularInertia</code>. These are readings, not estimates, and they are what the
+      model should be argued from.</p>
 
       <div class="tw">
         <table class="mini">
-          <caption>What the unmeasured exponent costs - drag p on the console in 05</caption>
+          <caption>Measured - avian mass properties of every hull that ships, density 1.0</caption>
+          <thead>
+            <tr>
+              <th>Hull</th>
+              <th>Colliders</th>
+              <th>Mass<br>t</th>
+              <th>I_yy<br>t u2</th>
+              <th>r<br>u / m</th>
+              <th>Curve at p<br>t u2</th>
+              <th>Real / curve</th>
+              <th>Implied p</th>
+              <th>Flip 180<br>s</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-meas"></tbody>
+        </table>
+      </div>
+
+      <div class="note src">
+        <span class="note-label">How these were obtained</span>
+        <p>Every section resolves to a <code>SectionCollider::Cuboid</code> of its <em>authored</em>
+        box - <code>bbox_max - bbox_min</code> - not to its GLB mesh; the mesh is render-only. Each
+        carries <code>ColliderDensity(1.0)</code>, and avian sums the child colliders into the ship
+        root's rigid body. Spawning the nine cargoa colliders under one
+        <code>RigidBody::Dynamic</code> and reading the components back reproduces the parallel-axis
+        arithmetic to four decimal places, so the two agree and neither is an assumption.</p>
+        <p><b>The arm needs a stated convention, and it is worth 28 % on the arm.</b>
+        <code>r</code> here runs from the measured centre of mass to the <em>outer face</em> of the
+        furthest section, which is the rule that gives the 1-1-1 its 1.5 u (15 m). On the corvette
+        it gives <b>2.76 u (27.6 m)</b>; to that section's centre instead it would be
+        2.25 u (22.5 m) and to its furthest corner 2.88 u (28.8 m) - a flip time anywhere from
+        1.90 s to 2.15 s. The face rule is the one drawn in <b>Plate 2</b> and the one every number
+        on this page uses. Note also that the corvette's COM sits 0.24 u (2.4 m) aft of its geometric
+        centre, so half the bounding box - 2.45 u (24.5 m) - is not the same quantity and is not
+        used here.</p>
+        <p class="src-path">crates/nova_authoring/src/base_content/ships/cargo_a.rs:16 - the part boxes<br>
+        crates/nova_authoring/src/base_content/ships/shared.rs:232 - mass: 1.0, every part<br>
+        crates/nova_authoring/src/base_content/ships/shared.rs:236 - collider: Cuboid(spec.size())<br>
+        crates/nova_ship/src/sections/base_section.rs:90 - Cuboid -&gt; Collider::cuboid<br>
+        crates/nova_ship/src/sections/base_section.rs:375 - destructible_body(health, mass)<br>
+        crates/nova_gameplay/src/integrity/health.rs:163 - fn destructible_body(health, density)</p>
+      </div>
+
+      <p>The fleet reads the way the model wants it to. <strong>Every hull that ships is
+      structure-bound</strong>, by margins of 11x to 38x, so <code>load_limit</code> alone sets all
+      four flip times and none of them divides by <code>I</code>. The corvette lands at
+      <b>2.10 s</b> and the yacht at <b>1.87 s</b>, a step behind the idealised 1-1-1's 1.55 s and
+      well ahead of today's flat 5.00 s. Nothing here is blocked and nothing needs authoring: a
+      section's mass already falls out of its collider volume at density 1, so the moment
+      <code>max_angular_acceleration</code> is deleted these hulls get the handling above for free.
+      That is the whole case for the model, measured.</p>
+
+      <div class="note">
+        <span class="note-label">One name to fix on the way past</span>
+        <p><code>BaseSectionConfig::mass</code> reaches avian as <code>ColliderDensity</code>, so a
+        section's real mass is <code>mass * collider_volume</code> and the same authored number
+        means different tonnage on two differently sized parts. Its own doc comment
+        (<code>base_section.rs:226</code>) says so and the receiving parameter
+        (<code>health.rs:163</code>) is named <code>density</code>; the field is the only thing
+        still called <code>mass</code>. It is <code>1.0</code> on every section in the game, so it
+        carries no information - but this model is the first thing that makes handling depend on
+        mass at all, which makes it the first thing that will send a modder to that field. Deleting
+        the vestigial field is <code>20260819-173840</code>, and it does not block this task.</p>
+      </div>
+
+      <h3>max_torque is the one number no hull can settle</h3>
+
+      <p>Setting the crossover at 10 u (100 m) fixes <code>max_torque</code> the moment
+      <code>I</code> at that radius is known - the largest hull in the game is 2.93 u (29.3 m), so that
+      one number is still an extrapolation. The <span id="m-prov">1501</span> the console reports is
+      what falls out of the <code>p = 3.5</code> curve. The readings bound it from below: all three
+      shipped hulls come out <em>heavier</em> in inertia than that curve predicts, by 1.18x, 1.69x
+      and 1.87x, so <strong>1501 is a floor, not an estimate.</strong></p>
+
+      <pre class="eq">max_torque = I(r_x) * load_limit / (r_x * METRES_PER_UNIT)
+
+<span class="an">at p = 3.5:</span>   I(10 u = 100 m) = 1913   ->  max_torque = 1501   <span class="an">the old guess - a FLOOR</span>
+<span class="an">at p = 4.33:</span>  I(10 u = 100 m) = 9260   ->  max_torque = 7268   <span class="an">fits the shipped fleet</span>
+<span class="an">at p = 5.0:</span>   I(10 u = 100 m) = 32922  ->  max_torque = 25837  <span class="an">solid</span></pre>
+
+      <div class="tw">
+        <table class="mini">
+          <caption>What the extrapolation costs - drag p on the console in 05</caption>
           <thead>
             <tr>
               <th>I ~ r^p</th>
@@ -1064,39 +1168,55 @@ omega_max = sqrt(load_limit / r_m)     <span class="an">sustained turn rate</spa
       </div>
 
       <p>Across the exponent band a shell and a solid bracket, <code>max_torque</code> moves by
-      <span id="m-spread">6.7</span>x, and from the guessed 3.5 up to a solid 5 it moves by
+      <span id="m-spread">6.7</span>x, and from the old 3.5 up to a solid 5 it moves by
       <span id="m-spread2">17</span>x. Pin the crossover against a 15 u (150 m) capital rather than a
-      10 u (100 m) mid hull and the same band reads 32x. The task record rounds all of that to "roughly 25x"; the
-      point survives any of those figures, which is that <strong>the provisional number could be an
-      order of magnitude out and nothing on this page would look different.</strong></p>
+      10 u (100 m) mid hull and the same band reads 32x. The task record rounds all of that to
+      "roughly 25x"; the point survives any of those figures, which is that <strong>the provisional
+      number could be an order of magnitude out and nothing on this page would look
+      different.</strong></p>
 
-      <h3>The shipped cargoa says the guess is low</h3>
+      <h3>There is no exponent to find, because there is no law</h3>
 
-      <p>Take the corvette's authored envelope literally. 4.9 x 3.2 x 1.6 u - 49 x 32 x 16 m - is
-      5 x 3 x 2 unit cells, so at most 30 sections; the assumed law wants
-      <span id="m-cargo-n">6</span>. Filling that box with unit cubes of mass 1 gives a yaw inertia
-      of exactly <code>80 + 30/6 = 85</code>, against the law's <span id="m-cargo-i">13.9</span> -
-      the law is <span id="m-cargo-x">6.1</span>x light. Fitting a power law through the 1-1-1
-      anchor and that box wants <code>p = 7.2</code>, which is not a scaling law at all. It is the
-      model saying a three-section line at 1.5 u (15 m) is a degenerate thing to anchor on.</p>
+      <p>The obvious next move is to fit the readings and use the fit. It does not survive contact
+      with them. Anchored on the 1-1-1, the three shipped hulls want exponents of <b>3.94</b>,
+      <b>4.36</b> and <b>4.43</b>, and a single <code>p = 4.33</code> does hold all four points to
+      within 14 %. But drop the anchor and fit the three shipped hulls against each other and the
+      slope through them is <b>5.04</b> - and at the 10 u crossover those two answers are
+      <b>3.9x</b> apart in <code>max_torque</code>. An exponent that depends on which of your own
+      data you feed it is not measuring anything.</p>
+
+      <p>It is not measuring anything because there is nothing there to measure.
+      <strong><code>I</code> is not a function of <code>r</code>.</strong> It is the second moment of
+      where the mass actually sits, so two hulls with the same arm differ in it by whatever their
+      layouts differ by. The corvette makes the point on its own: its fuselage carries <b>43 %</b>
+      of the ship's mass and contributes <b>16 %</b> of its yaw inertia, because it sits 0.08 u
+      (0.8 m) from the centre of mass; its nose carries <b>16 %</b> of the mass and contributes
+      <b>31 %</b>, because it sits out at the end of the arm. Move one part and <code>I</code> moves
+      without <code>r</code> moving at all. No curve in <code>r</code> can know that.
+      <strong>So no inertia formula belongs in the code</strong>,
+      and none is needed: avian computes <code>I</code> exactly from the real distribution and
+      <code>pd_controller.rs</code> already reads <code>ComputedAngularInertia</code>. The curve on
+      these plates is scaffolding for the drawing, and it comes down before anything is
+      implemented.</p>
 
       <div class="note warn">
-        <span class="note-label">What has to happen before content is retuned</span>
-        <p>Spawn the shipped hulls, read avian's <code>ComputedAngularInertia</code> and the
-        furthest-section radius off each one, and back-solve <code>max_torque</code> from the real
-        pair. It is a spawn-and-print job, not a derivation, and it is cheap.
-        <code>pd_controller.rs</code> already has the component in hand. Retuning content against
-        1501 before that measurement exists would tune the campaign to an arithmetic artefact.</p>
+        <span class="note-label">What still has to happen before the capital end is retuned</span>
+        <p>The shipped fleet is measured. Nothing near the 10 u (100 m) crossover exists to measure,
+        so <code>max_torque</code> is still pinned against a curve extrapolated 3.4x past the
+        largest hull in the game. Build a hull at crossover scale - or accept a torque number chosen by feel and let
+        the crossover land where it lands - before any capital is retuned. Retuning capitals against
+        1501 today would tune them to an arithmetic artefact.</p>
       </div>
 
       <div class="note src">
         <span class="note-label">What the gap does NOT touch</span>
-        <p>Three of the four reference flips are pure structural arithmetic and do not contain
-        <code>I</code> at all: <b>1-1-1 1.55 s</b>, <b>cargoa 1.98 s</b>, <b>mid hull 2.83 s</b>.
-        Those are as settled as <code>load_limit</code> is. Only the <b>capital's 8.14 s</b> moves
-        with the exponent, and it moves the safe way - a heavier inertia law makes a capital slower
-        still, never sharper. So the retune of small and mid content can start now; only the capital
-        end of it waits on the measurement.</p>
+        <p>Every shipped hull is structure-bound, and a structural flip is pure arithmetic with no
+        <code>I</code> in it: <b>1-1-1 1.55 s</b>, <b>racer 1.87 s</b>, <b>cargoa 2.10 s</b>,
+        <b>cargob 2.17 s</b>, and a hypothetical mid hull <b>2.83 s</b>. Those are as settled as
+        <code>load_limit</code> is, and the 8 G calibration stands on them untouched. Only the
+        hypothetical <b>capital's 8.14 s</b> moves with the extrapolation, and it moves the safe way
+        - a heavier inertia makes a capital slower still, never sharper. So the retune of everything
+        that ships can start now; only the capital end waits.</p>
       </div>
     </div>
   </section>
@@ -1171,12 +1291,13 @@ omega_max = sqrt(load_limit / r_m)     <span class="an">sustained turn rate</spa
         <p>Every flip time on this page is the standard <code>2 * sqrt(pi / alpha)</code>, which is
         what the task record uses and what today's 5.00 s was set by. It assumes <code>alpha</code>
         stays available all the way to the halfway point, and the envelope above does not quite allow
-        that: <code>omega</code> saturates first. Integrating the true boundary gives <b>1.83 s</b>
-        for the 1-1-1 against its bang-bang 1.55 s, <b>2.34 s</b> for the cargoa, <b>3.35 s</b> for
-        the mid hull, and <b>8.15 s</b> for the capital - which barely moves, because a
-        torque-limited hull spends its flip under the flat clip rather than out on the arc. The
-        comparison against today's 5.00 s stays like-for-like because both sides are computed the
-        same way.</p>
+        that: <code>omega</code> saturates first, at exactly a quarter turn whatever the hull, after
+        which the ship coasts at <code>omega_max</code>. Integrating that boundary gives
+        <b>1.83 s</b> for the 1-1-1 against its bang-bang 1.55 s, <b>2.21 s</b> for the racer,
+        <b>2.49 s</b> for the cargoa, <b>2.56 s</b> for the cargob, <b>3.35 s</b> for the mid hull,
+        and <b>8.15 s</b> for the capital - which barely moves, because a torque-limited hull spends
+        its flip under the flat clip rather than out on the arc. The comparison against today's
+        5.00 s stays like-for-like because both sides are computed the same way.</p>
       </div>
 
       <div class="note warn">
@@ -1186,7 +1307,7 @@ omega_max = sqrt(load_limit / r_m)     <span class="an">sustained turn rate</spa
         task. A load readout on the HUD, or the hull protesting as the resultant approaches
         <code>load_limit</code>, is what converts a constraint into something a pilot can fly.
         Without it this work can land correct and still feel worse. The build-screen half of the
-        same problem is <b>09.7</b>.</p>
+        same problem is owned elsewhere - <b>09.7</b>.</p>
       </div>
     </div>
   </section>
@@ -1232,12 +1353,15 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
         <span class="note-label">At the provisional calibration this trap is theoretical</span>
         <p>Pin <code>max_torque</code> through the crossover and the <code>load_limit</code> cancels
         out of <code>r_wall</code> entirely: it reduces to <code>I(r_x) / (m_ctl * r_x)</code>, so
-        raising or lowering the G limit does not move it. What does move it is the exponent from
-        <b>06</b>. At the guessed <code>p = 3.5</code> the wall stands at
-        <b>191 u (1913 m)</b> - about 13x the radius of the capital in the table above, so tip
-        mounting is not currently a way to lose. At <code>p = 3</code> it falls to <b>74 u (741 m)</b> and starts
-        to bite; at a solid <code>p = 5</code> it runs out to <b>3292 u (32,922 m)</b> and is pure
-        theory. Which of those is true is the same measurement.</p>
+        raising or lowering the G limit does not move it. What does move it is the curve exponent
+        from <b>06</b> - and because that curve is scaffolding rather than a prediction, so is this
+        wall. At <code>p = 3.5</code> it stands at <b>191 u (1913 m)</b>, about 13x the radius of the
+        hypothetical capital above, so tip mounting is not currently a way to lose. At
+        <code>p = 3</code> it falls to <b>74 u (741 m)</b> and starts to bite; at a solid
+        <code>p = 5</code> it runs out to <b>3292 u (32,922 m)</b> and is pure theory. All three are
+        the same extrapolation past the largest hull that exists. What is <em>not</em>
+        extrapolated is the shape of the argument: mass at radius adds <code>m * d^2</code>, so a
+        wall exists wherever the wheels are bolted, and only its position is unknown.</p>
       </div>
 
       <div class="plate">
@@ -1421,42 +1545,57 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
         <div class="q">
           <div class="q-head">
             <span class="q-no">09.6</span>
-            <span class="q-t">max_torque waits on a measurement</span>
-            <span class="q-state">Open - blocks the capital-end retune</span>
+            <span class="q-t">The shipped hulls are measured; the crossover is still extrapolated</span>
+            <span class="q-state calm">Narrowed 2026-08-19 - blocks the capital end only</span>
           </div>
-          <p>The provisional 1501 is the crossover divided by a guessed inertia law, and the guess is
-          worth an order of magnitude. Spawn the shipped hulls, read
-          <code>ComputedAngularInertia</code> and the furthest-section radius, back-solve. Cheap, and
-          it must land before any capital is retuned. Nothing structure-limited waits on it: the
-          1-1-1, cargoa and mid-hull flip times contain no <code>I</code> at all. Detail is
-          <b>06</b>.</p>
+          <p>Done: the racer, cargoa and cargob were spawned and their
+          <code>ComputedAngularInertia</code>, <code>ComputedCenterOfMass</code> and
+          <code>ComputedMass</code> read back. <code>I</code> is <b>10.86</b>, <b>35.73</b> and
+          <b>48.79</b>; arms are <b>2.18 u (21.8 m)</b>, <b>2.76 u (27.6 m)</b> and
+          <b>2.93 u (29.3 m)</b>. All three are structure-bound with 11x to 38x of torque headroom,
+          so their flip times are settled and the retune of shipped content is unblocked.</p>
+          <p>Not done, and not doable by measurement: the crossover sits at 10 u (100 m) and the
+          largest hull in the game is 2.93 u (29.3 m). Pinning <code>max_torque</code> there means
+          extrapolating a curve 3.4x past every data point, and the curve's exponent is worth 3.9x
+          in the answer depending on which hulls you fit it through. Either build a hull at that
+          scale or set <code>max_torque</code> by feel and let the crossover fall where it falls.
+          Detail is <b>06</b>.</p>
         </div>
 
         <div class="q">
           <div class="q-head">
             <span class="q-no">09.7</span>
-            <span class="q-t">The build screen has to show the number</span>
-            <span class="q-state">Open</span>
+            <span class="q-t">The build-screen readout belongs to the EDITOR</span>
+            <span class="q-state calm">Settled - delegated to epic 20260812-131912</span>
           </div>
-          <p>A big enough hull genuinely cannot turn. That is correct and it stays, but it is a pit if
-          a player only finds out by flying it. While sections are being placed the build screen has
-          to show the resulting turn acceleration <em>and</em> which limit binds -
-          "0.03 rad/s2, torque-limited" - so that fitting controllers is a visible decision instead of
-          a hidden requirement. The frame-rate lesson from <code>20260819-012130</code> applies
-          exactly: a correct number nobody can see reads as the game being broken.</p>
+          <p>Not an open question and never this task's to answer. The editor epic recorded it on
+          2026-08-19 under <em>"the engineer's NOVA OS"</em>: the build screen owes an engineer's
+          panel - turn rate, torque, which limit binds, mass, thrust, power - the way Factorio puts
+          craft time and power draw on the machine itself. The attitude readout is that panel's
+          first tenant, and it is designed there, with the rest of the panel, rather than bolted on
+          here.</p>
+          <p>What that delegation does <em>not</em> do is make the requirement go away.
+          <strong>This work must not land in a release where nothing shows the number.</strong> A
+          big enough hull genuinely cannot turn; fitting controllers is the answer, and it is only a
+          decision if a player can see the "0.03 rad/s2, torque-limited" that provokes it. Ship the
+          two knobs into a build screen that is still silent and the frame-rate lesson from
+          <code>20260819-012130</code> repeats exactly - a correct number nobody can see reads as
+          the game being broken, which is the report that opened this task. So: sequenced behind the
+          panel, not blocked on it, and both in the same release.</p>
         </div>
 
         <div class="q">
           <div class="q-head">
             <span class="q-no">09.8</span>
-            <span class="q-t">The retune is the expensive half</span>
+            <span class="q-t">The retune is the expensive half - and the only thing still genuinely open</span>
             <span class="q-state">Open - size it first</span>
           </div>
           <p>Every authored ship's handling changes, and the direction is not the same at both ends.
-          Small ships <strong>sharpen by up to 3.2x</strong> - a 1-1-1 goes from 5.00 s to 1.55 s,
-          the cargoa corvette to 1.98 s - while a capital gets <strong>1.6x slower</strong>, 5.00 s
-          out to 8.14 s. Both halves are intended: a capital should be a barge, and that second half
-          is the retune cost.</p>
+          Everything that ships <strong>sharpens by 2.3x to 3.2x</strong> - a 1-1-1 goes from 5.00 s
+          to 1.55 s, the racer to 1.87 s, the cargoa corvette to 2.10 s, the cargob to 2.17 s -
+          while a hypothetical capital gets <strong>1.6x slower</strong>, 5.00 s out to 8.14 s. Both
+          halves are intended: a capital should be a barge, and that second half is the retune
+          cost.</p>
           <p>The surface is small where it is authored - 5 hulls in
           <code>assets/base/ships/base.content.ron</code> and 4 controller sections carrying
           <code>max_angular_acceleration: 0.5</code>, generated from <code>nova_authoring</code>
@@ -1474,9 +1613,10 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
         <span class="note-label">Done when</span>
         <p>The model is recorded before code moves. Measured turn rates for a 1-1-1, a mid hull and
         a capital, before and after, <em>with the owner flying them</em> - their verdict decides,
-        not the arithmetic on this page. The build screen reports the ceiling and the binding limit
-        while a hull is being assembled. Shipped content is retuned, or the divergence is listed and
-        scheduled.</p>
+        not the arithmetic on this page. Shipped content is retuned, or the divergence is listed and
+        scheduled. And the release this lands in shows the ceiling and the binding limit somewhere a
+        player building a hull can read them - built by the editor epic, not here, but not shipped
+        without.</p>
       </div>
     </div>
   </section>
@@ -1525,25 +1665,52 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
   var state = { rUnits: 1.5, gLimit: 8.0, rxUnits: 10.0, p: 3.5, crUnits: 60.0, dfrac: 0.10 };
 
   function loadLimit()          { return state.gLimit * G; }                                  // m/s2
+  // The CURVE, not a law. It exists to give plate 1 a second line and to carry the
+  // crossover extrapolation; every hull that actually ships uses its MEASURED I
+  // instead (see MEASURED below and section 06).
   function inertia(rUnits)      { return I_REF * Math.pow(rUnits / R_REF_U, state.p); }       // t u2
   // max_torque is PROVISIONAL: it is whatever puts the crossover at rxUnits given the
-  // guessed inertia law. Section 06 is why it is not a settled number.
+  // curve. No shipped hull reaches the crossover, so nothing measures it.
   function maxTorque()          { return inertia(state.rxUnits) * alphaStruct(state.rxUnits); }
   function alphaStruct(rUnits)  { return loadLimit() / metres(rUnits); }
-  function alphaTorque(rUnits)  { return maxTorque() / inertia(rUnits); }   // one controller
-  function alphaCeil(rUnits)    { return Math.min(alphaStruct(rUnits), alphaTorque(rUnits)); }
+  function alphaTorque(rUnits, IOverride) {
+    return maxTorque() / (IOverride === undefined ? inertia(rUnits) : IOverride); // one controller
+  }
+  function alphaCeil(rUnits, IOverride) {
+    return Math.min(alphaStruct(rUnits), alphaTorque(rUnits, IOverride));
+  }
   function omegaMax(rUnits)     { return Math.sqrt(loadLimit() / metres(rUnits)); }
   function flip(a)              { return 2 * Math.sqrt(Math.PI / a); }
-  // M ~ r^(p-2), so N ~ r^(p-2) too: p = 4 is a shell, p = 5 is solid.
+  // Only ever used for the hypothetical hulls; the shipped ones carry a real count.
   function sections(rUnits)     { return N_REF * Math.pow(rUnits / R_REF_U, state.p - 2); }
   function crossover()          { return state.rxUnits; }   // pinned by construction
 
-  var SHIPS = [
-    { name: "1-1-1 minimal",   r: 1.5 },
-    { name: "cargoa corvette", r: 2.45 },
-    { name: "Mid hull",        r: 5.0 },
-    { name: "Capital",         r: 15.0 }
+  /* MEASURED, 2026-08-19. Spawned under one RigidBody::Dynamic with each section's
+     authored Cuboid collider at ColliderDensity(1.0), then read back from avian:
+     ComputedMass, ComputedCenterOfMass, ComputedAngularInertia (I is the yaw
+     component of the tensor, about the COM). `r` is the world-unit distance from
+     that COM to the outer face of the furthest section - the same convention the
+     1-1-1 anchor uses, where it gives exactly 1.5 u. */
+  var MEASURED = [
+    { name: "1-1-1 minimal",   r: 1.5,    I: 2.5,     m: 3.0,     n: 3, anchor: true },
+    { name: "racer yacht",     r: 2.1783, I: 10.8609, m: 8.2835,  n: 7 },
+    { name: "cargoa corvette", r: 2.7613, I: 35.7346, m: 15.8554, n: 9 },
+    { name: "cargob hauler",   r: 2.9331, I: 48.7936, m: 18.9540, n: 9 }
   ];
+
+  // Reference hulls. The first four ship and carry measured I; the last two are
+  // HYPOTHETICAL and fall back to the curve, which is exactly why 06 is open.
+  var SHIPS = [
+    { name: "1-1-1 minimal",   r: 1.5,    I: 2.5,     n: 3 },
+    { name: "racer yacht",     r: 2.1783, I: 10.8609, n: 7 },
+    { name: "cargoa corvette", r: 2.7613, I: 35.7346, n: 9 },
+    { name: "cargob hauler",   r: 2.9331, I: 48.7936, n: 9 },
+    { name: "Mid hull",        r: 5.0,    hypo: true },
+    { name: "Capital",         r: 15.0,   hypo: true }
+  ];
+  // The subset plate 1 and plate 3 name directly: four hulls close together on a
+  // log axis cannot all carry a two-line label without colliding.
+  var PLOTTED = [SHIPS[0], SHIPS[2], SHIPS[4], SHIPS[5]];
 
   /* ---------------------------------------------------------------- *
    * CANVAS PLUMBING
@@ -1721,12 +1888,12 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
       }
     }
     // two tick rows: world units, then the same ticks in metres
-    var xticks = [1, 1.5, 2, 2.45, 3, 5, 7, 10, 15, 20, 30];
+    var xticks = [1, 1.5, 2, 2.76, 3, 5, 7, 10, 15, 20, 30];
     var narrow = pw < 380;
     for (k = 0; k < xticks.length; k++) {
       var xv = xticks[k];
       if (xv < X0 || xv > X1) continue;
-      if (narrow && (xv === 1.5 || xv === 2.45 || xv === 7)) continue;
+      if (narrow && (xv === 1.5 || xv === 2.76 || xv === 7)) continue;
       line(ctx, px(xv), m.t, px(xv), m.t + ph, C.gridm, 1);
       label(ctx, String(xv), px(xv), m.t + ph + 14, C.ink3, 10, "center");
       label(ctx, fmt(metres(xv), 0), px(xv), m.t + ph + 27, C.ink3, 9, "center");
@@ -1788,13 +1955,14 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
     }
 
     // named ships -- staggered, because the fighter and the corvette sit close
-    // together on a log axis and their dual-unit sublines would otherwise collide
-    for (i = 0; i < SHIPS.length; i++) {
-      var srU = SHIPS[i].r, sa = alphaCeil(srU);
+    // together on a log axis and their dual-unit sublines would otherwise collide.
+    // A shipped hull is placed at its MEASURED I, never at the curve's.
+    for (i = 0; i < PLOTTED.length; i++) {
+      var srU = PLOTTED[i].r, sa = alphaCeil(srU, PLOTTED[i].I);
       if (srU < X0 || srU > X1 || sa < Y0 || sa > Y1) continue;
       var yName = py(sa) + 17 + (i % 2) * 27;
       dot(ctx, px(srU), py(sa), 3.6, C.ink, C.panel);
-      chip(ctx, SHIPS[i].name, px(srU) + 8, yName, C.ink2, 10, "left");
+      chip(ctx, PLOTTED[i].name, px(srU) + 8, yName, C.ink2, 10, "left");
       chip(ctx, duTight(srU), px(srU) + 8, yName + 12, C.ink3, 9, "left");
     }
 
@@ -1996,8 +2164,9 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
     label(ctx, "ALPHA  (rad/s2)", 0, 0, C.ink3, 10, "center");
     ctx.restore();
 
-    function boundary(rUnits) {
-      var aS = alphaStruct(rUnits), aT = alphaTorque(rUnits), wM = Math.sqrt(aS), pts = [], n = 160;
+    function boundary(rUnits, IOverride) {
+      var aS = alphaStruct(rUnits), aT = alphaTorque(rUnits, IOverride),
+          wM = Math.sqrt(aS), pts = [], n = 160;
       for (var j = 0; j <= n; j++) {
         var w = wM * j / n;
         var s = aS * aS - Math.pow(w, 4);
@@ -2008,14 +2177,14 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
     }
 
     // ghost envelopes for the named hulls
-    for (i = 0; i < SHIPS.length; i++) {
-      if (Math.abs(SHIPS[i].r - state.rUnits) < 0.001) continue;
-      var gb = boundary(SHIPS[i].r);
+    for (i = 0; i < PLOTTED.length; i++) {
+      if (Math.abs(PLOTTED[i].r - state.rUnits) < 0.001) continue;
+      var gb = boundary(PLOTTED[i].r, PLOTTED[i].I);
       var gp = gb.pts.slice();
       gp.push([px(gb.wM), py(0)]);
       poly(ctx, gp, C.rule2, 1, [3, 3]);
       var lbx = px(gb.wM), lby = py(0);
-      label(ctx, SHIPS[i].name + "  " + duTight(SHIPS[i].r), lbx - 4, lby - 6 - (i % 2) * 12,
+      label(ctx, PLOTTED[i].name + "  " + duTight(PLOTTED[i].r), lbx - 4, lby - 6 - (i % 2) * 12,
         C.ink3, 9, "right");
     }
 
@@ -2312,12 +2481,11 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
       elMprov = el("m-prov"),
       elMspread = el("m-spread"),
       elMspread2 = el("m-spread2"),
-      elMcargoN = el("m-cargo-n"),
-      elMcargoI = el("m-cargo-i"),
-      elMcargoX = el("m-cargo-x"),
+      elHead = el("v-head"),
       tbody = el("tbl-body"),
       tknobs = el("tbl-knobs"),
-      tsens = el("tbl-sens");
+      tsens = el("tbl-sens"),
+      tmeas = el("tbl-meas");
 
   function refreshReadouts() {
     var rU = state.rUnits, s = alphaStruct(rU), t = alphaTorque(rU), a = Math.min(s, t);
@@ -2328,7 +2496,7 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
     elVrx.textContent = du(state.rxUnits, 1);
     elHrx.textContent = "pins max_torque at " + sig(maxTorque());
     elVp.textContent = fmt(state.p, 2);
-    elHp.textContent = "I ~ r^p; 3.5 is a GUESS, shell 4, solid 5";
+    elHp.textContent = "shipped hulls fit 4.33; the curve predicts NO real ship";
     elTorque.textContent = sig(maxTorque());
     elTorqueX.textContent = Math.abs(maxTorque() - 1501) / 1501 < 0.005
       ? "t u2/s2 - provisional, NOT measured"
@@ -2347,10 +2515,11 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
     elFlipX.textContent = fmt(CUR_FLIP / flip(a), 2) + "x today's 5.00 s on every hull";
     elOmega.textContent = fmt(omegaMax(rU) * DEG, 1);
     elN.textContent = String(Math.round(sections(rU)));
-    elInertia.textContent = "I = " + sig(inertia(rU)) + " t u2";
+    elInertia.textContent = "I = " + sig(inertia(rU)) + " t u2 (curve)";
+    elHead.textContent = sig(t / s);
 
     // 01: the same controller on three ships, and the headroom the fighter has
-    var head = alphaTorque(R_REF_U) / alphaStruct(R_REF_U);
+    var head = alphaTorque(R_REF_U, I_REF) / alphaStruct(R_REF_U);
     elKhead.textContent = fmt(head, 0);
     elKhead2.textContent = fmt(head, 0);
     elKwall.textContent = fmt(ctlWall(), 1);
@@ -2358,15 +2527,14 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
     elKiratio.textContent = Math.round(inertia(15) / inertia(R_REF_U)).toLocaleString("en");
     elSize.textContent = fmt(alphaStruct(R_REF_U) / alphaStruct(15), 1);
 
-    var knobs = [
-      { name: "1-1-1 fighter", r: R_REF_U },
-      { name: "cargoa corvette", r: 2.45 },
-      { name: "Capital", r: 15 }
-    ], kh = "", j, krU, ks, kt;
+    var knobs = [SHIPS[0], SHIPS[2], SHIPS[5]], kh = "", j, krU, ks, kt, kI;
     for (j = 0; j < knobs.length; j++) {
-      krU = knobs[j].r; ks = alphaStruct(krU); kt = alphaTorque(krU);
+      krU = knobs[j].r;
+      kI = knobs[j].I === undefined ? inertia(krU) : knobs[j].I;
+      ks = alphaStruct(krU); kt = alphaTorque(krU, kI);
       kh += "<tr><td>" + knobs[j].name + "</td>"
-        + '<td class="num">' + sig(inertia(krU)) + "</td>"
+        + '<td class="' + (knobs[j].I === undefined ? "" : "num") + '">' + sig(kI)
+        + (knobs[j].I === undefined ? " curve" : "") + "</td>"
         + '<td class="num">' + fmt(krU, 2) + "</td>"
         + '<td class="num">' + fmt(metres(krU), 1) + "</td>"
         + '<td class="bind-t">' + sig(kt) + "</td>"
@@ -2376,6 +2544,7 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
     }
     tknobs.innerHTML = kh;
 
+    refreshMeasured();
     refreshSensitivity();
     refreshCtlReadouts();
 
@@ -2387,15 +2556,19 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
 
     var html = "";
     for (var i = 0; i < rows.length; i++) {
-      var rrU = rows[i].r, ss = alphaStruct(rrU), tt = alphaTorque(rrU), aa = Math.min(ss, tt);
+      var rrU = rows[i].r;
+      // A shipped hull uses its measured I; a hypothetical one falls back to the
+      // curve, and says so rather than borrowing the measured hulls' authority.
+      var II = rows[i].I === undefined ? inertia(rrU) : rows[i].I;
+      var ss = alphaStruct(rrU), tt = alphaTorque(rrU, II), aa = Math.min(ss, tt);
       var sb = ss <= tt;
       var live = rows[i].live || Math.abs(rrU - rU) < 0.001;
       var ratio = CUR_FLIP / flip(aa);
       html += '<tr class="' + (live ? "live" : "") + '">'
-        + "<td>" + rows[i].name + "</td>"
+        + "<td>" + rows[i].name + (rows[i].I === undefined ? " (curve)" : "") + "</td>"
         + '<td class="num">' + fmt(rrU, 2) + "</td>"
         + '<td class="num">' + fmt(metres(rrU), 1) + "</td>"
-        + "<td>" + Math.round(sections(rrU)) + "</td>"
+        + '<td class="' + (rows[i].I === undefined ? "" : "num") + '">' + sig(II) + "</td>"
         + '<td class="bind-s">' + sig(ss) + "</td>"
         + '<td class="bind-t">' + sig(tt) + "</td>"
         + '<td class="' + (sb ? "bind-s" : "bind-t") + '">' + (sb ? "structure" : "torque") + "</td>"
@@ -2408,23 +2581,53 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
     tbody.innerHTML = html;
   }
 
-  /* 06: what the unmeasured exponent costs. Recomputed at the console's
-     load_limit and crossover, with p swept independently of the p slider. */
+  /* 06: the measured hulls against the curve at whatever p the console is on.
+     The left half of this table is a READING and never moves; only the two
+     curve columns respond to the slider, which is the point it is making. */
+  function refreshMeasured() {
+    var html = "", i, h, curve, fitP, a;
+    for (i = 0; i < MEASURED.length; i++) {
+      h = MEASURED[i];
+      curve = inertia(h.r);
+      fitP = h.anchor ? null : Math.log(h.I / I_REF) / Math.log(h.r / R_REF_U);
+      a = Math.min(alphaStruct(h.r), alphaTorque(h.r, h.I));
+      html += "<tr>"
+        + "<td>" + h.name + "</td>"
+        + '<td class="num">' + h.n + "</td>"
+        + '<td class="num">' + fmt(h.m, 2) + "</td>"
+        + '<td class="num">' + fmt(h.I, 2) + "</td>"
+        + "<td>" + duTight(h.r, 2) + "</td>"
+        + "<td>" + fmt(curve, 2) + "</td>"
+        + '<td class="' + (h.I / curve > 1.05 ? "bind-s" : (h.I / curve < 0.95 ? "bind-t" : "")) + '">'
+        + fmt(h.I / curve, 2) + "x</td>"
+        + "<td>" + (fitP === null ? "anchor" : fmt(fitP, 2)) + "</td>"
+        + '<td class="num">' + fmt(flip(a), 2) + "</td>"
+        + "</tr>";
+    }
+    tmeas.innerHTML = html;
+  }
+
+  /* 06: what the extrapolation past the shipped fleet costs. Recomputed at the
+     console's load_limit and crossover, with p swept independently of the slider.
+     4.33 is the least-squares fit through the 1-1-1 anchor and the three measured
+     hulls; 5.04 is the slope through the three measured hulls alone. That the two
+     disagree at all is the finding. */
   function refreshSensitivity() {
-    var pSaved = state.p, rows = [3.0, 3.5, 4.0, 4.5, 5.0], html = "", i;
+    var pSaved = state.p, rows = [3.0, 3.5, 4.0, 4.33, 4.5, 5.0, 5.04], html = "", i;
     function at(p) {
       state.p = p;
       var T = maxTorque(), cap = Math.min(alphaStruct(15), alphaTorque(15));
       return { T: T, capFlip: flip(cap), wall: ctlWall(), i10: inertia(10), n15: sections(15) };
     }
     var base = at(3.5).T;
-    var mass = { "3": "r^1 - a line", "3.5": "r^1.5 - the guess", "4": "r^2 - hollow shell",
-                 "4.5": "r^2.5", "5": "r^3 - solid" };
+    var note = { "3": "a line", "3.5": "the old guess - a floor", "4": "hollow shell",
+                 "4.33": "FIT through the shipped fleet", "4.5": "-", "5": "solid",
+                 "5.04": "FIT between shipped hulls only" };
     for (i = 0; i < rows.length; i++) {
       var p = rows[i], v = at(p), key = String(p);
       html += '<tr class="' + (Math.abs(pSaved - p) < 0.026 ? "live" : "") + '">'
-        + "<td>p = " + fmt(p, 1) + "</td>"
-        + "<td>M ~ " + (mass[key] || "r^" + fmt(p - 2, 1)) + "</td>"
+        + "<td>p = " + fmt(p, 2) + "</td>"
+        + "<td>" + (note[key] || "-") + "</td>"
         + '<td class="num">' + sig(v.i10) + "</td>"
         + '<td class="num">' + sig(v.T) + "</td>"
         + '<td class="num">' + fmt(v.T / base, 2) + "x</td>"
@@ -2438,9 +2641,6 @@ n large:          alpha_torque -&gt; max_torque / ( m_ctl * d^2 )    <span class
     elMprov.textContent = sig(t35);
     elMspread.textContent = fmt(t50 / t40, 1);
     elMspread2.textContent = fmt(t50 / t35, 0);
-    elMcargoN.textContent = String(Math.round(sections(2.45)));
-    elMcargoI.textContent = sig(inertia(2.45));
-    elMcargoX.textContent = fmt(85 / inertia(2.45), 1);
   }
 
   /* plate 4 readouts */
