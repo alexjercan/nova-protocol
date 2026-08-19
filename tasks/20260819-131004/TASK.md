@@ -1,8 +1,8 @@
 # Decide where a shared id lives, then stop re-typing them
 
-- STATUS: OPEN
-- PRIORITY: 68
-- TAGS: v0.11.0,architecture,spike
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,done
 
 Epic: `20260818-220812`. Found by the design audit; evidence and the full site
 list are in `tasks/20260818-220812/AUDIT.md`.
