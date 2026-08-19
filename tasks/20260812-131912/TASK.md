@@ -126,3 +126,32 @@ touch can operate the web gameplay path.
 - Full correctness probe, affected content lint, Rust checks, and web CI pass.
 - Editor, modding, scenario, input, and screenshot documentation ships with the
   behavior it describes.
+
+## Added 2026-08-19 - the engineer's NOVA OS
+
+Owner, while settling the attitude model (`20260819-140314`): the editor should
+carry a NOVA OS of its own, aimed at the ENGINEER rather than the pilot. Graphs,
+derived numbers and cheat sheets for the ship being built - time to turn, torque,
+maximum acceleration, and the rest - in the spirit of the design document written
+for the attitude model.
+
+The reference is Factorio: an assembly machine shows its craft time, its
+production rate and its power draw ON the machine, so the consequence of a choice
+is visible at the moment the choice is made. Nothing in the editor does that
+today; a ship's handling is discovered by flying it.
+
+This is the same surface, and the same reader, as the build-screen readout that
+`20260819-140314` says its model REQUIRES:
+
+> A big enough ship genuinely cannot turn. That is correct physics and it must
+> stay, but it is a trap if a player finds out by flying it.
+
+The attitude model computes `alpha_ceiling` and knows which of the two limits
+binds. A readout saying "0.03 rad/s2, torque-limited" turns that from arbitrary
+sluggishness into a design constraint the player can work against - add
+controllers, move them inboard, or accept the turn rate. Without it the model is
+correct and reads as broken.
+
+Scope note: this is a SURFACE, not one number. The attitude readout is its first
+tenant because that task needs it, but mass, thrust, power and weapon coverage
+belong to the same panel and should not each invent their own.

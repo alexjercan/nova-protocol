@@ -97,6 +97,17 @@ the whole size curve - raise it and every ship sharpens, lower it and everything
 commits harder - while the RATIOS between ship sizes stay fixed by geometry
 whatever it is set to. One number to playtest, and the first one to tune.
 
+### The readout is the EDITOR's job, not this task's
+
+Recorded 2026-08-19 in the editor epic `20260812-131912`, under "the engineer's
+NOVA OS". The build screen owes an engineer's panel - turn rate, torque, which
+limit binds, mass, thrust, power - the way Factorio puts craft time and power
+draw on the machine itself. The attitude readout is that panel's first tenant.
+
+This task therefore does NOT build the readout. It must not land in a release
+where nothing shows the number, because a correct limit nobody can see reads as
+arbitrary sluggishness - which is the report that opened this task.
+
 ### The pit this design digs, and the UI that fills it
 
 A big enough ship genuinely cannot turn. That is correct physics and it must
