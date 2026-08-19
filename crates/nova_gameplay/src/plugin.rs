@@ -91,7 +91,6 @@ impl Plugin for NovaGameplayPlugin {
         // Other helper plugins
         app.add_plugins(crate::lifetime::TempEntityPlugin);
         app.add_plugins(crate::lifetime::DespawnEntityPlugin);
-        app.add_plugins(crate::mesh::prelude::ExplodeMeshPlugin);
         // UI Plugins. The menu and editor want the same app-global UI wiring;
         // whoever gets there first adds it.
         if self.render && !app.is_plugin_added::<nova_ui::NovaUiPlugin>() {

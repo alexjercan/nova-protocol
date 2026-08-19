@@ -7,10 +7,6 @@
 //! was never sitting there as an object. Whoever cut the piece free hands it
 //! here with a mesh, a place, and the velocity it inherited.
 //!
-//! [`chunk_collider`] has a second caller, the death-fragment path in
-//! [`explode`](super::explode), because "what collider does a loose piece of
-//! art get" should have one answer.
-//!
 //! # Born inside the body it left
 //!
 //! A chunk starts exactly where it was when it was part of the parent, which
@@ -21,6 +17,9 @@
 //! So a chunk spends its first [`CHUNK_GRACE_SECS`] as a KINEMATIC body with no
 //! collider - it drifts out under the velocity it was given, touching nothing -
 //! and only then becomes dynamic and grows its collider. By then it is clear.
+//! [`ChunkGrace`] is public for the same reason: a section that detaches when it
+//! dies ([`explode`](super::explode)) is born inside the ship it was bolted to
+//! and needs exactly this window.
 //!
 //! This matters most for SHIPS, whose sections carry convex colliders with a
 //! real inside. A chunk only ever comes off a rock that has been carved, and a
@@ -39,12 +38,12 @@ use bevy::prelude::*;
 
 use crate::lifetime::TempEntity;
 
-/// `CarvedChunkMarker`, `CarvedChunkPlugin`, `ChunkSpawn`, `chunk_collider` and
-/// `spawn_carved_chunk`.
+/// `CarvedChunkMarker`, `CarvedChunkPlugin`, `ChunkGrace`, `ChunkSpawn`,
+/// `chunk_collider` and `spawn_carved_chunk`.
 pub mod prelude {
     pub use super::{
-        chunk_collider, spawn_carved_chunk, CarvedChunkMarker, CarvedChunkPlugin, ChunkSpawn,
-        CHUNK_MIN_VOLUME,
+        chunk_collider, spawn_carved_chunk, CarvedChunkMarker, CarvedChunkPlugin, ChunkGrace,
+        ChunkSpawn, CHUNK_MIN_VOLUME,
     };
 }
 
@@ -110,14 +109,28 @@ const HULL_POINT_CAP: usize = 64;
 #[reflect(Component)]
 pub struct CarvedChunkMarker;
 
-/// A chunk still drifting clear of the body it came off, and the collider it
+/// A piece still drifting clear of the body it came off, and the collider it
 /// gets when it has.
+///
+/// Public because a carved chunk is not the only thing born inside its parent -
+/// see the module docs.
 #[derive(Component, Clone, Debug)]
-struct ChunkGrace {
+pub struct ChunkGrace {
     /// The collider to grow once the grace runs out.
     collider: Collider,
     /// Seconds left of it.
     remaining: f32,
+}
+
+impl ChunkGrace {
+    /// The window a piece born inside its parent drifts through before it
+    /// becomes physical and grows `collider`.
+    pub fn new(collider: Collider) -> Self {
+        Self {
+            collider,
+            remaining: CHUNK_GRACE_SECS,
+        }
+    }
 }
 
 /// Everything a caller has to decide about a chunk. The rest - lifetime, the
@@ -166,10 +179,7 @@ pub fn spawn_carved_chunk(commands: &mut Commands, spawn: ChunkSpawn) -> Entity 
             RigidBody::Kinematic,
             LinearVelocity(spawn.velocity),
             AngularVelocity(spawn.spin),
-            ChunkGrace {
-                collider: spawn.collider,
-                remaining: CHUNK_GRACE_SECS,
-            },
+            ChunkGrace::new(spawn.collider),
             TempEntity(CHUNK_LIFETIME_SECS),
         ))
         .id()

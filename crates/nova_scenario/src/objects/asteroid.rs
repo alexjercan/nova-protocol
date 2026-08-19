@@ -375,7 +375,6 @@ fn insert_asteroid_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<AsteroidSurfaceMaterial>>,
-    mut plain: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
     q_render: Query<(&AsteroidRenderMesh, &ChildOf)>,
     q_asteroid: Query<&AsteroidTexture, With<AsteroidMarker>>,
@@ -408,22 +407,12 @@ fn insert_asteroid_render(
     let image = texture.resolve(&asset_server);
     let material = AsteroidSurfaceMaterial {
         base: StandardMaterial::default(),
-        extension: AsteroidSurfaceMaterialExt::new(image.clone()),
+        extension: AsteroidSurfaceMaterialExt::new(image),
     };
 
     commands.entity(entity).insert((
         Mesh3d(meshes.add(mesh)),
         MeshMaterial3d(materials.add(material)),
-        // What this rock's pieces are drawn with when it breaks. The triplanar
-        // material above is NOT it: that shader samples by the body's own local
-        // position, and a fragment is a new body with a new origin, so it would
-        // draw the rock's grain from the wrong place. A plainly-mapped copy of
-        // the same texture keeps the pieces looking like the rock they came off
-        // without pretending they are still part of it.
-        FragmentMaterial(plain.add(StandardMaterial {
-            base_color_texture: Some(image),
-            ..default()
-        })),
     ));
 }
 

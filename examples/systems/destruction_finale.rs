@@ -1,4 +1,4 @@
-//! destruction_finale: every destructible body breaks into its OWN art.
+//! destruction_finale: every destructible body leaves its OWN art behind.
 //!
 //! One player ship carrying four section kinds - a controller, a reinforced
 //! hull, a thruster and a turret - plus an asteroid off the beam. The script
@@ -9,37 +9,41 @@
 //! a section holds its health, collider and markers on a gameplay root while
 //! its art hangs off `SectionRenderOf` descendants under a gltf
 //! `WorldAssetRoot` - so every section in the game fell through to a burst of
-//! eight generic gray cubes, whatever art it was wearing. The asteroid, whose
-//! mesh happens to sit on the entity that dies, was the only body that ever
-//! fragmented properly. The cubes are gone now; an empty walk emits nothing at
-//! all, which is why this range is the thing that has to catch one.
+//! eight generic gray cubes, whatever art it was wearing. The cubes are gone,
+//! and so is the slicer that replaced them: a dead section DETACHES, keeping
+//! the art and the collider it already had. A death that leaves nothing at all
+//! is silent, which is why this range is the thing that has to catch one.
 //!
-//! SIX named invariants:
+//! SEVEN named invariants:
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: the turret breaks into its own art` | a multi-part gltf section fragments |
+//! | 1 | `outcome: the turret breaks into its own art` | a multi-part gltf section detaches |
 //! | 2 | `outcome: the thruster breaks into its own art` | and so does a single-mesh one |
 //! | 3 | `outcome: the hull breaks into its own art` | and so does the plainest one |
 //! | 4 | `outcome: ordinary carving leaves a viable asteroid` | a rock has geometry, not health |
 //! | 5 | `outcome: the asteroid exhausts its own geometry` | its field, not a slicer, ends it |
-//! | 6 | `outcome: no death spends more than its budget` | the budget is per BODY, not per mesh |
-//! | 7 | `outcome: no death came apart into nothing` | every shipped body has art to break into |
+//! | 6 | `outcome: one death leaves one body` | a section does not fragment |
+//! | 7 | `outcome: no death came apart into nothing` | every shipped body detaches as something |
 //!
 //! Invariant 7 is the whole-run claim. There is no fallback any more: a body
-//! whose geometry walk comes back empty emits NOTHING and logs it. That makes
+//! that cannot become a body of its own leaves NOTHING and logs it. That makes
 //! this range the only thing standing between a silent failure and a shipped
-//! build, so a single empty walk anywhere in the run is a failure.
+//! build, so a single silent death anywhere in the run is a failure.
 //!
-//! The turret goes first on purpose. It is the only section here that draws
-//! with SEVERAL meshes (yaw, pitch and barrel joints), so it is the one that
-//! proves both that descendants are reached at all and that a body with many
-//! parts does not out-spend a body with one.
+//! Invariant 6 is what "sections do not fragment" means as a number. A turret
+//! draws with three joint meshes and a hull with one; both have to leave
+//! exactly one body, because the whole point of detaching is that the piece
+//! count no longer follows the art.
+//!
+//! The turret goes first on purpose. It is the only section here whose art is
+//! several levels below the gameplay entity, so it is the one that proves the
+//! art travels with the wreck at all.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example destruction_finale --features debug
-//! # look for: `finale probe: the turret broke into 4 pieces of its own art`,
+//! # look for: `finale probe: the turret left 1 body wearing its own art`,
 //! #           `outcome: no death came apart into nothing`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -90,39 +94,46 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_rig);
     #[cfg(feature = "debug")]
     {
-        app.add_systems(Update, (tally_debris, tally_carved_chunks, tally_shards));
-        app.add_observer(watch_body_fragments);
+        app.init_resource::<PendingDeaths>();
+        app.add_systems(
+            Update,
+            (tally_carved_chunks, tally_shards, settle_body_deaths),
+        );
+        app.add_observer(tally_detached_pieces);
+        app.add_observer(watch_body_deaths);
     }
 }
 
 /// What each death left on the field, counted as it lands.
 ///
-/// Cumulative and `Added`-driven rather than a live census, because debris is
+/// Cumulative and `Added`-driven rather than a live census, because wreckage is
 /// `TempEntity` and a beat is longer than some of it lives - a census would
-/// call debris that has already expired "no debris at all", which is the exact
+/// call a piece that has already expired "no piece at all", which is the exact
 /// failure this range exists to catch.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct FinaleProbe {
-    /// Real mesh fragments seen since the run started.
-    fragments: usize,
-    /// Deaths whose geometry walk came back EMPTY since the run started.
+    /// Detached bodies seen since the run started.
+    pieces: usize,
+    /// Deaths that left NOTHING since the run started.
     ///
-    /// Counted at the body rather than on the field, because an empty walk
-    /// leaves nothing on the field to count. That is the whole difficulty: the
-    /// failure this range guards against is now silent.
-    empty: usize,
+    /// Counted at the body rather than on the field, because a death that
+    /// leaves nothing leaves nothing to count. That is the whole difficulty:
+    /// the failure this range guards against is silent.
+    silent: usize,
     /// The two counts as of the current beat's start, so a beat reads its own
     /// death rather than the whole run's.
     mark: (usize, usize),
-    /// The most fragments ANY single body produced.
+    /// The most bodies ANY single death left behind.
     ///
-    /// Measured at the body rather than by counting debris in a window,
+    /// Measured at the death rather than by counting wreckage in a window,
     /// because deaths overlap: killing three of four sections drops the ship
     /// under its structural-collapse threshold, so the last section's window
     /// also contains whatever the collapse took with it. A window count would
-    /// blame one body for two bodies' debris.
-    most_from_one_body: usize,
+    /// blame one death for two deaths' wreckage.
+    most_from_one_death: usize,
+    /// How many bodies each death left, keyed by the body that died.
+    left_by: HashMap<Entity, usize>,
     /// Bodies a carve SEVERED: real geometry that came away, never decoration.
     carved_chunks: usize,
     /// Shards a carve threw, which is what every carve throws now.
@@ -135,18 +146,12 @@ struct FinaleProbe {
 impl FinaleProbe {
     /// What has landed since the last [`FinaleProbe::mark`].
     fn since_mark(&self) -> (usize, usize) {
-        (self.fragments - self.mark.0, self.empty - self.mark.1)
+        (self.pieces - self.mark.0, self.silent - self.mark.1)
     }
 }
 
-/// Count every piece of debris the frame it appears.
-#[cfg(feature = "debug")]
-fn tally_debris(q_new: Query<(), Added<MeshFragmentMarker>>, mut probe: ResMut<FinaleProbe>) {
-    probe.fragments += q_new.iter().count();
-}
-
-/// Count chunks separately from random-plane finale fragments. A rock ends by
-/// exhausting its field, so seeing it enter `ExplodeFragments` is a failure.
+/// Count chunks separately from detached bodies. A rock ends by exhausting its
+/// field, so seeing it leave a detached body is a failure.
 #[cfg(feature = "debug")]
 fn tally_carved_chunks(q_new: Query<(), Added<CarvedChunkMarker>>, mut probe: ResMut<FinaleProbe>) {
     probe.carved_chunks += q_new.iter().count();
@@ -158,23 +163,69 @@ fn tally_shards(q_new: Query<(), Added<CarveShardMarker>>, mut probe: ResMut<Fin
     probe.shards += q_new.iter().count();
 }
 
-/// Record what ONE body's geometry walk produced, at the body, before any of it
-/// reaches the field. This is the honest measurement of the per-body budget,
-/// and the only place an EMPTY walk can be seen at all - it leaves nothing on
-/// the field to find.
+/// Attribute every detached body to the death that left it.
+///
+/// By the piece's own record of what it was, not by a count over a window:
+/// deaths overlap, so a window would blame one section for the collapse that
+/// followed it.
 #[cfg(feature = "debug")]
-fn watch_body_fragments(
-    add: On<Add, ExplodeFragments>,
-    q_body: Query<&ExplodeFragments>,
+fn tally_detached_pieces(
+    add: On<Add, DetachedPieceMarker>,
+    q_piece: Query<&DetachedPieceMarker>,
     mut probe: ResMut<FinaleProbe>,
 ) {
-    let Ok(fragments) = q_body.get(add.entity) else {
+    let Ok(DetachedPieceMarker(origin)) = q_piece.get(add.entity) else {
         return;
     };
-    if fragments.is_empty() {
-        probe.empty += 1;
+    let origin = *origin;
+    probe.pieces += 1;
+    let left = probe.left_by.entry(origin).or_insert(0);
+    *left += 1;
+    let left = *left;
+    probe.most_from_one_death = probe.most_from_one_death.max(left);
+}
+
+/// Deaths waiting to be judged, and the frame each of them happened on.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct PendingDeaths(Vec<(Entity, u32)>);
+
+/// Record every destructible body the moment it dies.
+///
+/// The only place a SILENT death can be seen: a body that leaves nothing leaves
+/// nothing on the field to find, so the death itself has to be counted and
+/// matched against the wreckage that follows it.
+#[cfg(feature = "debug")]
+fn watch_body_deaths(
+    add: On<Add, IntegrityDestroyMarker>,
+    q_dying: Query<(), (With<ExplodableEntity>, Without<IntegrityRoot>)>,
+    frames: Res<bevy::diagnostic::FrameCount>,
+    mut pending: ResMut<PendingDeaths>,
+) {
+    if q_dying.get(add.entity).is_err() {
+        return;
     }
-    probe.most_from_one_body = probe.most_from_one_body.max(fragments.len());
+    pending.0.push((add.entity, frames.0));
+}
+
+/// Judge each recorded death once its wreckage has had a frame to land.
+#[cfg(feature = "debug")]
+fn settle_body_deaths(
+    frames: Res<bevy::diagnostic::FrameCount>,
+    mut pending: ResMut<PendingDeaths>,
+    mut probe: ResMut<FinaleProbe>,
+) {
+    let now = frames.0;
+    let (ready, waiting): (Vec<_>, Vec<_>) = pending
+        .0
+        .drain(..)
+        .partition(|(_, frame)| now.wrapping_sub(*frame) >= 2);
+    pending.0 = waiting;
+    for (body, _) in ready {
+        if !probe.left_by.contains_key(&body) {
+            probe.silent += 1;
+        }
+    }
 }
 
 #[cfg(feature = "debug")]
@@ -355,7 +406,7 @@ fn exhaust_asteroid(world: &mut World) {
         .get::<GlobalTransform>(rock)
         .map_or(Vec3::ZERO, GlobalTransform::translation);
     let mut probe = world.resource_mut::<FinaleProbe>();
-    probe.mark = (probe.fragments, probe.empty);
+    probe.mark = (probe.pieces, probe.silent);
     probe.carved_chunks = 0;
     probe.shards = 0;
     probe.target = Some(rock);
@@ -386,14 +437,14 @@ fn asteroid_destroyed() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 #[cfg(feature = "debug")]
 fn assert_asteroid_exhausted(world: &mut World) {
     let probe = world.resource::<FinaleProbe>();
-    let (fragments, empty) = probe.since_mark();
+    let (pieces, silent) = probe.since_mark();
     let chunks = probe.carved_chunks;
     let shards = probe.shards;
+    assert_eq!(pieces, 0, "a healthless asteroid detached as a wreck");
     assert_eq!(
-        fragments, 0,
-        "a healthless asteroid entered the mesh slicer"
+        silent, 0,
+        "a healthless asteroid entered the section finale"
     );
-    assert_eq!(empty, 0, "a healthless asteroid entered an empty finale");
     assert!(shards > 0, "field exhaustion was not seen leaving");
     assert!(
         chunks <= 3,
@@ -409,7 +460,7 @@ fn assert_asteroid_exhausted(world: &mut World) {
     nova_probe::probe_marker(
         world,
         "outcome: the asteroid exhausts its own geometry",
-        serde_json::json!({ "fragments": fragments, "chunks": chunks, "shards": shards, "destroyed": 1 }),
+        serde_json::json!({ "pieces": pieces, "chunks": chunks, "shards": shards, "destroyed": 1 }),
     );
 }
 
@@ -418,7 +469,7 @@ fn assert_asteroid_exhausted(world: &mut World) {
 #[cfg(feature = "debug")]
 fn mark_and_target(world: &mut World, entity: Entity) {
     let mut probe = world.resource_mut::<FinaleProbe>();
-    probe.mark = (probe.fragments, probe.empty);
+    probe.mark = (probe.pieces, probe.silent);
     probe.target = Some(entity);
 }
 
@@ -435,75 +486,97 @@ fn target_is_gone() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     })
 }
 
-/// Invariants 1-4, one per body: the death produced real fragments of the
-/// body's own art, and its geometry walk was not empty.
+/// Invariants 1-3, one per section: the death left a body wearing that
+/// section's own art, and nothing died silently alongside it.
 ///
 /// `marker` is passed in as a literal from the call site because the
 /// catalog-drift roster reads invariant names straight out of this source.
 #[cfg(feature = "debug")]
 fn assert_broke_into_art(world: &mut World, body: &str, marker: &'static str) {
-    let (fragments, empty) = world.resource::<FinaleProbe>().since_mark();
+    let (pieces, silent) = world.resource::<FinaleProbe>().since_mark();
 
     assert!(
-        fragments > 0,
+        pieces > 0,
         "finale probe: the {body} died without leaving any of its own art behind \
-         - the geometry walk found nothing"
+         - nothing detached"
     );
     assert_eq!(
-        empty, 0,
-        "finale probe: {empty} of the {body}'s deaths came apart into nothing, \
-         alongside {fragments} fragments"
+        silent, 0,
+        "finale probe: {silent} of the {body}'s deaths left nothing at all, \
+         alongside {pieces} bodies"
     );
 
-    info!("finale probe: the {body} broke into {fragments} pieces of its own art");
+    info!("finale probe: the {body} left {pieces} body(s) wearing its own art");
     let elapsed = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(
         world,
         marker,
-        serde_json::json!({ "t": elapsed, "body": body, "fragments": fragments }),
+        serde_json::json!({ "t": elapsed, "body": body, "pieces": pieces }),
     );
 }
 
-/// Invariants 5 and 6, over the whole run: no death came apart into nothing,
-/// and no death out-spent the budget.
+/// Invariants 6 and 7, over the whole run: no death left nothing, and no
+/// death left more than one body.
 #[cfg(feature = "debug")]
 fn assert_one_finale_per_death(world: &mut World) {
+    // Every death recorded so far has to be judged before the run's claim is
+    // read, or the last one is still sitting in the pending list.
+    for _ in 0..2 {
+        world.increment_change_tick();
+    }
+    let now = world.resource::<bevy::diagnostic::FrameCount>().0;
+    let stale: Vec<Entity> = world
+        .resource::<PendingDeaths>()
+        .0
+        .iter()
+        .filter(|(_, frame)| now.wrapping_sub(*frame) >= 2)
+        .map(|(body, _)| *body)
+        .collect();
+    {
+        let mut probe = world.resource_mut::<FinaleProbe>();
+        for body in stale {
+            if !probe.left_by.contains_key(&body) {
+                probe.silent += 1;
+            }
+        }
+    }
+
     let probe = world.resource::<FinaleProbe>();
     assert_eq!(
-        probe.empty, 0,
-        "finale probe: {} deaths across the run came apart into nothing - a \
-         shipped body reached the branch that emits no debris at all",
-        probe.empty
+        probe.silent, 0,
+        "finale probe: {} deaths across the run left nothing at all - a shipped \
+         body reached the branch that detaches nothing",
+        probe.silent
     );
     assert!(
-        probe.fragments > 0,
-        "delivery guard: the run must have produced debris at all"
+        probe.pieces > 0,
+        "delivery guard: the run must have left wreckage at all"
     );
-    // The budget is the BODY's: a turret drawing with three joint meshes must
-    // not cost three times a hull drawing with one, or a capital collapse
-    // multiplies the difference across every section dying at once.
-    assert!(
-        probe.most_from_one_body <= BODY_FRAGMENT_BUDGET,
-        "finale probe: one body spent {} fragments against a budget of \
-         {BODY_FRAGMENT_BUDGET} - the budget is being charged per mesh",
-        probe.most_from_one_body
+    // Sections do NOT fragment. A turret drawing with three joint meshes and a
+    // hull drawing with one both leave exactly one body, because the piece count
+    // no longer follows the art.
+    assert_eq!(
+        probe.most_from_one_death, 1,
+        "finale probe: one death left {} bodies - a section is coming apart \
+         rather than detaching",
+        probe.most_from_one_death
     );
 
-    let (fragments, empty, most) = (probe.fragments, probe.empty, probe.most_from_one_body);
+    let (pieces, silent, most) = (probe.pieces, probe.silent, probe.most_from_one_death);
     info!(
-        "finale probe: {fragments} fragments, {empty} empty walks, \
-         at most {most} from one body"
+        "finale probe: {pieces} detached bodies, {silent} silent deaths, \
+         at most {most} from one death"
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(
         world,
-        "outcome: no death spends more than its budget",
-        serde_json::json!({ "t": elapsed, "most_from_one_body": most, "budget": BODY_FRAGMENT_BUDGET }),
+        "outcome: one death leaves one body",
+        serde_json::json!({ "t": elapsed, "most_from_one_death": most }),
     );
     nova_probe::probe_marker(
         world,
         "outcome: no death came apart into nothing",
-        serde_json::json!({ "t": elapsed, "fragments": fragments, "empty": empty }),
+        serde_json::json!({ "t": elapsed, "pieces": pieces, "silent": silent }),
     );
 }
 

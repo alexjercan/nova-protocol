@@ -5,7 +5,6 @@
 //! - Creating basic primitives like octahedrons
 //! - Subdividing faces for higher resolution
 //! - Applying procedural noise to vertices
-//! - Slicing meshes along planes
 //! - Generating normals and UVs
 //! - Converting to and from `Mesh`
 //!
@@ -30,7 +29,6 @@ use bevy::{
 };
 use noise::NoiseFn;
 
-use super::slice::{triangle_slice, TriangleSliceResult};
 use crate::math::prelude::*;
 
 /// The `TriangleMeshBuilder`.
@@ -185,75 +183,6 @@ impl TriangleMeshBuilder {
                 )
             })
             .collect::<Vec<_>>();
-
-        self
-    }
-
-    /// Slice the mesh along a plane defined by `plane_normal` and `plane_point`.
-    ///
-    /// Returns `Some((positive_side, negative_side))` if the slice produces
-    /// two non-empty meshes, otherwise `None`.
-    pub fn slice(&self, plane_normal: Vec3, plane_point: Vec3) -> Option<(Self, Self)> {
-        let triangles = self.triangles.clone();
-
-        let mut positive_mesh_builder = TriangleMeshBuilder::default();
-        let mut negative_mesh_builder = TriangleMeshBuilder::default();
-
-        let mut boundary = vec![];
-        for tri in triangles {
-            match triangle_slice(tri, plane_normal, plane_point) {
-                (TriangleSliceResult::Single(tri), true) => {
-                    positive_mesh_builder.add_triangle(tri);
-                }
-                (TriangleSliceResult::Single(tri), false) => {
-                    negative_mesh_builder.add_triangle(tri);
-                }
-                (TriangleSliceResult::Split(single, first, second), true) => {
-                    boundary.push(single.vertices[2]);
-                    boundary.push(single.vertices[1]);
-
-                    positive_mesh_builder.add_triangle(single);
-                    negative_mesh_builder.add_triangle(first);
-                    negative_mesh_builder.add_triangle(second);
-                }
-                (TriangleSliceResult::Split(single, first, second), false) => {
-                    boundary.push(single.vertices[1]);
-                    boundary.push(single.vertices[2]);
-
-                    negative_mesh_builder.add_triangle(single);
-                    positive_mesh_builder.add_triangle(first);
-                    positive_mesh_builder.add_triangle(second);
-                }
-            }
-        }
-
-        positive_mesh_builder.fill_boundary(&boundary);
-        negative_mesh_builder.fill_boundary(&boundary.iter().rev().cloned().collect::<Vec<_>>());
-
-        if positive_mesh_builder.is_empty() || negative_mesh_builder.is_empty() {
-            return None;
-        }
-
-        Some((positive_mesh_builder, negative_mesh_builder))
-    }
-
-    /// Fill a boundary with triangles to close holes after slicing.
-    ///
-    /// Assumes the boundary is a polygon and fills triangles toward its centroid.
-    pub fn fill_boundary(&mut self, boundary: &[Vec3]) -> &Self {
-        if boundary.len() < 3 {
-            return self;
-        }
-
-        let center = boundary.iter().fold(Vec3::ZERO, |acc, v| acc + v) / (boundary.len() as f32);
-
-        // NOTE: boundary vertices come in pairs (each triangle split pushes two), and
-        // `as_chunks` drops a trailing unpaired one into the remainder we ignore, so a
-        // malformed boundary cannot panic.
-        for pair in boundary.as_chunks::<2>().0 {
-            let t = Triangle3d::new(pair[0], pair[1], center);
-            self.add_triangle(t);
-        }
 
         self
     }
@@ -485,21 +414,5 @@ mod test {
         );
 
         assert!(TriangleMeshBuilder::try_from_mesh(&mesh).is_none());
-    }
-
-    /// An odd-length boundary must not index out of bounds: the unpaired
-    /// trailing vertex is ignored, leaving one triangle from the pair (0, 1).
-    #[test]
-    fn test_fill_boundary_odd_length_does_not_panic() {
-        let mut builder = TriangleMeshBuilder::new_empty();
-        let boundary = vec![
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(1.0, 1.0, 0.0),
-        ];
-
-        builder.fill_boundary(&boundary);
-
-        assert_eq!(builder.triangles.len(), 1);
     }
 }

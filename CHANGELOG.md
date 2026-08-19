@@ -113,9 +113,8 @@ does NOT get an entry - and it is the only place they are written down.
 - A carve throws DUST, however big the bite: only geometry a cut really severed
   becomes a body. Debris drifts clear before it collides, so nothing kicks its
   own wreckage.
-- **(breaking)** No body ever bursts into generic grey cubes. A death with no
-  art to break into now emits nothing and logs it, and a range asserts it never
-  happens.
+- **(breaking)** No body ever bursts into generic grey cubes. A wreck wears what
+  it was already wearing, and a range asserts the burst never happens.
 - A damaged section fractures where it is failing and glows through the cracks,
   instead of the whole body turning red.
 - Wreck debris leaves with the wreck: a body's pieces inherit its drift and spin
@@ -159,7 +158,6 @@ does NOT get an entry - and it is the only place they are written down.
   reading as shut down, and delivers exactly the thrust it authored.
 - A hit THROWS material off the spot it landed on: shards sized and counted by
   how big the hit was, on ships and rocks alike.
-- Make destroyed sections sever physical wreck fragments. **(breaking)**
 - **(breaking)** Ships collapse structurally: a hull below a fraction of its
   as-built health (0.05 by default) comes apart. Authorable as
   `collapse_threshold`.
@@ -175,8 +173,7 @@ does NOT get an entry - and it is the only place they are written down.
 - `basic_thruster_section` carries ONE socket now, on the forward face it bolts
   by, so nothing mounts on the drive or plates over its exhaust.
 - A collapsing ship TEARS ITSELF APART: the outermost sections blow off first
-  with their own debris burst and the wreck peels inward until the root dies
-  with it.
+  and the wreck peels inward until the root dies with it.
 - A ship coming apart keeps fighting until the sections carrying its guns blow
   off, and its sections fire their own `OnDestroyed`. `OnDefeated` still fires
   exactly once.
@@ -324,9 +321,6 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Performance
 
-- A wreck's debris arrives over the frames that follow rather than all at once:
-  at most 8 destroyed bodies spawn their pieces per frame. The wrecks still
-  leave the field the moment they die.
 - A piece of debris takes its collider from at most 64 strided points instead
   of every vertex of an unwelded triangle soup: the same shape for a fifth of
   the price, and slightly more of them come back usable.
@@ -338,6 +332,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Held fire on a big rock runs at 47 fps instead of 25: its carve field caps at
   40 cells a side, the seed and remesh run off the main thread, and nothing
   rescans the grid to learn it has not changed.
+- A destroyed section DETACHES and tumbles away whole, keeping the art and the
+  collider it already had. Nothing computes geometry when something dies: the
+  death path drops from 46 ms a run to 2.5 ms.
 - An untouched rock costs collision almost nothing: it collides as its hull
   until something puts a hole in it, so a 64-rock field's physics step drops
   from 22 ms to 0.4 and stops outrunning the tick.
@@ -354,10 +351,13 @@ does NOT get an entry - and it is the only place they are written down.
 - Fixed: every ship section burst eight generic gray cubes instead of its own
   art - destruction looked for a mesh on the entity that dies, never on the
   descendants that draw it.
-- Fixed: the fragment budget was charged per mesh, so a multi-part turret cost
-  several times a hull cube for the same death. It is now per destroyed body.
-- Fixed: a destroyed section could crash the physics solver - flat art slices
-  into coplanar fragments, whose hulls have no volume and so no mass.
+- Fixed: a dying section came apart into slivers - every cut plane ran through
+  the world origin, so a piece off to one side was cut by a plane outside
+  itself. Sections come off whole now.
+- Fixed: a piece the cut missed hung motionless where the section died, because
+  it was carried forward with no direction to leave in.
+- Fixed: section death drew from the thread RNG and never played the same way
+  twice. The kick and the tumble come off the seeded stream.
 - Asteroids stop logging "no mass or inertia": a rock builds its collider in
   the same command batch as its body, so no physics tick sees it massless.
 - A shot-down torpedo and a broken rock go on rails the moment they die,

@@ -399,20 +399,21 @@ fn thruster_shader_update_system(
 ) {
     let seconds = time.elapsed_secs();
     for (material, &ChildOf(parent)) in &q_render {
-        let Some((section, input, inactive)) = find_thruster_section(parent, &q_thruster, &q_child)
-        else {
-            error!(
-                "thruster_shader_update_system: entity {:?} not found in q_thruster",
-                parent
-            );
-            continue;
-        };
+        let section = find_thruster_section(parent, &q_thruster, &q_child);
 
         let Some(mut material) = materials.get_mut(&**material) else {
             error!(
                 "thruster_shader_update_system: material for entity {:?} not found",
                 parent
             );
+            continue;
+        };
+
+        // No section above it at all: the drive died and its art detached with
+        // the wreck, which still draws this cone. A dead drive is not burning,
+        // so the plume goes out rather than keeping the last value it was given.
+        let Some((section, input, inactive)) = section else {
+            material.extension.thruster_input = 0.0;
             continue;
         };
 
