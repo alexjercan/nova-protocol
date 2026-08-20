@@ -214,11 +214,24 @@ impl EventFilter<NovaEventWorld> for ExpressionFilterConfig {
     fn filter(&self, world: &NovaEventWorld, _: &GameEventInfo) -> bool {
         match self.0.evaluate(world) {
             Ok(result) => result,
+            // NOT-SET-YET is the fails-closed contract working, not a fault. A
+            // handler that asks `beat == 3` on every update asks it before the
+            // action that first sets `beat` has ever run, so a healthy
+            // `shakedown_run` boot raised NINETEEN of these - which is the
+            // state that teaches a reader to ignore the word ERROR.
+            //
+            // It costs the typo case (`beeat == 3` reads false forever and says
+            // nothing), and that detection belongs in `content lint`, which is
+            // where every other runtime-string drift in this project is caught.
+            // Until it lands, `RUST_LOG=nova=debug` shows these.
+            Err(e @ (VariableError::UndefinedVariable(_) | VariableError::UnavailableQuery(_))) => {
+                debug!("ExpressionFilterConfig: condition not evaluable yet: {e:?}");
+                false
+            }
+            // A type mismatch or a zero divisor is authored wrongly and cannot
+            // come right on a later frame.
             Err(e) => {
-                error!(
-                    "VariableFilterConfig: failed to evaluate condition: {:?}",
-                    e
-                );
+                error!("ExpressionFilterConfig: condition is malformed: {e:?}");
                 false
             }
         }
