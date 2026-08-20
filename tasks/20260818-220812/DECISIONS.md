@@ -614,3 +614,91 @@ The lane surveyed every `FixedUpdate`/`FixedPostUpdate` registration against its
 `Update` writers. The torpedo bay's scripted and AI triggers share the shape but
 are levels behind a fixed-clock cooldown; `sever_disconnected_structures` is a
 one-shot into `FixedPostUpdate` but is topological and applies a flat constant.
+
+## D17 - the simulation is not the problem on PD, and IS the problem on the arena
+
+Phase 6 steps 2 and 3, measured on `cfdfd397`. Full numbers in
+`tasks/20260819-173219/notes-headless-simulation.md`.
+
+### The epic's question, answered twice, differently
+
+**Point defence: nowhere near the budget.** Four saturated headless captures at
+2,400 rounds and 2,600 colliders read 1.81-3.15 ms mean, 0-2 fixed steps a
+frame, 64 steps a second exactly. Envelope fill 7.1 s and peak rounds
+2,415-2,421 reproduce the point-defence lane's 7.1 s and 2,411 on a different
+day. That range's cost was never physics; it was assets, and two lanes have now
+cut it.
+
+**The arena: misses 60 fps with the renderer DELETED.** 1v1 reads 9.8-16.4 ms
+mean with a 1% low of 11-15 fps; 4v4 reads 11.7-13.2 ms with a 1% low of 9-12,
+and both run up to six or eight fixed steps in a single frame. No window, no
+adapter, no render world.
+
+**So the "1v1 at 60 fps" target cannot be reached by render work alone.** That
+is the headline and it changes what the rest of this epic should do.
+
+### The two transports are limited by DIFFERENT things
+
+Rendered, the line is roughly 8 ms per ship. Headless, **four times the ships
+costs 15-30%** - 1v1 and 4v4 overlap. Whatever dominates the headless arena is a
+per-SCENE constant.
+
+That is not a contradiction, it is the distinct-asset law again from the other
+side: per-ship cost is per-ship ASSETS, and headless has no assets to prepare.
+What it means practically is that a fix aimed at one transport should not be
+expected to show in the other, and that the arena needs BOTH.
+
+### What the trace names
+
+Per frame, headless 1v1: `PostUpdate` unattributed 1.23 ms, **visibility ~1.15
+ms**, `Update` unattributed 0.53, `propagate_parent_transforms` 0.29,
+`state_to_world_system` 0.23, `update_ai_target` 0.21.
+
+**The visibility line is a defect, not a cost.** `reset_view_visibility`,
+`check_visibility_cpu_culling` and `mark_newly_hidden_entities_invisible` run
+every frame over thousands of entities in a run that draws nothing - about 10%
+of the headless frame computing what is visible to a view that does not exist.
+Recorded rather than fixed, and it means every headless figure above is
+PESSIMISTIC by roughly that much.
+
+Also worth knowing: `wfc_arena::track_damage`, the arena's own measurement
+instrument, costs 1.2% of the arena's own frame.
+
+### The instrument defect that produced three wrong answers in one session
+
+Three instruments index by FRAME COUNT: `HOLD_FRAMES = 120`,
+`DEFAULT_CENSUS_FRAME = 90`, and the arena's 360-frame window. Headless
+multiplies frame rate by 5-10x, so each becomes a window of a fifth to a tenth
+of the simulated time it was sized for.
+
+1. `stress_point_defense`'s own summary line read duty 0.401 and aim error 20.0
+   deg where the lane that fixed it reported 0.811 and 3.6. **Both are true
+   readings of different windows.** The invariants - fill, peak rounds - agreed
+   to 0.3%. I nearly reported a correct fix as a regression.
+2. The census reported the SAME scene for 1v1 and 4v4 (6,443 against 6,446
+   entities, an identical 1,686 skin plates), because 90 frames is 0.3 s
+   headless. Moved to frame 1,200 the same rosters read 11,811 entities and
+   6,169. **The headless census currently measures whatever happens to exist.**
+3. Arena captures do not reproduce at all.
+
+**Not fixed here, deliberately.** `HOLD_FRAMES` is a frame count so a measured
+hold outlasts the capture's own frame window; the point-defence lane has just
+tuned against it. This wants ONE change across all three - index by simulated
+time or by fixed steps - not three local patches, and it should be done by
+whoever owns the harness next.
+
+### Two headless holes closed
+
+`wfc_arena` could not run headless: `gate_team_chevrons` required
+`Res<HudVisibility>` and `lobby::load_or_open_lobby` required `Res<UiSkin>`,
+both from render-gated plugins, so the app panicked before fielding a ship. Now
+`Option<Res<...>>` (`cfdfd397`). Same class as the nine `systems/` ranges that
+still cannot run headless: **a render-gated plugin's resource, required by an
+example.**
+
+### The traced-binary footgun caught its second victim
+
+`probe run` leaves a `debug,trace` binary at the plain build's path, so the next
+hand-run is silently traced. Two captures here were contaminated and discarded.
+It was already written down and it caught the next person anyway - which argues
+for a different path, not a better note.
