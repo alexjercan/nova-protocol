@@ -188,3 +188,37 @@ budget on the question instead of the apparatus.
 - Does not chase a frame-rate VERDICT. The epic wants 60; the measured line is
   roughly 8 ms per ship plus a ~17 ms floor, so 8 ships cannot reach 60 without
   an order-of-magnitude change. Report the gap honestly rather than declaring it.
+
+## Phase 6 - the simulation itself, agreed 2026-08-20
+
+Owner set this order and authorised running it without stopping between steps.
+
+**The target: physics and logic under 10 ms a frame.** Owner's words, and it is
+the right axis - but aim LOWER than 10. The fixed step is 1/64 s = **15.625 ms**,
+so a 10 ms step sits at 64% of its own interval; one overrun runs two steps,
+which costs 20 ms, which overruns again. That is the clamp spiral already
+measured at `fixed_steps max=16` reading 457 ms a frame. It is a cliff, not a
+slope. **Treat ~8 ms as the ceiling and 5 ms as the target**, for roughly 2x
+margin before a hitch can cascade. For reference, PD stress today is avian at
+5.17 ms with the whole targeting and point-defence chain under 0.2 ms.
+
+1. **Fix point defence being frame-rate dependent.** In flight. Gameplay logic,
+   authorised explicitly. Evidence is a COUNT: rounds yield spread 708-2,425
+   free-running should close on its pinned 2,236-2,401 without the pin, and the
+   rendered-vs-headless gap of 64 against 793 intercepts should collapse.
+2. **Headless PD stress**, once (1) lands - so the number describes the
+   corrected game rather than the frame-rate-dependent one. This is also the
+   deferred simulation-only figure the epic has never had.
+3. **Headless 4v4 arena**, and more ranges as they earn it. 13 of 25 already run
+   headless (`notes-headless-transport.md`); the four `stress_*` ranges are
+   among them.
+4. **The 586 archetypes on an EMPTY scene** (`perf-map.html`, card 01). Expected
+   to matter MORE for the simulation number than the render one, because
+   archetype fragmentation taxes every query in the schedule rather than one
+   system.
+5. Whatever those turn up.
+
+**Read every headless number against this**: headless is NOT the same simulation
+minus pixels. Some systems run per frame and headless ticks faster, which is the
+defect step 1 exists to fix - and there may be more of them. A headless figure is
+a simulation-cost measurement, never a gameplay one.
