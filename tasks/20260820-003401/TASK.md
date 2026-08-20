@@ -1,8 +1,8 @@
 # Promote the ablation and census instruments into probe capabilities
 
-- STATUS: OPEN
-- PRIORITY: 85
-- TAGS: v0.11.0, harness, performance
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,done
 
 Epic: `20260818-220812`. Promote the instruments that found `20260820-003333`
 from one lane's throwaway branch into `nova_probe` capabilities, before the
@@ -84,3 +84,41 @@ rule may not allow taking. Say so where the next person will read it.
 - An ablation switch is unavailable in a release build, and a misspelled one
   fails naming the valid set.
 - The `arena-ablation` branch can be deleted without losing anything.
+
+## CLOSED 2026-08-20 - census and frame-cost landed; ablation is SUPERSEDED, not skipped
+
+Landed (`1dc74718`, `d15479b5`):
+
+- **Census** - `crates/nova_probe/src/capabilities/census.rs`. Entities per
+  component, archetypes, and mesh instances against DISTINCT mesh handles, on
+  every armed capture. The instances-and-distinct pairing this task insisted on
+  is what later produced the sprint's central finding.
+- **Frame cost** - `framecost.rs`. Every main-world schedule, every render phase
+  with submit and present split out, and every GPU-timed render pass behind
+  `NOVA_PERF_RENDER_DIAG`.
+- **Three validity gates nobody asked for** - `ABORT_WINDOW_SIZE`,
+  `ABORT_UPDATE_THROTTLED`, `ABORT_REFRESH_CAPPED`. Not in scope here, but the
+  same argument: an instrument that reports a plausible wrong number is worse
+  than one that crashes.
+
+**NOT landed: the ablation switches.** The `arena-ablation` branch is already
+deleted, so those knobs are gone and would have to be rebuilt. This task's third
+done-when - "the branch can be deleted without losing anything" - is therefore
+not met on a strict reading, and that is recorded rather than glossed.
+
+**They are not being rebuilt, and this is the result worth keeping.** Ablation
+answers "what is this costing" by SUBTRACTING a thing and re-measuring. That was
+the right tool when nothing could see inside a frame. `framecost` now can: it
+found the `Prepare` / `PrepareAssets` / `PrepareMeshes` mis-attribution and the
+distinct-asset law with **no knobs at all**, in one lane, on a tree with no
+throwaway branch. Direct attribution beats subtraction on cost, on blast radius
+and on trustworthiness - a knob that silently ablates nothing hands back a
+confident wrong answer, which is the exact failure this task's own "a typo MUST
+fail loudly" clause was written against.
+
+The FINDINGS from the old knobs survive in `tasks/20260819-173219/notes-ablation.md`
+with their ratios intact. Only the switches are gone.
+
+**Reopen if**: a question arrives that direct attribution genuinely cannot
+answer - one about a cost that is not a schedule, a phase or an asset count, so
+there is no span to read and the only way to price it is to remove it.

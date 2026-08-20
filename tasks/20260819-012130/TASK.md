@@ -1,8 +1,8 @@
 # The first gallery open costs a 67 ms frame
 
-- STATUS: OPEN
-- PRIORITY: 30
-- TAGS: v0.11.0, performance, editor
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: archive,done
 
 Epic: `20260818-220812`. Evidence: `NOTES.md` beside this file.
 
@@ -81,3 +81,29 @@ that.
 avian step time per frame, using `Time<Real>` because `Time<Virtual>` is clamped
 by `max_delta` and would report 250 ms for a one-second frame. It is what turned
 "the editor is slow" into "the box was busy", and it is off by default.
+
+## CLOSED 2026-08-20 - the premise retracted itself and nothing replaced it
+
+This task was filed at p92 against "the editor build UI runs at 118 ms mean and
+hitches for 2.4 seconds". That row measured the BOX, not the editor: same
+machine, same GPU, same forced window, same walk, editor byte-identical,
+**17.4 ms mean / 16.6 ms p50** on a quiet host. The evidence is in `NOTES.md`
+beside this file and it was already recorded here.
+
+What remained was a 67 ms first-open frame - real, one frame, at a moment the
+player is opening a menu rather than flying. Against a sprint whose measured
+items run 0.170 ms per distinct mesh over 120 of them a hull, it does not rank.
+
+**The wider lesson is the one to keep, and it now has company.** This is the
+THIRD environment artefact this epic mistook for a defect: this one, the
+`xvfb-run` per-pixel present cost (`DECISIONS.md` D12), and
+`WinitSettings::game` throttling an unfocused window to 60 Hz (D13). Each
+produced a plausible number, each got believed, and two of them were written
+into a plan before anyone checked the instrument.
+
+That is why `nova_probe` now REFUSES rather than warns - `ABORT_WINDOW_SIZE`,
+`ABORT_UPDATE_THROTTLED`, `ABORT_REFRESH_CAPPED`, `ABORT_SIMULATION_STOPPED`.
+Those four gates are this task's real legacy.
+
+**Reopen if**: the first gallery open is measured over 60 ms on a host that
+passes those gates, with a repeat set rather than one capture.
