@@ -1,0 +1,62 @@
+
+=== arm 1 (6 runs, fight regime bodies>=1500) ===
+  r1  fight_med=2.77  fight_p95=9.74  fight_max=12.78  frame_mean=2.48  frame_p99=16.58  frame_max=21.21  low_fps=60.31  fight_steps=844  bodies_mean=2004.01  broad_ms=0.24  narrow_ms=0.32  solve_ms=0.20
+  r2  fight_med=3.09  fight_p95=10.99  fight_max=14.84  frame_mean=2.61  frame_p99=18.06  frame_max=28.25  low_fps=55.38  fight_steps=826  bodies_mean=2065.05  broad_ms=0.26  narrow_ms=0.35  solve_ms=0.23
+  r3  fight_med=2.63  fight_p95=10.64  fight_max=14.60  frame_mean=2.36  frame_p99=15.63  frame_max=19.95  low_fps=63.99  fight_steps=779  bodies_mean=1998.76  broad_ms=0.26  narrow_ms=0.37  solve_ms=0.20
+  r4  fight_med=2.44  fight_p95=8.33  fight_max=14.91  frame_mean=1.94  frame_p99=8.66  frame_max=12.66  low_fps=115.53  fight_steps=795  bodies_mean=2001.09  broad_ms=0.22  narrow_ms=0.30  solve_ms=0.16
+  r5  fight_med=2.96  fight_p95=11.02  fight_max=13.77  frame_mean=2.28  frame_p99=17.56  frame_max=20.33  low_fps=56.96  fight_steps=911  bodies_mean=2024.03  broad_ms=0.26  narrow_ms=0.35  solve_ms=0.23
+  r6  fight_med=3.00  fight_p95=9.91  fight_max=14.28  frame_mean=2.19  frame_p99=15.00  frame_max=18.71  low_fps=66.66  fight_steps=756  bodies_mean=2086.02  broad_ms=0.28  narrow_ms=0.42  solve_ms=0.22
+
+=== arm 2 (6 runs, fight regime bodies>=1500) ===
+  r1  fight_med=2.60  fight_p95=9.90  fight_max=15.44  frame_mean=1.56  frame_p99=6.01  frame_max=8.63  low_fps=166.52  fight_steps=730  bodies_mean=2022.74  broad_ms=0.21  narrow_ms=0.27  solve_ms=0.27
+  r2  fight_med=2.54  fight_p95=10.92  fight_max=15.03  frame_mean=1.52  frame_p99=4.21  frame_max=4.58  low_fps=237.75  fight_steps=696  bodies_mean=2048.30  broad_ms=0.22  narrow_ms=0.31  solve_ms=0.28
+  r3  fight_med=2.82  fight_p95=10.09  fight_max=14.79  frame_mean=1.80  frame_p99=9.46  frame_max=19.31  low_fps=105.75  fight_steps=685  bodies_mean=2059.05  broad_ms=0.22  narrow_ms=0.30  solve_ms=0.30
+  r4  fight_med=2.99  fight_p95=11.17  fight_max=14.68  frame_mean=1.66  frame_p99=6.04  frame_max=7.65  low_fps=165.47  fight_steps=743  bodies_mean=2054.82  broad_ms=0.25  narrow_ms=0.35  solve_ms=0.34
+  r5  fight_med=2.85  fight_p95=11.54  fight_max=18.36  frame_mean=1.85  frame_p99=9.15  frame_max=17.43  low_fps=109.33  fight_steps=828  bodies_mean=2032.31  broad_ms=0.28  narrow_ms=0.41  solve_ms=0.34
+  r6  fight_med=2.88  fight_p95=10.46  fight_max=15.52  frame_mean=1.90  frame_p99=9.55  frame_max=16.05  low_fps=104.70  fight_steps=784  bodies_mean=2025.57  broad_ms=0.23  narrow_ms=0.32  solve_ms=0.31
+
+=== arm 4 (6 runs, fight regime bodies>=1500) ===
+  r1  fight_med=3.41  fight_p95=10.84  fight_max=17.22  frame_mean=2.93  frame_p99=18.24  frame_max=28.76  low_fps=54.84  fight_steps=842  bodies_mean=2039.97  broad_ms=0.24  narrow_ms=0.34  solve_ms=0.60
+  r2  fight_med=2.91  fight_p95=11.14  fight_max=15.51  frame_mean=1.49  frame_p99=4.60  frame_max=7.15  low_fps=217.17  fight_steps=710  bodies_mean=2030.11  broad_ms=0.23  narrow_ms=0.32  solve_ms=0.50
+  r3  fight_med=2.93  fight_p95=8.13  fight_max=15.24  frame_mean=2.10  frame_p99=14.30  frame_max=22.19  low_fps=69.93  fight_steps=772  bodies_mean=2046.65  broad_ms=0.20  narrow_ms=0.26  solve_ms=0.45
+  r4  fight_med=3.23  fight_p95=11.93  fight_max=20.25  frame_mean=2.40  frame_p99=19.19  frame_max=28.67  low_fps=52.10  fight_steps=759  bodies_mean=2071.75  broad_ms=0.24  narrow_ms=0.33  solve_ms=0.57
+  r5  fight_med=2.69  fight_p95=7.78  fight_max=16.42  frame_mean=1.49  frame_p99=4.49  frame_max=5.07  low_fps=222.82  fight_steps=711  bodies_mean=2024.65  broad_ms=0.20  narrow_ms=0.28  solve_ms=0.41
+  r6  fight_med=2.90  fight_p95=10.02  fight_max=17.81  frame_mean=1.70  frame_p99=7.35  frame_max=15.51  low_fps=136.13  fight_steps=785  bodies_mean=2051.50  broad_ms=0.22  narrow_ms=0.30  solve_ms=0.47
+
+=== arm 6 (6 runs, fight regime bodies>=1500) ===
+  r1  fight_med=3.07  fight_p95=9.45  fight_max=17.49  frame_mean=1.71  frame_p99=6.34  frame_max=12.57  low_fps=157.72  fight_steps=757  bodies_mean=2034.90  broad_ms=0.21  narrow_ms=0.29  solve_ms=0.65
+  r2  fight_med=4.27  fight_p95=13.14  fight_max=18.06  frame_mean=2.05  frame_p99=13.56  frame_max=24.18  low_fps=73.73  fight_steps=795  bodies_mean=1993.86  broad_ms=0.27  narrow_ms=0.38  solve_ms=0.89
+  r3  fight_med=3.05  fight_p95=7.43  fight_max=13.69  frame_mean=2.05  frame_p99=11.56  frame_max=20.51  low_fps=86.50  fight_steps=770  bodies_mean=2012.14  broad_ms=0.18  narrow_ms=0.25  solve_ms=0.58
+  r4  fight_med=3.16  fight_p95=9.23  fight_max=18.86  frame_mean=1.63  frame_p99=5.88  frame_max=7.10  low_fps=169.99  fight_steps=681  bodies_mean=2050.51  broad_ms=0.21  narrow_ms=0.30  solve_ms=0.63
+  r5  fight_med=3.41  fight_p95=11.60  fight_max=16.56  frame_mean=1.60  frame_p99=4.90  frame_max=8.24  low_fps=204.28  fight_steps=680  bodies_mean=2046.61  broad_ms=0.22  narrow_ms=0.29  solve_ms=0.71
+  r6  fight_med=3.24  fight_p95=9.08  fight_max=16.04  frame_mean=2.33  frame_p99=12.16  frame_max=18.92  low_fps=82.22  fight_steps=852  bodies_mean=2038.02  broad_ms=0.22  narrow_ms=0.32  solve_ms=0.68
+
+metric fight_med: arm medians and U vs 6
+  1: median 2.86 range 2.44-3.09 U=2 p=0.010
+  2: median 2.84 range 2.54-2.99 U=0 p=0.004
+  4: median 2.92 range 2.69-3.41 U=7 p=0.078
+  6: median 3.20 range 3.05-4.27
+
+metric fight_p95: arm medians and U vs 6
+  1: median 10.28 range 8.33-11.02 U=21 p=0.631
+  2: median 10.69 range 9.90-11.54 U=24 p=0.337
+  4: median 10.43 range 7.78-11.93 U=19 p=0.873
+  6: median 9.34 range 7.43-13.14
+
+metric frame_p99: arm medians and U vs 6
+  1: median 16.10 range 8.66-18.06 U=33 p=0.016
+  2: median 7.59 range 4.21-9.55 U=13 p=0.423
+  4: median 10.82 range 4.49-19.19 U=21 p=0.631
+  6: median 8.95 range 4.90-13.56
+
+metric low_fps: arm medians and U vs 6
+  1: median 62.15 range 55.38-115.53 U=3 p=0.016
+  2: median 137.40 range 104.70-237.75 U=23 p=0.423
+  4: median 103.03 range 52.10-222.82 U=15 p=0.631
+  6: median 122.11 range 73.73-204.28
+
+metric frame_max: arm medians and U vs 6
+  1: median 20.14 range 12.66-28.25 U=25 p=0.262
+  2: median 12.34 range 4.58-19.31 U=13 p=0.423
+  4: median 18.85 range 5.07-28.76 U=21 p=0.631
+  6: median 15.74 range 7.10-24.18

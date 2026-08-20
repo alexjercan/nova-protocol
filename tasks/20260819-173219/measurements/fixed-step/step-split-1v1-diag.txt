@@ -1,0 +1,60 @@
+
+== ALL: 937 steps ==
+col        mean    p50     p95     p99     max
+wall_ms     4.859  3.718 12.413 14.856  17.812
+broad_ms    0.499  0.349  1.337  1.729   2.165
+narrow_ms   0.453  0.359  1.030  1.345   1.486
+prepare_ms  0.018  0.013  0.047  0.056   0.068
+solve_ms    0.454  0.321  1.336  1.722   2.014
+finalize_ms  0.034  0.025  0.099  0.127   0.174
+spatial_ms  0.001  0.000  0.001  0.001   0.002
+other       3.400  2.618  8.717 10.348  13.759
+contacts       mean    353.7  p95   2496  max   4115
+constraints    mean      3.6  p95      9  max     51
+dynamic_bodies mean    163.9  p95    798  max    929
+colliders      mean   1626.5  p95   2313  max   2444
+
+== world fully spawned: 236 steps ==
+col        mean    p50     p95     p99     max
+wall_ms     8.102  8.731 14.701 16.218  17.812
+broad_ms    0.875  0.893  1.719  2.023   2.165
+narrow_ms   0.613  0.620  1.307  1.432   1.486
+prepare_ms  0.017  0.010  0.049  0.057   0.068
+solve_ms    0.854  0.874  1.693  1.855   2.014
+finalize_ms  0.065  0.064  0.126  0.143   0.174
+spatial_ms  0.001  0.001  0.001  0.002   0.002
+other       5.676  6.041 10.108 11.747  13.759
+contacts       mean   1299.0  p95   3993  max   4115
+constraints    mean      2.4  p95      8  max     10
+dynamic_bodies mean    523.3  p95    920  max    929
+colliders      mean   2038.8  p95   2435  max   2444
+
+== fight (contacts >= 1812): 59 steps ==
+col        mean    p50     p95     p99     max
+wall_ms    10.478 11.400 15.932 16.218  16.218
+broad_ms    1.257  1.353  2.023  2.165   2.165
+narrow_ms   0.961  1.074  1.432  1.486   1.486
+prepare_ms  0.032  0.032  0.056  0.068   0.068
+solve_ms    1.200  1.282  1.815  2.014   2.014
+finalize_ms  0.090  0.096  0.143  0.174   0.174
+spatial_ms  0.001  0.001  0.001  0.002   0.002
+other       6.937  7.228 11.429 11.747  11.747
+contacts       mean   3167.6  p95   4099  max   4115
+constraints    mean      4.0  p95      8  max      8
+dynamic_bodies mean    838.7  p95    929  max    929
+colliders      mean   2354.3  p95   2444  max   2444
+
+== quiet (contacts == min): 1 steps ==
+col        mean    p50     p95     p99     max
+wall_ms     2.160  2.160  2.160  2.160   2.160
+broad_ms    0.229  0.229  0.229  0.229   0.229
+narrow_ms   0.106  0.106  0.106  0.106   0.106
+prepare_ms  0.011  0.011  0.011  0.011   0.011
+solve_ms    0.202  0.202  0.202  0.202   0.202
+finalize_ms  0.016  0.016  0.016  0.016   0.016
+spatial_ms  0.000  0.000  0.000  0.000   0.000
+other       1.596  1.596  1.596  1.596   1.596
+contacts       mean    203.0  p95    203  max    203
+constraints    mean      9.0  p95      9  max      9
+dynamic_bodies mean    149.0  p95    149  max    149
+colliders      mean   1673.0  p95   1673  max   1673

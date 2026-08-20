@@ -1,0 +1,20 @@
+== stress_point_defense sub6 r1: 1421 steps ==
+bodies 0-100: n=316 wall 1.74 broad 0.036 narrow 0.084 solve 0.396 other 1.22 contacts 140
+bodies 100-500: n=66 wall 1.42 broad 0.051 narrow 0.094 solve 0.274 other 1.01 contacts 819
+bodies 500-1500: n=282 wall 2.26 broad 0.111 narrow 0.135 solve 0.377 other 1.64 contacts 1524
+bodies 1500-2200: n=688 wall 4.01 broad 0.189 narrow 0.251 solve 0.644 other 2.93 contacts 2599
+bodies 2200-4000: n=69 wall 5.02 broad 0.401 narrow 0.693 solve 0.745 other 3.18 contacts 9883
+== stress_bullets sub6 r1: 393 steps ==
+bodies 0-50: n=63 wall 0.52 broad 0.003 narrow 0.003 solve 0.018 other 0.50 contacts 2
+bodies 50-400: n=56 wall 1.09 broad 0.029 narrow 0.039 solve 0.154 other 0.86 contacts 250
+bodies 400-900: n=81 wall 1.62 broad 0.073 narrow 0.113 solve 0.277 other 1.16 contacts 1177
+bodies 900-1300: n=63 wall 4.01 broad 0.267 narrow 0.433 solve 0.617 other 2.69 contacts 3105
+bodies 1300-1800: n=130 wall 4.14 broad 0.256 narrow 0.398 solve 0.601 other 2.88 contacts 3762
+== wfc_arena 4v4 sub6 r1: 966 steps ==
+bodies 0-200: n=704 wall 7.84 broad 1.552 narrow 0.491 solve 0.393 other 5.40 contacts 51
+bodies 200-800: n=54 wall 12.75 broad 2.099 narrow 0.561 solve 0.886 other 9.21 contacts 761
+bodies 800-2000: n=208 wall 10.38 broad 1.269 narrow 0.468 solve 1.361 other 7.28 contacts 2068
+== wfc_arena 4v4 sub6 r2: 1256 steps ==
+bodies 0-200: n=731 wall 7.16 broad 1.418 narrow 0.403 solve 0.417 other 4.92 contacts 62
+bodies 200-800: n=357 wall 11.83 broad 1.745 narrow 0.444 solve 1.325 other 8.32 contacts 709
+bodies 800-2000: n=168 wall 13.86 broad 1.929 narrow 0.501 solve 1.676 other 9.75 contacts 1843

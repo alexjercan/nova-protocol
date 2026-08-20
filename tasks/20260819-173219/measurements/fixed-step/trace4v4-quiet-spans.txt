@@ -1,0 +1,60 @@
+window [4.0,9.0] anchor_frames=3136
+span                                                                     self_us/fr   total_us/fr
+schedule: name=PostUpdate                                                     583.1         665.5
+schedule: name=Update                                                         280.5         332.7
+|multithreaded executor:                                                      216.6         244.6
+|par_for_each: query="&mut bevy_camera::visibility::ViewVisibility" fi        155.9         155.9
+|system: name="bevy_transform::systems::parallel::propagate_parent_tra        145.6         157.6
+|par_for_each: query="bevy_ecs::entity::Entity" filter="bevy_ecs::quer        142.1         142.1
+schedule: name=PreUpdate                                                      132.0         156.3
+|par_for_each: query="(bevy_ecs::entity::Entity, &bevy_camera::visibil        123.8         123.8
+|system: name="nova_ship::input::ai::acquisition::update_ai_target"           109.6         109.6
+|par_for_each: query="(bevy_ecs::entity::Entity, bevy_ecs::change_dete         97.6          97.6
+schedule: name=FixedPostUpdate                                                 95.1         397.3
+|par_for_each: query="(bevy_ecs::entity::Entity, bevy_ecs::change_dete         85.9          85.9
+|system: name="wfc_arena::track_damage"                                        79.1          79.1
+|par_for_each: query="(&avian3d::physics_transform::transform::Positio         77.0          77.0
+PhysicsSchedule|system: name="avian3d::collision::broad_phase::bvh_bro         66.0          66.0
+|par_for_each: query="(bevy_ecs::entity::Entity, bevy_ecs::change_dete         58.9          58.9
+schedule: name=FixedUpdate                                                     57.4          60.4
+|system: name="bevy_transform::systems::mark_dirty_trees"                      56.2          66.5
+schedule: name=StateTransition                                                 49.4          69.0
+|system: name="nova_ship::ship_audio::loops::compute_thruster_hum_volu         32.5          32.5
+schedule: name=SubstepSchedule                                                 30.9          89.5
+|system: name="bevy_camera::visibility::reset_view_visibility"                 30.2          31.6
+|system: name="bevy_camera::visibility::check_visibility_cpu_culling"          29.7          40.4
+schedule: name=Last                                                            29.5          33.1
+Update|multithreaded executor:                                                 28.0          35.5
+|system: name="bevy_ui::layout::ui_layout_system"                              26.9          26.9
+PhysicsSchedule|system: name="avian3d::collider_tree::update::update_s         26.0          33.4
+schedule: name=First                                                           25.1          26.1
+|system: name="avian3d::collision::collider::collider_transform::plugi         24.8          31.6
+|system: name="bevy_camera::visibility::mark_newly_hidden_entities_inv         23.5          29.1
+schedule: name=PhysicsSchedule                                                 23.4         299.7
+|system: name="avian3d::physics_transform::transform_to_position"              20.6          20.6
+PhysicsSchedule|system: name="avian3d::collision::narrow_phase::update         20.5          20.5
+|system: name="nova_ship::flight::autopilot::autopilot_system"                 18.7          18.7
+schedule: name=RunFixedMainLoop                                                18.5         537.5
+schedule: name=Main                                                            17.6        1910.4
+|par_for_each: query="(bevy_ecs::change_detection::params::Ref<'_, bev         15.6          15.6
+|system: name="nova_ship::ship_audio::loops::compute_rcs_loop_volume"          15.2          15.2
+PostUpdate|multithreaded executor:                                             13.6          14.3
+|asset loading: loader="bevy_audio::audio_source::AudioLoader" asset="         13.4          13.4
+|system: name="nova_ship::sections::integrity::aggregate_ship_health"          13.2          13.2
+PreUpdate|multithreaded executor:                                              12.9          14.7
+schedule: name=SpawnScene                                                      12.2          19.1
+|par_for_each: query="(&mut bevy_transform::components::transform::Tra         12.1          12.1
+|system: name="nova_ship::sections::controller_section::update_control         11.3          11.3
+RunFixedMainLoop|system: name="bevy_transform_interpolation::reset_eas         10.9          14.4
+PhysicsSchedule|system: name="avian3d::collider_tree::update::update_m         10.4          20.0
+SubstepSchedule|system: name="avian3d::dynamics::integrator::integrate         10.4          13.7
+SubstepSchedule|system: name="avian3d::dynamics::solver::solver_body::         10.4          13.7
+SubstepSchedule|system: name="avian3d::dynamics::integrator::integrate         10.3          13.7
+|system: name="(bevy_ecs::system::system_param::Local<'_, alloc::vec::         10.3          10.3
+RunFixedMainLoop|system: name="bevy_transform_interpolation::ease_rota         10.3          13.6
+schedule: name=FixedFirst                                                      10.2          10.7
+PhysicsSchedule|system: name="avian3d::collision::collider::collider_t         10.2          10.2
+PostUpdate|system: name="bevy_egui::run_egui_context_pass_loop_system"          9.9          45.9
+PhysicsSchedule|par_for_each: query="(bevy_ecs::entity::Entity, bevy_e          9.6           9.6
+|system: name="bevy_camera::visibility::visibility_propagate_system"            9.1           9.1
+|system: name="nova_gameplay::integrity::neutralize::detect_neutralize          8.6           8.6
