@@ -131,6 +131,18 @@ most often.
 4. Aim each surface at its own reader and do not paste one paragraph into three.
    `/wiki/` is what a player experiences, `/create/` is the authored contract
    and must be exact, the dev book is the mechanism.
+
+   The test is REACHABILITY, not topic: **can this page's reader reach the thing
+   it describes?** A player cannot run `cargo run --example wfc_arena`, so a
+   wiki section about that bench is misfiled however player-shaped it reads.
+   Both violations found on 2026-08-20 passed a topic check and failed this one
+   - an arena bench on `/wiki/nova-os/`, and the exhaustive event/filter/action
+   catalog folded into `/wiki/scenarios/` when `/create/` owns it.
+
+   Duplication is the symptom, not the defect. The defect is that the copy
+   drifts and there is no way to tell which one is true - and the exact copy
+   goes stale on the surface whose reader can least afford it, because
+   `/create/` must be exact and a wiki fold is nobody's job to update.
 5. A page describing something about to be rewritten gets a HOLE, not a
    placeholder. Strike what is false, say the mechanism is undocumented, and
    schedule it.
