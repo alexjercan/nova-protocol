@@ -443,3 +443,79 @@ clamp spiral above - it is real, it is a 3.4x swing, and it is not the camera.
 the NEXT hand-driven run is silently a traced run. It cost a whole seven-capture
 sweep, caught only because it wrote 400-900 MB `trace-*.json` files into the
 repo root.
+
+## D15 - the torpedo material lane: what it fixed, and the two it left
+
+Landed `d4670f32`. This is the FIFTH and SIXTH sighting of the same bug, and
+the first time the fix had to be two fixes for one symptom.
+
+### One root cause did not explain both items
+
+The warhead material was minted per LAUNCH from `TorpedoType::tint` - a
+per-instance asset carrying a per-TYPE value, which is a plain mistake. Because
+`SectionCracksMaterials` keys buckets on the source `AssetId`, a private source
+could never collapse, so every torpedo also minted its own crack buckets as
+point defence chewed on it. `forget_dead_sources` existed only to stop that
+being a leak rather than a cost.
+
+**But fixing the root collapsed ONE item.** The exhaust plume is private for a
+different reason: its material carries a per-frame VALUE - the throttle - not an
+identity. So the `8a26ae31` read-before-write guard, which covers a parked
+fleet, covers a guided torpedo NOT AT ALL: its thrust genuinely moves every
+frame. Two defects wearing one symptom. The plume needed quantising
+(`EXHAUST_PLUME_BUCKETS = 16`, swap never write), which is D1's pattern from
+`6b3bfc87` reapplied.
+
+### The result, and the honest part of it
+
+Traced, saturated: `prepare_erased_assets<...ThrusterExhaustMaterial>` 8.576 ms
+-> 0.008, `prepare_material_bind_groups` 5.804 -> 0.262. **64.0% of the frame to
+1.8%.** Paired clean pass: `min_ms` 17.83 -> 5.47, ratio **0.304**. Census 105
+distinct drawn materials -> 17.
+
+The frame TOTAL only moves to 0.785x, and the reason matters more than the
+number: **the render world stopped being the pacer** - 98.0% of the traced frame
+down to 48.5%. What is left is the main world. The fix also made the main world
+MORE expensive, because a faster `Update` feeds the point-defence chain harder:
+the fix arm carries 2365 rounds / 2565 colliders against the base arm's 2036 /
+2239, about 15% more work. The 0.785 is conservative by that much, and **the
+next candidate on this range is the simulation, not the renderer** - which is
+phase 6, arrived at from the other direction.
+
+`Render/graph` 4.01 -> 4.31 straddles 1.00. That is the control: nothing left
+the picture.
+
+### The visual gate, and how it was argued
+
+RMSE was measured against the run-to-run FLOOR rather than reported as a bare
+number: within-base 0.268-1.025%, within-fix 0.311-0.473%, cross-arm
+0.400-0.967%. Every cross-arm pair lands INSIDE the unchanged binary's own
+spread. The decisive argument is not statistical though - it is in the shader:
+one bucket step moves the flame tip by 0.0667 local units and
+`thruster_exhaust.wgsl:56` already jitters that same tip by up to 0.1 every
+frame. **The quantiser is finer than the wobble already applied on top of it.**
+
+Also learned: `wiki-combat-aftermath.png` is USELESS as a visual gate. Two base
+runs differ by 13.78% because the debris scatter is unseeded. A gate that
+cannot reproduce itself measures nothing.
+
+### Two more sightings, recorded and NOT fixed
+
+Both are the same defect in asset types the census cannot see:
+
+- `insert_blast_radius_visual` mints one `StandardMaterial` per detonation and
+  writes it every frame. Bounded by a 0.4 s lifetime - peak 3 concurrent on this
+  case - so it is real but small.
+- `insert_particle_effect` builds a fresh 32768-particle `EffectAsset` FROM
+  LITERALS per detonation. This is the `cbc86980` placeholder-art defect in an
+  asset type nothing counts, and nothing counts it precisely because it is not a
+  mesh or a material.
+
+Turret rounds were checked and are CLEAN: 1349 instances, 1 mesh, 1 material.
+`DefaultProjectileRender` remains the exemplary pattern.
+
+**The instrument gap is the finding here, not the two sites.** Five of six
+sightings were found because a census counted the asset type; these two were
+found by reading code, which does not scale. The census learned
+`plume_material_assets` in `362caf96`; it still cannot see `EffectAsset` or a
+per-detonation `StandardMaterial`.
