@@ -90,6 +90,62 @@ Using the promoted harness, so a round is cheap. Known targets:
 - Coverage holes the map named: carving has one case, NOVA OS and the editor one
   each, WFC generation unreachable from any scenario.
 
+## Phase 5 - is the documentation UNDERSTANDABLE, and is the design minimal
+
+Queued 2026-08-20 by the owner, to run AFTER the `docs/` and `/wiki/` passes
+land. **Report only - no changes.** The two passes before it fix what is WRONG;
+this one asks whether what is right is also comprehensible, and whether the
+thing being described should be smaller.
+
+Owner's framing: "check if it's understandable, or if some decisions are
+weird... stuff that helps keeping things minimal".
+
+### The exemplar, and it holds up
+
+Owner: "why do we need `NOVA_SHOT` and `NOVA_CAPTURE`, aren't they the same
+thing?"
+
+They are not, and the reason is real:
+
+- **`NOVA_SHOT` is a DRIVER.** It arms `ScreenshotPlugin`, which forces state
+  to `Playing` and shoots one settled frame. It moves the app on its own.
+- **`NOVA_CAPTURE` is a BRANCH on someone else's driver.** It arms the capture
+  path of an autopilot script; the script reads `capturing()` while building
+  its steps and shoots at its own beats instead of driving straight through.
+  It drives nothing by itself and is meaningless without `NOVA_AUTOPILOT` -
+  every example sets the pair.
+
+They collide because both would write `NextState`, which is why `NOVA_SHOT`
+stands down with a warning when `NOVA_AUTOPILOT` is set.
+
+**So the design is sound and the NAMES are the defect.** Two names built on the
+same noun, for a driver and a sub-flag of a different driver. The justification
+exists - `crates/nova_autopilot/src/lib.rs:48`, "deliberately distinct" - but it
+lives in a crate rustdoc block a `/dev/` reader never opens, and it explains
+that they differ without making it obvious HOW. A name like
+`NOVA_AUTOPILOT_CAPTURE` would answer the owner's question in the name.
+
+This is the SHAPE to look for: not a wrong document, but a correct one whose
+reasoning is only reachable if you already know the answer.
+
+### The other lead already found
+
+**Over 40 `NOVA_*` environment variables**, and about twenty are `NOVA_OS_*`
+CRT tuning knobs - `CRT_WARP`, `CRT_OVERSCAN`, `CRT_POWER_EPSILON`, `CASE_EDGE`,
+`CASE_RADIUS_TOP_PX`, `CASE_RADIUS_BOTTOM_PX`, `SCREEN_RADIUS_PX`, `CONTENT_Z`,
+`SCAN_DETENTS`, `BRIGHT_DETENTS`, `DEGAUSS_DURATION`, `COIL_VOLUME`,
+`BED_VOLUME`, `PHOSPHOR`, `PHOSPHOR_DIM`, `PHOSPHOR_MUTED`, `AMBER`, `TEXT`,
+`SCREEN`, `TERMINAL_HINTS`, `RTT_LAYER`.
+
+Those read as playtest-tuning knobs that were never baked once the look
+settled. Each is a live configuration surface, a thing to document, and a thing
+that can be set wrong. Ask which survived their tuning phase.
+
+### What the pass reports
+
+For each finding: what is confusing or redundant, the evidence, and what the
+minimal version would be. No edits, no tasks filed. The owner ranks it after.
+
 ## The loop - phases 1 to 4 REPEAT
 
 Owner, 2026-08-20: fix the damage buckets, add probe capabilities, do more
