@@ -1,0 +1,137 @@
+# The game as a process: named inputs, a command channel, and state on stdout
+
+- STATUS: OPEN
+- PRIORITY: 0
+- TAGS: backlog
+
+Make the game drivable and observable as a PROCESS: named input actions, a
+command channel that carries both inputs and scenario actions, world state on
+stdout, and a step mode that lets a slow driver keep up.
+
+Designed with the owner 2026-08-20. `--norender` already landed (`a47c6247`),
+which is the precondition: no device, no window, no winit, main schedule still
+ticking.
+
+## Three independent payoffs, and the first one ships to players
+
+1. **Rebinding.** `crates/nova_ship/src/input/reference.rs` is a hand-authored
+   DISPLAY MIRROR of the flight rig, kept in parity by a test, carrying
+   `TODO(20260710-231927)` for real remapping. Naming the rig's actions deletes
+   that workaround: the settings menu reads actions by name instead of a copy.
+   **This is a shipping feature, not test scaffolding.**
+2. **Testing and debugging without a rebuild.** Today "what if I hold radar
+   here" means editing Rust and waiting on a Bevy compile.
+3. **An external agent can play.** The owner's case: an agent reads world state
+   as JSONL and writes input JSONL back.
+
+Any one of the three justifies the work. Do not let the third one inflate the
+scope of the first two.
+
+## What already exists -- most of the output half is BUILT
+
+- `crates/nova_probe/src/capabilities/snapshot.rs` serialises the world to one
+  JSON object: ships (identity, transform, velocity, health, mass, defeat and
+  neutralize flags, weapon locks), every section (id, prototype, class, pose,
+  health, alive, weapon state, fixtures), and all ordnance in flight (owner,
+  position, velocity, damage, remaining lifetime, target). **`capture_snapshot`
+  does no IO** - hand it `&mut World`, get the object. Its own module doc
+  already says: "A future headless JSON mode that reads actions on stdin and
+  emits state on stdout is the same call with a different sink."
+- `EventActionConfig` (`crates/nova_scenario/src/actions/mod.rs`) already
+  serialises for scenario RON, 25 actions.
+- `nova_autopilot::input::press_key` / `press_mouse` already synthesise real
+  input events.
+- `AppBuilder::headless()` already exists.
+
+## Settled design
+
+**Named input actions.** Every player action gets a stable string -
+`main_drive`, `radar_hold`, `fire_primary` - sourced from the input RIG
+(`nova_ship/src/input/player/flight_rig.rs`), NOT from `reference.rs`, which is
+a display mirror. Deriving from the mirror would create a third copy to desync.
+
+**The dispatcher is a lookup table and an injector, not an interpreter.** One
+function: `apply(name, phase)` resolves the name and injects into the input
+layer. serde does the parsing; there is no language. Console, stdin and
+autopilot all resolve to this one call, and `hold_radar` in
+`examples/screenshots/screenshot_combat_lock.rs` stops hardcoding a `KeyCode`.
+
+**One transport, two vocabularies**: `input <name>` and `action <name>`.
+
+The asymmetry is deliberate and self-documenting: **a scenario RON holds actions
+only; the channel holds both.** An input goes through the game's rules and can
+legitimately fail - radar destroyed, magazine empty. An action bypasses them.
+Merging the two namespaces would lose the guarantee that makes an input test
+prove "a player could do this".
+
+**Failure semantics differ by namespace.** An input that fails is
+gameplay-truthful: report it in the SNAPSHOT output so a driver observes it did
+not work, and continue. An action that fails is a script error: log it loudly.
+
+**Actions reuse `EventActionConfig`.** The channel parses the same enum the RON
+does, so every existing action is available over the channel with zero
+per-action work and the two can never drift. This is the difference between
+"add 25 commands" and "add none".
+
+**Cheat actions go in the catalog.** Owner's call, 2026-08-20, with Wesnoth as
+precedent - they are useful for scripting cutscenes. Consequences to accept:
+they land in `/create/`, must be documented exactly, and become a contract mods
+depend on. `kill_all` should COMPOSE WITH THE EXISTING FILTER SYSTEM rather than
+be a blunt verb, so "kill all raiders" and "kill everything in this area" come
+free and it matches how every other action already works.
+
+**Step mode, and the agent case does not work without it.** An LLM thinks for
+seconds; the game runs 60 ticks a second. Free-running, the world has moved
+hundreds of ticks before a reply arrives and the observation describes a game
+that no longer exists. So agent mode replaces the keyboard AND THE CLOCK:
+advance N ticks -> emit snapshot -> BLOCK until input arrives -> repeat. It also
+makes the loop deterministic, and it is cheap in `--norender` because no display
+is being starved. `ScheduleRunnerPlugin` drives the headless loop, so that is
+where the hook goes.
+
+**Binding: scripted input MUST carry a tick.** Interactive input applies "now".
+Anything replayable carries a tick number, or the same script diverges at
+different frame rates - the reproducibility failure epic `20260818-220812` spent
+a week fighting. Composes with the seeded-`bevy_rand` rule.
+
+**The console is a front-end, not a second transport.** NOVA OS cannot be it:
+opening NOVA OS FREEZES the game deliberately, so it can never drive a live one.
+Share the dispatcher, not the surface. Console is optional and goes LAST.
+
+## Open
+
+- The line schema.
+- Which crate owns the stdin reader.
+- Whether step mode is a runner mode or a resource.
+- Which cheats are catalog actions and which stay debug-only. The test is
+  whether a SCENARIO would genuinely want it: refill-ammo in a tutorial, yes;
+  `god`, no.
+
+## Phases, each independently valuable
+
+1. Named input actions + dispatcher. Unblocks rebinding on its own.
+2. Snapshot to stdout + step mode. The agent loop's clock.
+3. stdin transport carrying `input` and `action`.
+4. Console UI + cheat actions.
+
+## Traps
+
+- More runtime strings. `CONVENTIONS.md` Nova rule 5: ids are runtime strings,
+  nothing type-checks them, a rename compiles clean and fails at load. Whatever
+  ships here MUST be reachable by `content lint` or a probe run, because that is
+  the only detection this project has for that failure.
+- Do not design it as a network protocol. It is shaped like a multiplayer
+  server's input path, and that is a reason to keep the simulation clean, NOT a
+  reason to add framing, versioning or auth now. Nothing on the board points at
+  multiplayer.
+- `SyncWorldPlugin`'s queue leaks under `--norender` (~24 bytes per synced spawn
+  and component removal, linear in run length; `tasks/20260819-173219/notes-render-off.md`).
+  Fine for probe-length runs, NOT for an indefinite driven session. Step mode
+  makes long sessions likely, so this becomes load-bearing.
+
+## Done when
+
+- The settings menu reads keybinds by action name, not from a mirror.
+- A range drives the game through the dispatcher instead of a raw `KeyCode`.
+- A headless run emits world state and accepts input on a channel, and the same
+  input sequence replays to the same result.
