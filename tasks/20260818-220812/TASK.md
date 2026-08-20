@@ -56,8 +56,16 @@ Examples and docs:
 
 ## What "done" means for the release
 
-- A `wfc_arena` 4v4 holds frame rate, with a MEASURED number - **but not yet
-  that number.** The 295.76 ms worst frame quoted from `20260819-123928/NOTES.md`
+- **A 1v1 holds 60 FPS.** Owner, 2026-08-20, replacing the 4v4 target
+  (`DECISIONS.md` D11). 4v4 at 60 was unreachable by construction: eight hulls
+  cost 16.0 ms of protected non-drawn work against a 16.67 ms budget. At 1v1
+  that is 4.00 ms, so the protected half stops binding and the target is real
+  work rather than an arithmetic impossibility. Today 1v1 measures 26.3 ms
+  (38 FPS uncapped, reading ~30 on a vsynced hand-run). The floor alone is
+  16.74 ms - 100.4% of the budget - so cutting it is a precondition, not an
+  optimisation.
+- A `wfc_arena` 4v4 still gets a MEASURED number, as the scaling check - **but
+  not yet that number.** The 295.76 ms worst frame quoted from `20260819-123928/NOTES.md`
   is RETRACTED, and that page now says so. Two faults, either one fatal: the
   capture opened on a scoreboard predicate with no upper bound, so 2 of 10
   repeats ran past `match ended` into a PAUSED result screen (one spent 555 of
