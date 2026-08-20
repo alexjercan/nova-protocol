@@ -572,10 +572,6 @@ struct ThrusterExhaustPlume {
     bucket: usize,
 }
 
-#[expect(
-    clippy::type_complexity,
-    reason = "the plume query carries its own material and parent handles"
-)]
 fn thruster_shader_update_system(
     time: Res<Time>,
     q_thruster: Query<
