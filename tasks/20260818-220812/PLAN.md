@@ -64,10 +64,14 @@ changed.
    mechanism, not a curve, and naming it probably names the fix.
    **Measure on a real display.** Xvfb adds ~13.7 ms of per-pixel CPU copy at
    720p and would swamp this.
-2. **`ThrusterExhaustMaterial`** re-prepared every frame per thruster - now 32%
-   of what a ship costs (1.54 of 4.76 ms), up from 15%, because the cracks fix
-   removed the term above it. Same defect class as the cracks: a material
-   rewritten per frame.
+2. ~~**`ThrusterExhaustMaterial`** re-prepared every frame per thruster.~~
+   **DONE, `d4670f32`. See D15.** It needed TWO fixes rather than one: the
+   warhead material was a per-instance asset holding a per-type value, and the
+   plume was a per-frame value that no read-before-write guard could ever cover.
+   On `stress_point_defense` the pair took `min_ms` 17.83 -> 5.47.
+   **What it changed about this list**: the render world stopped being the pacer
+   on that range (98.0% of the traced frame -> 48.5%), so item 1 below is no
+   longer obviously the top of the board and phase 6 is where the argument moved.
 3. **Per-hull section-material duplication** (D7). Every hull instantiates its
    own copies of the same ~35 section materials: 381 bins at 11 ships where 35
    would do. A gltf / `WorldAssetRoot` instancing question.
