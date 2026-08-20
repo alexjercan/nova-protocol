@@ -292,3 +292,74 @@ measurement first.
 **Reversed by**: nothing. The real-display figure is confirmed by three repeats
 AND by an independent instrument (the owner's hand-runs) agreeing to within a
 frame at two separate ship counts.
+
+## D13 - the desk is shared, the floor anomaly has a real cause, and Prepare was mis-attributed
+
+`tasks/20260819-173219/notes-prepare.md`, landed `d15479b5`.
+
+### Captures may run on a hidden workspace
+
+**H/V median 0.984-0.993 on `min_ms` over 14 paired captures**, every spread
+straddling 1.00. i3 unmapping a hidden workspace does not change what a capture
+measures, so measurement and the owner's desk can share one machine.
+
+**Only after a fix, though.** Before it, hidden read **16.66/16.68 ms at
+`mean_fps` 60.0** against 3.37 ms visible. `WinitSettings::game()` sets
+`unfocused_mode: reactive_low_power(1/60)` - and the capture's own comment
+claimed it "keeps the loop running flat out even when the window is unfocused".
+The comment was the opposite of the behaviour.
+
+### That is `notes-floor.md`'s anomaly, and the diagnosis there was wrong
+
+The floor lane read one reference at 16.67 ms and blamed "a 60 Hz composited
+path". **There is no compositor on this host and the output is 165 Hz**, so
+60 Hz was never its refresh. Reproduced on demand, same signature to two
+decimals. Corrected in that file.
+
+Two wrong environment diagnoses in two days, both landing on a plausible number.
+Hence three refusals rather than three warnings: `ABORT_WINDOW_SIZE`,
+`ABORT_UPDATE_THROTTLED`, `ABORT_REFRESH_CAPPED`. The last is calibrated against
+measured `fifo` 0.76-0.79 against `immediate` 0.03-0.44 - the first threshold
+guessed was wrong and a genuinely capped window passed it.
+
+### The gallery figures SURVIVE
+
+Re-measured from scratch, interleaved, 3 passes: **3.45 / 28.41 / 40.71 / 43.33
+ms** against the recorded 3.02 / 27.60 / 34.82 / 44.04. **D11, D12 and the
+release DoD need no retraction.** The `IdleOrbit` defect was real and cost less
+than this box's noise.
+
+The window-size defect touches a LABEL, not a number: real-display captures ran
+at the WM's geometry, so `notes-floor.md`'s "1.10x the window" was 960x1057.
+Fill binds nothing there, so the figures stand.
+
+### `PrepareMeshes` is not a lever, and I said it was
+
+The brief I wrote said "`Prepare` + `PrepareMeshes` is 16.1 ms". `PrepareAssets`
+chains outside the top-level chain, so its time landed in a neighbour. Corrected:
+**`Prepare` 13.66, `PrepareAssets` 4.30, `PrepareMeshes` 0.30** - 1.3%, noise.
+
+### The law worth keeping: a hull costs what it INTRODUCES
+
+**The frame tracks DISTINCT MESH ASSETS, not instances.** R^2 0.996 against
+0.910; marginal per-instance cost drifts 4.9x across the sweep while
+per-distinct-mesh drifts 1.58x.
+
+So drawing the same ship twice is nearly free and drawing two different ships is
+not. This is the same shape as the crack-bucket win - that was distinct
+MATERIALS - and it re-aims everything after it. D7's "every hull instantiates its
+own ~35 section materials" is now the ranked item it predicted it would be.
+
+### Landed and ranked
+
+1. **DONE**: `thruster_shader_update_system` called `Assets::get_mut`
+   unconditionally, re-uploading every drive material every frame.
+   `PrepareAssets` **0.175x**, least-contended one-hull frame **0.733x**.
+2. Fewer distinct MESHES per hull - 0.170 ms each per frame, 120 at one hull.
+3. Fewer distinct MATERIALS - 0.285 ms each, 74 at one hull.
+4. `Shadow` costs ~0.64 ms CPU with NO `render/shadows` GPU pass - correcting the
+   floor lane's "shadow maps: 0.000 ms" ruling, which read the GPU side only.
+
+**Standing caveat**: on this box a whole run lands 2-3x from the one before it
+with every phase scaling together. Quote `min_ms` and phase shares. A mean whose
+spread straddles 1.00 measured nothing.
