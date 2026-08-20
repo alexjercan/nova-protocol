@@ -1,0 +1,5 @@
+# Mesh-count lane: distinct ShellShape ids a hull's derived skin actually wears.
+ships,plates,distinct_shapes,shape_ids
+1,166,10,"shell_0002_0011 shell_0022_0121 shell_0044_0242 shell_0222_1221 shell_0244_1342 shell_0442_2431 shell_0444_2442 shell_2222_2222 shell_2224_2233 shell_2244_2343"
+2,366,11,"shell_0002_0011 shell_0022_0121 shell_0044_0242 shell_0222_1221 shell_0244_1342 shell_0442_2431 shell_0444_2442 shell_2222_2222 shell_2224_2233 shell_2244_2343 shell_4444_4444"
+3,576,14,"shell_0002_0011 shell_0004_0022 shell_0022_0121 shell_0024_0132 shell_0042_0231 shell_0044_0242 shell_0222_1221 shell_0244_1342 shell_0442_2431 shell_0444_2442 shell_2222_2222 shell_2224_2233 shell_2244_2343 shell_4444_4444"

@@ -3,6 +3,7 @@
 use avian3d::prelude::*;
 use bevy::{
     pbr::{ExtendedMaterial, MaterialExtension},
+    platform::collections::HashMap,
     prelude::*,
     render::render_resource::AsBindGroup,
     shader::ShaderRef,
@@ -13,7 +14,7 @@ use nova_gameplay::prelude::{
 };
 
 use crate::{
-    prelude::{RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf},
+    prelude::{PlaceholderArt, RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf},
     sections::damage_plume::prelude::{plume_scale, DamagePlume},
 };
 
@@ -21,9 +22,9 @@ use crate::{
 /// configuration and `ThrusterSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        thruster_section, ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustShape,
-        ThrusterSectionConfig, ThrusterSectionInput, ThrusterSectionMagnitude,
-        ThrusterSectionPlugin, ThrusterSectionRenderMarker,
+        thruster_section, ExhaustMeshes, ThrusterExhaust, ThrusterExhaustConfig,
+        ThrusterExhaustShape, ThrusterSectionConfig, ThrusterSectionInput,
+        ThrusterSectionMagnitude, ThrusterSectionPlugin, ThrusterSectionRenderMarker,
     };
 }
 
@@ -151,7 +152,7 @@ pub struct ThrusterExhaustConfig {
 /// pyramid (sized by `width`/`height`) instead of a round cone; the glow shader
 /// is shape-agnostic (it elongates along +Y using the xz radius, which still
 /// fades a rectangle).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ThrusterExhaustShape {
     /// Round cone cross-section (sized by the radius fields).
@@ -225,6 +226,54 @@ fn exhaust_mesh(shape: ThrusterExhaustShape, hx: f32, hz: f32, height: f32) -> M
         ThrusterExhaustShape::Rect => rect_exhaust_builder(4),
     };
     builder.with_scale(Vec3::new(hx, height, hz)).build()
+}
+
+/// Everything [`exhaust_mesh`] is a function of, as a hashable key.
+///
+/// The floats go in as BIT PATTERNS. Two nozzles off one prototype are built
+/// from the same authored numbers, so they hash equal without any tolerance -
+/// and a tolerance would be the wrong tool anyway: a near miss should mint its
+/// own mesh rather than silently wear a neighbour's.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+struct ExhaustMeshKey {
+    geometry: ThrusterExhaustShape,
+    hx: u32,
+    hz: u32,
+    height: u32,
+}
+
+/// The exhaust flame meshes every nozzle of one size shares.
+///
+/// The mesh is a pure function of the four numbers in [`ExhaustMeshKey`] and
+/// nothing writes into it - the throttle glow lives in the MATERIAL, which
+/// stays per nozzle because two drives burn at two rates. Without this cache
+/// each nozzle minted two fresh 32-segment cones, so a hull with a dozen drives
+/// introduced two dozen distinct meshes that were all one of two shapes, and a
+/// distinct mesh is prepared, bound and written every frame whatever it is a
+/// copy of.
+#[derive(Resource, Default)]
+pub struct ExhaustMeshes(HashMap<ExhaustMeshKey, Handle<Mesh>>);
+
+impl ExhaustMeshes {
+    /// The mesh for this flame, building it if this is the first nozzle to ask.
+    fn mesh(
+        &mut self,
+        geometry: ThrusterExhaustShape,
+        hx: f32,
+        hz: f32,
+        height: f32,
+        meshes: &mut Assets<Mesh>,
+    ) -> Handle<Mesh> {
+        self.0
+            .entry(ExhaustMeshKey {
+                geometry,
+                hx: hx.to_bits(),
+                hz: hz.to_bits(),
+                height: height.to_bits(),
+            })
+            .or_insert_with(|| meshes.add(exhaust_mesh(geometry, hx, hz, height)))
+            .clone()
+    }
 }
 
 /// Base half-extents `(hx, hz)` and the shader falloff radius for the OUTER
@@ -315,6 +364,8 @@ impl Plugin for ThrusterSectionPlugin {
         >::default());
 
         if self.render {
+            app.init_resource::<ExhaustMeshes>();
+            app.init_resource::<PlaceholderArt>();
             app.add_observer(insert_thruster_section_render);
             app.add_observer(insert_thruster_shader);
         }
@@ -478,8 +529,7 @@ pub struct ThrusterSectionRenderMarker;
 fn insert_thruster_section_render(
     add: On<Add, ThrusterSectionMarker>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut standard_materials: ResMut<Assets<StandardMaterial>>,
+    placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,
     q_thruster: Query<
         (
@@ -532,16 +582,16 @@ fn insert_thruster_section_render(
                 (
                     Name::new("Thruster Section Body (A)"),
                     SectionRenderOf(entity),
-                    Mesh3d(meshes.add(Cylinder::new(0.4, 0.4))),
-                    MeshMaterial3d(standard_materials.add(Color::srgb(0.8, 0.8, 0.8))),
+                    Mesh3d(placeholder.barrel.clone()),
+                    MeshMaterial3d(placeholder.structure_material.clone()),
                     Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
                         .with_translation(Vec3::new(0.0, 0.0, -0.3)),
                 ),
                 (
                     Name::new("Thruster Section Body (B)"),
                     SectionRenderOf(entity),
-                    Mesh3d(meshes.add(Cone::new(0.5, 0.5))),
-                    MeshMaterial3d(standard_materials.add(Color::srgb(0.9, 0.3, 0.2))),
+                    Mesh3d(placeholder.nozzle.clone()),
+                    MeshMaterial3d(placeholder.nozzle_material.clone()),
                     Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
                 ),
             ],));
@@ -567,6 +617,7 @@ fn insert_thruster_shader(
     mut commands: Commands,
     q_config: Query<&ThrusterExhaustConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut flames: ResMut<ExhaustMeshes>,
     mut exhaust_materials: ResMut<
         Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
     >,
@@ -584,7 +635,13 @@ fn insert_thruster_shader(
 
     // Outer flame: extents from the shape (radius for cone, width/height for rect).
     let (ohx, ohz, omax_r) = outer_extents(config);
-    let mesh = exhaust_mesh(config.geometry, ohx, ohz, config.exhaust_height);
+    let mesh = flames.mesh(
+        config.geometry,
+        ohx,
+        ohz,
+        config.exhaust_height,
+        &mut meshes,
+    );
     let material = ExtendedMaterial {
         base: StandardMaterial {
             base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
@@ -615,7 +672,13 @@ fn insert_thruster_shader(
             (ohx * ratio, ohz * ratio, omax_r * ratio)
         }
     };
-    let inner_mesh = exhaust_mesh(config.geometry, ihx, ihz, config.exhaust_inner_height);
+    let inner_mesh = flames.mesh(
+        config.geometry,
+        ihx,
+        ihz,
+        config.exhaust_inner_height,
+        &mut meshes,
+    );
     let inner_material = ExtendedMaterial {
         base: StandardMaterial {
             base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
@@ -631,12 +694,12 @@ fn insert_thruster_shader(
 
     commands.entity(entity).insert((
         ThrusterSectionExhaustShaderMarker,
-        Mesh3d(meshes.add(mesh)),
+        Mesh3d(mesh),
         MeshMaterial3d(exhaust_materials.add(material)),
         children![(
             ThrusterSectionExhaustShaderMarker,
             Transform::from_xyz(0.0, 1e-4, 0.0),
-            Mesh3d(meshes.add(inner_mesh)),
+            Mesh3d(inner_mesh),
             MeshMaterial3d(exhaust_materials.add(inner_material)),
         )],
     ));
@@ -750,5 +813,38 @@ mod test {
             render_mesh.0.as_ref().unwrap(),
             &AssetRef::from(custom_scene)
         );
+    }
+
+    /// Two nozzles of one size share one flame mesh, and a third of another
+    /// size does not. The FRAME is what this buys: a distinct mesh is prepared
+    /// and bound every frame however many nozzles wear it, so a fleet whose
+    /// drives all came off one prototype must introduce two meshes and not two
+    /// per drive.
+    #[test]
+    fn nozzles_of_one_size_share_one_flame_mesh() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_resource::<ExhaustMeshes>();
+
+        let mut built = |height: f32| {
+            let world = app.world_mut();
+            let mut flames = world.remove_resource::<ExhaustMeshes>().expect("cache");
+            let mut meshes = world.resource_mut::<Assets<Mesh>>();
+            let handle = flames.mesh(ThrusterExhaustShape::Cone, 0.4, 0.4, height, &mut meshes);
+            let total = meshes.len();
+            world.insert_resource(flames);
+            (handle, total)
+        };
+
+        let (first, after_first) = built(0.1);
+        let (second, after_second) = built(0.1);
+        let (third, after_third) = built(0.2);
+
+        assert_eq!(first, second, "one size must mint one mesh");
+        assert_eq!(after_first, 1, "the first nozzle builds its mesh");
+        assert_eq!(after_second, 1, "the second nozzle builds nothing");
+        assert_ne!(first, third, "a different size is a different mesh");
+        assert_eq!(after_third, 2, "and it is built once");
     }
 }

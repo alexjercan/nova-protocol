@@ -12,7 +12,7 @@ use nova_gameplay::prelude::{
 
 use crate::prelude::{
     structural_arm, AttitudeEnvelope, PDController, PDControllerInput, PDControllerOutput,
-    PDControllerSystems, PDControllerTarget, RenderMeshTransform, SectionCollider,
+    PDControllerSystems, PDControllerTarget, PlaceholderArt, RenderMeshTransform, SectionCollider,
     SectionRenderMeshTransform, SectionRenderOf,
 };
 
@@ -603,6 +603,7 @@ impl Plugin for ControllerSectionPlugin {
         );
 
         if self.render {
+            app.init_resource::<PlaceholderArt>();
             app.add_observer(insert_controller_section_render);
         }
     }
@@ -683,8 +684,7 @@ pub struct ControllerSectionRenderMarker;
 fn insert_controller_section_render(
     add: On<Add, ControllerSectionMarker>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,
     q_controller: Query<
         (
@@ -737,14 +737,14 @@ fn insert_controller_section_render(
                 (
                     Name::new("Controller Section Body (A)"),
                     SectionRenderOf(entity),
-                    Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-                    MeshMaterial3d(materials.add(Color::srgb(0.2, 0.7, 0.9))),
+                    Mesh3d(placeholder.body.clone()),
+                    MeshMaterial3d(placeholder.controller_material.clone()),
                 ),
                 (
                     Name::new("Controller Section Window (B)"),
                     SectionRenderOf(entity),
-                    Mesh3d(meshes.add(Cylinder::new(0.2, 0.1))),
-                    MeshMaterial3d(materials.add(Color::srgb(0.9, 0.9, 1.0))),
+                    Mesh3d(placeholder.window.clone()),
+                    MeshMaterial3d(placeholder.window_material.clone()),
                     Transform::from_xyz(0.0, 0.5, 0.0),
                 )
             ],));

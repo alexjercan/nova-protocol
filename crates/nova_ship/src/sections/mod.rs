@@ -17,6 +17,7 @@ pub mod fixture;
 pub mod hull_section;
 pub mod integrity;
 pub mod link_points;
+pub mod placeholder_art;
 pub mod shell_shape;
 pub mod shell_skin;
 pub mod skin_decor;
@@ -35,10 +36,11 @@ pub mod prelude {
         controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
         damage_plume::prelude::*, damage_sparks::prelude::*, fixture::prelude::*,
         hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
-        live_structure_anchor, shell_shape::prelude::*, shell_skin::prelude::*,
-        skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
-        skin_style::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
-        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        live_structure_anchor, placeholder_art::prelude::*, shell_shape::prelude::*,
+        shell_skin::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
+        skin_report::prelude::*, skin_style::prelude::*, thruster_section::prelude::*,
+        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
+        SpaceshipSectionSystems,
     };
 }
 

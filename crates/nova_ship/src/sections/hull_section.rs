@@ -3,7 +3,9 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::{AssetRef, SectionClass};
 
-use crate::prelude::{RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf};
+use crate::prelude::{
+    PlaceholderArt, RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf,
+};
 
 /// The `hull_section` spawner, its config, marker and `HullSectionPlugin`.
 pub mod prelude {
@@ -61,6 +63,7 @@ impl Plugin for HullSectionPlugin {
         debug!("HullSectionPlugin: build");
 
         if self.render {
+            app.init_resource::<PlaceholderArt>();
             app.add_observer(insert_hull_section_render);
         }
     }
@@ -69,8 +72,7 @@ impl Plugin for HullSectionPlugin {
 fn insert_hull_section_render(
     add: On<Add, HullSectionMarker>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,
     q_hull: Query<(&HullSectionRenderMesh, &SectionRenderMeshTransform), With<HullSectionMarker>>,
 ) {
@@ -104,8 +106,8 @@ fn insert_hull_section_render(
             commands.entity(entity).insert((children![(
                 Name::new("Hull Section Body"),
                 SectionRenderOf(entity),
-                Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-                MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
+                Mesh3d(placeholder.body.clone()),
+                MeshMaterial3d(placeholder.structure_material.clone()),
             ),],));
         }
     }
@@ -168,6 +170,7 @@ mod test {
             app.init_asset::<Mesh>();
             app.init_asset::<StandardMaterial>();
             app.init_asset::<WorldAsset>();
+            app.init_resource::<PlaceholderArt>();
             app.add_observer(insert_hull_section_render);
             app.world_mut().spawn(hull_section(HullSectionConfig {
                 render_mesh: Some(AssetRef::from("gltf/hull-01.glb#Scene0".to_string())),

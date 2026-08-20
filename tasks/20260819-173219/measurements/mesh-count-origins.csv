@@ -1,0 +1,28 @@
+# Mesh-count lane: what one WFC hull introduces, by ORIGIN, before and after
+# wfc_ships, real display, 1280x720, NOVA_PERF_MAX_DELTA=0.015625.
+# The census is deterministic: one run per point is the whole measurement.
+arm,ships,origin,distinct_meshes,distinct_materials,instances
+base,1,section-fallback-cuboid,52,40,52
+base,1,cladding,30,3,498
+base,1,greeble,21,21,256
+base,1,section-art,17,5,180
+base,2,section-fallback-cuboid,106,84,106
+base,2,cladding,33,3,1098
+base,2,greeble,29,29,551
+base,2,section-art,27,5,456
+base,3,section-fallback-cuboid,138,110,138
+base,3,cladding,42,3,1728
+base,3,section-art,33,5,678
+base,3,greeble,29,29,879
+fix,1,cladding,30,3,498
+fix,1,greeble,21,21,256
+fix,1,section-art,6,5,180
+fix,1,section-fallback-cuboid,6,5,52
+fix,2,cladding,33,3,1098
+fix,2,greeble,29,29,551
+fix,2,section-art,6,5,456
+fix,2,section-fallback-cuboid,6,5,106
+fix,3,cladding,42,3,1728
+fix,3,greeble,29,29,879
+fix,3,section-art,6,5,678
+fix,3,section-fallback-cuboid,6,5,138

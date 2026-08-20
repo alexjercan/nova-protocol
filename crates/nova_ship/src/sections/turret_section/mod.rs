@@ -225,6 +225,7 @@ impl Plugin for TurretSectionPlugin {
         app.add_observer(resolve_bullet_hit);
 
         if self.render {
+            app.init_resource::<PlaceholderArt>();
             app.add_observer(insert_turret_joint_render);
             app.init_resource::<DefaultProjectileRender>();
             app.add_observer(insert_projectile_render);

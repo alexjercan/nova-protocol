@@ -1,0 +1,104 @@
+# Mesh-count lane: the same hull broken down by PIECE (nearest Name above the drawable).
+arm,ships,piece,distinct_meshes,distinct_materials,instances
+base,1,"cladding / Skin Surface",30,3,498
+base,1,"section-art / Thruster Exhaust",12,0,12
+base,1,"section-fallback-cuboid / Thruster Exhaust",12,0,12
+base,1,"section-fallback-cuboid / Thruster Section Body (A)",12,12,12
+base,1,"section-fallback-cuboid / Thruster Section Body (B)",12,12,12
+base,1,"greeble / Mesh.industrial_shadow",9,9,117
+base,1,"greeble / Mesh.industrial_steel",8,8,67
+base,1,"section-fallback-cuboid / Render Turret Joint",8,8,8
+base,1,"section-fallback-cuboid / Controller Section Body (A)",4,4,4
+base,1,"section-fallback-cuboid / Controller Section Window (B)",4,4,4
+base,1,"greeble / Mesh.industrial_hazard",3,3,64
+base,1,"section-art / Cube.003.Material",1,1,136
+base,1,"greeble / Mesh.industrial_placard",1,1,8
+base,1,"section-art / Cube.Material",1,1,8
+base,1,"section-art / Cylinder.001.Material.002",1,1,8
+base,1,"section-art / Cylinder.011.Material.003",1,1,8
+base,1,"section-art / Cylinder.Material.001",1,1,8
+base,2,"cladding / Skin Surface",33,3,1098
+base,2,"section-fallback-cuboid / Render Turret Joint",24,24,24
+base,2,"section-art / Thruster Exhaust",22,0,22
+base,2,"section-fallback-cuboid / Thruster Exhaust",22,0,22
+base,2,"section-fallback-cuboid / Thruster Section Body (A)",22,22,22
+base,2,"section-fallback-cuboid / Thruster Section Body (B)",22,22,22
+base,2,"greeble / Mesh.industrial_shadow",12,12,250
+base,2,"greeble / Mesh.industrial_steel",11,11,157
+base,2,"section-fallback-cuboid / Controller Section Body (A)",8,8,8
+base,2,"section-fallback-cuboid / Controller Section Window (B)",8,8,8
+base,2,"greeble / Mesh.industrial_hazard",5,5,124
+base,2,"section-art / Cube.003.Material",1,1,338
+base,2,"section-art / Cube.Material",1,1,24
+base,2,"section-art / Cylinder.001.Material.002",1,1,24
+base,2,"section-art / Cylinder.011.Material.003",1,1,24
+base,2,"section-art / Cylinder.Material.001",1,1,24
+base,2,"greeble / Mesh.industrial_placard",1,1,20
+base,3,"cladding / Skin Surface",42,3,1728
+base,3,"section-art / Thruster Exhaust",28,0,28
+base,3,"section-fallback-cuboid / Thruster Exhaust",28,0,28
+base,3,"section-fallback-cuboid / Thruster Section Body (A)",28,28,28
+base,3,"section-fallback-cuboid / Thruster Section Body (B)",28,28,28
+base,3,"section-fallback-cuboid / Render Turret Joint",26,26,26
+base,3,"section-fallback-cuboid / Controller Section Body (A)",14,14,14
+base,3,"section-fallback-cuboid / Controller Section Window (B)",14,14,14
+base,3,"greeble / Mesh.industrial_shadow",12,12,403
+base,3,"greeble / Mesh.industrial_steel",11,11,252
+base,3,"greeble / Mesh.industrial_hazard",5,5,193
+base,3,"section-art / Cube.003.Material",1,1,546
+base,3,"greeble / Mesh.industrial_placard",1,1,31
+base,3,"section-art / Cube.Material",1,1,26
+base,3,"section-art / Cylinder.001.Material.002",1,1,26
+base,3,"section-art / Cylinder.011.Material.003",1,1,26
+base,3,"section-art / Cylinder.Material.001",1,1,26
+fix,1,"cladding / Skin Surface",30,3,498
+fix,1,"greeble / Mesh.industrial_shadow",9,9,117
+fix,1,"greeble / Mesh.industrial_steel",8,8,67
+fix,1,"greeble / Mesh.industrial_hazard",3,3,64
+fix,1,"section-art / Cube.003.Material",1,1,136
+fix,1,"section-art / Thruster Exhaust",1,0,12
+fix,1,"section-fallback-cuboid / Thruster Exhaust",1,0,12
+fix,1,"section-fallback-cuboid / Thruster Section Body (A)",1,1,12
+fix,1,"section-fallback-cuboid / Thruster Section Body (B)",1,1,12
+fix,1,"greeble / Mesh.industrial_placard",1,1,8
+fix,1,"section-art / Cube.Material",1,1,8
+fix,1,"section-art / Cylinder.001.Material.002",1,1,8
+fix,1,"section-art / Cylinder.011.Material.003",1,1,8
+fix,1,"section-art / Cylinder.Material.001",1,1,8
+fix,1,"section-fallback-cuboid / Render Turret Joint",1,1,8
+fix,1,"section-fallback-cuboid / Controller Section Body (A)",1,1,4
+fix,1,"section-fallback-cuboid / Controller Section Window (B)",1,1,4
+fix,2,"cladding / Skin Surface",33,3,1098
+fix,2,"greeble / Mesh.industrial_shadow",12,12,250
+fix,2,"greeble / Mesh.industrial_steel",11,11,157
+fix,2,"greeble / Mesh.industrial_hazard",5,5,124
+fix,2,"section-art / Cube.003.Material",1,1,338
+fix,2,"section-art / Cube.Material",1,1,24
+fix,2,"section-art / Cylinder.001.Material.002",1,1,24
+fix,2,"section-art / Cylinder.011.Material.003",1,1,24
+fix,2,"section-art / Cylinder.Material.001",1,1,24
+fix,2,"section-fallback-cuboid / Render Turret Joint",1,1,24
+fix,2,"section-art / Thruster Exhaust",1,0,22
+fix,2,"section-fallback-cuboid / Thruster Exhaust",1,0,22
+fix,2,"section-fallback-cuboid / Thruster Section Body (A)",1,1,22
+fix,2,"section-fallback-cuboid / Thruster Section Body (B)",1,1,22
+fix,2,"greeble / Mesh.industrial_placard",1,1,20
+fix,2,"section-fallback-cuboid / Controller Section Body (A)",1,1,8
+fix,2,"section-fallback-cuboid / Controller Section Window (B)",1,1,8
+fix,3,"cladding / Skin Surface",42,3,1728
+fix,3,"greeble / Mesh.industrial_shadow",12,12,403
+fix,3,"greeble / Mesh.industrial_steel",11,11,252
+fix,3,"greeble / Mesh.industrial_hazard",5,5,193
+fix,3,"section-art / Cube.003.Material",1,1,546
+fix,3,"greeble / Mesh.industrial_placard",1,1,31
+fix,3,"section-art / Thruster Exhaust",1,0,28
+fix,3,"section-fallback-cuboid / Thruster Exhaust",1,0,28
+fix,3,"section-fallback-cuboid / Thruster Section Body (A)",1,1,28
+fix,3,"section-fallback-cuboid / Thruster Section Body (B)",1,1,28
+fix,3,"section-art / Cube.Material",1,1,26
+fix,3,"section-art / Cylinder.001.Material.002",1,1,26
+fix,3,"section-art / Cylinder.011.Material.003",1,1,26
+fix,3,"section-art / Cylinder.Material.001",1,1,26
+fix,3,"section-fallback-cuboid / Render Turret Joint",1,1,26
+fix,3,"section-fallback-cuboid / Controller Section Body (A)",1,1,14
+fix,3,"section-fallback-cuboid / Controller Section Window (B)",1,1,14

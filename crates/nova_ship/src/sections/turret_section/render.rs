@@ -255,8 +255,7 @@ pub(super) fn insert_projectile_render(
 pub(super) fn insert_turret_joint_render(
     add: On<Add, TurretJointMarker>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,
     q_joint: Query<
         (
@@ -312,8 +311,8 @@ pub(super) fn insert_turret_joint_render(
                 Name::new("Render Turret Joint"),
                 transform.mul_transform(Transform::from_xyz(0.0, 0.05, 0.0)),
                 SectionRenderOf(**turret),
-                Mesh3d(meshes.add(Cylinder::new(0.5, 0.1))),
-                MeshMaterial3d(materials.add(Color::srgb(0.25, 0.25, 0.25))),
+                Mesh3d(placeholder.turret_plate.clone()),
+                MeshMaterial3d(placeholder.turret_plate_material.clone()),
             ),],));
         }
         None => {}
@@ -621,6 +620,7 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default(), TransformPlugin));
         app.init_asset::<Mesh>();
         app.init_asset::<StandardMaterial>();
+        app.init_resource::<PlaceholderArt>();
         app.add_observer(insert_turret_section);
         app.add_observer(insert_turret_joint_render);
 
@@ -767,6 +767,7 @@ mod tests {
             app.init_asset::<Mesh>();
             app.init_asset::<StandardMaterial>();
             app.init_asset::<WorldAsset>();
+            app.init_resource::<PlaceholderArt>();
             app.add_observer(insert_turret_section);
             app.add_observer(insert_turret_joint_render);
             app.world_mut().spawn((turret_section(turret_with(xf)),));
@@ -849,6 +850,7 @@ mod tests {
             app.init_asset::<Mesh>();
             app.init_asset::<StandardMaterial>();
             app.init_asset::<WorldAsset>();
+            app.init_resource::<PlaceholderArt>();
             app.add_observer(insert_turret_section);
             app.add_observer(insert_turret_joint_render);
             app.world_mut().spawn((turret_section(turret),));

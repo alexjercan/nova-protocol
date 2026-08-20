@@ -647,6 +647,7 @@ impl Plugin for TorpedoSectionPlugin {
         app.add_observer(insert_torpedo_section);
 
         if self.render {
+            app.init_resource::<PlaceholderArt>();
             app.add_observer(insert_torpedo_section_render);
 
             app.add_observer(insert_torpedo_render);

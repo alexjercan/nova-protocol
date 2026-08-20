@@ -1,22 +1,32 @@
 //! The scene census: what the world CONTAINS when a capture measures it -
 //! entity totals, per-component tallies, the archetypes those entities fall
-//! into, and instance-vs-distinct counts for meshes and materials.
+//! into, instance-vs-distinct counts for meshes and materials, and where each
+//! distinct asset CAME FROM.
 //!
 //! Change this module when a frame-cost hypothesis needs a count nothing in
 //! the tree produces. Instances and DISTINCT handles are always reported side
 //! by side: 12,572 mesh instances over 681 meshes tells a different story from
 //! the 12,572 alone, and a census reporting only the total keeps the wrong
-//! hypothesis alive.
+//! hypothesis alive. The ORIGIN breakdown is the same argument one level down:
+//! a distinct-mesh total names a cost without naming what to cut.
 
 /// Glob-import surface for the scene census capability.
 pub mod prelude {
     pub use super::{nova_census, CensusPlugin, DEFAULT_CENSUS_FRAME};
 }
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use bevy::{platform::collections::HashSet, prelude::*, render::mesh::Mesh3d};
+use bevy::{
+    asset::UntypedAssetId,
+    platform::collections::{HashMap, HashSet},
+    prelude::*,
+    render::mesh::Mesh3d,
+};
 use nova_gameplay::GameStates;
+use nova_ship::prelude::{
+    SectionCracksMaterial, SectionRenderOf, ShipDecorMarker, ShipSkinMarker, SkinSurfaceMarker,
+};
 
 use crate::capabilities::frametime::prelude::*;
 
@@ -37,6 +47,13 @@ const ARCHETYPE_ROWS: usize = 20;
 /// How many component names one archetype row prints before it elides. A full
 /// signature runs to dozens of names and the leading ones identify it.
 const ARCHETYPE_SIGNATURE_NAMES: usize = 8;
+
+/// How many origin rows the report keeps. The tail is one-mesh scenery.
+const ORIGIN_ROWS: usize = 24;
+
+/// The origin label a drawable gets when no marker on its ancestry claims it
+/// and nothing on the way up carries a [`Name`].
+const UNNAMED_ORIGIN: &str = "unnamed";
 
 /// The scene census, taken once per capture.
 ///
@@ -104,6 +121,21 @@ struct ArchetypeRow {
     signature: Vec<String>,
 }
 
+/// What one ORIGIN puts in the frame: how many drawables it spawns, and how
+/// many DISTINCT mesh and material assets those drawables between them
+/// introduce.
+///
+/// `distinct_meshes` sums to more than the scene total when two origins share
+/// one asset. That is the point of reporting both: an origin whose share of
+/// the total is smaller than its own count is one that re-uses.
+#[derive(Debug)]
+struct OriginRow {
+    origin: String,
+    instances: u32,
+    distinct_meshes: usize,
+    distinct_materials: usize,
+}
+
 fn census_tick(world: &mut World) {
     {
         let playing = world
@@ -135,11 +167,17 @@ struct Census {
     archetype_count: usize,
     mesh_instances: u32,
     distinct_meshes: usize,
+    distinct_materials: usize,
     mesh_assets: usize,
     standard_material_assets: usize,
+    cracks_material_assets: usize,
     image_assets: usize,
+    skin_plates: u32,
+    skin_shapes: Vec<String>,
     components: Vec<ComponentRow>,
     archetypes: Vec<ArchetypeRow>,
+    origins: Vec<OriginRow>,
+    pieces: Vec<OriginRow>,
 }
 
 fn take_census(world: &mut World) -> Census {
@@ -185,12 +223,76 @@ fn take_census(world: &mut World) -> Census {
     components.sort_by(|a, b| b.entities.cmp(&a.entities).then(a.name.cmp(&b.name)));
     components.truncate(COMPONENT_ROWS);
 
+    let origin_of = origin_index(world);
+
     let mut distinct = HashSet::new();
+    let mut distinct_materials = HashSet::new();
     let mut mesh_instances = 0_u32;
-    let mut meshes = world.query::<&Mesh3d>();
-    for mesh in meshes.iter(world) {
+    let mut per_origin: BTreeMap<String, (u32, HashSet<AssetId<Mesh>>, HashSet<UntypedAssetId>)> =
+        BTreeMap::new();
+    // Two material components, not one. Every section mesh - cladding
+    // included - has its `StandardMaterial` REMOVED and replaced by the shared
+    // cracks material (`damage_cracks`), so a census that reads only the
+    // standard one reports the SOURCE palette and not what is drawn.
+    let mut drawables = world.query::<(
+        Entity,
+        &Mesh3d,
+        Option<&MeshMaterial3d<StandardMaterial>>,
+        Option<&MeshMaterial3d<SectionCracksMaterial>>,
+    )>();
+    let mut per_piece: BTreeMap<String, (u32, HashSet<AssetId<Mesh>>, HashSet<UntypedAssetId>)> =
+        BTreeMap::new();
+    for (entity, mesh, standard, cracked) in drawables.iter(world) {
         mesh_instances += 1;
         distinct.insert(mesh.0.id());
+        let origin = origin_of.label(entity);
+        let piece = format!("{origin} / {}", origin_of.piece(entity));
+        let drawn: Vec<UntypedAssetId> = standard
+            .map(|material| material.0.id().untyped())
+            .into_iter()
+            .chain(cracked.map(|material| material.0.id().untyped()))
+            .collect();
+        for row in [
+            per_origin.entry(origin).or_default(),
+            per_piece.entry(piece).or_default(),
+        ] {
+            row.0 += 1;
+            row.1.insert(mesh.0.id());
+            row.2.extend(drawn.iter().copied());
+        }
+        distinct_materials.extend(drawn);
+    }
+    let rank = |rows: BTreeMap<String, (u32, HashSet<AssetId<Mesh>>, HashSet<UntypedAssetId>)>| {
+        let mut rows: Vec<OriginRow> = rows
+            .into_iter()
+            .map(|(origin, (instances, meshes, materials))| OriginRow {
+                origin,
+                instances,
+                distinct_meshes: meshes.len(),
+                distinct_materials: materials.len(),
+            })
+            .collect();
+        rows.sort_by(|a, b| {
+            b.distinct_meshes
+                .cmp(&a.distinct_meshes)
+                .then(b.instances.cmp(&a.instances))
+                .then(a.origin.cmp(&b.origin))
+        });
+        rows.truncate(ORIGIN_ROWS);
+        rows
+    };
+    let origins = rank(per_origin);
+    let pieces = rank(per_piece);
+
+    // The shape ids, not a count: two captures are compared by INTERSECTING
+    // their sets, and a count cannot say whether two hulls wear the same
+    // shapes or merely as many.
+    let mut skin_plates = 0_u32;
+    let mut shapes: BTreeSet<String> = BTreeSet::new();
+    let mut plates = world.query::<&ShipSkinMarker>();
+    for plate in plates.iter(world) {
+        skin_plates += 1;
+        shapes.insert(plate.0.id());
     }
 
     Census {
@@ -198,31 +300,149 @@ fn take_census(world: &mut World) -> Census {
         archetype_count,
         mesh_instances,
         distinct_meshes: distinct.len(),
+        distinct_materials: distinct_materials.len(),
         mesh_assets: world
             .get_resource::<Assets<Mesh>>()
             .map_or(0, |assets| assets.len()),
         standard_material_assets: world
             .get_resource::<Assets<StandardMaterial>>()
             .map_or(0, |assets| assets.len()),
+        cracks_material_assets: world
+            .get_resource::<Assets<SectionCracksMaterial>>()
+            .map_or(0, |assets| assets.len()),
         image_assets: world
             .get_resource::<Assets<Image>>()
             .map_or(0, |assets| assets.len()),
+        skin_plates,
+        skin_shapes: shapes.into_iter().collect(),
         components,
         archetypes,
+        origins,
+        pieces,
+    }
+}
+
+/// Who a drawable BELONGS to, resolved by walking its ancestors once.
+///
+/// Markers first and [`Name`] second. A name alone is ambiguous - every glTF
+/// scene root a section and a greeble load is called the same thing by the
+/// loader - and a marker alone leaves everything outside `nova_ship` in one
+/// bucket, which is the half of the frame a ship lane does not own.
+struct OriginIndex {
+    parent: HashMap<Entity, Entity>,
+    name: HashMap<Entity, String>,
+    cladding: HashSet<Entity>,
+    greeble: HashSet<Entity>,
+    section_art: HashSet<Entity>,
+}
+
+impl OriginIndex {
+    fn label(&self, entity: Entity) -> String {
+        let mut current = entity;
+        let mut named: Option<&str> = None;
+        let mut depth = 0_u32;
+        loop {
+            if self.cladding.contains(&current) {
+                return "cladding".to_string();
+            }
+            if self.greeble.contains(&current) {
+                return "greeble".to_string();
+            }
+            if self.section_art.contains(&current) {
+                // A mesh ON the render child is the no-authored-art fallback
+                // cuboid; a mesh UNDER it came out of the section's glTF.
+                return if depth == 0 {
+                    "section-fallback-cuboid".to_string()
+                } else {
+                    "section-art".to_string()
+                };
+            }
+            if named.is_none() {
+                named = self.name.get(&current).map(String::as_str);
+            }
+            match self.parent.get(&current) {
+                Some(parent) => current = *parent,
+                None => break,
+            }
+            depth += 1;
+        }
+        named.unwrap_or(UNNAMED_ORIGIN).to_string()
+    }
+
+    /// The nearest [`Name`] at or above a drawable, which for a glTF scene is
+    /// the primitive's own node name. An origin says WHICH SYSTEM put the mesh
+    /// there; this says WHICH PIECE, and the pair is what separates "the art is
+    /// heavy" from "one system is minting a fresh asset per entity".
+    fn piece(&self, entity: Entity) -> String {
+        let mut current = entity;
+        loop {
+            if let Some(name) = self.name.get(&current) {
+                return name.clone();
+            }
+            match self.parent.get(&current) {
+                Some(parent) => current = *parent,
+                None => return UNNAMED_ORIGIN.to_string(),
+            }
+        }
+    }
+}
+
+fn origin_index(world: &mut World) -> OriginIndex {
+    let mut parent = HashMap::default();
+    let mut children = world.query::<(Entity, &ChildOf)>();
+    for (entity, child_of) in children.iter(world) {
+        parent.insert(entity, child_of.0);
+    }
+    let mut name = HashMap::default();
+    let mut names = world.query::<(Entity, &Name)>();
+    for (entity, label) in names.iter(world) {
+        name.insert(entity, label.as_str().to_string());
+    }
+    let mut cladding = HashSet::default();
+    let mut q_cladding = world.query_filtered::<Entity, With<SkinSurfaceMarker>>();
+    cladding.extend(q_cladding.iter(world));
+    let mut greeble = HashSet::default();
+    let mut q_greeble = world.query_filtered::<Entity, With<ShipDecorMarker>>();
+    greeble.extend(q_greeble.iter(world));
+    let mut section_art = HashSet::default();
+    let mut q_section = world.query_filtered::<Entity, With<SectionRenderOf>>();
+    section_art.extend(q_section.iter(world));
+    OriginIndex {
+        parent,
+        name,
+        cladding,
+        greeble,
+        section_art,
     }
 }
 
 fn log_census(census: &Census) {
     info!(
-        "nova census: entities={} archetypes={} mesh_instances={} distinct_meshes={} mesh_assets={} standard_materials={} images={}",
+        "nova census: entities={} archetypes={} mesh_instances={} distinct_meshes={} distinct_materials={} mesh_assets={} standard_materials={} cracks_materials={} images={} skin_plates={} skin_shapes={}",
         census.entities,
         census.archetype_count,
         census.mesh_instances,
         census.distinct_meshes,
+        census.distinct_materials,
         census.mesh_assets,
         census.standard_material_assets,
+        census.cracks_material_assets,
         census.image_assets,
+        census.skin_plates,
+        census.skin_shapes.len(),
     );
+    for row in &census.origins {
+        info!(
+            "nova census origin: {:>6} instances  {:>4} meshes  {:>4} materials  {}",
+            row.instances, row.distinct_meshes, row.distinct_materials, row.origin
+        );
+    }
+    for row in &census.pieces {
+        info!(
+            "nova census piece: {:>6} instances  {:>4} meshes  {:>4} materials  {}",
+            row.instances, row.distinct_meshes, row.distinct_materials, row.origin
+        );
+    }
     for row in &census.components {
         info!("nova census component: {:>6}  {}", row.entities, row.name);
     }
@@ -245,8 +465,24 @@ fn write_census(census: &Census) {
         "archetypes": census.archetype_count,
         "mesh_instances": census.mesh_instances,
         "distinct_meshes": census.distinct_meshes,
+        "distinct_materials": census.distinct_materials,
+        "skin_plates": census.skin_plates,
+        "skin_shapes": census.skin_shapes,
+        "by_origin": census.origins.iter().map(|row| serde_json::json!({
+            "origin": row.origin,
+            "instances": row.instances,
+            "distinct_meshes": row.distinct_meshes,
+            "distinct_materials": row.distinct_materials,
+        })).collect::<Vec<_>>(),
+        "by_piece": census.pieces.iter().map(|row| serde_json::json!({
+            "piece": row.origin,
+            "instances": row.instances,
+            "distinct_meshes": row.distinct_meshes,
+            "distinct_materials": row.distinct_materials,
+        })).collect::<Vec<_>>(),
         "mesh_assets": census.mesh_assets,
         "standard_material_assets": census.standard_material_assets,
+        "cracks_material_assets": census.cracks_material_assets,
         "image_assets": census.image_assets,
         "by_component": census.components.iter().map(|row| serde_json::json!({
             "name": row.name,

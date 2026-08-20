@@ -9,8 +9,7 @@ use crate::sections::nose_cone_mesh;
 pub(super) fn insert_torpedo_section_render(
     add: On<Add, TorpedoSectionBodyMarker>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,
     q_section: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
     q_body: Query<&TorpedoSectionPartOf, With<TorpedoSectionBodyMarker>>,
@@ -55,8 +54,8 @@ pub(super) fn insert_torpedo_section_render(
             commands.entity(entity).insert((children![(
                 Name::new("Torpedo Section Body"),
                 SectionRenderOf(entity),
-                Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-                MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
+                Mesh3d(placeholder.body.clone()),
+                MeshMaterial3d(placeholder.structure_material.clone()),
             ),],));
         }
     }
@@ -803,6 +802,7 @@ mod tests {
             app.init_asset::<StandardMaterial>();
             app.init_asset::<WorldAsset>();
             // insert_torpedo_section spawns the body; the render observer meshes it.
+            app.init_resource::<PlaceholderArt>();
             app.add_observer(insert_torpedo_section);
             app.add_observer(insert_torpedo_section_render);
             app.world_mut().spawn((
