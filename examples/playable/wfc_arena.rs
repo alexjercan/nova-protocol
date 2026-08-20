@@ -2176,10 +2176,17 @@ fn spawn_team_chevrons(
 /// "hidden" chevron must be overwritten downstream - the same ordering the
 /// HUD's own `apply_hud_visibility` uses. While shown, the projection's
 /// on-screen/off-screen answer is left alone.
+/// OPTIONAL because `NovaHudPlugin` is render-gated (`AppBuilder::build`), so a
+/// `--norender` run has no [`HudVisibility`] to follow - and a required `Res`
+/// there is not a skipped system but a PANIC that takes the arena down before
+/// it fields a ship.
 fn gate_team_chevrons(
-    hud: Res<HudVisibility>,
+    hud: Option<Res<HudVisibility>>,
     mut q_indicators: Query<&mut Visibility, With<TeamChevronIndicator>>,
 ) {
+    let Some(hud) = hud else {
+        return;
+    };
     if capturing() || hud.shows() {
         return;
     }

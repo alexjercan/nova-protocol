@@ -87,7 +87,10 @@ fn load_or_open_lobby(
     styles: Res<GameStyles>,
     requested: Res<StyleRequest>,
     mut roster: ResMut<Roster>,
-    skin: Res<UiSkin>,
+    // OPTIONAL because the skin belongs to the render-gated UI stack, and the
+    // autopilot path below returns before any of it is drawn - a required `Res`
+    // makes a `--norender` run panic here instead of fielding the match.
+    skin: Option<Res<UiSkin>>,
 ) {
     let side_styles = side_style_indexes(&styles, requested.0.as_deref(), &roster.ships);
     for ship in &mut roster.ships {
@@ -133,6 +136,10 @@ fn load_or_open_lobby(
             .unwrap_or(roster.seed)
             .wrapping_add(1),
         binding_overrides: roster.binding_overrides.clone(),
+    };
+    let Some(skin) = skin else {
+        error!("wfc_arena lobby: no UiSkin, so there is no lobby to open - run with a renderer, or with NOVA_AUTOPILOT to field the match directly");
+        return;
     };
     spawn_lobby(&mut commands, &model, &styles, *skin);
     commands.insert_resource(model);
