@@ -159,7 +159,7 @@ pub struct TorpedoTargetHudConfig {
 /// whose child is a screen-projected indicator sized to the locked target's
 /// on-screen extent, carrying the info readout on its right edge.
 pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
-    debug!("torpedo_target_hud: config {:?}", config);
+    trace!("torpedo_target_hud: config {:?}", config);
 
     (
         Name::new("TorpedoTargetHUD"),

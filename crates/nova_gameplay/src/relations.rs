@@ -67,7 +67,7 @@ pub struct NovaRelationsPlugin;
 
 impl Plugin for NovaRelationsPlugin {
     fn build(&self, app: &mut App) {
-        debug!("NovaRelationsPlugin: build");
+        trace!("NovaRelationsPlugin: build");
 
         app.register_type::<Allegiance>();
     }

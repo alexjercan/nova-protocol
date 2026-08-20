@@ -93,7 +93,7 @@ pub struct ManeuverInstrumentsHudConfig {
 /// the radius spoke are not part of this layer - they are world-space
 /// entities owned by `sync_orbit_ring` and `sync_radius_spoke`.
 pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bundle {
-    debug!("maneuver_instruments_hud: config {:?}", config);
+    trace!("maneuver_instruments_hud: config {:?}", config);
 
     // Content-sized: the destination readout's text length swings with the
     // target name and range, and a bordered chip must hug it.
@@ -161,7 +161,7 @@ pub struct ManeuverInstrumentsPlugin;
 
 impl Plugin for ManeuverInstrumentsPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ManeuverInstrumentsPlugin: build");
+        trace!("ManeuverInstrumentsPlugin: build");
 
         // Shared with the holo-instruments family (one material batches
         // the whole set); idempotent with HoloInstrumentsPlugin's init.

@@ -75,7 +75,7 @@ pub(super) struct NeutralizePlugin;
 
 impl Plugin for NeutralizePlugin {
     fn build(&self, app: &mut App) {
-        debug!("NeutralizePlugin: build");
+        trace!("NeutralizePlugin: build");
 
         // Ordered after the integrity systems so this frame's aggregate/leaf
         // work is done first. Note `SectionInactiveMarker` is actually written

@@ -246,7 +246,7 @@ pub struct CarveSpewPlugin;
 
 impl Plugin for CarveSpewPlugin {
     fn build(&self, app: &mut App) {
-        debug!("CarveSpewPlugin: build");
+        trace!("CarveSpewPlugin: build");
 
         app.register_type::<CarveShardMarker>();
         app.add_observer(spew_carved_material);

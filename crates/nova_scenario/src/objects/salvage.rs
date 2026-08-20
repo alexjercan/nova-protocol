@@ -65,7 +65,7 @@ struct SalvageCratePickupSound(Option<AssetRef<AudioSource>>);
 /// carrying the marker, size, highlight, and pickup sound the crate observers
 /// read at spawn.
 pub fn salvage_crate_scenario_object(config: SalvageCrateConfig) -> impl Bundle {
-    debug!("salvage_crate_scenario_object: config {:?}", config);
+    trace!("salvage_crate_scenario_object: config {:?}", config);
 
     (
         SalvageCrateMarker,
@@ -127,7 +127,7 @@ pub struct SalvageCratePlugin {
 
 impl Plugin for SalvageCratePlugin {
     fn build(&self, app: &mut App) {
-        debug!("SalvageCratePlugin: build");
+        trace!("SalvageCratePlugin: build");
 
         // The per-crate pickup cue is audio, not render: register it regardless
         // of the render flag. It no-ops without a SoundBank (editor, headless),

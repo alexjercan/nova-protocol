@@ -177,7 +177,7 @@ impl AppBuilder {
         let plugins = DefaultPlugins
             .build()
             .set(assets_plugin())
-            .set(log_plugin())
+            .set(log_plugin(render))
             .set(window_plugin(render))
             .set(render_plugin(render));
 
@@ -513,27 +513,84 @@ fn render_plugin(render: bool) -> RenderPlugin {
     }
 }
 
-fn log_plugin() -> LogPlugin {
+fn log_plugin(render: bool) -> LogPlugin {
     LogPlugin {
         level: Level::INFO,
-        filter: log_filter_str().to_string(),
+        filter: log_filter_str(render),
         ..default()
     }
 }
 
-fn log_filter_str<'a>() -> &'a str {
-    if cfg!(feature = "debug") {
+/// Third-party targets clamped on every run, rendering or not. Each is a
+/// library that talks at a level the game does not need: wgpu and naga narrate
+/// device and shader setup at INFO, and `bevy_ecs`/`bevy_time` log per frame at
+/// DEBUG, which buries everything else the moment the nova crates open up.
+const THIRD_PARTY_FILTER: &str = "wgpu=error,bevy_ecs=warn,bevy_time=warn,naga=warn";
+
+/// The bevy diagnostics a BACKENDLESS run provokes by construction: one ERROR
+/// ("Render app did not exist when trying to add `extract_resource`"), the
+/// `CompressedImageFormatSupport` warning, and gizmos noticing there is no
+/// `RenderApp`. All three are correct reports of a state
+/// [`AppBuilder::headless`] asks for on purpose, and all three are unreachable
+/// when a render sub-app exists - so this is only ever added to a headless
+/// filter, and a rendering run keeps every one of these targets at its normal
+/// level.
+///
+/// The two `bevy_render` targets are MODULES, not the crate: at the pinned
+/// version `bevy_render::extract_resource` logs nothing but the missing-render-
+/// app pair and `bevy_render::texture` nothing but the compressed-format
+/// warning, so silencing them cannot hide an unrelated error. Gizmos has no
+/// such split - its remaining warnings are line-style complaints raised while
+/// DRAWING, which a run with no renderer never reaches - so it is clamped to
+/// `error` rather than off.
+const HEADLESS_FILTER: &str =
+    "bevy_render::extract_resource=off,bevy_render::texture=off,bevy_gizmos_render=error";
+
+/// Build the `EnvFilter` string for a run. `render` is false for
+/// [`AppBuilder::headless`], which earns the extra clamps above.
+///
+/// THE RULE FOR A NEW CRATE: there is nothing to do. `EnvFilter` matches a
+/// directive against the target by PREFIX, not by equality
+/// (`tracing-subscriber-0.3/src/filter/env/directive.rs:246`,
+/// `meta.target().starts_with(target)`), and every workspace crate is named
+/// `nova_*` - so the single `nova=` directive below covers all of them, and
+/// covers a crate added tomorrow on the day it is added.
+///
+/// Do NOT go back to listing crates one at a time. The list this replaced named
+/// nine of the twenty-two that exist, so thirteen - `nova_ship` and `nova_hud`,
+/// the two busiest, among them - silently sat at the INFO default while their
+/// neighbours were at DEBUG. That failure is invisible from the console: a line
+/// that never prints looks exactly like a line that never ran.
+fn log_filter_str(render: bool) -> String {
+    let nova = if cfg!(feature = "debug") {
         if std::env::var("RUST_LOG")
             .unwrap_or_default()
             .contains("trace")
         {
-            "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn,nova_assets=trace,nova_autopilot=trace,nova_core=trace,nova_debug=trace,nova_events=trace,nova_gameplay=trace,nova_info=trace,nova_scenario=trace,nova_ui=trace"
+            "nova=trace"
         } else {
-            "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn,nova_assets=debug,nova_autopilot=debug,nova_core=debug,nova_debug=debug,nova_events=debug,nova_gameplay=debug,nova_info=debug,nova_scenario=debug,nova_ui=debug"
+            "nova=debug"
         }
     } else {
-        "wgpu=error,bevy_render=warn,bevy_ecs=warn,bevy_time=warn,naga=warn"
+        // Release leaves the nova crates on the plugin's INFO default.
+        ""
+    };
+    let bevy_render = if cfg!(feature = "debug") {
+        "bevy_render=info"
+    } else {
+        "bevy_render=warn"
+    };
+
+    let mut filter = format!("{THIRD_PARTY_FILTER},{bevy_render}");
+    if !nova.is_empty() {
+        filter.push(',');
+        filter.push_str(nova);
     }
+    if !render {
+        filter.push(',');
+        filter.push_str(HEADLESS_FILTER);
+    }
+    filter
 }
 
 /// The app's asset configuration. Public so tests can load assets through the
@@ -596,4 +653,45 @@ fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
         prefix: "v".to_string(),
         suffix: "".to_string(),
     }),));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_filter_covers_every_nova_crate_with_one_prefix_directive() {
+        let filter = log_filter_str(true);
+        assert!(
+            filter.contains("nova=") || !cfg!(feature = "debug"),
+            "the nova prefix directive is what covers all 22 crates: {filter}"
+        );
+    }
+
+    #[test]
+    fn the_filter_never_names_a_single_nova_crate() {
+        // A `nova_<crate>=` directive is the drift this design removed: it
+        // covers the crates somebody remembered and silently leaves out the
+        // rest. Prefix matching makes naming one both unnecessary and a bug.
+        let filter = log_filter_str(true);
+        assert!(
+            !filter.contains("nova_"),
+            "per-crate directives reintroduce the allowlist drift: {filter}"
+        );
+    }
+
+    #[test]
+    fn a_rendering_run_keeps_the_bevy_targets_a_headless_run_clamps() {
+        let filter = log_filter_str(true);
+        assert!(!filter.contains("bevy_render::extract_resource"));
+        assert!(!filter.contains("bevy_gizmos_render"));
+    }
+
+    #[test]
+    fn a_headless_run_clamps_the_three_diagnostics_it_provokes_by_construction() {
+        let filter = log_filter_str(false);
+        assert!(filter.contains("bevy_render::extract_resource=off"));
+        assert!(filter.contains("bevy_render::texture=off"));
+        assert!(filter.contains("bevy_gizmos_render=error"));
+    }
 }

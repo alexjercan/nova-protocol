@@ -558,7 +558,7 @@ pub struct AmmoReadoutPlugin;
 
 impl Plugin for AmmoReadoutPlugin {
     fn build(&self, app: &mut App) {
-        debug!("AmmoReadoutPlugin: build");
+        trace!("AmmoReadoutPlugin: build");
 
         app.register_type::<AmmoReadoutHudMarker>();
         app.register_type::<AmmoReadoutMarker>();

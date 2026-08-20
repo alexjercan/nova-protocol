@@ -237,7 +237,7 @@ pub struct AllegianceMarkerHudPlugin;
 
 impl Plugin for AllegianceMarkerHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("AllegianceMarkerHudPlugin: build");
+        trace!("AllegianceMarkerHudPlugin: build");
 
         app.register_type::<AllegianceMarkerHudMarker>();
         app.register_type::<AllegianceMarkerTargetEntity>();
@@ -266,7 +266,7 @@ impl Plugin for AllegianceMarkerHudPlugin {
 /// `PlayerSpaceshipMarker` lands.
 fn setup_allegiance_marker(add: On<Add, SpaceshipRootMarker>, mut commands: Commands) {
     let ship = add.entity;
-    debug!("setup_allegiance_marker: ship {:?}", ship);
+    trace!("setup_allegiance_marker: ship {:?}", ship);
     commands.spawn(allegiance_marker_hud(ship, NEUTRAL_GREY));
 }
 
@@ -304,7 +304,7 @@ fn despawn_player_allegiance_markers(
     for ship in &q_new_players {
         for (layer, target) in &q_layers {
             if **target == ship {
-                debug!(
+                trace!(
                     "despawn_player_allegiance_markers: despawning the player's marker {:?}",
                     layer
                 );

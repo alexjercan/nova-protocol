@@ -390,7 +390,7 @@ fn sever_piece(island: &SignedField, cubic_scale: f32) -> Option<CarvedPiece> {
     mesh.translate_by(-at);
 
     let Some(collider) = chunk_collider(&mesh) else {
-        debug!("sever_piece: a piece had no usable bounds, dropped");
+        trace!("sever_piece: a piece had no usable bounds, dropped");
         return None;
     };
 
@@ -550,7 +550,10 @@ fn carve_surface(
     let collider = Collider::trimesh_from_mesh(&surface);
     let rebuilt = started.elapsed();
 
-    debug!(
+    // Per NODE. `collect_asteroid_remeshes` carries the frame's totals; this is
+    // the breakdown for one grid, which only a reader chasing a specific carve
+    // wants.
+    trace!(
         "carve_surface: {node:?} sever {:.1} ms, pieces {:.1} ms, remesh {:.1} ms, \
          collider {:.1} ms, {} piece(s), {} tri(s), unit radius {surviving:.2}",
         severed.as_secs_f32() * 1000.0,
@@ -608,7 +611,7 @@ fn collect_asteroid_field_seeds(
             continue;
         };
         let nominal = q_asteroid.get(*root).map_or(1.0, |radius| radius.0);
-        debug!(
+        trace!(
             "collect_asteroid_field_seeds: {node:?} at {}^3 ({:.2}u cells)",
             seeded.resolution(),
             seeded.cell_size() * nominal,
@@ -766,7 +769,7 @@ fn collect_asteroid_remeshes(
         };
 
         if remaining_world < CHUNK_MIN_VOLUME || carved.surface.count_vertices() == 0 {
-            debug!(
+            trace!(
                 "collect_asteroid_remeshes: {node:?} exhausted at {remaining_world:.2} cubic units"
             );
             // The candidate is terminal, so its islands commit together with the
@@ -849,7 +852,7 @@ pub struct AsteroidCarvePlugin {
 
 impl Plugin for AsteroidCarvePlugin {
     fn build(&self, app: &mut App) {
-        debug!("AsteroidCarvePlugin: build");
+        trace!("AsteroidCarvePlugin: build");
 
         let _ = self.render;
         app.init_resource::<CarveApplyReport>();

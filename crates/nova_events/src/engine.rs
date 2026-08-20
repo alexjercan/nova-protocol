@@ -281,7 +281,7 @@ where
     W: EventWorld + Default,
 {
     fn build(&self, app: &mut bevy::prelude::App) {
-        debug!("GameEventsPlugin: build");
+        trace!("GameEventsPlugin: build");
         app.init_resource::<GameEventQueue<W>>();
         app.init_resource::<EventHandlerIndex<W>>();
         app.add_observer(on_game_event::<W>);

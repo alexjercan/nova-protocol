@@ -283,7 +283,7 @@ pub struct SpaceshipConfig {
 /// that observer rather than here: a `Prototype` hull is not known until the
 /// catalog is read, and the catalog is a resource only a system can see.
 pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
-    debug!("spaceship_scenario_object: config {:?}", config);
+    trace!("spaceship_scenario_object: config {:?}", config);
 
     (
         SpaceshipRootMarker,
@@ -311,7 +311,7 @@ pub struct SpaceshipPlugin;
 
 impl Plugin for SpaceshipPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SpaceshipPlugin: build");
+        trace!("SpaceshipPlugin: build");
 
         // `insert_spaceship_sections` resolves Prototype sources against
         // `GameSections` and `GameShips`, so the plugin self-provides (empty)

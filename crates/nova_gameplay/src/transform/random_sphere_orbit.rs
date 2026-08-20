@@ -52,7 +52,7 @@ pub struct SphereRandomOrbitPlugin;
 
 impl Plugin for SphereRandomOrbitPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SphereRandomOrbitPlugin: build");
+        trace!("SphereRandomOrbitPlugin: build");
 
         app.add_observer(initialize_random_sphere_orbit_system);
 

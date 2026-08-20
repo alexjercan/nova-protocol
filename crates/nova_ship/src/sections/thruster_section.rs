@@ -100,7 +100,7 @@ struct ThrusterSectionExhaust(Option<ThrusterExhaust>);
 
 /// Helper function to create an thruster section entity bundle.
 pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
-    debug!("thruster_section: config {:?}", config);
+    trace!("thruster_section: config {:?}", config);
 
     (
         ThrusterSectionMarker,
@@ -357,7 +357,7 @@ pub struct ThrusterSectionPlugin {
 
 impl Plugin for ThrusterSectionPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ThrusterSectionPlugin: build");
+        trace!("ThrusterSectionPlugin: build");
 
         app.add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>,

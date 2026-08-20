@@ -43,7 +43,7 @@ pub struct PDControllerPlugin;
 
 impl Plugin for PDControllerPlugin {
     fn build(&self, app: &mut App) {
-        debug!("PDControllerPlugin: build");
+        trace!("PDControllerPlugin: build");
 
         app.add_observer(setup_pd_controller_system);
 

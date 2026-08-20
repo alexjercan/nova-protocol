@@ -489,7 +489,7 @@ pub struct DamageMarksPlugin;
 
 impl Plugin for DamageMarksPlugin {
     fn build(&self, app: &mut App) {
-        debug!("DamageMarksPlugin: build");
+        trace!("DamageMarksPlugin: build");
 
         app.register_type::<DamageMarks>();
     }

@@ -195,7 +195,7 @@ pub struct CameraShakePlugin;
 
 impl Plugin for CameraShakePlugin {
     fn build(&self, app: &mut App) {
-        debug!("CameraShakePlugin: build");
+        trace!("CameraShakePlugin: build");
 
         app.register_type::<CameraShake>()
             .register_type::<CameraShakeInput>()

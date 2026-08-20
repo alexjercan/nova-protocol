@@ -138,7 +138,7 @@ pub struct ChaseCameraPlugin;
 
 impl Plugin for ChaseCameraPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ChaseCameraPlugin: build");
+        trace!("ChaseCameraPlugin: build");
 
         app.add_observer(initialize_chase_camera);
         app.add_observer(destroy_chase_camera);

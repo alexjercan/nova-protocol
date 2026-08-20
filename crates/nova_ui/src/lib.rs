@@ -42,7 +42,7 @@ pub struct NovaUiPlugin;
 
 impl Plugin for NovaUiPlugin {
     fn build(&self, app: &mut App) {
-        debug!("NovaUiPlugin: build");
+        trace!("NovaUiPlugin: build");
 
         widget::build(app);
         status_bar::build(app);

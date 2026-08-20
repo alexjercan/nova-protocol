@@ -54,7 +54,7 @@ pub struct DirectionalSphereOrbitPlugin;
 
 impl Plugin for DirectionalSphereOrbitPlugin {
     fn build(&self, app: &mut App) {
-        debug!("DirectionalSphereOrbitPlugin: build");
+        trace!("DirectionalSphereOrbitPlugin: build");
 
         app.add_observer(initialize_sphere_orbit_system);
 

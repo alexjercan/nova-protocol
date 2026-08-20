@@ -356,7 +356,7 @@ impl GameSections {
 /// resolves the authored collider and sounds into runtime components and tags it
 /// [`SectionMarker`]. See [`preview_section`] for the editor-preview counterpart.
 pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
-    debug!("base_section: config {:?}", config);
+    trace!("base_section: config {:?}", config);
 
     let collider = config.collider.unwrap_or_default();
     (
@@ -398,7 +398,7 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
 /// `SpaceshipRootMarker`, so no integrity graph is built for the preview ship and none of
 /// the gameplay/health systems act on it.
 pub fn preview_section(config: BaseSectionConfig) -> impl Bundle {
-    debug!("preview_section: config {:?}", config);
+    trace!("preview_section: config {:?}", config);
 
     let collider = config.collider.unwrap_or_default();
     (

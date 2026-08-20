@@ -34,7 +34,7 @@ pub struct HullSectionConfig {
 
 /// Helper function to create a hull section entity bundle.
 pub fn hull_section(config: HullSectionConfig) -> impl Bundle {
-    debug!("hull_section: config {:?}", config);
+    trace!("hull_section: config {:?}", config);
 
     (
         HullSectionMarker,
@@ -60,7 +60,7 @@ pub struct HullSectionPlugin {
 
 impl Plugin for HullSectionPlugin {
     fn build(&self, app: &mut App) {
-        debug!("HullSectionPlugin: build");
+        trace!("HullSectionPlugin: build");
 
         if self.render {
             app.init_resource::<PlaceholderArt>();

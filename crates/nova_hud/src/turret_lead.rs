@@ -87,7 +87,7 @@ pub struct TurretLeadPlugin;
 
 impl Plugin for TurretLeadPlugin {
     fn build(&self, app: &mut App) {
-        debug!("TurretLeadPlugin: build");
+        trace!("TurretLeadPlugin: build");
 
         // NOTE: the pips consume THIS frame's intercept - after the PostUpdate
         // aim chain publishes it, before the indicator projection places the

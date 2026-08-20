@@ -107,7 +107,7 @@ pub struct ShipIntegrityPlugin;
 
 impl Plugin for ShipIntegrityPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ShipIntegrityPlugin: build");
+        trace!("ShipIntegrityPlugin: build");
 
         app.register_type::<LinkPoint>();
         app.register_type::<SectionLinkPoints>();

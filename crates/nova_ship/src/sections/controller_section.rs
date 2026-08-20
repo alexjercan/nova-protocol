@@ -175,7 +175,7 @@ struct ControllerSectionRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset
 
 /// Helper function to create a controller section entity bundle.
 pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
-    debug!("controller_section: config {:?}", config);
+    trace!("controller_section: config {:?}", config);
 
     let frequency = frequency_from_steering_lag(config.steering_lag);
     (
@@ -438,7 +438,7 @@ pub(crate) fn update_controller_stack_tuning(
 /// `PDController`, the bcs PD systems and `insert_controller_section_target` both skip it, so the
 /// preview controller is inert.
 pub fn preview_controller_section(config: ControllerSectionConfig) -> impl Bundle {
-    debug!("preview_controller_section: config {:?}", config);
+    trace!("preview_controller_section: config {:?}", config);
 
     (
         ControllerSectionMarker,
@@ -550,7 +550,7 @@ pub struct ControllerSectionPlugin {
 
 impl Plugin for ControllerSectionPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ControllerSectionPlugin: build");
+        trace!("ControllerSectionPlugin: build");
 
         // Register the section's reflected components so the debug inspector
         // (and the flight-feel retune) can see and edit them.

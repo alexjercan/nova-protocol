@@ -83,7 +83,7 @@ pub struct FlightStatusHudConfig {
 /// chip (anchor driven at runtime; it spawns hidden exactly like the
 /// disengaged state it starts in).
 pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
-    debug!("flight_status_hud: config {:?}", config);
+    trace!("flight_status_hud: config {:?}", config);
 
     // The chips hug their text (`Content`): a fixed box would either clip
     // "1.24 km/s" or pad "0 m/s" into an empty slab now that the chip has a
@@ -184,7 +184,7 @@ impl AutopilotDestinationHudConfig {
 /// is engaged. The screen_indicator widget owns projection and visibility;
 /// this module only drives the anchor from the ship's [`Autopilot`].
 pub fn autopilot_destination_hud(config: AutopilotDestinationHudConfig) -> impl Bundle {
-    debug!("autopilot_destination_hud: config {:?}", config);
+    trace!("autopilot_destination_hud: config {:?}", config);
 
     (
         Name::new("AutopilotDestinationHUD"),
@@ -216,7 +216,7 @@ pub struct FlightStatusHudPlugin;
 
 impl Plugin for FlightStatusHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("FlightStatusHudPlugin: build");
+        trace!("FlightStatusHudPlugin: build");
 
         app.add_systems(
             Update,

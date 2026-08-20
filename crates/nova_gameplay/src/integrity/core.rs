@@ -59,7 +59,7 @@ pub struct IntegrityCorePlugin;
 
 impl Plugin for IntegrityCorePlugin {
     fn build(&self, app: &mut App) {
-        debug!("IntegrityCorePlugin: build");
+        trace!("IntegrityCorePlugin: build");
 
         app.register_type::<IntegrityRoot>();
         app.register_type::<ConnectedTo>();

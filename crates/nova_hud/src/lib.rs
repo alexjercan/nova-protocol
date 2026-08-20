@@ -257,7 +257,7 @@ pub struct NovaHudPlugin;
 
 impl Plugin for NovaHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("HudPlugin: build");
+        trace!("HudPlugin: build");
 
         configure_hud_seam(app);
 
@@ -541,15 +541,17 @@ fn despawn_player_hud<M: Component>(
     mut commands: Commands,
     q_hud: Query<Entity, With<M>>,
 ) {
-    debug!(
-        "despawn_player_hud<{}>: player {:?}",
+    let mut despawned = 0usize;
+    for hud_entity in &q_hud {
+        commands.entity(hud_entity).despawn();
+        despawned += 1;
+    }
+
+    trace!(
+        "despawn_player_hud<{}>: player {:?}, {despawned} node(s)",
         core::any::type_name::<M>(),
         remove.entity
     );
-
-    for hud_entity in &q_hud {
-        commands.entity(hud_entity).despawn();
-    }
 }
 
 /// The guard every `On<Add, PlayerSpaceshipMarker>` HUD setup shares: the marker
@@ -571,7 +573,7 @@ fn add_screen_indicator_camera(
     add: On<Add, nova_ship::camera::SpaceshipCameraController>,
     mut commands: Commands,
 ) {
-    debug!("add_screen_indicator_camera: entity {:?}", add.entity);
+    trace!("add_screen_indicator_camera: entity {:?}", add.entity);
     commands.entity(add.entity).insert(ScreenIndicatorCamera);
 }
 
@@ -582,7 +584,7 @@ fn remove_screen_indicator_camera(
     remove: On<Remove, nova_ship::camera::SpaceshipCameraController>,
     mut commands: Commands,
 ) {
-    debug!("remove_screen_indicator_camera: entity {:?}", remove.entity);
+    trace!("remove_screen_indicator_camera: entity {:?}", remove.entity);
     // NOTE: try_remove, not remove: get_entity only proves the entity exists
     // at QUEUE time - a scenario teardown despawns the camera in the same
     // command flush, and the plain remove then warns "entity despawned".
@@ -597,7 +599,7 @@ fn setup_hud_velocity(
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
     let entity = add.entity;
-    debug!("setup_hud_velocity: entity {:?}", entity);
+    trace!("setup_hud_velocity: entity {:?}", entity);
 
     let Ok(spaceship) = q_spaceship.get(entity) else {
         error!(
@@ -640,7 +642,7 @@ fn remove_hud_velocity(
     q_hud: Query<(Entity, &VelocityHudTargetEntity), With<VelocityHudMarker>>,
 ) {
     let entity = remove.entity;
-    debug!("remove_hud_velocity: entity {:?}", entity);
+    trace!("remove_hud_velocity: entity {:?}", entity);
 
     for (hud_entity, target) in &q_hud {
         if **target == entity {
@@ -657,7 +659,7 @@ fn setup_hud_flight_status(
     assets: Res<NovaHudAssets>,
 ) {
     let entity = add.entity;
-    debug!("setup_hud_flight_status: entity {:?}", entity);
+    trace!("setup_hud_flight_status: entity {:?}", entity);
 
     let Ok(spaceship) = q_spaceship.get(entity) else {
         error!(
@@ -702,7 +704,7 @@ fn remove_hud_flight_status(
     q_hud: Query<(Entity, &FlightStatusHudTargetEntity), With<FlightStatusHudMarker>>,
 ) {
     let entity = remove.entity;
-    debug!("remove_hud_flight_status: entity {:?}", entity);
+    trace!("remove_hud_flight_status: entity {:?}", entity);
 
     for (hud_entity, target) in &q_hud {
         if **target == entity {
@@ -718,7 +720,7 @@ fn setup_hud_lock_dwell_ring(
     mut materials: ResMut<Assets<LockDwellRingMaterial>>,
 ) {
     let entity = add.entity;
-    debug!("setup_hud_lock_dwell_ring: entity {:?}", entity);
+    trace!("setup_hud_lock_dwell_ring: entity {:?}", entity);
 
     if !is_player_ship_root(entity, &q_spaceship) {
         return;
@@ -735,7 +737,7 @@ fn setup_hud_lock_crosshairs(
     assets: Res<NovaHudAssets>,
 ) {
     let entity = add.entity;
-    debug!("setup_hud_lock_crosshairs: entity {:?}", entity);
+    trace!("setup_hud_lock_crosshairs: entity {:?}", entity);
 
     if !is_player_ship_root(entity, &q_spaceship) {
         return;
@@ -761,7 +763,7 @@ fn setup_hud_target_inset(
     mut render_target: ResMut<TargetInsetRenderTarget>,
 ) {
     let entity = add.entity;
-    debug!("setup_hud_target_inset: entity {:?}", entity);
+    trace!("setup_hud_target_inset: entity {:?}", entity);
 
     if !is_player_ship_root(entity, &q_spaceship) {
         return;
@@ -785,7 +787,7 @@ fn remove_hud_target_inset(
     mut render_target: ResMut<TargetInsetRenderTarget>,
 ) {
     let entity = remove.entity;
-    debug!("remove_hud_target_inset: entity {:?}", entity);
+    trace!("remove_hud_target_inset: entity {:?}", entity);
 
     for panel in &q_panel {
         commands.entity(panel).despawn();
@@ -807,7 +809,7 @@ fn setup_hud_torpedo_target(
     assets: Res<NovaHudAssets>,
 ) {
     let entity = add.entity;
-    debug!("setup_hud_torpedo_target: entity {:?}", entity);
+    trace!("setup_hud_torpedo_target: entity {:?}", entity);
 
     if !is_player_ship_root(entity, &q_spaceship) {
         return;

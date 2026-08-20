@@ -345,7 +345,7 @@ pub struct ScenarioLoaderPlugin;
 
 impl Plugin for ScenarioLoaderPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ScenarioLoaderPlugin: build");
+        trace!("ScenarioLoaderPlugin: build");
 
         configure_scenario_gating(app);
 

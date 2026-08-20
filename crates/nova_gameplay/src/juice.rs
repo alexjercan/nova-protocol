@@ -369,7 +369,7 @@ pub struct NovaJuicePlugin;
 
 impl Plugin for NovaJuicePlugin {
     fn build(&self, app: &mut App) {
-        debug!("NovaJuicePlugin: build");
+        trace!("NovaJuicePlugin: build");
 
         // Generic drift-free trauma shake (CameraShake / CameraShakeInput live here).
         if !app.is_plugin_added::<CameraShakePlugin>() {

@@ -198,7 +198,7 @@ pub struct EdgeIndicatorsHudPlugin;
 
 impl Plugin for EdgeIndicatorsHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("EdgeIndicatorsHudPlugin: build");
+        trace!("EdgeIndicatorsHudPlugin: build");
 
         app.register_type::<EdgeIndicatorKind>();
         app.add_systems(Update, sync_edge_indicators.in_set(super::NovaHudSystems));

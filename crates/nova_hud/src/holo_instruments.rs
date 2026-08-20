@@ -109,7 +109,7 @@ pub struct HoloInstrumentsPlugin;
 
 impl Plugin for HoloInstrumentsPlugin {
     fn build(&self, app: &mut App) {
-        debug!("HoloInstrumentsPlugin: build");
+        trace!("HoloInstrumentsPlugin: build");
 
         app.init_resource::<HoloAssets>();
 

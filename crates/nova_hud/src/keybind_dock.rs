@@ -399,7 +399,7 @@ pub struct KeybindDockPlugin;
 
 impl Plugin for KeybindDockPlugin {
     fn build(&self, app: &mut App) {
-        debug!("KeybindDockPlugin: build");
+        trace!("KeybindDockPlugin: build");
 
         app.init_resource::<HintEmphasis>();
         app.register_type::<HintEmphasis>();

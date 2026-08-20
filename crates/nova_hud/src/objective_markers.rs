@@ -237,7 +237,7 @@ pub struct ObjectiveMarkersHudPlugin;
 
 impl Plugin for ObjectiveMarkersHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ObjectiveMarkersHudPlugin: build");
+        trace!("ObjectiveMarkersHudPlugin: build");
 
         app.register_type::<ObjectiveMarkerTarget>();
 
@@ -254,7 +254,7 @@ impl Plugin for ObjectiveMarkersHudPlugin {
 /// Every marked entity grows its chip the moment the tag lands.
 fn setup_objective_marker_chip(add: On<Add, ObjectiveMarkerTarget>, mut commands: Commands) {
     let target = add.entity;
-    debug!("setup_objective_marker_chip: target {:?}", target);
+    trace!("setup_objective_marker_chip: target {:?}", target);
     commands.spawn(objective_marker_chip_hud(target));
 }
 

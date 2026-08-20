@@ -453,7 +453,7 @@ pub struct TargetInsetHudPlugin;
 
 impl Plugin for TargetInsetHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("TargetInsetHudPlugin: build");
+        trace!("TargetInsetHudPlugin: build");
 
         app.init_resource::<TargetInsetRenderTarget>();
         app.register_type::<TargetInsetHudMarker>();

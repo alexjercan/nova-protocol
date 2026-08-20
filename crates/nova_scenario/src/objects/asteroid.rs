@@ -141,7 +141,7 @@ pub fn asteroid_seed_from_id(id: &str) -> u32 {
 /// [`asteroid_seed_from_id`] rather than the global RNG, which a bundle built
 /// inside a command has no access to.
 pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidConfig, seed: u32) {
-    debug!("asteroid_scenario_object: config {:?} seed {seed}", config);
+    trace!("asteroid_scenario_object: config {:?} seed {seed}", config);
 
     // Meshed from the rock's own carve field, so an untouched rock and a
     // cratered one are the same shape at the same facet density. See
@@ -150,7 +150,7 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
     // generator made every rock look like a ball with lumps on it.
     let started = Instant::now();
     let mesh = pristine_rock_mesh(seed, config.radius);
-    debug!(
+    trace!(
         "asteroid_scenario_object: meshed seed {seed} at radius {:.1} in {:.1} ms",
         config.radius,
         started.elapsed().as_secs_f32() * 1000.0
@@ -281,7 +281,7 @@ pub struct AsteroidPlugin {
 
 impl Plugin for AsteroidPlugin {
     fn build(&self, app: &mut App) {
-        debug!("AsteroidPlugin: build");
+        trace!("AsteroidPlugin: build");
 
         // NOTE: the gravity layer normally initializes this (NovaGravityPlugin);
         // init here too so the asteroid observer works in scenario-only apps.

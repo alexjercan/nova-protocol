@@ -178,7 +178,7 @@ pub struct NovaAudioPlugin;
 
 impl Plugin for NovaAudioPlugin {
     fn build(&self, app: &mut App) {
-        debug!("NovaAudioPlugin: build");
+        trace!("NovaAudioPlugin: build");
 
         // Generic fire-and-forget SFX playback (PlaySfx / SoundBank live here).
         if !app.is_plugin_added::<SfxPlugin>() {

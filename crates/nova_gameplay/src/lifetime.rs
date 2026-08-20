@@ -55,7 +55,7 @@ pub struct TempEntityPlugin;
 
 impl Plugin for TempEntityPlugin {
     fn build(&self, app: &mut App) {
-        debug!("TempEntityPlugin: build");
+        trace!("TempEntityPlugin: build");
 
         app.add_observer(on_insert_temp_entity);
 
@@ -121,7 +121,7 @@ pub struct DespawnEntityPlugin;
 
 impl Plugin for DespawnEntityPlugin {
     fn build(&self, app: &mut App) {
-        debug!("DespawnEntityPlugin: build");
+        trace!("DespawnEntityPlugin: build");
 
         app.add_observer(on_insert_despawn_entity);
     }

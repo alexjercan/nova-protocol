@@ -51,7 +51,7 @@ pub struct CameraAuthorityPlugin;
 
 impl Plugin for CameraAuthorityPlugin {
     fn build(&self, app: &mut App) {
-        debug!("CameraAuthorityPlugin: build");
+        trace!("CameraAuthorityPlugin: build");
 
         // `Restore` un-applies the previous frame's shake offset and so must
         // precede every base writer. `nova_gameplay::shake` pins only

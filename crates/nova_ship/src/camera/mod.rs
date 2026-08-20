@@ -76,7 +76,7 @@ pub struct SpaceshipCameraControllerPlugin;
 
 impl Plugin for SpaceshipCameraControllerPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SpaceshipCameraControllerPlugin: build");
+        trace!("SpaceshipCameraControllerPlugin: build");
 
         app.init_resource::<SpaceshipCameraControlMode>();
         app.add_input_context::<PlayerInputMarker>();

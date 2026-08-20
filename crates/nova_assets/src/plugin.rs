@@ -74,7 +74,7 @@ pub struct GameAssetsPlugin;
 
 impl Plugin for GameAssetsPlugin {
     fn build(&self, app: &mut App) {
-        debug!("GameAssetsPlugin: build");
+        trace!("GameAssetsPlugin: build");
 
         // The modding plugin registers the `*.content.ron` asset + loader.
         // Add it before the loading state runs so the loader exists when

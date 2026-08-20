@@ -69,7 +69,7 @@ pub struct SpaceshipPlayerInputPlugin;
 
 impl Plugin for SpaceshipPlayerInputPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SpaceshipPlayerInputPlugin: build");
+        trace!("SpaceshipPlayerInputPlugin: build");
 
         app.add_message::<SectionInputBindingChanged>();
         app.add_input_context::<FlightInputMarker>();

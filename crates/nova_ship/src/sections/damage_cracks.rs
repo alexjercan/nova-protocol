@@ -250,7 +250,7 @@ pub struct SectionCracksPlugin;
 
 impl Plugin for SectionCracksPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SectionCracksPlugin: build");
+        trace!("SectionCracksPlugin: build");
 
         app.register_type::<DamageCracks>();
         app.init_resource::<SectionCracksMaterials>();

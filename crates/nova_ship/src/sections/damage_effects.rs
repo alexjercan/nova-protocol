@@ -127,7 +127,7 @@ pub struct DamageEffectsPlugin {
 
 impl Plugin for DamageEffectsPlugin {
     fn build(&self, app: &mut App) {
-        debug!("DamageEffectsPlugin: build");
+        trace!("DamageEffectsPlugin: build");
 
         app.register_type::<DamageEffects>();
         if self.render {

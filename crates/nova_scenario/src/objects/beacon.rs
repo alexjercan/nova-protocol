@@ -65,7 +65,7 @@ pub struct BeaconConfig {
 /// body carrying the label, render config, and area radius the beacon observers
 /// read to wire the visual orb and (when authored) the trigger area at spawn.
 pub fn beacon_scenario_object(config: BeaconConfig) -> impl Bundle {
-    debug!("beacon_scenario_object: config {:?}", config);
+    trace!("beacon_scenario_object: config {:?}", config);
 
     (
         BeaconMarker,
@@ -122,7 +122,7 @@ pub struct BeaconPlugin {
 
 impl Plugin for BeaconPlugin {
     fn build(&self, app: &mut App) {
-        debug!("BeaconPlugin: build");
+        trace!("BeaconPlugin: build");
 
         app.add_observer(insert_beacon_area);
         if self.render {

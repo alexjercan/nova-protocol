@@ -120,7 +120,7 @@ pub struct SfxPlugin;
 
 impl Plugin for SfxPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SfxPlugin: build");
+        trace!("SfxPlugin: build");
 
         app.init_resource::<SfxMasterVolume>();
         app.register_type::<SfxMasterVolume>();

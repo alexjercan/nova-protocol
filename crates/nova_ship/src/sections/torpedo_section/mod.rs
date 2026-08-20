@@ -376,7 +376,7 @@ fn is_default_projectile_health(health: &f32) -> bool {
 /// tagged [`TorpedoSectionMarker`]. The bay spawns [`TorpedoProjectileMarker`]
 /// entities when fired; those carry the guidance/arming/blast runtime state.
 pub fn torpedo_section(config: TorpedoSectionConfig) -> impl Bundle {
-    debug!("torpedo_section: config {:?}", config);
+    trace!("torpedo_section: config {:?}", config);
 
     (
         TorpedoSectionMarker,
@@ -642,7 +642,7 @@ pub struct TorpedoSectionPlugin {
 
 impl Plugin for TorpedoSectionPlugin {
     fn build(&self, app: &mut App) {
-        debug!("TorpedoSectionPlugin: build");
+        trace!("TorpedoSectionPlugin: build");
 
         app.add_observer(insert_torpedo_section);
 

@@ -96,7 +96,7 @@ pub struct ShipAudioPlugin;
 
 impl Plugin for ShipAudioPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ShipAudioPlugin: build");
+        trace!("ShipAudioPlugin: build");
 
         if !app.is_plugin_added::<nova_gameplay::audio::NovaAudioPlugin>() {
             app.add_plugins(nova_gameplay::audio::NovaAudioPlugin);

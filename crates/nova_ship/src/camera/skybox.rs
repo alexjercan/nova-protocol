@@ -91,7 +91,7 @@ pub struct SkyboxPlugin;
 
 impl Plugin for SkyboxPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SkyboxPlugin: build");
+        trace!("SkyboxPlugin: build");
 
         app.add_observer(setup_skybox_camera);
     }

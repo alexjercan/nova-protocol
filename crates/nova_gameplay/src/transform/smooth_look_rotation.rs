@@ -74,7 +74,7 @@ pub struct SmoothLookRotationPlugin;
 
 impl Plugin for SmoothLookRotationPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SmoothLookRotationPlugin: build");
+        trace!("SmoothLookRotationPlugin: build");
 
         app.add_observer(initialize_smooth_look_system);
 

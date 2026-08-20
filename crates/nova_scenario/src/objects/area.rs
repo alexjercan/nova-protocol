@@ -44,7 +44,7 @@ pub struct ScenarioAreaPlugin;
 
 impl Plugin for ScenarioAreaPlugin {
     fn build(&self, app: &mut App) {
-        debug!("AreaPlugin: build");
+        trace!("AreaPlugin: build");
 
         app.init_resource::<AreaOccupancy>();
         app.add_observer(insert_collision_events);

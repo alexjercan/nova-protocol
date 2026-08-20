@@ -91,7 +91,7 @@ pub struct SpaceshipPointDefensePlugin {
 
 impl Plugin for SpaceshipPointDefensePlugin {
     fn build(&self, app: &mut App) {
-        debug!("SpaceshipPointDefensePlugin: build");
+        trace!("SpaceshipPointDefensePlugin: build");
 
         app.register_type::<TurretDefenseTarget>();
         app.register_type::<PointDefenseMount>();

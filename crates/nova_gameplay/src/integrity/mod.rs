@@ -50,7 +50,7 @@ pub struct NovaIntegrityPlugin;
 
 impl Plugin for NovaIntegrityPlugin {
     fn build(&self, app: &mut App) {
-        debug!("NovaIntegrityPlugin: build");
+        trace!("NovaIntegrityPlugin: build");
 
         // The hit-point store the core spends, and the destruction pipeline.
         app.add_plugins(health::NovaHealthPlugin);

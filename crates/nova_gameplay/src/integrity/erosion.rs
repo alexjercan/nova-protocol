@@ -75,7 +75,7 @@ pub struct DamageLevelPlugin;
 
 impl Plugin for DamageLevelPlugin {
     fn build(&self, app: &mut App) {
-        debug!("DamageLevelPlugin: build");
+        trace!("DamageLevelPlugin: build");
 
         app.register_type::<DamageLevel>();
         app.add_systems(Update, derive_damage_level);

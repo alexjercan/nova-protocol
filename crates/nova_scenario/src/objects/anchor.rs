@@ -57,7 +57,7 @@ pub struct AnchorMass(pub Option<f32>);
 /// reads well positions through the physics transform, and an anchor that
 /// could be shoved would drag its consumers with it.
 pub fn anchor_scenario_object(config: AnchorConfig) -> impl Bundle {
-    debug!("anchor_scenario_object: config {:?}", config);
+    trace!("anchor_scenario_object: config {:?}", config);
 
     (
         AnchorMarker,
@@ -75,7 +75,7 @@ pub struct AnchorPlugin;
 
 impl Plugin for AnchorPlugin {
     fn build(&self, app: &mut App) {
-        debug!("AnchorPlugin: build");
+        trace!("AnchorPlugin: build");
 
         app.register_type::<AnchorMarker>()
             .register_type::<AnchorBodyRadius>()

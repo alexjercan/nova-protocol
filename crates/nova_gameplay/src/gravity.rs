@@ -220,7 +220,7 @@ pub struct NovaGravityPlugin;
 
 impl Plugin for NovaGravityPlugin {
     fn build(&self, app: &mut App) {
-        debug!("NovaGravityPlugin: build");
+        trace!("NovaGravityPlugin: build");
 
         app.init_resource::<GravitySettings>()
             // Register the whole reflected tree, not just the resource root.

@@ -721,7 +721,7 @@ pub struct NovaDamagePlugin;
 
 impl Plugin for NovaDamagePlugin {
     fn build(&self, app: &mut App) {
-        debug!("NovaDamagePlugin: build");
+        trace!("NovaDamagePlugin: build");
         app.register_type::<DamageType>()
             .register_type::<ProjectileDamage>()
             .register_type::<SectionClass>()

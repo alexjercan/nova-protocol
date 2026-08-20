@@ -92,7 +92,7 @@ pub struct DamagePlumePlugin;
 
 impl Plugin for DamagePlumePlugin {
     fn build(&self, app: &mut App) {
-        debug!("DamagePlumePlugin: build");
+        trace!("DamagePlumePlugin: build");
 
         app.register_type::<DamagePlume>();
     }

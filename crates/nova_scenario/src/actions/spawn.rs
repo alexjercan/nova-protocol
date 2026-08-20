@@ -27,7 +27,7 @@ impl DespawnScenarioObjectActionConfig {
 impl EventAction<NovaEventWorld> for DespawnScenarioObjectActionConfig {
     fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
         let id = self.id.clone();
-        debug!("DespawnScenarioObject: despawning '{}'", id);
+        trace!("DespawnScenarioObject: despawning '{}'", id);
 
         // The id -> Entity lookup needs world access, which push_command's
         // `&mut Commands` does not have - so the command queues a Command
@@ -129,7 +129,10 @@ pub enum ScenarioObjectKind {
 impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
     fn action(&self, world: &mut NovaEventWorld, _info: &GameEventInfo) {
         let config = self.clone();
-        debug!("SpawnScenarioObject: spawning '{}'", config.base.id);
+        // Per OBJECT, so it scales with what a scenario authors. The batch this
+        // belongs to is summarised with a count by `on_load_scenario` (a whole
+        // scenario's objects) and by `ScatterObjectsConfig` (one field).
+        trace!("SpawnScenarioObject: spawning '{}'", config.base.id);
 
         world.push_command(move |commands| {
             let mut entity_commands = commands.spawn(base_scenario_object(&config.base));
@@ -342,14 +345,10 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
                 self.id_prefix, self.count
             );
         }
-        debug!(
-            "ScatterObjects: scattering {} '{}' objects (seed {})",
-            count, self.id_prefix, self.seed
-        );
-
         // Seeded with what earlier scatters placed, so abutting sibling fields
         // (a belt's knots) cannot drop rocks into each other.
         let mut placed: Vec<Vec3> = world.scatter_placements().to_vec();
+        let mut dropped = 0u32;
         for i in 0..count {
             let mut object = self.template.clone();
             object.base.id = format!("{}{}", self.id_prefix, i);
@@ -363,7 +362,8 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
                 asteroid.seed = asteroid.seed.or(Some(silhouette_seed));
             }
             let Some(position) = self.sample_clear_of(&placed, &mut rng) else {
-                debug!(
+                dropped += 1;
+                trace!(
                     "ScatterObjects: dropped '{}{}' - no position clearing the \
                      {}u separation in {} attempts",
                     self.id_prefix,
@@ -391,6 +391,20 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
             // stay identical in how they build an object.
             object.action(world, info);
         }
+
+        // ONE line for the whole field, after the fact, so it can report what
+        // actually landed rather than what was asked for. The per-copy spawn
+        // and drop lines are at trace; a reader chasing which copy went missing
+        // turns them on, and everyone else gets the two numbers that say
+        // whether the field came out as authored.
+        debug!(
+            "ScatterObjects: scattered {} of {} '{}' object(s), {} dropped for separation (seed {})",
+            count - dropped,
+            count,
+            self.id_prefix,
+            dropped,
+            self.seed
+        );
     }
 }
 

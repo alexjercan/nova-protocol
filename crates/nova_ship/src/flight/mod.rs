@@ -86,7 +86,7 @@ pub struct NovaFlightPlugin;
 
 impl Plugin for NovaFlightPlugin {
     fn build(&self, app: &mut App) {
-        debug!("NovaFlightPlugin: build");
+        trace!("NovaFlightPlugin: build");
 
         // The ORBIT verb reads the gravity tunables; init here too so the
         // flight layer stands alone (the AI physics tests build it without

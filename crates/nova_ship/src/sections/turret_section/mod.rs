@@ -46,7 +46,7 @@ pub mod prelude {
 
 /// Helper function to create a turret section entity bundle.
 pub fn turret_section(config: TurretSectionConfig) -> impl Bundle {
-    debug!("turret_section: config {:?}", config);
+    trace!("turret_section: config {:?}", config);
 
     // The loaded-ammo slot, seeded from the authored config. Read before `config`
     // moves into the helper (both fields are `Copy`).
@@ -218,7 +218,7 @@ pub struct TurretSectionPlugin {
 
 impl Plugin for TurretSectionPlugin {
     fn build(&self, app: &mut App) {
-        debug!("TurretSectionPlugin: build");
+        trace!("TurretSectionPlugin: build");
 
         app.register_type::<TurretSectionArc>();
         app.add_observer(insert_turret_section);

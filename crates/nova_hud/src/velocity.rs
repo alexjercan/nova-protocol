@@ -148,7 +148,7 @@ impl Default for VelocityHudConfig {
 /// Builds the velocity-sphere widget bundle: an orbiting direction cone and
 /// shaded sphere driven by the target's velocity (or gravity pull).
 pub fn velocity_hud(config: VelocityHudConfig) -> impl Bundle {
-    debug!("velocity_hud: config {:?}", config);
+    trace!("velocity_hud: config {:?}", config);
 
     // The gravity variant starts hidden until the feeder proves the ship
     // is in a well, so a spawn in flat space never flashes the widget.
@@ -195,7 +195,7 @@ pub struct VelocityHudPlugin;
 
 impl Plugin for VelocityHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("VelocityHudPlugin: build");
+        trace!("VelocityHudPlugin: build");
 
         app.add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>,

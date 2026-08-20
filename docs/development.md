@@ -125,6 +125,41 @@ in only under the `debug` feature:
   and exit. It dumps the `Update` schedule (`debugdump` in
   `crates/nova_debug/src/lib.rs`).
 
+### Logging
+
+The filter is built by `log_filter_str` in `crates/nova_core/src/lib.rs`. A
+`--features debug` run puts the nova crates at DEBUG; a release run leaves them
+at the plugin's INFO default.
+
+**A new crate needs no filter change.** Every workspace crate is named `nova_*`
+and `EnvFilter` matches a directive's target by PREFIX, so the single `nova=`
+directive covers all of them. Do not add a per-crate directive: the list this
+replaced named nine of twenty-two crates, and the thirteen it missed sat
+silently at INFO while their neighbours were at DEBUG.
+
+Pick a level by WHO needs the line and HOW OFTEN it fires, not by how
+interesting it felt while writing it:
+
+| level | fires | example |
+|---|---|---|
+| `trace!` | per ITEM - anything that scales with content | one line per spawned object, per section, per widget |
+| `debug!` | per OPERATION - one line for the whole batch | `scattered 26 of 26 'gauntlet_rock_' object(s)` |
+| `info!` | a person running the game wants it; should be rare | the probe's own report lines |
+| `warn!`/`error!` | something is WRONG | a scenario names an id that does not resolve |
+
+An expected-and-handled condition is not a warning. A batch summary carries a
+COUNT - a summary line without a number is barely better than the noise it
+replaced.
+
+`RUST_LOG` directives are MERGED over this filter by bevy rather than replacing
+it (`bevy_log-0.19.0/src/lib.rs:406`), so `RUST_LOG=nova=trace` restores the
+per-item detail without unmuting wgpu and naga.
+
+A headless run additionally clamps three bevy diagnostics it provokes by
+construction - the missing render app, `CompressedImageFormatSupport`, and
+gizmos noticing there is no `RenderApp`. All three are unreachable when a render
+sub-app exists, so a rendering run keeps those targets at their normal level.
+
 ## Examples
 
 `examples/` exercises one subsystem each, end to end; this repo prefers

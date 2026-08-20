@@ -215,7 +215,7 @@ pub struct ObjectiveStackPlugin;
 
 impl Plugin for ObjectiveStackPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ObjectiveStackPlugin: build");
+        trace!("ObjectiveStackPlugin: build");
 
         app.init_resource::<ObjectiveNotifications>();
         app.register_type::<ObjectiveStackHudMarker>();

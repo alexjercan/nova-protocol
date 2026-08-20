@@ -73,7 +73,7 @@ pub struct ScenarioLightConfig(pub LightConfig);
 /// `RigidBody::Static` because a light is posed, not simulated. Same choice
 /// `beacon_scenario_object` makes, for the same reason.
 pub fn light_scenario_object(config: LightConfig) -> impl Bundle {
-    debug!("light_scenario_object: config {:?}", config);
+    trace!("light_scenario_object: config {:?}", config);
 
     (
         LightMarker,
@@ -214,7 +214,7 @@ pub struct LightPlugin {
 
 impl Plugin for LightPlugin {
     fn build(&self, app: &mut App) {
-        debug!("LightPlugin: build");
+        trace!("LightPlugin: build");
 
         if self.render {
             app.add_observer(insert_light);

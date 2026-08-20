@@ -91,7 +91,7 @@ pub struct NovaHealthPlugin;
 
 impl Plugin for NovaHealthPlugin {
     fn build(&self, app: &mut App) {
-        debug!("NovaHealthPlugin: build");
+        trace!("NovaHealthPlugin: build");
 
         app.register_type::<Health>();
         app.register_type::<HealthZeroMarker>();

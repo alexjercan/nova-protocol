@@ -56,7 +56,7 @@ pub struct ScenarioObjectsPlugin {
 
 impl Plugin for ScenarioObjectsPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ScenarioObjectsPlugin: build");
+        trace!("ScenarioObjectsPlugin: build");
 
         app.add_plugins(anchor::AnchorPlugin);
         app.add_plugins(asteroid::AsteroidPlugin {

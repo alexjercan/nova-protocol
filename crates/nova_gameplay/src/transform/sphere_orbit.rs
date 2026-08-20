@@ -56,7 +56,7 @@ pub struct SphereOrbitPlugin;
 
 impl Plugin for SphereOrbitPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SphereOrbitPlugin: build");
+        trace!("SphereOrbitPlugin: build");
 
         app.add_observer(initialize_sphere_orbit_system);
 

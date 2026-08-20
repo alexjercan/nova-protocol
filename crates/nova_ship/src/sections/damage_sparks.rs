@@ -141,7 +141,7 @@ pub struct DamageSparksPlugin;
 
 impl Plugin for DamageSparksPlugin {
     fn build(&self, app: &mut App) {
-        debug!("DamageSparksPlugin: build");
+        trace!("DamageSparksPlugin: build");
 
         app.register_type::<DamageSparks>();
         app.init_resource::<SparkAssets>();

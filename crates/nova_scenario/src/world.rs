@@ -207,9 +207,36 @@ impl EventWorld for NovaEventWorld {
         let changed_snapshot = {
             let this = world.resource::<Self>();
             if this.variables != this.last_logged_variables {
-                debug!("# Current Variables:");
+                // ONE line naming what actually moved, because that is the
+                // question a reader watching a scenario has. Dumping the whole
+                // table said "something changed" in N lines and made the reader
+                // diff them by eye; the full table stays one trace away.
+                let mut changed: Vec<String> = this
+                    .variables
+                    .iter()
+                    .filter(|(key, value)| this.last_logged_variables.get(*key) != Some(*value))
+                    .map(|(key, value)| format!("{key}={value:?}"))
+                    .collect();
+                // Teardown CLEARS the table, so a diff that only looked at what
+                // is present now would report "0 changed" on the one transition
+                // that dropped everything.
+                changed.extend(
+                    this.last_logged_variables
+                        .keys()
+                        .filter(|key| !this.variables.contains_key(*key))
+                        .map(|key| format!("{key}=<removed>")),
+                );
+                // HashMap order is arbitrary, so an unsorted line would reorder
+                // between two otherwise identical runs and defeat a log diff.
+                changed.sort();
+                debug!(
+                    "scenario variables: {} changed of {} live ({})",
+                    changed.len(),
+                    this.variables.len(),
+                    changed.join(", ")
+                );
                 for (key, value) in &this.variables {
-                    debug!("Variable: {} = {:?}", key, value);
+                    trace!("Variable: {} = {:?}", key, value);
                 }
                 Some(this.variables.clone())
             } else {

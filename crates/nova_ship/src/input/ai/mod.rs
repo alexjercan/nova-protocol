@@ -93,7 +93,7 @@ pub struct SpaceshipAIInputPlugin;
 
 impl Plugin for SpaceshipAIInputPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SpaceshipAIInputPlugin: build");
+        trace!("SpaceshipAIInputPlugin: build");
 
         app.register_type::<AIBehaviorState>();
         app.register_type::<AITarget>();

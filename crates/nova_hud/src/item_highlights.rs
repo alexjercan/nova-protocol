@@ -105,7 +105,7 @@ pub struct ItemHighlightsHudPlugin;
 
 impl Plugin for ItemHighlightsHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ItemHighlightsHudPlugin: build");
+        trace!("ItemHighlightsHudPlugin: build");
 
         app.register_type::<ItemHighlight>();
 
@@ -129,7 +129,7 @@ fn setup_item_highlight(
     let Ok(highlight) = q_highlight.get(target) else {
         return;
     };
-    debug!("setup_item_highlight: target {:?}", target);
+    trace!("setup_item_highlight: target {:?}", target);
     commands.spawn(item_highlight_hud(target, highlight.world_radius));
 }
 

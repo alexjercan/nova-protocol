@@ -208,7 +208,7 @@ pub struct LockCrosshairsHudPlugin;
 
 impl Plugin for LockCrosshairsHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("LockCrosshairsHudPlugin: build");
+        trace!("LockCrosshairsHudPlugin: build");
         app.register_type::<LockUnlatchGhostMarker>();
         app.register_type::<RadarDenyFlashMarker>();
         app.register_type::<LockGhostSprite>();

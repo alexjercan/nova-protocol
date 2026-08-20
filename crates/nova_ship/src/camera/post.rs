@@ -46,7 +46,7 @@ pub struct PostProcessingDefaultPlugin;
 
 impl Plugin for PostProcessingDefaultPlugin {
     fn build(&self, app: &mut App) {
-        debug!("PostProcessingDefaultPlugin: build");
+        trace!("PostProcessingDefaultPlugin: build");
 
         app.add_observer(setup_post_processing_camera);
     }

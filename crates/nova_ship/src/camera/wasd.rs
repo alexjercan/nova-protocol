@@ -120,7 +120,7 @@ pub struct WASDCameraPlugin;
 
 impl Plugin for WASDCameraPlugin {
     fn build(&self, app: &mut App) {
-        debug!("WASDCameraPlugin: build");
+        trace!("WASDCameraPlugin: build");
 
         app.add_observer(initialize_wasd_camera);
         app.add_observer(destroy_wasd_camera);

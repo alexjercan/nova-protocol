@@ -156,7 +156,7 @@ impl Default for ScreenIndicatorConfig {
 /// [`ScreenIndicatorPlugin`] drives. Starts hidden; parent it under a
 /// [`screen_indicator_layer`] and attach content (sprite, text, arrow).
 pub fn screen_indicator(config: ScreenIndicatorConfig) -> impl Bundle {
-    debug!("screen_indicator: config {:?}", config);
+    trace!("screen_indicator: config {:?}", config);
 
     (
         ScreenIndicatorMarker,
@@ -179,7 +179,7 @@ pub fn screen_indicator(config: ScreenIndicatorConfig) -> impl Bundle {
 /// [`screen_indicator`]'s - it hands its node here instead and the projection
 /// fields are stamped onto it.
 pub fn screen_indicator_node(config: ScreenIndicatorConfig, mut node: Node) -> impl Bundle {
-    debug!("screen_indicator_node: config {:?}", config);
+    trace!("screen_indicator_node: config {:?}", config);
 
     node.position_type = PositionType::Absolute;
     (
@@ -221,7 +221,7 @@ pub struct ScreenIndicatorPlugin;
 
 impl Plugin for ScreenIndicatorPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ScreenIndicatorPlugin: build");
+        trace!("ScreenIndicatorPlugin: build");
 
         // NOTE: projection must sample the SAME camera pose the frame renders
         // with. In Update the chase camera has not moved yet (the rig moves it

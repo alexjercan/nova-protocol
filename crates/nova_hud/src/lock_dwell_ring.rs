@@ -130,7 +130,7 @@ pub struct LockDwellRingHudPlugin;
 
 impl Plugin for LockDwellRingHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("LockDwellRingHudPlugin: build");
+        trace!("LockDwellRingHudPlugin: build");
 
         app.add_plugins(UiMaterialPlugin::<LockDwellRingMaterial>::default());
         app.register_type::<LockDwellRingHudMarker>();

@@ -173,7 +173,7 @@ pub struct BeaconChipsHudPlugin;
 
 impl Plugin for BeaconChipsHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("BeaconChipsHudPlugin: build");
+        trace!("BeaconChipsHudPlugin: build");
 
         app.register_type::<BeaconMarker>();
         app.register_type::<BeaconLabel>();
@@ -198,9 +198,10 @@ fn setup_beacon_chip(
 ) {
     let beacon = add.entity;
     let suppressed = q_marked.get(beacon).is_ok();
-    debug!(
+    trace!(
         "setup_beacon_chip: beacon {:?} (suppressed {})",
-        beacon, suppressed
+        beacon,
+        suppressed
     );
     commands.spawn(beacon_chip_hud(beacon, suppressed));
 }

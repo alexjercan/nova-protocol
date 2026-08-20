@@ -60,7 +60,7 @@ pub struct WASDCameraControllerPlugin;
 
 impl Plugin for WASDCameraControllerPlugin {
     fn build(&self, app: &mut App) {
-        debug!("WASDCameraControllerPlugin: build");
+        trace!("WASDCameraControllerPlugin: build");
 
         app.add_input_context::<WASDCameraInputMarker>();
 

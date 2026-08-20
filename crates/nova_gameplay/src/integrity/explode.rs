@@ -104,7 +104,7 @@ pub(super) struct ExplodablePlugin;
 
 impl Plugin for ExplodablePlugin {
     fn build(&self, app: &mut App) {
-        debug!("ExplodablePlugin: build");
+        trace!("ExplodablePlugin: build");
 
         app.add_observer(on_add_explodable_entity);
         app.add_observer(on_destroyed_entity);
@@ -190,9 +190,10 @@ fn on_add_explodable_entity(
         return;
     };
 
-    debug!(
+    trace!(
         "on_add_explodable_entity: entity {:?} is child of {:?}, adding ExplodableEntity to parent",
-        entity, *parent
+        entity,
+        *parent
     );
 
     commands.entity(*parent).insert(ExplodableEntity);

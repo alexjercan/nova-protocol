@@ -290,7 +290,7 @@ pub struct CarvedChunkPlugin;
 
 impl Plugin for CarvedChunkPlugin {
     fn build(&self, app: &mut App) {
-        debug!("CarvedChunkPlugin: build");
+        trace!("CarvedChunkPlugin: build");
 
         app.register_type::<CarvedChunkMarker>();
         app.add_systems(Update, land_carved_chunks);

@@ -97,7 +97,7 @@ pub struct ObjectiveFeedbackPlugin;
 
 impl Plugin for ObjectiveFeedbackPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ObjectiveFeedbackPlugin: build");
+        trace!("ObjectiveFeedbackPlugin: build");
 
         app.register_type::<ObjectiveGhostLineMarker>();
         app.register_type::<ObjectiveFeedbackSettings>();

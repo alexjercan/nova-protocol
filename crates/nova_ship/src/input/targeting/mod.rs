@@ -86,7 +86,7 @@ pub struct SpaceshipTargetingPlugin;
 
 impl Plugin for SpaceshipTargetingPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SpaceshipTargetingPlugin: build");
+        trace!("SpaceshipTargetingPlugin: build");
 
         app.init_resource::<TargetingSettings>();
         app.register_type::<TargetingSettings>();

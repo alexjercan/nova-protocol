@@ -46,7 +46,7 @@ pub struct PointRotationPlugin;
 
 impl Plugin for PointRotationPlugin {
     fn build(&self, app: &mut App) {
-        debug!("PointRotationPlugin: build");
+        trace!("PointRotationPlugin: build");
 
         app.add_observer(initialize_point_rotation_system);
 

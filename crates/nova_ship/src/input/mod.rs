@@ -49,7 +49,7 @@ pub struct SpaceshipInputPlugin {
 
 impl Plugin for SpaceshipInputPlugin {
     fn build(&self, app: &mut App) {
-        debug!("SpaceshipInputPlugin: build");
+        trace!("SpaceshipInputPlugin: build");
 
         app.add_plugins(player::SpaceshipPlayerInputPlugin);
         app.add_plugins(targeting::SpaceshipTargetingPlugin);

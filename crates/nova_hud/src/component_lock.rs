@@ -90,7 +90,7 @@ pub struct ComponentLockHudPlugin;
 
 impl Plugin for ComponentLockHudPlugin {
     fn build(&self, app: &mut App) {
-        debug!("ComponentLockHudPlugin: build");
+        trace!("ComponentLockHudPlugin: build");
 
         app.add_systems(
             Update,
