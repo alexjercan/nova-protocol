@@ -841,3 +841,103 @@ the fixed step**, and only that moves the 1% low.
 
 Explicitly NOT the headless visibility work. D18 already records that it buys the
 player nothing.
+
+## D20 - the fixed step, split properly, and the reversal of D14
+
+`tasks/20260819-173219/notes-fixed-step.md`, cherry-picked as `d68baf04`. The
+instrumentation that made it resolvable is env-gated on sprout
+`fixed-step-investigation` and deliberately not landed.
+
+### Every cheap hypothesis I had was WRONG, and each died with a number
+
+1. **Intra-hull section pairs**: structurally absent. One `RigidBody` per hull,
+   and avian skips same-body pairs (`bvh_broad_phase.rs:261`). There was never a
+   fix to make.
+2. **Six substeps is too many**: refuted, and instructively. 6 -> 4 moves nothing
+   (p=0.92). 6 -> 2 is net WORSE in a fight - median step 8.33 -> 10.55 ms -
+   because peak contact constraints explode 55 -> 1,085-1,149 during rams and
+   hulls visibly interpenetrate. 6 -> 1 degrades point defence (1% low 122 -> 62
+   fps, p=0.016) and changes outcomes. **Keep 6.**
+3. **Sleeping idle hulls**: already maxed at 40-41 bodies, and the PD controller's
+   torque wakes every ship every tick anyway.
+4. **Collider count is the multiplier**: 1v1 -> 4v4 doubles colliders and adds
+   only ~1.2 ms to a quiet step, about 0.4 us/collider.
+
+### The split, measured off avian's own phase timers
+
+A heavy 1v1 fight step, 937 steps, fight-regime slice (n=59):
+
+| phase | ms | share |
+|---|--:|--:|
+| wall, whole step | 10.48 | 100% |
+| broad phase | 1.26 | 12% |
+| narrow phase | 0.96 | 9% |
+| solver incl. all 6 substeps | 1.32 | 13% |
+| **everything else in `FixedMain`** | **6.94** | **66%** |
+
+So the earlier ">90% avian" reading was a boundary artefact: avian's actual
+pair-and-solve work is about 30% of the step. The rest is per-step BOOKKEEPING
+that scales with body and collider count - collision-event dispatch and damage
+observers 1.15 ms, nova `FixedUpdate` 1.2, schedule-executor self ~1.4,
+AABB/tree/writeback ~1.5, transform propagation up to 1.1.
+
+**A near-empty world still costs ~2.3 ms a step.** Fixed machinery, 15% of the
+budget before any gameplay exists.
+
+### The observation that reframes the whole thing
+
+**Contact constraints never exceeded 51, and average 2 to 4. Almost nothing ever
+TOUCHES.** The 3-4k "contacts" are AABB-overlap pairs produced by speculative
+margins on fast bullets; they cost broad and narrow time and almost never reach
+the solver.
+
+So six substeps re-integrate ~900 bodies six times over, to resolve TWO contact
+manifolds on a typical step. The cost is not collision. **The cost is having 900
+bodies, and most of them are rounds** - ~770 bullets in flight even on a quiet
+step.
+
+### D14 IS REVERSED, and the reason it was wrong is worth keeping
+
+D14 closed "a round should not be a physics body" rather than escalating it,
+because `collect_collision_pairs<ProjectileHooks>` measured 0.192 ms of a 26 ms
+frame. That number was correct and the conclusion did not follow.
+
+**The cost of a round being a body was never in the pair collection.** It is in
+the per-step bookkeeping every body pays - integration, AABB update, tree update,
+writeback, transform propagation - spread across a dozen systems, none of which
+carries "projectile" in its name. D14 measured the one system that did, found it
+cheap, and closed the question.
+
+The lesson generalises past this case: **a cost spread evenly across many
+systems is invisible to a ranked profile, and naming one system after the
+suspect makes it look exonerated.**
+
+So the gameplay question this epic kept trying to hand back to the owner is live
+again, and now it is the biggest single lever on the board.
+
+### Ranked, with wins as arithmetic on measured slices
+
+1. **Batch the `CollisionStart` consumers** - damage, audio and bullet-hit
+   observers become message-draining systems. 1.15 ms a step typically, and it
+   explodes on ram and sever cascades (12,673 events in one run, 5,087 inside one
+   second), so it attacks the TAIL rather than the mean. Est. 0.4-0.8 ms typical,
+   several ms on a cascade step. **No design decision.**
+2. **Single-threaded executor for the small fixed-loop schedules** - ~1.4 ms of
+   executor self time plus a share of the 2.3 ms base. Est. 0.5-1.5 ms. Cheap to
+   test, cheap to reject with a number. **No design decision.**
+3. **A round is not a physics body** - swept projectiles, no per-round body,
+   collider or tree churn. Est. 2.5-4.5 ms off a 4v4 step, 1.5-2.5 off a 1v1.
+   **Biggest lever, damage inputs preserved exactly, OWNER'S CALL.**
+4. **Two-tier hull collision** - sized honestly at 2.5-3.5 ms but weeks-scale,
+   and partly obsoleted if item 3 lands. Do 3, re-measure, then decide.
+
+1v1 fight-step median is 8.33 ms. Items 1+2+3 put it at roughly 4.5-6 ms: **the
+8 ms ceiling met and the 5 ms target in reach.**
+
+### One more instrument caveat
+
+Even with the new liveness gate, the arena capture often lands on a LIGHT fight
+phase - "both teams standing" holds while intensity varies by an order of
+magnitude. The per-step CSV with body-count regime selection is what made this
+investigation resolvable, and the next lane should take it rather than measure
+whole-run averages over a scene whose load moves.
