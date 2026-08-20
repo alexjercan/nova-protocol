@@ -436,6 +436,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- A capture breaks its frame down by name: every main-world schedule, every render phase with submit and present split out, and every render pass the GPU timed under `NOVA_PERF_RENDER_DIAG`.
+- A capture counts the world it measured - entities per component, archetypes, and mesh instances against DISTINCT mesh handles - beside the frame-time stats.
+- `NOVA_PERF_PRESENT` names the presentation mode instead of requesting it, so a run can prove it was not capped at refresh; `wfc_ships --ships 0` stands the empty row.
 - The profile table counts deferred command flushes, where observers actually run, and the run report leads its frame section with worst frame, mean and the implied FPS, flagged under 60.
 - `probe run --repeat <n>` gates each capture on its mean and median before reading the worst frame, and a capture records fixed steps per frame plus a `NOVA_PERF_MAX_DELTA` ceiling knob.
 - A capture REFUSES a window the simulation was stopped in - no stats, a named failing check - and an example can declare its own window for a scene that can reach an end.

@@ -385,8 +385,31 @@ fn window_plugin() -> WindowPlugin {
     }
 }
 
+/// Environment variable that asks the renderer for GPU timestamp queries, so
+/// `nova_probe`'s frame-cost capability can time each render pass on the
+/// device instead of inferring it from the wall clock.
+///
+/// It lives here because [`render_plugin`] is the only place a wgpu feature can
+/// be requested and `nova_probe` is the only reader; `nova_core` is the lowest
+/// crate both name.
+///
+/// Never a shipping default: the queries add a resolve pass and a buffer
+/// readback to every frame, which is part of the thing being measured.
+pub const RENDER_DIAG_ENV: &str = "NOVA_PERF_RENDER_DIAG";
+
 fn render_plugin() -> RenderPlugin {
+    // Timestamp queries are Vulkan/DX12-only in wgpu, and asking for a feature
+    // the adapter lacks fails device creation - so this is a request the probe
+    // then verifies: `render/*/elapsed_gpu` is simply absent on a backend that
+    // cannot serve it.
+    let mut wgpu = bevy::render::settings::WgpuSettings::default();
+    if std::env::var_os(RENDER_DIAG_ENV).is_some() {
+        wgpu.features |= bevy::render::settings::WgpuFeatures::TIMESTAMP_QUERY
+            | bevy::render::settings::WgpuFeatures::TIMESTAMP_QUERY_INSIDE_ENCODERS
+            | bevy::render::settings::WgpuFeatures::TIMESTAMP_QUERY_INSIDE_PASSES;
+    }
     RenderPlugin {
+        render_creation: wgpu.into(),
         // NOTE: do not flip this back to bevy's async default (task
         // 20260805-111329). An async pipeline-compile task still in flight at
         // exit drops the last `Arc<Device>` from an `AsyncComputeTaskPool`

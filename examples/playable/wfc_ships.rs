@@ -126,7 +126,9 @@ struct Cli {
     /// First seed of the row; ship `n` collapses from `seed + n`.
     #[arg(long, default_value_t = DEFAULT_SEED)]
     seed: u64,
-    /// How many ships to stand in the row.
+    /// How many ships to stand in the row. Zero is the empty stand: the sky,
+    /// the photo rig and the HUD with no subject, which is what a frame costs
+    /// before any ship is in it.
     #[arg(long, default_value_t = DEFAULT_SHIPS)]
     ships: usize,
     /// Strip the cladding and show the bare structural collapse.
@@ -160,7 +162,7 @@ fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
     let roster = Roster {
         seed: cli.seed,
-        ships: cli.ships.max(1),
+        ships: cli.ships,
         clad: !cli.bare,
         style: 0,
     };
@@ -175,9 +177,16 @@ fn main() -> bevy::app::AppExit {
     {
         // Probe wiring (each plugin is inert without its NOVA_PERF_* env):
         // run timeline + engine-bound invariants, so `probe run` grades this
-        // example instead of asserting nothing. No frame-time capture - a
-        // posed row holds no steady-state load worth measuring.
+        // example instead of asserting nothing.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        // A posed row holds no steady-state load worth GRADING, so the example
+        // declares no frame-time claim - but it is the subject the ship-cost
+        // and floor studies are measured on, so a capture pointed at it gets
+        // one. Declaring only when armed keeps `probe run` unchanged and still
+        // writes the artifact the sweep reads.
+        if nova_probe::perf_armed() {
+            app.add_plugins(nova_probe::nova_frametime().window(90, 200));
+        }
         // Clean frames at the fleet's known 16:9, dev overlays out of shot.
         // The HUD drops to cinematic only under capture: a hand-run keeps the
         // level On so grave/tilde round-trips the readout with the rest of

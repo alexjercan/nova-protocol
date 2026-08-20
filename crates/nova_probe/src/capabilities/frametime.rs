@@ -277,6 +277,29 @@ struct PerfConfig {
     /// is time the world never simulates - so it is a measurement knob here,
     /// never a default.
     max_delta_override: Option<f32>,
+    /// Presentation mode forced on the primary window
+    /// (`NOVA_PERF_PRESENT` / `present=`), defaulting to
+    /// [`PresentMode::AutoNoVsync`].
+    ///
+    /// The default is a REQUEST and wgpu answers it silently: it falls back
+    /// Immediate -> Mailbox -> Fifo on whatever the surface offers, and bevy
+    /// logs the fallback only for an EXPLICITLY named mode. A capture that
+    /// landed on `Fifo` measures the display's refresh period, not the game, so
+    /// naming `immediate` here is how a run proves it did not.
+    present_mode: PresentMode,
+}
+
+/// Parse the `NOVA_PERF_PRESENT` / `present=` override.
+fn parse_present_mode(value: &str) -> Option<PresentMode> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "immediate" => Some(PresentMode::Immediate),
+        "mailbox" => Some(PresentMode::Mailbox),
+        "fifo" => Some(PresentMode::Fifo),
+        "fiforelaxed" | "fifo_relaxed" => Some(PresentMode::FifoRelaxed),
+        "autovsync" => Some(PresentMode::AutoVsync),
+        "autonovsync" => Some(PresentMode::AutoNoVsync),
+        _ => None,
+    }
 }
 
 impl PerfConfig {
@@ -304,6 +327,9 @@ impl PerfConfig {
             max_delta_override: perf_param("max_delta")
                 .and_then(|v| v.trim().parse::<f32>().ok())
                 .filter(|secs| *secs > 0.0),
+            present_mode: perf_param("present")
+                .and_then(|v| parse_present_mode(&v))
+                .unwrap_or(PresentMode::AutoNoVsync),
         }
     }
 }
@@ -583,7 +609,7 @@ fn perf_force_window(
     window
         .resolution
         .set(config.resolution.0, config.resolution.1);
-    window.present_mode = PresentMode::AutoNoVsync;
+    window.present_mode = config.present_mode;
     window.resizable = false;
 }
 
@@ -889,6 +915,20 @@ mod tests {
     }
 
     #[test]
+    fn an_unnamed_or_misspelled_present_mode_leaves_the_default_request_in_place() {
+        assert_eq!(
+            parse_present_mode("immediate"),
+            Some(PresentMode::Immediate)
+        );
+        assert_eq!(parse_present_mode("  FIFO "), Some(PresentMode::Fifo));
+        assert_eq!(
+            parse_present_mode("fifo_relaxed"),
+            Some(PresentMode::FifoRelaxed)
+        );
+        assert_eq!(parse_present_mode("novsync"), None);
+    }
+
+    #[test]
     fn sanitize_replaces_path_hostile_chars() {
         assert_eq!(sanitize("asteroid_field-gpu"), "asteroid_field-gpu");
         assert_eq!(sanitize("a/b c:d"), "a_b_c_d");
@@ -952,6 +992,7 @@ mod tests {
             resolution: DEFAULT_RESOLUTION,
             render_scale_override: None,
             max_delta_override: None,
+            present_mode: PresentMode::AutoNoVsync,
         });
         app.insert_resource(PerfState {
             phase: Phase::WaitPlaying,

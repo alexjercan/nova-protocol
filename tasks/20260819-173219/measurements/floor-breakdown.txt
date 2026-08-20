@@ -1,0 +1,167 @@
+# Frame-cost breakdown, empty wfc_ships gallery (--ships 0), 1280x720,
+# NOVA_PERF_MAX_DELTA=0.015625, PresentMode Immediate. Milliseconds per frame.
+
+## Xvfb (xvfb-run -a -s '-screen 0 1280x720x24'), diag2 last window
+framecost main:    0.098ms   0.6%  First
+framecost main:    0.098ms   0.6%  StateTransition
+framecost main:    0.062ms   0.4%  Last
+framecost main:    0.045ms   0.3%  SpawnScene
+framecost: frames=120 frame=17.141ms main_world=2.582ms render_world=15.808ms gpu=0.000ms unattributed=1.333ms
+framecost main:    0.783ms   4.6%  PostUpdate
+framecost main:    0.659ms   3.8%  Update
+framecost main:    0.548ms   3.2%  RunFixedMainLoop
+framecost main:    0.292ms   1.7%  PreUpdate
+framecost main:    0.096ms   0.6%  First
+framecost main:    0.094ms   0.5%  StateTransition
+framecost main:    0.063ms   0.4%  Last
+framecost main:    0.047ms   0.3%  SpawnScene
+framecost: frames=120 frame=18.981ms main_world=2.891ms render_world=18.485ms gpu=0.000ms unattributed=0.496ms
+framecost main:    0.842ms   4.4%  PostUpdate
+framecost main:    0.727ms   3.8%  Update
+framecost main:    0.715ms   3.8%  RunFixedMainLoop
+framecost main:    0.301ms   1.6%  PreUpdate
+framecost main:    0.099ms   0.5%  StateTransition
+framecost main:    0.093ms   0.5%  First
+framecost main:    0.065ms   0.3%  Last
+framecost main:    0.049ms   0.3%  SpawnScene
+
+## Real display (DISPLAY=:0), realdiag last window
+framecost count:            0  render/main_transparent_pass_2d/fragment_shader_invocations
+framecost: frames=150 frame=2.973ms main_world=1.768ms render_world=2.660ms gpu=0.312ms unattributed=0.314ms
+framecost main:    0.705ms  23.7%  PostUpdate
+framecost main:    0.549ms  18.5%  Update
+framecost main:    0.195ms   6.6%  PreUpdate
+framecost main:    0.120ms   4.0%  RunFixedMainLoop
+framecost main:    0.065ms   2.2%  StateTransition
+framecost main:    0.054ms   1.8%  Last
+framecost main:    0.043ms   1.5%  First
+framecost main:    0.037ms   1.3%  SpawnScene
+framecost gpu:    0.122ms   4.1%  render/bloom/elapsed_gpu
+framecost gpu:    0.115ms   3.9%  render/bloom/elapsed_cpu
+framecost gpu:    0.073ms   2.5%  render/clustering/elapsed_gpu
+framecost gpu:    0.051ms   1.7%  render/main_opaque_pass_3d/elapsed_gpu
+framecost gpu:    0.024ms   0.8%  render/tonemapping/elapsed_gpu
+framecost gpu:    0.020ms   0.7%  render/upscaling/elapsed_gpu
+framecost gpu:    0.012ms   0.4%  render/clustering/elapsed_cpu
+framecost gpu:    0.007ms   0.2%  render/bin_unpacking/elapsed_gpu
+framecost gpu:    0.007ms   0.2%  render/early_mesh_preprocessing/elapsed_gpu
+framecost gpu:    0.006ms   0.2%  render/ui/elapsed_cpu
+framecost gpu:    0.004ms   0.1%  render/ui/elapsed_gpu
+framecost gpu:    0.003ms   0.1%  render/tonemapping/elapsed_cpu
+framecost gpu:    0.002ms   0.1%  render/main_opaque_pass_3d/elapsed_cpu
+framecost gpu:    0.002ms   0.1%  render/bin_unpacking/elapsed_cpu
+framecost gpu:    0.002ms   0.1%  render/main_transparent_pass_2d/elapsed_gpu
+framecost gpu:    0.002ms   0.1%  render/upscaling/elapsed_cpu
+framecost gpu:    0.001ms   0.0%  render/main_transparent_pass_2d/elapsed_cpu
+framecost gpu:    0.001ms   0.0%  render/early_mesh_preprocessing/elapsed_cpu
+framecost count:      1014720  render/main_opaque_pass_3d/fragment_shader_invocations
+framecost count:         9530  render/ui/fragment_shader_invocations
+framecost count:          368  render/ui/vertex_shader_invocations
+framecost count:          184  render/ui/clipper_primitives_out
+framecost count:          184  render/ui/clipper_invocations
+framecost count:            3  render/main_opaque_pass_3d/vertex_shader_invocations
+framecost count:            1  render/main_opaque_pass_3d/clipper_primitives_out
+framecost count:            1  render/main_opaque_pass_3d/clipper_invocations
+framecost count:            0  render/early_mesh_preprocessing/compute_shader_invocations
+framecost count:            0  render/main_transparent_pass_2d/vertex_shader_invocations
+framecost count:            0  render/main_transparent_pass_2d/clipper_primitives_out
+framecost count:            0  render/bin_unpacking/compute_shader_invocations
+framecost count:            0  render/main_transparent_pass_2d/clipper_invocations
+framecost count:            0  render/main_transparent_pass_2d/fragment_shader_invocations
+
+## Real display, one ship (real1), last window
+framecost gpu:    0.003ms   0.0%  render/main_transparent_pass_3d/elapsed_gpu
+framecost gpu:    0.002ms   0.0%  render/main_transparent_pass_2d/elapsed_gpu
+framecost gpu:    0.001ms   0.0%  render/main_transparent_pass_2d/elapsed_cpu
+framecost: frames=150 frame=26.014ms main_world=10.494ms render_world=24.273ms gpu=2.930ms unattributed=1.741ms
+framecost main:    4.876ms  18.7%  PostUpdate
+framecost main:    2.221ms   8.5%  RunFixedMainLoop
+framecost main:    1.879ms   7.2%  Update
+framecost main:    0.759ms   2.9%  PreUpdate
+framecost main:    0.239ms   0.9%  StateTransition
+framecost main:    0.203ms   0.8%  First
+framecost main:    0.182ms   0.7%  Last
+framecost main:    0.135ms   0.5%  SpawnScene
+framecost gpu:    1.248ms   4.8%  render/main_opaque_pass_3d/elapsed_gpu
+framecost gpu:    0.581ms   2.2%  render/bin_unpacking/elapsed_gpu
+framecost gpu:    0.436ms   1.7%  render/bloom/elapsed_gpu
+framecost gpu:    0.342ms   1.3%  render/bloom/elapsed_cpu
+framecost gpu:    0.214ms   0.8%  render/main_opaque_pass_3d/elapsed_cpu
+framecost gpu:    0.206ms   0.8%  render/clustering/elapsed_gpu
+framecost gpu:    0.173ms   0.7%  render/tonemapping/elapsed_gpu
+framecost gpu:    0.163ms   0.6%  render/upscaling/elapsed_gpu
+framecost gpu:    0.095ms   0.4%  render/early_mesh_preprocessing/elapsed_gpu
+framecost gpu:    0.040ms   0.2%  render/main_transparent_pass_3d/elapsed_cpu
+framecost gpu:    0.035ms   0.1%  render/clustering/elapsed_cpu
+framecost gpu:    0.028ms   0.1%  render/bin_unpacking/elapsed_cpu
+framecost gpu:    0.019ms   0.1%  render/ui/elapsed_gpu
+framecost gpu:    0.017ms   0.1%  render/ui/elapsed_cpu
+framecost gpu:    0.008ms   0.0%  render/early_mesh_preprocessing/elapsed_cpu
+framecost gpu:    0.006ms   0.0%  render/tonemapping/elapsed_cpu
+framecost gpu:    0.005ms   0.0%  render/upscaling/elapsed_cpu
+framecost gpu:    0.005ms   0.0%  render/main_transparent_pass_3d/elapsed_gpu
+framecost gpu:    0.002ms   0.0%  render/main_transparent_pass_2d/elapsed_gpu
+framecost gpu:    0.001ms   0.0%  render/main_transparent_pass_2d/elapsed_cpu
+
+## Census, empty gallery
+census: entities=1176 archetypes=586 mesh_instances=0 distinct_meshes=0 mesh_assets=15 standard_materials=10 images=39
+census component:    550  IsResource
+census component:    433  Observer
+census component:    165  InheritedVisibility
+census component:    165  ViewVisibility
+census component:    165  Visibility
+census component:    161  BackgroundColor
+census component:    161  BorderColor
+census component:    161  ComputedNode
+census component:    161  ComputedStackIndex
+census component:    161  ComputedUiRenderTargetInfo
+census component:    161  ComputedUiTargetCamera
+census component:    161  ContentSize
+census component:    161  FocusPolicy
+census component:    161  Inherited<ComputedUiRenderTargetInfo>
+census component:    161  Inherited<ComputedUiTargetCamera>
+census component:    161  Node
+census component:    161  ScrollPosition
+census component:    161  UiGlobalTransform
+census component:    161  UiTransform
+census component:    161  ZIndex
+census component:    155  ChildOf
+census component:    145  CalculatedClip
+census component:    114  TextFont
+census component:    113  ComputedTextBlock
+census component:    113  FontHinting
+census component:    113  LetterSpacing
+census component:    113  LineHeight
+census component:    113  Text
+census component:    113  TextColor
+census component:    113  TextLayout
+census component:    113  TextLayoutInfo
+census component:    113  TextNodeFlags
+census component:     63  Name
+census component:     43  Children
+census component:     29  PhysicsDiagnosticPath
+census component:     27  DiagnosticRow
+census component:     21  AdaptiveTextSettings
+census component:     21  PhysicsDiagnosticTimer
+census component:     14  Binding
+census component:     14  BindingOf
+census archetype:    433  (1 components) Observer
+census archetype:     49  (30 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Node + ComputedNode
+census archetype:     27  (22 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Children + Node
+census archetype:     26  (31 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Name + Node
+census archetype:     21  (33 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Node + ComputedNode
+census archetype:      8  (32 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Node + ComputedNode
+census archetype:      7  (1 components) IsResource
+census archetype:      7  (23 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Name + Children
+census archetype:      4  (30 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Name + Node
+census archetype:      4  (3 components) Binding + FirstActivation + BindingOf
+census archetype:      3  (1 components) Name
+census archetype:      3  (6 components) ModifierFns + Negate + Scale + Binding + FirstActivation + BindingOf
+census archetype:      3  (31 components) GlobalTransform + Transform + TransformTreeChanged + Visibility + InheritedVisibility + ViewVisibility + RenderEntity + VisibilityClass
+census archetype:      2  (21 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Children + Node
+census archetype:      2  (31 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Node + ComputedNode
+census archetype:      2  (5 components) ModifierFns + Scale + Binding + FirstActivation + BindingOf
+census archetype:      2  (6 components) ModifierFns + Scale + SwizzleAxis + Binding + FirstActivation + BindingOf
+census archetype:      2  (7 components) ModifierFns + Negate + Scale + SwizzleAxis + Binding + FirstActivation + BindingOf
+census archetype:      2  (27 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Name + Children
+census archetype:      2  (33 components) ChildOf + Visibility + InheritedVisibility + ViewVisibility + Inherited<ComputedUiTargetCamera> + Inherited<ComputedUiRenderTargetInfo> + Name + Node

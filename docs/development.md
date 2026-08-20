@@ -799,6 +799,45 @@ about the fixed loop gets tested instead of argued. Capping it in a SHIPPING
 build would trade a bounded tail for simulation time the world never runs, so
 it stays a measurement knob.
 
+### A capture under Xvfb measures the X server too
+
+**Read this before quoting any absolute millisecond a probe run produced.** A
+software X server has no scanout, so presenting a window is a CPU-side copy of
+every pixel of it, and the render thread pays for that inside `render_system`
+after the graph has already finished. On this project's host, at 1280x720, an
+EMPTY scene costs 16.7 ms under `xvfb-run` and 3.0 ms against a real display -
+same binary, same window, same pin, same `Immediate` presentation. The gap is
+linear in window pixels (1.4 ms at 160x90, 11.5 ms at 720p, 50 ms at 1440p) and
+does not move when `NOVA_PERF_RENDER_SCALE` cuts the shading to a sixteenth, so
+it is the window and not the drawing.
+
+It is an ADDITIVE constant, not a scale factor. An A/B whose two arms share a
+window size divides it out, so ratios and ablations under Xvfb stand. A budget,
+an FPS gate and a "this scene costs N ms" claim do not.
+
+Two knobs make it visible. `NOVA_PERF_PRESENT=immediate` names the presentation
+mode instead of requesting `AutoNoVsync` - bevy logs the fallback for a named
+mode and says nothing for the auto ones, so this is how a run proves it was not
+capped at refresh. `NOVA_PERF_RENDER_DIAG=1` asks the renderer for GPU timestamp
+queries and turns on the frame-cost report's per-pass GPU table (it costs a
+resolve pass and a readback, about 3% of the frame, so it is never a default).
+
+### Where a frame's milliseconds went
+
+Any armed capture also logs a `nova framecost:` line and, under it, three
+tables: every main-world schedule, every top-level `RenderSystems` phase with
+the render graph carved out of `Render` so the submit and the present are
+visible on their own, and every render pass the device timed. Read them
+together - the main world and the render world overlap under pipelined
+rendering, so a frame costs about the longer of the two, and GPU far under both
+says the device is not the constraint.
+
+Beside it, `nova census:` counts the world once per capture: entities by
+component, the archetypes they fall into, and mesh instances against DISTINCT
+mesh handles. Instances and distinct always side by side - 12,572 instances over
+681 meshes is a different story from the 12,572 alone, and that distinction is
+what found the per-section material regression.
+
 The capture window is the capture crate's full 180/900 baseline unless the
 example declared one of its own, so probe numbers stay comparable with the
 sweep's; your `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` override both. The

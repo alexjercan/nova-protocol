@@ -6,6 +6,10 @@
 //!
 //! - [`frametime`] - wall-clock frame deltas over a fixed window ->
 //!   `frametime.csv` + `<label>.json`.
+//! - `census` - what the world CONTAINS while that window runs, instances and
+//!   DISTINCT handles side by side -> `census.json`.
+//! - `framecost` - where those milliseconds go, by name: main-world schedules
+//!   on the CPU and render passes on the GPU.
 //! - [`timeline`] - states, scenario events, variables and markers, in order
 //!   -> `timeline.jsonl`.
 //! - [`invariants`] - engine-guaranteed bounds asserted every frame, riding
@@ -14,7 +18,7 @@
 //!   fixtures, weapons, ordnance) -> `snapshot.jsonl`. The timeline says what
 //!   happened; this says what the world LOOKS like.
 //!
-//! [`NovaProbePlugin`] bundles all four. It does not replace their
+//! [`NovaProbePlugin`] bundles them all. It does not replace their
 //! per-example configuration: an example that needs a driver or a custom
 //! output path still wires that capability itself.
 
@@ -22,6 +26,13 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
+// The census and the frame-cost breakdown are measurement-only and write
+// through the frame-time capture's `NOVA_PERF_OUT`: native with the rest of the
+// capture host, because nothing profiles a browser this way.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod census;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod framecost;
 pub mod frametime;
 // Continuous invariant checks ride the recorder's timeline sink, so they are
 // native-only with it (nothing wasm-side references them - the examples that
@@ -112,6 +123,10 @@ pub mod timeline {
 /// Glob-import surface for every capability, plus the bundle that wires them
 /// all. `invariants` is native-only, so it is absent on wasm.
 pub mod prelude {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::census::prelude::*;
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::framecost::prelude::*;
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::invariants::prelude::*;
     pub use super::{
@@ -212,6 +227,11 @@ impl Plugin for NovaProbePlugin {
             if let Some(plugin) = &self.frametime {
                 app.add_plugins(plugin.clone());
             }
+            // Both arm on NOVA_PERF rather than on the frame-time plugin, so an
+            // example that declares no frame-time claim still gets counted and
+            // broken down when someone points a capture at it.
+            #[cfg(not(target_arch = "wasm32"))]
+            app.add_plugins((nova_census(), nova_framecost()));
         }
         app.add_plugins(nova_timeline());
         app.add_plugins(nova_snapshot());

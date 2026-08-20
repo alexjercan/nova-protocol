@@ -12,8 +12,10 @@
 //!   run-timeline JSONL sink), `capabilities::invariants` (continuous
 //!   invariant checks, riding that sink) and `capabilities::snapshot` (the
 //!   world-state serializer: every ship, section, fixture, weapon and round in
-//!   flight as one JSON object, on demand). [`NovaProbePlugin`] bundles all
-//!   four.
+//!   flight as one JSON object, on demand), `capabilities::census` (what the
+//!   world contains while a window runs) and `capabilities::framecost` (where
+//!   the milliseconds in that window went, by name). [`NovaProbePlugin`]
+//!   bundles them all.
 //! - [`contract`] - what an example CLAIMS to collect, declared by the plugins
 //!   it wires.
 //! - [`stats`] - [`FrameStats`], the per-run [`RunMeta`], and the CSV/JSON
@@ -36,13 +38,23 @@
 //!   ([`FrameTimePlugin::window`]).
 //! - **Vsync off.** `PresentMode::AutoNoVsync` is forced on the primary window
 //!   so a fast scene is not pinned to the monitor's refresh - we want the true
-//!   per-frame cost and the headroom, not "60 fps, capped". A scene that cannot
-//!   hold refresh shows its real (sub-refresh) rate either way.
+//!   per-frame cost and the headroom, not "60 fps, capped". It is a REQUEST:
+//!   wgpu falls back Immediate -> Mailbox -> Fifo on what the surface offers and
+//!   bevy logs the fallback only for an explicitly named mode, so
+//!   `NOVA_PERF_PRESENT=immediate` is how a run PROVES it was not capped.
 //! - **Continuous updates.** `WinitSettings::game` keeps the loop running flat
 //!   out even when the window is unfocused (the headless/Xvfb case), so the
 //!   capture is not throttled to reactive redraws.
 //! - **Fixed resolution.** The window is forced to a known size (default
 //!   1280x720) so runs are comparable across machines and renderers.
+//! - **The PRESENTATION PATH is part of the number, and Xvfb is a bad one.**
+//!   A software X server has no scanout, so presenting a window is a CPU-side
+//!   copy of every pixel, charged to the render thread inside `render_system`
+//!   after the graph. Measured on this project's host at 1280x720: 11.5 ms a
+//!   frame under `xvfb-run`, 0.12 ms against a real display, with the game
+//!   identical. It is an ADDITIVE per-pixel constant, not a scale factor: an
+//!   A/B whose arms share a window size divides it out and its RATIO stands,
+//!   while any absolute figure - a budget, an FPS gate, a floor - does not.
 //!
 //! Chain [`FrameTimePlugin::drive`] (e.g. [`combat_burst_driver`]) to
 //! measure an active scene - particle bursts and projectiles - not just at
@@ -87,6 +99,10 @@
 //! | `NOVA_PERF_RES` / `res`       | `1280x720` | Forced primary-window resolution `WxH`. |
 //! | `NOVA_PERF_RENDER_SCALE` / `render_scale` | (tier default) | Forces `GraphicsBudget::render_scale`, holding the rest of the preset fixed - isolates the render-scale lever (measure a tier at `1.0` vs a fraction). |
 //! | `NOVA_PERF_MAX_DELTA` / `max_delta` | (bevy's 0.25 s) | Forces `Time<Virtual>::max_delta`, in seconds - the ceiling on how many fixed steps one frame may run. Isolates fixed-step amplification; it trades a bounded tail for simulation time the world never runs, so it is a measurement knob, never a default. |
+//! | `NOVA_PERF_PRESENT` / `present`   | `autonovsync` | Presentation mode forced on the primary window (`immediate`, `mailbox`, `fifo`, `fiforelaxed`, `autovsync`, `autonovsync`). The default is only a REQUEST - name a mode explicitly and bevy logs the fallback when the surface cannot serve it. |
+//! | `NOVA_PERF_CENSUS_FRAME` / `census_frame` | `90` | Frames after `Playing` at which the scene census is taken. |
+//! | `NOVA_PERF_FRAMECOST_FRAMES` / `framecost_frames` | `200` | Frames averaged into one frame-cost report. |
+//! | `NOVA_PERF_RENDER_DIAG` | (unset) | Asks the renderer for GPU timestamp queries, so the frame-cost report can name each render pass. Costs a resolve pass and a readback per frame - a measurement knob, never a default. |
 //! | `NOVA_PERF_QUALITY` / `quality` | (app default) | Graphics preset for the run (read by the example/bin); recorded in the run metadata. |
 //! | `NOVA_PERF_SHA` / `sha`       | `git rev-parse` | Overrides the recorded git SHA (the web build cannot shell out). |
 //! | `NOVA_PERF_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |
