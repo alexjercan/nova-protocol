@@ -112,8 +112,15 @@ clock.
 Two debug-only CLI flags exist, both parsed in `src/main.rs` and both compiled
 in only under the `debug` feature:
 
-- `--norender` - build the app with rendering off (`editor_app(false)`), for
-  headless runs.
+- `--norender` - build the app through `AppBuilder::headless()`: no wgpu device,
+  no window, no winit event loop, and none of the visual game plugins. The main
+  schedule still ticks, so the simulation runs and a probe capture still counts
+  frames - CPU ones, with `render_world` and `gpu` reading zero.
+
+  **Nothing in a headless app ends the run.** There is no window to close and no
+  input of any kind, so it needs a driver: `--scenario <id>` under
+  `NOVA_AUTOPILOT`, or `probe scenario`. A bare `--norender` ticks until it is
+  killed, and that is by design rather than a hang to report.
 - `--debugdump` - print the system schedule graph (via `bevy_mod_debugdump`)
   and exit. It dumps the `Update` schedule (`debugdump` in
   `crates/nova_debug/src/lib.rs`).

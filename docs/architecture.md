@@ -143,9 +143,16 @@ Boundary policy, from most game-agnostic to most game-specific:
 ```rust
 AppBuilder::new()                 // Bevy DefaultPlugins + window/log/asset/render setup
     .with_game_plugins(my_plugin) // optional: your own systems/observers
-    .with_rendering(true)         // debug-only toggle for headless runs
     .build()                      // adds the plugin stack, returns App
 ```
+
+`AppBuilder::headless()` is the same builder with no wgpu device, no window, no
+winit event loop and none of the visual game plugins. Rendering is fixed by the
+CONSTRUCTOR rather than by a setter, because `DefaultPlugins` bakes the wgpu and
+window settings the moment the builder starts - a later setter could not reach
+them. It is one switch and not two because the halves cannot be separated:
+`bevy_hanabi` panics without a render sub-app, so dropping the device forces
+dropping the plugins that need it.
 
 `build()` inits `GameStates` + `PauseStates`, then adds, in order:
 `EnhancedInputPlugin`, `GameAssetsPlugin`, `LoadingScreenPlugin`,
