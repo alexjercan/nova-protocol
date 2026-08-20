@@ -519,3 +519,98 @@ sightings were found because a census counted the asset type; these two were
 found by reading code, which does not scale. The census learned
 `plume_material_assets` in `362caf96`; it still cannot see `EffectAsset` or a
 per-detonation `StandardMaterial`.
+
+## D16 - point defence is frame-rate invariant now, and 2.4x stronger at 60 fps
+
+Landed `22991fef` (merged). The owner authorised the fix explicitly. The
+STRENGTH change below is a consequence I did not retune and am not deciding.
+
+### My hypothesis was wrong, and the shape of the error is worth keeping
+
+I said the split was the TRIGGER: decided in `Update`, rounds spent in
+`FixedUpdate`. That was measured and it is not the cause. The cadence timer
+already ticked on the fixed clock, so the spawn rate was invariant GIVEN AN OPEN
+GATE. Implementing my version took the spread 7.4x -> 4.0x and stopped: it
+lifted the slow end and left the fast end alone.
+
+The real cause is the BARREL'S POSE. Everything that decides whether a mount
+bears - intercept solve, hinge demand, `SmoothLookRotation` output, joint
+`Transform` - advanced once per FRAME. The barrel's angle was a staircase whose
+step size was the frame period, its tracking residual scaled with that, and
+`TURRET_ON_TARGET_RAD` is a 0.92 deg cone sitting INSIDE the band the residual
+sweeps. So a fixed-step branch sampled a render-rate staircase.
+
+Dead linear on the measurement: trigger duty 0.097 at 20 fps against 0.606 at
+106 fps, same scene, same seed.
+
+**The generalisable rule** - now in `docs/architecture.md`: put a system on the
+fixed clock when what it computes DECIDES a fixed-step consequence, EVEN WHEN
+THE SAME VALUE IS ALSO DRAWN. This one is easy to get wrong precisely because
+the aim chain has an on-screen output, so it reads as belonging beside the
+camera and the HUD. The tell is not what the value looks like. It is whether
+anything on the fixed clock branches on it.
+
+### The evidence, which is a COUNT as required
+
+- **Rounds yield 2,204-2,437 free-running across 20-503 fps (1.11x).** Was
+  708-2,425 (3.4x). Pinned was 2,236-2,401. **That is the pinned spread, without
+  the pin** - which is the strongest form this claim could take.
+- **Rendered and headless converged**: envelope fill 7.2 s against 7.1 s (1.4%),
+  peak rounds 2,455 against 2,411 (1.8%), across a 13x frame-rate gap. Was 9.5 s
+  against 86.3 s.
+- Raw intercept tallies are NOT comparable across transports and the earlier
+  64-against-793 figure was partly an artefact: `HOLD_FRAMES` is a frame count,
+  so the window itself scales with frame rate. The invariant reading is
+  intercepts at 90 s: 824-845 (2.5%).
+
+### THE OWNER'S CALL: point defence got stronger
+
+Duty 0.353 -> 0.814, rounds per step 6.37 -> 15.14, mean aim error 11.3 -> 3.6
+deg, all at 60 fps. **Roughly 2.4x more effective, and nothing was retuned.**
+
+This is not separable from the fix. The lane tried a strength-neutral ordering
+that keeps one tick of staleness; it measured identically. The gain comes from
+removing several frames of ACCUMULATED latency through the chain, not from the
+last hop, so there is no ordering that buys invariance and leaves strength
+alone.
+
+What that means in the game: a 60 fps player's battery now behaves the way a
+fast machine's always did. The old behaviour was not a balance point anybody
+chose - it was whatever the host produced. So the honest framing is not "point
+defence was buffed", it is "point defence stopped being a function of your
+frame rate, and the value it settled on is the fast one".
+
+**If it is too strong, the levers are CONTENT, not the schedule**:
+`ROUNDS_PER_MOUNT` (left at 40; the lane proposes ~120/mount and did not apply
+it) and `TURRET_ON_TARGET_RAD`. Recorded for the owner rather than actioned.
+
+One forced range change: a working battery outguns twelve bays, so the
+saturation gate became unreachable at any frame rate. `INBOUND_PER_BAY` 6 -> 4,
+sized under the measured 5.0-5.6 per bay settle. That is the instrument, not the
+game.
+
+### Presentation debt this created, and it is on the owner's own display
+
+Joint angles now advance at 64 Hz, so **the barrel is the only un-interpolated
+moving part of a `TransformInterpolation`-smoothed hull**. Bounded arithmetic:
+up to 2.81 deg per step slewing, about 1.2 deg tracking. A wash at 60 Hz;
+visible in principle above it, and the host here runs 165 Hz. The lane did not
+eyeball it in motion - the screenshot drivers fire 30 frames after `Playing`,
+which under Xvfb lands mid-scenario-load.
+
+Not deferred silently: measured below, and the clean follow-up is to interpolate
+`SmoothLookRotationOutput` for render, which makes smoothness and decision clock
+independent instead of trading one for the other.
+
+### No changelog entry, deliberately
+
+Every point-defence and fire-gate entry in `[Unreleased]` is unreleased, so this
+is intra-cycle and Changelog rule 3 says it never existed for a reader. The dev
+book DID owe one, and got it.
+
+### Other schedule splits of this class: none
+
+The lane surveyed every `FixedUpdate`/`FixedPostUpdate` registration against its
+`Update` writers. The torpedo bay's scripted and AI triggers share the shape but
+are levels behind a fixed-clock cooldown; `sever_disconnected_structures` is a
+one-shot into `FixedPostUpdate` but is topological and applies a flat constant.
