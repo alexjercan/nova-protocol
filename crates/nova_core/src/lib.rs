@@ -368,10 +368,34 @@ fn report_unknown_startup_scenario(id: &str, scenarios: &GameScenarios) {
     }
 }
 
+/// Environment variable that arms frame-time capture. Read here only to give an
+/// armed run a distinct window class; `nova_probe` owns what it MEANS and
+/// re-exports this as `nova_probe::PERF_ENV`.
+///
+/// NOTE: the `NOVA_PERF_*` prefix predates that crate's rename to `nova_probe`
+/// and is kept as-is so scripts and docs do not churn.
+pub const PERF_ENV: &str = "NOVA_PERF";
+
+/// `WM_CLASS` (X11) / app id (Wayland) worn by a run armed for measurement, and
+/// by no other run.
+///
+/// A window manager can key on it to place captures somewhere other than the
+/// desk the operator is working at - on i3, `for_window [class="nova-measure"]
+/// move container to workspace 3`. Measuring under `xvfb-run` is NOT an
+/// alternative: a software X server has no scanout, so presenting is a CPU copy
+/// of every window pixel and adds about 13.7 ms a frame at 720p.
+///
+/// Distinct from the normal class on purpose - a placement rule must never
+/// catch a hand-run someone is playing.
+pub const MEASURE_WINDOW_CLASS: &str = "nova-measure";
+
 fn window_plugin() -> WindowPlugin {
     WindowPlugin {
         primary_window: Some(Window {
             title: format!("NovaProtocol - {}", env!("CARGO_PKG_VERSION")),
+            // Set only when armed, so the class itself says "this window is
+            // being measured" and a placement rule needs no other predicate.
+            name: std::env::var_os(PERF_ENV).map(|_| MEASURE_WINDOW_CLASS.to_owned()),
             resolution: (1024, 768).into(),
             present_mode: PresentMode::AutoVsync,
             // NOTE: selector of the canvas shipped in the repo-root `index.html`.

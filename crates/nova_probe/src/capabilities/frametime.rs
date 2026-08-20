@@ -30,6 +30,14 @@ use bevy::{
     winit::WinitSettings,
 };
 use nova_autopilot::completion::{self, HarnessCompletion};
+/// Environment variable that arms [`nova_frametime`] on native. Any value (even
+/// empty) enables it; when unset the plugin adds nothing. On wasm the arm is the
+/// `?perf` URL query flag instead (there are no process env vars in a browser).
+///
+/// Declared in `nova_core` because the window builder needs it too - it gives an
+/// armed run a distinct `WM_CLASS` so a window manager can place captures away
+/// from the desk - and `nova_core` is the lowest crate both already depend on.
+pub use nova_core::PERF_ENV;
 // `Health` comes from nova_gameplay's prelude, the same path the game's own
 // code resolves it through: naming any other path is how this query silently
 // stopped matching once nova took ownership of the type.
@@ -40,13 +48,6 @@ use nova_gameplay::{
 use nova_ship::prelude::WeaponsHot;
 
 use crate::stats::prelude::*;
-
-/// Environment variable that arms [`nova_frametime`] on native. Any value (even
-/// empty) enables it; when unset the plugin adds nothing. On wasm the arm is the
-/// `?perf` URL query flag instead (there are no process env vars in a browser).
-/// NOTE: the `NOVA_PERF_*` prefix predates the crate's rename to `nova_probe`
-/// and is kept as-is so scripts and docs do not churn.
-pub const PERF_ENV: &str = "NOVA_PERF";
 
 /// Collector name the capture registers with the harness completion
 /// protocol: the app exits when EVERY registered collector - this capture,
