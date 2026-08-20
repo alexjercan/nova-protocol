@@ -1,0 +1,489 @@
+# stress_point_defense: frame-cost breakdown, by arm
+
+Median over the framecost reports that fall INSIDE the capture window,
+across the captures of each arm. Shares are per report; the totals move
+with the box and the shares do not. DISPLAY=:0, workspace 3, 1280x720
+unless the arm says otherwise, present=immediate, one capture per process.
+Indented render rows sit inside Prepare. GPU timestamps not armed.
+
+## repeat8, free-running (max_delta at bevy's 0.25 s)
+
+36 in-window framecost reports over 8 captures
+item                                median ms   share      min      max
+frame                                  29.895  100.0%   23.434   47.305
+render_world                           28.837   96.5%   22.610   34.763
+main_world                             21.648   72.4%   14.991   39.134
+render:PrepareAssets                   13.389   44.8%    9.678   15.354
+main:PostUpdate                        11.125   37.2%    8.118   13.906
+render:Prepare                         10.109   33.8%    8.080   12.038
+prepare:Prepare/BindGroups              7.954   26.6%    6.235    9.192
+main:RunFixedMainLoop                   7.543   25.2%    4.237   19.501
+render:Render/graph                     3.504   11.7%    3.021    4.962
+main:Update                             1.451    4.9%    1.190    3.267
+prepare:Prepare/WritePhaseBuffers       1.152    3.9%    0.591    2.092
+unattributed                            1.026    3.4%    0.716    8.171
+main:PreUpdate                          0.914    3.1%    0.510    1.274
+prepare:Prepare/Resources               0.833    2.8%    0.662    1.266
+render:Specialize                       0.387    1.3%    0.335    0.513
+render:Queue                            0.277    0.9%    0.238    0.401
+prepare:Prepare/ResourcesFlush          0.213    0.7%    0.178    0.391
+render:CreateViews                      0.206    0.7%    0.181    0.291
+render:PrepareMeshes                    0.201    0.7%    0.168    0.309
+render:Render/submit+present            0.193    0.6%    0.146    0.371
+render:ExtractCommands                  0.137    0.5%    0.116    0.219
+render:PrepareViews                     0.137    0.5%    0.127    0.293
+main:StateTransition                    0.127    0.4%    0.091    0.321
+main:First                              0.120    0.4%    0.102    0.335
+main:Last                               0.088    0.3%    0.077    0.335
+prepare:Prepare/CollectPhaseBuffers      0.062    0.2%    0.048    0.089
+main:SpawnScene                         0.061    0.2%    0.053    0.196
+render:PostCleanup                      0.059    0.2%    0.043    0.105
+render:PhaseSort                        0.048    0.2%    0.041    0.074
+prepare:Prepare/BatchPhases             0.033    0.1%    0.028    0.055
+render:Cleanup                          0.014    0.0%    0.011    0.032
+gpu                                     0.000    0.0%    0.000    0.000
+
+## repeat8, pinned NOVA_PERF_MAX_DELTA=0.015625
+
+36 in-window framecost reports over 8 captures
+item                                median ms   share      min      max
+frame                                  32.783  100.0%   25.920   36.142
+render_world                           31.772   96.9%   25.043   35.171
+main_world                             19.429   59.3%   14.850   21.864
+render:PrepareAssets                   14.659   44.7%   10.981   16.755
+render:Prepare                         10.899   33.2%    9.244   12.601
+main:PostUpdate                         9.261   28.2%    7.688   10.016
+prepare:Prepare/BindGroups              8.503   25.9%    6.768    9.822
+main:RunFixedMainLoop                   6.445   19.7%    4.557    8.144
+render:Render/graph                     3.968   12.1%    3.252    4.431
+main:Update                             1.804    5.5%    1.412    2.045
+main:PreUpdate                          1.300    4.0%    0.822    1.892
+prepare:Prepare/WritePhaseBuffers       1.097    3.3%    0.677    1.926
+unattributed                            1.038    3.2%    0.876    1.306
+prepare:Prepare/Resources               0.903    2.8%    0.827    0.974
+render:Specialize                       0.391    1.2%    0.341    0.451
+render:Queue                            0.281    0.9%    0.250    0.325
+render:PrepareMeshes                    0.267    0.8%    0.223    0.320
+prepare:Prepare/ResourcesFlush          0.247    0.8%    0.208    0.286
+render:CreateViews                      0.220    0.7%    0.198    0.252
+render:Render/submit+present            0.218    0.7%    0.152    0.322
+main:StateTransition                    0.166    0.5%    0.106    0.201
+main:First                              0.166    0.5%    0.122    0.193
+render:ExtractCommands                  0.160    0.5%    0.123    0.185
+render:PrepareViews                     0.147    0.4%    0.131    0.168
+main:Last                               0.100    0.3%    0.083    0.135
+main:SpawnScene                         0.075    0.2%    0.060    0.083
+render:PostCleanup                      0.070    0.2%    0.048    0.080
+prepare:Prepare/CollectPhaseBuffers      0.068    0.2%    0.058    0.077
+render:PhaseSort                        0.050    0.2%    0.042    0.054
+prepare:Prepare/BatchPhases             0.035    0.1%    0.030    0.038
+render:Cleanup                          0.017    0.1%    0.012    0.020
+gpu                                     0.000    0.0%    0.000    0.000
+
+## sweep arm m4b4 (pinned)
+
+14 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  21.204  100.0%   12.404   30.756
+render_world                           20.162   95.1%   11.818   29.235
+main_world                             13.748   64.8%    7.967   19.582
+render:Prepare                          7.403   34.9%    4.404   10.953
+render:PrepareAssets                    7.249   34.2%    3.921   10.870
+main:PostUpdate                         6.721   31.7%    3.932    9.560
+prepare:Prepare/BindGroups              5.014   23.6%    2.879    7.562
+main:RunFixedMainLoop                   3.834   18.1%    2.012    5.575
+render:Render/graph                     3.824   18.0%    2.348    5.292
+main:Update                             1.744    8.2%    1.120    2.260
+unattributed                            1.058    5.0%    0.586    1.521
+prepare:Prepare/Resources               1.043    4.9%    0.617    1.352
+prepare:Prepare/WritePhaseBuffers       0.957    4.5%    0.605    1.415
+main:PreUpdate                          0.897    4.2%    0.560    1.413
+prepare:Prepare/ResourcesFlush          0.329    1.6%    0.193    0.443
+render:CreateViews                      0.306    1.4%    0.205    0.401
+render:Specialize                       0.288    1.4%    0.169    0.378
+render:Render/submit+present            0.280    1.3%    0.167    0.362
+render:PrepareMeshes                    0.234    1.1%    0.144    0.320
+render:Queue                            0.217    1.0%    0.144    0.304
+render:PrepareViews                     0.209    1.0%    0.131    0.257
+main:StateTransition                    0.177    0.8%    0.102    0.265
+main:First                              0.173    0.8%    0.099    0.232
+render:ExtractCommands                  0.165    0.8%    0.109    0.219
+main:Last                               0.132    0.6%    0.082    0.222
+main:SpawnScene                         0.089    0.4%    0.061    0.115
+prepare:Prepare/CollectPhaseBuffers      0.088    0.4%    0.057    0.115
+render:PostCleanup                      0.053    0.2%    0.033    0.077
+render:PhaseSort                        0.053    0.2%    0.033    0.063
+prepare:Prepare/BatchPhases             0.043    0.2%    0.029    0.053
+render:Cleanup                          0.020    0.1%    0.012    0.025
+gpu                                     0.000    0.0%    0.000    0.000
+
+## sweep arm m4b12 (pinned)
+
+14 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  32.522  100.0%   29.215   37.457
+render_world                           31.448   96.7%   28.503   36.221
+main_world                             17.857   54.9%   14.668   20.126
+render:PrepareAssets                   15.280   47.0%   13.417   17.855
+render:Prepare                         11.059   34.0%    9.994   12.337
+main:PostUpdate                        10.267   31.6%    8.623   11.201
+prepare:Prepare/BindGroups              9.043   27.8%    8.139   10.324
+main:RunFixedMainLoop                   4.131   12.7%    3.356    5.311
+render:Render/graph                     3.679   11.3%    3.355    4.411
+main:Update                             1.753    5.4%    1.417    2.139
+unattributed                            1.078    3.3%    0.712    1.414
+main:PreUpdate                          1.032    3.2%    0.827    1.302
+prepare:Prepare/Resources               0.880    2.7%    0.783    0.908
+prepare:Prepare/WritePhaseBuffers       0.767    2.4%    0.622    1.043
+render:Specialize                       0.273    0.8%    0.248    0.310
+render:Render/submit+present            0.237    0.7%    0.186    0.337
+render:Queue                            0.221    0.7%    0.198    0.252
+prepare:Prepare/ResourcesFlush          0.210    0.6%    0.190    0.231
+render:CreateViews                      0.209    0.6%    0.198    0.217
+main:StateTransition                    0.162    0.5%    0.146    0.215
+main:First                              0.161    0.5%    0.141    0.199
+render:ExtractCommands                  0.156    0.5%    0.145    0.191
+render:PrepareMeshes                    0.146    0.4%    0.126    0.159
+render:PrepareViews                     0.140    0.4%    0.132    0.202
+main:Last                               0.096    0.3%    0.089    0.134
+main:SpawnScene                         0.080    0.2%    0.065    0.095
+render:PostCleanup                      0.071    0.2%    0.064    0.094
+prepare:Prepare/CollectPhaseBuffers      0.061    0.2%    0.058    0.065
+render:PhaseSort                        0.050    0.2%    0.047    0.056
+prepare:Prepare/BatchPhases             0.032    0.1%    0.031    0.035
+render:Cleanup                          0.016    0.0%    0.014    0.019
+gpu                                     0.000    0.0%    0.000    0.000
+
+## sweep arm m4b24 (pinned)
+
+15 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  43.699  100.0%   38.350   47.234
+render_world                           42.622   97.5%   37.438   46.106
+render:PrepareAssets                   22.191   50.8%   18.883   24.789
+main_world                             21.505   49.2%   18.425   23.442
+render:Prepare                         14.847   34.0%   13.556   16.029
+main:PostUpdate                        13.233   30.3%   12.224   14.036
+prepare:Prepare/BindGroups             13.133   30.1%   11.901   13.839
+main:RunFixedMainLoop                   4.431   10.1%    3.263    5.336
+render:Render/graph                     3.690    8.4%    3.301    4.005
+main:PreUpdate                          1.700    3.9%    1.204    2.580
+main:Update                             1.678    3.8%    1.355    1.877
+unattributed                            1.049    2.4%    0.892    1.283
+prepare:Prepare/Resources               0.837    1.9%    0.652    0.868
+prepare:Prepare/WritePhaseBuffers       0.733    1.7%    0.596    1.173
+render:Specialize                       0.382    0.9%    0.333    0.414
+render:Queue                            0.296    0.7%    0.261    0.322
+render:Render/submit+present            0.208    0.5%    0.173    0.384
+render:CreateViews                      0.183    0.4%    0.175    0.189
+render:PrepareMeshes                    0.182    0.4%    0.159    0.214
+prepare:Prepare/ResourcesFlush          0.178    0.4%    0.171    0.189
+render:ExtractCommands                  0.148    0.3%    0.127    0.160
+main:StateTransition                    0.143    0.3%    0.117    0.175
+render:PrepareViews                     0.142    0.3%    0.129    0.149
+main:First                              0.142    0.3%    0.123    0.169
+render:PostCleanup                      0.086    0.2%    0.066    0.096
+main:Last                               0.086    0.2%    0.081    0.113
+render:PhaseSort                        0.070    0.2%    0.062    0.073
+main:SpawnScene                         0.063    0.1%    0.055    0.074
+prepare:Prepare/CollectPhaseBuffers      0.053    0.1%    0.048    0.060
+prepare:Prepare/BatchPhases             0.030    0.1%    0.028    0.032
+render:Cleanup                          0.013    0.0%    0.011    0.015
+gpu                                     0.000    0.0%    0.000    0.000
+
+## sweep arm m8b12 (pinned)
+
+14 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  31.835  100.0%   27.357   36.799
+render_world                           30.794   96.7%   26.503   35.382
+main_world                             18.051   56.7%   15.862   21.152
+render:PrepareAssets                   14.902   46.8%   12.262   17.090
+render:Prepare                         10.674   33.5%    9.291   12.245
+main:PostUpdate                         9.675   30.4%    8.948   10.735
+prepare:Prepare/BindGroups              8.546   26.8%    7.478   10.165
+main:RunFixedMainLoop                   4.889   15.4%    3.902    6.048
+render:Render/graph                     3.760   11.8%    3.482    4.325
+main:Update                             1.774    5.6%    1.526    2.139
+main:PreUpdate                          1.300    4.1%    0.855    1.729
+unattributed                            1.033    3.2%    0.813    1.417
+prepare:Prepare/Resources               0.875    2.7%    0.817    0.934
+prepare:Prepare/WritePhaseBuffers       0.853    2.7%    0.648    1.165
+render:Specialize                       0.324    1.0%    0.292    0.351
+render:Queue                            0.240    0.8%    0.215    0.278
+prepare:Prepare/ResourcesFlush          0.214    0.7%    0.201    0.236
+render:CreateViews                      0.208    0.7%    0.197    0.237
+render:Render/submit+present            0.203    0.6%    0.164    0.306
+render:PrepareMeshes                    0.186    0.6%    0.160    0.214
+main:StateTransition                    0.160    0.5%    0.130    0.201
+render:ExtractCommands                  0.157    0.5%    0.137    0.185
+main:First                              0.157    0.5%    0.134    0.191
+render:PrepareViews                     0.140    0.4%    0.133    0.149
+main:Last                               0.097    0.3%    0.091    0.127
+main:SpawnScene                         0.075    0.2%    0.066    0.090
+render:PostCleanup                      0.071    0.2%    0.059    0.090
+prepare:Prepare/CollectPhaseBuffers      0.065    0.2%    0.058    0.069
+render:PhaseSort                        0.050    0.2%    0.045    0.054
+prepare:Prepare/BatchPhases             0.033    0.1%    0.030    0.034
+render:Cleanup                          0.016    0.1%    0.013    0.019
+gpu                                     0.000    0.0%    0.000    0.000
+
+## sweep arm m12b12 (pinned)
+
+13 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  31.415  100.0%   25.439   35.643
+render_world                           30.504   97.1%   24.540   34.233
+main_world                             18.180   57.9%   15.122   21.454
+render:PrepareAssets                   13.808   44.0%   10.625   16.037
+render:Prepare                         10.850   34.5%    8.988   11.907
+main:PostUpdate                         9.163   29.2%    7.807   10.057
+prepare:Prepare/BindGroups              8.402   26.7%    6.658    9.497
+main:RunFixedMainLoop                   5.917   18.8%    4.521    7.317
+render:Render/graph                     3.873   12.3%    3.275    4.440
+main:Update                             1.721    5.5%    1.454    2.067
+prepare:Prepare/WritePhaseBuffers       1.122    3.6%    0.792    1.738
+main:PreUpdate                          1.068    3.4%    0.784    1.430
+unattributed                            0.971    3.1%    0.718    1.410
+prepare:Prepare/Resources               0.862    2.7%    0.781    0.920
+render:Specialize                       0.371    1.2%    0.342    0.403
+render:Queue                            0.274    0.9%    0.261    0.309
+render:PrepareMeshes                    0.267    0.8%    0.233    0.308
+prepare:Prepare/ResourcesFlush          0.244    0.8%    0.225    0.267
+render:CreateViews                      0.210    0.7%    0.199    0.232
+render:Render/submit+present            0.199    0.6%    0.158    0.256
+main:First                              0.155    0.5%    0.123    0.194
+render:ExtractCommands                  0.151    0.5%    0.125    0.180
+main:StateTransition                    0.149    0.5%    0.114    0.199
+render:PrepareViews                     0.143    0.5%    0.133    0.152
+main:Last                               0.093    0.3%    0.084    0.110
+main:SpawnScene                         0.071    0.2%    0.061    0.083
+prepare:Prepare/CollectPhaseBuffers      0.066    0.2%    0.062    0.073
+render:PostCleanup                      0.065    0.2%    0.050    0.083
+render:PhaseSort                        0.047    0.1%    0.043    0.052
+prepare:Prepare/BatchPhases             0.034    0.1%    0.031    0.040
+render:Cleanup                          0.016    0.1%    0.012    0.019
+gpu                                     0.000    0.0%    0.000    0.000
+
+## sweep arm m12b24 (pinned)
+
+14 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  44.416  100.0%   40.758   49.219
+render_world                           43.435   97.8%   39.767   48.045
+main_world                             22.526   50.7%   20.583   24.208
+render:PrepareAssets                   22.203   50.0%   19.590   24.298
+render:Prepare                         15.677   35.3%   14.371   17.219
+prepare:Prepare/BindGroups             12.848   28.9%   11.647   13.914
+main:PostUpdate                        12.377   27.9%   11.247   13.193
+main:RunFixedMainLoop                   6.115   13.8%    4.937    6.947
+render:Render/graph                     4.136    9.3%    3.846    4.578
+prepare:Prepare/WritePhaseBuffers       1.871    4.2%    1.057    2.276
+main:Update                             1.791    4.0%    1.461    1.917
+main:PreUpdate                          1.746    3.9%    1.313    2.415
+unattributed                            1.009    2.3%    0.923    1.175
+prepare:Prepare/Resources               0.851    1.9%    0.831    0.872
+render:Specialize                       0.439    1.0%    0.384    0.473
+render:Queue                            0.330    0.7%    0.285    0.355
+render:PrepareMeshes                    0.269    0.6%    0.250    0.313
+prepare:Prepare/ResourcesFlush          0.208    0.5%    0.202    0.233
+render:CreateViews                      0.190    0.4%    0.180    0.200
+render:Render/submit+present            0.189    0.4%    0.159    0.225
+render:ExtractCommands                  0.147    0.3%    0.132    0.156
+main:StateTransition                    0.146    0.3%    0.112    0.164
+main:First                              0.145    0.3%    0.127    0.156
+render:PrepareViews                     0.141    0.3%    0.137    0.148
+main:Last                               0.087    0.2%    0.081    0.095
+render:PostCleanup                      0.079    0.2%    0.065    0.089
+render:PhaseSort                        0.067    0.2%    0.061    0.074
+main:SpawnScene                         0.063    0.1%    0.051    0.075
+prepare:Prepare/CollectPhaseBuffers      0.059    0.1%    0.055    0.062
+prepare:Prepare/BatchPhases             0.040    0.1%    0.032    0.046
+render:Cleanup                          0.013    0.0%    0.011    0.014
+gpu                                     0.000    0.0%    0.000    0.000
+
+## camera view battery, 1280x720 (pinned)
+
+13 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  33.267  100.0%   22.436   38.984
+render_world                           32.234   96.9%   21.698   37.838
+main_world                             19.364   58.2%   12.763   21.771
+render:PrepareAssets                   15.013   45.1%    9.179   17.309
+render:Prepare                         11.076   33.3%    7.994   14.044
+main:PostUpdate                         9.470   28.5%    6.876   10.576
+prepare:Prepare/BindGroups              8.828   26.5%    5.869   10.499
+main:RunFixedMainLoop                   6.367   19.1%    3.542    7.377
+render:Render/graph                     4.203   12.6%    2.874    4.559
+main:Update                             1.864    5.6%    1.188    2.050
+prepare:Prepare/WritePhaseBuffers       1.303    3.9%    0.822    2.196
+main:PreUpdate                          1.101    3.3%    0.539    1.752
+unattributed                            0.989    3.0%    0.640    1.264
+prepare:Prepare/Resources               0.862    2.6%    0.733    0.935
+render:Specialize                       0.370    1.1%    0.316    0.426
+render:Queue                            0.282    0.8%    0.225    0.311
+render:PrepareMeshes                    0.265    0.8%    0.211    0.312
+prepare:Prepare/ResourcesFlush          0.248    0.7%    0.200    0.286
+render:CreateViews                      0.215    0.6%    0.176    0.230
+render:Render/submit+present            0.208    0.6%    0.145    0.270
+main:StateTransition                    0.169    0.5%    0.090    0.194
+main:First                              0.168    0.5%    0.102    0.188
+render:ExtractCommands                  0.167    0.5%    0.115    0.177
+render:PrepareViews                     0.146    0.4%    0.130    0.164
+main:Last                               0.097    0.3%    0.077    0.109
+render:PostCleanup                      0.076    0.2%    0.044    0.084
+main:SpawnScene                         0.075    0.2%    0.052    0.093
+prepare:Prepare/CollectPhaseBuffers      0.068    0.2%    0.054    0.073
+render:PhaseSort                        0.049    0.1%    0.038    0.053
+prepare:Prepare/BatchPhases             0.034    0.1%    0.029    0.043
+render:Cleanup                          0.017    0.1%    0.011    0.019
+gpu                                     0.000    0.0%    0.000    0.000
+
+## camera view lanes, 1280x720 (pinned)
+
+13 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  32.818  100.0%   27.885   39.430
+render_world                           31.671   96.5%   26.931   38.374
+main_world                             19.529   59.5%   16.439   23.032
+render:PrepareAssets                   14.516   44.2%   12.178   17.693
+render:Prepare                         11.604   35.4%    9.514   13.838
+main:PostUpdate                         9.379   28.6%    8.404    9.995
+prepare:Prepare/BindGroups              8.633   26.3%    7.331   10.499
+main:RunFixedMainLoop                   6.540   19.9%    5.271    8.634
+render:Render/graph                     4.006   12.2%    3.529    4.836
+main:Update                             1.800    5.5%    1.599    2.129
+prepare:Prepare/WritePhaseBuffers       1.528    4.7%    1.025    2.229
+main:PreUpdate                          1.343    4.1%    0.746    1.871
+unattributed                            1.053    3.2%    0.871    1.250
+prepare:Prepare/Resources               0.891    2.7%    0.640    0.947
+render:Specialize                       0.392    1.2%    0.357    0.433
+render:Queue                            0.293    0.9%    0.272    0.334
+render:PrepareMeshes                    0.279    0.9%    0.233    0.317
+prepare:Prepare/ResourcesFlush          0.259    0.8%    0.212    0.284
+render:CreateViews                      0.216    0.7%    0.206    0.242
+render:Render/submit+present            0.214    0.7%    0.156    0.265
+main:StateTransition                    0.167    0.5%    0.126    0.216
+main:First                              0.162    0.5%    0.138    0.204
+render:ExtractCommands                  0.158    0.5%    0.138    0.191
+render:PrepareViews                     0.149    0.5%    0.140    0.153
+main:Last                               0.095    0.3%    0.089    0.104
+main:SpawnScene                         0.073    0.2%    0.066    0.089
+render:PostCleanup                      0.072    0.2%    0.056    0.088
+prepare:Prepare/CollectPhaseBuffers      0.067    0.2%    0.062    0.072
+render:PhaseSort                        0.050    0.2%    0.045    0.054
+prepare:Prepare/BatchPhases             0.038    0.1%    0.033    0.041
+render:Cleanup                          0.016    0.0%    0.015    0.020
+gpu                                     0.000    0.0%    0.000    0.000
+
+## camera view away, 1280x720 (pinned)
+
+14 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  35.742  100.0%   22.763   39.882
+render_world                           34.548   96.7%   21.991   38.639
+main_world                             21.069   58.9%   12.951   23.038
+render:PrepareAssets                   16.561   46.3%    9.353   17.769
+render:Prepare                         11.724   32.8%    8.041   14.412
+main:PostUpdate                         9.950   27.8%    6.981   10.852
+prepare:Prepare/BindGroups              9.402   26.3%    6.146   10.819
+main:RunFixedMainLoop                   7.053   19.7%    3.732    8.403
+render:Render/graph                     4.196   11.7%    2.950    4.780
+main:Update                             1.977    5.5%    1.223    2.170
+prepare:Prepare/WritePhaseBuffers       1.173    3.3%    0.771    2.401
+main:PreUpdate                          1.140    3.2%    0.653    1.818
+unattributed                            1.102    3.1%    0.592    1.308
+prepare:Prepare/Resources               0.855    2.4%    0.733    0.935
+render:Specialize                       0.378    1.1%    0.321    0.406
+render:Queue                            0.296    0.8%    0.229    0.319
+render:PrepareMeshes                    0.267    0.7%    0.210    0.321
+prepare:Prepare/ResourcesFlush          0.252    0.7%    0.198    0.288
+render:Render/submit+present            0.231    0.6%    0.140    0.295
+render:CreateViews                      0.221    0.6%    0.178    0.243
+main:StateTransition                    0.190    0.5%    0.090    0.208
+main:First                              0.184    0.5%    0.112    0.203
+render:ExtractCommands                  0.172    0.5%    0.114    0.187
+render:PrepareViews                     0.149    0.4%    0.123    0.170
+main:Last                               0.098    0.3%    0.077    0.138
+render:PostCleanup                      0.082    0.2%    0.044    0.091
+main:SpawnScene                         0.078    0.2%    0.053    0.087
+prepare:Prepare/CollectPhaseBuffers      0.068    0.2%    0.056    0.076
+render:PhaseSort                        0.051    0.1%    0.038    0.057
+prepare:Prepare/BatchPhases             0.035    0.1%    0.029    0.046
+render:Cleanup                          0.018    0.1%    0.011    0.020
+gpu                                     0.000    0.0%    0.000    0.000
+
+## camera view battery, 2560x1440 (pinned)
+
+13 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  35.268  100.0%   31.956   41.222
+render_world                           34.221   97.0%   31.074   39.892
+main_world                             20.846   59.1%   19.095   22.827
+render:PrepareAssets                   16.045   45.5%   15.277   18.218
+render:Prepare                         12.298   34.9%   10.229   14.560
+main:PostUpdate                         9.677   27.4%    9.152   10.410
+prepare:Prepare/BindGroups              9.590   27.2%    8.390   10.990
+main:RunFixedMainLoop                   7.284   20.7%    5.897    8.627
+render:Render/graph                     4.464   12.7%    3.594    5.049
+main:Update                             1.978    5.6%    1.739    2.117
+prepare:Prepare/WritePhaseBuffers       1.622    4.6%    0.708    2.258
+main:PreUpdate                          1.573    4.5%    1.116    1.998
+unattributed                            1.126    3.2%    0.882    1.350
+prepare:Prepare/Resources               0.801    2.3%    0.750    0.876
+render:Specialize                       0.388    1.1%    0.349    0.421
+render:Queue                            0.291    0.8%    0.267    0.324
+render:PrepareMeshes                    0.283    0.8%    0.234    0.322
+render:Render/submit+present            0.248    0.7%    0.199    0.364
+prepare:Prepare/ResourcesFlush          0.242    0.7%    0.214    0.299
+render:CreateViews                      0.213    0.6%    0.206    0.236
+main:StateTransition                    0.189    0.5%    0.171    0.232
+main:First                              0.177    0.5%    0.156    0.215
+render:ExtractCommands                  0.173    0.5%    0.153    0.196
+render:PrepareViews                     0.147    0.4%    0.138    0.159
+main:Last                               0.096    0.3%    0.089    0.122
+render:PostCleanup                      0.080    0.2%    0.071    0.094
+main:SpawnScene                         0.079    0.2%    0.072    0.087
+prepare:Prepare/CollectPhaseBuffers      0.067    0.2%    0.060    0.075
+render:PhaseSort                        0.051    0.1%    0.047    0.055
+prepare:Prepare/BatchPhases             0.036    0.1%    0.031    0.044
+render:Cleanup                          0.018    0.1%    0.016    0.020
+gpu                                     0.000    0.0%    0.000    0.000
+
+## camera view away, 2560x1440 (pinned)
+
+15 in-window framecost reports over 3 captures
+item                                median ms   share      min      max
+frame                                  36.885  100.0%   34.440   40.014
+render_world                           35.794   97.0%   33.499   38.735
+main_world                             21.410   58.0%   20.544   23.176
+render:PrepareAssets                   16.672   45.2%   15.623   17.991
+render:Prepare                         12.773   34.6%   11.440   13.921
+main:PostUpdate                        10.044   27.2%    9.418   10.611
+prepare:Prepare/BindGroups              9.737   26.4%    9.320   10.907
+main:RunFixedMainLoop                   7.257   19.7%    6.440    8.468
+render:Render/graph                     4.566   12.4%    3.944    5.000
+main:Update                             1.998    5.4%    1.918    2.174
+prepare:Prepare/WritePhaseBuffers       1.872    5.1%    0.960    2.033
+main:PreUpdate                          1.430    3.9%    1.134    2.114
+unattributed                            1.181    3.2%    0.942    1.347
+prepare:Prepare/Resources               0.825    2.2%    0.783    0.867
+render:Specialize                       0.376    1.0%    0.331    0.425
+render:Queue                            0.297    0.8%    0.279    0.313
+render:PrepareMeshes                    0.269    0.7%    0.229    0.319
+prepare:Prepare/ResourcesFlush          0.252    0.7%    0.224    0.272
+render:Render/submit+present            0.250    0.7%    0.224    0.272
+render:CreateViews                      0.222    0.6%    0.211    0.230
+main:StateTransition                    0.200    0.5%    0.179    0.218
+main:First                              0.191    0.5%    0.176    0.208
+render:ExtractCommands                  0.182    0.5%    0.165    0.197
+render:PrepareViews                     0.149    0.4%    0.140    0.156
+main:Last                               0.098    0.3%    0.092    0.108
+render:PostCleanup                      0.085    0.2%    0.079    0.096
+main:SpawnScene                         0.080    0.2%    0.076    0.088
+prepare:Prepare/CollectPhaseBuffers      0.071    0.2%    0.067    0.074
+render:PhaseSort                        0.051    0.1%    0.049    0.056
+prepare:Prepare/BatchPhases             0.039    0.1%    0.033    0.041
+render:Cleanup                          0.018    0.0%    0.018    0.021
+gpu                                     0.000    0.0%    0.000    0.000
+

@@ -1,0 +1,91 @@
+# stress_point_defense: the traced pass, by SYSTEM
+
+probe run stress_point_defense --display :0, profiled pass
+(--features debug,trace, bevy per-system spans through trace_chrome).
+The traced run is NOT perf-armed, so it is free-running (fixed_steps ~1.7
+a frame) and holds only HOLD_FRAMES; its load is 2051 rounds / 2256
+colliders / 74 inbound, which is the pinned scene's shape.
+
+Slice: the saturated hold, trace ts 21.70-24.60 s, 110 frames at
+26.06 ms. Tracing inflates every span, so read the SHARES and the
+ordering. Main world and render world overlap, so shares sum past 100%.
+
+slice 4470815852..5039069518 = 568 MB for ts 21.70-24.60s
+frames in slice: 110
+ ms/frame  calls/f  name
+   26.063      1.0  update: 
+   23.957      1.0  sub app: name=RenderApp
+   23.946      1.0  schedule: name=RenderRecovery
+   23.915      1.0  system: name=\"bevy_render::run_render_schedule\"
+   23.905      1.0  schedule: name=Render
+   21.954      1.0  main app: 
+   21.949      1.0  schedule: name=Main
+    9.589      1.0  schedule: name=PostUpdate
+    9.285      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d
+    9.122      1.0  schedule: name=RunFixedMainLoop
+    8.924      1.0  system: name=\"bevy_time::fixed::run_fixed_main_schedule\"
+    8.912      1.7  schedule: name=FixedMain
+    6.352      1.7  schedule: name=FixedPostUpdate
+    6.327      1.0  system: name=\"bevy_pbr::material::prepare_material_bind_groups\"
+    5.668      1.0  system: name=\"bevy_ui::widget::text::text_system\"
+    5.173      1.7  system: name=\"avian3d::schedule::run_physics_schedule\"
+    5.156      1.7  schedule: name=PhysicsSchedule
+    4.109      1.0  sub app: name=RenderExtractApp
+    3.642      1.0  system: name=\"bevy_render::renderer::render_system\"
+    3.639      1.0  main_render_schedule: 
+    3.490      1.0  schedule: name=RenderGraph
+    2.639      1.7  system: name=\"avian3d::dynamics::solver::schedule::run_substep_schedule\"
+    2.615     10.1  schedule: name=SubstepSchedule
+    2.331    904.6  multithreaded executor: 
+    2.142      1.7  schedule: name=FixedUpdate
+    1.964      1.0  system: name=\"bevy_core_pipeline::schedule::camera_driver\"
+    1.956      1.0  schedule: name=Update
+    1.932      1.0  camera_schedule: camera=\"Camera 0 (468v3)\"
+    1.924      1.0  schedule: name=Core3d
+    1.571      1.7  system_commands: name=\"nova_ship::sections::turret_section::firing::shoot_spawn_projectile\"
+    1.133      1.0  system: name=\"bevy_core_pipeline::schedule::submit_pending_command_buffers\"
+    1.125      1.0  queue_submit: count=15
+    0.986      1.0  system: name=\"bevy_pbr::render::gpu_preprocess::prepare_preprocess_bind_groups\"
+    0.897      1.0  schedule: name=PreUpdate
+    0.849    205.6  par_for_each: query=\"bevy_ecs::entity::Entity\" filter=\"bevy_ecs::query::filter::Or<(bevy_ecs::query::filter
+    0.819      1.0  schedule: name=ExtractSchedule
+    0.767     54.4  par_for_each: query=\"(bevy_ecs::entity::Entity, bevy_ecs::change_detection::params::Ref<'_, bevy_transform::c
+    0.719      1.0  system: name=\"bevy_ui::layout::ui_layout_system\"
+    0.683    224.9  par_for_each: query=\"avian3d::dynamics::integrator::VelocityIntegrationQuery\" filter=\"((bevy_ecs::query::fi
+    0.588     36.5  par_for_each: query=\"(&avian3d::physics_transform::transform::Position, &avian3d::dynamics::rigid_body::mass_
+    0.583    224.9  par_for_each: query=\"(&mut avian3d::dynamics::solver::solver_body::SolverBodyInertia, &avian3d::dynamics::rig
+    0.553    154.6  par_for_each: query=\"&mut bevy_camera::visibility::ViewVisibility\" filter=\"bevy_ecs::query::filter::Without
+    0.533     27.8  par_for_each: query=\"(&bevy_mesh::components::Mesh3d, &mut bevy_camera::primitives::Aabb)\" filter=\"(bevy_ec
+    0.530      1.7  system: name=\"avian3d::collision::narrow_phase::trigger_collision_events\"
+    0.507      1.0  system: name=\"bevy_ui::widget::text::measure_text_system\"
+
+## the systems this range exists to load, and the broad phase
+
+frames 110
+   1.571 ms/f      1.7 calls/f  system_commands: name=\"nova_ship::sections::turret_section::firing::shoot_spawn_projectile\"
+   0.530 ms/f      1.7 calls/f  system: name=\"avian3d::collision::narrow_phase::trigger_collision_events\"
+   0.275 ms/f      1.7 calls/f  system: name=\"avian3d::collision::narrow_phase::update_narrow_phase<avian3d::collision::collider::parry::Collider, nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+   0.192 ms/f      1.7 calls/f  system: name=\"avian3d::collision::broad_phase::bvh_broad_phase::collect_collision_pairs<nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+   0.065 ms/f      1.7 calls/f  system_commands: name=\"nova_ship::sections::torpedo_section::bay::shoot_spawn_projectile\"
+   0.038 ms/f      1.0 calls/f  system: name=\"nova_ship::input::targeting::contacts::update_contacts_and_locks\"
+   0.032 ms/f      1.7 calls/f  system: name=\"nova_ship::sections::turret_section::firing::shoot_spawn_projectile\"
+   0.026 ms/f      1.0 calls/f  system: name=\"nova_ship::input::point_defense::assignment::update_turret_point_defense\"
+   0.024 ms/f     28.4 calls/f  system: name=\"nova_ship::sections::turret_section::firing::resolve_bullet_hit\"
+   0.021 ms/f      1.0 calls/f  system: name=\"nova_ship::sections::turret_section::aim::update_turret_target_joints_system\"
+   0.020 ms/f     13.0 calls/f  system: name=\"avian3d::collision::narrow_phase::on_body_remove_rigid_body_disabled\"
+   0.016 ms/f     13.8 calls/f  system: name=\"avian3d::collision::narrow_phase::remove_body_on<bevy_ecs::lifecycle::Insert, avian3d::dynamics::rigid_body::RigidBody>\"
+   0.016 ms/f     12.5 calls/f  system: name=\"avian3d::collision::narrow_phase::on_add_sensor\"
+   0.016 ms/f     11.6 calls/f  system: name=\"avian3d::collision::narrow_phase::on_remove_sensor\"
+   0.014 ms/f      1.0 calls/f  system: name=\"nova_ship::sections::turret_section::aim::update_turret_aim_point\"
+   0.012 ms/f     11.8 calls/f  system: name=\"avian3d::collision::narrow_phase::remove_body_on<bevy_ecs::lifecycle::Remove, avian3d::dynamics::rigid_body::RigidBody>\"
+   0.012 ms/f     12.1 calls/f  system: name=\"avian3d::collision::narrow_phase::remove_collider_on<bevy_ecs::lifecycle::Remove, avian3d::collision::collider::backend::ColliderMarker>\"
+   0.010 ms/f      1.7 calls/f  system: name=\"nova_ship::sections::torpedo_section::bay::shoot_spawn_projectile\"
+   0.007 ms/f      1.0 calls/f  system: name=\"nova_ship::input::point_defense::ownership::update_point_defense_trigger\"
+   0.006 ms/f      1.0 calls/f  system: name=\"nova_ship::input::point_defense::ownership::update_point_defense_ownership\"
+   0.004 ms/f      1.0 calls/f  system: name=\"nova_ship::input::point_defense::ownership::update_point_defense_aim\"
+   0.002 ms/f      1.7 calls/f  system_commands: name=\"avian3d::collision::broad_phase::bvh_broad_phase::collect_collision_pairs<nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+   0.002 ms/f      1.0 calls/f  system: name=\"nova_ship::input::ai::acquisition::update_point_defense_target\"
+   0.002 ms/f      1.7 calls/f  check_conditions: name=\"avian3d::collision::narrow_phase::update_narrow_phase<avian3d::collision::collider::parry::Collider, nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+   0.002 ms/f      1.7 calls/f  check_conditions: name=\"avian3d::collision::broad_phase::bvh_broad_phase::collect_collision_pairs<nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+   0.001 ms/f      1.7 calls/f  system_commands: name=\"avian3d::collision::narrow_phase::update_narrow_phase<avian3d::collision::collider::parry::Collider, nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+   0.001 ms/f      1.7 calls/f  check_conditions: name=\"avian3d::collision::narrow_phase::trigger_collision_events\"

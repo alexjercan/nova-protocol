@@ -20,7 +20,10 @@
 //!   the thing the broad phase actually carries.
 //!
 //! Both are overridable per run ([`scale_param`]) so the case can be swept
-//! across scales in one build without moving what it asserts.
+//! across scales in one build without moving what it asserts. A third knob,
+//! `NOVA_STRESS_PD_VIEW`, moves the camera ([`View`]): what is inside the
+//! frustum is drawn and what is outside it is not, so the pose is part of what
+//! a capture measured.
 //!
 //! What it claims, beside the frame time:
 //!
@@ -121,6 +124,46 @@ fn mounts() -> usize {
 fn bays() -> usize {
     static CACHED: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     *CACHED.get_or_init(|| scale_param("BAYS", TORPEDO_BAYS))
+}
+
+/// Where the scenario camera stands, and what it frames.
+///
+/// A MEASUREMENT knob (`NOVA_STRESS_PD_VIEW`), like the two scale knobs. The
+/// frame is view-dependent - a torpedo off screen is culled and costs nothing to
+/// draw - so a capture that does not say where the camera pointed has not said
+/// what it measured.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum View {
+    /// The loader's own pose, and the default: the battery framed from +Z, with
+    /// the launcher and most of each lane BEHIND the camera.
+    Battery,
+    /// The whole range end on, from behind the battery: every lane, every
+    /// torpedo and the launcher wall are all inside the frustum at once.
+    Lanes,
+    /// Empty sky. Nothing the range spawns is inside the frustum, so what is
+    /// left is the cost of simulating the scene without drawing it.
+    Away,
+}
+
+/// Camera pose for this run.
+fn view() -> View {
+    static CACHED: std::sync::OnceLock<View> = std::sync::OnceLock::new();
+    *CACHED.get_or_init(|| match std::env::var("NOVA_STRESS_PD_VIEW").as_deref() {
+        Ok("lanes") => View::Lanes,
+        Ok("away") => View::Away,
+        _ => View::Battery,
+    })
+}
+
+/// The camera pose each [`View`] stands at, as (eye, target).
+fn view_pose() -> (Vec3, Vec3) {
+    match view() {
+        View::Battery => (Vec3::new(0.0, 10.0, 20.0), Vec3::ZERO),
+        // Far enough back that the launcher at LAUNCHER_STANDOFF and the whole
+        // gate ring fit in a 45 deg vertical FOV.
+        View::Lanes => (Vec3::new(0.0, 20.0, -160.0), Vec3::new(0.0, 0.0, 110.0)),
+        View::Away => (Vec3::new(0.0, 10.0, 20.0), Vec3::new(0.0, 4000.0, 20.0)),
+    }
 }
 
 /// The turret content id every mount is built from.
@@ -231,6 +274,14 @@ const DRAIN_DEADLINE_SECS: f32 = 60.0;
 /// [`PD_ENVELOPE`], so a bay launching once a second contributes ~9 - the floor
 /// is set at two thirds of that, because point defence removes some of them and
 /// how many is the thing being measured.
+///
+/// This gate also opens the capture window, so it is deliberately NOT tuned to
+/// the measured yield: it is what makes the window start on a saturated scene.
+/// The cost is that it bounds the sweep. Measured yield falls as the battery
+/// outguns the launcher - 7.0 a bay at four mounts, 6.0-6.3 at twelve, 6.25 at
+/// twelve mounts against four bays - so `NOVA_STRESS_PD_MOUNTS=24` against
+/// twelve bays never fills the envelope at all and stalls on the step deadline.
+/// Sweeping mounts UP means raising bays with them.
 #[cfg(feature = "debug")]
 const INBOUND_PER_BAY: usize = 6;
 
@@ -238,12 +289,21 @@ const INBOUND_PER_BAY: usize = 6;
 /// mount.
 ///
 /// A PDC fires 100 rounds/s with a 2 s round lifetime, so a mount that holds its
-/// trigger down saturates at ~200. The floor is half of that: a mount only
-/// shoots while it bears on the torpedo it was handed, and what fraction of the
-/// battery bears at any instant is the thing being measured, not a thing to
-/// assert.
+/// trigger down saturates at ~200. What the battery actually reaches is a
+/// FRACTION of that, and the fraction is set by the HOST: the trigger is decided
+/// once per frame (the point-defence chain runs in `Update`) and spent per fixed
+/// step (`shoot_spawn_projectile` runs in `FixedUpdate`), so a free-running host
+/// buys a different number of steps per decision every run. Measured over 16
+/// captures on one machine and one build, the peak at twelve mounts spans 708 to
+/// 2425 - a 3.4x band around any floor drawn as a fixed share of 200.
+///
+/// So the floor is drawn under the WORST measured yield rather than from the
+/// theoretical rate: 59 rounds a mount, free-running. Pinning one fixed step per
+/// frame (`NOVA_PERF_MAX_DELTA=0.015625`) collapses the same band to 2236-2401,
+/// which is what a capture that wants a comparable load has to do; this floor
+/// has to hold without it, because the correctness pass never sets it.
 #[cfg(feature = "debug")]
-const ROUNDS_PER_MOUNT: usize = 100;
+const ROUNDS_PER_MOUNT: usize = 40;
 
 /// The claim that the battery was WORKING: how many mounts must hold an
 /// assignment at the peak, as a fraction of the battery.
@@ -262,7 +322,12 @@ fn main() -> bevy::app::AppExit {
             app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_range);
             app.add_systems(
                 Update,
-                (author_the_envelope, hold_the_tubes, commit_fresh_torpedoes),
+                (
+                    author_the_envelope,
+                    point_the_camera,
+                    hold_the_tubes,
+                    commit_fresh_torpedoes,
+                ),
             );
         })
         .build();
@@ -513,6 +578,21 @@ fn author_the_envelope(
         commands
             .entity(defender)
             .insert(AIPointDefenseRange(PD_ENVELOPE));
+    }
+}
+
+/// Pin the scenario camera at this run's [`View`].
+///
+/// Every frame rather than once: the loader spawns the camera with a
+/// `WASDCameraController`, so a stray input would otherwise move the subject
+/// mid-capture, and holding the pose costs one entity's transform.
+fn point_the_camera(mut q_camera: Query<&mut Transform, With<ScenarioCameraMarker>>) {
+    let (eye, target) = view_pose();
+    for mut transform in &mut q_camera {
+        let pinned = Transform::from_translation(eye).looking_at(target, Vec3::Y);
+        if *transform != pinned {
+            *transform = pinned;
+        }
     }
 }
 
