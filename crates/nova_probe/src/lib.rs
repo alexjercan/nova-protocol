@@ -41,12 +41,21 @@
 //!   per-frame cost and the headroom, not "60 fps, capped". It is a REQUEST:
 //!   wgpu falls back Immediate -> Mailbox -> Fifo on what the surface offers and
 //!   bevy logs the fallback only for an explicitly named mode, so
-//!   `NOVA_PERF_PRESENT=immediate` is how a run PROVES it was not capped.
-//! - **Continuous updates.** `WinitSettings::game` keeps the loop running flat
-//!   out even when the window is unfocused (the headless/Xvfb case), so the
-//!   capture is not throttled to reactive redraws.
-//! - **Fixed resolution.** The window is forced to a known size (default
-//!   1280x720) so runs are comparable across machines and renderers.
+//!   `NOVA_PERF_PRESENT=immediate` names the mode, and the capture then REFUSES
+//!   a window whose deltas collapsed onto one period anyway - a compositor or a
+//!   silent fallback pacing the swap chain reads as a plausible number and is
+//!   the display's, not the game's.
+//! - **Continuous updates.** `WinitSettings::continuous` keeps the loop running
+//!   flat out even when the window is unfocused, and the capture REFUSES any
+//!   other setting. Bevy's default `WinitSettings::game` holds an unfocused
+//!   window at 60 Hz: measured on the empty gallery, 3.4 ms focused and
+//!   16.67 ms not, from the event loop rather than from the frame.
+//! - **Fixed resolution.** The window is sized (default 1280x720) BEFORE winit
+//!   creates it, so the size hints, the surface and `Window` agree from the
+//!   start - a resize asked for afterwards is one a reparenting window manager
+//!   simply refuses while `Window` goes on reporting it. The capture then
+//!   refuses a window that is a different size anyway. Frame cost is a function
+//!   of window PIXELS, so a run at the wrong size is comparable with nothing.
 //! - **The PRESENTATION PATH is part of the number, and Xvfb is a bad one.**
 //!   A software X server has no scanout, so presenting a window is a CPU-side
 //!   copy of every pixel, charged to the render thread inside `render_system`
@@ -70,14 +79,20 @@
 //! # }
 //! ```
 //!
-//! Run it (needs a display; use the real GPU headless via `Xvfb`, or force the
-//! lavapipe software-raster floor - see `probe run --render sw`):
+//! Run it on a REAL display. A capture wears `WM_CLASS`
+//! [`nova_core::MEASURE_WINDOW_CLASS`], so a window manager can place it off
+//! the operator's desk without ever catching a hand-run; on i3, one line of
+//! config does it and a hidden workspace measures the same as a visible one:
 //!
 //! ```text
-//! Xvfb :95 -screen 0 1280x720x24 &
-//! NOVA_PERF=1 NOVA_PERF_LABEL=stress_bullets-gpu \
-//!   NOVA_PERF_OUT=/tmp/perf BEVY_ASSET_ROOT="$PWD" DISPLAY=:95 \
-//!   cargo run --release --example stress_bullets --features debug
+//! # ~/.config/i3/config
+//! for_window [class="nova-measure"] move container to workspace 3
+//! ```
+//!
+//! ```text
+//! NOVA_PERF=1 NOVA_PERF_LABEL=stress_bullets-gpu NOVA_PERF_PRESENT=immediate \
+//!   NOVA_PERF_OUT=/tmp/perf BEVY_ASSET_ROOT="$PWD" DISPLAY=:0 \
+//!   cargo run --example stress_bullets --features debug
 //! # look for: `nova perf: label=... frames=... mean=..ms p99=..ms mean_fps=.. 1%low_fps=..`
 //! ```
 //!

@@ -163,6 +163,29 @@ impl FrameCostPlugin {
                     .add_systems(Render, mark.after(previous).before(RENDER_SETS[i].clone())),
             };
         }
+        // The same construction one level down, inside `Prepare`, which is
+        // where a loaded frame's milliseconds actually sit. Its own chain
+        // rather than more entries in the one above: these sets are nested in
+        // `Prepare`, so their times are a BREAKDOWN of that row and must not be
+        // added to it.
+        //
+        // `.in_set(Prepare)` on every one of them, and that is load-bearing:
+        // without it the first marker has only a `.before(PrepareResources)`
+        // constraint, which the scheduler is free to satisfy at the very top of
+        // the `Render` schedule. It did, and the breakdown then charged
+        // `Prepare/Resources` with more time than all of `Prepare`.
+        for index in 0..=PREPARE_SETS.len() {
+            let mark = (move |cost: Res<RenderCost>| cost.mark_prepare(index))
+                .in_set(RenderSystems::Prepare);
+            match (index.checked_sub(1).map(|i| PREPARE_SETS[i].clone()), index) {
+                (None, _) => render_app.add_systems(Render, mark.before(PREPARE_SETS[0].clone())),
+                (Some(previous), i) if i == PREPARE_SETS.len() => {
+                    render_app.add_systems(Render, mark.after(previous))
+                }
+                (Some(previous), i) => render_app
+                    .add_systems(Render, mark.after(previous).before(PREPARE_SETS[i].clone())),
+            };
+        }
         render_app.add_systems(
             bevy::render::renderer::RenderGraph,
             (
@@ -177,9 +200,16 @@ impl FrameCostPlugin {
 
 /// The render world's top-level phases, in the order `RenderPlugin` chains
 /// them. Named here so the report can label a boundary; the sub-sets inside
-/// `Prepare` and `Queue` are deliberately left folded into their parents.
-const RENDER_SETS: [RenderSystems; 11] = [
+/// `Queue` are deliberately left folded into their parent.
+///
+/// `PrepareAssets` is in the list although it is not in the top-level chain,
+/// and it has to be: `RenderPlugin` chains it BETWEEN `ExtractCommands` and
+/// `PrepareMeshes`, so a boundary marker that only names those two is
+/// ambiguous with it and its time lands in whichever neighbour won the
+/// scheduler that frame.
+const RENDER_SETS: [RenderSystems; 12] = [
     RenderSystems::ExtractCommands,
+    RenderSystems::PrepareAssets,
     RenderSystems::PrepareMeshes,
     RenderSystems::CreateViews,
     RenderSystems::Specialize,
@@ -190,6 +220,17 @@ const RENDER_SETS: [RenderSystems; 11] = [
     RenderSystems::Render,
     RenderSystems::Cleanup,
     RenderSystems::PostCleanup,
+];
+
+/// The sets `RenderPlugin` chains INSIDE `Prepare`. Their times break the
+/// `Prepare` row down; they do not add to the render-world total.
+const PREPARE_SETS: [RenderSystems; 6] = [
+    RenderSystems::PrepareResources,
+    RenderSystems::PrepareResourcesBatchPhases,
+    RenderSystems::PrepareResourcesWritePhaseBuffers,
+    RenderSystems::PrepareResourcesCollectPhaseBuffers,
+    RenderSystems::PrepareResourcesFlush,
+    RenderSystems::PrepareBindGroups,
 ];
 
 /// The render world's per-phase tally, shared with the main world.
@@ -209,10 +250,41 @@ struct RenderCost(std::sync::Arc<std::sync::Mutex<RenderTally>>);
 #[derive(Default)]
 struct RenderTally {
     elapsed: [Duration; RENDER_SETS.len()],
+    prepare: [Duration; PREPARE_SETS.len()],
     graph: Duration,
     graph_open: Option<Instant>,
     frames: u32,
     last: Option<(usize, Instant)>,
+    last_prepare: Option<(usize, Instant)>,
+}
+
+/// Accumulate the span that ended at boundary `index` of one chain.
+///
+/// `elapsed[i]` is the time between boundary `i` and boundary `i + 1`, so only
+/// a boundary that immediately follows the one before it attributes anything -
+/// a skipped marker (a set that ran no systems this frame) breaks the chain
+/// and is charged to nobody rather than to its neighbour.
+fn mark_chain(
+    elapsed: &mut [Duration],
+    last: &mut Option<(usize, Instant)>,
+    index: usize,
+    now: Instant,
+) -> bool {
+    let mut closed = false;
+    if let Some((previous, at)) = *last {
+        if index == previous + 1 && previous < elapsed.len() {
+            elapsed[previous] += now - at;
+            closed = index == elapsed.len();
+        }
+    }
+    *last = if index == elapsed.len() {
+        None
+    } else if index == 0 || last.is_some_and(|(previous, _)| index == previous + 1) {
+        Some((index, now))
+    } else {
+        *last
+    };
+    closed
 }
 
 impl RenderCost {
@@ -227,25 +299,29 @@ impl RenderCost {
         let Ok(mut tally) = self.0.lock() else {
             return;
         };
-        if let Some((previous, at)) = tally.last {
-            if index == previous + 1 && previous < RENDER_SETS.len() {
-                tally.elapsed[previous] += now - at;
-                if index == RENDER_SETS.len() {
-                    tally.frames += 1;
-                }
-            }
+        let RenderTally {
+            elapsed,
+            frames,
+            last,
+            ..
+        } = &mut *tally;
+        if mark_chain(elapsed, last, index, now) {
+            *frames += 1;
         }
-        if index == 0 {
-            tally.last = Some((0, now));
-        } else if tally
-            .last
-            .is_some_and(|(previous, _)| index == previous + 1)
-        {
-            tally.last = Some((index, now));
-        }
-        if index == RENDER_SETS.len() {
-            tally.last = None;
-        }
+    }
+
+    /// The same, for the chain nested inside `Prepare`.
+    fn mark_prepare(&self, index: usize) {
+        let now = Instant::now();
+        let Ok(mut tally) = self.0.lock() else {
+            return;
+        };
+        let RenderTally {
+            prepare,
+            last_prepare,
+            ..
+        } = &mut *tally;
+        mark_chain(prepare, last_prepare, index, now);
     }
 
     fn graph_open(&self) {
@@ -264,7 +340,7 @@ impl RenderCost {
     }
 
     /// Sum every phase since the last drain, per frame, and reset.
-    fn drain(&self) -> Option<(u32, Vec<(&'static str, f64)>, f64)> {
+    fn drain(&self) -> Option<RenderReport> {
         let mut tally = self.0.lock().ok()?;
         if tally.frames == 0 {
             return None;
@@ -283,10 +359,29 @@ impl RenderCost {
                 rows.push((set.name(), ms));
             }
         }
-        let counted = tally.frames;
+        let prepare = PREPARE_SETS
+            .iter()
+            .zip(tally.prepare.iter())
+            .map(|(set, elapsed)| (set.name(), elapsed.as_secs_f64() * 1000.0 / frames))
+            .collect();
+        let report = RenderReport {
+            frames: tally.frames,
+            rows,
+            prepare,
+            total,
+        };
         *tally = RenderTally::default();
-        Some((counted, rows, total))
+        Some(report)
     }
+}
+
+/// One drained render-world window: the top-level phase rows, the breakdown of
+/// `Prepare`, and the total the top-level rows sum to.
+struct RenderReport {
+    frames: u32,
+    rows: Vec<(&'static str, f64)>,
+    prepare: Vec<(&'static str, f64)>,
+    total: f64,
 }
 
 /// A stable label per render phase. `Debug` on the set would do, but this keeps
@@ -300,6 +395,7 @@ impl RenderSetName for RenderSystems {
     fn name(&self) -> &'static str {
         match self {
             RenderSystems::ExtractCommands => "ExtractCommands",
+            RenderSystems::PrepareAssets => "PrepareAssets",
             RenderSystems::PrepareMeshes => "PrepareMeshes",
             RenderSystems::CreateViews => "CreateViews",
             RenderSystems::Specialize => "Specialize",
@@ -307,6 +403,12 @@ impl RenderSetName for RenderSystems {
             RenderSystems::Queue => "Queue",
             RenderSystems::PhaseSort => "PhaseSort",
             RenderSystems::Prepare => "Prepare",
+            RenderSystems::PrepareResources => "Prepare/Resources",
+            RenderSystems::PrepareResourcesBatchPhases => "Prepare/BatchPhases",
+            RenderSystems::PrepareResourcesWritePhaseBuffers => "Prepare/WritePhaseBuffers",
+            RenderSystems::PrepareResourcesCollectPhaseBuffers => "Prepare/CollectPhaseBuffers",
+            RenderSystems::PrepareResourcesFlush => "Prepare/ResourcesFlush",
+            RenderSystems::PrepareBindGroups => "Prepare/BindGroups",
             RenderSystems::Render => "Render",
             RenderSystems::Cleanup => "Cleanup",
             other => {
@@ -378,7 +480,7 @@ fn report_when_due(
     rows.sort_by(|a, b| b.1.total_cmp(&a.1));
 
     let drained = render.drain();
-    let render_ms = drained.as_ref().map_or(0.0, |(_, _, total)| *total);
+    let render_ms = drained.as_ref().map_or(0.0, |report| report.total);
     let mut gpu_ms = 0.0;
     let mut passes: Vec<(&str, f64)> = Vec::new();
     let mut counts: Vec<(&str, f64)> = Vec::new();
@@ -421,12 +523,23 @@ fn report_when_due(
             ms / frame_ms * 100.0
         );
     }
-    if let Some((render_frames, render_rows, _)) = drained {
-        let mut render_rows = render_rows;
+    if let Some(report) = drained {
+        let render_frames = report.frames;
+        let mut render_rows = report.rows;
         render_rows.sort_by(|a, b| b.1.total_cmp(&a.1));
         for (name, ms) in &render_rows {
             info!(
                 "nova framecost render[{render_frames}]: {ms:>8.3}ms {:>5.1}%  {name}",
+                ms / frame_ms * 100.0
+            );
+        }
+        // Nested inside the `Prepare` row above, so these are printed under
+        // their own prefix and must never be added to the render total.
+        let mut prepare_rows = report.prepare;
+        prepare_rows.sort_by(|a, b| b.1.total_cmp(&a.1));
+        for (name, ms) in &prepare_rows {
+            info!(
+                "nova framecost prepare[{render_frames}]: {ms:>8.3}ms {:>5.1}%  {name}",
                 ms / frame_ms * 100.0
             );
         }

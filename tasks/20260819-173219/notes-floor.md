@@ -124,9 +124,25 @@ On the GPU, real display, every pass the device timed:
 | `main_transparent_pass_2d` | 0.002 |
 | **total** | **0.312** |
 
-`main_opaque_pass_3d` shades 1,014,720 fragments - 1.10x the window - in
-0.051 ms. That is the skybox, drawn as three vertices, and it is the ONLY 3D
-draw in the frame.
+`main_opaque_pass_3d` shades 1,014,720 fragments in 0.051 ms. That is the
+skybox, drawn as three vertices, and it is the ONLY 3D draw in the frame.
+
+> **CORRECTION, `notes-prepare.md`, 2026-08-20.** 1,014,720 is not 1.10x a
+> 720p window. It is 960 x 1057 EXACTLY - the size i3 gave this window when it
+> tiled it beside another one. `NOVA_PERF_RES` was applied at `Startup`, after
+> winit had already frozen the window's size hints, so on the real display it
+> was silently refused and every `DISPLAY=:0` figure on this page was taken at
+> the window manager's geometry rather than at 1280x720. The pixel count is
+> 1.10x, so the numbers themselves stand - fill binds nothing here, present is
+> 0.115 ms and every GPU pass sums to 0.312 ms - but the LABEL was wrong. The
+> capture now sizes the window before winit creates it and REFUSES a window a
+> WM re-sized (`ABORT_WINDOW_SIZE`).
+>
+> The Xvfb rows are unaffected: with no window manager the resize succeeded.
+> They had a different hazard - `wfc_ships` also ran `force_capture_resolution`
+> (1920x1080) in `Startup`, ambiguous with the probe's own write - and the
+> sweep's own internal consistency is what says the probe won that build: 4x
+> the pixels bought 4.4x the present, which 1080p would not have.
 
 ## 3. Fill-bound, CPU-bound or fixed - decided by the sweep
 
@@ -241,6 +257,15 @@ frame** - per-instance buffer writes and bind groups, on the CPU, in the render
 world. The GPU is 11% of the frame. That is the same axis `notes-ablation.md`
 found and the crack-bucket fix moved; it is still the axis.
 
+> **CORRECTION, `notes-prepare.md`, 2026-08-20.** The 4.20 ms row above is not
+> `PrepareMeshes`. `RenderPlugin` chains `PrepareAssets` between
+> `ExtractCommands` and `PrepareMeshes` without putting it in the top-level
+> chain, so the boundary marker that named only those two was AMBIGUOUS with
+> it and its time landed in whichever neighbour won the scheduler. Split out,
+> the same frame reads `PrepareAssets` 4.2 ms and `PrepareMeshes` 0.36 ms.
+> The 16.1 ms total is right and the conclusion is right; the name on the
+> second-largest item was not.
+
 ## 6. What this rules OUT, with the number
 
 - **Vsync / presentation mode.** Xvfb, empty scene: Immediate 17.32 ms, Mailbox
@@ -327,3 +352,22 @@ Two consequences to act on:
    afterwards read 3.03, 3.01 and 3.01. A capture host needs an offscreen or
    direct-scanout path that is neither, and until there is one, every absolute
    number needs repeats and a stated present mode.
+
+   > **CORRECTED, `notes-prepare.md`, 2026-08-20. It was not a compositor.**
+   > There is no compositor running on this host, and its output is 165 Hz, so
+   > 60 Hz was never its refresh. `WinitSettings::game` - which the capture set,
+   > and whose own comment claimed it "keeps the loop running flat out even
+   > when the window is unfocused" - holds an UNFOCUSED window at
+   > `reactive_low_power(1/60)`. Any capture whose window did not have focus was
+   > paced by bevy at 60 Hz.
+   >
+   > Reproduced on demand, empty gallery, same binary, same 1280x720 window:
+   > **3.37 ms focused, 16.66 and 16.68 ms not**, both reading `mean_fps=60.0`
+   > and `min≈5.2` - the same signature to two decimal places. The capture now
+   > sets `WinitSettings::continuous` and REFUSES anything else
+   > (`ABORT_UPDATE_THROTTLED`).
+   >
+   > This matters beyond one discarded reading: the diagnosis on this line is
+   > what made an unfocused window look like an environment problem nobody
+   > could fix, when it was one line of harness config. It is also why hidden
+   > workspaces looked unusable for measurement - see the job A verdict.

@@ -1,0 +1,20 @@
+# Paired interleaved A/B of the exhaust-material write guard (8a26ae31).
+# Two binaries alternated in one session, wfc_ships --ships 1, DISPLAY=:0,
+# 1280x720 verified, NOVA_PERF_MAX_DELTA=0.015625, present=immediate.
+pass,arm,mean_ms,min_ms,prepare_assets_ms
+1,base,10.100,7.802,1.494
+1,fixed,8.291,5.995,0.339
+2,base,10.567,7.987,1.522
+2,fixed,20.294,8.155,1.001
+3,base,24.247,9.028,2.168
+3,fixed,8.205,5.637,0.368
+4,base,11.451,7.506,1.813
+4,fixed,16.987,5.780,0.585
+5,base,24.863,7.486,4.056
+5,fixed,10.250,5.999,0.463
+6,base,22.358,8.678,4.867
+6,fixed,15.869,5.295,0.841
+7,base,34.201,7.953,5.166
+7,fixed,22.593,5.542,0.912
+8,base,32.284,7.865,5.299
+8,fixed,20.696,5.436,0.628

@@ -399,35 +399,48 @@ fn thruster_shader_update_system(
 ) {
     let seconds = time.elapsed_secs();
     for (material, &ChildOf(parent)) in &q_render {
+        let handle = &**material;
         let section = find_thruster_section(parent, &q_thruster, &q_child);
 
-        let Some(mut material) = materials.get_mut(&**material) else {
+        let wanted = match section {
+            // No section above it at all: the drive died and its art detached
+            // with the wreck, which still draws this cone. A dead drive is not
+            // burning, so the plume goes out rather than keeping the last value
+            // it was given. An inactive one is the same.
+            None => 0.0,
+            Some((_, _, true)) => 0.0,
+            // A drive that wears no plume effect, or is not hurt enough to show
+            // one, scales by exactly 1.0 - so this line is what an undamaged
+            // thruster always did.
+            Some((section, input, false)) => {
+                let damage = q_plume
+                    .get(section)
+                    .map_or(1.0, |level| plume_scale(level.0, seconds));
+                *input * damage
+            }
+        };
+
+        // READ first, and write only on a real change. `Assets::get_mut` marks
+        // the asset modified whether or not the value moves, and a modified
+        // material is re-extracted, re-uploaded and has its bind group rebuilt
+        // in the render world THAT FRAME. Writing the same number every frame
+        // therefore cost a frozen gallery a full material prepare pass per
+        // frame - measured at 1.1 ms of a 28 ms one-hull frame in
+        // `prepare_erased_assets`, plus its share of
+        // `prepare_material_bind_groups`.
+        let Some(current) = materials.get(handle) else {
             error!(
                 "thruster_shader_update_system: material for entity {:?} not found",
                 parent
             );
             continue;
         };
-
-        // No section above it at all: the drive died and its art detached with
-        // the wreck, which still draws this cone. A dead drive is not burning,
-        // so the plume goes out rather than keeping the last value it was given.
-        let Some((section, input, inactive)) = section else {
-            material.extension.thruster_input = 0.0;
-            continue;
-        };
-
-        if inactive {
-            material.extension.thruster_input = 0.0;
+        if current.extension.thruster_input == wanted {
             continue;
         }
-        // A drive that wears no plume effect, or is not hurt enough to show
-        // one, scales by exactly 1.0 - so this line is what an undamaged
-        // thruster always did.
-        let damage = q_plume
-            .get(section)
-            .map_or(1.0, |level| plume_scale(level.0, seconds));
-        material.extension.thruster_input = *input * damage;
+        if let Some(mut material) = materials.get_mut(handle) {
+            material.extension.thruster_input = wanted;
+        }
     }
 }
 

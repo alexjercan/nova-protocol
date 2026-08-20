@@ -427,7 +427,16 @@ fn main() -> bevy::app::AppExit {
         // Clean frames at the fleet's 16:9, dev overlays out of shot. The HUD
         // drops to cinematic only under capture: a hand-run keeps the level On
         // so grave/tilde still controls the combat instruments and chevrons.
-        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+        //
+        // The shot resolution stands down for a MEASURED run: the frame-time
+        // capture sizes the window before winit creates it, and a second
+        // Startup writer asking for 1920x1080 is ambiguous with it - and now
+        // refused outright, since a capture that is not the size it reports is
+        // comparable with nothing.
+        if !nova_probe::perf_armed() {
+            app.add_systems(Startup, force_capture_resolution);
+        }
+        app.add_systems(Startup, hide_dev_overlays);
         if capturing() {
             app.add_systems(Startup, hide_hud);
         }

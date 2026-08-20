@@ -15,8 +15,9 @@ pub mod prelude {
     pub use super::{
         capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
         nova_frametime, perf_armed, perf_param, resolve_git_sha, resolve_host, FrameTimePlugin,
-        PerfDriver, PerfReady, ReloadGate, ABORT_SIMULATION_STOPPED, CAPTURE_COLLECTOR,
-        DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
+        PerfDriver, PerfReady, ReloadGate, ABORT_REFRESH_CAPPED, ABORT_SIMULATION_STOPPED,
+        ABORT_UPDATE_THROTTLED, ABORT_WINDOW_SIZE, CAPTURE_COLLECTOR, DEFAULT_CAPTURE_FRAMES,
+        DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
     };
 }
 
@@ -27,7 +28,7 @@ use bevy::{
     render::renderer::RenderAdapterInfo,
     time::TimeSystems,
     window::{PresentMode, PrimaryWindow},
-    winit::WinitSettings,
+    winit::{UpdateMode, WinitSettings},
 };
 use nova_autopilot::completion::{self, HarnessCompletion};
 /// Environment variable that arms [`nova_frametime`] on native. Any value (even
@@ -122,6 +123,53 @@ pub const DEFAULT_CAPTURE_FRAMES: u32 = 900;
 /// Token the abort line carries when the simulation stopped inside the window.
 /// Shared with the host half, which scrapes the line out of the run log.
 pub const ABORT_SIMULATION_STOPPED: &str = "simulation_stopped";
+
+/// Token the abort line carries when the primary window was not the size the
+/// capture claims to have measured.
+///
+/// Frame cost is a function of window PIXELS, so a capture at the wrong size is
+/// not a noisy reading of the right one - it is a reading of a different scene
+/// that files itself under the requested resolution and is then compared
+/// against rows that are not comparable.
+pub const ABORT_WINDOW_SIZE: &str = "window_size";
+
+/// Token the abort line carries when the app would be paced by the winit
+/// update mode rather than by the frame.
+///
+/// Bevy's default [`WinitSettings::game`] throttles an UNFOCUSED window to
+/// 60 Hz, which is a plausible-looking frame time that belongs to the event
+/// loop. A capture may not be the thing that decides its own rate.
+pub const ABORT_UPDATE_THROTTLED: &str = "update_throttled";
+
+/// Token the abort line carries when the frame deltas collapsed onto a single
+/// period although the run named a presentation mode that must not block on
+/// refresh.
+///
+/// A refresh-capped capture reports the display's period, not the game's cost,
+/// and it reports it as a perfectly plausible number - which is the same
+/// failure shape as [`ABORT_SIMULATION_STOPPED`] and needs the same refusal.
+pub const ABORT_REFRESH_CAPPED: &str = "refresh_capped";
+
+/// Half-width of the band around the median that
+/// [`clustered_share`] counts samples in.
+const REFRESH_CAP_BAND: f64 = 0.05;
+
+/// Clustering at or above this share of the window is a period rather than a
+/// workload.
+///
+/// MEASURED, not chosen: on a 165 Hz output, `Fifo` captures of the empty
+/// gallery read 0.76 and 0.79 (and mean_fps 165.0 to three figures), while 34
+/// `Immediate` captures across ship counts 0 and 1 spread 0.03-0.44. The
+/// threshold sits in the gap with roughly equal headroom on both sides. A
+/// capped window is NOT a flat line - its own minimum ran 23% under the period
+/// - so a stricter share would miss the real thing while still passing every
+/// synthetic one.
+const REFRESH_CAP_SHARE: f64 = 0.60;
+
+/// Below this median the cluster cannot be a refresh period: no display
+/// refreshes above 250 Hz, so a window this tight and this fast is a scene
+/// that is genuinely cheap and genuinely steady, not a capped one.
+const REFRESH_CAP_MIN_MS: f64 = 4.0;
 
 /// Default forced primary-window resolution.
 pub const DEFAULT_RESOLUTION: (f32, f32) = (1280.0, 720.0);
@@ -463,6 +511,60 @@ fn simulation_running(virtual_time: Option<&Time<Virtual>>) -> bool {
     virtual_time.is_none_or(|time| !time.is_paused() && time.relative_speed() > 0.0)
 }
 
+/// The token [`parse_present_mode`] accepts for `mode`, so the log NAMES the
+/// mode in the same vocabulary the operator sets it with.
+fn present_name(mode: PresentMode) -> &'static str {
+    match mode {
+        PresentMode::Immediate => "immediate",
+        PresentMode::Mailbox => "mailbox",
+        PresentMode::Fifo => "fifo",
+        PresentMode::FifoRelaxed => "fifo_relaxed",
+        PresentMode::AutoVsync => "autovsync",
+        PresentMode::AutoNoVsync => "autonovsync",
+    }
+}
+
+/// Whether `mode` promises not to block on the display's refresh. Only these
+/// can be refresh-capped against their own request; `Fifo` and `AutoVsync` ARE
+/// the request.
+fn expects_no_vsync(mode: PresentMode) -> bool {
+    matches!(
+        mode,
+        PresentMode::Immediate | PresentMode::Mailbox | PresentMode::AutoNoVsync
+    )
+}
+
+/// The median delta and the share of deltas inside `+/- REFRESH_CAP_BAND` of
+/// it - how tightly the window collapsed onto one value.
+///
+/// A workload produces a distribution: the empty gallery's own p99 is 1.6x its
+/// median. A period produces a spike, because every frame waits for the same
+/// clock edge. Share rather than a percentile ratio because a capped run can
+/// still contain a handful of honest fast frames (one measured window held a
+/// 5.0 ms minimum under a 16.7 ms cap) and a ratio built on min or max reads
+/// those as spread.
+fn clustered_share(samples: &[f64]) -> (f64, f64) {
+    if samples.is_empty() {
+        return (0.0, 0.0);
+    }
+    let mut sorted = samples.to_vec();
+    sorted.sort_by(|a, b| a.total_cmp(b));
+    let median = sorted[sorted.len() / 2];
+    if median <= 0.0 {
+        return (median, 0.0);
+    }
+    let inside = sorted
+        .iter()
+        .filter(|ms| (*ms - median).abs() / median <= REFRESH_CAP_BAND)
+        .count();
+    (median, inside as f64 / sorted.len() as f64)
+}
+
+/// Whether this window reads as a refresh cap rather than a measurement.
+fn refresh_capped(mode: PresentMode, median: f64, share: f64) -> bool {
+    expects_no_vsync(mode) && median >= REFRESH_CAP_MIN_MS && share >= REFRESH_CAP_SHARE
+}
+
 /// Live capture state.
 #[derive(Resource)]
 struct PerfState {
@@ -529,10 +631,16 @@ impl Plugin for FrameTimePlugin {
         app.add_systems(FixedFirst, perf_tally_fixed_step);
         let force_render_scale = config.render_scale_override.is_some();
         let force_max_delta = config.max_delta_override.is_some();
+        apply_capture_window(app, &config);
         app.insert_resource(config);
-        // Continuous updates so an unfocused/headless window still runs flat out.
-        app.insert_resource(WinitSettings::game());
-        app.add_systems(Startup, perf_force_window);
+        // Continuous updates so an unfocused/headless window still runs flat
+        // out. NOT `WinitSettings::game()`, which this used to be and which
+        // does the opposite: its `unfocused_mode` is `reactive_low_power` at
+        // 60 Hz, so a capture whose window lost focus - moved to another
+        // workspace, covered, or simply never given focus - was paced by bevy
+        // at exactly 60 FPS and reported it as the scene's cost. Measured on
+        // the empty gallery: 3.37 ms focused, 16.67 ms and mean_fps=60.0 not.
+        app.insert_resource(WinitSettings::continuous());
         // Isolation knob: pin render_scale to the override every frame (it wins
         // over the tier's apply, which only runs on a quality change).
         if force_render_scale {
@@ -598,13 +706,23 @@ fn perf_watch_ready(world: &World) {
     }
 }
 
-/// Force the primary window to the capture resolution with vsync off, so every
-/// run measures the true per-frame cost at a known, comparable size.
-fn perf_force_window(
-    config: Res<PerfConfig>,
-    mut windows: Query<&mut Window, With<PrimaryWindow>>,
-) {
-    let Ok(mut window) = windows.single_mut() else {
+/// Configure the primary window for capture BEFORE winit creates it: the
+/// capture resolution, the named presentation mode, no resizing.
+///
+/// Build time rather than `Startup`, and the difference is not cosmetic. A
+/// reparenting window manager owns a window's geometry once it is mapped, and
+/// winit freezes `WM_NORMAL_HINTS` to the CURRENT size the moment `resizable`
+/// goes false - so a resize asked for after creation is one i3 simply refuses,
+/// while [`Window`] goes on reporting the size that was asked for. Measured:
+/// captures ran in a 1024x768 window and filed themselves as 1280x720, and a
+/// tiled one ran at whatever the workspace split gave it. Setting it here means
+/// the size hints, the surface and [`Window`] agree by construction, and any
+/// LATER disagreement is the window manager's - which is what
+/// [`ABORT_WINDOW_SIZE`] refuses.
+fn apply_capture_window(app: &mut App, config: &PerfConfig) {
+    let world = app.world_mut();
+    let mut windows = world.query_filtered::<&mut Window, With<PrimaryWindow>>();
+    let Ok(mut window) = windows.single_mut(world) else {
         return;
     };
     window
@@ -663,6 +781,11 @@ fn perf_capture(
     ready: Option<Res<PerfReadyRes>>,
     config: Res<PerfConfig>,
     adapter: Option<Res<RenderAdapterInfo>>,
+    // Read to VERIFY, never to set: `apply_capture_window` owns the size, and
+    // this is where the window manager gets to disagree with it. Optional for
+    // the same reason `GameStates` is - a bare `App` rig has neither.
+    windows: Query<&Window, With<PrimaryWindow>>,
+    winit: Option<Res<WinitSettings>>,
     mut gate: ResMut<ReloadGate>,
     mut state: ResMut<PerfState>,
     mut tally: ResMut<FixedStepTally>,
@@ -692,7 +815,27 @@ fn perf_capture(
         }
         Phase::Warmup => {
             if !simulation_running(virtual_time.as_deref()) {
-                abort_stopped(&config, &mut state, &mut completion, Phase::Warmup);
+                abort_capture(
+                    &config,
+                    &mut state,
+                    &mut completion,
+                    Phase::Warmup,
+                    ABORT_SIMULATION_STOPPED,
+                    STOPPED_DETAIL,
+                );
+                return;
+            }
+            if let Some((reason, detail)) =
+                environment_fault(&config, windows.single().ok(), winit.as_deref())
+            {
+                abort_capture(
+                    &config,
+                    &mut state,
+                    &mut completion,
+                    Phase::Warmup,
+                    reason,
+                    &detail,
+                );
                 return;
             }
             state.warmed += 1;
@@ -719,12 +862,70 @@ fn perf_capture(
             // run through is not a frame of this scene, and one of them in the
             // window is enough to make every statistic over it a fiction.
             if !simulation_running(virtual_time.as_deref()) {
-                abort_stopped(&config, &mut state, &mut completion, Phase::Capture);
+                abort_capture(
+                    &config,
+                    &mut state,
+                    &mut completion,
+                    Phase::Capture,
+                    ABORT_SIMULATION_STOPPED,
+                    STOPPED_DETAIL,
+                );
+                return;
+            }
+            if let Some((reason, detail)) =
+                environment_fault(&config, windows.single().ok(), winit.as_deref())
+            {
+                abort_capture(
+                    &config,
+                    &mut state,
+                    &mut completion,
+                    Phase::Capture,
+                    reason,
+                    &detail,
+                );
                 return;
             }
             state.samples.push(time.delta_secs_f64() * 1000.0);
             state.fixed_steps.push(fixed_steps);
             if state.samples.len() as u32 >= config.capture_frames {
+                let (median, share) = clustered_share(&state.samples);
+                let window = windows.single().ok();
+                info!(
+                    "nova perf: label={} validity present={} clustered={:.3} window={}",
+                    config.label,
+                    present_name(config.present_mode),
+                    share,
+                    window.map_or_else(
+                        || "none".to_string(),
+                        |w| format!(
+                            "{}x{} logical, {}x{} physical",
+                            w.resolution.width(),
+                            w.resolution.height(),
+                            w.resolution.physical_width(),
+                            w.resolution.physical_height()
+                        )
+                    ),
+                );
+                if refresh_capped(config.present_mode, median, share) {
+                    let detail = format!(
+                        "{:.1}% of the window sits within {:.0}% of a {median:.3} ms median, \
+                         which is a display period and not a workload. `{}` promises not to \
+                         block on refresh, so the surface fell back or a compositor is pacing \
+                         the swap chain. Measure on a path that can present freely.",
+                        share * 100.0,
+                        REFRESH_CAP_BAND * 100.0,
+                        present_name(config.present_mode),
+                    );
+                    abort_capture(
+                        &config,
+                        &mut state,
+                        &mut completion,
+                        Phase::Capture,
+                        ABORT_REFRESH_CAPPED,
+                        &detail,
+                    );
+                    return;
+                }
                 let stats = FrameStats::from_samples(&state.samples);
                 let steps = FixedStepStats::from_frames(&state.samples, &state.fixed_steps);
                 let meta = RunMeta::resolve(&config, adapter.as_deref());
@@ -739,19 +940,93 @@ fn perf_capture(
     }
 }
 
+/// What [`ABORT_SIMULATION_STOPPED`] tells the reader to do about it.
+const STOPPED_DETAIL: &str =
+    "Time<Virtual> was stopped (paused, or running at speed 0) inside the capture window. The \
+     scene reached an end - a result screen, a pause, an outcome overlay - and the frames after \
+     it draw a still picture at a plausible cost. Bound the window so it closes while the scene \
+     is still running, or measure a scene that cannot end inside it.";
+
+/// Every way the capture's ENVIRONMENT can quietly decide the number, checked
+/// once a frame from `Warmup` on so a bad run dies at its first frame instead
+/// of after the window has filled.
+///
+/// Each of these produces a steady, plausible reading of something that is not
+/// the game, which is why none of them can be left to a reader to notice.
+fn environment_fault(
+    config: &PerfConfig,
+    window: Option<&Window>,
+    winit: Option<&WinitSettings>,
+) -> Option<(&'static str, String)> {
+    if let Some(detail) = update_throttle_fault(winit) {
+        return Some((ABORT_UPDATE_THROTTLED, detail));
+    }
+    window_size_fault(config, window).map(|detail| (ABORT_WINDOW_SIZE, detail))
+}
+
+/// Whether anything but the frame decides how often the app updates, and what
+/// to say if so.
+///
+/// Checked rather than assumed because the probe does not own the app: an
+/// example that inserts its own [`WinitSettings`] after the capture plugin
+/// wins, and the setting that loses is invisible in the numbers - it just
+/// makes them 60.
+fn update_throttle_fault(settings: Option<&WinitSettings>) -> Option<String> {
+    let settings = settings?;
+    let unfocused = settings.update_mode(false);
+    let focused = settings.update_mode(true);
+    if matches!(unfocused, UpdateMode::Continuous) && matches!(focused, UpdateMode::Continuous) {
+        return None;
+    }
+    Some(format!(
+        "WinitSettings paces this app at focused={focused:?}, unfocused={unfocused:?}. Anything \
+         but Continuous on both makes the event loop, not the frame, decide the rate - bevy's \
+         own `WinitSettings::game()` holds an unfocused window at 60 Hz. Leave the capture's \
+         `WinitSettings::continuous()` in place."
+    ))
+}
+
+/// Whether the primary window is the size the capture claims to be measuring,
+/// and what to say if it is not.
+///
+/// The comparison is against the LOGICAL size, which is what the capture is
+/// configured in and what a window manager reports back through a resize
+/// event. Nothing resizes the window after creation
+/// ([`apply_capture_window`]), so a mismatch here has exactly one source: the
+/// window manager gave the window a different geometry.
+fn window_size_fault(config: &PerfConfig, window: Option<&Window>) -> Option<String> {
+    let window = window?;
+    let (want_w, want_h) = config.resolution;
+    let (got_w, got_h) = (window.resolution.width(), window.resolution.height());
+    if (got_w - want_w).abs() < 0.5 && (got_h - want_h).abs() < 0.5 {
+        return None;
+    }
+    Some(format!(
+        "the primary window is {got_w}x{got_h} and the capture is configured for \
+         {want_w}x{want_h}. Frame cost is a function of window PIXELS, so this run would file a \
+         reading of one size under another. A tiling window manager sizes a window from its \
+         layout: float the measured window (its class is `{}`) or measure where nothing \
+         reparents it.",
+        nova_core::MEASURE_WINDOW_CLASS,
+    ))
+}
+
 /// Refuse the window and say so at ERROR, loudly enough that no reader has to
 /// infer it from a plausible mean.
 ///
 /// It writes NO stats. A contaminated capture that emitted a row would be
-/// averaged into a repeat set by a gate built for outliers, and a stopped
-/// simulation is not an outlier: it draws the same scene at a steady cost, so
-/// the mean it produces looks exactly like an honest one. Discarding the
-/// capture is the only reading that is true.
-fn abort_stopped(
+/// averaged into a repeat set by a gate built for outliers, and none of these
+/// faults is an outlier: a stopped simulation draws the same scene at a steady
+/// cost, a refresh cap holds a steady period, and a mis-sized window is
+/// steadily the wrong scene. Each produces a mean that looks exactly like an
+/// honest one. Discarding the capture is the only reading that is true.
+fn abort_capture(
     config: &PerfConfig,
     state: &mut PerfState,
     completion: &mut HarnessCompletion,
     phase: Phase,
+    reason: &str,
+    detail: &str,
 ) {
     let frame = match phase {
         Phase::Capture => state.samples.len(),
@@ -759,12 +1034,8 @@ fn abort_stopped(
     };
     state.phase = Phase::Aborted;
     error!(
-        "nova perf: label={} ABORTED reason={ABORT_SIMULATION_STOPPED} phase={} frame={frame} \
-         warmup={} frames={} - Time<Virtual> was stopped (paused, or running at speed 0) \
-         inside the capture window. The scene reached an end - a result screen, a pause, an \
-         outcome overlay - and the frames after it draw a still picture at a plausible cost. \
-         No stats were written: bound the window so it closes while the scene is still \
-         running, or measure a scene that cannot end inside it.",
+        "nova perf: label={} ABORTED reason={reason} phase={} frame={frame} warmup={} \
+         frames={} - {detail} No stats were written.",
         config.label,
         phase.token(),
         config.warmup_frames,
@@ -1045,6 +1316,141 @@ mod tests {
         app.world_mut().resource_mut::<Time<Virtual>>().pause();
         app.update();
         assert_eq!(app.world().resource::<PerfState>().phase, Phase::Aborted);
+    }
+
+    /// Frame deltas as a display period hands them out, shaped like the ones
+    /// MEASURED under `Fifo` on a 165 Hz output rather than like an idealised
+    /// flat line: a fifth of the window sits outside the band, including a
+    /// minimum 23% under the period. A synthetic cap that is cleaner than the
+    /// real thing would pass a threshold the real thing fails.
+    fn capped_window(period: f64, frames: usize) -> Vec<f64> {
+        (0..frames)
+            .map(|i| {
+                if i % 50 == 0 {
+                    period * 0.77
+                } else if i % 25 == 0 {
+                    period * 1.15
+                } else if i % 5 == 0 {
+                    period * 1.08
+                } else {
+                    period + (f64::from(i as u32 % 7) - 3.0) * 0.004
+                }
+            })
+            .collect()
+    }
+
+    /// Frame deltas with the shape a real uncapped window has - the empty
+    /// gallery's own, median 2.95 ms with a p99 of 5.7.
+    fn free_window(frames: usize) -> Vec<f64> {
+        (0..frames)
+            .map(|i| 2.5 + f64::from(i as u32 % 13) * 0.25)
+            .collect()
+    }
+
+    #[test]
+    fn a_window_that_collapsed_onto_one_period_is_a_refresh_cap_not_a_measurement() {
+        let (median, share) = clustered_share(&capped_window(6.06, 200));
+        assert!(
+            (median - 6.06).abs() < 0.05,
+            "median is the period: {median}"
+        );
+        assert!(
+            (0.75..0.85).contains(&share),
+            "the synthetic cap keeps the measured shape: {share}"
+        );
+        assert!(refresh_capped(PresentMode::Immediate, median, share));
+        assert!(refresh_capped(PresentMode::AutoNoVsync, median, share));
+    }
+
+    #[test]
+    fn a_capped_window_under_fifo_is_the_mode_the_operator_asked_for() {
+        let (median, share) = clustered_share(&capped_window(16.67, 200));
+        assert!(share > REFRESH_CAP_SHARE);
+        assert!(!refresh_capped(PresentMode::Fifo, median, share));
+        assert!(!refresh_capped(PresentMode::AutoVsync, median, share));
+    }
+
+    #[test]
+    fn a_window_with_an_ordinary_workload_spread_is_never_refused() {
+        let (median, share) = clustered_share(&free_window(200));
+        assert!(share < REFRESH_CAP_SHARE, "a workload spreads: {share}");
+        assert!(!refresh_capped(PresentMode::Immediate, median, share));
+
+        // Same spread scaled up past the fast-frame guard, so the refusal is
+        // not passing only because the scene is cheap.
+        let heavy: Vec<f64> = free_window(200).iter().map(|ms| ms * 10.0).collect();
+        let (median, share) = clustered_share(&heavy);
+        assert!(median > REFRESH_CAP_MIN_MS);
+        assert!(!refresh_capped(PresentMode::Immediate, median, share));
+    }
+
+    #[test]
+    fn a_window_manager_sizing_the_window_for_us_is_a_fault_the_capture_names() {
+        let config = PerfConfig {
+            warmup_frames: 1,
+            capture_frames: 1,
+            label: "test".into(),
+            out_dir: None,
+            resolution: DEFAULT_RESOLUTION,
+            render_scale_override: None,
+            max_delta_override: None,
+            present_mode: PresentMode::Immediate,
+        };
+        let mut window = Window::default();
+        window.resolution.set(1280.0, 720.0);
+        assert_eq!(window_size_fault(&config, Some(&window)), None);
+
+        // What i3 gives a tiled window on a 1920x1080 output split in two.
+        window.resolution.set(960.0, 1057.0);
+        let fault = window_size_fault(&config, Some(&window)).expect("a mis-sized window faults");
+        assert!(
+            fault.contains("960"),
+            "the fault names what it got: {fault}"
+        );
+        assert!(fault.contains("1280"), "and what it wanted: {fault}");
+
+        // A headless rig has no window to disagree with.
+        assert_eq!(window_size_fault(&config, None), None);
+    }
+
+    /// Both environment faults, through the real state machine rather than
+    /// through the predicate alone: the check has to be REACHED, and a capture
+    /// that keeps sampling past one measures the wrong thing quietly.
+    #[test]
+    fn an_environment_fault_aborts_the_capture_where_it_stands() {
+        for (label, settings, size) in [
+            ("throttled", WinitSettings::game(), (1280.0, 720.0)),
+            ("mis-sized", WinitSettings::continuous(), (960.0, 1057.0)),
+        ] {
+            let mut app = armed_app(2, 100);
+            app.insert_resource(settings);
+            let mut window = Window::default();
+            window.resolution.set(size.0, size.1);
+            app.world_mut().spawn((window, PrimaryWindow));
+            for _ in 0..3 {
+                app.update();
+            }
+            let state = app.world().resource::<PerfState>();
+            assert_eq!(state.phase, Phase::Aborted, "{label} must be refused");
+            assert!(state.samples.is_empty(), "{label} wrote no samples");
+        }
+    }
+
+    /// ... and the same rig with neither fault runs to completion, so the
+    /// refusals above are the checks firing rather than the rig failing.
+    #[test]
+    fn a_correctly_sized_window_on_a_continuous_loop_still_completes() {
+        let mut app = armed_app(1, 3);
+        app.insert_resource(WinitSettings::continuous());
+        let mut window = Window::default();
+        window
+            .resolution
+            .set(DEFAULT_RESOLUTION.0, DEFAULT_RESOLUTION.1);
+        app.world_mut().spawn((window, PrimaryWindow));
+        for _ in 0..6 {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<PerfState>().phase, Phase::Done);
     }
 
     /// The ordinary path still closes: an unstopped window fills and emits.

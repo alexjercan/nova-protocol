@@ -1,0 +1,7 @@
+# nova_probe census, wfc_ships gallery, taken 90 frames after the row stands.
+# Deterministic: one run per ship count is the whole measurement.
+ships,entities,mesh_instances,distinct_meshes,mesh_assets,standard_material_assets,image_assets
+0,1175,0,0,15,10,39
+1,3472,986,120,130,74,39
+2,6544,2211,195,205,126,39
+3,9361,3423,242,252,152,39

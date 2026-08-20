@@ -185,14 +185,26 @@ fn main() -> bevy::app::AppExit {
         // one. Declaring only when armed keeps `probe run` unchanged and still
         // writes the artifact the sweep reads.
         if nova_probe::perf_armed() {
-            app.add_plugins(nova_probe::nova_frametime().window(90, 200));
+            app.add_plugins(
+                nova_probe::nova_frametime()
+                    .window(90, 200)
+                    .ready_when(row_is_standing()),
+            );
         }
         // Clean frames at the fleet's known 16:9, dev overlays out of shot.
         // The HUD drops to cinematic only under capture: a hand-run keeps the
         // level On so grave/tilde round-trips the readout with the rest of
         // the HUD. The seed readout is NOT HUD-tier and stays in every
         // capture - it is what makes a frame reproducible.
-        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+        // The shot resolution stands down for a MEASURED run: the frame-time
+        // capture sizes the window before winit creates it, and a second
+        // Startup writer asking for 1920x1080 is both ambiguous with it and
+        // refused by the window manager afterwards, which left the two
+        // disagreeing about what had been measured.
+        if !nova_probe::perf_armed() {
+            app.add_systems(Startup, force_capture_resolution);
+        }
+        app.add_systems(Startup, hide_dev_overlays);
         if capturing() {
             app.add_systems(Startup, hide_hud);
         }
@@ -213,13 +225,64 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
+/// Frames the drawable count must hold still before the row counts as built.
+#[cfg(feature = "debug")]
+const ROW_STEADY_FRAMES: u32 = 90;
+
+/// Hold a frame-time capture until the row has finished BUILDING.
+///
+/// The capture's warm-up is counted in frames from `Playing`, and a
+/// loading-screen frame costs under 2 ms - so the declared 90 of them are
+/// 0.16 s, and the window opened on a row that was still spawning and still
+/// compiling pipelines. Consecutive captures of one seed read 9.9 ms and
+/// 30.1 ms depending on where in that build the window happened to land.
+///
+/// The predicate is "the drawable count stopped moving" rather than a ship
+/// count, because the SKIN is derived from the structure after it spawns: the
+/// last thing to settle is how many meshes there are, and that is the thing
+/// that costs. `Playing` is required inside the predicate as well as outside
+/// it, so an empty stand - which is legitimately steady at zero - cannot open
+/// the gate while the loading screen is still up.
+#[cfg(feature = "debug")]
+fn row_is_standing() -> impl Fn(&World) -> bool + Send + Sync + 'static {
+    use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+
+    let last = AtomicUsize::new(usize::MAX);
+    let steady = AtomicU32::new(0);
+    move |world: &World| {
+        let playing = world
+            .get_resource::<State<GameStates>>()
+            .is_some_and(|state| *state.get() == GameStates::Playing);
+        if !playing {
+            steady.store(0, Ordering::Relaxed);
+            return false;
+        }
+        let drawables = world
+            .iter_entities()
+            .filter(|entity| entity.contains::<Mesh3d>())
+            .count();
+        if last.swap(drawables, Ordering::Relaxed) == drawables {
+            steady.fetch_add(1, Ordering::Relaxed) + 1 >= ROW_STEADY_FRAMES
+        } else {
+            steady.store(0, Ordering::Relaxed);
+            false
+        }
+    }
+}
+
 fn wfc_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
     app.insert_resource(roster);
     app.insert_resource(requested);
     // Enabled only for a hand-run: a capture composes its own frame, and an
     // orbit under it would photograph a different attitude every run - the
     // exact defect `freeze_bodies` exists to stop.
-    app.insert_resource(IdleOrbit::new(!capturing()));
+    //
+    // A frame-time capture is a capture in the way that matters here, and
+    // `capturing()` (NOVA_CAPTURE, the screenshot arm) does not cover it. The
+    // orbit made the measured attitude a function of load time: consecutive
+    // captures of the same seed read 9.9 ms and 30.1 ms.
+    let composed = capturing() || std::env::var_os(nova_core::PERF_ENV).is_some();
+    app.insert_resource(IdleOrbit::new(!composed));
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_row);
     app.add_systems(
         Update,
