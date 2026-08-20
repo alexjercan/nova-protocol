@@ -1,9 +1,8 @@
 //! CargoA semantic parts, prototype catalog entries, and assembly.
 //!
 //! The cargoa is the campaign's light fighter - the corvette. Its wide pods
-//! carry the two PDC turrets on their forward shoulders (the cargob's mount
-//! grammar), so player and raider corvettes read as the armed-hauler lineage
-//! the gunship caps.
+//! give it the armed-hauler lineage the gunship caps, and the two PDC turrets
+//! mate to the nose cheeks rather than the pods, so both bear across the bow.
 
 use nova_scenario::prelude::*;
 use nova_ship::prelude::SectionConfig;
