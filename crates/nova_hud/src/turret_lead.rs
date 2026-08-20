@@ -80,8 +80,7 @@ fn turret_lead_pip(turret: Entity) -> impl Bundle {
 /// Keeps one lead pip per player turret at its published intercept point,
 /// hot-shifting them to lock-red while the weapons are hot.
 /// Runs `sync_turret_pips`, `drive_pip_anchors` and `drive_pip_hot_tint`
-/// (chained) in PostUpdate after `TurretSectionAimSystems` and before
-/// `ScreenIndicatorSystems`.
+/// (chained) in PostUpdate, before `ScreenIndicatorSystems`.
 #[derive(Default)]
 pub struct TurretLeadPlugin;
 
@@ -89,10 +88,13 @@ impl Plugin for TurretLeadPlugin {
     fn build(&self, app: &mut App) {
         trace!("TurretLeadPlugin: build");
 
-        // NOTE: the pips consume THIS frame's intercept - after the PostUpdate
-        // aim chain publishes it, before the indicator projection places the
-        // nodes. In Update the pip was always one frame behind the solution,
-        // jittering against a moving target.
+        // NOTE: the pips read the intercept the aim chain last published, then
+        // the projection places the nodes in the same PostUpdate. The aim chain
+        // is on the FIXED clock, because the gun it steers fires there, so
+        // above 64 Hz the pip can be one tick old - bounded at 15.6 ms, where
+        // the render clock bounded it at one frame and got WORSE as the machine
+        // struggled. The edge below is kept so the pip still cannot run before
+        // a same-frame solve on a slow host.
         app.add_systems(
             PostUpdate,
             (sync_turret_pips, drive_pip_anchors, drive_pip_hot_tint)

@@ -20,10 +20,12 @@
 //!   the thing the broad phase actually carries.
 //!
 //! Both are overridable per run ([`scale_param`]) so the case can be swept
-//! across scales in one build without moving what it asserts. A third knob,
-//! `NOVA_STRESS_PD_VIEW`, moves the camera ([`View`]): what is inside the
-//! frustum is drawn and what is outside it is not, so the pose is part of what
-//! a capture measured.
+//! across scales in one build without moving what it asserts. Two further
+//! knobs measure rather than scale: `NOVA_STRESS_PD_VIEW` moves the camera
+//! ([`View`]), because what is inside the frustum is drawn and what is outside
+//! it is not; `NOVA_STRESS_PD_FRAME_MS` ([`frame_floor_ms`]) holds each frame
+//! open, which turns any box into a slow one and is how the counts below are
+//! shown not to follow the frame rate.
 //!
 //! What it claims, beside the frame time:
 //!
@@ -124,6 +126,40 @@ fn mounts() -> usize {
 fn bays() -> usize {
     static CACHED: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     *CACHED.get_or_init(|| scale_param("BAYS", TORPEDO_BAYS))
+}
+
+/// Floor on how long one frame takes, in milliseconds
+/// (`NOVA_STRESS_PD_FRAME_MS`, 0 = free-running).
+///
+/// A MEASUREMENT knob, and the INSTRUMENT for frame-rate invariance: a slow
+/// host is a long frame, so pacing the frame from inside the range reproduces
+/// one on any box. The point-defence chain must land the same COUNTS at 8 ms
+/// and at 33 ms a frame; a count that tracks this knob is a system deciding on
+/// the render clock and spending on the physics clock.
+///
+/// It is a floor, not a cap: a frame that already overruns is left alone, so
+/// the knob only ever makes the run slower and never hides real cost.
+fn frame_floor_ms() -> u64 {
+    static CACHED: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+    *CACHED.get_or_init(|| {
+        std::env::var("NOVA_STRESS_PD_FRAME_MS")
+            .ok()
+            .and_then(|raw| raw.parse::<u64>().ok())
+            .unwrap_or(0)
+    })
+}
+
+/// Hold each frame open to [`frame_floor_ms`], so the run reads as a host of
+/// that speed. Registered in `Last`, after everything the frame does.
+fn pace_the_frame(mut last: Local<Option<std::time::Instant>>) {
+    let floor = std::time::Duration::from_millis(frame_floor_ms());
+    let now = std::time::Instant::now();
+    if let Some(start) = *last {
+        if let Some(remaining) = floor.checked_sub(now.duration_since(start)) {
+            std::thread::sleep(remaining);
+        }
+    }
+    *last = Some(std::time::Instant::now());
 }
 
 /// Where the scenario camera stands, and what it frames.
@@ -275,33 +311,35 @@ const DRAIN_DEADLINE_SECS: f32 = 60.0;
 /// is set at two thirds of that, because point defence removes some of them and
 /// how many is the thing being measured.
 ///
-/// This gate also opens the capture window, so it is deliberately NOT tuned to
-/// the measured yield: it is what makes the window start on a saturated scene.
-/// The cost is that it bounds the sweep. Measured yield falls as the battery
-/// outguns the launcher - 7.0 a bay at four mounts, 6.0-6.3 at twelve, 6.25 at
-/// twelve mounts against four bays - so `NOVA_STRESS_PD_MOUNTS=24` against
-/// twelve bays never fills the envelope at all and stalls on the step deadline.
-/// Sweeping mounts UP means raising bays with them.
+/// This gate also opens the capture window, so it is what makes the window
+/// start on a saturated scene. The cost is that it bounds the sweep: measured
+/// yield falls as the battery outguns the launcher, so
+/// `NOVA_STRESS_PD_MOUNTS=24` against twelve bays never fills the envelope at
+/// all and stalls on the step deadline. Sweeping mounts UP means raising bays
+/// with them.
+///
+/// FOUR, not six. Six was drawn against a battery that only held its trigger a
+/// third of the time because its barrel advanced on the render clock; a battery
+/// that works kills enough of the stream that twelve bays settle at 5.0-5.6 a
+/// bay and the old gate is unreachable at any frame rate. The floor keeps a 25%
+/// margin under the measured settle.
 #[cfg(feature = "debug")]
-const INBOUND_PER_BAY: usize = 6;
+const INBOUND_PER_BAY: usize = 4;
 
 /// The scale claim on the ROUNDS: how many have to be in the sky at once, per
 /// mount.
 ///
 /// A PDC fires 100 rounds/s with a 2 s round lifetime, so a mount that holds its
-/// trigger down saturates at ~200. What the battery actually reaches is a
-/// FRACTION of that, and the fraction is set by the HOST: the trigger is decided
-/// once per frame (the point-defence chain runs in `Update`) and spent per fixed
-/// step (`shoot_spawn_projectile` runs in `FixedUpdate`), so a free-running host
-/// buys a different number of steps per decision every run. Measured over 16
-/// captures on one machine and one build, the peak at twelve mounts spans 708 to
-/// 2425 - a 3.4x band around any floor drawn as a fixed share of 200.
+/// trigger down saturates at ~200. What the battery actually reaches is the
+/// FRACTION of the time its barrels bear, and that fraction no longer depends on
+/// the host: the whole gun - assignment, intercept solve, hinge, joint pose and
+/// spawner - runs on the fixed clock, so a run buys the same number of decisions
+/// per second of SIMULATED time whatever the frame rate.
 ///
-/// So the floor is drawn under the WORST measured yield rather than from the
-/// theoretical rate: 59 rounds a mount, free-running. Pinning one fixed step per
-/// frame (`NOVA_PERF_MAX_DELTA=0.015625`) collapses the same band to 2236-2401,
-/// which is what a capture that wants a comparable load has to do; this floor
-/// has to hold without it, because the correctness pass never sets it.
+/// The floor is kept LOOSE against the measured yield on purpose. It is a scale
+/// claim - "the battery reached a load worth measuring" - not a yield
+/// regression, and a floor drawn tight against one machine's number would fail
+/// on a scene the owner deliberately rebalanced.
 #[cfg(feature = "debug")]
 const ROUNDS_PER_MOUNT: usize = 40;
 
@@ -332,11 +370,17 @@ fn main() -> bevy::app::AppExit {
         })
         .build();
 
+    if frame_floor_ms() > 0 {
+        app.add_systems(Last, pace_the_frame);
+    }
+
     #[cfg(feature = "debug")]
     {
         app.init_resource::<Peaks>();
-        app.add_systems(Update, track_peaks);
+        app.add_systems(Update, (track_peaks, trace_the_census).chain());
+        app.add_systems(FixedUpdate, track_trigger_duty);
         app.add_observer(count_intercepts);
+        app.add_observer(count_rounds_fired);
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // Both hulls are spawned by an OnStart handler, so waiting for
@@ -358,11 +402,12 @@ fn main() -> bevy::app::AppExit {
                 // so the range measures the computer's own chain rather than a
                 // held trigger.
                 .step("open the tubes")
-                .on_enter(|world: &mut World| world.resource_mut::<TubesOpen>().0 = true)
+                .on_enter(open_the_tubes)
                 .until(the_envelope_is_full())
                 .deadline(FILL_DEADLINE_SECS)
                 .add()
                 .step("hold the saturation")
+                .on_enter(mark_the_envelope_full)
                 .until(frames(hold_frames()))
                 .add()
                 .step("assert the range reached its scale")
@@ -677,6 +722,46 @@ struct Peaks {
     colliders: usize,
     /// Torpedoes the battery shot down this cycle.
     intercepts: usize,
+    /// Rounds the battery SPENT this cycle, counted at spawn.
+    ///
+    /// The peak above is a high-water mark sampled per FRAME, so it reads
+    /// higher on a host that samples more often; this is a spawn tally and
+    /// carries no such artefact. Rounds per second of SIMULATED time and hits
+    /// per round are both derived from it, and they are what separate "the
+    /// battery shot more" from "the battery aimed better".
+    fired: usize,
+    /// Frames the range has run. Divided by simulated seconds it IS the frame
+    /// rate, which is the independent variable every count here is graded
+    /// against.
+    frames: usize,
+    /// Simulated seconds elapsed when the tubes opened, and when the envelope
+    /// filled: the fill is the range's own frame-rate canary.
+    tubes_open_secs: f32,
+    full_secs: f32,
+    /// [`Peaks::frames`] when the tubes opened, so every rate below is measured
+    /// over the ENGAGED window rather than diluted by the load and the warm-up.
+    open_frames: usize,
+    /// Fixed steps the range has run, and the mount-steps the battery held its
+    /// trigger down for.
+    ///
+    /// The DISCRIMINATING pair. Rounds are spent per fixed step, so
+    /// `fired / steps` is the quantity a frame rate must not move. Splitting it
+    /// by the trigger tally says WHICH gate moved it: a duty cycle that tracks
+    /// the frame rate is the `Update`-side trigger, and a flat duty cycle with
+    /// a frame-rate-dependent `fired / trigger_mount_steps` is the barrel's own
+    /// bearing gate inside the fixed-step spawner.
+    steps: usize,
+    trigger_mount_steps: usize,
+    open_steps: usize,
+    /// Summed [`muzzle_aim_error`] (degrees) over every engaged mount-step, and
+    /// the sample count.
+    ///
+    /// The ROOT reading. A mount fires only inside [`TURRET_ON_TARGET_RAD`]
+    /// (0.92 deg), so the mean tracking residual beside that number says
+    /// whether the battery is gated by geometry or by cadence - and whether the
+    /// residual moves with the frame rate, which is the defect itself.
+    aim_error_sum: f64,
+    aim_samples: usize,
 }
 
 /// Track the high-water marks. A cheap census per frame, which is what it takes
@@ -690,6 +775,7 @@ fn track_peaks(
     q_colliders: Query<(), With<Collider>>,
     mut peaks: ResMut<Peaks>,
 ) {
+    peaks.frames += 1;
     if let Ok(defender) = q_defender.single() {
         let inbound = q_torpedoes
             .iter()
@@ -706,12 +792,82 @@ fn track_peaks(
     peaks.colliders = peaks.colliders.max(q_colliders.iter().count());
 }
 
+/// Trace the census once a simulated second, so a run that never reaches its
+/// assertions still says what it was doing. A stalled fill is exactly the
+/// frame-rate symptom, and it aborts before any marker is written.
+///
+/// `debug!`, so a normal run stays quiet: reach it with
+/// `RUST_LOG=info,stress_point_defense=debug`.
+#[cfg(feature = "debug")]
+fn trace_the_census(time: Res<Time<Virtual>>, peaks: Res<Peaks>, mut next: Local<f32>) {
+    let now = time.elapsed_secs();
+    if now < *next {
+        return;
+    }
+    *next = now + 1.0;
+    let aim = peaks.aim_error_sum / peaks.aim_samples.max(1) as f64;
+    debug!(
+        "stress_point_defense: t={now:.1} inbound_peak={} intercepts={} fired={} frames={} \
+         steps={} trigger_mount_steps={} aim_err_deg={aim:.3}",
+        peaks.inbound,
+        peaks.intercepts,
+        peaks.fired,
+        peaks.frames,
+        peaks.steps,
+        peaks.trigger_mount_steps
+    );
+}
+
+/// Census the battery's trigger on the FIXED clock, which is the clock the
+/// rounds are actually spent on.
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per gate the census reads"
+)]
+#[cfg(feature = "debug")]
+fn track_trigger_duty(
+    q_mounts: Query<
+        (
+            &TurretSectionInput,
+            &TurretDefenseTarget,
+            &TurretSectionAimPoint,
+            &TurretSectionMuzzleEntity,
+        ),
+        With<PointDefenseMount>,
+    >,
+    q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
+    mut peaks: ResMut<Peaks>,
+) {
+    peaks.steps += 1;
+    for (input, assignment, aim_point, muzzle) in &q_mounts {
+        if **input {
+            peaks.trigger_mount_steps += 1;
+        }
+        // Only ENGAGED mounts: an unassigned mount points wherever it was left
+        // and its error is not a tracking residual.
+        let (Some(_), Some(aim), Ok(muzzle)) = (**assignment, **aim_point, q_muzzle.get(**muzzle))
+        else {
+            continue;
+        };
+        peaks.aim_error_sum += f64::from(
+            muzzle_aim_error(muzzle.forward().into(), muzzle.translation(), aim).to_degrees(),
+        );
+        peaks.aim_samples += 1;
+    }
+}
+
 /// Count every torpedo the battery kills. An observer rather than a census: the
 /// marker lives for one schedule pass before the reaper removes the torpedo, so
 /// a per-frame count would miss most of them.
 #[cfg(feature = "debug")]
 fn count_intercepts(_shot_down: On<Add, TorpedoShotDownMarker>, mut peaks: ResMut<Peaks>) {
     peaks.intercepts += 1;
+}
+
+/// Tally every round the battery spends, at the frame it is spawned.
+#[cfg(feature = "debug")]
+fn count_rounds_fired(_fired: On<Add, TurretBulletProjectileMarker>, mut peaks: ResMut<Peaks>) {
+    peaks.fired += 1;
 }
 
 /// How many point-defence rounds are alive right now.
@@ -882,18 +1038,56 @@ fn assert_the_mounts_were_working(world: &mut World) {
 /// measure two thirds of the chain while reading as if it measured all of it.
 #[cfg(feature = "debug")]
 fn assert_the_battery_connected(world: &mut World) {
-    let intercepts = world.resource::<Peaks>().intercepts;
+    let now = world.resource::<Time<Virtual>>().elapsed_secs();
+    let peaks = world.resource::<Peaks>();
+    let (intercepts, fired, opened) = (peaks.intercepts, peaks.fired, peaks.tubes_open_secs);
+    let fill = peaks.full_secs - opened;
+    let frames = peaks.frames - peaks.open_frames;
+    let steps = (peaks.steps - peaks.open_steps).max(1);
+    let trigger_mount_steps = peaks.trigger_mount_steps;
     assert!(
         intercepts > 0,
         "stress_point_defense: the battery shot nothing down - the chain aimed \
          and fired but never connected"
     );
+    // Per SIMULATED second and per ROUND, because both are what a frame rate
+    // must not move. A wall-clock rate would only restate how fast the box ran.
+    let engaged = (now - opened).max(f32::EPSILON);
+    let rounds_per_sec = fired as f32 / engaged;
+    let hits_per_round = intercepts as f32 / fired.max(1) as f32;
+    let fps = frames as f32 / engaged;
+    let rounds_per_step = fired as f32 / steps as f32;
+    let duty = trigger_mount_steps as f32 / (steps * mounts()) as f32;
+    let frames_per_step = frames as f32 / steps as f32;
+    let aim_error_deg = peaks.aim_error_sum / peaks.aim_samples.max(1) as f64;
     nova_probe::probe_marker(
         world,
         "outcome: the battery shot torpedoes down",
-        serde_json::json!({ "intercepts": intercepts }),
+        serde_json::json!({
+            "intercepts": intercepts,
+            "fired": fired,
+            "engaged_secs": engaged,
+            "rounds_per_sec": rounds_per_sec,
+            "hits_per_round": hits_per_round,
+            "fill_secs": fill,
+            "fps": fps,
+            "rounds_per_step": rounds_per_step,
+            "trigger_duty": duty,
+            "frames_per_step": frames_per_step,
+            "aim_error_deg": aim_error_deg,
+        }),
     );
-    info!("stress_point_defense: {intercepts} torpedoes shot down");
+    info!(
+        "stress_point_defense: {intercepts} torpedoes shot down, {fired} rounds spent over \
+         {engaged:.1} s ({rounds_per_sec:.0} rounds/s, {hits_per_round:.4} hits/round), \
+         fill {fill:.1} s, {fps:.0} fps"
+    );
+    info!(
+        "stress_point_defense: {frames_per_step:.2} frames/step, {rounds_per_step:.2} \
+         rounds/step, trigger duty {duty:.3}, mean aim error {aim_error_deg:.3} deg (gate \
+         {:.3} deg)",
+        TURRET_ON_TARGET_RAD.to_degrees()
+    );
 }
 
 /// The scale claim on the ROUNDS, and the one the projectile broad phase is
@@ -921,6 +1115,29 @@ fn assert_the_sky_filled(world: &mut World) {
         }),
     );
     info!("stress_point_defense: peak {peak} rounds in the sky, {colliders} colliders");
+}
+
+/// Open the tubes, and stamp the simulated clock the fill starts on.
+#[cfg(feature = "debug")]
+fn open_the_tubes(world: &mut World) {
+    world.resource_mut::<TubesOpen>().0 = true;
+    let now = world.resource::<Time<Virtual>>().elapsed_secs();
+    let mut peaks = world.resource_mut::<Peaks>();
+    peaks.tubes_open_secs = now;
+    peaks.open_frames = peaks.frames;
+    peaks.open_steps = peaks.steps;
+}
+
+/// Stamp the simulated clock the envelope filled on. The FILL is the range's
+/// own frame-rate canary: it is the launch rate against the intercept rate, so
+/// a chain that defends better on a faster host takes visibly longer here.
+#[cfg(feature = "debug")]
+fn mark_the_envelope_full(world: &mut World) {
+    let now = world.resource::<Time<Virtual>>().elapsed_secs();
+    let mut peaks = world.resource_mut::<Peaks>();
+    peaks.full_secs = now;
+    let fill = now - peaks.tubes_open_secs;
+    info!("stress_point_defense: the envelope filled in {fill:.1} s of simulated time");
 }
 
 /// Close the tubes. Nothing else stops the launcher: it has no controller, so

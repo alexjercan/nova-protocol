@@ -292,6 +292,14 @@ Which schedule:
   `Transform`/`GlobalTransform`, and every pose in one on-screen computation must
   come from the same frame. A consumer of `PostUpdate`-written state must be
   ordered after its producer.
+- Put a system in **FixedUpdate** when what it computes DECIDES a fixed-step
+  consequence, **even when the same value is also drawn**. This is the rule that
+  is easiest to get wrong, because such a system looks like render-rate work: it
+  has an on-screen output, so it reads as belonging beside the camera and the
+  HUD. Ask instead whether anything on the fixed clock BRANCHES on what it
+  writes. If it does, the state that branch samples advances once per FRAME
+  while the branch is taken once per STEP, and the outcome is a function of the
+  host's frame rate.
 
 Why gameplay is split across both: the chain runs in `Update` for
 render-rate work and in `FixedUpdate` for sim-rate work; the same set order in
@@ -311,6 +319,20 @@ composes both application point and thrust direction from the root's raw
 `Position`/`Rotation`. The same footgun produced the bullet-spew, HUD-jitter and
 crosshair-twitch bugs in that family; all were error proportional to velocity,
 which is why they only showed at high speed.
+
+Worked example for the third rule -- a DRAWN value that gates a fixed-step
+branch. A turret's aim chain solved the intercept, drove the hinges and wrote
+the joint pose in `PostUpdate`, which is where a thing you can see belongs. But
+`shoot_spawn_projectile` runs in `FixedUpdate` and asks, per tick, whether the
+muzzle is inside a 0.92 deg cone of that aim point. The barrel's pose was
+therefore a staircase with one step per FRAME, its tracking residual scaled with
+the frame period, and the cone is narrower than the residual's span: measured on
+`stress_point_defense`, the battery held its trigger 9.7% of the time at 20 fps
+and 60.6% at 106 fps -- same scene, same seed, a six-fold difference in how
+strong point defence was. Moving the whole chain (solve, hinge controller, joint
+sync) onto the fixed clock made the trigger duty 0.811-0.817 across the same
+span. Nothing about the aim chain looked like sim work; the tell was that a
+`FixedUpdate` system branched on its output.
 
 Cross-system communication goes through events and observers (Bevy `On<...>`
 observers, e.g. the integrity/destruction chain) rather than direct calls. Prefer

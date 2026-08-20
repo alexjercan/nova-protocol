@@ -666,19 +666,17 @@ mod tests {
         app.insert_resource(TimeUpdateStrategy::ManualDuration(
             std::time::Duration::from_secs_f32(dt),
         ));
-        // Production runs the fire path on the fixed clock BEFORE the Update
-        // joint sync, so the gate reads a muzzle pose one frame staler than
-        // the aim point; keep that staleness or the test understates the lag.
+        // The production order, all on the fixed clock: solve, ease, write the
+        // joint pose, then fire along it.
         app.add_systems(
-            Update,
-            (shoot_spawn_projectile, sync_turret_joint_rotation).chain(),
-        );
-        // The same aim-before-controller edge TurretSectionPlugin declares.
-        app.add_systems(
-            PostUpdate,
-            (update_turret_aim_point, update_turret_target_joints_system)
-                .chain()
-                .before(SmoothLookRotationSystems::Sync),
+            FixedUpdate,
+            (
+                (update_turret_aim_point, update_turret_target_joints_system)
+                    .chain()
+                    .before(SmoothLookRotationSystems::Sync),
+                sync_turret_joint_rotation.after(SmoothLookRotationSystems::Sync),
+                shoot_spawn_projectile.after(sync_turret_joint_rotation),
+            ),
         );
 
         // The ship carries every component both the aim inherit query and the

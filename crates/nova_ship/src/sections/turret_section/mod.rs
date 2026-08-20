@@ -238,43 +238,44 @@ impl Plugin for TurretSectionPlugin {
 
         app.add_systems(
             Update,
-            (apply_turret_config_to_children, sync_turret_joint_rotation)
-                .in_set(super::SpaceshipSectionSystems),
+            apply_turret_config_to_children.in_set(super::SpaceshipSectionSystems),
         );
 
-        // NOTE: firing lives on the physics clock - the fire timer
-        // accumulates fixed ticks and bullets spawn from the RAW root
-        // pose, so shot spacing is exact at any ship velocity. In Update the
-        // timer quantized shots to render frames and the muzzle pose was the
-        // eased render pose - both errors scale with velocity and made
-        // streams "spew" at speed.
-        app.add_systems(
-            FixedUpdate,
-            shoot_spawn_projectile.in_set(super::SpaceshipSectionSystems),
-        );
-
-        // NOTE: the aim chain runs EARLY in PostUpdate (before the HUD pips
-        // and the indicator projection consume it) and composes fresh poses
-        // via TransformHelper instead of waiting for
-        // transform propagation: bevy_ui lays out before propagation, so a
-        // post-propagation aim point can only reach the screen one frame
-        // late.
-        // The chain steers `SmoothLookRotation`, so it must write this frame's
-        // joint targets before the rig eases toward them. Both sides are
-        // PostUpdate writers of the same components; without this edge the rig
-        // consumes the target this frame or next on a topological coin flip.
-        // Declared here rather than in the rig: nova_gameplay owns a generic
-        // rig that names no driver, and the driver is this crate's.
+        // NOTE: the WHOLE gun runs on the physics clock - the intercept solve,
+        // the hinge demand, the controller that eases onto it, the joint pose
+        // it writes, and the round that leaves along that pose. The fire timer
+        // accumulates fixed ticks and bullets spawn from the RAW root pose, so
+        // shot spacing is exact at any ship velocity; in Update the timer
+        // quantized shots to render frames and the muzzle pose was the eased
+        // render pose.
+        //
+        // The aim half joined it because the fire gate is a 0.92 deg cone
+        // (`TURRET_ON_TARGET_RAD`) and a barrel whose pose advanced once per
+        // FRAME crossed that cone a number of times per SIMULATED second that
+        // followed the frame rate - measured on `stress_point_defense` as 0.10
+        // of the trigger held at 20 fps against 0.62 at 106 fps, same scene,
+        // same seed. Anything that decides whether a barrel BEARS has to sit on
+        // the clock the rounds are spent on; the alternative is a battery that
+        // is six times stronger on a fast machine.
+        //
+        // The chain steers `SmoothLookRotation`, so it writes this step's joint
+        // targets before the rig eases toward them, and the joint sync writes
+        // the pose before the spawner reads it. Declared here rather than in
+        // the rig: nova_gameplay owns a generic controller that names no driver,
+        // and the driver is this crate's.
         app.configure_sets(
-            PostUpdate,
+            FixedUpdate,
             TurretSectionAimSystems.before(SmoothLookRotationSystems::Sync),
         );
-
         app.add_systems(
-            PostUpdate,
-            (update_turret_aim_point, update_turret_target_joints_system)
-                .chain()
-                .in_set(TurretSectionAimSystems)
+            FixedUpdate,
+            (
+                (update_turret_aim_point, update_turret_target_joints_system)
+                    .chain()
+                    .in_set(TurretSectionAimSystems),
+                sync_turret_joint_rotation.after(SmoothLookRotationSystems::Sync),
+                shoot_spawn_projectile.after(sync_turret_joint_rotation),
+            )
                 .in_set(super::SpaceshipSectionSystems),
         );
     }

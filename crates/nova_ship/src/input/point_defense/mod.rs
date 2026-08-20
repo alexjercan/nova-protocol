@@ -98,12 +98,18 @@ impl Plugin for SpaceshipPointDefensePlugin {
         app.register_type::<MountAuthority>();
 
         // NOTE: the chain order IS the precedence. Ownership resolves first so
-        // a mount the player just took is out of the pool the same frame;
+        // a mount the player just took is out of the pool the same tick;
         // assignment then works only what is left; the aim and trigger act on
         // what the assignment produced. Reading the ship's locks means the
         // whole chain also sits after the targeting systems that derive them.
+        //
+        // FIXED, not Update: the rounds this chain spends are spawned by
+        // `shoot_spawn_projectile` on the fixed clock, and a decision taken on
+        // the render clock is taken a variable number of times per unit of
+        // SIMULATED time. One decision to one step is the invariant that keeps
+        // a 144 Hz machine's point defence from outshooting a 30 Hz one.
         app.add_systems(
-            Update,
+            FixedUpdate,
             (
                 insert_turret_defense_target,
                 insert_point_defense_mount,
