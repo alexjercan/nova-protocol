@@ -336,7 +336,8 @@ does NOT get an entry - and it is the only place they are written down.
 - A section's placeholder body and its exhaust flames are built ONCE and
   shared, not minted per entity. Three WFC hulls introduce 83 distinct meshes
   instead of 242, and the frame drops 37%.
-- A thruster writes its exhaust plume only when it changes. Writing the same number re-uploaded every drive material every frame; a posed hull sheds 82% of its per-frame material prepare.
+- A drive's exhaust plume draws from 16 SHARED materials per nozzle shape instead of one written every frame: a 12-bay point-defence range prepares 1.3 ms of material a frame instead of 12.7.
+- A launched torpedo shares its warhead material by ordnance TYPE instead of minting one per shot: the same range draws 17 distinct materials instead of 105, and 16 crack buckets instead of 149.
 - Damage cracks draw from eight SHARED materials per source instead of one per
   section mesh: a 4v4 arena runs 2,046 section meshes through 288 materials
   instead of 2,046, and the frame rate doubles.

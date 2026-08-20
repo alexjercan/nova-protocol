@@ -1,0 +1,12 @@
+# framecost, median over the in-window reports (frame >= 60% of the run's peak report)
+# arms: base 0b606cb5, fix 0018e2c7. stress_point_defense, 12 mounts x 12 bays,
+# pinned NOVA_PERF_MAX_DELTA=0.015625, 1280x720, present=immediate, DISPLAY=:0.
+run           n    frame        PrepareAssets              Prepare   Prepare/BindGroups         Render/graph           PostUpdate               Update     RunFixedMainLoop
+pd-base-1    16   33.727               15.270               11.346                8.715                4.134                9.427                1.977                7.014
+pd-fix-1     18   29.839                1.336                5.664                2.075                4.649               15.178                2.245                9.238
+pd-base-2    20   32.204               13.395               10.610                8.172                4.014                8.930                1.720                6.264
+pd-fix-2      9   26.773                1.309                5.263                1.902                4.313               13.172                2.113                8.550
+pd-base-3    17   28.645               12.048                9.699                7.246                3.594                8.583                1.641                4.835
+pd-fix-3      6   16.123                0.920                2.949                1.043                3.321                7.418                1.532                4.825
+pd-base-4    23   24.228               10.004                8.766                6.399                3.236                7.296                1.326                3.932
+pd-fix-4     10   22.237                1.177                4.188                1.557                3.445                9.153                2.114                8.058

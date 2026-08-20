@@ -185,9 +185,9 @@ pub struct SectionCracks {
 ///
 /// The one place a [`SectionCracksMaterial`] is ever created, so it is also the
 /// bound on how many exist: source materials times [`SECTION_CRACK_BUCKETS`].
-/// Buckets are built ON DEMAND rather than up front, because a source can be
-/// per-instance - a torpedo warhead is tinted per launch - and eight materials
-/// per shot would cost more than the fleet does.
+/// Buckets are built ON DEMAND rather than up front, because most sources never
+/// reach most buckets - a pristine fleet is one bucket - and a source a mod
+/// mints per instance would otherwise cost eight materials it never draws.
 #[derive(Resource, Default, Debug)]
 pub struct SectionCracksMaterials {
     by_source: HashMap<
@@ -302,11 +302,12 @@ fn owning_section(
 
 /// Drop the bucket materials of any source material that is gone.
 ///
-/// Without this the registry is a leak rather than a cache: a torpedo warhead is
-/// tinted per launch, so a long fight would leave one dead entry - and its
-/// bucket materials - behind per shot fired. [`SectionCracks`] holds the only
-/// strong reference to a source, so the event fires exactly when the last mesh
-/// drawn from it is gone.
+/// Without this the registry is a leak rather than a cache: every source a
+/// scene ever drew would keep its bucket materials for the process, so a
+/// campaign that loads and drops content would accumulate them. Base sources
+/// are all long-lived, so the entries this frees today are a mod's;
+/// [`SectionCracks`] holds the only strong reference to a source, so the event
+/// fires exactly when the last mesh drawn from it is gone.
 fn forget_dead_sources(
     mut registry: ResMut<SectionCracksMaterials>,
     mut events: MessageReader<AssetEvent<StandardMaterial>>,

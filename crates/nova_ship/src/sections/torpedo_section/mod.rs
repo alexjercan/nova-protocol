@@ -252,10 +252,13 @@ pub struct TorpedoTypeConfig {
     /// launched projectile entity, so the log, the event timeline and a probe
     /// snapshot all say WHICH torpedo is in the air.
     pub name: String,
-    /// Body colour of the warhead in flight. The default torpedo body already
-    /// builds its material per projectile, so a per-type tint costs nothing
-    /// and is the one difference a player can read at a glance in the frame
-    /// before the flight path has drawn itself.
+    /// Body colour of the warhead in flight: the one difference a player can
+    /// read at a glance in the frame before the flight path has drawn itself.
+    ///
+    /// It costs ONE material per distinct colour for the whole process, not one
+    /// per launch, so authoring a type is free and authoring a colour PER SHOT
+    /// would not be - a tint drawn from a random or a timer would put the
+    /// frame's asset work back on the size of the salvo.
     pub tint: Color,
     /// Cruise speed cap in units per second. The thruster tapers off as the
     /// torpedo approaches this speed. Without a cap the torpedo accelerates the

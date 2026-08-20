@@ -37,12 +37,8 @@ use std::sync::Arc;
 
 #[cfg(feature = "debug")]
 use avian3d::prelude::{LinearVelocity, Rotation};
-#[cfg(feature = "debug")]
-use bevy::pbr::ExtendedMaterial;
 use bevy::prelude::*;
 use clap::Parser;
-#[cfg(feature = "debug")]
-use nova_protocol::nova_ship::sections::thruster_section::ThrusterExhaustMaterial;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -331,13 +327,8 @@ fn measure_round(world: &mut World) -> (f32, f32) {
 
 /// Every exhaust plume material handle the drive spawned.
 #[cfg(feature = "debug")]
-fn plume_handles(
-    world: &World,
-) -> Vec<Handle<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>> {
-    let Some(mut query) = world
-        .try_query::<&MeshMaterial3d<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>(
-        )
-    else {
+fn plume_handles(world: &World) -> Vec<Handle<ThrusterPlumeMaterial>> {
+    let Some(mut query) = world.try_query::<&MeshMaterial3d<ThrusterPlumeMaterial>>() else {
         return Vec::new();
     };
     query
@@ -352,9 +343,7 @@ fn plume_handles(
 #[cfg(feature = "debug")]
 fn plume_inputs(world: &World) -> Vec<f32> {
     let handles = plume_handles(world);
-    let Some(materials) =
-        world.get_resource::<Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>()
-    else {
+    let Some(materials) = world.get_resource::<Assets<ThrusterPlumeMaterial>>() else {
         return Vec::new();
     };
     handles

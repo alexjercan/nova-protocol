@@ -26,6 +26,7 @@ use bevy::{
 use nova_gameplay::GameStates;
 use nova_ship::prelude::{
     SectionCracksMaterial, SectionRenderOf, ShipDecorMarker, ShipSkinMarker, SkinSurfaceMarker,
+    ThrusterPlumeMaterial,
 };
 
 use crate::capabilities::frametime::prelude::*;
@@ -171,6 +172,7 @@ struct Census {
     mesh_assets: usize,
     standard_material_assets: usize,
     cracks_material_assets: usize,
+    plume_material_assets: usize,
     image_assets: usize,
     skin_plates: u32,
     skin_shapes: Vec<String>,
@@ -310,6 +312,9 @@ fn take_census(world: &mut World) -> Census {
         cracks_material_assets: world
             .get_resource::<Assets<SectionCracksMaterial>>()
             .map_or(0, |assets| assets.len()),
+        plume_material_assets: world
+            .get_resource::<Assets<ThrusterPlumeMaterial>>()
+            .map_or(0, |assets| assets.len()),
         image_assets: world
             .get_resource::<Assets<Image>>()
             .map_or(0, |assets| assets.len()),
@@ -418,7 +423,7 @@ fn origin_index(world: &mut World) -> OriginIndex {
 
 fn log_census(census: &Census) {
     info!(
-        "nova census: entities={} archetypes={} mesh_instances={} distinct_meshes={} distinct_materials={} mesh_assets={} standard_materials={} cracks_materials={} images={} skin_plates={} skin_shapes={}",
+        "nova census: entities={} archetypes={} mesh_instances={} distinct_meshes={} distinct_materials={} mesh_assets={} standard_materials={} cracks_materials={} plume_materials={} images={} skin_plates={} skin_shapes={}",
         census.entities,
         census.archetype_count,
         census.mesh_instances,
@@ -427,6 +432,7 @@ fn log_census(census: &Census) {
         census.mesh_assets,
         census.standard_material_assets,
         census.cracks_material_assets,
+        census.plume_material_assets,
         census.image_assets,
         census.skin_plates,
         census.skin_shapes.len(),
@@ -483,6 +489,7 @@ fn write_census(census: &Census) {
         "mesh_assets": census.mesh_assets,
         "standard_material_assets": census.standard_material_assets,
         "cracks_material_assets": census.cracks_material_assets,
+        "plume_material_assets": census.plume_material_assets,
         "image_assets": census.image_assets,
         "by_component": census.components.iter().map(|row| serde_json::json!({
             "name": row.name,
