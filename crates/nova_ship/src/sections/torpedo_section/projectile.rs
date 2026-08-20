@@ -87,27 +87,53 @@ pub(super) fn contact_reach(speed: f32, dt: f32) -> f32 {
     CONTACT_FUZE.max(speed * dt)
 }
 
-/// Distance from `at` to the nearest point on `target`'s own skin, or `None`
-/// when that body has no collider in the world.
+/// Distance from `at` to the nearest point on `target`'s own skin, saturating at
+/// `limit`; `None` when that body has no collider in the world.
 ///
-/// Projected over the physics broad phase and filtered to the colliders avian
-/// links to THAT body, so a torpedo threading a formation cannot fuze on the
-/// wrong ship, and a ship built out of two hundred section colliders answers
-/// with whichever one is nearest the nose. Solid, so a nose already inside the
-/// hull reads zero instead of the distance back out to the skin.
+/// Read off the target's OWN collider list, so a torpedo threading a formation
+/// cannot fuze on the wrong ship and a ship built out of two hundred section
+/// colliders answers with whichever one is nearest the nose. Solid, so a nose
+/// already inside the hull reads zero instead of the distance back out to the
+/// skin.
+///
+/// NOT a broad-phase point projection. The world-wide form declines foreign
+/// colliders in a predicate, and a declined proxy returns infinity - which
+/// never tightens the traversal's search radius, so the walk degrades toward
+/// the whole tree (4,663 colliders in a headless duel) for every torpedo, every
+/// frame. It was the single worst-attributed system of a measured fight.
+///
+/// `limit` is the fuze reach, and it is what keeps the direct form cheap: a
+/// collider whose bounding box is already further out than the best answer so
+/// far cannot hold the nearest point, so it is never projected. The result is
+/// exact below `limit` and saturates at it above, which is all a `distance <
+/// reach` test can observe.
 fn distance_to_skin(
-    spatial: &SpatialQuery,
-    q_collider_of: &Query<&ColliderOf>,
+    q_body_colliders: &Query<&RigidBodyColliders>,
+    q_collider: &Query<(&Position, &Rotation, &Collider, &ColliderAabb)>,
     target: Entity,
     at: Vec3,
+    limit: f32,
 ) -> Option<f32> {
-    let projection =
-        spatial.project_point_predicate(at, true, &SpatialQueryFilter::default(), &|collider| {
-            q_collider_of
-                .get(collider)
-                .is_ok_and(|of| of.body == target)
-        })?;
-    Some(projection.point.distance(at))
+    let attached = q_body_colliders.get(target).ok()?;
+    if attached.is_empty() {
+        return None;
+    }
+
+    let mut nearest = limit;
+    for collider_entity in attached {
+        let Ok((position, rotation, collider, aabb)) = q_collider.get(collider_entity) else {
+            continue;
+        };
+        // The AABB encloses the shape, so its distance is a lower bound on the
+        // skin's - a box further out than the best answer cannot beat it.
+        let outside = (aabb.min - at).max(at - aabb.max).max(Vec3::ZERO);
+        if outside.length() >= nearest {
+            continue;
+        }
+        let (point, _) = collider.project_point(position.0, *rotation, at, true);
+        nearest = nearest.min(point.distance(at));
+    }
+    Some(nearest)
 }
 
 /// Fuze every armed torpedo that has reached its target: despawn it and spawn
@@ -135,7 +161,6 @@ fn distance_to_skin(
 pub(super) fn torpedo_detonate_system(
     mut commands: Commands,
     time: Res<Time>,
-    spatial: SpatialQuery,
     q_torpedo: Query<
         (
             Entity,
@@ -155,7 +180,8 @@ pub(super) fn torpedo_detonate_system(
             Without<super::TorpedoShotDownMarker>,
         ),
     >,
-    q_collider_of: Query<&ColliderOf>,
+    q_body_colliders: Query<&RigidBodyColliders>,
+    q_collider: Query<(&Position, &Rotation, &Collider, &ColliderAabb)>,
 ) {
     let dt = time.delta_secs();
     for (
@@ -178,10 +204,11 @@ pub(super) fn torpedo_detonate_system(
 
         let at = torpedo_transform.translation;
         let speed = velocity.map_or(0.0, |velocity| velocity.length());
-        let (distance, reach) = match target_entity
-            .and_then(|target| distance_to_skin(&spatial, &q_collider_of, **target, at))
-        {
-            Some(skin) => (skin, contact_reach(speed, dt)),
+        let contact = contact_reach(speed, dt);
+        let (distance, reach) = match target_entity.and_then(|target| {
+            distance_to_skin(&q_body_colliders, &q_collider, **target, at, contact)
+        }) {
+            Some(skin) => (skin, contact),
             None => (at.distance(**torpedo_target_position), blast.radius * 0.5),
         };
 
