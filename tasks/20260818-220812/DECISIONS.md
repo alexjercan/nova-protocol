@@ -363,3 +363,83 @@ own ~35 section materials" is now the ranked item it predicted it would be.
 **Standing caveat**: on this box a whole run lands 2-3x from the one before it
 with every phase scaling together. Quote `min_ms` and phase shares. A mean whose
 spread straddles 1.00 measured nothing.
+
+## D14 - the projectile broad phase is REJECTED, on the case built to isolate it
+
+`tasks/20260819-173219/notes-pd-stress.md`, landed `4871514d`.
+
+The plan's phase 4 named the PD case's cost and said: "**If this is the
+projectile broad phase, the honest fix is 'a round should not be a physics body'
+- which is gameplay logic and needs the owner.** Do not decide it in this run."
+
+**It is not the broad phase.** Traced over 110 frames of the saturated hold at
+26.06 ms, with 2,256 colliders of which 91% are rounds:
+
+| ms/f | share | system |
+|--:|--:|---|
+| 9.285 | 35.6% | `prepare_erased_assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>` |
+| 6.327 | 24.3% | `prepare_material_bind_groups` |
+| 5.668 | 21.7% | `bevy_ui::widget::text::text_system` |
+| 5.173 | 19.8% | the whole avian physics step |
+| **0.192** | **0.7%** | **`collect_collision_pairs<ProjectileHooks>`** |
+
+The entire targeting and point-defence chain sums under 0.2 ms. **So the owner
+never has to answer the gameplay question this epic was saving for them**, and
+the phase 4 item is closed rather than escalated.
+
+### The sweep says it scales with BAYS and is flat in MOUNTS
+
+Mounts 4 -> 8 -> 12 takes the BVH from 859 to 2,309 colliders and `min_ms` goes
+18.06 -> 18.00 -> **17.09**. Three times the bodies and the frame gets FASTER.
+
+Bays 4 -> 12 -> 24 is a straight line: **4.52 ms + 1.12 ms per bay**. A bay puts
+about 9.2 torpedoes in the sky, so **0.12 ms a frame per live torpedo**.
+
+Census says why: `Torpedo Controller` is 110 instances, **1 mesh, 110 distinct
+materials**, plus 406 exhaust instances each carrying its own extended material.
+
+### This is the fourth sighting of one bug
+
+Cracks per section, plume rewritten per frame, placeholder art per entity, and
+now one exhaust material and one cracks material per LIVE TORPEDO. The
+distinct-asset law holds on a scene nothing like the frozen gallery it was
+derived on.
+
+Items 1 and 2 of the cut list are both that defect and both presentation, so
+both are takeable without asking. Item 4 - "a round is an entity with a collider
+and rigid body", command flush 1.571 ms, 6% - stays GAMEPLAY, is sized rather
+than decided, and **buys nothing until 1 and 2 land**.
+
+### The instrument, and the bug in it
+
+Pinned, the case resolves **6%** against the 4v4's 46% and `broadside`'s 27% -
+4.5x better than the best subject in the suite, and one capture beats eight of
+either. Free-running it resolves 39%, because one capture in eight sits in the
+fixed-step clamp with p99 179.7 ms while its mean and median stay inside the 20%
+band. **The validity gate cannot see a spiral that does not move the middle.**
+
+The range itself was NOT green: its rounds floor was drawn from a contended
+3.4 fps reading, and free-running the yield spans 708-2,425 because the trigger
+is decided in `Update` and the rounds are spent in `FixedUpdate`. It failed
+about two runs in five, **including the probe clean pass CI runs**. Floor
+redrawn under the worst measured free-running yield.
+
+### The owner's view-dependence observation did NOT survive measurement
+
+Owner flew the case and reported the frame rate changing with where the camera
+pointed. Measured with a new `NOVA_STRESS_PD_VIEW` knob: every paired ratio
+straddles 1.00 at 720p AND at 2560x1440, and `Render/graph` reads 4.203 / 4.006
+/ 4.196 ms for battery / lanes / away.
+
+**Emptying the frustum does not move the draw phase, because the cost is asset
+PREPARATION and culling never touches it.** The likely thing they felt is the
+clamp spiral above - it is real, it is a 3.4x swing, and it is not the camera.
+`notes-ablation.md`'s "pixels do not bind" therefore survives on this case too;
+640x360 to 1920x1080 costs 5%.
+
+### A harness footgun worth knowing
+
+`probe run`'s profiled pass leaves a `debug,trace` binary at the same path, so
+the NEXT hand-driven run is silently a traced run. It cost a whole seven-capture
+sweep, caught only because it wrote 400-900 MB `trace-*.json` files into the
+repo root.
