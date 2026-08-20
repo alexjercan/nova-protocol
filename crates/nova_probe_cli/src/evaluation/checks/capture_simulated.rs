@@ -1,16 +1,19 @@
-//! `capture_simulated`: a capture window that contained a STOPPED simulation
-//! is a failure, not a statistic.
+//! `capture_simulated`: a capture window the game REFUSED is a failure, not a
+//! statistic. Every reason the capture can refuse for lands here.
 //!
-//! The condition is detected in the game, by the capture itself, off
-//! `Time<Virtual>` - not inferred here from the numbers. It has to be: a
-//! stopped simulation still draws the whole scene at a steady cost, so the mean
-//! and the median it produces are exactly the shape the repeat gate admits.
-//! One 4v4 window spent 555 of its 900 frames on a paused result screen and
-//! reported a believable 93 ms mean.
+//! The condition is detected in the game, by the capture itself - not inferred
+//! here from the numbers. It has to be: each of these faults produces a mean
+//! and a median in exactly the shape the repeat gate admits. One 4v4 window
+//! spent 555 of its 900 frames on a paused result screen and reported a
+//! believable 93 ms mean.
 //!
 //! An aborted capture writes no CSV row, so the row it would have contaminated
 //! is simply absent; this check is what stops that absence from reading as a
 //! quiet, slightly smaller set.
+//!
+//! The NAME is narrower than the check: it predates the other reasons and
+//! renaming it would break every `checks.json` a stored baseline holds. Read
+//! the `reason` field, never the name.
 
 use nova_probe::prelude::*;
 
@@ -40,9 +43,9 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
             CheckStatus::Fail,
             format!("{} capture(s) refused", aborts.len()),
             format!(
-                "{} stopped simulating {} frame(s) into its {} phase (reason: {}) - \
-                 the window reached the end of the scene, so it was refused and wrote \
-                 no stats",
+                "{} was refused {} frame(s) into its {} phase (reason: {}) - it wrote \
+                 no stats, so the row it would have contributed is missing on purpose; \
+                 the run log carries the reason in full",
                 first.label, first.frame, first.phase, first.reason
             ),
             serde_json::json!({
@@ -65,7 +68,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
         Input::Present(runs) => row(
             CheckStatus::Pass,
             format!("{} capture(s) refused: 0", runs.len()),
-            "no capture met a stopped simulation inside its window".into(),
+            "no capture refused its window".into(),
             serde_json::json!({ "aborted": 0, "captures": [] }),
         ),
         Input::NotDeclared(capability) => row(
@@ -88,7 +91,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
         ),
         // Armed and silent is `fps_within_baseline`'s failure to report, and
         // this check has no second opinion about it: the log carries no abort
-        // line, so nothing here saw a stopped simulation.
+        // line, so nothing here saw a refusal.
         Input::ArmedButAbsent(_) | Input::Unknown(_) => row(
             CheckStatus::Skipped,
             "no capture".into(),

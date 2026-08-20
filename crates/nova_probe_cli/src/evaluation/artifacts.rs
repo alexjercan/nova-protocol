@@ -37,8 +37,9 @@ pub struct RunArtifacts {
     pub timeline: Option<Vec<TimelineEvent>>,
     /// Parsed `frametime.csv`.
     pub runs: Option<Vec<PerfRun>>,
-    /// Aggregated `trace.json` system costs.
-    pub costs: Option<Vec<SystemCost>>,
+    /// Aggregated `trace.json` system costs. STREAMED, never held: see
+    /// [`aggregate_system_costs`] for why the file is not a `String` first.
+    pub costs: Option<TraceProfile>,
     /// Raw `run.log` contents.
     pub log: Option<String>,
     /// Parsed baseline `frametime.csv` (from `--baseline`).
@@ -95,6 +96,37 @@ impl Loader<'_> {
         }
     }
 
+    /// `name` handed to `parse` as an open FILE rather than as its contents.
+    /// The trace is the one artifact that reaches gigabytes, so it is the one
+    /// artifact [`read`] must never be asked for: reading it whole is half of
+    /// how the host reached 27.8 GB on a single range.
+    ///
+    /// [`read`]: Loader::read
+    fn stream<T>(
+        &mut self,
+        name: &str,
+        parse: impl FnOnce(std::fs::File) -> Result<T, String>,
+    ) -> Option<T> {
+        let path = self.dir.join(name);
+        if !path.exists() {
+            return None;
+        }
+        let file = match std::fs::File::open(&path) {
+            Ok(file) => file,
+            Err(error) => {
+                self.fail(name, format!("could not read: {error}"));
+                return None;
+            }
+        };
+        match parse(file) {
+            Ok(value) => Some(value),
+            Err(reason) => {
+                self.fail(name, reason);
+                None
+            }
+        }
+    }
+
     fn fail(&mut self, name: &str, reason: String) {
         self.failures.push(ArtifactFailure {
             name: name.to_string(),
@@ -121,7 +153,7 @@ impl RunArtifacts {
         };
         let timeline = loader.load("timeline.jsonl", parse_timeline);
         let runs = loader.load("frametime.csv", parse_frametime_csv);
-        let costs = loader.load("trace.json", aggregate_system_costs);
+        let costs = loader.stream("trace.json", aggregate_system_costs);
         // The game's logs: run.log (single run), fps-run.log (the fps pass is
         // a real game run too; its panics/errors gate), web-run.log (chromium's
         // output AND the game's - stats.rs parses `nova perf:` out of its

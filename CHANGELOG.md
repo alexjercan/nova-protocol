@@ -459,7 +459,8 @@ does NOT get an entry - and it is the only place they are written down.
 - `NOVA_PERF_PRESENT` names the presentation mode instead of requesting it; `wfc_ships --ships 0` stands the empty row, and a measured row holds its capture until the ships have finished spawning.
 - The profile table counts deferred command flushes, where observers actually run, and the run report leads its frame section with worst frame, mean and the implied FPS, flagged under 60.
 - `probe run --repeat <n>` gates each capture on its mean and median before reading the worst frame, and a capture records fixed steps per frame plus a `NOVA_PERF_MAX_DELTA` ceiling knob.
-- A capture REFUSES a window the simulation was stopped in - no stats, a named failing check - and an example can declare its own window for a scene that can reach an end.
+- A capture REFUSES a window it cannot measure - a stopped simulation, or a scene the example says is over - with no stats and a named failing check; a scene that can end declares its own window.
+- The run report STREAMS trace.json instead of reading it whole: a 2.6 GB trace costs 70 MB of host memory instead of 11 GB, and a trace cut short still ranks what it did record.
 - Each `screenshots/` producer captures ONE thing in at most three frames, and its name says what it makes: `screenshot_*` stills, `loop_*` video.
 - Make the asteroid gate hold real PDC fire on a shipped-size rock.
 - The `system_destruction_finale` range kills a gltf section, a procedural one, a multi-part turret and an asteroid, asserting each breaks into its own art on one per-body budget.

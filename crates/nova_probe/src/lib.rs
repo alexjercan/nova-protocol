@@ -36,6 +36,13 @@
 //!   statistic over a still picture is worse than a missing one. A scene that
 //!   can reach an end therefore needs a window sized to close before it does
 //!   ([`FrameTimePlugin::window`]).
+//! - **The scene STILL THERE.** A scene can end before its clock stops. A fight
+//!   whose losing side is gone is over while `Time<Virtual>` still ticks and
+//!   every gate here still passes, and the window then measures the aftermath -
+//!   a near-empty scene, at a fraction of the cost, in an ordinary-looking row.
+//!   Only the example knows, so it says so with
+//!   [`FrameTimePlugin::live_while`], and the capture REFUSES the first frame
+//!   the predicate fails.
 //! - **Vsync off.** `PresentMode::AutoNoVsync` is forced on the primary window
 //!   so a fast scene is not pinned to the monitor's refresh - we want the true
 //!   per-frame cost and the headroom, not "60 fps, capped". It is a REQUEST:
