@@ -322,20 +322,8 @@ eight generic pieces, and the ship adds its own `ShipIntegrityPlugin` on top:
   the section graph, handles disabled sections, rolls section health up to the
   ship root, and collapses a root that falls below its
   `StructuralCollapseThreshold`.
-- `explode.rs` - reacts to destruction: debris, mesh fragments, `OnDestroyedEvent`.
-  Destructibility is SEMANTIC (`ExplodableEntity` plus the destroy marker), never
-  where a `Mesh3d` sits: a section keeps its gameplay components on a root and
-  draws through `SectionRenderOf` descendants, so the geometry walk in
-  `mesh/explode.rs` collects the whole subtree. That walk is also the only thing
-  that decides whether a body HAS geometry - it reports an empty
-  `ExplodeFragments` when it finds none, and the finale reads that one answer.
-  There is NO FALLBACK: an empty walk emits nothing and logs it, and
-  `system_destruction_finale` asserts that never happens. The generic cube burst
-  that used to run there made a body which had silently failed to come apart
-  look like a body that had come apart badly, so the bug behind it survived
-  every playtest
-  that saw it. **How a destroyed section itself comes apart is being replaced and
-  is deliberately not written up here.**
+- `explode.rs` (`ExplodablePlugin`) - what a destroyed body DOES, and it
+  detaches. See [How a body comes apart](#how-a-body-comes-apart) below.
 - `neutralize.rs` - combat-death: fires `OnNeutralized` when a ship stops
   being a threat.
 
@@ -352,6 +340,49 @@ the plates and sections it reaches. Asteroids are not in the graph at all - a
 rock carries no `Health` and no `IntegrityRoot`, only `DamageMarks`, and its
 death is decided by its own remesh (see
 [Scenario engine](scenario-system.md)).
+
+### How a body comes apart
+
+Nothing computes geometry when something dies. A destroyed `ExplodableEntity`
+DETACHES: it comes off its parent, becomes a rigid body of its own carrying the
+art and the collider it already had, takes an outward kick and a spin, and
+despawns on a timer (`PIECE_LIFETIME_SECS`). A death moves entities and clones
+one collider handle, which is why the module has no fragment budget and no
+spawn queue - there is nothing left to ration.
+
+Four properties follow from that, and each is load-bearing:
+
+- **Destructibility is SEMANTIC.** It is `ExplodableEntity` plus the destroy
+  marker, never where a `Mesh3d` happens to sit. A section carries its health,
+  its collider and the marker on a gameplay root while its art hangs off
+  `SectionRenderOf` descendants under a gltf `WorldAssetRoot`, so anything
+  gated on `Mesh3d` at the gameplay entity finds nothing on any section ever
+  shipped. Detaching asks about neither: the children come across whatever they
+  are, and the COLLIDER is what says a body can be one.
+- **An `IntegrityRoot` is excluded.** `ExplodableEntity` propagates to parents,
+  so a root carries it too - and detaching a root would take the whole
+  structure off at once and bypass every node's own death. The test names
+  `IntegrityRoot` rather than `SpaceshipRootMarker` because a severed wreck and
+  an asteroid husk are roots that are not spaceships, and because this layer
+  stays free of anything `nova_ship` owns.
+- **The plates and greebles ride the wreck out, their colliders do not.** Every
+  direct child moves, still bolted on, which is what a piece breaking off a
+  hull looks like and is cheaper than making each one its own body. The
+  colliders are stripped on the way, because avian attaches every collider
+  under a rigid body to that body: a section wears a plate per face and
+  greebles per plate, so a wreck that kept them is one body with dozens of
+  shapes, times every section a collapse kills in the same frame. The section's
+  own collider is the shape the wreck is.
+- **A piece is born inside the body it left,** which is a dynamic body spawned
+  interpenetrating another - something the solver fixes by shoving hard. So it
+  takes the same `ChunkGrace` a carved rock chunk takes: kinematic and
+  colliderless until it has drifted clear.
+
+There is NO FALLBACK for a body with no collider: it leaves nothing behind and
+logs an error, and `system_destruction_finale` asserts that branch never runs
+on shipped content. A refusal rather than a stand-in, because a stand-in looks
+like SOMETHING - a body that had silently failed to come apart would be
+indistinguishable from one that came apart badly.
 
 Editor placement mates the same sockets, so the editor cannot build a ship the
 graph would reject. `snap_placement` (`nova_ship::sections::link_points`) poses a
@@ -788,8 +819,11 @@ per contact. A symmetric rule - ram damage - wants both.
   registry: a per-instance source material is a registry key nothing else will
   ever reuse, which is why buckets are built lazily and dropped when the source
   goes. Note a cracked material is an `ExtendedMaterial` rather than a
-  `StandardMaterial`, which is why a section also keeps a `FragmentMaterial`
-  pointing at its pristine standard material.
+  `StandardMaterial`, which is why `SectionCracks` holds a STRONG handle to its
+  `source`: once the mesh's `MeshMaterial3d<StandardMaterial>` has been swapped
+  away that handle is the only thing a later bucket can be built from, and a
+  source that cannot be dropped cannot have its `AssetId` reissued to something
+  else.
 
 ## Find it in the code
 
@@ -809,6 +843,8 @@ per contact. A symmetric rule - ram damage - wants both.
 - Carve leftovers: `CarveSpew` - `crates/nova_gameplay/src/integrity/spew.rs`;
   `spawn_carved_chunk`, `CHUNK_MIN_VOLUME` -
   `crates/nova_gameplay/src/integrity/chunk.rs`.
+- How a body comes apart: `detach_destroyed_body`, `DetachedPieceMarker` -
+  `crates/nova_gameplay/src/integrity/explode.rs`.
 - Authored damage looks: `DamageEffect`, `fit_damage_effects` -
   `crates/nova_ship/src/sections/damage_effects.rs`, with one module per look in
   `damage_cracks.rs`, `damage_sparks.rs` and `damage_plume.rs`.

@@ -47,7 +47,7 @@ for responsibilities and the dependency graph.
 | `nova_debug` | Debug-only plugin (inspector, overlays); compiled under the `debug` feature. |
 | `nova_info` | Exposes `APP_VERSION`, injected by `build.rs`. |
 | `nova_autopilot` | Scripted automation drivers + the run-completion protocol. Bevy-only, game-agnostic. |
-| `nova_probe` | Dev tool (not in the shipped game): the in-game half of the run-harness - the frame-time/timeline/invariant capability plugins an example wires. |
+| `nova_probe` | Dev tool (not in the shipped game): the in-game half of the run-harness - the capability plugins an example wires (frame time, timeline, invariants, world snapshot, scene census, frame cost). |
 | `nova_probe_cli` | Dev tool: the host half - spawns runs, grades artifacts, renders reports; the `probe run`/`report` CLI. |
 | `nova_perf_web` | Dev tool: the wasm app `probe run --platform web` boots and measures. |
 | `nova_authoring` | Offline content pipeline: the Rust builders for built-in scenarios/sections, `content -- gen` (writes `assets/base/**/*.content.ron`), `content -- lint`. |

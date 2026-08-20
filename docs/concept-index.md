@@ -64,13 +64,16 @@ Depth: [Scenario engine](scenario-system.md).
 
 ## Tooling
 
-Depth: [Automation harness](automation-harness.md) and
+Depth: [Automation harness](automation-harness.md),
+[Measuring performance](performance.md) and
 [Building and running](development.md).
 
 | Concept | Crate(s) | Key files | Entry symbol | Orientation |
 | --- | --- | --- | --- | --- |
 | Automation harness, autopilot scripts, screenshot capture | `nova_autopilot`, `nova_debug` | `crates/nova_autopilot/src/autopilot.rs`, `crates/nova_debug/src/harness.rs` | `AutopilotPlugin` | Env-armed step driver (`NOVA_AUTOPILOT`, `NOVA_SHOT`, `NOVA_CAPTURE`); Nova presets and the `shoot` capture idiom live in the debug harness module. |
-| Probe, perf capture, run reports | `nova_probe`, `nova_probe_cli` | `crates/nova_probe/src/capabilities/mod.rs`, `crates/nova_probe_cli/src/native.rs` | `NovaProbePlugin` | An example wires capability plugins; `probe run`/`probe report` (subcommands of the game binary, `debug` feature) spawn and grade runs. Web capture app: `crates/nova_perf_web/src/main.rs`. |
+| Probe, run reports, what an example claims | `nova_probe`, `nova_probe_cli` | `crates/nova_probe/src/capabilities/mod.rs`, `crates/nova_probe/src/contract.rs`, `crates/nova_probe_cli/src/native.rs` | `NovaProbePlugin` | One bundle wires every capability; `probe run`/`scenario`/`report` (subcommands of the game binary, `debug` feature) spawn and grade runs. Web capture app: `crates/nova_perf_web/src/main.rs`. |
+| Frame cost, scene census, the capture window | `nova_probe` | `crates/nova_probe/src/capabilities/frametime.rs`, `framecost.rs`, `census.rs` | `nova_frametime`, `nova_framecost`, `nova_census` | Wall-clock deltas over a fixed window, plus where the milliseconds went and what the scene contained. Knob table: `cargo doc -p nova_probe`. |
+| World-state snapshot (read the world, not a render) | `nova_probe` | `crates/nova_probe/src/capabilities/snapshot.rs` | `nova_snapshot`, `probe_snapshot` | One JSON object per snapshot: ships, sections, fixtures, weapon state, rounds in flight. Sorted and rounded, so two snapshots of one frozen frame are byte-identical. |
 | WFC arena, generated hulls | examples | `examples/playable/wfc_arena.rs`, `examples/playable/shared/wfc.rs` | `wfc_hull` | Wave-function collapse over real section prototypes into flyable hulls; the arena's lobby/pause/result match flow sits in `examples/playable/wfc_arena/`. |
 | Debug tooling (inspector, overlays, F12 screenshots) | `nova_debug` | `crates/nova_debug/src/lib.rs` | `DebugPlugin` | Compiled only under the `debug` feature; F11 overlay toggle, F12 screenshot, `--norender`, `--debugdump`. |
 | Web preview, this book at /dev/ | scripts, web | `scripts/serve-web.sh`, `scripts/preview-web.sh`, `web/webpack.config.js` | `serve-web.sh` | Live-serves site + `/play/` + `/mods/` + this book at `/dev/`, all watched; the preview script builds the static deploy shape. |

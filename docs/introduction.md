@@ -17,6 +17,9 @@ Reading order for a first visit:
 3. The [Architecture](architecture.md) chapters for depth, then the
    [Extending](guide-add-section.md) guides for your change.
 
+Before quoting a millisecond at anyone, read
+[Measuring performance](performance.md).
+
 What this book is not:
 
 - API detail. That is rustdoc: `cargo doc --open`, run locally. Every crate

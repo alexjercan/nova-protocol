@@ -1,7 +1,7 @@
 # Giving a generated ship a front
 
-Design note, 2026-08-16. Written against `examples/playable/wfc_ships.rs` on
-branch `wfc-layout`.
+Design note, written against `examples/playable/shared/wfc.rs` and the
+`wfc_ships` row it collapses.
 
 The complaint it answers: looking at any render of the `wfc_ships` row, drives
 point in several directions on the same hull. The generator places parts by
@@ -263,14 +263,7 @@ have to argue for itself.
 
 ## Sources
 
-Repo-local, read first:
-
-- `git show master:tasks/20260815-231945/RESEARCH.md` - section 7, the
-  face-normal dispatcher and the guarantee guard.
-- `tasks/20260815-190741/NOTES.md` - the constraint-solving and decoration
-  findings, and bug 18 on how the parts compete with each other for weight.
-
-External, verified from the primary source:
+Verified from the primary source:
 
 - Boris the Brave, *Driven WaveFunctionCollapse* -
   <https://www.boristhebrave.com/2021/06/06/driven-wavefunctioncollapse/>

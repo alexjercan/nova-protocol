@@ -15,7 +15,7 @@ real code lives under `crates/`.
 | `nova_core`     | Thin wiring only: `AppBuilder` assembles every plugin (window/log/asset setup, status UI). No gameplay logic. |
 | `nova_menu`     | Main menu (owns the `MainMenu` state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write `GameMode` and hand off to `Playing`. The Settings modal (audio volume, graphics preset, read-only keybind reference) is shared by both entry points and persisted cross-platform in `settings_store` (RON file / localStorage). |
 | `nova_editor`   | The ship editor scene (`NovaEditorPlugin`). Comes up on entering `Playing`, only in `GameMode::Sandbox`. |
-| `nova_gameplay` | The shared gameplay layer under the ship: `integrity/` (health, the two damage readings `erosion` and `carve`, and the debris a carve leaves in `spew`/`chunk`), `damage`, `gravity` (gravity wells), `markers` (the entity markers the ship tags with and this layer reads), `math`, `audio` (the generic SFX engine `nova_menu` and `nova_os_ui` also use), `juice`, `shake`, `settings` (`MasterVolume`/`GraphicsQuality` + apply systems), `mesh` (mesh slicing, plus the `SignedField` an asteroid is meshed from), `transform`, `relations`, `beacon`, `objectives` (the `GameObjectives` list, its panel and the conveyance tags), `lifetime` (`TempEntity`/`DespawnEntity`), `cooldown`, `plugin`. Also owns `GameStates`, `PauseStates`, and the `GameMode` resource. Knows nothing about a ship. |
+| `nova_gameplay` | The shared gameplay layer under the ship: `integrity/` (health, the two damage readings `erosion` and `carve`, and the debris a carve leaves in `spew`/`chunk`), `damage`, `gravity` (gravity wells), `markers` (the entity markers the ship tags with and this layer reads), `math`, `audio` (the generic SFX engine `nova_menu` and `nova_os_ui` also use), `juice`, `shake`, `settings` (`MasterVolume`/`GraphicsQuality` + apply systems), `mesh` (the procedural `TriangleMeshBuilder`, plus the `SignedField` an asteroid is meshed from and carved in - nothing here takes a finished mesh apart), `transform`, `relations`, `beacon`, `objectives` (the `GameObjectives` list, its panel and the conveyance tags), `lifetime` (`TempEntity`/`DespawnEntity`), `cooldown`, `plugin`. Also owns `GameStates`, `PauseStates`, and the `GameMode` resource. Knows nothing about a ship. |
 | `nova_ship`     | The ship and how it is flown: `sections/` (the modular hull, its ammo, and the authored damage looks in `damage_effects`/`damage_cracks`/`damage_sparks`/`damage_plume`), `input/` (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, the `reference` keybind table), `flight/` (the diegetic controller and its autopilot verbs), `camera/` (the chase-camera controller and the chase/skybox/post/WASD rigs under it), `physics/` (the PD attitude controller) and `ship_audio/` (the soundtrack those five produce). Depends on `nova_gameplay` and never the reverse; `NovaShipPlugin` owns the `SpaceshipSystems` brackets and `nova_core` adds it after `NovaGameplayPlugin`. |
 | `nova_hud`      | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs `nova_hud -> nova_gameplay`. `nova_core` adds `NovaHudPlugin` render-gated, and the crate places `NovaHudSystems` between the section and camera sets itself. |
 | `nova_os`       | NOVA OS logic with no UI in it: the terminal model (`terminal`), the shell command language and typo suggestions (`shell`), and the app runtime seam (`app`). |
@@ -30,7 +30,7 @@ real code lives under `crates/`.
 | `nova_debug`    | Debug-only plugin (inspector, overlays). Compiled only under the `debug` feature. |
 | `nova_info`     | Exposes `APP_VERSION`, injected by `build.rs`. |
 | `nova_autopilot` | Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; `nova_debug`, `nova_probe` and `nova_probe_cli` all build on it. See [Automation harness](automation-harness.md). |
-| `nova_probe`    | Dev tooling (not in the shipped game): the IN-GAME half of the run-harness - the capability plugins an example wires to collect evidence about its own run (`capabilities::frametime`, `capabilities::timeline`, `capabilities::invariants`, bundled by `NovaProbePlugin`), the `contract` an example declares, and the wire format the host reads. See [Development](development.md). |
+| `nova_probe`    | Dev tooling (not in the shipped game): the IN-GAME half of the run-harness - the capability plugins an example wires to collect evidence about its own run (`capabilities::` `frametime`, `timeline`, `invariants`, `snapshot`, `census`, `framecost`, all bundled by `NovaProbePlugin`), the `contract` an example declares, and the wire format the host reads. See [Measuring performance](performance.md) and [Building and running](development.md). |
 | `nova_probe_cli` | Dev tooling: the HOST half of the run-harness - spawns autopilot runs as child processes, grades their artifacts (`evaluation`) and renders the reports (`report`). Owns the `cargo run --features debug probe run/report` CLI. The two halves meet at the filesystem: nothing in `nova_probe` reads a run's output back. |
 | `nova_perf_web` | The wasm app `probe run --platform web` boots and measures: the real game started into a scenario with the frame-time capture armed. Dev tooling, never shipped. |
 | `nova_authoring` | The OFFLINE half of the content pipeline (never shipped): the Rust builders that define every built-in scenario and section, the `content -- gen` serializer that writes them to the committed `assets/base/**/*.content.ron`, and the `content -- lint` walk that validates a content tree. |
@@ -104,25 +104,26 @@ re-exports all sub-crate preludes, so top-level code and examples usually just d
 ### Generic helpers live here too
 
 The generic, non-Nova Bevy helpers (WASD/chase cameras, skybox, post-processing,
-mesh explode, PD controller, health, status bar, the generic game-event queue
+the mesh builder and the signed field, PD controller, health, status bar, the generic game-event queue
 `GameEventsPlugin`/`EventWorld`) are nova's own: the camera and transform rigs,
 the mesh toolkit in `nova_gameplay`, the camera rigs and the PD controller in
 `nova_ship`, the status bar and
 tween in `nova_ui`, the event engine in `nova_events`, the inspector and
-wireframe layers in `nova_debug`. They used to live in a separate pinned repo;
-task 20260806-180450 vendored them in, because splitting them out before the
-game was done produced generic-looking code shaped by one game's needs. Whether
-any of it deserves extracting is a question for after the game ships.
+wireframe layers in `nova_debug`. They live in nova crates on purpose:
+splitting a generic layer out before the game is done produces generic-looking
+code shaped by one game's needs. Whether any of it deserves extracting is a
+question for after the game ships.
 
-The generic `HealthDisplay` bar stays here (still available for other games and
-for non-player entities), but Nova's own damage readout is no longer that bar:
-it is diegetic, and it runs on every ship rather than only the player's. Each
-section fractures its own material as its `DamageLevel` rises
-(`nova_ship::sections::damage_cracks`), and which looks a section wears is
-authored content (`damage_effects`, task 20260813-224826). Because that readout
-keys on Nova's section graph, its authored vocabulary and an extended material,
-it is game-specific and is NOT a promotion candidate - the generic bar and the
-diegetic readout are different things at different layers.
+`nova_ui::status_bar` is the shape that line is drawn on. It is a generic
+readout - a row of value/colour closures over any `Any` subject - and it stays
+in the leaf crate. Nova's own damage readout is NOT built on it: it is
+diegetic, and every section fractures its own material as its `DamageLevel`
+rises (`nova_ship::sections::damage_cracks`), from a vocabulary each section
+AUTHORS (`damage_effects`). That readout keys on Nova's section graph, its
+authored vocabulary and an extended material, so it is game-specific and is not
+a promotion candidate. A generic widget and a diegetic one are different things
+at different layers, and the test is whether another game could take it as it
+stands.
 
 Boundary policy, from most game-agnostic to most game-specific:
 
@@ -199,6 +200,8 @@ stateDiagram-v2
             [*] --> Unpaused
             Unpaused --> Paused: ESC
             Paused --> Unpaused: ESC
+            Unpaused --> NovaOs: Tab
+            NovaOs --> Unpaused: Tab
         }
     }
 
@@ -262,8 +265,7 @@ The chain above is configured IDENTICALLY in `Update` and `FixedUpdate`
 (`nova_ship::NovaShipPlugin`, two `configure_sets` calls with the same set order),
 so a gameplay set can host systems in either schedule. The split is not
 cosmetic: since every dynamic body opted into avian's `TransformInterpolation`,
-the game carries two pose representations on two clocks (see the two-clocks
-record, `tasks/20260711-103527/SPIKE.md`):
+the game carries two pose representations on two clocks:
 
 - **Raw physics pose** -- avian `Position`/`Rotation`, advanced on the 64 Hz
   `FixedUpdate` tick. This is the truth the simulation integrates.
@@ -317,10 +319,11 @@ live UNDER `assets/base/` (exported `gltf/` models `.glb`, `textures/`,
 `self://` and by mods with `dep://base/<path>`. It is the whole directory the
 web (Trunk `copy-dir`) and native (`release.yaml`) builds ship, so non-runtime
 files must not live here. The Blender SOURCES the `gltf/` models are exported
-from live OUT of the shipped tree, in top-level `art/blender/` (they are
-2.7M that was never loaded at runtime). The built-in sections and scenarios ARE
-data now: the Rust builders in `crates/nova_authoring` (`sections.rs`,
-`scenario.rs`, `scenario/`) are the single source, and
+from live OUT of the shipped tree, in top-level `art/blender/`, because nothing
+loads them at runtime. The built-in sections, ships, styles, scenarios and
+campaigns ARE data: the Rust builders under
+`crates/nova_authoring/src/base_content/` (`sections/`, `ships/`, `styles.rs`,
+`scenarios/`, `campaigns.rs`, `assets.rs`) are the single source, and
 `cargo run content gen` serializes them to the
 committed `assets/base/**/*.content.ron` the game loads like any other bundle.
 Never hand-edit the generated files; edit the builders and re-run `gen`.

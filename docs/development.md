@@ -142,20 +142,19 @@ expect to DO something? If the name promises a verb, it owes the verb. The test
 between `systems/` and `screenshots/` is what a run PRODUCES - an assertion, or
 a picture.
 
-Three categories, not five and no longer two: `sections/`, `ui/` and `stress/`
-dissolved into `systems/` and `screenshots/`, then `playable/` split back out
-of `screenshots/` for the examples a person actually works (v0.11.0, tasks
-20260817-013618 and 20260818-221103). Autopilot in a `playable/` example is a
-SECOND driver, for captures and for the run gate - never the only one.
+There are THREE categories and there is no fourth: an example that does not fit
+one of them is miscategorised, not a new kind. Autopilot in a `playable/`
+example is a SECOND driver, for captures and for the run gate - never the only
+one.
 
 Run policy is DECLARED by the example at runtime, through the probe plugins it
 wires (`nova_probe::contract`); probe reads it back from `probe-contract.json`.
 Every cataloged example is spawned (`--all` subtracts nothing), and one that
 declares no capability grades UNPROBEABLE - the sanctioned opt-out, gated on
 its smoke checks alone. The grading detail lives under
-[Performance and run verification](#performance-and-run-verification); what
-each category proves is the table above plus the per-block comments in the
-root `Cargo.toml`, and review enforces it.
+[Run verification (probe)](#run-verification-probe); what each category proves
+is the table above plus the per-block comments in the root `Cargo.toml`, and
+review enforces it.
 
 ### The catalog and the harness
 
@@ -180,11 +179,15 @@ What is on disk today, in reading order:
   the rule. The section curriculum first: `system_attitude_hold` (PD attitude),
   `system_thrust_and_plume` (burn -> thrust + plume shader),
   `system_hull_damage` (damage -> destroy -> ship survives, and the mass
-  properties the losses move), `system_destruction_finale` (every destructible
+  properties the losses move), `system_section_severing` (a destroyed interior
+  section leaves a real hole and the structure behind it drifts free as its own
+  wreck body), `system_destruction_finale` (every destructible
   body - gltf section, procedural section, multi-part turret, asteroid -
   breaking into its OWN art rather than generic cubes, on one budget),
   `system_turret_gunnery` and `system_torpedo_launch` (the
-  weapon ranges, the latter also the PN lead-a-crosser deep-dive). Then the
+  weapon ranges, the latter also the PN lead-a-crosser deep-dive), and
+  `system_blast_penetration` (explosive falloff, one section shielding the next
+  and two salvos that cannot use the hole they make in the same tick). Then the
   cross-cutting systems, every fixture a `ScenarioConfig` written in Rust and
   loaded with `LoadScenario`: `system_scenario_grammar` (the scenario language -
   variables, events, filters, actions), `system_player_path` (a scenario played
@@ -201,7 +204,10 @@ What is on disk today, in reading order:
   `bug_menu_picker` (the Scenarios picker, whose pane split must not depend on
   the selection - real fonts, real taffy, which a headless unit rig cannot
   measure at all), `bug_sandbox_soak` (the editor sandbox entered and then left
-  alone, holding one physics step to its own timestep) and
+  alone, holding one physics step to its own timestep), `bug_carve_apply` (one
+  cut that severs a rock, and what the main thread pays to SWAP the result in -
+  the range counts grids rather than milliseconds, so it reads the same on
+  every box) and
   `system_nova_os` (the Tab ship computer, opened with a keystroke and
   clicked THROUGH the CRT glass, so the whole forwarded-pointer chain - window
   rect, screen-to-image mapping, offscreen UI stack, `Activate` - is asserted
@@ -274,8 +280,8 @@ deleted into a still-green run. The `screenshots/` and `playable/` examples
 carry no behavior assertions of their own - they drive the shipped
 scenes to capture frames - but every one walks an `AutopilotPlugin` step
 timeline, so a beat that never resolves is an error exit naming that step, and
-every one wires `nova_probe::nova_timeline()` + `nova_probe::nova_invariants()`,
-so a probe run grades the walk on the engine invariants. Disk and catalog
+every one adds `nova_probe::NovaProbePlugin`, so a probe run grades the walk on
+the engine invariants. Disk and catalog
 cannot drift: the display-free `catalog_matches_disk` test
 (`crates/nova_probe_cli/tests/catalog_drift.rs`) fails `cargo test --workspace`
 when a new example misses its `[[example]]` block. That is the case nothing else
@@ -603,7 +609,7 @@ the PoC and `style.css` and fails if the site's tokens go missing or drift in
 value, if the phosphor vocabulary stops being consumed, or if any hardware
 material token is read outside `:root`.
 
-## Performance and run verification
+## Run verification (probe)
 
 The run-harness is two crates split at the process boundary: `nova_probe`
 (`crates/nova_probe/`) links into the example and collects the evidence, and
@@ -625,7 +631,9 @@ cargo run --features debug probe scenario broadside      # a SCENARIO by id, no 
 cargo run --features debug probe scenario assets/base/scenarios/broadside.content.ron  # ... or by file
 ```
 
-It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours),
+It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours -
+and note that a software X server is not free, see
+[Measuring performance](performance.md#a-capture-under-xvfb-measures-the-x-server-too)),
 captures the run timeline + continuous invariants + the log into
 `probe-runs/<short-commit>/<example>/` by default (or
 `<out-base>/<short-commit>/<example>/` with `--out <out-base>`), optionally
@@ -639,9 +647,7 @@ example. `--correctness-only` runs only the clean pass: timeline, invariants,
 autopilot assertions, completion, reached-Playing, and log checks remain armed,
 while frame-time and traced passes are omitted. CI uses this mode; release
 verification uses the full run. Three verbs are the whole surface - `run`,
-`scenario` and `report`; the transitional `sweep|web|profile` aliases and the
-`trace` verb retired at the v0.8.0 cut (retired commands error with a pointer
-to the `run` form).
+`scenario` and `report` - and each takes `-h`/`--help`, as does the root.
 
 `probe scenario` takes those same passes to a scenario, with nothing in
 between: the SHIPPED GAME BINARY is the program, launched with `--scenario
@@ -695,200 +701,18 @@ and throwing it away each run would make FPS numbers incomparable). The XDG
 pair is how the `dirs` crate resolves on Linux, the supported probe host;
 `nova_probe_cli::native::profile_sandbox` has the details.
 
-Under the hood: an env-gated capture plugin drives the real gameplay app to
-`Playing`, warms up, records the wall-clock delta of every frame for a fixed
-window, and writes percentile stats. It is inert unless `NOVA_PERF` is set,
-so the whole fleet carries it permanently. Probe runs it as a DEDICATED
-capture-only pass when the program declares it (the correctness recorder
-flushes per entry on the frame path - measurement and correctness never share
-a pass), the harness
-completion protocol keeps the app alive until the window closes, and
-enrolled scenes (a script `loop_from` point) reload + replay so the window
-measures activity - reload intervals are excluded from the stats and
-reported as their own line.
-
-Which runs get that pass is the PROGRAM's own answer: it wired
-`nova_probe::nova_frametime()`, or it did not. Probe reads the clean run's
-contract and arms the separate capture only when declared. A program that
-wired no capture is inert, and its contract tells the report the frame-time
-section is empty because the program
-makes no frame-cost claim - not because a capture went missing. Frame-time
-claims are made by WIRING the capture, not by living in a directory: the four
-`stress_*` ranges are what wire it today.
-
-What the report does with the numbers is REPORT them. The Performance section
-leads with the worst frame, the mean, and what each comes to in FPS, flagged
-when it is under 60; `checks.json` mirrors it under `frames`, carrying
-`graded: false`. Nothing passes or fails on a frame-time number - whether a
-scene is fast enough on this machine, in this build profile, is the reviewer's
-call and always was.
-
-### One capture cannot prove a tail moved
-
-The worst frame is the number that matters - a stutter is a tail, and a mean
-hides it - and it is also the least repeatable thing the capture produces. Two
-captures of an UNCHANGED scene move it by tens of percent, while the mean and
-the median of the same two windows barely move at all. So a claim about the
-worst frame is made over a repeat SET, not over a run:
-
-```sh
-cargo run --features debug probe run wfc_arena --repeat 5
-```
-
-Each repeat is its own process, and each writes its own `frametime.csv` row
-labelled `<subject>#<n>`. The report then reads them as a set:
-
-- the reference is the MEDIAN of the repeats' means (and of their medians), so
-  one bad capture cannot drag the band over itself;
-- a repeat whose mean or median sits outside the band is DISCARDED - it met a
-  different machine, or a different amount of scene;
-- the tail is read only across what survives, as the median of the admitted
-  **p99** values, printed with the spread of that group. The slowest single
-  frame gets the same treatment and is printed beside it - as a reading, not
-  as the number a claim is made on. It is one sample out of nine hundred and
-  behaves like one; p99 is still a tail (the ninth-worst frame) and resolves
-  roughly twice as small a change.
-
-The spread is the point. It is the honest width of the number, and a claimed
-improvement smaller than it has not been measured. Discarding is not grading:
-`checks.json` carries the whole set under `repeats` with `graded: false`, and
-a discarded repeat says something about the machine, never about the code.
-
-Two things the band cannot do for you. It is derived from a REFERENCE HOST and
-is a property of that machine, so re-derive it elsewhere. And it catches an
-outlier, not a DRIFT: a set taken immediately after a build slides monotonically
-down as the box recovers, the reference lands in the middle of the slide, and
-the gate throws out both ends. Let the machine settle before a repeat set, and
-treat a set the gate empties as "measure it again", never as a result.
-
-### Was the window one scene?
-
-A capture also records how many FIXED STEPS ran inside each frame, bucketed by
-count in the per-run JSON (`fixed_steps`), on the summary line, and as a table
-in the report's Performance section (`checks.json` mirrors it beside `frames`).
-Bevy runs `RunFixedMainLoop` until the accumulated virtual time is spent,
-capped by `Time<Virtual>::max_delta`, so a frame that overruns the timestep
-hands its overrun to the next frame as extra steps.
-
-Two readings matter, and no percentile shows either:
-
-- **Frames that ran NO step.** In a scene slower than the timestep that means
-  the simulation was STOPPED inside the window - a pause, a menu, a result
-  screen. A window carrying them did not measure one scene, whatever its mean
-  says. In a scene faster than the timestep it is ordinary and says nothing.
-- **Frames at the top of the range.** When that count is
-  `max_delta / timestep` the clamp is firing: those frames are discarding real
-  time the world never simulates.
-
-A stopped simulation is not merely reported, it is REFUSED. The capture reads
-`Time<Virtual>` directly, and a frame that arrives paused (or at relative speed
-zero) inside the warm-up or the window aborts the whole capture: it logs at
-ERROR naming the phase and the frame, writes NO `frametime.csv` row and no
-per-run JSON, and the `capture_simulated` check fails the run and lists every
-refused capture. A refusal rather than a flag, because a stopped scene keeps
-drawing at a steady cost - the mean and median it produces are exactly the shape
-a validity gate admits.
-
-So a scene that can REACH AN END needs a window that closes before it does. An
-example declares its own with `NovaProbePlugin::frametime_window(warmup,
-frames)`, sized from a measured run of that scene rather than guessed;
-`wfc_arena` does, because its 4v4 is a match that can be won.
-
-`NOVA_PERF_MAX_DELTA=<secs>` forces the ceiling for a run, which is how a claim
-about the fixed loop gets tested instead of argued. Capping it in a SHIPPING
-build would trade a bounded tail for simulation time the world never runs, so
-it stays a measurement knob.
-
-### A capture under Xvfb measures the X server too
-
-**Read this before quoting any absolute millisecond a probe run produced.** A
-software X server has no scanout, so presenting a window is a CPU-side copy of
-every pixel of it, and the render thread pays for that inside `render_system`
-after the graph has already finished. On this project's host, at 1280x720, an
-EMPTY scene costs 16.7 ms under `xvfb-run` and 3.0 ms against a real display -
-same binary, same window, same pin, same `Immediate` presentation. The gap is
-linear in window pixels (1.4 ms at 160x90, 11.5 ms at 720p, 50 ms at 1440p) and
-does not move when `NOVA_PERF_RENDER_SCALE` cuts the shading to a sixteenth, so
-it is the window and not the drawing.
-
-It is an ADDITIVE constant, not a scale factor. An A/B whose two arms share a
-window size divides it out, so ratios and ablations under Xvfb stand. A budget,
-an FPS gate and a "this scene costs N ms" claim do not.
-
-Two knobs make it visible. `NOVA_PERF_PRESENT=immediate` names the presentation
-mode instead of requesting `AutoNoVsync` - bevy logs the fallback for a named
-mode and says nothing for the auto ones, so this is how a run proves it was not
-capped at refresh. `NOVA_PERF_RENDER_DIAG=1` asks the renderer for GPU timestamp
-queries and turns on the frame-cost report's per-pass GPU table (it costs a
-resolve pass and a readback, about 3% of the frame, so it is never a default).
-
-### Where a frame's milliseconds went
-
-Any armed capture also logs a `nova framecost:` line and, under it, three
-tables: every main-world schedule, every top-level `RenderSystems` phase with
-the render graph carved out of `Render` so the submit and the present are
-visible on their own, and every render pass the device timed. Read them
-together - the main world and the render world overlap under pipelined
-rendering, so a frame costs about the longer of the two, and GPU far under both
-says the device is not the constraint.
-
-Beside it, `nova census:` counts the world once per capture: entities by
-component, the archetypes they fall into, and mesh instances against DISTINCT
-mesh handles. Instances and distinct always side by side - 12,572 instances over
-681 meshes is a different story from the 12,572 alone, and that distinction is
-what found the per-section material regression.
-
-The capture window is the capture crate's full 180/900 baseline unless the
-example declared one of its own, so probe numbers stay comparable with the
-sweep's; your `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` override both. The
-completion deadline is SIZED to the BASELINE window (not a flat 120s, and a
-ceiling for any shorter one an example declares): probe sets
-`NOVA_AUTOPILOT_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
-margin`, so a slow-but-progressing capture (a heavy scene in a dev build under
-software rendering - the `stress_*` ranges are the case) completes instead of
-tripping the hang detector; a genuine hang still fails at a window-appropriate
-bound, and your own `NOVA_AUTOPILOT_DEADLINE` overrides it. Every example's `main`
-returns `AppExit`, so a deadline expiry is a non-zero process exit the
-`process_exit` check reports. See the crate docs for the full knob list
-(`NOVA_PERF_*`).
-
-The perf sweep is the same front door: a preset matrix of the frame-time
-capture, one labeled `frametime.csv` row per cell, release-built (dev-profile
-frame numbers are not baselines):
-
-```sh
-cargo run --features debug probe run stress_bullets --release --preset high --preset low
-cargo run --features debug probe run stress_bullets --release --render sw ...  # lavapipe floor
-cargo run --features debug probe run <scenario> --platform web   # web/WebGPU capture (scraped)
-```
-
-`--scenario` has no host on the native side: it sets `NOVA_PERF_SCENARIO`,
-and no cataloged example reads it. Measuring a named SHIPPED scenario is
-UNDOCUMENTED until a `probe` subcommand loads one from its `.ron`. The web
-capture (`--platform web`) does still take a scenario id - `nova_perf_web`
-reads it from the URL.
-
-Every capture records run metadata (wgpu backend + GPU adapter, resolution,
-graphics preset, git SHA, host and - schema v3 - the BUILD PROFILE) so a
-results file names its own renderer (pre-v3 files, like the v0.7.0
-baseline, still load; their profile reads `unknown`). The report badges
-each row `dev` or `release`: dev numbers are NOT baselines, and since the
-whole fleet now carries the capture capability, the
-badge is what keeps ad-hoc dev captures from being mistaken for
-comparable measurements. The web platform
-builds the perf_web wasm app through Trunk, serves it from an embedded static
-server, drives headless Chromium with the calibrated WebGPU flags, and
-scrapes the summary line into a labeled CSV row (no fs in the browser).
-Compare runs with `probe report <after> --baseline <before>` - signed deltas
-per label - and `report` only accepts dirs probe itself produced
-(`probe-run.json` is the gate).
+Frame-time capture, the repeat set and its validity gate, the fixed-step and
+Xvfb traps, the frame-cost and census breakdowns, the preset sweep and the
+profiled pass all live on [Measuring performance](performance.md). This section
+stops at the run and its verdict.
 
 ### Run timeline (correctness recording)
 
 `nova_probe` also records WHAT HAPPENED during a run: set
 `NOVA_PERF_TIMELINE=<out.jsonl>` on any example that adds
-`nova_probe::nova_timeline()` - since the fleet wiring (task
-20260719-210443) that is EVERY cataloged example - and the run appends one JSON object per line - every `GameStates`/pause transition, every fired scenario
+`nova_probe::nova_timeline()` - which `NovaProbePlugin` does unconditionally,
+so that is EVERY cataloged example - and the run appends one JSON object per
+line: every `GameStates`/pause transition, every fired scenario
 event with its payload (kills, area enter/exit, locks), every scenario-variable
 change (old/new), plus the beats the autopilot script pushes itself via
 `nova_probe::probe_marker`. Entries are flushed as written, so a panicked run
@@ -901,9 +725,22 @@ NOVA_PERF_TIMELINE=/tmp/run.jsonl NOVA_AUTOPILOT=1 \
 ```
 
 The timeline is native-only (no fs in the browser) and inert without the env
-var. It is the correctness half of the run-harness the perf capture is the
-performance half of; the unified run report (task 20260719-112304) renders
-both.
+var. It is the correctness half of the run-harness whose performance half is
+[Measuring performance](performance.md); the run report below renders both.
+
+Continuous INVARIANTS ride the same stream: set `NOVA_PERF_INVARIANTS=1` (or
+`=strict` to panic on the first violation) on a wired example and every frame
+asserts what the engine guarantees - health within `0..=max` and finite,
+velocities finite (plus an absurd-speed bound at 10x a ship's soft
+`FlightSpeedCap`), scenario Number variables finite, registered monotonic
+variables never decreasing (opt-in per example: `system_player_path` registers
+`target_down`/`leg`, `system_scenario_grammar` seven counters and latches,
+`system_outcomes` `hostile_down`), and a total entity-count leak bound. A
+monotonic is one-way within a SCENARIO LIFE, not for the process: the memory is
+forgotten on `ScenarioLoaded`, so an example that replays through its loop
+point re-seeds its latches without taking a false regression. Violations warn,
+land on the timeline as `kind: "invariant"` entries, and feed the report's
+`invariants held` check.
 
 ### The run report (one verdict surface)
 
@@ -932,51 +769,6 @@ frame numbers are host-noisy), a hung run is killed and still produces a
 FAILing report, and the report ends with a reviewer checklist: the final
 OK/NOT-OK is a human's or an agent's call, off `checks.json` without
 parsing HTML.
-
-### Profiled pass (where does the time go)
-
-Per-system costs come from a SEPARATE traced run - tracing overhead inflates
-frame times, so a profiled run RANKS systems while the clean capture owns the
-FPS truth (never mix the two):
-
-```sh
-cargo run --features debug probe run system_scenario_grammar          # trace + report table
-cargo run --features debug probe run system_scenario_grammar --samply # + flamegraph
-```
-
-The profiled pass builds with `--features debug,trace` (bevy's per-system
-spans are compiled in only under `bevy/trace`), runs headless with
-`TRACE_CHROME` into the run dir (plus the `RUST_LOG=bevy_ecs=info` override
-that un-hides the spans from the game's log filter), and the report renders
-the top-N table (`probe report <run-dir>` re-renders it). Open the raw
-`trace.json` in https://ui.perfetto.dev for the full picture; `samply load`
-opens the flamegraph in the Firefox Profiler (the samply run is skipped with
-a note when samply is missing or blocked - sampling needs
-`perf_event_paranoid <= 1` AND, on many-core hosts, enough perf ring-buffer
-memory: an "mmap failed" means raising `perf_event_mlock_kb`, e.g.
-`echo 16384 | sudo tee /proc/sys/kernel/perf_event_mlock_kb`). The samply
-run builds with the dedicated `profiling` cargo profile (full DWARF in the
-binary + frame pointers via RUSTFLAGS) so our frames symbolicate to real
-names instead of raw addresses; frames inside the NVIDIA driver blob and
-stripped system libraries stay hex - that is their stripping, not a build
-problem. Load the profile right after recording: symbolication resolves
-from the binary on disk, so a rebuild in between loses names. Expect the trace to be large (a 30 s autopilot
-run produces hundreds of MB); it is a scratch artifact, not something to
-commit.
-
-Continuous INVARIANTS ride the same stream: set `NOVA_PERF_INVARIANTS=1` (or
-`=strict` to panic on the first violation) on a wired example and every frame
-asserts what the engine guarantees - health within `0..=max` and finite,
-velocities finite (plus an absurd-speed bound at 10x a ship's soft
-`FlightSpeedCap`), scenario Number variables finite, registered monotonic
-variables never decreasing (opt-in per example: `system_player_path` registers
-`target_down`/`leg`, `system_scenario_grammar` seven counters and latches,
-`system_outcomes` `hostile_down`), and a total entity-count leak bound. A
-monotonic is one-way within a SCENARIO LIFE, not for the process: the memory is
-forgotten on `ScenarioLoaded`, so an example that replays through its loop
-point re-seeds its latches without taking a false regression. Violations warn,
-land on the timeline as `kind: "invariant"` entries, and feed the report's
-`invariants held` check.
 
 ## Versioning and release
 
@@ -1017,7 +809,7 @@ It can also be re-run via `workflow_dispatch` with a `version` input.
 
 Every release cycle gets one **News** post on the site (`/news/`, markdown under
 `web/src/news/`). News is the merged devlog + release notes: **one post per
-FEATURE release** (`v0.1.0`, `v0.2.0`, ... `v0.9.0`). Patch releases do NOT get
+FEATURE release** (`v0.X.0`). Patch releases do NOT get
 their own post - they fold into the parent feature post's `## Point releases`
 section (`v0.5.0`'s post covers `v0.5.1` and `v0.5.2`). The terse per-version
 list stays in `CHANGELOG.md`; source the post's content from the cycle's
@@ -1073,13 +865,20 @@ The everyday loop for landing a change:
    Xvfb/lavapipe plus the
    `nova_autopilot` example test under Xvfb. Three more
    jobs run in parallel with that one: a default-features
-   `cargo check --workspace --all-targets`, a
-   `cargo check --workspace --exclude nova_probe_cli --target
-   wasm32-unknown-unknown` (the host harness has no meaning in a browser), and a
-   dependency-license gate. The two `check` jobs run under `RUSTFLAGS=-D
-   warnings` and exist to catch dead code and unused imports that only appear
-   with `debug` off or on wasm - neither configuration is otherwise built. All
-   of it must be green to merge.
+   `cargo check --workspace --all-targets` under `RUSTFLAGS=-D warnings`, a
+   wasm32 `cargo clippy --workspace --exclude nova_probe_cli` (the host harness
+   has no meaning in a browser), and a dependency-license gate. Those two exist
+   to catch dead code and unused imports that only appear with `debug` off or
+   on wasm - neither configuration is otherwise built. All of it must be green
+   to merge.
+
+   The wasm job is CLIPPY rather than `check`, and it points `CLIPPY_CONF_DIR`
+   at `ci/wasm-clippy/`, whose `clippy.toml` bans the std APIs that COMPILE for
+   wasm32 and then panic in the browser - a class of bug no `cargo check` on
+   that target can see. Those bans are correct only there: natively
+   `bevy::platform::time` re-exports std's clock, so the same list would flag
+   correct code in the main job. That is why the config lives outside the
+   repository root, and why there is no root `clippy.toml`.
 
 House style is [`CONVENTIONS.md`](https://github.com/alexjercan/nova-protocol/blob/master/CONVENTIONS.md)
 at the repo root - Rust, Bevy, Nova, comments, documentation, changelog and web,

@@ -10,7 +10,6 @@
 - Start at `introduction.md`; the documentation map is
   `keeping-docs-in-sync.md`.
 
-`docs/` is NOT a scratchpad. The old ephemeral-docs model (free-form working
-notes, compiled and wiped at each release) is retired: everything here is a
-durable, maintained book chapter. Transient working files live outside the
-repo; task-scoped records live in `tasks/<id>/`.
+`docs/` is NOT a scratchpad: everything here is a durable, maintained book
+chapter. Transient working files live outside the repo; task-scoped records
+live in `tasks/<id>/`. `keeping-docs-in-sync.md` owns the rest of that rule.

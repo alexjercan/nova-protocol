@@ -31,11 +31,10 @@ how to extend, where things live - and rustdoc is the API detail underneath
 it. They overlap on purpose - the cost of that overlap is that one code change
 can carry several doc obligations, which is what the map below makes explicit.
 
-**`docs/` is the source of this book, not a scratchpad.** The old
-ephemeral-docs model (free-form working notes under `docs/`, compiled and
-wiped at each release) is retired. Everything under `docs/` is a maintained
-book chapter; transient working files live outside the repo, and task-scoped
-records live in `tasks/<id>/`.
+**`docs/` is the source of this book, not a scratchpad.** Everything under it
+is a maintained book chapter, listed in `SUMMARY.md` and built on every deploy.
+Transient working files live outside the repo, and task-scoped records live in
+`tasks/<id>/`.
 
 ## When you change code
 
@@ -77,7 +76,9 @@ creator pages on the site; linked names are chapters of this book.
 | The ship content kind: what a hull IS vs what a spawn is (`nova_scenario/objects/ship.rs`, `nova_authoring/base_content/ships`) | `sections.md` | `/create/ships/`, `/create/objects/` (the Spaceship spawn), `/create/mod-files/`, `/create/reference/` | CHANGELOG **(breaking?)** |
 | Mod portal + generator (`scripts/gen-portal.py`, `nova_modding`) | `modding.md` | `/create/publish-a-mod/` | CHANGELOG |
 | Menus, editor, UI (`nova_menu`, `nova_editor`, `nova_ui`) | `hud.md`, `sections.md` | [Add a ship section](guide-add-section.md) | tutorial, CHANGELOG; **theme tokens: `web/design/nova_ui_rework_poc.html` is the source for BOTH `nova_ui/src/theme.rs` and `web/src/style.css`; the site draws the PHOSPHOR skin only** |
-| Automation drivers, the env contract, the completion protocol, the probe harness (`nova_autopilot`, `nova_probe`, `nova_probe_cli`) | | [Automation harness](automation-harness.md), [Building and running](development.md) (probe sections) | CHANGELOG **(env rename? breaking for every run script)** |
+| Automation drivers, the env contract, the completion protocol (`nova_autopilot`, `nova_debug/harness.rs`) | | [Automation harness](automation-harness.md) | CHANGELOG **(env rename? breaking for every run script)** |
+| The probe harness: capabilities, run grading, the report (`nova_probe`, `nova_probe_cli`, `nova_perf_web`) | | [Building and running](development.md) ("Run verification"), [Measuring performance](performance.md), and the `nova_probe` rustdoc knob table | CHANGELOG (Internals) |
+| What a frame COSTS, or how it is measured (`nova_probe/capabilities/{frametime,framecost,census}`, `nova_core` render setup, anything with a millisecond in its justification) | | [Measuring performance](performance.md) - and re-read the Xvfb section before quoting an absolute number anywhere | CHANGELOG (Performance) |
 | App assembly, plugin order, states, the game binary's own flags (`nova_core`, `nova_assets`, `src/main.rs`) | | [Architecture](architecture.md), [Project tour](project-tour.md), [Building and running](development.md) ("Launching a scenario from the command line") | CHANGELOG |
 | Content CLI: gen/lint subcommands, the base content builders (`nova_authoring`, the game binary's `content` subcommand) | | `/create/author-a-scenario/`, `/create/sections/`, [Add a ship section](guide-add-section.md), `/create/publish-a-mod/`, `/create/mod-files/`, [Scenario engine](scenario-system.md), [Ship sections internals](sections.md), `/create/base-content/` (the id/asset catalog - a builder change that adds, renames or rebalances an id lands there) | CHANGELOG |
 | The website itself (`web/`) | | [Building and running](development.md), this page | |
@@ -85,16 +86,18 @@ creator pages on the site; linked names are chapters of this book.
 
 ### "Check" means re-derive, not grep
 
-The 20260806-121625 refactor is the cautionary tale. Its lanes DID sweep docs -
-at the name level ("does the page name the new crate"), and the pages did. What
-survived was every claim BETWEEN the names: a dependency graph still drawing
-`nova_ui` as menu-and-editor-only, a crate map missing four crates, commands
-attributed to the crate they moved out of. The after-benchmark's `docs` persona
-then failed a control question by trusting one of those stale claims
-(task 20260809-213446). So when a row above says "check", it means: re-derive
-every crate name, module path, command, and dependency direction the page
-asserts against the current tree. A page that names the new thing can still
-describe the old one.
+A name-level sweep - "does the page mention the new crate?" - passes while
+every claim BETWEEN the names goes stale: a dependency graph drawing a crate
+with the wrong consumers, a crate map missing four members, a command
+attributed to the crate it moved out of. Someone then reads one of those and
+answers a question wrong, which is the failure the sweep was supposed to
+prevent.
+
+So when a row above says "check", it means: re-derive every crate name, module
+path, command, symbol and dependency direction the page asserts, against the
+current tree. **A page that names the new thing can still describe the old
+one.** Grep the page's own `file:line` and symbol claims and open each one - a
+type that no longer exists is an unambiguous defect and needs no judgement.
 
 Two structural traps this map cannot catch by itself:
 

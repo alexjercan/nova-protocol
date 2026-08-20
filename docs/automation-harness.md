@@ -16,11 +16,9 @@ generic over the app's state type, and that generic is what keeps
 
 **Read this page as the crate's contract.** Nova's own examples run these
 drivers, reaching them through the `nova_debug` prelude and the
-`nova_debug::harness` presets - the Nova-flavored adapter, not a
-second implementation - while `nova_probe` names `nova_autopilot::completion`
-directly. An example that names a driver unqualified no longer
-compiles: nova's prelude stopped re-exporting the shared-helpers crate's one,
-whose same-named types would otherwise resolve to an inert twin.
+`nova_debug::harness` presets - the Nova-flavored adapter, not a second
+implementation - while `nova_probe` names `nova_autopilot::completion`
+directly.
 
 ## What it drives
 
@@ -37,6 +35,12 @@ into a correctness and performance report. It arms the variables below -
 including a window-sized `NOVA_AUTOPILOT_DEADLINE` for its fps pass, which your
 own value overrides. Its in-game half, `nova_probe`, is what the subject
 wires to collect the evidence.
+
+A harness run is headless, which for these drivers means a SOFTWARE X server,
+and that is not free: presenting a window under Xvfb costs a CPU copy of every
+pixel, charged to the frame. Correctness is unaffected and so is any ratio, but
+an absolute millisecond off a headless run is the game plus the display server.
+[Measuring performance](performance.md) has the size of it and what survives.
 
 The subject is usually an example, which wires the collectors itself. For
 `probe scenario` it is the GAME BINARY: `src/main.rs` adds
@@ -68,12 +72,15 @@ so.
 `NOVA_SHOT` and `NOVA_CAPTURE` are deliberately separate: a scripted capture
 run and a one-off snapshot must never fight over the same window.
 
-The table above is the whole contract. These names replaced an older set from
-when the drivers lived in the shared-helpers crate, and the swap was not purely a
-prefix change - the deadline's stem moved too. A scripted run still pinned to
-the old names arms nothing and silently does a plain play-through, so check
-yours against this table; the CHANGELOG's breaking entry spells out the old
-spellings.
+That is the DRIVER contract in full. It is not every `NOVA_*` variable the
+workspace reads: the frame-time capture takes a dozen `NOVA_PERF_*` knobs of
+its own (window, resolution, presentation mode, fixed-step ceiling, census and
+frame-cost cadence), and those are tabulated once, in `nova_probe`'s crate
+rustdoc - `cargo doc --open -p nova_probe` - because the same table serves the
+wasm build as URL query parameters. [Measuring performance](performance.md)
+covers what they are FOR. A variable that arms nothing is silent, so a run
+pinned to a name that is not in one of those two places does a plain
+play-through and reports nothing wrong.
 
 ## Reading the world instead of looking at it
 
@@ -112,10 +119,10 @@ replayable and is its own checkpoint.
 ## The completion protocol
 
 One run can carry several collectors - an autopilot timeline, a frame capture -
-each finishing on its own clock. Before the protocol, whichever
-finished first wrote `AppExit` and discarded everyone else's data; that is how
-an 11-frames-short capture silently lost 229 samples. So the exit is negotiated
-instead. Two rules:
+each finishing on its own clock. A collector that writes `AppExit` on its own
+clock discards every other collector's data, and does it silently: a capture
+cut short by another collector's exit still writes a plausible file, just a
+shorter one. So the exit is NEGOTIATED. Two rules:
 
 1. **Register before the run starts.** A collector calls
    `completion::register` from its `Plugin::build`, behind its own armed check.
@@ -222,22 +229,21 @@ settle sized off the mechanism (`LAUNCH_SETTLE_SECS`, `BURN_WINDOW_SECS`,
 a derivation on its constant; what it must not do is read the quantity the
 assert decides.
 
-### Before and after: the mass-properties script
+### The runway anti-pattern
 
-The old shape - the retired `com_range` example, whose beats now live in
-`system_hull_damage` - was a wall-clock runway plus one closure that re-derived
-a step machine from booleans:
+The shape to avoid is a wall-clock RUNWAY plus one closure that re-derives a
+step machine from booleans:
 
 ```rust
 app.add_plugins(
     AutopilotPlugin::<GameStates>::new()
         .self_completing()
         .hold(GameStates::Loading, 30.0)   // a runway, unrelated to Loading
-        .input(com_range_script),          // every frame, in every state
+        .input(script),                    // every frame, in every state
 );
 app.add_systems(Last, guard_script_completion);
 
-fn com_range_script(world: &mut World, elapsed: f32) {
+fn script(world: &mut World, elapsed: f32) {
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
         return;
     }
@@ -250,7 +256,13 @@ fn com_range_script(world: &mut World, elapsed: f32) {
 }
 ```
 
-The new shape is the beats themselves, each waiting on the world
+Everything in it is a symptom: the `playing_since` offset exists because the
+closure's clock is the RUN's and not the beat's, the booleans exist because a
+closure has no notion of having advanced, and the hand-rolled guard exists
+because nothing else knows the runway expired with beats unplayed. Each is
+carried by the step list for free.
+
+Write the beats themselves, each waiting on the world
 (`examples/systems/system_hull_damage.rs`):
 
 ```rust
@@ -277,10 +289,7 @@ app.add_plugins(
 );
 ```
 
-What the rewrite deleted, in every migrated script: the `playing_since` offset,
-the beat booleans, the per-example `AppExit` guard that panicked when the runway
-expired with beats unplayed, and the runway itself. A step that stalls is now
-the driver's job to report, by name.
+There is no runway, and a stalled step is the driver's job to report, by name.
 
 ### Capturing: one idiom
 
@@ -321,11 +330,11 @@ too: `force_capture_resolution` (a known 16:9 for every shot in the fleet),
 `hide_dev_overlays` / `hide_hud`, and `freeze_bodies` for a posed set that must
 not drift between framings.
 
-There used to be a second idiom - `ScreenshotReelPlugin`, a driver walking a
-list of beats. It was deleted: the beat list was built away from the script that
-produced the state each beat framed, so timing and framing lived in different
-places. `ScreenshotPlugin` is the only capture DRIVER left, and it is for the
-one-shot case with no script at all.
+Do not add a second capture idiom beside it. A driver that walks its own list
+of shots builds that list away from the script producing the state each shot
+frames, which puts timing and framing in different files - and they drift.
+`ScreenshotPlugin` is the only capture DRIVER, and it is for the one-shot case
+with no script at all.
 
 ### Deadlines
 
@@ -384,6 +393,7 @@ The full API reference is the crate's rustdoc
   `crates/nova_debug/src/harness.rs`.
 - Host layer: the `probe` subcommand - `crates/nova_probe_cli/src/native.rs`;
   in-game half: `NovaProbePlugin` -
-  `crates/nova_probe/src/capabilities/mod.rs`.
+  `crates/nova_probe/src/capabilities/mod.rs`. What the capture measures and
+  how to read it: [Measuring performance](performance.md).
 - End-to-end example: `crates/nova_autopilot/examples/driven_app.rs`.
 - API detail: `cargo doc --open -p nova_autopilot`.

@@ -15,6 +15,7 @@
 - [Ship sections internals](sections.md)
 - [Scenario engine](scenario-system.md)
 - [Automation harness](automation-harness.md)
+- [Measuring performance](performance.md)
 
 # Extending
 

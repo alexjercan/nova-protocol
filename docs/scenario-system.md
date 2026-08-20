@@ -55,40 +55,40 @@ Anything else leaks.
 
 A `TempEntity` does NOT clean itself up reliably: its countdown runs on
 `Time<Virtual>`, which the pause menu and the outcome overlay STOP. A torpedo
-blast that fuzed on the frame the player died lived through the whole Defeat
-overlay, survived Retry, and destroyed the reloaded scenario's asteroid (task
-20260816-103226). Scoping ON the lifetime component, rather than trusting the
+blast that fuzes on the frame the player dies therefore outlives the whole
+Defeat overlay and survives Retry, arriving in the reloaded scenario with its
+damage intact. Scoping ON the lifetime component, rather than trusting the
 lifetime to run out, is what closes that.
 
-## Events (`EventConfig` -> `nova_events`)
+## The vocabulary, and who documents it
 
-| `EventConfig`  | Fires when |
-|----------------|------------|
-| `OnStart`      | once, right after a scenario loads |
-| `OnUpdate`     | every frame while a scenario is live and unpaused (frozen behind the pause menu / outcome frame) |
-| `OnTimerEnd`   | once when a keyed scenario timer reaches its deadline |
-| `OnDefeated`   | once when a ship is neutralized or directly destroyed; precedes the detailed edge |
-| `OnDestroyed`  | an entity is physically destroyed |
-| `OnNeutralized` | a ship that was armed loses ALL working weapons, or the flight computer it once had (thrusters play no part) - combat-dead even with its hull intact; the ship is NOT despawned |
-| `OnEnter`      | a body enters an area/zone |
-| `OnExit`       | a body leaves an area/zone |
-| `OnOrbitStart` / `OnOrbitStable` / `OnOrbitUnstable` / `OnOrbitEnd` | one-shot ORBIT maneuver and Hold-phase transitions; destruction does not synthesize orbit edges |
-| `OnTravelLockStart` / `OnTravelLockEnd` | the player's TRAVEL lock lands on or leaves a scenario object |
-| `OnCombatLockStart` / `OnCombatLockEnd` | the player's COMBAT lock lands on or leaves a scenario object; AI locks never fire these |
+Three closed enums are the whole authored language, one dispatch match each:
 
-Entities carry `EntityId(String)` and `EntityTypeName(String)`. Pair events all
-have the same filter shape - a subject `id` and an `other_id`/`other_type_name`
-- though which entity is the subject is per-event (area vs ship, well vs ship,
-target vs locker; see the Filters section). Lock lifecycle events are one-shot
-edges. A target switch queues end-old, then start-new.
+| Enum | File | Trait it dispatches to | Creator reference |
+| --- | --- | --- | --- |
+| `EventConfig` | `events.rs` | `EventHandler<NovaEventWorld>` (via `From`) | `/create/events/` |
+| `EventFilterConfig` | `filters.rs` | `EventFilter<NovaEventWorld>` | `/create/filters/` |
+| `EventActionConfig` | `actions/mod.rs` | `EventAction<NovaEventWorld>` | `/create/actions/` |
 
-Orbit lifecycle has no hidden timer; scenarios compose `OnOrbitStable` /
-`OnOrbitUnstable` / `OnOrbitEnd` with keyed timers when they require a
-continuous hold.
+**The construct-by-construct catalog is `/create/`, not this page.** Every
+event's exact firing condition, every filter field, every action's RON and
+defaults are the authored CONTRACT and have to be exact; a second copy here
+would be nobody's job to update, and a reader would have no way to tell which
+one was true. This chapter covers what the enums do not show.
 
-The event-driven pipeline reads like this: an event fires, its filters gate
-whether it proceeds, and if they all pass its actions run in order and mutate
-scenario state.
+Events carry identity, not payload-by-position: entities wear
+`EntityId(String)` and `EntityTypeName(String)`, and every PAIR event has the
+same filter shape - a subject `id` plus an `other_id` / `other_type_name`.
+Which entity is the subject is per-event (area against body, well against ship,
+target against locker), which is why the filter is one struct rather than one
+per event. Lock and orbit lifecycle events are one-shot EDGES with no hidden
+timer behind them: a target switch queues end-old then start-new, and a
+scenario that needs a continuous hold composes the edges with a keyed timer.
+
+Filters read and never mutate; they take `&NovaEventWorld` and the fired
+`GameEventInfo` and return a bool, and every filter on a handler must pass.
+Actions take `&mut NovaEventWorld` and run in order. Neither touches the Bevy
+`World` directly - see the seam below.
 
 ```mermaid
 flowchart LR
@@ -100,116 +100,38 @@ flowchart LR
   Actions --> Objects["Spawn / affect objects"]
 ```
 
-## Filters (`EventFilterConfig`)
+### What an action does that its RON cannot show
 
-- `Entity(EntityFilterConfig)` - match the event's PRIMARY entity (`id` /
-  `type_name`, the subject) and its OTHER party (`other_id` / `other_type_name`);
-  which entity is which is per-event (for `OnEnter`, `id` is the area and
-  `other_id` the body that entered). Each field optional, all set fields must
-  match, and the fields are read for FILTERING only - never passed to actions.
-  Per-event table + examples in
-  [Create your first scenario](https://alexjercan.github.io/nova-protocol/create/author-a-scenario/#4-events-filters-and-actions).
-- `Timer(TimerFilterConfig)` - match an `OnTimerEnd` payload by its keyed timer name.
-- `Expression(ExpressionFilterConfig)` - evaluate a `VariableConditionNode`
-  against the scenario variables.
-- `Conditional(ConditionalFilterConfig)` - `Not` / `And` / `Or` combinators;
-  build with `ConditionalFilterConfig::not/and/or(...)`.
+Most actions are a straight write into `NovaEventWorld`. Four are not, and the
+difference is engine behaviour rather than authored syntax:
 
-## Actions (`EventActionConfig`)
+- **`Outcome`** is not just an overlay. Setting one puts the app into
+  `PauseStates::Paused` for as long as it is set, so physics, AI, weapons and
+  timers stop behind the banner while the overlay's own buttons stay live.
+  Scenario teardown clears it, which also releases the pause.
+- **`SetCamera`** has to WIN every frame. It drops `WASDCameraController` and
+  pins a `ScriptedCameraPose` that is re-enforced in
+  `CameraAuthoritySystems::Override`, because both camera controllers keep
+  writing the camera `Transform` otherwise - the same swap the
+  player-ship-spawn observer does.
+- **`SetSkybox`** installs DEFERRED. The skybox setup observer reads the image
+  immediately and would panic on a handle that has not loaded, so the action
+  only tags the scenario camera with `PendingSkyboxSwap` and
+  `apply_pending_skybox_swaps` inserts the real `SkyboxConfig` once the image
+  is in. A failed load warns and leaves the sky alone.
+- **`NextScenario`** with `linger: true` does not switch on its own: it parks
+  the request until something clears the flag. That something is the
+  scenario-advance input or an outcome-overlay button, which is how Continue
+  and Retry ride a queued switch.
 
-- `DebugMessage` - log a message.
-- `VariableSet` - evaluate an expression into a scenario variable.
-- `TimerStart` / `TimerCancel` - start, restart, or cancel a keyed scenario
-  timer. Timers use the pause-frozen scenario clock; expiry removes the key
-  before firing `OnTimerEnd`.
-- `Objective` / `ObjectiveComplete` - add or complete a HUD objective by id.
-- `ObjectiveMarkerAttach` / `ObjectiveMarkerDetach` - add/remove the gold
-  marker chip (label + distance) on the scoped object by id; a despawned
-  target detaches implicitly.
-- `HintEmphasisSet` / `HintEmphasisClear` - pulse one keybind-dock chip gold
-  (verbs: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS); availability never
-  changes, and teardown clears all emphasis. The dock hides verbs you cannot
-  use, so an emphasis on an unavailable verb REVEALS its chip (pulsing in the
-  dim band) - that is how a tutorial points at a key before it lights up.
-- `SpawnScenarioObject(ScenarioObjectConfig)` - spawn an object (see below).
-- `ScatterObjects(ScatterObjectsConfig)` - seeded scatter of many objects in a
-  zone (the base asteroid fields); a fixed try budget keeps separation
-  best-effort.
-- `DespawnScenarioObject` - despawn the scoped object whose id matches
-  (scoped-only lookup, so ship sections with colliding ids are safe).
-- `SetSpeedCap` - install (`Some(cap)`) or remove (`None`) the manual
-  `FlightSpeedCap` on a scoped ship by id.
-- `SetControllerVerb` - enable/disable one flight verb (STOP/GOTO/ORBIT/LOCK/RCS)
-  on a scoped ship's controller sections by id.
-- `SetAllegiance` - overwrite a scoped ship's `Allegiance` (Player/Enemy/Neutral)
-  by id at runtime; the neutral-until-provoked primitive (wake a Neutral ship
-  by flipping it to Enemy).
-- `ForceTorpedoLaunch` - order a scoped ship's torpedo bays to launch at a
-  named target (`ScriptedTorpedoOrder`): the scripted counterpart of the AI's
-  launch decision for controller-less emplacements; bay cooldown/ammo still
-  gate the launch, the AI envelope/LOS/cadence gates do not apply, and a
-  missing target skips the launch.
-- `CreateScenarioArea(ScenarioAreaConfig)` - spawn a spherical sensor zone
-  (id, name, position, rotation, radius) that drives `OnEnter`/`OnExit`.
-- `NextScenario` - queue a switch to another scenario by id; `linger: true`
-  defers the switch until something clears the flag (the Enter/DPadDown
-  scenario-advance input, or the outcome overlay's Continue/Retry button).
-- `Outcome { outcome, message? }` - declare the scenario's win/lose: shows the
-  outcome overlay (gold VICTORY / red DEFEAT banner, the optional message, and
-  buttons) and freezes the simulation behind it the same way the pause menu
-  does - the app enters `PauseStates::Paused` while the outcome is set, so
-  physics, AI, weapons and timers stop until it clears (the overlay's own
-  buttons and the [Enter] advance stay live). Presentation only; compose what
-  happens next from the existing vocabulary: pair with `NextScenario(linger:
-  true)` so Continue/Retry (or Enter) rides the queued switch, or queue nothing
-  and the overlay offers only Main Menu (Enter exits there too). In strict RON
-  the optional message keeps its variant: `Outcome((outcome: Defeat, message:
-  Some("...")))`. Cleared by scenario teardown like emphasis and objectives
-  (clearing it also releases the pause).
-- `SetCamera { position, look_at }` - pose the scenario camera (the
-  `ScenarioCameraMarker` entity) at `position` looking at `look_at`. It drops
-  `WASDCameraController` and pins the pose as a `ScriptedCameraPose`,
-  re-enforced every frame in `CameraAuthoritySystems::Override` - both
-  controllers keep writing the camera `Transform` otherwise
-  (same swap the player-ship-spawn observer does). No-op with a warning if no
-  scenario camera is present. Part of the in-engine photo-mode surface.
-- `Screenshot { path }` - capture the primary window to a PNG at `path`, built
-  on Bevy's `Screenshot::primary_window()` + `save_to_disk` (no capture crate).
-  A relative `path` resolves under the `NOVA_SHOT_DIR` env var when set (so an
-  example or a packaging script can redirect all captures to a staging folder),
-  else it is relative to the working directory; the parent dir is created if
-  missing. Pair `SetCamera` (pose) + settle frames + `Screenshot` (capture) to
-  script a framed shot; the `screenshots/` examples drive exactly this, through
-  the autopilot's `pose_camera` + settle + `shoot` step idiom (see the
-  "Automation harness" page).
-- `SetSkybox { cubemap, brightness? }` - swap the scenario's skybox cubemap
-  mid-scenario (a modding hook). `cubemap` is authored as an asset path (the same
-  `AssetRef` layer the scenario's initial `cubemap` uses); `brightness` is
-  optional and keeps the current value when omitted. The install is deferred: the
-  action tags the scenario camera with a `PendingSkyboxSwap`, and
-  `apply_pending_skybox_swaps` inserts the real `SkyboxConfig` only once the new
-  image has loaded, because the skybox setup observer reads the image immediately
-  and would panic on a not-yet-loaded handle. A failed load leaves the sky
-  unchanged (warned); no scenario camera present is a no-op.
-- `HudReadout { slot, variable, format?, label?, visible? }` - show, update, or
-  clear a named HUD readout bound to a scenario variable (the DISPLAY half of
-  the scenario-variable vocabulary; `StoryMessage` is speaker text, this is a
-  live number). `slot` is a stable id (update or clear just that one; run
-  several side by side). `variable` names the scenario variable whose CURRENT
-  value the readout shows, read live every frame - e.g. `scenario_elapsed` for a
-  run clock, or any authored counter. `format` is `Number` (one decimal, the
-  default), `Integer` (rounded, no decimals) or `Time` (`mm:ss.s`, e.g.
-  `01:23.4`). `label` is an optional caption (e.g. `Some("TIME")`, shown
-  upper-cased before the value). `visible` defaults to `true` (show/update);
-  `false` clears the slot. One fire is enough for a live readout - it tracks the
-  variable thereafter. The value freezes on pause and behind the outcome overlay
-  because the bound variable does (`scenario_elapsed` stops ticking there), so a
-  time-trial's FINAL time simply holds on the HUD through the Victory banner. It
-  is an Instrument-tier widget (shown whenever the HUD is on) and clears
-  at scenario teardown like the comms panel, so it cannot leak into the next
-  scenario or the menu. RON:
-  `HudReadout((slot: "run_timer", variable: "scenario_elapsed", format: Time, label: Some("TIME")))`;
-  clear with `HudReadout((slot: "run_timer", variable: "scenario_elapsed", visible: false))`.
+`HintEmphasisSet` is worth one line for the same reason: the keybind dock hides
+verbs the ship cannot use, so an emphasis on an unavailable verb REVEALS its
+chip in the dim band rather than doing nothing. That is how a tutorial points
+at a key before it lights up.
+
+Actions fan out to one submodule per family beside `actions/mod.rs` -
+`flow`, `mission`, `ship`, `spawn`, `timer`, `view` - and adding one is
+[Extend the scenario engine](guide-extend-scenarios.md).
 
 ## Variables and the event world (`world.rs`, `variables.rs`)
 
@@ -243,135 +165,68 @@ expression tree: `VariableExpressionNode` (add/subtract), `VariableTermNode`
 (multiply/divide), `VariableFactorNode` (literal/name/parens);
 `VariableConditionNode` (less/greater/equal) yields booleans for filters.
 
-### Transition pacing (the three gears)
+### Two clocks pace a transition
 
-A scenario switch has three speeds (task 20260717-163050):
+`/create/actions/` documents the three gears a scenario switch has - hard cut,
+delayed cut and modal hold. The engine fact underneath them is that they do not
+all run on the same clock, which is the only part that is not obvious from the
+RON:
 
-- **Hard cut** - `NextScenario((scenario_id: "x", linger: false))`:
-  instant. Never pair it with an `Outcome` in the same handler (the
-  teardown swallows the overlay; content lint warns).
-- **Delayed cut** - `NextScenario((scenario_id: "x", linger: false,
-  delay: Some(4.0)))`: the world keeps playing for the delay (a story
-  line can land and be read), then cuts. Ticks on virtual
-  (pause-frozen) time, so a player pausing holds the cut. Non-positive or
-  omitted = instant.
-- **Modal hold** - `Outcome((...))` + `NextScenario((..., linger:
-  true))`: the banner freezes the sim and Continue/Retry releases the
-  chain. Add `auto_advance_secs: Some(6.0)` to the Outcome for a TIMED
-  banner: it advances by itself after that many real seconds (the pause
-  stops virtual time, not the wall clock) - the player can still click
-  sooner.
+- A `NextScenario` **delay** ticks on `Time<Virtual>`, the pause-frozen
+  scenario clock, so a player who pauses holds the cut.
+- An `Outcome`'s **`auto_advance_secs`** cannot, because the overlay it belongs
+  to STOPS `Time<Virtual>`. It runs on the wall clock instead. A timed banner
+  that used the scenario clock would never fire.
 
-### Story pacing (`StoryMessage` and the comms stack)
+Anything that has to keep counting behind a frozen overlay is in the same
+position and has the same answer.
 
-Story lines display through a bottom-left CHAT stack, not latest-wins:
-lines show in arrival order with a fade and a comms blip, newest at the
-bottom and older lines pushed upward. Each card holds ~8s before fading;
-at most 3 cards are visible and 4 more wait (oldest dropped; the full log
-stays in the feed). The player can dismiss the oldest visible card with
-<kbd>V</kbd> or skip queued backlog into view with <kbd>B</kbd>. Author an
-optional per-line hold and icon with strict-RON `Some`:
+### Story pacing is a QUEUE, not a slot
 
-```ron
-StoryMessage((
-    speaker: "Foreman Okono",
-    text: "Read this slowly.",
-    dwell: Some(15.0),
-    icon: Some("self://icons/okono.png"),
-)),
-```
+`StoryMessage` writes into a bottom-left comms stack rather than a
+latest-wins line: arrival order, a bounded number of cards visible with a
+bounded backlog behind them, oldest dropped when the backlog overflows, and the
+whole log kept in the feed. That is why a burst of lines is survivable - but
+one line per beat is still the style, and the queue is the safety net.
 
-`dwell` clamps to [3, 30] seconds (content lint warns outside it). Omit
-`icon` for the HUD fallback tile; authored icons are normal `AssetRef<Image>`
-paths, so use `self://` for files listed by the same bundle or `dep://` for a
-declared dependency. The stack means a burst is readable - but prefer one line
-per beat anyway (the beat-sheet convention); the queue is the safety
-net, not the style.
+Two consequences for anything that fires story lines:
+
+- **The stack is a HUD surface `nova_scenario` reaches up into.** The dwell
+  limits and the card budget live with the HUD, not with the action, which is
+  one of the two edges [Architecture](architecture.md) calls out as running the
+  "wrong" way on purpose.
+- **It is scenario-scoped**, so teardown clears the log and nothing bleeds into
+  the next scenario or the menu - the same rule as objectives, HUD readouts and
+  hint emphasis.
+
+Field-level detail (`dwell` and its clamp, `icon`, the two lint warnings) is
+the authored contract and lives in `/create/actions/`.
 
 ### Typed queries and watched variables
 
-The engine exposes read-only world state through typed queries. A scenario can
-sample a query each live, unpaused update into a watched variable. The watch
-owns its variable name, so normal `Name("...")` expressions and HUD readouts
-work while `VariableSet` writes are rejected.
+The engine exposes read-only world state through typed QUERIES, and a scenario
+samples one into a WATCHED variable. `/create/expressions/` is the authored
+reference for both - the query kinds, their properties, and the beat and wave
+shapes built on them. Three mechanism facts sit under it:
 
-```ron
-watches: [
-    (
-        variable: "scenario_elapsed",
-        query: Scenario((property: Elapsed)),
-    ),
-    (
-        variable: "player_speed",
-        query: Entity((
-            filter: (id: "player_spaceship"),
-            property: Speed,
-        )),
-    ),
-],
-```
+- **The watch owns the name.** A watched variable is written by the sampler
+  each live, unpaused update, so `VariableSet` on that name is REJECTED while
+  ordinary reads - `Name("...")` expressions, `HudReadout` - work normally. A
+  variable is therefore either authored or watched, never both.
+- **The clock is not created by exposing it.** `nova_scenario` keeps an
+  internal scenario clock for keyed timers whether or not any content asks;
+  `Scenario(Elapsed)` only publishes it. Both stop together under pause and
+  behind the outcome overlay, and both restart on a retry - which is what makes
+  a run timer show the FINAL time behind a Victory banner instead of counting
+  on under it.
+- **`Entity` is strict-single, and unavailability propagates.** Zero matches,
+  several matches, or a match missing the property leaves the query
+  unavailable, and an expression over an unavailable value fails CLOSED. Missing
+  is not zero, which is the difference between a gate that never opens and a
+  gate that opens immediately.
 
-The internal scenario clock always exists for timers. `Scenario(Elapsed)`
-exposes it to content. `Entity` is strict-single: the id must match exactly one
-entity with the required property. Missing or duplicate matches make the query
-unavailable and expression gates fail closed. Watches freeze under pause and
-clear at teardown; retries restart elapsed time.
-
-A one-shot timed beat is the clock threshold plus your own fired-flag:
-
-```ron
-filters: [
-    Expression((GreaterThan(
-        Term(Factor(Name("scenario_elapsed"))),
-        Term(Factor(Literal(Number(30.0)))),
-    ))),
-    Expression((Equal(
-        Term(Factor(Name("beat_fired"))),
-        Term(Factor(Literal(Number(0.0)))),
-    ))),
-],
-actions: [
-    VariableSet((key: "beat_fired", expression: Term(Factor(Literal(Number(1.0)))))),
-    // ... the beat ...
-],
-```
-
-Seed `beat_fired: 0` in `OnStart` (an unseeded gate fails closed forever).
-
-A repeating wave is the same shape gating on `elapsed > next_at`, rearmed
-inside its own action (seed `next_at` in `OnStart` too):
-
-```ron
-filters: [
-    Expression((GreaterThan(
-        Term(Factor(Name("scenario_elapsed"))),
-        Term(Factor(Name("next_at"))),
-    ))),
-],
-actions: [
-    VariableSet((
-        key: "next_at",
-        expression: Add(Factor(Name("next_at")), Term(Factor(Literal(Number(30.0))))),
-    )),
-    // ... spawn the wave ...
-],
-```
-
-You can also SNAPSHOT the clock into your own variable to measure a
-duration since an event (`VariableSet((key: "ambush_started", expression:
-Term(Factor(Name("scenario_elapsed")))))`, then gate on
-`elapsed > ambush_started + grace` via an `Add` expression) - reading the
-watched name is fine; writing it is rejected. The example mod's
-arena ships a timed comms nudge and a timed bonus spawn as copyable worked
-examples.
-
-To SHOW the clock (or any variable) on the HUD, use `HudReadout` with the
-`Time` format - `HudReadout((slot: "run_timer", variable: "scenario_elapsed",
-format: Time, label: Some("TIME")))` in `OnStart` gives a live `mm:ss.s` run
-clock that freezes at the final time behind the Victory overlay (the clock
-stops ticking on pause). See `HudReadout` in the actions list. The Gauntlet
-worked example wires exactly this as a time-trial with a clean-run bonus.
-
+Watches freeze under pause and clear at teardown, like every other piece of
+scenario-scoped state.
 ## Scenario patterns
 
 The event vocabulary has no built-in "state" beyond scenario variables, so the
@@ -488,8 +343,10 @@ after the course is finished declares nothing:
 ),
 ```
 
-The rig's `wrecking_after_the_win_declares_nothing` test seeds `gate` to `8.0`,
-fires the death, and asserts no outcome and no retry. Use this whenever a lethal
+The rig's `a_wreck_after_the_finish_declares_nothing` test seeds `gate` to
+`8.0`, fires the death, and asserts no outcome and no retry (its sibling
+`a_wreck_before_the_finish_declares_defeat_with_a_retry` pins the other half).
+Use this whenever a lethal
 event can still fire after the scenario is decided (a boss's death explosion
 catching the player, a wreck sliding into a hazard): pick a terminal counter
 value the winning handler sets, and guard every outcome handler against it.
@@ -523,64 +380,36 @@ end to end:
 
 ## Scenario objects (`objects/`, `ScenarioObjectKind`)
 
-All share `BaseScenarioObjectConfig` (id, name, position, rotation) and spawn
-scoped entities via `base_scenario_object`, which deliberately carries no body:
-each kind declares its own `RigidBody` (only the asteroid and the spaceship
-are dynamic), and the asteroid alone opts into `Dynamic` +
-`TransformInterpolation`. A carved rock also emits NEW dynamic bodies at
-runtime - every piece a crater severs (`CarvedChunkMarker`, `integrity/chunk.rs`)
-- so the six spawn kinds are not the whole population of a live scene.
+One module per kind under `objects/`, one arm in the `ScenarioObjectKind` match
+in `actions/spawn.rs`. The authored fields of each kind - and every trap in
+them - are `/create/objects/`; what follows is what the modules have in common.
 
-- `Anchor(AnchorConfig)` - an invisible point publishing a `GravityWell` with
-  an AUTHORED `body_radius` (deterministic, unlike the asteroid's mesh-derived
-  radius) and an optional `mass`; no mesh, no collider, no `BodyRadius` - an
-  orbit-target / bodiless-gravity anchor for scenes that do not want a rock.
-- `Asteroid(AsteroidConfig)` - radius, texture, geometry-owned durability,
-  `mass` (the body's
-  `mu`: it alone sets both the pull `a = mu / r^2` and the sphere of influence,
-  the distance where that decays to `GravitySettings::soi_cutoff_accel` - so
-  author it by the SOI you want, `mu = soi_cutoff_accel * soi^2`),
-  `invulnerable` (no carving, so its gravity well cannot die),
-  `lock_signature` override, an optional `seed` pinning the noise silhouette
-  (and so the derived `BodyRadius`) across runs, and optional per-spawn
-  `impact_sound` / `destroy_sound`
-  (`Some("dep://base/sounds/impact.wav")` / `explosion.wav`) so
-  a scenario rock can carry its own hit and death audio, the same surface a
-  section's `base` block exposes. Spawned ship sections take the same two
-  fields; see [Ship sections for mods](https://alexjercan.github.io/nova-protocol/create/sections/).
-  There is no `health` field: what a rock is made of IS its durability, and the
-  mechanism is [below](#how-an-asteroid-carves).
-- `Spaceship(SpaceshipConfig)` - sections plus a `SpaceshipController`:
-  `None`, `Player` (input mapping, optional `speed_cap`, and `infinite_ammo` -
-  a debug-only cheat a shipped build ignores), or
-  `AI` (patrol route, orbit directive,
-  optional `leash` break-off radius, optional
-  `engage_delay: Some(secs)` arrival grace - the ship flies its passive
-  routine and refuses to engage until the delay elapses, going hot
-  immediately and permanently if shot; pair it with a clock-spaced
-  warning story beat so enemies ARRIVE instead of appearing: `elapsed >
-  T` announce line -> spawn far with `engage_delay` covering the
-  approach -> the fight starts when the player has read the warning;
-  optional `engage_range` hostile-detection override (`AIEngageRange`),
-  `pd_range` point-defense override (`AIPointDefenseRange`),
-  `waypoint_slack` patrol-arrival override (`AIWaypointSlack`), and
-  `arrival_standoff` GOTO-rest override (`FlightArrivalStandoff`)). The
-  ship-level `collapse_threshold: Some(0.1)` overrides the structural-collapse
-  fraction (`StructuralCollapseThreshold`, default 0.05): the share of the hull
-  a ship was BUILT with below which it comes apart on its own.
-  Section geometry is linted: overlapping unit-cube cells and a
-  turret/torpedo mount whose base (local -Y under its rotation) points at
-  an empty neighbor cell are `content lint` errors (see the authoring
-  guide's sharp edges). See [Ship sections (internals)](sections.md).
-- `Beacon(BeaconConfig)` - nav waypoint with an automatic HUD chip: label,
-  radius, color, optional `lock_signature`, optional `area_radius` (the
-  beacon doubles as its own `OnEnter`/`OnExit` trigger).
-- `SalvageCrate(SalvageCrateConfig)` - proximity pickup (`size`,
-  `area_radius`): flying through fires `OnEnter` under the crate's id; pair
-  with `DespawnScenarioObject` and a counter variable.
-- `Light(LightConfig)` - the scene's own lighting (`objects/light.rs`), an
-  ordinary spawned kind. Load-bearing: a scenario that spawns no `Light`
-  renders black - the engine no longer supplies one.
+All share `BaseScenarioObjectConfig` (id, name, position, rotation) and spawn
+scoped entities via `base_scenario_object`, which deliberately carries NO body:
+each kind declares its own `RigidBody`, and the asteroid alone opts into
+`Dynamic` + `TransformInterpolation`. A carved rock also emits new dynamic
+bodies at runtime - every piece a crater severs (`CarvedChunkMarker`,
+`integrity/chunk.rs`) - so the spawn kinds are not the whole population of a
+live scene.
+
+Three engine facts the object configs do not show:
+
+- **Nothing supplies a light.** `Light` is an ordinary spawned kind
+  (`objects/light.rs`) and the engine adds none of its own, so a scenario that
+  authors no `Light` renders black. This catches every new backdrop.
+- **A rock has no `health` field, and that is not an omission.** What an
+  asteroid is made of IS its durability; the mechanism is
+  [below](#how-an-asteroid-carves). Its `mass` is the body's `mu` and sets both
+  the pull `a = mu / r^2` and the sphere of influence - the distance where that
+  decays to `GravitySettings::soi_cutoff_accel` - so a well is authored by the
+  SOI it should have, `mu = soi_cutoff_accel * soi^2`. An `Anchor` publishes
+  the same `GravityWell` from an AUTHORED radius instead of a mesh-derived one,
+  which is what makes it deterministic where a carved rock is not.
+- **Ship section geometry is LINTED, not clamped.** Overlapping unit-cube cells
+  and a turret or torpedo mount whose base (local -Y under its rotation) faces
+  an empty neighbour cell are `content lint` ERRORS, so a bad hull fails
+  authoring rather than spawning wrong. See
+  [Ship sections internals](sections.md).
 
 ### How an asteroid carves
 
