@@ -662,16 +662,19 @@ mod tests {
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
             1.0 / 60.0,
         )));
-        // The aim chain runs in PostUpdate BEFORE the controller's Sync, the
-        // same edge `TurretSectionPlugin` declares; this app wires the systems
-        // directly rather than through the plugin, so it repeats it.
+        // The aim chain runs in FixedUpdate BEFORE the controller's Sync and
+        // the joint sync after it, the same edges `TurretSectionPlugin`
+        // declares; this app wires the systems directly rather than through the
+        // plugin, so it repeats them.
         app.add_systems(
-            PostUpdate,
-            (update_turret_aim_point, update_turret_target_joints_system)
-                .chain()
-                .before(SmoothLookRotationSystems::Sync),
+            FixedUpdate,
+            (
+                (update_turret_aim_point, update_turret_target_joints_system)
+                    .chain()
+                    .before(SmoothLookRotationSystems::Sync),
+                sync_turret_joint_rotation.after(SmoothLookRotationSystems::Sync),
+            ),
         );
-        app.add_systems(Update, sync_turret_joint_rotation);
         app
     }
 

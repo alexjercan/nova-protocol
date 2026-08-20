@@ -311,33 +311,35 @@ const DRAIN_DEADLINE_SECS: f32 = 60.0;
 /// is set at two thirds of that, because point defence removes some of them and
 /// how many is the thing being measured.
 ///
-/// This gate also opens the capture window, so it is deliberately NOT tuned to
-/// the measured yield: it is what makes the window start on a saturated scene.
-/// The cost is that it bounds the sweep. Measured yield falls as the battery
-/// outguns the launcher - 7.0 a bay at four mounts, 6.0-6.3 at twelve, 6.25 at
-/// twelve mounts against four bays - so `NOVA_STRESS_PD_MOUNTS=24` against
-/// twelve bays never fills the envelope at all and stalls on the step deadline.
-/// Sweeping mounts UP means raising bays with them.
+/// This gate also opens the capture window, so it is what makes the window
+/// start on a saturated scene. The cost is that it bounds the sweep: measured
+/// yield falls as the battery outguns the launcher, so
+/// `NOVA_STRESS_PD_MOUNTS=24` against twelve bays never fills the envelope at
+/// all and stalls on the step deadline. Sweeping mounts UP means raising bays
+/// with them.
+///
+/// FOUR, not six. Six was drawn against a battery that only held its trigger a
+/// third of the time because its barrel advanced on the render clock; a battery
+/// that works kills enough of the stream that twelve bays settle at 5.0-5.6 a
+/// bay and the old gate is unreachable at any frame rate. The floor keeps a 25%
+/// margin under the measured settle.
 #[cfg(feature = "debug")]
-const INBOUND_PER_BAY: usize = 6;
+const INBOUND_PER_BAY: usize = 4;
 
 /// The scale claim on the ROUNDS: how many have to be in the sky at once, per
 /// mount.
 ///
 /// A PDC fires 100 rounds/s with a 2 s round lifetime, so a mount that holds its
-/// trigger down saturates at ~200. What the battery actually reaches is a
-/// FRACTION of that, and the fraction is set by the HOST: the trigger is decided
-/// once per frame (the point-defence chain runs in `Update`) and spent per fixed
-/// step (`shoot_spawn_projectile` runs in `FixedUpdate`), so a free-running host
-/// buys a different number of steps per decision every run. Measured over 16
-/// captures on one machine and one build, the peak at twelve mounts spans 708 to
-/// 2425 - a 3.4x band around any floor drawn as a fixed share of 200.
+/// trigger down saturates at ~200. What the battery actually reaches is the
+/// FRACTION of the time its barrels bear, and that fraction no longer depends on
+/// the host: the whole gun - assignment, intercept solve, hinge, joint pose and
+/// spawner - runs on the fixed clock, so a run buys the same number of decisions
+/// per second of SIMULATED time whatever the frame rate.
 ///
-/// So the floor is drawn under the WORST measured yield rather than from the
-/// theoretical rate: 59 rounds a mount, free-running. Pinning one fixed step per
-/// frame (`NOVA_PERF_MAX_DELTA=0.015625`) collapses the same band to 2236-2401,
-/// which is what a capture that wants a comparable load has to do; this floor
-/// has to hold without it, because the correctness pass never sets it.
+/// The floor is kept LOOSE against the measured yield on purpose. It is a scale
+/// claim - "the battery reached a load worth measuring" - not a yield
+/// regression, and a floor drawn tight against one machine's number would fail
+/// on a scene the owner deliberately rebalanced.
 #[cfg(feature = "debug")]
 const ROUNDS_PER_MOUNT: usize = 40;
 
