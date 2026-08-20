@@ -1,45 +1,10 @@
-//! The `probe` command line: usage text, flags, and the parsed [`Cmd`].
-//! Pure - resolution against the example catalog (and, for a scenario, against
-//! the game's own registry) happens later.
+//! The `probe` command line: the clap definition, the honest-combination gates
+//! and the parsed [`Cmd`]. Pure - resolution against the example catalog (and,
+//! for a scenario, against the game's own registry) happens later.
 
 use std::path::PathBuf;
 
-pub(crate) const USAGE: &str = "\
-usage: probe <subcommand>
-  -h, --help
-  print this help and exit successfully
-  run <spec> [--all] [--out <dir>] [--correctness-only] [--samply]
-  [--baseline <base-dir>] [--timeout <secs>] [--display <:N>]
-  [--release] [--render gpu|sw] [--scenario <id>]... [--preset <p>]...
-  [--platform native|web] [--repeat <n>]
-  the post-feature check and the perf sweep. --correctness-only runs only
-  the clean behavioral pass. <spec> is one example, a
-  comma list (<example>,<example>), or a category dir
-  (playable|systems|screenshots). --all runs the whole
-  catalog - nothing is excluded; `probe run` alone lists it.
-  Runs write to <out|probe-runs>/<short-commit>/<example>/ and
-  write an aggregated index.html/index.json + probe-all.json above
-  them, even for one example. Matrix flags (--scenario/--preset,
-  repeatable) and --platform web (positional = scenario id)
-  are single-example concerns. --baseline names a storage base; probe
-  searches it for the nearest previous commit dir and compares each
-  example against <base>/<commit>/<example>/ when it has a frametime.csv.
-  Without --baseline, probe searches the --out base, or probe-runs.
-  --repeat runs the frame-time pass n times instead of once. The report
-  then gates the repeats on their mean and median and reads the worst
-  frame only across the ones that pass - a single worst frame is ~30%
-  noise on this host and cannot prove anything on its own.
-  scenario <id|file.ron> [--out <dir>] [--baseline <base-dir>] [--samply]
-  [--correctness-only] [--timeout <secs>] [--display <:N>] [--release]
-  [--render gpu|sw] [--repeat <n>]
-  measure a SCENARIO, with no example involved: the game binary boots into
-  it and the same passes run (clean, frame time, profiled). A positional
-  ending in .ron is a loose content file - registered for the run whether
-  or not it ships in the catalog; anything else is an id from the merged
-  registry.
-  report <run-dir>... [--baseline <run-dir>]
-  re-render the report (probe-run.json dirs) or the aggregate index
-  (probe-all.json dirs); refuses dirs probe did not produce";
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 
 /// What `probe scenario` measures. Decided by SUFFIX so parsing stays pure: a
 /// positional ending in `.ron` is a file, anything else an id.
@@ -88,7 +53,76 @@ impl ScenarioTarget {
     }
 }
 
-/// Parsed `probe run` options.
+/// Renderer for the capture: the real GPU, or the lavapipe software
+/// floor (the worst-case CPU/fill bracket; NOT a web stand-in).
+///
+/// Which BACKEND draws, never whether anything draws - that is
+/// [`RunOptions::norender`], and the two are mutually exclusive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub(crate) enum Render {
+    Gpu,
+    Sw,
+}
+
+/// Where the run executes. Web runs the perf_web wasm build under
+/// headless Chromium and captures the frame line only (the recorder and
+/// invariants are native-only by design).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub(crate) enum Platform {
+    Native,
+    Web,
+}
+
+/// The measurement flags `run` and `scenario` share. Flattened into both so the
+/// two verbs cannot drift apart, which is what happened while each parsed its
+/// own copy.
+#[derive(Debug, Clone, PartialEq, Args)]
+pub(crate) struct MeasureArgs {
+    /// Write the run directory here instead of `probe-runs/<commit>/`.
+    #[arg(long, value_name = "DIR")]
+    pub out: Option<PathBuf>,
+    /// Record a samply flamegraph in an extra pass.
+    #[arg(long)]
+    pub samply: bool,
+    /// Run only the clean behavioral pass - no capture, no trace.
+    #[arg(long)]
+    pub correctness_only: bool,
+    /// Storage base to compare frame times against; probe finds the nearest
+    /// previous commit dir inside it.
+    #[arg(long, value_name = "BASE-DIR")]
+    pub baseline: Option<PathBuf>,
+    /// Supervisor timeout for each child run.
+    #[arg(long, value_name = "SECS", default_value_t = 180)]
+    pub timeout: u64,
+    /// Use this X display instead of starting an Xvfb.
+    #[arg(long, value_name = ":N")]
+    pub display: Option<String>,
+    /// Build the children in release. Dev-profile frame numbers are not
+    /// baselines.
+    #[arg(long)]
+    pub release: bool,
+    /// Which BACKEND draws: the host GPU, or the lavapipe software floor.
+    #[arg(
+        long,
+        value_name = "BACKEND",
+        default_value = "gpu",
+        conflicts_with = "norender"
+    )]
+    pub render: Render,
+    /// Build the children headless: no device, no window, no X server (probe
+    /// starts no Xvfb at all). A SPEED option - a headless run cannot see a
+    /// render-side panic, so it runs beside a rendered one, never instead.
+    #[arg(long)]
+    pub norender: bool,
+    /// Run the frame-time pass n times instead of once; the report gates the
+    /// set rather than trusting one capture.
+    #[arg(long, value_name = "N", default_value_t = 1,
+          value_parser = clap::value_parser!(u32).range(1..))]
+    pub repeat: u32,
+}
+
+/// Parsed `probe run` / `probe scenario` options, resolved out of the clap
+/// structs so the rest of the crate keeps one shape for both verbs.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RunOptions {
     pub example: String,
@@ -103,6 +137,16 @@ pub(crate) struct RunOptions {
     pub display: Option<String>,
     pub release: bool,
     pub render: Render,
+    /// Build the child headless (`nova_probe::NORENDER_ENV`): no device, no
+    /// window, no X server, and no Xvfb started for it.
+    ///
+    /// A SPEED option, never a substitute. A headless run cannot see a
+    /// render-side panic - a duplicate component, a broken material, a
+    /// pipeline that will not compile - so a suite that runs only this way is
+    /// blind to the failures that need a device to appear.
+    ///
+    /// Excludes `--render`: there is no backend to pick when nothing draws.
+    pub norender: bool,
     pub scenarios: Vec<String>,
     pub presets: Vec<String>,
     pub platform: Platform,
@@ -112,28 +156,35 @@ pub(crate) struct RunOptions {
     pub repeat: u32,
 }
 
-/// Renderer for the capture: the real GPU, or the lavapipe software
-/// floor (the worst-case CPU/fill bracket; NOT a web stand-in).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum Render {
-    Gpu,
-    Sw,
+impl RunOptions {
+    fn from_measure(example: String, measure: MeasureArgs) -> Self {
+        Self {
+            example,
+            scenario_target: None,
+            out: measure.out,
+            samply: measure.samply,
+            correctness_only: measure.correctness_only,
+            baseline: measure.baseline,
+            timeout_secs: measure.timeout,
+            display: measure.display,
+            release: measure.release,
+            render: measure.render,
+            norender: measure.norender,
+            scenarios: Vec::new(),
+            presets: Vec::new(),
+            platform: Platform::Native,
+            repeat: measure.repeat,
+        }
+    }
 }
 
-/// Where the run executes. Web runs the perf_web wasm build under
-/// headless Chromium and captures the frame line only (the recorder and
-/// invariants are native-only by design).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum Platform {
-    Native,
-    Web,
-}
-
-/// Parsed command line.
+/// The dispatch shape the rest of the crate consumes.
 #[derive(Debug, PartialEq)]
 pub(crate) enum Cmd {
-    /// Print [`USAGE`] and exit successfully.
-    Help,
+    /// Print `help` and exit successfully. Carries clap's RENDERED text: the
+    /// help a reader gets must describe the parser that produced it, so it is
+    /// generated rather than kept as a second copy that can drift.
+    Help(String),
     /// A `probe run` spec, resolved against the example catalog at
     /// dispatch (parse stays pure/fs-free): `tokens` is the comma-split
     /// positional (possibly empty - resolution errors with the catalog
@@ -153,252 +204,221 @@ pub(crate) enum Cmd {
     },
 }
 
-fn default_run(example: String) -> RunOptions {
-    RunOptions {
-        example,
-        scenario_target: None,
-        out: None,
-        samply: false,
-        correctness_only: false,
-        baseline: None,
-        timeout_secs: 180,
-        display: None,
-        release: false,
-        render: Render::Gpu,
-        scenarios: Vec::new(),
-        presets: Vec::new(),
-        platform: Platform::Native,
-        repeat: 1,
-    }
+#[derive(Debug, Parser)]
+#[command(
+    name = "probe",
+    bin_name = "probe",
+    about = "The run harness: take examples and scenarios through the passes, grade them, report.",
+    long_about = "The run harness. `run` takes cataloged examples through the passes (clean, \
+                  frame time, profiled) and writes a run report plus an aggregate index; \
+                  `scenario` takes the same passes to a scenario through the game binary, with \
+                  no example between the tool and the data; `report` re-renders a run directory \
+                  probe already produced.",
+    subcommand_required = true,
+    disable_version_flag = true
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Verb,
 }
 
-/// Parse a `--repeat` value. Zero is not "no capture", it is a typo.
-fn parse_repeat(value: Option<&String>) -> Result<u32, String> {
-    match value.and_then(|v| v.trim().parse::<u32>().ok()) {
-        Some(n) if n >= 1 => Ok(n),
-        _ => Err("--repeat needs a count of 1 or more".into()),
-    }
+#[derive(Debug, Subcommand)]
+enum Verb {
+    /// Take one spec, a comma list, a category dir or the whole catalog
+    /// through the harness passes.
+    #[command(long_about = "\
+Take examples through the harness passes and grade them.
+
+<SPEC> is one example, a comma list (<example>,<example>), or a category dir \
+(playable|systems|screenshots). --all runs the whole catalog - nothing is \
+excluded; `probe run` with no spec lists it.
+
+Runs write to <out|probe-runs>/<short-commit>/<example>/ and an aggregated \
+index.html/index.json + probe-all.json above them, even for one example.
+
+--baseline names a storage BASE: probe searches it for the nearest previous \
+commit dir and compares each example against <base>/<commit>/<example>/ when \
+that has a frametime.csv. Without it, probe searches the --out base, or \
+probe-runs.
+
+--repeat runs the frame-time pass n times. The report gates the repeats on \
+their mean and median and reads the worst frame only across the ones that \
+pass - a single worst frame is ~30% noise on this host and cannot prove \
+anything on its own.
+
+The matrix flags (--scenario/--preset, repeatable) and --platform web \
+(positional = scenario id) are single-example concerns.")]
+    Run {
+        /// One example, a comma list, or a category dir. Omit it to list the
+        /// catalog.
+        #[arg(value_name = "SPEC")]
+        spec: Option<String>,
+        /// Run the whole catalog. Excludes a spec.
+        #[arg(long, conflicts_with = "spec")]
+        all: bool,
+        /// Sweep this scenario id; repeatable, crossed with --preset.
+        #[arg(long = "scenario", value_name = "ID", action = ArgAction::Append)]
+        scenarios: Vec<String>,
+        /// Sweep this graphics preset; repeatable, crossed with --scenario.
+        #[arg(long = "preset", value_name = "low|medium|high", action = ArgAction::Append)]
+        presets: Vec<String>,
+        /// Native, or the perf_web wasm build under headless Chromium.
+        #[arg(long, value_name = "TARGET", default_value = "native")]
+        platform: Platform,
+        #[command(flatten)]
+        measure: MeasureArgs,
+    },
+
+    /// Measure a SCENARIO through the game binary, with no example involved.
+    #[command(long_about = "\
+Measure a scenario through the game binary: it boots into the scenario and the \
+same passes run (clean, frame time, profiled). No catalog is consulted.
+
+A positional ending in .ron is a loose content file, registered for the run \
+whether or not it ships in the catalog; anything else is an id from the merged \
+registry.
+
+The spec axes (--all/--scenario/--preset/--platform) belong to `run`: the \
+positional IS the scenario, and there is nothing to expand.")]
+    Scenario {
+        /// A scenario id, or a path to a loose `*.content.ron`.
+        #[arg(value_name = "ID|FILE.RON")]
+        target: String,
+        #[command(flatten)]
+        measure: MeasureArgs,
+    },
+
+    /// Re-render a run report or an aggregate index probe already produced.
+    Report {
+        /// One or more run dirs (probe-run.json) or aggregate dirs
+        /// (probe-all.json). Dirs probe did not produce are refused.
+        #[arg(value_name = "RUN-DIR", required = true)]
+        dirs: Vec<PathBuf>,
+        /// Compare against this run dir.
+        #[arg(long, value_name = "RUN-DIR")]
+        baseline: Option<PathBuf>,
+    },
+
+    /// Retired at the v0.8.0 cut.
+    #[command(hide = true)]
+    Trace {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        rest: Vec<String>,
+    },
+    /// Retired: `run <example> --release --scenario ... --preset ...`.
+    #[command(hide = true)]
+    Sweep {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        rest: Vec<String>,
+    },
+    /// Retired: `run <scenario> --platform web`.
+    #[command(hide = true)]
+    Web {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        rest: Vec<String>,
+    },
+    /// Retired: profiling is part of `run <example>`.
+    #[command(hide = true)]
+    Profile {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        rest: Vec<String>,
+    },
 }
 
-/// Parse the CLI: `run`, `scenario` and `report`. (The deprecated `sweep|web|profile`
-/// aliases and the `trace` verb retired at the v0.8.0 cut. Native runs render
-/// the top-N table in-report, and `probe report` re-renders it from the run
-/// dir.)
+/// Parse the CLI. `Err` is a message the caller prints before exiting non-zero;
+/// [`Cmd::Help`] carries the text to print before exiting zero.
+///
+/// Clap owns the shape - flags, values, arity, and the `--render`/`--norender`
+/// conflict. What it cannot own are the HONEST-COMBINATION gates below: they
+/// are claims about which passes a run would actually take, and they need a
+/// sentence saying why, not a generated one.
 pub(crate) fn parse(args: &[String]) -> Result<Cmd, String> {
-    let mut iter = args.iter();
-    match iter.next().map(String::as_str) {
-        Some("-h" | "--help") => Ok(Cmd::Help),
-        Some("run") => {
-            let args = iter.cloned().collect::<Vec<_>>();
-            if requests_help(&args) {
-                Ok(Cmd::Help)
-            } else {
-                parse_run(args)
-            }
-        }
-        Some("scenario") => {
-            let args = iter.cloned().collect::<Vec<_>>();
-            if requests_help(&args) {
-                Ok(Cmd::Help)
-            } else {
-                parse_scenario(args)
-            }
-        }
-        Some("report") => {
-            let args = iter.cloned().collect::<Vec<_>>();
-            if requests_help(&args) {
-                return Ok(Cmd::Help);
-            }
-            let mut iter = args.iter();
-            let mut dirs: Vec<PathBuf> = Vec::new();
-            let mut baseline: Option<PathBuf> = None;
-            while let Some(arg) = iter.next() {
-                match arg.as_str() {
-                    "--baseline" => {
-                        baseline = Some(PathBuf::from(
-                            iter.next().ok_or("--baseline needs a run dir")?,
-                        ));
-                    }
-                    other if other.starts_with('-') => {
-                        return Err(format!("unknown flag {other}"));
-                    }
-                    other => {
-                        dirs.push(PathBuf::from(other));
-                    }
+    // `probe` is invoked as `nova-protocol probe <args>`, so the forwarded
+    // slice has no argv[0] to skip.
+    let cli = match Cli::try_parse_from(std::iter::once("probe").chain(args.iter().map(|a| &**a))) {
+        Ok(cli) => cli,
+        Err(error) => {
+            return match error.kind() {
+                clap::error::ErrorKind::DisplayHelp => Ok(Cmd::Help(error.render().to_string())),
+                // A bare `probe` has always been a REFUSAL that exits
+                // non-zero. Clap's own answer to a missing subcommand is to
+                // render help, which it would then be tempting to exit 0 on -
+                // and that turns a scripted typo into a silent success.
+                clap::error::ErrorKind::MissingSubcommand
+                | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand => {
+                    Err("a subcommand is required".into())
                 }
-            }
-            if dirs.is_empty() {
-                return Err("report needs at least one run dir".into());
-            }
-            Ok(Cmd::Report { dirs, baseline })
+                // Clap says "unrecognized subcommand"; this crate has always
+                // said "unknown subcommand", and the retired verbs below need
+                // to be distinguishable from a typo.
+                clap::error::ErrorKind::InvalidSubcommand => Err(format!(
+                    "unknown subcommand {}",
+                    args.first().map_or("", |a| a.as_str())
+                )),
+                _ => Err(error.render().to_string()),
+            };
         }
+    };
+
+    match cli.command {
+        Verb::Run {
+            spec,
+            all,
+            scenarios,
+            presets,
+            platform,
+            measure,
+        } => {
+            let mut base = RunOptions::from_measure(String::new(), measure);
+            base.scenarios = scenarios;
+            base.presets = presets;
+            base.platform = platform;
+            gate_run(&base)?;
+            let tokens = spec
+                .map(|spec| {
+                    spec.split(',')
+                        .filter(|token| !token.is_empty())
+                        .map(String::from)
+                        .collect()
+                })
+                .unwrap_or_default();
+            Ok(Cmd::RunSpec { tokens, all, base })
+        }
+        Verb::Scenario { target, measure } => {
+            let target = ScenarioTarget::parse(&target);
+            let mut base = RunOptions::from_measure(target.label(), measure);
+            base.scenario_target = Some(target);
+            gate_scenario(&base)?;
+            Ok(Cmd::Scenario { base })
+        }
+        Verb::Report { dirs, baseline } => Ok(Cmd::Report { dirs, baseline }),
         // Retired verbs get a pointed error, not a generic one: the
         // muscle-memory commands should say where they went.
-        Some("trace") => Err(
+        Verb::Trace { .. } => Err(
             "`trace` retired (task 20260719-211500): native runs render the \
-             top-N table into the run report, and `probe report <run-dir>` \
-             re-renders it from the dir's trace.json"
+                                   top-N table into the run report, and `probe report <run-dir>` \
+                                   re-renders it from the dir's trace.json"
                 .into(),
         ),
-        Some(alias @ ("sweep" | "web" | "profile")) => Err(format!(
-            "`{alias}` retired (deprecated for one cycle, removed at v0.8.0): \
-             use `probe run` - the sweep is `run <example> --release \
-             --scenario ... --preset ...`, web is `run <scenario> --platform web`, \
-             profiling is part of `run <example>`; add `--samply` for a flamegraph"
-        )),
-        Some(other) => Err(format!("unknown subcommand {other}")),
-        None => Err("a subcommand is required".into()),
+        Verb::Sweep { .. } => Err(retired_alias("sweep")),
+        Verb::Web { .. } => Err(retired_alias("web")),
+        Verb::Profile { .. } => Err(retired_alias("profile")),
     }
 }
 
-fn requests_help(args: &[String]) -> bool {
-    args.iter()
-        .any(|arg| matches!(arg.as_str(), "-h" | "--help"))
+fn retired_alias(alias: &str) -> String {
+    format!(
+        "`{alias}` retired (deprecated for one cycle, removed at v0.8.0): \
+         use `probe run` - the sweep is `run <example> --release \
+         --scenario ... --preset ...`, web is `run <scenario> --platform web`, \
+         profiling is part of `run <example>`; add `--samply` for a flamegraph"
+    )
 }
 
-/// Parse `probe scenario <id|file.ron> [flags]`. The measurement flags are
-/// `run`'s; the spec flags (--all, --scenario, --preset, --platform) are not -
-/// the positional IS the scenario, and there is no catalog to expand.
-fn parse_scenario(args: Vec<String>) -> Result<Cmd, String> {
-    let mut target: Option<String> = None;
-    let mut opts = default_run(String::new());
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        match arg.as_str() {
-            "--samply" => opts.samply = true,
-            "--correctness-only" => opts.correctness_only = true,
-            "--release" => opts.release = true,
-            "--out" => {
-                opts.out = Some(PathBuf::from(iter.next().ok_or("--out needs a directory")?));
-            }
-            "--baseline" => {
-                opts.baseline = Some(PathBuf::from(
-                    iter.next().ok_or("--baseline needs a run dir")?,
-                ));
-            }
-            "--timeout" => {
-                opts.timeout_secs = iter
-                    .next()
-                    .and_then(|v| v.parse().ok())
-                    .ok_or("--timeout needs seconds")?;
-            }
-            "--display" => {
-                opts.display = Some(iter.next().ok_or("--display needs e.g. :0")?.clone());
-            }
-            "--repeat" => {
-                opts.repeat = parse_repeat(iter.next())?;
-            }
-            "--render" => {
-                opts.render = match iter.next().map(String::as_str) {
-                    Some("gpu") => Render::Gpu,
-                    Some("sw") => Render::Sw,
-                    _ => return Err("--render needs gpu or sw".into()),
-                };
-            }
-            other if other.starts_with('-') => {
-                return Err(format!("unknown flag {other}"));
-            }
-            other => {
-                if target.replace(other.to_string()).is_some() {
-                    return Err("scenario takes exactly one id or file".into());
-                }
-            }
-        }
-    }
-    let target = target.ok_or("scenario needs an id or a .ron file")?;
-    let target = ScenarioTarget::parse(&target);
-    opts.example = target.label();
-    opts.scenario_target = Some(target);
-    if opts.correctness_only && (opts.samply || opts.baseline.is_some() || opts.repeat > 1) {
-        return Err(
-            "--correctness-only does not combine with measurement options \
-             --samply/--baseline/--repeat"
-                .into(),
-        );
-    }
-    Ok(Cmd::Scenario { base: opts })
-}
-
-fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
-    let mut example: Option<String> = None;
-    let mut all = false;
-    let mut opts = default_run(String::new());
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        match arg.as_str() {
-            "--all" => all = true,
-            "--samply" => opts.samply = true,
-            "--correctness-only" => opts.correctness_only = true,
-            "--release" => opts.release = true,
-            "--out" => {
-                opts.out = Some(PathBuf::from(iter.next().ok_or("--out needs a directory")?));
-            }
-            "--baseline" => {
-                opts.baseline = Some(PathBuf::from(
-                    iter.next().ok_or("--baseline needs a run dir")?,
-                ));
-            }
-            "--timeout" => {
-                opts.timeout_secs = iter
-                    .next()
-                    .and_then(|v| v.parse().ok())
-                    .ok_or("--timeout needs seconds")?;
-            }
-            "--display" => {
-                opts.display = Some(iter.next().ok_or("--display needs e.g. :0")?.clone());
-            }
-            "--render" => {
-                opts.render = match iter.next().map(String::as_str) {
-                    Some("gpu") => Render::Gpu,
-                    Some("sw") => Render::Sw,
-                    _ => return Err("--render needs gpu or sw".into()),
-                };
-            }
-            "--scenario" => {
-                opts.scenarios
-                    .push(iter.next().ok_or("--scenario needs an id")?.clone());
-            }
-            "--preset" => {
-                opts.presets
-                    .push(iter.next().ok_or("--preset needs low|medium|high")?.clone());
-            }
-            "--platform" => {
-                opts.platform = match iter.next().map(String::as_str) {
-                    Some("native") => Platform::Native,
-                    Some("web") => Platform::Web,
-                    _ => return Err("--platform needs native or web".into()),
-                };
-            }
-            "--repeat" => {
-                opts.repeat = parse_repeat(iter.next())?;
-            }
-            other if other.starts_with('-') => {
-                return Err(format!("unknown flag {other}"));
-            }
-            other => {
-                if example.replace(other.to_string()).is_some() {
-                    return Err("only one spec may be given (commas form a list)".into());
-                }
-            }
-        }
-    }
-    if all && example.is_some() {
-        return Err("give a spec or --all, not both".into());
-    }
-    // Honest-combination gates that need no catalog. Multi-spec gates live in
-    // resolve because they need to know whether the spec expands.
-    let matrix = !opts.scenarios.is_empty() || !opts.presets.is_empty();
-    if opts.platform == Platform::Web
-        && (opts.samply || opts.correctness_only || matrix || opts.repeat > 1)
-    {
-        return Err(
-            "--platform web captures the web frame line only; it does not combine \
-             with --correctness-only/--samply/--scenario/--preset/--repeat"
-                .into(),
-        );
-    }
-    if opts.correctness_only
-        && (opts.samply || opts.baseline.is_some() || matrix || opts.repeat > 1)
+/// Combination gates common to both verbs.
+fn gate_measure(base: &RunOptions, matrix: bool) -> Result<(), String> {
+    if base.correctness_only
+        && (base.samply || base.baseline.is_some() || matrix || base.repeat > 1)
     {
         return Err(
             "--correctness-only does not combine with measurement options \
@@ -409,32 +429,58 @@ fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
     // A sweep REPLACES the frame-time pass with its matrix cells, so there is
     // nothing for --repeat to repeat. Silently doing one capture would read as
     // a completed sweep of repeats.
-    if matrix && opts.repeat > 1 {
+    if matrix && base.repeat > 1 {
         return Err(
             "--repeat repeats the frame-time pass, which a --scenario/--preset \
-                    sweep replaces; sweep or repeat, not both"
+             sweep replaces; sweep or repeat, not both"
                 .into(),
         );
     }
-    let tokens: Vec<String> = example
-        .map(|spec| {
-            spec.split(',')
-                .filter(|token| !token.is_empty())
-                .map(String::from)
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok(Cmd::RunSpec {
-        tokens,
-        all,
-        base: opts,
-    })
+    Ok(())
+}
+
+/// `run`'s gates. Multi-spec gates live in resolve, which knows whether the
+/// spec expands; these need no catalog.
+fn gate_run(base: &RunOptions) -> Result<(), String> {
+    let matrix = !base.scenarios.is_empty() || !base.presets.is_empty();
+    if base.platform == Platform::Web
+        && (base.samply || base.correctness_only || matrix || base.repeat > 1)
+    {
+        return Err(
+            "--platform web captures the web frame line only; it does not combine \
+             with --correctness-only/--samply/--scenario/--preset/--repeat"
+                .into(),
+        );
+    }
+    // The headless switch is a process environment variable, and a browser has
+    // no process environment. Refusing beats accepting the flag and rendering
+    // anyway, which would put a rendered number under a headless label.
+    if base.platform == Platform::Web && base.norender {
+        return Err("--norender is native only: a wasm run has no process environment".into());
+    }
+    gate_measure(base, matrix)
+}
+
+/// `scenario`'s gates. It has no matrix axis at all.
+fn gate_scenario(base: &RunOptions) -> Result<(), String> {
+    gate_measure(base, false)
 }
 
 #[cfg(test)]
 mod tests {
+    use clap::CommandFactory;
+
     use super::*;
     use crate::native::fixtures::s;
+
+    fn help(args: &[String]) -> bool {
+        matches!(parse(args), Ok(Cmd::Help(_)))
+    }
+
+    /// The top-level help as a reader sees it.
+    fn usage() -> String {
+        Cli::command().render_long_help().to_string()
+    }
 
     #[test]
     fn parse_run_with_all_flags() {
@@ -503,8 +549,19 @@ mod tests {
             s(&["scenario", "--help"]),
             s(&["scenario", "some_id", "-h"]),
         ] {
-            assert_eq!(parse(&args), Ok(Cmd::Help), "{args:?}");
+            assert!(help(&args), "{args:?}");
         }
+    }
+
+    /// Help is GENERATED, so it cannot describe a flag the parser does not
+    /// have. Spot-check the two the harness is discovered through.
+    #[test]
+    fn the_rendered_help_names_the_flags_it_parses() {
+        let Ok(Cmd::Help(text)) = parse(&s(&["run", "--help"])) else {
+            panic!("run help renders");
+        };
+        assert!(text.contains("--norender"), "{text}");
+        assert!(text.contains("--correctness-only"), "{text}");
     }
 
     #[test]
@@ -519,7 +576,7 @@ mod tests {
     fn removed_diagnostic_flags_are_rejected() {
         for flag in ["--fps", "--profile"] {
             let error = parse(&s(&["run", "playable", flag])).unwrap_err();
-            assert!(error.contains("unknown flag"), "{flag}: {error}");
+            assert!(error.contains(flag), "{flag}: {error}");
         }
         assert!(parse(&s(&["run", "playable", "--samply"])).is_ok());
     }
@@ -537,6 +594,10 @@ mod tests {
         };
         assert_eq!(dirs, vec![PathBuf::from("runs/x"), PathBuf::from("runs/y")]);
         assert_eq!(baseline, Some(PathBuf::from("runs/old")));
+        assert!(
+            parse(&s(&["report"])).is_err(),
+            "report needs at least one run dir"
+        );
 
         let Ok(Cmd::RunSpec { tokens, base, .. }) = parse(&s(&[
             "run",
@@ -558,6 +619,33 @@ mod tests {
         assert_eq!(base.render, Render::Sw);
         assert_eq!(base.scenarios, s(&["a", "b"]));
         assert_eq!(base.presets, s(&["high"]));
+    }
+
+    /// `--render` picks a backend and `--norender` says nothing draws, so
+    /// asking for both is a contradiction the parser must refuse rather than
+    /// silently honour one of.
+    #[test]
+    fn norender_excludes_a_backend_and_reaches_both_verbs() {
+        for args in [
+            s(&["run", "x", "--norender", "--render", "sw"]),
+            s(&["run", "x", "--render", "gpu", "--norender"]),
+            s(&["scenario", "a", "--norender", "--render", "sw"]),
+        ] {
+            assert!(parse(&args).is_err(), "{args:?}");
+        }
+
+        let Ok(Cmd::RunSpec { base, .. }) = parse(&s(&["run", "x", "--norender"])) else {
+            panic!("--norender parses on run");
+        };
+        assert!(base.norender && base.render == Render::Gpu);
+
+        let Ok(Cmd::Scenario { base }) = parse(&s(&["scenario", "a", "--norender"])) else {
+            panic!("--norender parses on scenario");
+        };
+        assert!(base.norender);
+
+        // A browser has no process environment to set it in.
+        assert!(parse(&s(&["run", "x", "--platform", "web", "--norender"])).is_err());
     }
 
     #[test]
@@ -720,5 +808,18 @@ mod tests {
         assert!(parse(&s(&["frobnicate"]))
             .unwrap_err()
             .contains("unknown subcommand"));
+    }
+
+    /// The retired verbs are hidden, so they must not advertise themselves in
+    /// the help a reader discovers the harness through.
+    #[test]
+    fn the_retired_verbs_stay_out_of_the_help() {
+        let text = usage();
+        for alias in ["sweep", "trace", "profile"] {
+            assert!(!text.contains(&format!("  {alias}")), "{alias}: {text}");
+        }
+        for verb in ["run", "scenario", "report"] {
+            assert!(text.contains(verb), "{verb}: {text}");
+        }
     }
 }

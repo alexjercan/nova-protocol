@@ -19,6 +19,9 @@ path = "src/lib.rs"
 debug = ["nova_probe/debug"]
 
 [dependencies]
+# Same derive-based CLI the game binary uses (`src/main.rs`), so the harness's
+# --help is generated from the parser rather than kept beside it.
+clap = { version = "4.5.48", features = ["derive"] }
 # The child-run env builder names the autopilot's env contract directly.
 nova_autopilot = { path = "../nova_autopilot" }
 # The wire format the game writes and this crate reads: the frame-time CSV,

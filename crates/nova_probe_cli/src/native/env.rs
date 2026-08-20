@@ -18,6 +18,16 @@ const FPS_FLOOR: f64 = 2.0;
 /// Extra seconds added to the sized deadline for scene load + asset warm.
 const FPS_LOAD_MARGIN_SECS: u64 = 45;
 
+/// `DISPLAY` for a child pass, or nothing at all when the run has no X server.
+///
+/// A `--norender` run never calls `ensure_display`, so it has no display
+/// string to pass on. Pushing an empty `DISPLAY` would be worse than pushing
+/// none: winit is not in a headless build, but anything else that reads the
+/// variable would see a set-but-invalid one.
+fn display_env(display: &str) -> Option<(String, String)> {
+    (!display.is_empty()).then(|| ("DISPLAY".to_string(), display.to_string()))
+}
+
 /// Read an env var as u32 (empty/unparseable -> None). Reads probe's own
 /// environment, which the child inherits, so operator overrides are honored.
 fn env_u32(key: &str) -> Option<u32> {
@@ -96,10 +106,10 @@ pub(crate) fn clean_pass_env(
     fps: bool,
 ) -> Vec<(String, String)> {
     let mut env = profile_sandbox::env(out);
+    env.extend(display_env(display));
     env.extend(vec![
         (AUTOPILOT_ENV.into(), "1".into()),
         ("BEVY_ASSET_ROOT".into(), root.display().to_string()),
-        ("DISPLAY".into(), display.into()),
         (
             "NOVA_PERF_TIMELINE".into(),
             out.join("timeline.jsonl").display().to_string(),
@@ -125,15 +135,12 @@ pub(crate) fn clean_pass_env(
     env
 }
 
-/// Per-cell additions for a sweep matrix run: scenario + preset +
-/// the sweep's label convention, plus the software-raster ICD floor
-/// when --render sw (exactly perf-baseline.sh's env: forced lavapipe
-/// via VK_ICD_FILENAMES/VK_DRIVER_FILES + vulkan backend, and the sw
-/// warmup/frames defaults unless the caller pinned their own).
+/// Per-cell additions for a sweep matrix run: scenario + preset + the sweep's
+/// label convention. The renderer is NOT here - it belongs to every pass, so it
+/// is [`render_env`]'s.
 pub(crate) fn sweep_cell_env(
     scenario: Option<&str>,
     preset: Option<&str>,
-    render: Render,
 ) -> Vec<(String, String)> {
     let mut env = Vec::new();
     if let Some(scenario) = scenario {
@@ -146,19 +153,6 @@ pub(crate) fn sweep_cell_env(
         (Some(s), Some(p)) => env.push(("NOVA_PERF_LABEL".into(), format!("{s}-{p}"))),
         (Some(s), None) => env.push(("NOVA_PERF_LABEL".into(), s.into())),
         _ => {}
-    }
-    if render == Render::Sw {
-        let icd = std::env::var("LVP_ICD")
-            .unwrap_or_else(|_| "/run/opengl-driver/share/vulkan/icd.d/lvp_icd.x86_64.json".into());
-        env.push(("VK_ICD_FILENAMES".into(), icd.clone()));
-        env.push(("VK_DRIVER_FILES".into(), icd));
-        env.push(("WGPU_BACKEND".into(), "vulkan".into()));
-        if std::env::var("NOVA_PERF_WARMUP").is_err() {
-            env.push(("NOVA_PERF_WARMUP".into(), "20".into()));
-        }
-        if std::env::var("NOVA_PERF_FRAMES").is_err() {
-            env.push(("NOVA_PERF_FRAMES".into(), "120".into()));
-        }
     }
     env
 }
@@ -176,10 +170,10 @@ pub(crate) fn trace_pass_env(root: &Path, out: &Path, display: &str) -> Vec<(Str
         _ => "bevy_ecs=info".into(),
     };
     let mut env = profile_sandbox::env(out);
+    env.extend(display_env(display));
     env.extend(vec![
         (AUTOPILOT_ENV.into(), "1".into()),
         ("BEVY_ASSET_ROOT".into(), root.display().to_string()),
-        ("DISPLAY".into(), display.into()),
         (
             "TRACE_CHROME".into(),
             out.join("trace.json").display().to_string(),
@@ -197,11 +191,47 @@ pub(crate) fn trace_pass_env(root: &Path, out: &Path, display: &str) -> Vec<(Str
 /// the instrument here.
 pub(crate) fn samply_pass_env(root: &Path, out: &Path, display: &str) -> Vec<(String, String)> {
     let mut env = profile_sandbox::env(out);
+    env.extend(display_env(display));
     env.extend(vec![
         (AUTOPILOT_ENV.to_string(), "1".to_string()),
         ("BEVY_ASSET_ROOT".to_string(), root.display().to_string()),
-        ("DISPLAY".to_string(), display.to_string()),
     ]);
+    env
+}
+
+/// The renderer selection, applied to EVERY native pass rather than to the
+/// clean pass alone: the number a `--render` flag exists to produce is written
+/// by the fps pass, so a selection the fps pass did not get is a selection that
+/// did not happen.
+///
+/// `norender` wins outright and the parser refuses the combination, so the
+/// software floor's short window CANNOT leak into a headless run. That matters:
+/// the 20/120 window is a concession to how slow lavapipe is, and a headless
+/// run has no fill cost to shorten around. It keeps the 180/900 baseline, which
+/// is what makes its rows readable against the rendered ones.
+///
+/// - `norender`: the headless switch, and NOTHING else.
+/// - [`Render::Gpu`]: nothing. The host's own adapter, as inherited.
+/// - [`Render::Sw`]: lavapipe forced through the Vulkan ICD vars, exactly
+///   `perf-baseline.sh`'s env, plus the short window.
+pub(crate) fn render_env(render: Render, norender: bool) -> Vec<(String, String)> {
+    if norender {
+        return vec![(nova_probe::NORENDER_ENV.into(), "1".into())];
+    }
+    let mut env = Vec::new();
+    if render == Render::Sw {
+        let icd = std::env::var("LVP_ICD")
+            .unwrap_or_else(|_| "/run/opengl-driver/share/vulkan/icd.d/lvp_icd.x86_64.json".into());
+        env.push(("VK_ICD_FILENAMES".into(), icd.clone()));
+        env.push(("VK_DRIVER_FILES".into(), icd));
+        env.push(("WGPU_BACKEND".into(), "vulkan".into()));
+        if std::env::var("NOVA_PERF_WARMUP").is_err() {
+            env.push(("NOVA_PERF_WARMUP".into(), "20".into()));
+        }
+        if std::env::var("NOVA_PERF_FRAMES").is_err() {
+            env.push(("NOVA_PERF_FRAMES".into(), "120".into()));
+        }
+    }
     env
 }
 
@@ -304,8 +334,8 @@ mod tests {
     }
 
     #[test]
-    fn sweep_cell_env_sets_label_and_sw_floor() {
-        let env = sweep_cell_env(Some("some_scenario"), Some("low"), Render::Sw);
+    fn sweep_cell_env_sets_only_the_matrix_coordinates_and_the_label() {
+        let env = sweep_cell_env(Some("some_scenario"), Some("low"));
         let get = |k: &str| env.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone());
         assert_eq!(get("NOVA_PERF_SCENARIO").as_deref(), Some("some_scenario"));
         assert_eq!(get("NOVA_PERF_QUALITY").as_deref(), Some("low"));
@@ -314,11 +344,67 @@ mod tests {
             Some("some_scenario-low"),
             "the sweep's label convention"
         );
+
+        assert!(
+            sweep_cell_env(None, None).is_empty(),
+            "default cell adds nothing"
+        );
+    }
+
+    #[test]
+    fn norender_pushes_the_headless_switch_and_leaves_the_window_alone() {
+        let env = render_env(Render::Gpu, true);
+        let get = |k: &str| env.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone());
+        assert_eq!(get(nova_probe::NORENDER_ENV).as_deref(), Some("1"));
+        assert_eq!(get("WGPU_BACKEND"), None, "no backend is selected, not one");
+        // The sw window is a concession to lavapipe's speed. Headless has no
+        // fill cost, so its rows stay comparable with the rendered baseline -
+        // and the parser refuses the combination that could bring it here.
+        assert!(
+            !env.iter()
+                .any(|(k, _)| k == "NOVA_PERF_WARMUP" || k == "NOVA_PERF_FRAMES"),
+            "headless keeps the baseline window: {env:?}"
+        );
+        assert_eq!(
+            render_env(Render::Sw, true),
+            render_env(Render::Gpu, true),
+            "headless ignores the backend either way"
+        );
+    }
+
+    #[test]
+    fn render_sw_forces_the_lavapipe_icd() {
+        let env = render_env(Render::Sw, false);
+        let get = |k: &str| env.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone());
         assert_eq!(get("WGPU_BACKEND").as_deref(), Some("vulkan"));
         assert!(get("VK_ICD_FILENAMES").unwrap().contains("lvp_icd"));
+        assert_eq!(get(nova_probe::NORENDER_ENV), None);
+    }
 
-        let env = sweep_cell_env(None, None, Render::Gpu);
-        assert!(env.is_empty(), "default cell adds nothing: {env:?}");
+    #[test]
+    fn render_gpu_adds_nothing() {
+        assert!(render_env(Render::Gpu, false).is_empty());
+    }
+
+    /// A headless pass has no display to name, and a set-but-empty `DISPLAY`
+    /// is worse than an absent one.
+    #[test]
+    fn a_pass_with_no_display_pushes_no_display_variable() {
+        let root = Path::new("/repo");
+        let out = Path::new("/repo/probe-runs/x");
+        for env in [
+            clean_pass_env(root, out, "", true),
+            trace_pass_env(root, out, ""),
+            samply_pass_env(root, out, ""),
+        ] {
+            assert!(
+                !env.iter().any(|(k, _)| k == "DISPLAY"),
+                "no DISPLAY without one: {env:?}"
+            );
+        }
+        assert!(clean_pass_env(root, out, ":97", true)
+            .iter()
+            .any(|(k, v)| k == "DISPLAY" && v == ":97"));
     }
 
     #[test]

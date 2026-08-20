@@ -121,6 +121,24 @@ in only under the `debug` feature:
   input of any kind, so it needs a driver: `--scenario <id>` under
   `NOVA_AUTOPILOT`, or `probe scenario`. A bare `--norender` ticks until it is
   killed, and that is by design rather than a hang to report.
+
+  An EXAMPLE has no command line of its own, so the flag cannot reach it. The
+  environment does: **`NOVA_NORENDER=1` makes every `AppBuilder::new()` in the
+  process assemble the same headless app**, which is how a range runs without a
+  GPU. Set to anything, including empty; unset means render. `AppBuilder::headless()`
+  ignores it, being already headless.
+
+  ```sh
+  NOVA_AUTOPILOT=1 NOVA_NORENDER=1 cargo run --features debug --example stress_point_defense
+  cargo run --features debug probe run stress_point_defense --norender
+  ```
+
+  **Headless is a speed option, not a substitute for a rendered run.** With no
+  device there is nothing to break: a duplicate-component panic, a material or
+  pipeline failure, and the async-compile SIGSEGV `synchronous_pipeline_compilation`
+  exists to prevent are all invisible headless, and `cargo check` does not see
+  them either. Only a rendered run does. Run ranges headless for speed if you
+  like; keep a rendered set as the canary.
 - `--debugdump` - print the system schedule graph (via `bevy_mod_debugdump`)
   and exit. It dumps the `Update` schedule (`debugdump` in
   `crates/nova_debug/src/lib.rs`).

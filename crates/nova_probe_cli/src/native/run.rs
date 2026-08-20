@@ -16,8 +16,8 @@ use nova_probe::prelude::*;
 use super::{
     cli::{Platform, RunOptions},
     env::{
-        clean_pass_env, fps_window_and_deadline_env, matrix_cells, samply_pass_env, sweep_cell_env,
-        trace_pass_env,
+        clean_pass_env, fps_window_and_deadline_env, matrix_cells, render_env, samply_pass_env,
+        sweep_cell_env, trace_pass_env,
     },
     paths::{default_output_root, repo_root, resolve_full_git_sha},
     supervise::{build_example, build_game, ensure_display, run_supervised, GAME_BIN},
@@ -177,7 +177,14 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         nova_probe::parse_frametime_csv(&contents)
             .map_err(|e| format!("--baseline invalid before running: {e}"))?;
     }
-    let (display, _xvfb) = ensure_display(opts.display.as_deref())?;
+    // A headless run needs no X server at all, so it must not demand one:
+    // asking for a free display would fail the run on a box where :80-:89 are
+    // taken, for a child that never opens a window.
+    let (display, _xvfb) = if opts.norender {
+        (String::new(), None)
+    } else {
+        ensure_display(opts.display.as_deref())?
+    };
     let timeout = Duration::from_secs(opts.timeout_secs);
     let started_unix = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -246,11 +253,8 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
             // The per-example label yields to the sweep convention.
             env.retain(|(k, _)| k != "NOVA_PERF_LABEL");
         }
-        env.extend(sweep_cell_env(
-            scenario.as_deref(),
-            preset.as_deref(),
-            opts.render,
-        ));
+        env.extend(sweep_cell_env(scenario.as_deref(), preset.as_deref()));
+        env.extend(render_env(opts.render, opts.norender));
         let outcome = run_supervised(&bin, &args, &root, &env, &out.join(&log_name), timeout)?;
         if !outcome.success() {
             eprintln!("probe: {cell_name} did not succeed; the report will say so");
@@ -321,6 +325,9 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                     // 120s hang detector.
                     let (window_env, deadline_secs) = fps_window_and_deadline_env();
                     env.extend(window_env);
+                    // AFTER the window env: the sw arm's short window is a
+                    // renderer property and must win over the baseline one.
+                    env.extend(render_env(opts.render, opts.norender));
                     // The supervisor timeout MUST exceed the in-process deadline,
                     // or probe kills the child before the deadline can complete or
                     // report; keep the operator's --timeout if it is larger.
@@ -365,7 +372,8 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                     }
                     Ok(()) => {
                         let trace_bin = subject_bin(&root, opts, "debug");
-                        let env = trace_pass_env(&root, &out, &display);
+                        let mut env = trace_pass_env(&root, &out, &display);
+                        env.extend(render_env(opts.render, opts.norender));
                         eprintln!("probe: traced run -> {}", out.join("trace.json").display());
                         // Tracing throttles the run hard; give it double time.
                         let outcome = run_supervised(
@@ -404,7 +412,8 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                     }
                     Ok(()) => {
                         let sbin = subject_bin(&root, opts, "profiling");
-                        let samply_env = samply_pass_env(&root, &out, &display);
+                        let mut samply_env = samply_pass_env(&root, &out, &display);
+                        samply_env.extend(render_env(opts.render, opts.norender));
                         let samply = Path::new("samply");
                         let profile_out = out.join("samply-profile.json.gz");
                         let mut samply_args = vec![

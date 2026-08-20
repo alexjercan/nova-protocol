@@ -17,7 +17,7 @@ pub mod prelude {
         nova_frametime, perf_armed, perf_param, resolve_git_sha, resolve_host, FrameTimePlugin,
         PerfDriver, PerfReady, ReloadGate, ABORT_REFRESH_CAPPED, ABORT_SIMULATION_STOPPED,
         ABORT_UPDATE_THROTTLED, ABORT_WINDOW_SIZE, CAPTURE_COLLECTOR, DEFAULT_CAPTURE_FRAMES,
-        DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
+        DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, NORENDER_ENV, PERF_ENV,
     };
 }
 
@@ -31,6 +31,14 @@ use bevy::{
     winit::{UpdateMode, WinitSettings},
 };
 use nova_autopilot::completion::{self, HarnessCompletion};
+/// Environment variable that builds the app headless, re-exported here so the
+/// probe host can push it into a child run (`probe run --norender`) without
+/// naming the string twice.
+///
+/// A capture taken under it has no render world, so the run metadata's
+/// `backend` and `adapter` degrade to `unknown`. That is the marker
+/// distinguishing a headless row from a rendered one in `frametime.csv`.
+pub use nova_core::NORENDER_ENV;
 /// Environment variable that arms [`nova_frametime`] on native. Any value (even
 /// empty) enables it; when unset the plugin adds nothing. On wasm the arm is the
 /// `?perf` URL query flag instead (there are no process env vars in a browser).

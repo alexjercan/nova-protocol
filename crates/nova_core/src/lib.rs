@@ -74,6 +74,9 @@ pub mod prelude {
 /// `startup` is the binary's `--scenario` / `--scenario-file` flags: `Some(..)`
 /// boots straight into that scenario instead of the main menu (see
 /// [`AppBuilder::with_startup_scenario`]).
+///
+/// `render: false` is the binary's `--norender`. `render: true` still yields to
+/// [`NORENDER_ENV`], because it goes through [`AppBuilder::new`].
 pub fn editor_app(render: bool, startup: Option<StartupScenario>) -> App {
     let builder = if render {
         AppBuilder::new()
@@ -128,7 +131,8 @@ pub fn run_app(app: &mut App) -> ExitCode {
 /// Whether the app renders is fixed by the constructor - [`new`](Self::new) or
 /// [`headless`](Self::headless) - not by a later setter, because the wgpu and
 /// window settings are baked into [`DefaultPlugins`] the moment the builder
-/// starts.
+/// starts. [`NORENDER_ENV`] turns every `new()` in the process into a
+/// `headless()`.
 pub struct AppBuilder {
     app: App,
     use_default_plugins: bool,
@@ -145,8 +149,16 @@ impl Default for AppBuilder {
 impl AppBuilder {
     /// Start a builder with [`DefaultPlugins`] already set up (windowing, logging,
     /// assets, and the `mods://` source registered before `AssetPlugin` lands).
+    ///
+    /// **[`NORENDER_ENV`] overrides this.** With that variable set in the
+    /// process environment, `new()` assembles exactly what
+    /// [`headless`](Self::headless) does - no device, no window, no winit - and
+    /// the caller is not consulted. It is the transport for a harness that
+    /// cannot pass an argument: an `examples/` range calls `new()` and takes no
+    /// command line of its own. `headless()` stays unconditional, so the two
+    /// read as "render unless told otherwise" and "never render".
     pub fn new() -> Self {
-        Self::assemble(true)
+        Self::assemble(std::env::var_os(NORENDER_ENV).is_none())
     }
 
     /// Start a builder that draws NOTHING: no wgpu device, no window, no winit
@@ -162,6 +174,9 @@ impl AppBuilder {
     /// Nothing in here ends the run. There is no window to close and no input,
     /// so a headless app needs a driver - `--scenario <id>` under
     /// `NOVA_AUTOPILOT`, or `probe scenario` - or it ticks until it is killed.
+    ///
+    /// Unconditional: unlike [`new`](Self::new), no environment variable can
+    /// turn this back into a rendering app.
     pub fn headless() -> Self {
         Self::assemble(false)
     }
@@ -415,6 +430,20 @@ fn report_unknown_startup_scenario(id: &str, scenarios: &GameScenarios) {
         eprintln!("  {available}");
     }
 }
+
+/// Environment variable that makes [`AppBuilder::new`] assemble a headless app.
+/// Any value, including empty, selects it; unset leaves `new()` rendering.
+///
+/// The game binary has `--norender` and needs no such thing. Examples do: all
+/// 48 `AppBuilder::new()` sites take no arguments, so the only channel that
+/// reaches them without editing each one - and without every future example
+/// having to remember - is the process environment. That matches how the rest
+/// of the harness arms itself ([`PERF_ENV`], `NOVA_AUTOPILOT`, `NOVA_CAPTURE`):
+/// inert unless set.
+///
+/// `nova_probe` re-exports it so `probe run --render off` can push it into a
+/// child, the same route [`PERF_ENV`] takes.
+pub const NORENDER_ENV: &str = "NOVA_NORENDER";
 
 /// Environment variable that arms frame-time capture. Read here only to give an
 /// armed run a distinct window class; `nova_probe` owns what it MEANS and

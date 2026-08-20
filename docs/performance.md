@@ -204,8 +204,20 @@ frame numbers are not baselines):
 ```sh
 cargo run --features debug probe run stress_bullets --release --preset high --preset low
 cargo run --features debug probe run stress_bullets --release --render sw ...  # lavapipe floor
+cargo run --features debug probe run stress_bullets --release --norender      # no renderer at all
 cargo run --features debug probe run <scenario> --platform web   # web/WebGPU capture (scraped)
 ```
+
+`--render` picks the BACKEND for every pass, the frame-time one included: `sw`
+forces the lavapipe ICD and its short 20/120 window. `--norender` decides
+whether anything draws at all, sets `NOVA_NORENDER` in the child, starts no
+Xvfb, and is refused alongside `--render` - there is no backend to pick when
+nothing draws. It keeps the 180/900 baseline window, because a headless run has
+no fill cost to shorten around, and it is native only: a wasm run has no process
+environment to set. Its rows name themselves in `frametime.csv` - `backend` and
+`adapter` both read `unknown`, there being no adapter. It measures the main
+schedule alone, so it CANNOT see a render-side panic; a speed option beside a
+rendered run, never instead of one.
 
 To measure a named SHIPPED scenario, use the `probe scenario` verb rather than
 `run --scenario`: it launches the game binary itself and needs no example.

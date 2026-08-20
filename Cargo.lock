@@ -4785,6 +4785,7 @@ dependencies = [
 name = "nova_probe_cli"
 version = "0.10.0"
 dependencies = [
+ "clap",
  "dirs",
  "nova_assets",
  "nova_autopilot",

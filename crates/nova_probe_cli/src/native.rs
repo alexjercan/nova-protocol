@@ -18,7 +18,7 @@ mod supervise;
 mod sweep;
 mod web;
 
-use cli::{parse, Cmd, USAGE};
+use cli::{parse, Cmd};
 
 /// Parse the forwarded command line (everything after `probe` on the game
 /// binary's command line) and dispatch it; the process exit code is the
@@ -54,12 +54,16 @@ use cli::{parse, Cmd, USAGE};
 /// there is nothing to expand and no aggregate to build.
 pub fn main(args: &[String]) -> ExitCode {
     match parse(args) {
+        // No help dump behind the message. A clap refusal already carries its
+        // own usage line and a pointer at `--help`, and a combination gate
+        // names the flags it refused; printing the whole help after either
+        // buries the sentence saying what went wrong.
         Err(message) => {
-            eprintln!("probe: {message}\n\n{USAGE}");
+            eprintln!("probe: {message}");
             ExitCode::FAILURE
         }
-        Ok(Cmd::Help) => {
-            println!("{USAGE}");
+        Ok(Cmd::Help(text)) => {
+            println!("{text}");
             ExitCode::SUCCESS
         }
         Ok(Cmd::RunSpec { tokens, all, base }) => match sweep::run_spec(&tokens, all, base) {
