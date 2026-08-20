@@ -38,8 +38,8 @@ struct AreaOccupancy(bevy::platform::collections::HashMap<(Entity, Entity), u32>
 
 /// Turns [`ScenarioAreaMarker`] sensor overlaps into scenario `OnEnter`/`OnExit`
 /// events, deduping a compound body's many section colliders to one enter/exit.
-/// Adds the collision-events setup observer plus the collision-start/end and
-/// occupancy-cleanup observer (all observer-driven, no scheduled systems).
+/// Adds the per-area wiring observer plus the occupancy-cleanup observer (all
+/// observer-driven, no scheduled systems).
 pub struct ScenarioAreaPlugin;
 
 impl Plugin for ScenarioAreaPlugin {
@@ -47,9 +47,7 @@ impl Plugin for ScenarioAreaPlugin {
         trace!("AreaPlugin: build");
 
         app.init_resource::<AreaOccupancy>();
-        app.add_observer(insert_collision_events);
-        app.add_observer(on_collision_start_event);
-        app.add_observer(on_collision_end_event);
+        app.add_observer(wire_area_collisions);
         app.add_observer(forget_body_occupancy);
     }
 }
@@ -81,11 +79,28 @@ fn forget_body_occupancy(despawn: On<Despawn, EntityId>, mut occupancy: ResMut<A
         .retain(|(area, other), _| *area != despawn.entity && *other != despawn.entity);
 }
 
-fn insert_collision_events(add: On<Add, ScenarioAreaMarker>, mut commands: Commands) {
+/// Arm a fresh area for collision reporting and bind its two handlers TO THAT
+/// AREA.
+///
+/// The handlers used to be global `add_observer`s, so every collision anywhere
+/// in the world dispatched into this crate: 23,363 invocations in four seconds
+/// of a headless duel that contains no areas at all, declined on the first
+/// query. An entity observer costs nothing in a scenario with no areas and
+/// scales with the areas, not with the world.
+///
+/// Scoping is also what makes `collider1` meaningful below. avian fires the
+/// event once per side that has [`CollisionEventsEnabled`], with that side as
+/// the target, so an observer bound to the area only ever sees the arm where
+/// the area IS `collider1`.
+fn wire_area_collisions(add: On<Add, ScenarioAreaMarker>, mut commands: Commands) {
     let entity = add.entity;
-    trace!("insert_collision_events: entity {:?}", entity);
+    trace!("wire_area_collisions: entity {:?}", entity);
 
-    commands.entity(entity).insert(CollisionEventsEnabled);
+    commands
+        .entity(entity)
+        .insert(CollisionEventsEnabled)
+        .observe(on_collision_start_event)
+        .observe(on_collision_end_event);
 }
 
 fn on_collision_start_event(
@@ -97,23 +112,17 @@ fn on_collision_start_event(
 ) {
     trace!(
         "on_collision_start_event: collision between {:?} and {:?}",
-        collision.body1,
+        collision.collider1,
         collision.body2
     );
 
-    // avian does not guarantee which of body1/body2 is the area, so resolve it
-    // from either side (matches the crate-pickup SFX observer).
-    let (Some(a), Some(b)) = (collision.body1, collision.body2) else {
+    // Bound to the area by `wire_area_collisions`, so the event target IS the
+    // area; the other side is whatever body owns `collider2`.
+    let area = collision.collider1;
+    let Ok(area_id) = q_area.get(area) else {
         return;
     };
-    let (body, other) = if q_area.get(a).is_ok() {
-        (a, b)
-    } else if q_area.get(b).is_ok() {
-        (b, a)
-    } else {
-        return;
-    };
-    let Ok(area_id) = q_area.get(body) else {
+    let Some(other) = collision.body2 else {
         return;
     };
     let Ok((other_id, other_type_name)) = q_other.get(other) else {
@@ -123,7 +132,7 @@ fn on_collision_start_event(
     // One rigid body can present many colliders (a ship's sections), so avian
     // fires a CollisionStart per collider pair. Only the FIRST contact for this
     // (area, body) pair is a real entry - count the rest without re-firing.
-    let count = occupancy.0.entry((body, other)).or_insert(0);
+    let count = occupancy.0.entry((area, other)).or_insert(0);
     *count += 1;
     if *count > 1 {
         return;
@@ -145,22 +154,16 @@ fn on_collision_end_event(
 ) {
     trace!(
         "on_collision_end_event: collision between {:?} and {:?}",
-        collision.body1,
+        collision.collider1,
         collision.body2
     );
 
-    // Resolve the area from either body, like the start handler.
-    let (Some(a), Some(b)) = (collision.body1, collision.body2) else {
+    // Bound to the area, like the start handler.
+    let area = collision.collider1;
+    let Ok(area_id) = q_area.get(area) else {
         return;
     };
-    let (body, other) = if q_area.get(a).is_ok() {
-        (a, b)
-    } else if q_area.get(b).is_ok() {
-        (b, a)
-    } else {
-        return;
-    };
-    let Ok(area_id) = q_area.get(body) else {
+    let Some(other) = collision.body2 else {
         return;
     };
     let Ok((other_id, other_type_name)) = q_other.get(other) else {
@@ -169,14 +172,14 @@ fn on_collision_end_event(
 
     // Mirror the start counter: only the LAST collider pair leaving is a real
     // exit. If we have no record (a start we never saw), stay silent.
-    let Some(count) = occupancy.0.get_mut(&(body, other)) else {
+    let Some(count) = occupancy.0.get_mut(&(area, other)) else {
         return;
     };
     *count = count.saturating_sub(1);
     if *count > 0 {
         return;
     }
-    occupancy.0.remove(&(body, other));
+    occupancy.0.remove(&(area, other));
 
     commands.fire::<OnExitEvent>(OnExitEventInfo {
         id: area_id.0.clone(),
