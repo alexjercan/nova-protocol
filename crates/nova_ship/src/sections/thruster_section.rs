@@ -22,9 +22,10 @@ use crate::{
 /// configuration and `ThrusterSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        thruster_section, ExhaustMeshes, ThrusterExhaust, ThrusterExhaustConfig,
-        ThrusterExhaustShape, ThrusterSectionConfig, ThrusterSectionInput,
+        plume_bucket, thruster_section, ExhaustMaterials, ExhaustMeshes, ThrusterExhaust,
+        ThrusterExhaustConfig, ThrusterExhaustShape, ThrusterSectionConfig, ThrusterSectionInput,
         ThrusterSectionMagnitude, ThrusterSectionPlugin, ThrusterSectionRenderMarker,
+        EXHAUST_PLUME_BUCKETS,
     };
 }
 
@@ -245,12 +246,10 @@ struct ExhaustMeshKey {
 /// The exhaust flame meshes every nozzle of one size shares.
 ///
 /// The mesh is a pure function of the four numbers in [`ExhaustMeshKey`] and
-/// nothing writes into it - the throttle glow lives in the MATERIAL, which
-/// stays per nozzle because two drives burn at two rates. Without this cache
-/// each nozzle minted two fresh 32-segment cones, so a hull with a dozen drives
-/// introduced two dozen distinct meshes that were all one of two shapes, and a
-/// distinct mesh is prepared, bound and written every frame whatever it is a
-/// copy of.
+/// nothing writes into it. Without this cache each nozzle minted two fresh
+/// 32-segment cones, so a hull with a dozen drives introduced two dozen
+/// distinct meshes that were all one of two shapes, and a distinct mesh is
+/// prepared, bound and written every frame whatever it is a copy of.
 #[derive(Resource, Default)]
 pub struct ExhaustMeshes(HashMap<ExhaustMeshKey, Handle<Mesh>>);
 
@@ -273,6 +272,144 @@ impl ExhaustMeshes {
             })
             .or_insert_with(|| meshes.add(exhaust_mesh(geometry, hx, hz, height)))
             .clone()
+    }
+}
+
+/// How many throttle steps a plume's glow is drawn at, idle and full included.
+///
+/// This is the number of material bins ONE nozzle shape can produce, so it is
+/// what keeps the frame's material work off the number of drives burning. The
+/// end steps are exact: bucket 0 is a dead plume and the last bucket is a full
+/// one, because `system_thrust_and_plume` asserts the shader uniform reaches
+/// both.
+///
+/// Raising it is cheap and lowering it is free; what it buys is how smoothly a
+/// plume stretches as the throttle rolls on, and what it costs is bins.
+pub const EXHAUST_PLUME_BUCKETS: usize = 16;
+
+/// The bucket a throttle snaps to: 0 out, `EXHAUST_PLUME_BUCKETS - 1` full.
+///
+/// Nearest rather than floor, so a plume is never drawn a whole step colder
+/// than the drive is burning.
+pub fn plume_bucket(input: f32) -> usize {
+    // The clamp bounds the product to 0..=top, so the cast cannot wrap.
+    let top = EXHAUST_PLUME_BUCKETS - 1;
+    (input.clamp(0.0, 1.0) * top as f32).round() as usize
+}
+
+/// The throttle bucket `bucket` is drawn at.
+fn bucket_input(bucket: usize) -> f32 {
+    bucket as f32 / (EXHAUST_PLUME_BUCKETS - 1) as f32
+}
+
+/// The material a plume is, apart from its throttle: what it glows and how far
+/// the shader stretches it.
+///
+/// The two cones of one nozzle differ in all three, so an outer flame and an
+/// inner core are two specs rather than one.
+#[derive(Clone, Copy, Debug)]
+struct PlumeSpec {
+    /// The cone's glow colour.
+    emissive: LinearRgba,
+    /// The shader's falloff radius (`thruster_exhaust_radius`).
+    radius: f32,
+    /// How far a full throttle stretches the cone (`thruster_exhaust_height`).
+    height: f32,
+}
+
+impl PlumeSpec {
+    /// This spec as a hashable key. Floats go in as BIT PATTERNS, the same way
+    /// [`ExhaustMeshKey`] takes its extents: two nozzles off one prototype are
+    /// built from the same authored numbers and hash equal without a tolerance,
+    /// and a near miss should mint its own material rather than silently wear a
+    /// neighbour's glow.
+    fn key(&self) -> PlumeMaterialKey {
+        PlumeMaterialKey {
+            emissive: [
+                self.emissive.red.to_bits(),
+                self.emissive.green.to_bits(),
+                self.emissive.blue.to_bits(),
+                self.emissive.alpha.to_bits(),
+            ],
+            radius: self.radius.to_bits(),
+            height: self.height.to_bits(),
+        }
+    }
+
+    /// The material this spec draws at `bucket`.
+    fn material(
+        &self,
+        bucket: usize,
+    ) -> ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial> {
+        ExtendedMaterial {
+            base: StandardMaterial {
+                base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
+                perceptual_roughness: 1.0,
+                metallic: 0.0,
+                emissive: self.emissive,
+                ..default()
+            },
+            extension: ThrusterExhaustMaterial {
+                thruster_input: bucket_input(bucket),
+                ..ThrusterExhaustMaterial::default()
+                    .with_exhaust_height(self.height)
+                    .with_exhaust_radius(self.radius)
+            },
+        }
+    }
+}
+
+/// Everything a plume material is a function of, as a hashable key.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+struct PlumeMaterialKey {
+    emissive: [u32; 4],
+    radius: u32,
+    height: u32,
+}
+
+/// The exhaust glow materials every nozzle of one shape and throttle shares.
+///
+/// The throttle is QUANTISED into [`EXHAUST_PLUME_BUCKETS`] steps and a cone
+/// SWAPS to the shared material for its `(spec, bucket)` pair, so nothing is
+/// ever written into a built material. That is the whole saving:
+/// `Assets::get_mut` marks a material modified whether or not the value moves,
+/// and a modified material is re-extracted, re-uploaded and has its bind group
+/// rebuilt that frame. A read-before-write guard covers a drive holding one
+/// throttle, and covers nothing at all on a guided torpedo - whose thrust
+/// genuinely changes every frame, and of which there can be a hundred in the
+/// air.
+///
+/// Materials are minted ON DEMAND rather than up front: a plume that never
+/// leaves idle should cost one material, not [`EXHAUST_PLUME_BUCKETS`] of them.
+/// They are then kept for the process, which bounds the set at nozzle shapes
+/// times buckets however many drives are burning.
+#[derive(Resource, Default)]
+pub struct ExhaustMaterials(
+    HashMap<
+        PlumeMaterialKey,
+        [Option<Handle<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>;
+            EXHAUST_PLUME_BUCKETS],
+    >,
+);
+
+impl ExhaustMaterials {
+    /// The shared material `spec` draws with at `bucket`, building it the first
+    /// time a nozzle of that shape reaches that throttle.
+    fn material(
+        &mut self,
+        spec: &PlumeSpec,
+        bucket: usize,
+        materials: &mut Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
+    ) -> Handle<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>> {
+        let slot = &mut self.0.entry(spec.key()).or_default()[bucket];
+        slot.get_or_insert_with(|| materials.add(spec.material(bucket)))
+            .clone()
+    }
+
+    /// How many distinct nozzle shapes have materials built. Test and
+    /// instrument surface.
+    pub fn shapes(&self) -> usize {
+        self.0.len()
     }
 }
 
@@ -362,6 +499,10 @@ impl Plugin for ThrusterSectionPlugin {
         app.add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>,
         >::default());
+        // Outside the render gate: `thruster_shader_update_system` runs on a
+        // headless server too, and a system whose resource is missing does not
+        // run at all.
+        app.init_resource::<ExhaustMaterials>();
 
         if self.render {
             app.init_resource::<ExhaustMeshes>();
@@ -425,9 +566,24 @@ pub(crate) fn thruster_impulse_system(
     }
 }
 
-#[derive(Component, Clone, Debug, Reflect)]
-struct ThrusterSectionExhaustShaderMarker;
+/// One cone of a thruster's exhaust: what it is, and which throttle step it is
+/// currently drawn at.
+///
+/// The spec rides the entity rather than being re-derived from the config,
+/// because a plume outlives its section - a severed drive keeps drawing its
+/// cone while it tumbles away - and the swap must still know what to swap to.
+#[derive(Component, Clone, Copy, Debug)]
+struct ThrusterExhaustPlume {
+    /// The shape and colour half of this cone's material.
+    spec: PlumeSpec,
+    /// Which of the [`EXHAUST_PLUME_BUCKETS`] steps it is drawn at.
+    bucket: usize,
+}
 
+#[expect(
+    clippy::type_complexity,
+    reason = "the plume query carries its own material and parent handles"
+)]
 fn thruster_shader_update_system(
     time: Res<Time>,
     q_thruster: Query<
@@ -435,22 +591,20 @@ fn thruster_shader_update_system(
         With<ThrusterSectionMarker>,
     >,
     // PLUME is graded HERE rather than in a system of its own, because two
-    // systems writing one material would fight over it every frame. The effect
-    // owns the curve; this owns the write.
+    // systems choosing one cone's material would fight over it every frame. The
+    // effect owns the curve; this owns the swap.
     q_plume: Query<&DamageLevel, With<DamagePlume>>,
-    q_render: Query<
-        (
-            &MeshMaterial3d<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
-            &ChildOf,
-        ),
-        With<ThrusterSectionExhaustShaderMarker>,
-    >,
+    mut q_render: Query<(
+        &mut ThrusterExhaustPlume,
+        &mut MeshMaterial3d<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
+        &ChildOf,
+    )>,
     q_child: Query<&ChildOf>,
+    mut registry: ResMut<ExhaustMaterials>,
     mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>,
 ) {
     let seconds = time.elapsed_secs();
-    for (material, &ChildOf(parent)) in &q_render {
-        let handle = &**material;
+    for (mut plume, mut material, &ChildOf(parent)) in &mut q_render {
         let section = find_thruster_section(parent, &q_thruster, &q_child);
 
         let wanted = match section {
@@ -471,27 +625,18 @@ fn thruster_shader_update_system(
             }
         };
 
-        // READ first, and write only on a real change. `Assets::get_mut` marks
-        // the asset modified whether or not the value moves, and a modified
-        // material is re-extracted, re-uploaded and has its bind group rebuilt
-        // in the render world THAT FRAME. Writing the same number every frame
-        // therefore cost a frozen gallery a full material prepare pass per
-        // frame - measured at 1.1 ms of a 28 ms one-hull frame in
-        // `prepare_erased_assets`, plus its share of
-        // `prepare_material_bind_groups`.
-        let Some(current) = materials.get(handle) else {
-            error!(
-                "thruster_shader_update_system: material for entity {:?} not found",
-                parent
-            );
-            continue;
-        };
-        if current.extension.thruster_input == wanted {
+        // SWAP, never write. Nothing is ever stored into a built material, so a
+        // drive cannot change a neighbour's plume and - the point - a throttle
+        // that moves every frame costs a component write rather than a material
+        // re-extract, re-upload and bind-group rebuild. A hundred guided
+        // torpedoes all burning at once therefore share
+        // [`EXHAUST_PLUME_BUCKETS`] materials rather than owning two hundred.
+        let bucket = plume_bucket(wanted);
+        if bucket == plume.bucket {
             continue;
         }
-        if let Some(mut material) = materials.get_mut(handle) {
-            material.extension.thruster_input = wanted;
-        }
+        material.0 = registry.material(&plume.spec, bucket, &mut materials);
+        plume.bucket = bucket;
     }
 }
 
@@ -618,6 +763,7 @@ fn insert_thruster_shader(
     q_config: Query<&ThrusterExhaustConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut flames: ResMut<ExhaustMeshes>,
+    mut glows: ResMut<ExhaustMaterials>,
     mut exhaust_materials: ResMut<
         Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
     >,
@@ -642,17 +788,10 @@ fn insert_thruster_shader(
         config.exhaust_height,
         &mut meshes,
     );
-    let material = ExtendedMaterial {
-        base: StandardMaterial {
-            base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
-            perceptual_roughness: 1.0,
-            metallic: 0.0,
-            emissive: config.emissive_color,
-            ..default()
-        },
-        extension: ThrusterExhaustMaterial::default()
-            .with_exhaust_height(config.exhaust_max)
-            .with_exhaust_radius(omax_r),
+    let spec = PlumeSpec {
+        emissive: config.emissive_color,
+        radius: omax_r,
+        height: config.exhaust_max,
     };
 
     // Inner core: a cone keeps its own inner radius; a rect scales the outer
@@ -679,28 +818,30 @@ fn insert_thruster_shader(
         config.exhaust_inner_height,
         &mut meshes,
     );
-    let inner_material = ExtendedMaterial {
-        base: StandardMaterial {
-            base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
-            perceptual_roughness: 1.0,
-            metallic: 0.0,
-            emissive: config.emissive_inner_color,
-            ..default()
-        },
-        extension: ThrusterExhaustMaterial::default()
-            .with_exhaust_height(config.exhaust_inner_max)
-            .with_exhaust_radius(imax_r),
+    let inner_spec = PlumeSpec {
+        emissive: config.emissive_inner_color,
+        radius: imax_r,
+        height: config.exhaust_inner_max,
     };
 
+    // Both cones open at the IDLE bucket, which is what a freshly spawned
+    // thruster is: `thruster_shader_update_system` swaps them up on the first
+    // frame the drive burns, so a fleet parked at zero shares one material a
+    // shape.
+    let glow = glows.material(&spec, 0, &mut exhaust_materials);
+    let inner_glow = glows.material(&inner_spec, 0, &mut exhaust_materials);
     commands.entity(entity).insert((
-        ThrusterSectionExhaustShaderMarker,
+        ThrusterExhaustPlume { spec, bucket: 0 },
         Mesh3d(mesh),
-        MeshMaterial3d(exhaust_materials.add(material)),
+        MeshMaterial3d(glow),
         children![(
-            ThrusterSectionExhaustShaderMarker,
+            ThrusterExhaustPlume {
+                spec: inner_spec,
+                bucket: 0,
+            },
             Transform::from_xyz(0.0, 1e-4, 0.0),
             Mesh3d(inner_mesh),
-            MeshMaterial3d(exhaust_materials.add(inner_material)),
+            MeshMaterial3d(inner_glow),
         )],
     ));
 }
@@ -846,5 +987,147 @@ mod test {
         assert_eq!(after_second, 1, "the second nozzle builds nothing");
         assert_ne!(first, third, "a different size is a different mesh");
         assert_eq!(after_third, 2, "and it is built once");
+    }
+
+    /// The two ends must be EXACT: `system_thrust_and_plume` asserts the shader
+    /// uniform reaches 1.0 on a held full burn and returns to 0.0 on release,
+    /// both to 1e-6, and it reads whatever material the swap left behind.
+    #[test]
+    fn the_throttle_buckets_end_at_a_dead_plume_and_a_full_one() {
+        assert_eq!(plume_bucket(0.0), 0);
+        assert_eq!(plume_bucket(1.0), EXHAUST_PLUME_BUCKETS - 1);
+        assert_eq!(bucket_input(0), 0.0);
+        assert_eq!(bucket_input(EXHAUST_PLUME_BUCKETS - 1), 1.0);
+        // Nearest, not floor: a plume is never drawn a whole step colder than
+        // the drive is burning.
+        assert_eq!(plume_bucket(0.999), EXHAUST_PLUME_BUCKETS - 1);
+        assert_eq!(plume_bucket(2.0), EXHAUST_PLUME_BUCKETS - 1);
+        assert_eq!(plume_bucket(-1.0), 0);
+    }
+
+    type PlumeMaterials = Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>;
+
+    /// A hundred drives burning together must cost the frame BUCKETS, not
+    /// drives. A material written every frame is re-extracted, re-uploaded and
+    /// has its bind group rebuilt that frame, and a guided torpedo's throttle
+    /// genuinely moves every frame - so the read-before-write guard that covers
+    /// a parked fleet covers a salvo not at all.
+    #[test]
+    fn drives_burning_at_one_throttle_share_one_plume_material() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>();
+        app.init_resource::<ExhaustMaterials>();
+        app.add_systems(Update, thruster_shader_update_system);
+
+        let spec = PlumeSpec {
+            emissive: LinearRgba::rgb(0.0, 10.0, 10.0),
+            radius: 0.4,
+            height: 1.0,
+        };
+        let idle = app
+            .world_mut()
+            .resource_scope(|world, mut glows: Mut<ExhaustMaterials>| {
+                let mut materials = world.resource_mut::<PlumeMaterials>();
+                glows.material(&spec, 0, &mut materials)
+            });
+        assert_eq!(app.world().resource::<PlumeMaterials>().len(), 1);
+
+        let mut cones = Vec::new();
+        for _ in 0..100 {
+            let world = app.world_mut();
+            let mut section = world.spawn(thruster_section(ThrusterSectionConfig::default()));
+            section.insert(ThrusterSectionInput(1.0));
+            let section = section.id();
+            cones.push(
+                world
+                    .spawn((
+                        ThrusterExhaustPlume { spec, bucket: 0 },
+                        MeshMaterial3d(idle.clone()),
+                        ChildOf(section),
+                    ))
+                    .id(),
+            );
+        }
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<PlumeMaterials>().len(),
+            2,
+            "a hundred drives at full throttle add ONE material to the idle one"
+        );
+        let handles: Vec<_> = cones
+            .iter()
+            .map(|&e| {
+                app.world()
+                    .get::<MeshMaterial3d<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>(e)
+                    .expect("plume material")
+                    .0
+                    .clone()
+            })
+            .collect();
+        assert!(
+            handles.iter().all(|h| *h == handles[0]),
+            "every drive at one throttle draws through one handle"
+        );
+        assert_ne!(
+            handles[0], idle,
+            "and it is not the idle one they opened at"
+        );
+        let full = app
+            .world()
+            .resource::<PlumeMaterials>()
+            .get(&handles[0])
+            .expect("material");
+        assert_eq!(full.extension.thruster_input, 1.0);
+        assert_eq!(full.base.emissive, spec.emissive);
+        assert_eq!(full.extension.thruster_exhaust_radius, spec.radius);
+        assert_eq!(full.extension.thruster_exhaust_height, spec.height);
+    }
+
+    /// The registry is bounded by SHAPES times buckets, not by drives: a
+    /// throttle sweep over the whole range mints at most one material a step,
+    /// and a second nozzle shape is its own set.
+    #[test]
+    fn a_throttle_sweep_mints_at_most_one_material_a_bucket() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>();
+        app.init_resource::<ExhaustMaterials>();
+
+        let cone = PlumeSpec {
+            emissive: LinearRgba::rgb(0.0, 10.0, 10.0),
+            radius: 0.4,
+            height: 1.0,
+        };
+        let core = PlumeSpec {
+            emissive: LinearRgba::rgb(0.0, 0.0, 10.0),
+            radius: 0.1,
+            height: 0.5,
+        };
+
+        // Two hundred samples across the range, twice over, through both shapes.
+        for spec in [&cone, &core, &cone] {
+            for step in 0..200 {
+                let input = step as f32 / 199.0;
+                app.world_mut()
+                    .resource_scope(|world, mut glows: Mut<ExhaustMaterials>| {
+                        let mut materials = world.resource_mut::<PlumeMaterials>();
+                        glows.material(spec, plume_bucket(input), &mut materials)
+                    });
+            }
+        }
+
+        assert_eq!(
+            app.world().resource::<ExhaustMaterials>().shapes(),
+            2,
+            "two nozzle shapes, however many samples"
+        );
+        assert_eq!(
+            app.world().resource::<PlumeMaterials>().len(),
+            2 * EXHAUST_PLUME_BUCKETS,
+            "and each shape tops out at one material a bucket"
+        );
     }
 }

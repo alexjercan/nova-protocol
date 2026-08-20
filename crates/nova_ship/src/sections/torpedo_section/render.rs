@@ -3,6 +3,8 @@
 
 use std::f32::consts::PI;
 
+use bevy::platform::collections::HashMap;
+
 use super::*;
 use crate::sections::nose_cone_mesh;
 
@@ -88,7 +90,7 @@ pub(super) fn insert_torpedo_render(
     }
 }
 
-/// The built-in torpedo body, built once.
+/// The built-in torpedo body: one mesh, and one material per TINT.
 ///
 /// A launched torpedo authors no `projectile_render_mesh` (both shipped bays
 /// leave it `None`), so this IS the warhead the player shoots at. It replaces a
@@ -98,11 +100,25 @@ pub(super) fn insert_torpedo_render(
 /// The mesh is built nose down -Y: the body rides the torpedo's CONTROLLER
 /// section, whose authored `Transform` turns the section a quarter turn about X
 /// (`shoot_spawn_projectile`), which lands -Y on the torpedo's own -Z, the way
-/// it flies. Only the mesh is shared: the material carries the launched type's
-/// tint, so it is built per launch.
+/// it flies.
+///
+/// The MATERIAL is shared by tint rather than minted per launch. A distinct
+/// asset is extracted, prepared, bound and written every frame however many
+/// entities share its value, so a private material per torpedo put the frame's
+/// asset work on the size of the salvo - and, because
+/// [`SectionCracks`](crate::sections::damage_cracks::prelude::SectionCracks)
+/// keys its bucket materials on the SOURCE, it multiplied that by the crack
+/// buckets as well. A tint is a property of the ordnance TYPE, so a salvo of
+/// one type is one material.
 #[derive(Resource, Debug)]
 pub(crate) struct DefaultTorpedoRender {
     mesh: Handle<Mesh>,
+    /// One warhead material per tint, keyed by the colour's bit pattern the way
+    /// `ExhaustMeshes` keys its flames. Held STRONG and never evicted: the set
+    /// is bounded by the ordnance types a mod authors, and keeping a tint alive
+    /// is also what keeps its crack buckets from being rebuilt on the next
+    /// salvo.
+    bodies: HashMap<[u32; 4], Handle<StandardMaterial>>,
 }
 
 impl FromWorld for DefaultTorpedoRender {
@@ -113,14 +129,43 @@ impl FromWorld for DefaultTorpedoRender {
         let mesh = nose_cone_mesh(0.16, 0.65, 0.35).rotated_by(Quat::from_rotation_x(PI));
         Self {
             mesh: world.resource_mut::<Assets<Mesh>>().add(mesh),
+            bodies: HashMap::default(),
         }
+    }
+}
+
+impl DefaultTorpedoRender {
+    /// The warhead material for `tint`, building it the first time a torpedo of
+    /// that colour launches.
+    fn body_material(
+        &mut self,
+        tint: Color,
+        materials: &mut Assets<StandardMaterial>,
+    ) -> Handle<StandardMaterial> {
+        let colour = LinearRgba::from(tint);
+        let key = [
+            colour.red.to_bits(),
+            colour.green.to_bits(),
+            colour.blue.to_bits(),
+            colour.alpha.to_bits(),
+        ];
+        self.bodies
+            .entry(key)
+            .or_insert_with(|| materials.add(tint))
+            .clone()
+    }
+
+    /// How many distinct warhead tints have a material.
+    #[cfg(test)]
+    fn tints(&self) -> usize {
+        self.bodies.len()
     }
 }
 
 pub(super) fn insert_torpedo_controller_render(
     add: On<Add, TorpedoControllerMarker>,
     mut commands: Commands,
-    default_render: Res<DefaultTorpedoRender>,
+    mut default_render: ResMut<DefaultTorpedoRender>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     q_controller: Query<&ChildOf, With<TorpedoControllerMarker>>,
     q_torpedo: Query<
@@ -153,16 +198,15 @@ pub(super) fn insert_torpedo_controller_render(
     }
 
     // The type's tint, so two ordnance types read apart in the frame BEFORE
-    // their flight paths have had time to diverge. It costs a material per
-    // LAUNCH, which the shared MESH handle above is what protects against
-    // mattering. A torpedo spawned with no type - a bare test fixture - keeps
-    // the old neutral grey.
+    // their flight paths have had time to diverge. A torpedo spawned with no
+    // type - a bare test fixture - keeps the old neutral grey.
     let tint = torpedo_type
         .map(|torpedo_type| torpedo_type.tint)
         .unwrap_or(Color::srgb(0.8, 0.8, 0.8));
+    let material = default_render.body_material(tint, &mut materials);
     commands.entity(entity).insert((
         Mesh3d(default_render.mesh.clone()),
-        MeshMaterial3d(materials.add(tint)),
+        MeshMaterial3d(material),
     ));
 }
 
@@ -737,8 +781,8 @@ mod tests {
 
     /// Two torpedo types must be tellable apart IN THE AIR, and the body colour
     /// is the half of that a player reads before the flight path has drawn
-    /// itself. The mesh stays shared (the test above); only the material is per
-    /// projectile, which it already was.
+    /// itself. Sharing a material by tint must not cost that: a second tint is
+    /// still a second material.
     #[test]
     fn a_torpedo_flies_in_its_own_types_colour() {
         use bevy::asset::AssetPlugin;
@@ -785,6 +829,71 @@ mod tests {
         let serpent = Color::srgb(0.95, 0.45, 0.1);
         assert_eq!(flown_in(&mut app, lance), lance);
         assert_eq!(flown_in(&mut app, serpent), serpent);
+        assert_eq!(
+            app.world().resource::<DefaultTorpedoRender>().tints(),
+            2,
+            "two tints are two materials"
+        );
+    }
+
+    /// A salvo of one ordnance type is ONE warhead material however many tubes
+    /// fired it. The frame is what this buys: a distinct material is extracted,
+    /// prepared, bound and written every frame however many entities share it,
+    /// and `damage_cracks` keys its bucket materials on the SOURCE - so a
+    /// private material per launch cost the frame the salvo size, times the
+    /// crack buckets each warhead reached.
+    #[test]
+    fn a_salvo_of_one_type_shares_one_body_material() {
+        use bevy::asset::AssetPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.init_resource::<DefaultTorpedoRender>();
+        app.add_observer(insert_torpedo_controller_render);
+        app.update();
+
+        let mut launched = Vec::new();
+        for _ in 0..64 {
+            let torpedo = app
+                .world_mut()
+                .spawn((
+                    TorpedoProjectileMarker,
+                    TorpedoProjectileRenderMesh(None),
+                    TorpedoType {
+                        name: "Lance".to_string(),
+                        tint: Color::srgb(0.7, 0.78, 0.86),
+                    },
+                ))
+                .id();
+            let controller = app
+                .world_mut()
+                .spawn((TorpedoControllerMarker, ChildOf(torpedo)))
+                .id();
+            app.update();
+            launched.push(controller);
+        }
+
+        assert_eq!(
+            app.world().resource::<Assets<StandardMaterial>>().len(),
+            1,
+            "sixty-four launches of one type build one material"
+        );
+        let handles: Vec<_> = launched
+            .iter()
+            .map(|&e| {
+                app.world()
+                    .get::<MeshMaterial3d<StandardMaterial>>(e)
+                    .expect("body material")
+                    .0
+                    .clone()
+            })
+            .collect();
+        assert!(
+            handles.iter().all(|h| *h == handles[0]),
+            "every torpedo of one type shares one material handle"
+        );
     }
 
     /// The torpedo bay reads its `render_mesh_transform` STRAIGHT OFF THE CONFIG
