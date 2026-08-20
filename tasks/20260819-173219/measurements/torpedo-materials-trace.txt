@@ -1,0 +1,59 @@
+# stress_point_defense, the traced pass, by SYSTEM. base 0b606cb5, fix 0018e2c7.
+#
+# --features debug,trace, run by hand with TRACE_CHROME + RUST_LOG=bevy_ecs=info
+# (the game filter's bevy_ecs=warn kills system spans), DISPLAY=:0, NOT perf-armed
+# - free-running, HOLD_FRAMES only, the previous lane's protocol. Tracing inflates
+# every span, so read the SHARES. Main world and render world overlap, so the
+# shares sum past 100%.
+#
+# Slice: ts 10.0-17.0 s, inside each arm's own saturated plateau.
+# Raw traces (6.3 GB / 5.0 GB) were deleted after aggregation.
+
+===== base =====
+frames in window: 298   median frame 22.467 ms
+ ms/frame   share  calls/f  name
+   23.472  104.5%      1.0  update: 
+   22.025   98.0%      1.0  sub app: name=RenderApp
+   21.979   97.8%      1.0  schedule: name=Render
+   18.372   81.8%      1.0  main app: 
+    8.576   38.2%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, nova_ship::sections::thruster_section::ThrusterExhaustMaterial>>>\"
+    5.804   25.8%      1.0  system: name=\"bevy_pbr::material::prepare_material_bind_groups\"
+    5.231   23.3%      1.0  system: name=\"bevy_ui::widget::text::text_system\"
+    3.774   16.8%      1.5  system: name=\"avian3d::schedule::run_physics_schedule\"
+    2.928   13.0%      1.0  schedule: name=RenderGraph
+    0.439    2.0%      1.0  system: name=\"bevy_ui::widget::text::measure_text_system\"
+    0.144    0.6%      1.5  system: name=\"avian3d::collision::broad_phase::bvh_broad_phase::collect_collision_pairs<nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+    0.095    0.4%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, nova_hud::velocity::DirectionMagnitudeMaterial>>>\"
+    0.038    0.2%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, nova_ship::sections::damage_cracks::SectionCracksMaterialExt>>>\"
+    0.032    0.1%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::pbr_material::StandardMaterial>>\"
+    0.009    0.0%      1.0  system: name=\"bevy_pbr::material::write_material_bind_group_buffers\"
+    0.008    0.0%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, nova_scenario::objects::asteroid_surface::AsteroidSurfaceMaterialExt>>>\"
+    0.006    0.0%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, bevy_pbr::decal::forward::ForwardDecalMaterialExt>>>\"
+    0.005    0.0%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, nova_hud::velocity::DirectionSphereMaterial>>>\"
+    0.002    0.0%      1.5  system_commands: name=\"avian3d::collision::broad_phase::bvh_broad_phase::collect_collision_pairs<nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+    0.001    0.0%      1.5  check_conditions: name=\"avian3d::collision::broad_phase::bvh_broad_phase::collect_collision_pairs<nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+
+===== fix =====
+frames in window: 438   median frame 15.158 ms
+ ms/frame   share  calls/f  name
+   15.887  104.8%      1.0  update: 
+   14.854   98.0%      1.0  main app: 
+    7.358   48.5%      1.0  sub app: name=RenderApp
+    7.312   48.2%      1.0  schedule: name=Render
+    3.818   25.2%      1.0  system: name=\"bevy_ui::widget::text::text_system\"
+    2.955   19.5%      1.0  system: name=\"avian3d::schedule::run_physics_schedule\"
+    2.531   16.7%      1.0  schedule: name=RenderGraph
+    0.339    2.2%      1.0  system: name=\"bevy_ui::widget::text::measure_text_system\"
+    0.262    1.7%      1.0  system: name=\"bevy_pbr::material::prepare_material_bind_groups\"
+    0.160    1.1%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, nova_hud::velocity::DirectionMagnitudeMaterial>>>\"
+    0.141    0.9%      1.0  system: name=\"avian3d::collision::broad_phase::bvh_broad_phase::collect_collision_pairs<nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+    0.031    0.2%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::pbr_material::StandardMaterial>>\"
+    0.031    0.2%      1.0  system: name=\"bevy_pbr::material::write_material_bind_group_buffers\"
+    0.008    0.1%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, nova_scenario::objects::asteroid_surface::AsteroidSurfaceMaterialExt>>>\"
+    0.008    0.1%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, nova_ship::sections::thruster_section::ThrusterExhaustMaterial>>>\"
+    0.006    0.0%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, nova_ship::sections::damage_cracks::SectionCracksMaterialExt>>>\"
+    0.006    0.0%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, bevy_pbr::decal::forward::ForwardDecalMaterialExt>>>\"
+    0.005    0.0%      1.0  system: name=\"bevy_render::erased_render_asset::prepare_erased_assets<bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, nova_hud::velocity::DirectionSphereMaterial>>>\"
+    0.001    0.0%      1.0  system_commands: name=\"avian3d::collision::broad_phase::bvh_broad_phase::collect_collision_pairs<nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+    0.001    0.0%      1.0  check_conditions: name=\"avian3d::collision::broad_phase::bvh_broad_phase::collect_collision_pairs<nova_gameplay::projectile_hooks::ProjectileHooks<'_, '_>>\"
+
