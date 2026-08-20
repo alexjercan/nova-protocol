@@ -222,6 +222,27 @@ margin before a hitch can cascade. For reference, PD stress today is avian at
    system.
 5. Whatever those turn up.
 
+**Steps 1-3 are DONE.** See D16 and D17. The result re-aimed the epic (D18):
+the arena misses 60 fps with the renderer deleted, so the presentation cut list
+in phase 3 cannot reach the owner's target however completely it lands, and the
+simulation goes first. Phase 3 items 1, 3 and 4 are deferred, not dropped.
+
+Rank inside the simulation, from the traced headless 1v1:
+
+- the archetype count (step 4 above);
+- the per-scene constant that makes 1v1 and 4v4 overlap within 30%;
+- `PostUpdate`'s 1.23 ms a frame of unattributed time;
+- `state_to_world_system` 0.23 ms, `update_ai_target` 0.21 ms.
+
+And ONE instrument item ranked with them because everything above is measured
+through it: the three FRAME-COUNT windows (`HOLD_FRAMES`,
+`DEFAULT_CENSUS_FRAME`, the arena's 360) want re-indexing to simulated time.
+Three wrong answers came out of them in one session.
+
+**Do not count the headless visibility work as a frame-rate win** (D18). It is
+~1.15 ms a frame and cutting it buys the player nothing - rendered, that work is
+required. It makes a headless capture honest; it does not make the game fast.
+
 **Read every headless number against this**: headless is NOT the same simulation
 minus pixels. Some systems run per frame and headless ticks faster, which is the
 defect step 1 exists to fix - and there may be more of them. A headless figure is

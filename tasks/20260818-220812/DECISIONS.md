@@ -702,3 +702,44 @@ example.**
 hand-run is silently traced. Two captures here were contaminated and discarded.
 It was already written down and it caught the next person anyway - which argues
 for a different path, not a better note.
+
+## D18 - the owner's two calls on D16 and D17
+
+Asked 2026-08-20, both answered.
+
+### Point defence keeps its new strength, unretuned
+
+**"Leave it, fly it first."** No content change. `ROUNDS_PER_MOUNT` stays 40 and
+the lane's proposed ~120/mount is NOT applied; `TURRET_ON_TARGET_RAD` is
+untouched.
+
+The reasoning that survives writing down: the old value was never chosen. It was
+whatever the host's frame rate produced, so there is no correct number to
+restore - and a mean aim error of 3.6 deg against 11.3 is the fix working, not a
+side effect of it. If it plays too strong, content is the lever and it is
+reversible; flying it is cheaper than picking a target feel for a build nobody
+has flown yet.
+
+### The next round aims at the SIMULATION
+
+**"Simulation first."** The remaining render cut list - per-hull section
+materials, dressing geometry, bake-at-load, preload - is deferred behind it.
+
+D17 is why: the arena misses 60 fps with the renderer deleted, so the cut list
+cannot reach the target however completely it lands. It is all still real and
+still ranked; it is no longer FIRST.
+
+**The trap to avoid while doing this, stated here because it is easy to walk
+into.** Roughly 1.15 ms a frame of the headless arena is visibility work for a
+view that does not exist. That is the largest single named item and **cutting it
+buys the player NOTHING** - rendered, that work is necessary and stays. It is an
+INSTRUMENT fix: it makes a headless capture an honest simulation measurement
+instead of one carrying 10% of render bookkeeping. Worth doing, worth doing
+early, and worth never counting as a frame-rate win.
+
+What is a real win, because it is present in BOTH transports:
+
+1. The archetype count (phase 6 step 4).
+2. The per-scene constant that makes 1v1 and 4v4 overlap.
+3. `PostUpdate`'s 1.23 ms a frame of unattributed time.
+4. `state_to_world_system` 0.23 ms and `update_ai_target` 0.21 ms.
