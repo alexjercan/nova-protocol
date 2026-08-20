@@ -218,12 +218,13 @@ pub(crate) fn render_refused_captures(log: &str) -> String {
         ));
     }
     html.push_str(
-        "</tbody>\n</table>\n<p class=\"note\">These captures met a STOPPED \
-         simulation inside their window - the scene reached an end, and the frames \
-         after it draw a still picture at a plausible cost. They wrote no \
-         statistics and appear in no table below. Bound the window so it closes \
-         while the scene is still running, or measure a scene that cannot end \
-         inside it.</p>\n",
+        "</tbody>\n</table>\n<p class=\"note\">The capture REFUSED each of these \
+         windows, for the reason in the last column: a stopped simulation, a scene \
+         that was already over, a window the WM re-sized, a throttled update mode, \
+         or a display cap. Every one of them yields a plausible-looking number for \
+         something that is not the scene, so they wrote no statistics and appear in \
+         no table below. The run log carries the full reason and what to do about \
+         it.</p>\n",
     );
     html
 }

@@ -190,6 +190,14 @@ impl NovaProbePlugin {
         self
     }
 
+    /// REFUSE this example's capture window whenever `live` stops holding (see
+    /// [`FrameTimePlugin::live_while`]): the scene it was opened to measure is
+    /// over, even though the simulation is not.
+    pub fn live_frametime(mut self, live: impl Fn(&World) -> bool + Send + Sync + 'static) -> Self {
+        self.frametime = self.frametime.map(|plugin| plugin.live_while(live));
+        self
+    }
+
     /// Declare this scene's own capture window (see
     /// [`FrameTimePlugin::window`]), for a scene that cannot run for the
     /// baseline 180 + 900 frames without reaching an end.

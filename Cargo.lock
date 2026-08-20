@@ -4790,6 +4790,7 @@ dependencies = [
  "nova_assets",
  "nova_autopilot",
  "nova_probe",
+ "serde",
  "serde_json",
  "tempfile",
 ]

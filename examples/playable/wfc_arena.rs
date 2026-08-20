@@ -415,12 +415,25 @@ fn main() -> bevy::app::AppExit {
         //
         // And it is BOUNDED, because the far end of this window is a match that
         // can be WON. See [`MEASURED_WINDOW`].
+        //
+        // The gate alone is not enough, because the frame a fight is DECIDED is
+        // also a frame the fight has happened in: a wipe is what credits the
+        // last of the damage the gate waits for, so the gate can open onto an
+        // empty arena and the window then measures the aftermath. The result
+        // screen pauses the clock a second or two later, which is too late -
+        // the window has already opened, and a scene that is over reads as an
+        // ordinary cheap row. Hence the liveness half: both teams standing.
         app.add_plugins(
             nova_probe::NovaProbePlugin::default()
                 .ready_frametime(|world: &World| {
                     world
                         .get_resource::<Scoreboard>()
                         .is_some_and(Scoreboard::fight_happened)
+                })
+                .live_frametime(|world: &World| {
+                    world
+                        .get_resource::<Scoreboard>()
+                        .is_some_and(Scoreboard::both_teams_standing)
                 })
                 .frametime_window(MEASURED_WINDOW.0, MEASURED_WINDOW.1),
         );
@@ -1472,6 +1485,19 @@ impl Scoreboard {
     fn fight_happened(&self) -> bool {
         self.fired.iter().all(|salvo| salvo.total() > 0)
             && self.dealt.iter().all(|dealt| *dealt > 0.0)
+    }
+
+    /// Both teams still have a ship flying: the fight is LIVE, not decided.
+    ///
+    /// `pool` is `None` for a team with no live root, so this reads false for
+    /// a wipe and for the teardown between matches - the two ways the 4v4 the
+    /// capture measures can stop existing while the clock keeps running. It
+    /// deliberately says nothing about how MANY ships are left: a four-on-one
+    /// is a fight in progress, and refusing it would be a judgement about
+    /// workload that nothing here has measured.
+    #[cfg(feature = "debug")]
+    fn both_teams_standing(&self) -> bool {
+        self.pool.iter().all(Option::is_some)
     }
 }
 

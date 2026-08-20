@@ -109,6 +109,22 @@ example declares its own with `NovaProbePlugin::frametime_window(warmup,
 frames)`, sized from a measured run of that scene rather than guessed;
 `wfc_arena` does, because its 4v4 is a match that can be won.
 
+A bounded window is still not enough on its own, because **a scene can end
+before its clock stops.** A fight whose losing side is gone is over while
+`Time<Virtual>` still ticks and every environment gate still passes; what the
+window measures then is the aftermath, at a fraction of the cost, in a row that
+looks like any other. `wfc_arena` meets this by construction - its capture opens
+on both teams having fired and connected, and a WIPE is what credits the last of
+that damage, so the gate can open onto an empty arena.
+
+`NovaProbePlugin::live_frametime(<predicate>)` is the second half. The predicate
+is re-evaluated every warm-up and capture frame, and the first frame it fails
+refuses the window with reason `scene_ended` - same ERROR line, same discarded
+stats, same failing check as a stopped simulation. `wfc_arena` names "both teams
+still have a ship flying". It says nothing about how MANY are left on purpose: a
+four-on-one is a fight in progress, and refusing that would be a judgement about
+workload rather than about the scene existing.
+
 `NOVA_PERF_MAX_DELTA=<secs>` forces the ceiling for a run, which is how a claim
 about the fixed loop gets tested instead of argued. Capping it in a SHIPPING
 build would trade a bounded tail for simulation time the world never runs, so
@@ -266,9 +282,16 @@ binary + frame pointers via RUSTFLAGS) so our frames symbolicate to real
 names instead of raw addresses; frames inside the NVIDIA driver blob and
 stripped system libraries stay hex - that is their stripping, not a build
 problem. Load the profile right after recording: symbolication resolves
-from the binary on disk, so a rebuild in between loses names. Expect the trace to be large (a 30 s autopilot
-run produces hundreds of MB); it is a scratch artifact, not something to
-commit.
+from the binary on disk, so a rebuild in between loses names.
+
+**Expect the trace to be enormous.** It carries one span per system per frame
+and grows at roughly 28 MB per second of traced gameplay, with nothing capping
+it, so a long range leaves GIGABYTES in its run dir - the report prints the size
+beside the table. That is deliberate: the raw file is the Perfetto artifact, and
+a byte cap or a span filter would buy disk by truncating the deep dive it exists
+for. The host reads it as a STREAM instead, at flat memory (about 70 MB peak,
+whatever the file's size), so the cost is disk and disk only. It is a scratch
+artifact: keep it while you are profiling, delete the run dir when you are not.
 
 ## Find it in the code
 

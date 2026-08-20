@@ -27,6 +27,10 @@ nova_autopilot = { path = "../nova_autopilot" }
 # The wire format the game writes and this crate reads: the frame-time CSV,
 # the timeline JSONL and the per-example capability contract.
 nova_probe = { path = "../nova_probe" }
+# The chrome trace is STREAMED rather than read whole, because these files
+# reach gigabytes: that needs a derived event struct and a `DeserializeSeed`,
+# neither of which serde_json re-exports.
+serde = { version = "1", features = ["derive"] }
 # Timeline entries carry serde_json payloads, and `checks.json` / the aggregate
 # index are serialized by hand against the same values.
 serde_json = { version = "1" }

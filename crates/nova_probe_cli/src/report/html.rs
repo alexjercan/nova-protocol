@@ -259,7 +259,7 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
             "<p>No trace in this run dir. Native runs produce trace.json \
              automatically; inspect trace-run.log for a failed pass.</p>\n",
         ),
-        Some(costs) => {
+        Some(profile) => {
             html.push_str(
                 "<p>Top systems by total span time - traced-run numbers RANK \
                  systems; they never compare against the clean pass, and \
@@ -268,11 +268,29 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
                  system's deferred flush - its spawns, despawns and every \
                  observer they trigger - not its own body.</p>\n",
             );
+            html.push_str(&format!(
+                "<p class=\"meta\">Streamed from {:.2} GB of <code>trace.json</code>. \
+                 Nothing caps the writer - the traced pass emits a span per system \
+                 per frame for as long as it runs - so this file grows with the \
+                 scene. It is the Perfetto artifact: keep it for the deep dive, or \
+                 delete the run dir.</p>\n",
+                profile.bytes as f64 / 1e9,
+            ));
+            if profile.truncated {
+                html.push_str(
+                    "<p class=\"banner warn\">This trace ends mid-file, so the table \
+                     covers a PREFIX of the traced run: the child was killed before \
+                     it could close the file, which is what the supervisor does when \
+                     the pass overruns its timeout. Ranking a converged workload off \
+                     a prefix is sound; a system that only runs LATE in the scene is \
+                     missing from it. trace-run.log says how the run ended.</p>\n",
+                );
+            }
             html.push_str(
                 "<table>\n<thead><tr><th>#</th><th>system</th><th>calls</th>\
                  <th>total ms</th><th>mean ms/call</th><th>share</th></tr></thead>\n<tbody>\n",
             );
-            for (i, cost) in costs.iter().take(15).enumerate() {
+            for (i, cost) in profile.costs.iter().take(15).enumerate() {
                 html.push_str(&format!(
                     "<tr><td class=\"num\">{}</td><td><code>{}</code></td>\
                      <td class=\"num\">{}</td><td class=\"num\">{:.2}</td>\

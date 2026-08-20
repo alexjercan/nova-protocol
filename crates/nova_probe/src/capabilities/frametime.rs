@@ -15,9 +15,9 @@ pub mod prelude {
     pub use super::{
         capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
         nova_frametime, perf_armed, perf_param, resolve_git_sha, resolve_host, FrameTimePlugin,
-        PerfDriver, PerfReady, ReloadGate, ABORT_REFRESH_CAPPED, ABORT_SIMULATION_STOPPED,
-        ABORT_UPDATE_THROTTLED, ABORT_WINDOW_SIZE, CAPTURE_COLLECTOR, DEFAULT_CAPTURE_FRAMES,
-        DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, NORENDER_ENV, PERF_ENV,
+        PerfDriver, PerfLive, PerfReady, ReloadGate, ABORT_REFRESH_CAPPED, ABORT_SCENE_ENDED,
+        ABORT_SIMULATION_STOPPED, ABORT_UPDATE_THROTTLED, ABORT_WINDOW_SIZE, CAPTURE_COLLECTOR,
+        DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, NORENDER_ENV, PERF_ENV,
     };
 }
 
@@ -80,6 +80,18 @@ pub type PerfDriver = dyn Fn(&mut World, u32) + Send + Sync;
 /// arrives; it is the wrong one for a fight that has to be joined first, where
 /// a fixed warm-up buys an arbitrary slice of the approach.
 pub type PerfReady = dyn Fn(&World) -> bool + Send + Sync;
+
+/// A liveness predicate run under [`FrameTimePlugin::live_while`]: the scene
+/// this window was opened to measure is still there. Checked every warm-up and
+/// capture frame, and REFUSING when it fails - see [`ABORT_SCENE_ENDED`].
+///
+/// The counterpart to [`PerfReady`], and needed for the same reason. A gate
+/// that says "the fight has started" can hold until the frame the fight is
+/// DECIDED: `wfc_arena` opens on both teams having fired and connected, and a
+/// wipe is what credits the last of that damage, so the gate can open onto an
+/// empty arena. `Playing` is still true, the clock still runs, and the window
+/// then measures the aftermath at 2-3 ms and calls it a 4v4 brawl.
+pub type PerfLive = dyn Fn(&World) -> bool + Send + Sync;
 
 /// Read a perf parameter by logical name. Native: env var `NOVA_PERF_<UPPER>`
 /// (e.g. `warmup` -> `NOVA_PERF_WARMUP`). Wasm: the URL query parameter `<name>`
@@ -158,6 +170,18 @@ pub const ABORT_UPDATE_THROTTLED: &str = "update_throttled";
 /// failure shape as [`ABORT_SIMULATION_STOPPED`] and needs the same refusal.
 pub const ABORT_REFRESH_CAPPED: &str = "refresh_capped";
 
+/// Token the abort line carries when the scene the window promised was ALREADY
+/// OVER, by the example's own reckoning - see [`PerfLive`].
+///
+/// [`ABORT_SIMULATION_STOPPED`] catches the ending that stops the clock. This
+/// one catches the ending that does not. A fight whose losing side is gone is
+/// finished while `Time<Virtual>` still ticks, entities still move and every
+/// environment gate still passes, so nothing else in this module can see it.
+/// What it measures is the AFTERMATH - a near-empty scene at a fraction of the
+/// cost the window was opened for - and it files that as an ordinary, plausible
+/// row, which is the same failure shape as every other reason here.
+pub const ABORT_SCENE_ENDED: &str = "scene_ended";
+
 /// Half-width of the band around the median that
 /// [`clustered_share`] counts samples in.
 const REFRESH_CAP_BAND: f64 = 0.05;
@@ -189,6 +213,7 @@ pub fn nova_frametime() -> FrameTimePlugin {
     FrameTimePlugin {
         driver: None,
         ready: None,
+        live: None,
         window: None,
     }
 }
@@ -198,6 +223,7 @@ pub fn nova_frametime() -> FrameTimePlugin {
 pub struct FrameTimePlugin {
     driver: Option<Arc<PerfDriver>>,
     ready: Option<Arc<PerfReady>>,
+    live: Option<Arc<PerfLive>>,
     window: Option<(u32, u32)>,
 }
 
@@ -205,8 +231,25 @@ impl FrameTimePlugin {
     /// Hold the capture in its wait phase until `ready` holds, on top of
     /// reaching `Playing`. See [`PerfReady`]; the warm-up starts after the
     /// gate opens, so the window lands on the load the predicate names.
+    ///
+    /// A gate that names a scene which can END owes a matching
+    /// [`live_while`](FrameTimePlugin::live_while): the frame a fight is won is
+    /// a frame the fight has also happened in, so the same predicate that opens
+    /// the window can open it onto the aftermath.
     pub fn ready_when(mut self, ready: impl Fn(&World) -> bool + Send + Sync + 'static) -> Self {
         self.ready = Some(Arc::new(ready));
+        self
+    }
+
+    /// REFUSE any warm-up or capture frame where `live` does not hold: the
+    /// scene this window was opened to measure is over. See [`PerfLive`] and
+    /// [`ABORT_SCENE_ENDED`].
+    ///
+    /// This is a refusal, not a wait. There is nothing to wait for - a finished
+    /// fight does not restart - so the honest outcome is no statistics and a
+    /// named failing check, exactly as for a stopped simulation.
+    pub fn live_while(mut self, live: impl Fn(&World) -> bool + Send + Sync + 'static) -> Self {
+        self.live = Some(Arc::new(live));
         self
     }
 
@@ -255,6 +298,20 @@ struct PerfDriverRes(Arc<PerfDriver>);
 struct PerfReadyRes {
     ready: Arc<PerfReady>,
     open: Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// Holds the active [`PerfLive`] predicate and the flag it sets. Absent when
+/// the example named none, which is "no scene this capture can outlive".
+///
+/// The flag is an atomic for the same reason [`PerfReadyRes`]'s latch is, and
+/// it does NOT latch: unlike readiness, liveness can go from true to false and
+/// that transition is the whole point. It starts true so that the very first
+/// frame - before [`perf_watch_live`] has ever run - cannot refuse a window on
+/// a value nothing wrote.
+#[derive(Resource, Clone)]
+struct PerfLiveRes {
+    live: Arc<PerfLive>,
+    holds: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// Reload bookkeeping for LOOPED captures: frames inside a scene reload are
@@ -675,6 +732,15 @@ impl Plugin for FrameTimePlugin {
             });
             app.add_systems(Update, perf_watch_ready.before(perf_capture));
         }
+        // Same rule as the gate watcher: it exists only for an example that
+        // named a liveness predicate.
+        if let Some(live) = &self.live {
+            app.insert_resource(PerfLiveRes {
+                live: live.clone(),
+                holds: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            });
+            app.add_systems(Update, perf_watch_live.before(perf_capture));
+        }
         app.add_systems(Update, perf_capture);
     }
 }
@@ -712,6 +778,18 @@ fn perf_watch_ready(world: &World) {
         gate.open.store(true, std::sync::atomic::Ordering::Relaxed);
         info!("nova perf: readiness gate open, warm-up starts");
     }
+}
+
+/// Re-evaluate the example's [`PerfLive`] predicate every frame. Read-only and
+/// non-latching, unlike [`perf_watch_ready`]: the transition this exists to
+/// catch is true -> false, so a latch would hide it.
+/// Added only when a predicate was named.
+fn perf_watch_live(world: &World) {
+    let Some(gate) = world.get_resource::<PerfLiveRes>() else {
+        return;
+    };
+    gate.holds
+        .store((gate.live)(world), std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Configure the primary window for capture BEFORE winit creates it: the
@@ -787,6 +865,7 @@ fn perf_capture(
     // collector instead of holding the app to the deadline.
     state_res: Option<Res<State<GameStates>>>,
     ready: Option<Res<PerfReadyRes>>,
+    live: Option<Res<PerfLiveRes>>,
     config: Res<PerfConfig>,
     adapter: Option<Res<RenderAdapterInfo>>,
     // Read to VERIFY, never to set: `apply_capture_window` owns the size, and
@@ -830,6 +909,20 @@ fn perf_capture(
                     Phase::Warmup,
                     ABORT_SIMULATION_STOPPED,
                     STOPPED_DETAIL,
+                );
+                return;
+            }
+            // Checked from the FIRST warm-up frame, because the frame the
+            // readiness gate opens on is the frame most likely to be the one
+            // the scene ended in - see [`PerfLive`].
+            if !scene_live(live.as_deref()) {
+                abort_capture(
+                    &config,
+                    &mut state,
+                    &mut completion,
+                    Phase::Warmup,
+                    ABORT_SCENE_ENDED,
+                    SCENE_ENDED_DETAIL,
                 );
                 return;
             }
@@ -877,6 +970,17 @@ fn perf_capture(
                     Phase::Capture,
                     ABORT_SIMULATION_STOPPED,
                     STOPPED_DETAIL,
+                );
+                return;
+            }
+            if !scene_live(live.as_deref()) {
+                abort_capture(
+                    &config,
+                    &mut state,
+                    &mut completion,
+                    Phase::Capture,
+                    ABORT_SCENE_ENDED,
+                    SCENE_ENDED_DETAIL,
                 );
                 return;
             }
@@ -954,6 +1058,23 @@ const STOPPED_DETAIL: &str =
      scene reached an end - a result screen, a pause, an outcome overlay - and the frames after \
      it draw a still picture at a plausible cost. Bound the window so it closes while the scene \
      is still running, or measure a scene that cannot end inside it.";
+
+/// What [`ABORT_SCENE_ENDED`] tells the reader to do about it.
+const SCENE_ENDED_DETAIL: &str =
+    "The example's own liveness predicate says the scene this window measures is over, although \
+     the simulation is still running - a decided fight, a wiped side, a scene torn down for a \
+     restart. What the window would report is the aftermath: a near-empty scene at a fraction of \
+     the cost, in a row that looks like every other row. Open the window on a state the scene \
+     cannot already have left, or bound it so it closes before the scene can end.";
+
+/// Whether the scene the window measures is still there, per the example's own
+/// [`PerfLive`] predicate, re-evaluated each frame by [`perf_watch_live`].
+///
+/// An example that named no predicate makes no claim about ending, so there is
+/// nothing to refuse - the same shape as an app with no `Time<Virtual>`.
+fn scene_live(live: Option<&PerfLiveRes>) -> bool {
+    live.is_none_or(|gate| gate.holds.load(std::sync::atomic::Ordering::Relaxed))
+}
 
 /// Every way the capture's ENVIRONMENT can quietly decide the number, checked
 /// once a frame from `Warmup` on so a bad run dies at its first frame instead
@@ -1324,6 +1445,87 @@ mod tests {
         app.world_mut().resource_mut::<Time<Virtual>>().pause();
         app.update();
         assert_eq!(app.world().resource::<PerfState>().phase, Phase::Aborted);
+    }
+
+    /// Stands in for whatever an example's own liveness predicate reads - a
+    /// scoreboard, a live-ship count, a match-flow flag.
+    #[derive(Resource)]
+    struct SceneAlive(bool);
+
+    /// [`armed_app`] plus a named [`PerfLive`] predicate, wired the way
+    /// [`FrameTimePlugin::build`] wires one, so the tests exercise the real
+    /// watcher rather than poking the flag.
+    fn armed_app_with_liveness(warmup: u32, frames: u32) -> App {
+        let mut app = armed_app(warmup, frames);
+        app.insert_resource(SceneAlive(true));
+        app.insert_resource(PerfLiveRes {
+            live: Arc::new(|world: &World| world.resource::<SceneAlive>().0),
+            holds: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+        });
+        app.add_systems(Update, perf_watch_live.before(perf_capture));
+        app
+    }
+
+    /// The wfc_arena defect: the readiness gate opens on the very frame the
+    /// fight is decided, so the window would measure the aftermath. Nothing
+    /// else can catch it - the clock still runs and every environment gate
+    /// still passes - so this refusal is the only reading that is true.
+    #[test]
+    fn a_window_that_opens_on_a_finished_scene_is_refused_at_its_first_warm_up_frame() {
+        let mut app = armed_app_with_liveness(10, 100);
+        app.update();
+        assert_eq!(app.world().resource::<PerfState>().phase, Phase::Warmup);
+
+        app.world_mut().resource_mut::<SceneAlive>().0 = false;
+        app.update();
+
+        let state = app.world().resource::<PerfState>();
+        assert_eq!(state.phase, Phase::Aborted);
+        assert_eq!(state.warmed, 0, "not one warm-up frame was banked");
+        // The clock never stopped: only the example's own predicate saw it.
+        assert!(simulation_running(Some(
+            app.world().resource::<Time<Virtual>>()
+        )));
+    }
+
+    /// A scene that ends PART WAY through the window is refused where it
+    /// stands, and the frames it did collect are discarded with it - the same
+    /// contract as a stopped simulation, because a half-window of the brawl
+    /// and a half-window of the aftermath average to neither.
+    #[test]
+    fn a_scene_that_ends_inside_the_window_is_refused_and_keeps_no_stats() {
+        let mut app = armed_app_with_liveness(2, 100);
+        for _ in 0..5 {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<PerfState>().phase, Phase::Capture);
+        assert_eq!(app.world().resource::<PerfState>().samples.len(), 2);
+
+        app.world_mut().resource_mut::<SceneAlive>().0 = false;
+        app.update();
+        assert_eq!(app.world().resource::<PerfState>().phase, Phase::Aborted);
+
+        // And it stays refused: a match restarting does not make the window
+        // whole again.
+        app.world_mut().resource_mut::<SceneAlive>().0 = true;
+        app.update();
+        let state = app.world().resource::<PerfState>();
+        assert_eq!(state.phase, Phase::Aborted);
+        assert_eq!(state.samples.len(), 2, "no stats are written either way");
+    }
+
+    /// An example that names no predicate makes no claim about ending, so
+    /// there is nothing to refuse - and every existing capture must schedule
+    /// and behave exactly as it did before.
+    #[test]
+    fn an_example_that_names_no_liveness_predicate_is_never_refused_for_one() {
+        assert!(scene_live(None));
+
+        let mut app = armed_app(2, 4);
+        for _ in 0..8 {
+            app.update();
+        }
+        assert_ne!(app.world().resource::<PerfState>().phase, Phase::Aborted);
     }
 
     /// Frame deltas as a display period hands them out, shaped like the ones
