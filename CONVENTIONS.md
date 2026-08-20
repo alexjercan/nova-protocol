@@ -97,6 +97,21 @@ pub struct SpaceshipInputSystems;
    becoming dumping grounds. `examples/` and `crates/*/tests/` keep literals:
    a probe run and `content lint` already go red when one drifts, which is the
    detection shipped code does not have.
+6. An example builds its app with `AppBuilder`, never `App::new()` plus
+   `DefaultPlugins` by hand. `with_game_plugins` is the seam for whatever the
+   range adds; `build()` supplies assets, the loading screen, gameplay, ship and
+   scenario with the render choice threaded through all of them.
+
+   Hand-assembly does not merely diverge from the shipped app - it SILENTLY OPTS
+   OUT of everything the builder later learns. `system_blast_penetration` and
+   `system_section_severing` each hand-rolled a `WindowPlugin` for a custom
+   window title. When `NOVA_NORENDER` landed on `AppBuilder::new`, both kept
+   opening a window and running on the GPU inside a `--norender` sweep, reported
+   nothing wrong, and were caught only by an audit that ran every range by hand.
+
+   Deliberately NOT enforced by a test. A range is the game, assembled the way
+   the game assembles itself; a lint would police the symptom and teach nobody
+   the reason.
 
 ## Comments and rustdoc
 

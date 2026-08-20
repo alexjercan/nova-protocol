@@ -42,22 +42,18 @@ struct SeverProbe {
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-            title: "Nova Protocol - Section Severing Range".to_string(),
-            resolution: (1280, 720).into(),
-            ..default()
-        }),
-        ..default()
-    }));
-    app.add_plugins(NovaGameplayPlugin { render: true });
-    app.add_plugins(ShipIntegrityPlugin);
+    let mut app = AppBuilder::new().with_game_plugins(range_plugin).build();
     app.add_plugins(nova_probe::NovaProbePlugin::default());
+    app.run()
+}
+
+fn range_plugin(app: &mut App) {
+    // `NovaShipPlugin` does not own integrity; the range drives severing
+    // directly, so it adds the plugin under test itself.
+    app.add_plugins(ShipIntegrityPlugin);
     app.init_resource::<SeverProbe>();
     app.add_systems(Startup, setup_range);
     app.add_systems(Update, drive_range);
-    app.run()
 }
 
 fn spawn_part(

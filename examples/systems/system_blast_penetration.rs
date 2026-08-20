@@ -56,22 +56,16 @@ struct DamageSeen {
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-            title: "Nova Protocol - Blast Penetration Range".to_string(),
-            resolution: (1280, 720).into(),
-            ..default()
-        }),
-        ..default()
-    }));
-    app.add_plugins(NovaGameplayPlugin { render: true });
+    let mut app = AppBuilder::new().with_game_plugins(range_plugin).build();
     app.add_plugins(nova_probe::NovaProbePlugin::default());
+    app.run()
+}
+
+fn range_plugin(app: &mut App) {
     app.init_resource::<DamageSeen>();
     app.add_observer(record_probe_damage);
     app.add_systems(Startup, setup_range);
     app.add_systems(Update, verify_range);
-    app.run()
 }
 
 fn spawn_part(
