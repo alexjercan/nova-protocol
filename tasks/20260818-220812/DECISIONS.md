@@ -171,3 +171,50 @@ work alone is ~30 FPS at 4v4, needing the floor halved AND per-ship from 4.76 to
 
 Reversed by: the owner restating the target, or a decision that a round is not
 a physics body (which phase 4 already flags as needing the owner).
+
+## D11 - the target is 1v1 at 60 FPS, and it REPLACES the 4v4 target
+
+Owner, 2026-08-20: "1v1 is at ~30 FPS, I think if we can get 1v1 to 60 FPS
+that's a big win." This supersedes D10's framing - the question is no longer
+whether 4v4 reaches 60, it is what 1v1 needs.
+
+**It is a much better target, and not only because it is smaller.** The epic
+protects non-drawn work - physics, colliders, AI, health, integrity - at a
+measured 2.00 ms a ship. At 4v4 that is 16.0 ms of the 16.67 ms budget spent
+before a triangle is drawn, so the target was unreachable by construction. At
+1v1 it is **4.00 ms**, leaving 12.67 ms of real room. The protected half stops
+being the binding constraint.
+
+### The budget
+
+| item | today | needed for 60 FPS |
+|---|--:|--:|
+| floor (measured empty scene) | 16.74 | **<= 12.2** |
+| 2 x protected non-drawn | 4.00 | 4.00 (fixed) |
+| 2 x drawn | 5.52 | 0.46 (phase 3 batch) |
+| **total** | **26.3 ms (38 FPS)** | **16.67 ms** |
+
+Two things follow, and the first is the whole finding:
+
+1. **The floor ALONE is 100.4% of a 60 FPS frame.** 16.74 ms against a 16.67 ms
+   budget. No ship-side work of any size reaches 60 while that stands, so the
+   floor is not merely the largest term - it is a hard precondition on the
+   owner's stated target.
+2. **With the floor cut and the phase 3 batch taken, 1v1 at 60 FPS is
+   reachable.** The floor needs to reach ~12.2 ms, a 27% cut. That is a far
+   more modest ask than the 4v4 case, which needed the protected half.
+
+### Vsync makes it a cliff, so aim lower than the budget
+
+The game ships `PresentMode::AutoVsync` (`nova_core/src/lib.rs:376`); the probe
+forces `AutoNoVsync` (`nova_probe/src/capabilities/frametime.rs:586`). So every
+harness number is uncapped work and every hand-read number is quantised to
+refresh intervals.
+
+**There is no partial credit at 60 Hz**: 16.6 ms of work reads 60 FPS, 16.8 ms
+reads 30. So the working target is **~14 ms**, not 16.67, which puts the floor
+at **<= 9.5 ms** - a 43% cut. Use the harness number, not the FPS counter, to
+judge a change near the boundary; the counter cannot resolve 21 ms from 27 ms.
+
+Reversed by: the floor investigation finding the 16.74 ms is irreducible, in
+which case 60 FPS is off the table at any ship count and the target restates.
