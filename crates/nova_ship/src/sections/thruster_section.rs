@@ -23,7 +23,8 @@ use crate::{
 pub mod prelude {
     pub use super::{
         plume_bucket, thruster_section, ExhaustMaterials, ExhaustMeshes, ThrusterExhaust,
-        ThrusterExhaustConfig, ThrusterExhaustShape, ThrusterSectionConfig, ThrusterSectionInput,
+        ThrusterExhaustConfig, ThrusterExhaustMaterial, ThrusterExhaustShape,
+        ThrusterPlumeMaterial, ThrusterSectionConfig, ThrusterSectionInput,
         ThrusterSectionMagnitude, ThrusterSectionPlugin, ThrusterSectionRenderMarker,
         EXHAUST_PLUME_BUCKETS,
     };
@@ -337,10 +338,7 @@ impl PlumeSpec {
     }
 
     /// The material this spec draws at `bucket`.
-    fn material(
-        &self,
-        bucket: usize,
-    ) -> ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial> {
+    fn material(&self, bucket: usize) -> ThrusterPlumeMaterial {
         ExtendedMaterial {
             base: StandardMaterial {
                 base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
@@ -385,11 +383,7 @@ struct PlumeMaterialKey {
 /// times buckets however many drives are burning.
 #[derive(Resource, Default)]
 pub struct ExhaustMaterials(
-    HashMap<
-        PlumeMaterialKey,
-        [Option<Handle<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>;
-            EXHAUST_PLUME_BUCKETS],
-    >,
+    HashMap<PlumeMaterialKey, [Option<Handle<ThrusterPlumeMaterial>>; EXHAUST_PLUME_BUCKETS]>,
 );
 
 impl ExhaustMaterials {
@@ -399,8 +393,8 @@ impl ExhaustMaterials {
         &mut self,
         spec: &PlumeSpec,
         bucket: usize,
-        materials: &mut Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
-    ) -> Handle<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>> {
+        materials: &mut Assets<ThrusterPlumeMaterial>,
+    ) -> Handle<ThrusterPlumeMaterial> {
         let slot = &mut self.0.entry(spec.key()).or_default()[bucket];
         slot.get_or_insert_with(|| materials.add(spec.material(bucket)))
             .clone()
@@ -496,9 +490,7 @@ impl Plugin for ThrusterSectionPlugin {
     fn build(&self, app: &mut App) {
         debug!("ThrusterSectionPlugin: build");
 
-        app.add_plugins(MaterialPlugin::<
-            ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>,
-        >::default());
+        app.add_plugins(MaterialPlugin::<ThrusterPlumeMaterial>::default());
         // Outside the render gate: `thruster_shader_update_system` runs on a
         // headless server too, and a system whose resource is missing does not
         // run at all.
@@ -596,12 +588,12 @@ fn thruster_shader_update_system(
     q_plume: Query<&DamageLevel, With<DamagePlume>>,
     mut q_render: Query<(
         &mut ThrusterExhaustPlume,
-        &mut MeshMaterial3d<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
+        &mut MeshMaterial3d<ThrusterPlumeMaterial>,
         &ChildOf,
     )>,
     q_child: Query<&ChildOf>,
     mut registry: ResMut<ExhaustMaterials>,
-    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>,
+    mut materials: ResMut<Assets<ThrusterPlumeMaterial>>,
 ) {
     let seconds = time.elapsed_secs();
     for (mut plume, mut material, &ChildOf(parent)) in &mut q_render {
@@ -764,9 +756,7 @@ fn insert_thruster_shader(
     mut meshes: ResMut<Assets<Mesh>>,
     mut flames: ResMut<ExhaustMeshes>,
     mut glows: ResMut<ExhaustMaterials>,
-    mut exhaust_materials: ResMut<
-        Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
-    >,
+    mut exhaust_materials: ResMut<Assets<ThrusterPlumeMaterial>>,
 ) {
     let entity = add.entity;
     trace!("insert_thruster_shader: entity {:?}", entity);
@@ -845,6 +835,15 @@ fn insert_thruster_shader(
         )],
     ));
 }
+
+/// A drive's exhaust flame: a standard PBR material stretched and lit by the
+/// throttle.
+///
+/// Named because it is the biggest material population a torpedo fight puts in
+/// the frame, and the census cannot see it through
+/// `MeshMaterial3d<StandardMaterial>` any more than it can see the crack
+/// buckets - so it is counted by type, the same way `SectionCracksMaterial` is.
+pub type ThrusterPlumeMaterial = ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>;
 
 /// Material extension driving the thruster exhaust glow shader.
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]
@@ -1005,7 +1004,7 @@ mod test {
         assert_eq!(plume_bucket(-1.0), 0);
     }
 
-    type PlumeMaterials = Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>;
+    type PlumeMaterials = Assets<ThrusterPlumeMaterial>;
 
     /// A hundred drives burning together must cost the frame BUCKETS, not
     /// drives. A material written every frame is re-extracted, re-uploaded and
@@ -1016,7 +1015,7 @@ mod test {
     fn drives_burning_at_one_throttle_share_one_plume_material() {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
-        app.init_asset::<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>();
+        app.init_asset::<ThrusterPlumeMaterial>();
         app.init_resource::<ExhaustMaterials>();
         app.add_systems(Update, thruster_shader_update_system);
 
@@ -1061,7 +1060,7 @@ mod test {
             .iter()
             .map(|&e| {
                 app.world()
-                    .get::<MeshMaterial3d<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>(e)
+                    .get::<MeshMaterial3d<ThrusterPlumeMaterial>>(e)
                     .expect("plume material")
                     .0
                     .clone()
@@ -1093,7 +1092,7 @@ mod test {
     fn a_throttle_sweep_mints_at_most_one_material_a_bucket() {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
-        app.init_asset::<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>();
+        app.init_asset::<ThrusterPlumeMaterial>();
         app.init_resource::<ExhaustMaterials>();
 
         let cone = PlumeSpec {
