@@ -459,6 +459,7 @@ does NOT get an entry - and it is the only place they are written down.
 - Fixed: the NOVA OS glass was measured in physical pixels against a logical cursor, so every click missed by the display's scale factor.
 - `probe scenario <id|file.ron>` measures a scenario through the game binary - no example, no `[[example]]` block. A loose content file works whether or not it ships.
 - `--scenario-file <path>` boots the game into a loose `*.content.ron` without installing it, and `--scenario editor_sandbox` now resolves.
+- `--norender` boots with no GPU device, no window and no event loop, so a run measures the simulation alone. It needs `--scenario` plus autopilot to ever end.
 - Probe accepts `-h` and `--help` at the root, `run`, and `report` command levels.
 - The bug-to-range doctrine is written down (`CONVENTIONS.md`): reproduce a bug
   as a `systems/` range before the fix, and name every claim on the invariant

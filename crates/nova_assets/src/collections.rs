@@ -242,10 +242,17 @@ pub(crate) fn register_sounds(mut commands: Commands, assets: Res<AssetServer>) 
 
 // TODO(20260525-133028): Probably need to refactor this somehow
 pub(crate) fn update_nova_hud_assets(
-    mut nova_hud_assets: ResMut<NovaHudAssets>,
+    // OPTIONAL because `NovaHudAssets` belongs to `nova_hud::NovaHudPlugin`,
+    // which a headless app does not add at all. A required `ResMut` here fails
+    // parameter validation and takes the whole run down at the end of asset
+    // loading - which is exactly what `--norender` did.
+    nova_hud_assets: Option<ResMut<NovaHudAssets>>,
     game_assets: Res<GameAssets>,
     images: Res<Assets<Image>>,
 ) {
+    let Some(mut nova_hud_assets) = nova_hud_assets else {
+        return;
+    };
     nova_hud_assets.target_sprite = game_assets.target_sprite.clone();
     nova_hud_assets.nova_crt_mark = game_assets.nova_crt_mark.clone();
     // Fan the stem-keyed collection out to the label-keyed lookup the HUD

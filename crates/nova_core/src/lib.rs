@@ -15,7 +15,7 @@ use bevy::{
     prelude::*,
     // NOTE: RenderPlugin is not in bevy's prelude.
     render::RenderPlugin,
-    window::PresentMode,
+    window::{ExitCondition, PresentMode},
 };
 use nova_assets::prelude::*;
 #[cfg(feature = "debug")]
@@ -75,10 +75,12 @@ pub mod prelude {
 /// boots straight into that scenario instead of the main menu (see
 /// [`AppBuilder::with_startup_scenario`]).
 pub fn editor_app(render: bool, startup: Option<StartupScenario>) -> App {
-    AppBuilder::new()
-        .with_rendering(render)
-        .with_startup_scenario(startup)
-        .build()
+    let builder = if render {
+        AppBuilder::new()
+    } else {
+        AppBuilder::headless()
+    };
+    builder.with_startup_scenario(startup).build()
 }
 
 /// What the app boots into instead of the main menu.
@@ -119,10 +121,14 @@ pub fn run_app(app: &mut App) -> ExitCode {
 /// Composition root that assembles the full plugin stack into a runnable [`App`].
 ///
 /// Holds the in-progress [`App`] plus the choices ([`with_game_plugins`](Self::with_game_plugins),
-/// [`with_rendering`](Self::with_rendering),
 /// [`with_startup_scenario`](Self::with_startup_scenario)) that [`build`](Self::build) resolves
 /// into the concrete plugin set; with no game plugins it defaults to the editor app fronted by the
 /// main menu.
+///
+/// Whether the app renders is fixed by the constructor - [`new`](Self::new) or
+/// [`headless`](Self::headless) - not by a later setter, because the wgpu and
+/// window settings are baked into [`DefaultPlugins`] the moment the builder
+/// starts.
 pub struct AppBuilder {
     app: App,
     use_default_plugins: bool,
@@ -140,6 +146,27 @@ impl AppBuilder {
     /// Start a builder with [`DefaultPlugins`] already set up (windowing, logging,
     /// assets, and the `mods://` source registered before `AssetPlugin` lands).
     pub fn new() -> Self {
+        Self::assemble(true)
+    }
+
+    /// Start a builder that draws NOTHING: no wgpu device, no window, no winit
+    /// event loop, and none of the visual game plugins. The main schedule still
+    /// ticks, so the simulation runs and the probe still counts frames - CPU
+    /// ones.
+    ///
+    /// Rendering is one switch, not two, because the halves cannot be taken
+    /// apart: `bevy_hanabi` panics outright without a render sub-app
+    /// (`bevy_hanabi-0.19.0/src/plugin.rs:361`), so dropping the device forces
+    /// dropping the plugins that need it.
+    ///
+    /// Nothing in here ends the run. There is no window to close and no input,
+    /// so a headless app needs a driver - `--scenario <id>` under
+    /// `NOVA_AUTOPILOT`, or `probe scenario` - or it ticks until it is killed.
+    pub fn headless() -> Self {
+        Self::assemble(false)
+    }
+
+    fn assemble(render: bool) -> Self {
         let mut app = App::new();
         // NOTE: the `mods://` source must be registered BEFORE AssetPlugin lands
         // with DefaultPlugins below - bevy builds the registered sources at
@@ -147,19 +174,47 @@ impl AppBuilder {
         // `assets_plugin()`, which returns the AssetPlugin VALUE for `.set()`
         // while source registration needs the App.
         nova_assets::mod_cache::register_mods_source(&mut app);
-        app.add_plugins(
-            DefaultPlugins
-                .build()
-                .set(assets_plugin())
-                .set(log_plugin())
-                .set(window_plugin())
-                .set(render_plugin()),
-        );
+        let plugins = DefaultPlugins
+            .build()
+            .set(assets_plugin())
+            .set(log_plugin())
+            .set(window_plugin(render))
+            .set(render_plugin(render));
+
+        if render {
+            app.add_plugins(plugins);
+        } else {
+            // `WinitPlugin::build` constructs the event loop, which needs a
+            // display server whether or not a window is ever opened - so a run
+            // with no display has to replace the runner, not just ask winit for
+            // zero windows. Without a replacement `App::run` would tick once
+            // and return, because bevy's fallback runner is `run_once`.
+            app.add_plugins(plugins.disable::<bevy::winit::WinitPlugin>());
+            app.add_plugins(bevy::app::ScheduleRunnerPlugin::default());
+            // Works around a bevy 0.19 hole, not a choice of ours.
+            // `ExtractComponentPlugin::build` adds `SyncComponentPlugin`
+            // unconditionally (bevy_render-0.19.0/src/extract_component.rs:85),
+            // and its `on_remove` hook does an unguarded
+            // `world.resource_mut::<PendingSyncEntity>()` (sync_component.rs:55)
+            // - but the resource ships with `ExtractPlugin`, which a backendless
+            // `RenderPlugin` never adds. So despawning any extracted component
+            // (the loading screen's UI nodes, first thing after asset load)
+            // panics. `SyncWorldPlugin` supplies the resource on its own.
+            //
+            // Its queue is then never drained, because draining is
+            // `entity_sync_system` inside the render sub-app's extract. That
+            // leaks one ~24-byte record per synced spawn and per synced
+            // component removal - 2.4 MB across 100k of them, linear in run
+            // length. Acceptable for probe-length runs, NOT for an indefinite
+            // soak. Adding `ExtractPlugin` would drain it, and would also
+            // rebuild the mirror render world this flag exists to avoid.
+            app.add_plugins(bevy::render::sync_world::SyncWorldPlugin);
+        }
 
         Self {
             app,
             use_default_plugins: true,
-            render: true,
+            render,
             startup_scenario: None,
         }
     }
@@ -169,13 +224,6 @@ impl AppBuilder {
     pub fn with_game_plugins<M>(mut self, plugins: impl Plugins<M>) -> Self {
         self.app.add_plugins(plugins);
         self.use_default_plugins = false;
-        self
-    }
-
-    /// Set whether the app renders; passed down to the gameplay and scenario
-    /// plugins so headless runs (tests, the probe harness) skip GPU work.
-    pub fn with_rendering(mut self, render: bool) -> Self {
-        self.render = render;
         self
     }
 
@@ -389,7 +437,17 @@ pub const PERF_ENV: &str = "NOVA_PERF";
 /// catch a hand-run someone is playing.
 pub const MEASURE_WINDOW_CLASS: &str = "nova-measure";
 
-fn window_plugin() -> WindowPlugin {
+fn window_plugin(render: bool) -> WindowPlugin {
+    if !render {
+        return WindowPlugin {
+            primary_window: None,
+            // With no window, the default `OnAllClosed` is satisfied on the
+            // first frame and the app exits before anything runs. A headless
+            // run ends when its driver sends `AppExit`, and only then.
+            exit_condition: ExitCondition::DontExit,
+            ..default()
+        };
+    }
     WindowPlugin {
         primary_window: Some(Window {
             title: format!("NovaProtocol - {}", env!("CARGO_PKG_VERSION")),
@@ -421,12 +479,20 @@ fn window_plugin() -> WindowPlugin {
 /// readback to every frame, which is part of the thing being measured.
 pub const RENDER_DIAG_ENV: &str = "NOVA_PERF_RENDER_DIAG";
 
-fn render_plugin() -> RenderPlugin {
+fn render_plugin(render: bool) -> RenderPlugin {
     // Timestamp queries are Vulkan/DX12-only in wgpu, and asking for a feature
     // the adapter lacks fails device creation - so this is a request the probe
     // then verifies: `render/*/elapsed_gpu` is simply absent on a backend that
     // cannot serve it.
     let mut wgpu = bevy::render::settings::WgpuSettings::default();
+    if !render {
+        // No backend means `RenderPlugin` never asks wgpu for an adapter, so it
+        // builds no device and no render sub-app at all - no extract, no
+        // prepare, no queue (bevy_render-0.19.0/src/lib.rs:357). Everything
+        // below it in `DefaultPlugins` still loads and guards on the sub-app
+        // being absent, so the main schedule is untouched.
+        wgpu.backends = None;
+    }
     if std::env::var_os(RENDER_DIAG_ENV).is_some() {
         wgpu.features |= bevy::render::settings::WgpuFeatures::TIMESTAMP_QUERY
             | bevy::render::settings::WgpuFeatures::TIMESTAMP_QUERY_INSIDE_ENCODERS

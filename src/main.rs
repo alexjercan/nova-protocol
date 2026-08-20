@@ -27,6 +27,9 @@ struct Cli {
     #[cfg(feature = "debug")]
     #[arg(long)]
     debugdump: bool,
+    /// Run the simulation with no GPU device, no window and none of the visual
+    /// plugins. Needs a driver to ever end: pair it with `--scenario` under
+    /// `NOVA_AUTOPILOT`, or it ticks forever with nothing to close.
     #[cfg(feature = "debug")]
     #[arg(long)]
     norender: bool,
