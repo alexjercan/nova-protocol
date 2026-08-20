@@ -1,8 +1,8 @@
 # Bake scenario work into the loading screen, stop computing on first hit
 
 - STATUS: OPEN
-- PRIORITY: 78
-- TAGS: v0.11.0,performance,scenario
+- PRIORITY: 70
+- TAGS: v0.11.0, performance, scenario
 
 Epic: `20260818-220812`. Owner: "if we can bake certain things while the
 scenario is loading we do that instead of lazy computation (e.g I am pretty

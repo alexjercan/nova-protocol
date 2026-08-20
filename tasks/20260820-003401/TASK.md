@@ -1,8 +1,8 @@
 # Promote the ablation and census instruments into probe capabilities
 
 - STATUS: OPEN
-- PRIORITY: 72
-- TAGS: v0.11.0,harness,performance
+- PRIORITY: 85
+- TAGS: v0.11.0, harness, performance
 
 Epic: `20260818-220812`. Promote the instruments that found `20260820-003333`
 from one lane's throwaway branch into `nova_probe` capabilities, before the
