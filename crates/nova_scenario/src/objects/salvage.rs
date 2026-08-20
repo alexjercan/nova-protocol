@@ -133,7 +133,7 @@ impl Plugin for SalvageCratePlugin {
         // of the render flag. It no-ops without a SoundBank (editor, headless),
         // so it is safe to add unconditionally.
         app.init_resource::<DingedCrates>();
-        app.add_observer(on_crate_pickup_play_sfx);
+        app.add_observer(wire_crate_pickup);
         app.add_observer(forget_despawned_crate);
 
         if self.render {
@@ -170,6 +170,9 @@ struct DingedCrates(bevy::platform::collections::HashSet<Entity>);
 /// scenario teardown (unlike an `On<Remove>` on the marker) - but dedups per
 /// crate via [`DingedCrates`] so one pickup is one ding even though a ship's
 /// many section colliders each fire the event.
+///
+/// Bound to the crate by [`wire_crate_pickup`], never globally, so the event
+/// target IS the crate.
 fn on_crate_pickup_play_sfx(
     collision: On<CollisionStart>,
     asset_server: Res<AssetServer>,
@@ -178,18 +181,13 @@ fn on_crate_pickup_play_sfx(
     mut dinged: ResMut<DingedCrates>,
     mut commands: Commands,
 ) {
-    let (Some(a), Some(b)) = (collision.body1, collision.body2) else {
+    let crate_entity = collision.collider1;
+    let Ok(pickup_sound) = q_crate.get(crate_entity) else {
         return;
     };
-    // Identify which body is the crate; avian does not guarantee the ordering.
-    let (crate_entity, pickup_sound) = if let Ok(sound) = q_crate.get(a) {
-        (a, sound)
-    } else if let Ok(sound) = q_crate.get(b) {
-        (b, sound)
-    } else {
+    let Some(other) = collision.body2 else {
         return;
     };
-    let other = if crate_entity == a { b } else { a };
     // Only the player collects a crate (the scenario handler filters on it).
     if !q_player.contains(other) {
         return;
@@ -202,6 +200,18 @@ fn on_crate_pickup_play_sfx(
             commands.play_sfx_volume(handle, SALVAGE_PICKUP_VOLUME);
         }
     }
+}
+
+/// Bind the pickup cue TO THE CRATE.
+///
+/// As a global `add_observer` this ran for every collision in the world -
+/// 23,363 invocations in four seconds of a headless duel that carries no
+/// crates - and declined all of them on the first query. Bound to the crate it
+/// costs nothing until a crate exists.
+fn wire_crate_pickup(add: On<Add, SalvageCrateMarker>, mut commands: Commands) {
+    commands
+        .entity(add.entity)
+        .observe(on_crate_pickup_play_sfx);
 }
 
 /// Drop a crate from the ding-dedup set when it leaves the world (picked up or
@@ -453,7 +463,7 @@ mod tests {
         )));
         app.init_resource::<PickupDings>();
         app.init_resource::<DingedCrates>();
-        app.add_observer(on_crate_pickup_play_sfx);
+        app.add_observer(wire_crate_pickup);
         app.add_observer(forget_despawned_crate);
         app.add_observer(|_: On<PlaySfx>, mut dings: ResMut<PickupDings>| dings.0 += 1);
         app.finish();

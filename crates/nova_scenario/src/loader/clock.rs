@@ -16,6 +16,17 @@ pub(super) fn tick_scenario_clock(time: Res<Time>, mut world: ResMut<NovaEventWo
     world.advance_scenario_elapsed(time.delta_secs_f64());
 }
 
+/// Run condition: something in the loaded scenario can READ an entity query.
+///
+/// [`sample_scenario_queries`] scales with the WORLD and not with the scenario
+/// - it walks every `EntityId` carrying a velocity and allocates two `String`s
+/// per match, every frame, and severing turns each hull section into another
+/// free body. No shipped scenario reads an entity query at all, so ungated it
+/// is dead work in every one of them.
+fn scenario_reads_an_entity_query(world: Res<NovaEventWorld>) -> bool {
+    world.reads_entity_queries()
+}
+
 /// Sample every exact-id entity speed once for a coherent query snapshot.
 /// Entities without velocity are outside the `Speed` query domain. In
 /// particular, ship section children carry reusable section-local `EntityId`s;
@@ -71,7 +82,7 @@ pub(super) fn register_clock_and_pulse(app: &mut App) {
         Update,
         (
             tick_scenario_clock,
-            sample_scenario_queries,
+            sample_scenario_queries.run_if(scenario_reads_an_entity_query),
             tick_scenario_timers,
             fire_on_update,
         )
@@ -608,15 +619,18 @@ mod tests {
         };
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
-            .set_watches(vec![WatchConfig {
-                variable: "player_speed".to_string(),
-                query: QueryConfig::Entity(EntityQuery {
-                    filter: EntityQueryFilter {
-                        id: "player_spaceship".to_string(),
-                    },
-                    property: EntityProperty::Speed,
-                }),
-            }]);
+            .set_watches(
+                vec![WatchConfig {
+                    variable: "player_speed".to_string(),
+                    query: QueryConfig::Entity(EntityQuery {
+                        filter: EntityQueryFilter {
+                            id: "player_spaceship".to_string(),
+                        },
+                        property: EntityProperty::Speed,
+                    }),
+                }],
+                true,
+            );
 
         app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
 
