@@ -659,8 +659,28 @@ undamaged fleet batches as if the effect were not there.
 
 The registry (`SectionCracksMaterials`) builds a bucket the first time something
 reaches it and forgets a source material the moment nothing draws from it. Both
-matter: a torpedo warhead is tinted per LAUNCH, so eager buckets would cost eight
-materials a shot and a registry that never forgot would keep them.
+matter, and both are aimed at a source a MOD mints per instance rather than per
+prototype: eager buckets would cost it eight materials it never draws, and a
+registry that never forgot would keep them after it was gone. A pristine base
+fleet is one bucket.
+
+### The same shape, for the exhaust plume
+
+A drive's flame is quantised the same way and for the same reason
+(`EXHAUST_PLUME_BUCKETS`, `thruster_section.rs`): the throttle snaps to one of 16
+steps and the cone SWAPS to the material shared by every nozzle of its shape at
+that step. Nothing is written into a built material here either.
+
+Read the two together, because the plume is where the pattern earns itself.
+Cracks change rarely, so a read-before-write guard nearly covers them. A guided
+torpedo's throttle genuinely moves EVERY frame, and a hundred can be in the air -
+so the guard covers nothing, and only sharing does. `Assets::get_mut` marks an
+asset modified whether or not the value moves, and a modified material is
+re-extracted, re-uploaded and has its bind group rebuilt that frame.
+
+What quantising costs is smoothness, and the shader is what makes 16 enough: one
+bucket step moves the flame tip by 0.0667 local units, and `thruster_exhaust.wgsl`
+already jitters that same tip by up to `wobble_amp = 0.1` every frame.
 
 The rule the vocabulary is kept honest by: **NO SHIP SECTION LOSES GEOMETRY.**
 Every effect here is a material or a particle, and the only thing that changes a
@@ -814,11 +834,10 @@ per contact. A symmetric rule - ram damage - wants both.
   `default_projectile_render_allocates_no_assets_per_shot` pins that. Its meshes
   come from `sections::nose_cone_mesh` (a cylinder and a cone, merged), which
   the torpedo warhead's `DefaultTorpedoRender` shares. The warhead colours ITS
-  copy of that mesh with a `StandardMaterial` built per LAUNCH from the
-  `TorpedoType`'s tint, which is what makes it the awkward case for the cracks
-  registry: a per-instance source material is a registry key nothing else will
-  ever reuse, which is why buckets are built lazily and dropped when the source
-  goes. Note a cracked material is an `ExtendedMaterial` rather than a
+  copy of that mesh with a `StandardMaterial` held per TINT, so a salvo of one
+  ordnance type is one material however many tubes fired it - and so its crack
+  buckets, which key on the source, are shared by the salvo too. Note a cracked
+  material is an `ExtendedMaterial` rather than a
   `StandardMaterial`, which is why `SectionCracks` holds a STRONG handle to its
   `source`: once the mesh's `MeshMaterial3d<StandardMaterial>` has been swapped
   away that handle is the only thing a later bucket can be built from, and a
