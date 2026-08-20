@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nova Protocol - the performance map, 2026-08-20</title>
+<style>
+:root {
+  --ink: #0a1014;
+  --surface: #101a20;
+  --surface-2: #16232a;
+  --rule: #1f3038;
+  --text: #c6d5dc;
+  --dim: #7b929c;
+  --dimmer: #566b75;
+
+  /* State, not decoration. Every row in this document is one of these four. */
+  --won: #4ec9a8;
+  --wrong: #e5734f;
+  --closed: #647d88;
+  --open: #f2c14e;
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 60rem; margin: 0 auto; padding: 0 1.5rem 6rem; }
+
+/* ---- masthead ---- */
+
+header.top {
+  border-bottom: 1px solid var(--rule);
+  padding: 4rem 0 2.5rem;
+  margin-bottom: 3rem;
+}
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  margin: 0 0 1.25rem;
+}
+h1 {
+  font-size: clamp(2rem, 5.5vw, 3.1rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  font-weight: 720;
+  margin: 0 0 1.25rem;
+  text-wrap: balance;
+}
+.standfirst {
+  font-size: 1.12rem;
+  color: var(--dim);
+  max-width: 44rem;
+  margin: 0;
+}
+.standfirst strong { color: var(--text); font-weight: 600; }
+
+/* ---- the arc strip ---- */
+
+.arc {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 2.5rem 0 0;
+}
+.arc div { background: var(--surface); padding: 1rem 1.1rem; }
+.arc dt {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  margin: 0 0 0.4rem;
+}
+.arc dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 1.28rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  /* The unit belongs on the number's line; a wrap reads as a second figure. */
+  white-space: nowrap;
+}
+.arc dd small { font-size: 0.8rem; color: var(--dim); letter-spacing: 0; }
+
+/* ---- sections ---- */
+
+section { margin: 4rem 0 0; }
+h2 {
+  font-size: 1.6rem;
+  letter-spacing: -0.015em;
+  font-weight: 680;
+  margin: 0 0 0.5rem;
+  text-wrap: balance;
+}
+h2 .num {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--dimmer);
+  letter-spacing: 0.1em;
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 400;
+}
+.lede { color: var(--dim); max-width: 46rem; margin: 0 0 1.75rem; }
+p { max-width: 46rem; }
+
+/* ---- ledger table ---- */
+
+.scroll { overflow-x: auto; margin: 1.5rem 0; }
+table { border-collapse: collapse; width: 100%; min-width: 40rem; font-size: 0.92rem; }
+th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  font-weight: 400;
+  padding: 0 0.9rem 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: bottom;
+}
+td {
+  padding: 0.85rem 0.9rem 0.85rem 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tbody tr:hover td { background: rgba(255,255,255,0.018); }
+
+.chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.won { color: var(--won); }
+.wrong { color: var(--wrong); }
+.closed { color: var(--closed); }
+.open { color: var(--open); }
+
+code, .m { font-family: var(--mono); font-size: 0.88em; }
+code { color: var(--text); background: var(--surface-2); padding: 0.1em 0.35em; border-radius: 2px; }
+
+/* ---- cards ---- */
+
+.cards { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 1.75rem 0; }
+.card { background: var(--surface); padding: 1.5rem; }
+.card h3 {
+  margin: 0.7rem 0 0.6rem;
+  font-size: 1.12rem;
+  letter-spacing: -0.01em;
+  font-weight: 640;
+}
+.card p { margin: 0 0 0.85rem; font-size: 0.95rem; }
+.card p:last-child { margin-bottom: 0; }
+.check {
+  border-left: 2px solid var(--open);
+  padding-left: 0.9rem;
+  color: var(--dim);
+  font-size: 0.89rem;
+}
+.check b { color: var(--open); font-weight: 600; display: block; font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.13em; text-transform: uppercase; margin-bottom: 0.25rem; }
+
+.rank {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+}
+
+/* ---- callout ---- */
+
+.callout {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--open);
+  padding: 1.4rem 1.6rem;
+  margin: 2rem 0;
+}
+.callout p { margin: 0 0 0.8rem; }
+.callout p:last-child { margin-bottom: 0; }
+.callout strong { color: var(--open); }
+
+.split { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+@media (min-width: 44rem) { .split { grid-template-columns: 1fr 1fr; } }
+.split > div { background: var(--surface); padding: 1.4rem 1.5rem; }
+.split h4 { margin: 0 0 0.7rem; font-size: 0.72rem; font-family: var(--mono); letter-spacing: 0.13em; text-transform: uppercase; }
+.split ul { margin: 0; padding-left: 1.1rem; font-size: 0.92rem; color: var(--dim); }
+.split li { margin-bottom: 0.5rem; }
+
+footer {
+  margin-top: 5rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--rule);
+  color: var(--dimmer);
+  font-size: 0.85rem;
+  font-family: var(--mono);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Epic 20260818-220812 / performance map / 2026-08-20</p>
+  <h1>Everything we tried, everything we got wrong, and the ground nobody has walked on yet</h1>
+  <p class="standfirst">
+    Three fixes landed and each was worth a large multiple. Every one of them was
+    <strong>the same bug wearing different clothes</strong>. Five confident conclusions were
+    retracted, and four of those five were the instrument lying rather than the game being slow.
+    This page is the ledger, and then the part that matters: <strong>what has never been looked at.</strong>
+  </p>
+
+  <dl class="arc">
+    <div><dt>17 ships, by hand</dt><dd>7 -&gt; 16 <small>FPS</small></dd></div>
+    <div><dt>4v4 frame</dt><dd>117 -&gt; 69 <small>ms</small></dd></div>
+    <div><dt>Distinct meshes, 3 hulls</dt><dd>242 -&gt; 83</dd></div>
+    <div><dt>Empty scene, real display</dt><dd>3.02 <small>ms</small></dd></div>
+    <div><dt>Budget for 60 FPS</dt><dd>16.67 <small>ms</small></dd></div>
+  </dl>
+</header>
+
+<section>
+  <h2><span class="num">01</span>What landed, and what it bought</h2>
+  <p class="lede">
+    Every figure here is a paired interleaved measurement with a reference capture taken
+    immediately before each arm. Ratios below 1.00 are improvements.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>Fix</th>
+        <th>What was actually wrong</th>
+        <th class="num">Ratio</th>
+        <th>State</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Damage cracks quantised to 8 buckets</b><br><span class="m" style="color:var(--dimmer)">6b3bfc87</span></td>
+        <td>Every section mesh minted its own <code>SectionCracksMaterial</code>. 2,046 materials for 2,046 meshes, so nothing batched with anything. Regression dated to two days earlier: the plugin it replaced skipped unaligned bodies, and this one had no such gate.</td>
+        <td class="num">0.592</td>
+        <td><span class="chip won">landed</span></td>
+      </tr>
+      <tr>
+        <td><b>Exhaust plume written only on change</b><br><span class="m" style="color:var(--dimmer)">d15479b5</span></td>
+        <td><code>Assets::get_mut</code> marks an asset modified whether or not the value moves, and a modified material is re-extracted, re-uploaded and re-bound that frame. A frozen gallery paid a full material prepare pass every frame for a number that never changed.</td>
+        <td class="num">0.733</td>
+        <td><span class="chip won">landed</span></td>
+      </tr>
+      <tr>
+        <td><b>Placeholder art built once</b><br><span class="m" style="color:var(--dimmer)">cbc86980</span></td>
+        <td>64 of a hull's 120 distinct meshes were placeholder cubes, cones and discs minted <em>per section entity</em> from four constant values. Thruster barrel 12, nozzle 12, outer flame 12, inner flame 12, turret plate 8, controller body 4, window 4.</td>
+        <td class="num">0.631</td>
+        <td><span class="chip won">landed</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout">
+    <p><strong>All three are one bug.</strong> "One asset per instance where one asset would do."
+    A distinct asset is extracted, prepared, bound and written every frame no matter how many
+    entities share its value -- so duplicating an asset costs real time, while duplicating an
+    <em>instance</em> of a shared asset is nearly free.</p>
+    <p>This was later confirmed as the shape of the whole curve: the frame tracks
+    <strong>distinct mesh assets, not instances</strong> -- R<sup>2</sup> 0.996 against 0.910, with marginal
+    per-instance cost drifting 4.9x across the sweep while per-distinct-mesh drifted 1.58x.
+    <code>hull-01.glb</code> is one mesh drawn 136 times and costs almost nothing.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">02</span>What we believed and had to retract</h2>
+  <p class="lede">
+    Five retractions. Four were the measuring apparatus reporting a plausible number that
+    belonged to something other than the game. This is the most useful section on the page,
+    because the failure mode repeats.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Claim</th><th>What was actually true</th><th>Root cause</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>"An empty scene costs 16.74 ms."</b> Written into the release's definition of done as a hard precondition on 60 FPS.</td>
+        <td><b>3.02 ms.</b> The other 13.7 ms was the display server.</td>
+        <td>Measuring under <code>xvfb-run</code>. A software X server has no scanout, so presenting is a CPU copy of every window pixel. Additive and per-pixel, so every ratio survived and every absolute died.</td>
+      </tr>
+      <tr>
+        <td><b>"One capture read 16.67 ms because of a 60 Hz composited path."</b></td>
+        <td>There is no compositor on this host and the output is 165 Hz. 60 Hz was never its refresh.</td>
+        <td><code>WinitSettings::game()</code> sets <code>unfocused_mode: reactive_low_power(1/60)</code>. Its own comment claimed the opposite. Any capture off the focused workspace read the event loop's number.</td>
+      </tr>
+      <tr>
+        <td><b>"Prepare + PrepareMeshes is 16.1 ms of a 26 ms frame."</b> This was the stated target for a whole lane.</td>
+        <td><code>Prepare</code> 13.66, <code>PrepareAssets</code> 4.30, <b><code>PrepareMeshes</code> 0.30</b> -- 1.3%, noise.</td>
+        <td><code>PrepareAssets</code> chains outside the top-level chain, so its time was attributed to a neighbour.</td>
+      </tr>
+      <tr>
+        <td><b>"The cladding key space is 5<sup>8</sup>, so tiles never share a mesh."</b></td>
+        <td>One hull touches <b>10</b> distinct shapes. Two hulls share all ten and add one. <code>SkinAssets</code> works exactly as documented.</td>
+        <td>Reasoning from the size of a type's domain without checking how much of it gets used.</td>
+      </tr>
+      <tr>
+        <td><b>"Sections author a density, and the shipped hulls are 660x too heavy."</b></td>
+        <td>The field read as mass was <em>health</em>. Density is a hardcoded 1.0 and mass is volume.</td>
+        <td>Misreading a positional argument in a builder signature, then building an entire narrative on it before checking.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    The response was to make the instrument refuse rather than warn. Four named aborts now exist --
+    <code>ABORT_SIMULATION_STOPPED</code>, <code>ABORT_WINDOW_SIZE</code>,
+    <code>ABORT_UPDATE_THROTTLED</code>, <code>ABORT_REFRESH_CAPPED</code> -- because in every case
+    above the wrong number was <em>plausible</em>, and a plausible wrong number survives review.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">03</span>Ruled out, with the number that ruled it out</h2>
+  <p class="lede">
+    A rejection is a result. These were measured and found not to bind, and each one is a
+    direction nobody needs to try again.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Hypothesis</th><th>Test</th><th class="num">Result</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Fill rate / pixels bind the frame</td><td>160x90, 1/64 the pixels, 11-ship gallery</td><td class="num">0.917</td></tr>
+      <tr><td>Mesh instance count binds</td><td>Cladding off: minus 11,660 entities</td><td class="num">did not bind</td></tr>
+      <tr><td>Colliders / broad phase bind</td><td>Every dynamic body frozen static</td><td class="num">did not bind</td></tr>
+      <tr><td>Weapons and drives in generation are the cost</td><td>Turrets and bays dropped from the WFC tile set</td><td class="num">1.041</td></tr>
+      <tr><td>The fixed-step loop is the cause</td><td>Bevy's own 0.25 s ceiling vs a one-step pin</td><td class="num">1.015</td></tr>
+      <tr><td>Vsync / present mode</td><td>Immediate vs Mailbox vs Fifo</td><td class="num">within 1.02x</td></tr>
+      <tr><td>Shadow maps cost GPU time</td><td>GPU pass timing, empty scene</td><td class="num">no pass exists</td></tr>
+      <tr><td>Pipeline compilation blocks steady state</td><td>Whole <code>Render</code> set traced</td><td class="num">0.115 ms</td></tr>
+      <tr><td>Distance-varying LoD would pay</td><td>Every axis it attacks, above</td><td class="num">closed wontdo</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="check" style="max-width:46rem">
+    <b>One of these is now suspect</b>
+    "Pixels do not bind" was measured on the <em>static gallery</em>, which has no projectiles.
+    The owner flew the point-defence stress case by hand and found the frame rate changes with
+    where the camera points -- torpedoes off screen are culled and cost nothing. On a scene with
+    ~2,000 rounds this is a different question, and it is being re-measured.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">04</span>The unexamined</h2>
+  <p class="lede">
+    Ranked by my guess at payoff times cheapness. Each says why it might matter and how to find
+    out without a project. Nothing here has been measured -- that is the point of the section.
+  </p>
+
+  <div class="cards">
+
+    <div class="card">
+      <p class="rank">01 / strongest lead</p>
+      <h3>An empty scene has 433 observers and 586 archetypes</h3>
+      <p>
+        Those counts are from a scene with <em>zero meshes</em>. Bevy dispatches observers per
+        trigger, and query iteration cost scales with the number of matching
+        <em>archetypes</em>, not just entities. A WFC hull adds sections with many optional
+        component combinations -- exactly the shape that fragments archetypes.
+      </p>
+      <p>
+        If a hull takes 586 archetypes to 2,000, every system in the schedule gets slower at once,
+        and it would look like "everything is a bit slow" rather than like one hot system. That is
+        precisely the profile we have been unable to attribute.
+      </p>
+      <p class="check"><b>How to check</b> The census already counts archetypes. Add ship count as the sweep
+      axis and see whether archetypes grow linearly with hulls. One run.</p>
+    </div>
+
+    <div class="card">
+      <p class="rank">02 / a smell with a number on it</p>
+      <h3>The Shadow phase costs 0.64 ms of CPU and produces no GPU pass</h3>
+      <p>
+        That is CPU work whose output nobody consumes. The likely mechanism: a shadow-casting
+        directional light makes bevy cull every entity against each cascade view. Four cascades
+        means <b>four extra visibility passes over every entity in the scene</b>, on top of the
+        camera's own.
+      </p>
+      <p>
+        The earlier ruling "shadow maps: 0.000 ms" read the GPU side only and is not wrong so much
+        as half an answer. The CPU side was never looked at.
+      </p>
+      <p class="check"><b>How to check</b> Turn <code>shadows</code> off on the scenario's one caster
+      and re-measure. The flag already exists in the light config.</p>
+    </div>
+
+    <div class="card">
+      <p class="rank">03 / I ruled this out without looking</p>
+      <h3>The protected 2.00 ms per ship was never broken down</h3>
+      <p>
+        "Everything not drawn" -- physics, colliders, AI, health, integrity -- measures 2.00 ms a
+        ship and was set aside because the epic protects gameplay logic from being traded for
+        frames. <b>That rule forbids trading it. It does not forbid measuring it.</b>
+      </p>
+      <p>
+        If 1.8 of those 2.0 ms turn out to be one carelessly written system rather than the physics
+        solver, fixing it costs nothing and breaks no rule. At 42% of a ship it is the largest
+        single unexamined block in the game, and I excluded it from scope on a category error.
+      </p>
+      <p class="check"><b>How to check</b> <code>framecost</code> already reports every main-world schedule.
+      Read the existing captures -- the data may already be on disk.</p>
+    </div>
+
+    <div class="card">
+      <p class="rank">04 / the same bug, elsewhere</p>
+      <h3>Six more sites mint assets per entity or per loop iteration</h3>
+      <p>
+        All three landed wins were "one asset per instance where one would do". A grep for the
+        pattern finds it still living in:
+        <code>nova_os_ui/src/ship/scene.rs:268</code> (inside a <code>for view in &amp;views</code> loop),
+        <code>nova_os_ui/src/map/scene.rs:81</code> (inside a <code>.map</code>),
+        <code>nova_hud/src/lib.rs:773</code>, <code>maneuver_instruments.rs:316</code>,
+        <code>velocity.rs:473</code> and <code>:567</code>.
+      </p>
+      <p>
+        Some are spawn-time singletons and harmless. The NOVA OS ones run while the game is frozen,
+        so they cost a stutter on open rather than frame rate. <b>Worth an hour to classify, not a project.</b>
+      </p>
+      <p class="check"><b>How to check</b> Read six call sites and ask "how many entities reach this line".</p>
+    </div>
+
+    <div class="card">
+      <p class="rank">05 / strategic, and cheap to settle</p>
+      <h3>Is the GPU doing anything at all?</h3>
+      <p>
+        On the empty scene the entire GPU cost is <b>0.312 ms of a 3.02 ms frame</b> -- about 10%,
+        with bloom the largest item at 0.122 ms. If that ratio roughly holds once hulls are on
+        screen, then <b>the GPU is idle and every shader, material and overdraw idea is
+        misdirected</b>. The whole game is CPU-bound in the render world's preparation stage.
+      </p>
+      <p>
+        We have never stated this as a conclusion, and it would redirect the entire remaining
+        effort if true. It also predicts that resolution scaling will keep looking useless, which
+        matches what the resolution sweep found.
+      </p>
+      <p class="check"><b>How to check</b> One <code>NOVA_PERF_RENDER_DIAG</code> capture at one and three
+      hulls. Compare GPU total against frame total.</p>
+    </div>
+
+    <div class="card">
+      <p class="rank">06 / never measured, at all</p>
+      <h3>Audio, transform propagation, and UI layout</h3>
+      <p>
+        <b>Audio</b> has not been measured once this epic. Spatial mixing runs per emitter and a
+        fight has many.
+      </p>
+      <p>
+        <b>Transform propagation</b> walks a deep hierarchy: ship -&gt; section -&gt; render child -&gt;
+        plates -&gt; greebles. Propagation cost is sensitive to depth, not only to count, and WFC
+        hulls are the deepest thing in the game.
+      </p>
+      <p>
+        <b>UI layout</b>: <code>PostUpdate</code> is 0.705 ms of a 1.77 ms main world on an
+        <em>empty</em> scene, and it is the largest main-world block there. The scene has 161 HUD
+        nodes of which 113 carry <code>Text</code>. Text shaping and taffy layout are not free.
+      </p>
+      <p class="check"><b>How to check</b> <code>framecost</code> reports schedules already; the question is
+      which systems inside <code>PostUpdate</code>. One traced pass.</p>
+    </div>
+
+    <div class="card">
+      <p class="rank">07 / the owner found this one by playing</p>
+      <h3>What does a projectile introduce?</h3>
+      <p>
+        The point-defence case fields roughly 2,000 rounds. Nobody has counted what a single round
+        contributes in distinct assets -- mesh, material, trail, particle effect. Given that the
+        frame demonstrably tracks distinct assets, and given that pointing the camera at the
+        torpedoes measurably costs frame time, this is the one place where the established law and
+        an observed symptom meet and nobody has looked.
+      </p>
+      <p class="check"><b>How to check</b> Census by origin on the stress case, camera on the lanes versus
+      camera away. In flight now.</p>
+    </div>
+
+    <div class="card">
+      <p class="rank">08 / grows over a match, invisible in a capture</p>
+      <h3>Anything that accumulates</h3>
+      <p>
+        Every measurement in this epic is a few hundred frames of a scene in a fixed state. Nothing
+        has measured a <em>long</em> match. Candidates that grow and are never reclaimed: wreck
+        bodies (the rationing that used to cap them was deleted with the slicer and never
+        replaced), dead assets lingering in <code>Assets&lt;T&gt;</code> where
+        <code>prepare_erased_assets</code> still iterates them, and event backlogs.
+      </p>
+      <p>
+        A capture that opens 90 frames after <code>Playing</code> cannot see any of this by
+        construction.
+      </p>
+      <p class="check"><b>How to check</b> One long arena run with a census at start and at five minutes.
+      Compare the counts, not the milliseconds.</p>
+    </div>
+
+    <div class="card">
+      <p class="rank">09 / a whole platform</p>
+      <h3>Nobody has measured wasm</h3>
+      <p>
+        <code>nova_perf_web</code> exists and the harness accepts <code>?perf</code> as its arm. The
+        wasm build was dead on load until a fix this cycle, and since it came back nobody has
+        recorded a single frame time. Browser performance is not predictable from native --
+        different allocator, no threads by default, a different GPU path.
+      </p>
+      <p class="check"><b>How to check</b> Load the build with <code>?perf</code> and read what falls out.</p>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">05</span>What I chose to ignore, and whether that was right</h2>
+
+  <div class="split">
+    <div>
+      <h4 style="color:var(--won)">Right to skip</h4>
+      <ul>
+        <li><b>LoD.</b> Closed wontdo. Every axis it attacks was measured not to bind, and the one real win in its candidate list is captured more cheaply as a static reduction.</li>
+        <li><b>Ablation switches.</b> Superseded rather than skipped -- direct per-phase attribution answered the same questions with no throwaway branch and no risk of a knob silently ablating nothing.</li>
+        <li><b>Surface-not-volume meshing.</b> Closed: it could not buy a frame.</li>
+        <li><b>The editor.</b> Out of scope for this release by an explicit decision.</li>
+      </ul>
+    </div>
+    <div>
+      <h4 style="color:var(--wrong)">Should be revisited</h4>
+      <ul>
+        <li><b>The protected 2.00 ms.</b> Excluded from measurement when only trading it was forbidden. See card 03.</li>
+        <li><b>The 4v4 never got a clean post-fix number.</b> Deferred once deliberately, then the tree kept moving underneath it. It is the epic's named benchmark and it currently has no trustworthy figure.</li>
+        <li><b>Bake-at-load</b> and <b>preload</b> are untouched. Both fix stutter rather than steady state, so the demotion was right, but neither has been looked at since.</li>
+        <li><b>Wreck rationing</b> is on hold by owner decision and is the only known unbounded growth in the game. See card 08.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">06</span>The one number that decides what happens next</h2>
+  <p>
+    The harness now reports a single hull at <b>5.44 ms mean, 3.02 ms min</b>, where the same scene
+    measured 28.41 ms earlier the same day. That move is <b>larger than the sum of the fixes that
+    can account for it</b>, and it disagrees with the owner's own hand-run of 36-48 FPS.
+  </p>
+  <p>
+    If it is true, 1v1 is already inside the 60 FPS budget and the performance thread can close. If
+    it is not, the harness has drifted from the game for a sixth time. <b>The hand-run is the
+    instrument that has been right every time this epic has disagreed with itself</b> -- it is what
+    caught the display-server error -- so that reading, not another capture, is what settles it.
+  </p>
+</section>
+
+<footer>
+  Nova Protocol / epic 20260818-220812 / compiled 2026-08-20 from
+  notes-ablation.md, notes-floor.md, notes-prepare.md, notes-mesh-count.md,
+  notes-owner-handrun.md and DECISIONS.md D1-D13.
+</footer>
+
+</div>
+</body>
+</html>
