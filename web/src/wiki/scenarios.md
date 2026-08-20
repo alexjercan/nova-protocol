@@ -20,14 +20,9 @@ created by an action rather than spawned as objects.
 
 Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons. This is the vocabulary the [Shakedown Run](../getting-started/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
 
-<details class="explain">
-<summary>Show the full vocabulary</summary>
+What that buys you as a player is that a scenario reacts. Fly into a marked volume and something answers; neutralize the right ship and the objective completes on its own; a won chapter plays a short outro of comms beats over the live world before any victory screen appears, so the moment lands before the overlay does.
 
-- **Events**: OnStart, OnUpdate, OnTimerEnd (a keyed scenario timer finished), OnDefeated (a ship is neutralized or directly destroyed), OnDestroyed, OnNeutralized (a ship is combat-dead - its weapons are gone or its flight computer is, hull intact), OnEnter / OnExit (a trigger area), OnOrbitStart / OnOrbitStable / OnOrbitUnstable / OnOrbitEnd (orbit lifecycle edges), OnTravelLockStart / OnTravelLockEnd and OnCombatLockStart / OnCombatLockEnd ([lock](../targeting-radar/) lifecycle edges).
-- **Filters**: match by object id or type (asteroid / beacon / salvage crate), combine with not / or / and, or test a variable expression.
-- **Actions**: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind dock chip, set a variable, spawn or despawn an object, scatter a seeded field of objects, drive a HUD readout, post a story message, swap the skybox, set a ship's allegiance, pose the camera, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it. A won chapter does not cut straight to that screen: it plays a short outro of comms beats over the live world first, paced by scenario timers, so the moment lands before the overlay does.
-
-</details>
+The full construct catalog - every event, filter and action by name, with its fields - is the authoring contract and lives in the [Create docs](../../create/scenarios/).
 
 ## The shipped scenarios
 

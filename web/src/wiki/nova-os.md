@@ -321,14 +321,3 @@ The picture is a real tube, not a flat overlay: the terminal renders offscreen a
 The monitor sounds like it looks, when SND is up: a key tick per character, a heavier clack on Enter, an ok blip when a command runs and an error buzz when it does not, a completion tick per Tab step, the power sweep up and down, and a low ambient bed humming the whole time it is on. Around the glass, the casing carries its bezel, corner screws, a vent grille and the spec line `P22 GREEN PHOSPHOR . 15 IN . TYPE CQ-4`.
 
 </details>
-
-## In the WFC arena
-
-<!-- The arena is a developer example, not shipped content: Cargo.toml example
-     entry, examples/playable/wfc_arena.rs:70-80. NOVA OS freezes the match
-     and closing resumes it: examples/playable/wfc_arena/result.rs:425-446;
-     Escape stays with NOVA OS while open: examples/playable/wfc_arena/pause.rs:51.
-     Rebinds survive restart / return-to-lobby for the same hull:
-     examples/playable/wfc_arena/lobby.rs:531-533,559-568,608-633. -->
-
-The WFC arena - the developer match bench that fields wave-function-collapse ships, run from a source checkout with `cargo run --example wfc_arena` - carries the full computer when you fly a `player` slot. Opening NOVA OS mid-match freezes the entire fight, both teams hold in place while you read the map or service a section, and closing it resumes the brawl where it stood; the arena's own Escape pause menu waits its turn while the computer is open. Rebinds you make in the SHIP app stick to that hull through a match restart and a return to the lobby - reroll the seed and the new hull starts fresh.
