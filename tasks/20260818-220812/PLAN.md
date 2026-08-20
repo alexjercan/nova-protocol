@@ -47,17 +47,23 @@ Census and ablation as probe capabilities, before `arena-ablation` is deleted
 and they have to be reinvented. Feature-gated, loud on a typo, ablate by
 `SystemSet` from the probe side.
 
-## Phase 3 - the floor, then the batch too small to measure alone
+## Phase 3 - render-world Prepare, then the batch too small to measure alone
 
-**Re-ranked 2026-08-20 (D9).** The floor was a phase 4 item behind this batch.
-The owner's post-fix hand-run moved it: one ship reads 36-48 FPS, so 75-90% of
-a single-ship frame is floor, and it is still 34% at seventeen ships. It goes
-first.
+**Re-ranked twice. Read D12 before this section.** D9 promoted "the floor"
+above this batch; D12 retracted the floor entirely - it was 13.7 ms of Xvfb,
+and the real empty scene is 3.02 ms. What the floor investigation DID find is
+a bigger and better-aimed lead, so the promotion stands and only its subject
+changed.
 
-1. **The ~21.5 ms floor.** An empty gallery - 1,124 entities, zero meshes, zero
-   sections - eats a whole 60 FPS budget. Nothing about it is ships. Find out
-   what it IS before costing a fix; a present-mode or vsync artefact and a
-   real 21 ms of work want opposite responses.
+1. **`Prepare` + `PrepareMeshes`: 16.1 ms of a 26 ms one-hull frame.** CPU, in
+   the render world, building per-instance buffers and bind groups over 986
+   mesh instances. This is the single largest named cost in the game and it is
+   presentation, so it is takeable without asking.
+   **Start with the sublinearity**: the first hull costs 24.6 ms and each
+   further hull about 8. A 3x gap between the first and the marginal is a
+   mechanism, not a curve, and naming it probably names the fix.
+   **Measure on a real display.** Xvfb adds ~13.7 ms of per-pixel CPU copy at
+   720p and would swamp this.
 2. **`ThrusterExhaustMaterial`** re-prepared every frame per thruster - now 32%
    of what a ship costs (1.54 of 4.76 ms), up from 15%, because the cracks fix
    removed the term above it. Same defect class as the cracks: a material

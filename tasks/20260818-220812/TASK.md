@@ -57,13 +57,16 @@ Examples and docs:
 ## What "done" means for the release
 
 - **A 1v1 holds 60 FPS.** Owner, 2026-08-20, replacing the 4v4 target
-  (`DECISIONS.md` D11). 4v4 at 60 was unreachable by construction: eight hulls
-  cost 16.0 ms of protected non-drawn work against a 16.67 ms budget. At 1v1
-  that is 4.00 ms, so the protected half stops binding and the target is real
-  work rather than an arithmetic impossibility. Today 1v1 measures 26.3 ms
-  (38 FPS uncapped, reading ~30 on a vsynced hand-run). The floor alone is
-  16.74 ms - 100.4% of the budget - so cutting it is a precondition, not an
-  optimisation.
+  (`DECISIONS.md` D11). Measured on a REAL display: 1v1 is **34.82 ms, 29 FPS**,
+  against a 16.67 ms budget. An empty scene is **3.02 ms**, so essentially all
+  of the gap is per-ship and none of it is scene overhead.
+  The largest named term is **`Prepare` + `PrepareMeshes`, 16.1 ms of a 26 ms
+  one-hull frame** - CPU in the render world, per-instance buffers and bind
+  groups over 986 mesh instances. That is presentation, so it is takeable.
+  **Do not measure this through `xvfb-run`**: a software X server has no
+  scanout, so presenting is a CPU copy of every window pixel and adds ~13.7 ms
+  at 720p. That constant is what the retracted "16.74 ms floor" was
+  (`DECISIONS.md` D12).
 - A `wfc_arena` 4v4 still gets a MEASURED number, as the scaling check - **but
   not yet that number.** The 295.76 ms worst frame quoted from `20260819-123928/NOTES.md`
   is RETRACTED, and that page now says so. Two faults, either one fatal: the

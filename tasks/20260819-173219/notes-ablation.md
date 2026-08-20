@@ -1,5 +1,19 @@
 # Phase B3: what the frame is made of, by ablation
 
+> **Every ABSOLUTE millisecond on this page is wrong, by an additive per-pixel
+> constant.** Every capture ran under `xvfb-run`, and a software X server has no
+> scanout, so presenting is a CPU copy of every window pixel - about **13.7 ms**
+> at 720p. The "16.74 ms empty gallery" below is 3.02 ms of game and 13.7 ms of
+> display server (`notes-floor.md`, `DECISIONS.md` D12).
+>
+> **Every RATIO on this page survives**, and the ratios are what this page was
+> built to produce. The constant is additive, so an interleaved pair divides it
+> out. The two fitted LINES do not survive as stated: their ~20 ms intercept is
+> real but it is not a scene cost, it is a fixed per-hull cost that a line
+> through ship counts >= 1 reports at x = 0.
+>
+> Do not quote a millisecond from this page. Quote a ratio.
+
 Nothing here makes anything faster and nothing here lands. Every knob the
 measurements ran through is a THROWAWAY branch (`arena-ablation`); the
 deliverable is the numbers and what they rule out.

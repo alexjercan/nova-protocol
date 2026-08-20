@@ -218,3 +218,77 @@ judge a change near the boundary; the counter cannot resolve 21 ms from 27 ms.
 
 Reversed by: the floor investigation finding the 16.74 ms is irreducible, in
 which case 60 FPS is off the table at any ship count and the target restates.
+
+## D12 - RETRACTED: there is no floor. It was Xvfb.
+
+`tasks/20260819-173219/notes-floor.md`, landed 2026-08-20. This retracts D9's
+re-rank and D11's central arithmetic, and it invalidates every ABSOLUTE
+millisecond measured through `xvfb-run` in this epic.
+
+**The 16.74 ms "empty scene" is 13.7 ms of Xvfb and 3.0 ms of game.** Same
+binary, same 1280x720 window, same fixed-step pin, same `Immediate`
+presentation, `DISPLAY=:0` instead of `xvfb-run`: **3.02 ms, 331 FPS**, over
+three repeats reading 3.01-3.03.
+
+The mechanism is not subtle in hindsight. `submit+present` on the empty scene
+is linear in WINDOW pixels - 1.45 ms at 160x90, 5.05 at 640x360, 11.45 at 720p,
+50.35 at 1440p - and the discriminator settles it: rendering at 320x180 into a
+720p window leaves the block at 11.17 vs 11.45 ms. **One sixteenth the shading,
+block unmoved.** A software X server has no scanout, so presenting is a CPU copy
+of every pixel in the window. We were timing the display server.
+
+### What survives and what does not
+
+- **SURVIVES: every ratio.** The crack-bucket fix's 0.592, the per-ship 2.9x,
+  every interleaved arm in `notes-ablation.md`. Xvfb's cost is ADDITIVE and
+  per-pixel, so a paired ratio divides it out.
+- **DIES: every absolute.** The 16.74 ms floor, the 21.5 ms fitted intercept as
+  a SCENE cost, D8's per-ship milliseconds, D10's and D11's budget tables,
+  and D11's "the floor alone is 100.4% of a 60 FPS budget".
+- **SURVIVES, and this is the check that should have caught it earlier: the
+  owner's own hand-runs.** They were always on a real display. One hull reads
+  36-48 FPS by hand and 36 FPS on the lane's real display; 1v1 reads ~30 FPS by
+  hand and 29 FPS on the lane's. **Two instruments, independently, agree.** The
+  owner's numbers were right the whole time and the harness was the wrong one.
+
+### The fitted intercept was real - it just was not the scene
+
+Both fits put ~20 ms of cost at zero ships (21.2 from the owner's 3/11/17 row,
+19.4 from the lane's 1/2/3 row). The empty scene is 3.02 ms. Those are
+consistent, because the intercept is not an empty-scene floor: it is a fixed
+cost that appears the moment there is ONE hull, and a straight line through
+ship counts >= 1 reports it at x = 0.
+
+So the term is real, it is worth ~16 ms, and it now has a name.
+
+### The actual lead
+
+**`Prepare` + `PrepareMeshes` is 16.1 ms of a 26 ms one-hull frame.** CPU, in
+the render world, building per-instance buffers and bind groups over 986 mesh
+instances. It is PRESENTATION under the epic's rule, so it is takeable without
+asking.
+
+Real display, frozen gallery: empty 3.02, one hull 27.60 (36 FPS), two 34.82
+(29 FPS), three 44.04. Note it is SUBLINEAR - the first hull costs 24.6 ms and
+each further hull about 8. Why the first is 3x the marginal is the open
+question, and the answer probably names the fix.
+
+**1v1 misses 60 FPS by 18 ms, and 100% of that is per-ship.** The target stands;
+only the route changed.
+
+### How this happened
+
+I inherited "never measure on a real display" as a harness convention and never
+asked what the harness itself cost. Then I derived a budget from it, wrote the
+budget into the release's definition of done, and re-ranked the board around it
+- twice - without once checking the instrument against the owner's own readings,
+which disagreed and were sitting in the same task folder. **The cross-check was
+available the entire time and it was free.**
+
+Same failure as D7 and as the section-density scare: a number taken from the
+apparatus and reasoned from, rather than validated against an independent
+measurement first.
+
+**Reversed by**: nothing. The real-display figure is confirmed by three repeats
+AND by an independent instrument (the owner's hand-runs) agreeing to within a
+frame at two separate ship counts.
