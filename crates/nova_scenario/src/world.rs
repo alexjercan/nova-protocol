@@ -77,6 +77,10 @@ pub struct NovaEventWorld {
     variables: HashMap<String, VariableLiteral>,
     watched_values: HashMap<String, VariableLiteral>,
     watches: Vec<WatchConfig>,
+    /// Whether anything in the loaded scenario can read an entity query, so the
+    /// per-frame sampler that feeds them is worth running at all. Set from
+    /// `ScenarioConfig::reads_an_entity_query` at load; false at teardown.
+    reads_entity_queries: bool,
     query_values: HashMap<QueryConfig, VariableLiteral>,
     scenario_elapsed: f64,
     /// Keyed timer deadlines on the pause-frozen scenario clock.
@@ -343,6 +347,7 @@ impl NovaEventWorld {
         self.variables.clear();
         self.watched_values.clear();
         self.watches.clear();
+        self.reads_entity_queries = false;
         self.query_values.clear();
         self.scenario_elapsed = 0.0;
         self.timers.clear();
@@ -508,8 +513,14 @@ impl NovaEventWorld {
     }
 
     /// Configure the watches owned by the newly loaded scenario.
-    pub(crate) fn set_watches(&mut self, watches: Vec<WatchConfig>) {
+    ///
+    /// `reads_entity_queries` covers the whole scenario, not just `watches`: an
+    /// entity query is equally legal as an inline expression factor, and the
+    /// sampler that answers one has to be running before the action does. Pass
+    /// `ScenarioConfig::reads_an_entity_query`.
+    pub(crate) fn set_watches(&mut self, watches: Vec<WatchConfig>, reads_entity_queries: bool) {
         self.watches = watches;
+        self.reads_entity_queries = reads_entity_queries;
         self.query_values.insert(
             QueryConfig::Scenario(ScenarioQuery {
                 property: ScenarioProperty::Elapsed,
@@ -518,6 +529,12 @@ impl NovaEventWorld {
         );
         self.watched_values.clear();
         self.publish_watches();
+    }
+
+    /// Whether the loaded scenario can read an entity query - the gate on the
+    /// per-frame entity sampler.
+    pub(crate) fn reads_entity_queries(&self) -> bool {
+        self.reads_entity_queries
     }
 
     fn publish_watches(&mut self) {
@@ -682,12 +699,15 @@ mod tests {
     #[test]
     fn watched_names_are_read_only_and_share_normal_lookup() {
         let mut world = NovaEventWorld::default();
-        world.set_watches(vec![WatchConfig {
-            variable: "elapsed".to_string(),
-            query: QueryConfig::Scenario(ScenarioQuery {
-                property: ScenarioProperty::Elapsed,
-            }),
-        }]);
+        world.set_watches(
+            vec![WatchConfig {
+                variable: "elapsed".to_string(),
+                query: QueryConfig::Scenario(ScenarioQuery {
+                    property: ScenarioProperty::Elapsed,
+                }),
+            }],
+            false,
+        );
         world.advance_scenario_elapsed(3.0);
         world.sample_entity_speeds(HashMap::new());
         assert_eq!(

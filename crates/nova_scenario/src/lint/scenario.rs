@@ -176,26 +176,7 @@ pub fn lint_scenario(
     for watch in &scenario.watches {
         check_query(&watch.query, id, &satisfiable, &mut issues);
     }
-    let mut inline_queries = Vec::new();
-    for event in &scenario.events {
-        for filter in &event.filters {
-            if let EventFilterConfig::Expression(config) = filter {
-                collect_condition_queries(&config.0, &mut inline_queries);
-            }
-        }
-        for action in &event.actions {
-            match action {
-                EventActionConfig::VariableSet(config) => {
-                    collect_expression_queries(&config.expression, &mut inline_queries);
-                }
-                EventActionConfig::TimerStart(config) => {
-                    collect_expression_queries(&config.seconds, &mut inline_queries);
-                }
-                _ => {}
-            }
-        }
-    }
-    for query in inline_queries {
+    for query in scenario.inline_queries() {
         check_query(query, id, &satisfiable, &mut issues);
     }
 
@@ -681,48 +662,6 @@ fn check_query(
                 ),
             ));
         }
-    }
-}
-
-fn collect_condition_queries<'a>(node: &'a VariableConditionNode, out: &mut Vec<&'a QueryConfig>) {
-    match node {
-        VariableConditionNode::LessThan(left, right)
-        | VariableConditionNode::GreaterThan(left, right)
-        | VariableConditionNode::Equal(left, right) => {
-            collect_expression_queries(left, out);
-            collect_expression_queries(right, out);
-        }
-    }
-}
-
-fn collect_expression_queries<'a>(
-    node: &'a VariableExpressionNode,
-    out: &mut Vec<&'a QueryConfig>,
-) {
-    match node {
-        VariableExpressionNode::Add(term, rest) | VariableExpressionNode::Subtract(term, rest) => {
-            collect_term_queries(term, out);
-            collect_expression_queries(rest, out);
-        }
-        VariableExpressionNode::Term(term) => collect_term_queries(term, out),
-    }
-}
-
-fn collect_term_queries<'a>(node: &'a VariableTermNode, out: &mut Vec<&'a QueryConfig>) {
-    match node {
-        VariableTermNode::Multiply(factor, rest) | VariableTermNode::Divide(factor, rest) => {
-            collect_factor_queries(factor, out);
-            collect_term_queries(rest, out);
-        }
-        VariableTermNode::Factor(factor) => collect_factor_queries(factor, out),
-    }
-}
-
-fn collect_factor_queries<'a>(node: &'a VariableFactorNode, out: &mut Vec<&'a QueryConfig>) {
-    match node {
-        VariableFactorNode::Parens(inner) => collect_expression_queries(inner, out),
-        VariableFactorNode::Query(query) => out.push(query),
-        VariableFactorNode::Literal(_) | VariableFactorNode::Name(_) => {}
     }
 }
 

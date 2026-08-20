@@ -224,6 +224,14 @@ shapes built on them. Three mechanism facts sit under it:
   unavailable, and an expression over an unavailable value fails CLOSED. Missing
   is not zero, which is the difference between a gate that never opens and a
   gate that opens immediately.
+- **The entity sampler runs only if something reads it.** Sampling walks every
+  `EntityId` in the world and allocates per match, so its cost scales with the
+  WORLD - a duel carries about 1,800 ids, most of them ship sections - and not
+  with the scenario. `ScenarioConfig::reads_an_entity_query` decides at load,
+  over the watches AND the inline expression factors together, because an
+  inline query has to be answerable the first time its action runs. Anything
+  that adds a new place an expression can be authored has to be added to
+  `ScenarioConfig::inline_queries` with it.
 
 Watches freeze under pause and clear at teardown, like every other piece of
 scenario-scoped state.

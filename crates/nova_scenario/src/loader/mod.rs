@@ -244,6 +244,52 @@ impl ScenarioConfig {
             events: Vec::new(),
         }
     }
+
+    /// Every typed query the scenario's HANDLERS read as an inline expression
+    /// factor, in source order. [`ScenarioConfig::watches`] declares the rest.
+    ///
+    /// Two readers, and they must see the same list: the lint checks each
+    /// query's target against what the scenario can spawn, and the loader
+    /// decides from it whether the per-frame entity sampler has any reader at
+    /// all. An arm missed here makes an inline query unavailable at runtime,
+    /// which expressions fail closed on.
+    pub fn inline_queries(&self) -> Vec<&QueryConfig> {
+        let mut out = Vec::new();
+        for event in &self.events {
+            for filter in &event.filters {
+                if let EventFilterConfig::Expression(config) = filter {
+                    collect_condition_queries(&config.0, &mut out);
+                }
+            }
+            for action in &event.actions {
+                match action {
+                    EventActionConfig::VariableSet(config) => {
+                        collect_expression_queries(&config.expression, &mut out);
+                    }
+                    EventActionConfig::TimerStart(config) => {
+                        collect_expression_queries(&config.seconds, &mut out);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        out
+    }
+
+    /// Whether anything in the scenario can READ an entity query - a watch, or
+    /// an inline expression factor.
+    ///
+    /// The per-frame entity sampler is gated on this. It walks every `EntityId`
+    /// in the world and allocates two `String`s per match, so its cost scales
+    /// with the WORLD (1,839 ids in a headless duel, most of them ship
+    /// sections) and not with the scenario.
+    pub fn reads_an_entity_query(&self) -> bool {
+        fn is_entity(query: &QueryConfig) -> bool {
+            matches!(query, QueryConfig::Entity(_))
+        }
+        self.watches.iter().any(|watch| is_entity(&watch.query))
+            || self.inline_queries().into_iter().any(is_entity)
+    }
 }
 
 /// `skip_serializing_if` predicate for a `bool` that defaults to false: omit it
