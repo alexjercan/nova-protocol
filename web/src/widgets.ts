@@ -106,6 +106,42 @@ const LIGHT_HULL_HP = 60; // standard.rs:400-419 (light_hull_section)
 const TORPEDO_BLAST_DAMAGE = 750; // standard.rs:573 (Serpent/Lance warhead)
 const TORPEDO_BLAST_RADIUS = 30; // standard.rs:565
 
+// The shared turret mount (standard.rs `turret_joint_tree` :111-189). Traverse
+// is unbounded (:142-143) and elevation runs from the depression floor to
+// straight up (:157-158), so what a mount cannot see is a cone under its own
+// keel and nothing else. Every hinge slews at the same rate (:141,:150).
+const TURRET_DEPRESSION_DEG = -10; // standard.rs:84,157 (PI / 18)
+const TURRET_ELEVATION_DEG = 90; // standard.rs:158 (FRAC_PI_2)
+const TURRET_SLEW_DEG_S = 180; // standard.rs:141,150 (PI rad/s)
+// A turret has no range field: muzzle speed times projectile lifetime IS its
+// reach (config.rs:124-126), 100 u/s over 2.0 s.
+const PDC_REACH_U = 200; // standard.rs:273,280
+
+// Magazines and the quiet interval that refills them
+// (crates/nova_ship/src/sections/ammo.rs). One reload rule serves every
+// section kind (ammo.rs:189, sections/mod.rs:223): a SUCCESSFUL shot resets
+// the clock (ammo.rs:136), a whole batch lands the moment the clock passes
+// the delay (ammo.rs:171-174), and the total is clamped at capacity
+// (ammo.rs:156). An EMPTY trigger pull never resets it (ammo.rs:134), so a
+// dry weapon reloads while the trigger is still held down.
+const PDC_CAPACITY = 500; // standard.rs:286
+const PDC_RELOAD_DELAY = 3.0; // standard.rs:288
+const PDC_RELOAD_AMOUNT = 200; // standard.rs:289
+const PDC_FIRE_RATE = 100; // standard.rs:262 (rounds per second)
+const BAY_CAPACITY = 6; // standard.rs:591
+const BAY_RELOAD_DELAY = 10.0; // standard.rs:603
+const BAY_RELOAD_AMOUNT = 1; // standard.rs:604
+const BAY_FIRE_RATE = 1.0; // standard.rs:558 (launches per second)
+
+// The terminal weave (crates/nova_ship/src/sections/torpedo_section/). The
+// corkscrew rides at full amplitude beyond three blast radii and tapers to
+// nothing half a radius out, so the torpedo arrives dead on the aim point
+// (projectile.rs:330-334).
+const WEAVE_FULL_RADII = 3.0; // projectile.rs:332
+const WEAVE_ZERO_RADII = 0.5; // projectile.rs:331
+const SERPENT_WEAVE_ANGLE = 0.44; // mod.rs:348 (rad, the balance knob)
+const SERPENT_WEAVE_RATE = 1.4; // mod.rs:349 (rad/s)
+
 // ---- pure models (mirror the Rust rules) ----------------------------------
 
 const clamp = (v: number, lo: number, hi: number): number =>
@@ -639,6 +675,110 @@ export function gotoSim(
         if (phase === "settle" && v <= STOP_SPEED_EPSILON) break;
     }
     return { samples, standoff, flipT, flipX, peakV, duration: t };
+}
+
+// A weapon's whole ammunition rule: what it holds, how fast it spends it, and
+// the quiet batch that brings it back.
+export interface AmmoRule {
+    capacity: number;
+    rate: number; // shots per second
+    delay: number; // quiet seconds one batch costs
+    amount: number; // shots one batch returns
+}
+
+// The rate a weapon holds forever by firing each batch the moment it lands:
+// `amount / (delay + amount / rate)`. standard.rs:594 works the shipped PDC
+// through it - 200 / (3 + 200/100) = 40 rounds/s against a 100/s cyclic rate.
+export function sustainedRate(w: AmmoRule): number {
+    return w.amount / (w.delay + w.amount / w.rate);
+}
+
+// Quiet seconds from empty back to full: whole batches, since a partial one
+// never lands (ammo.rs:172-174).
+export function refillSecs(w: AmmoRule): number {
+    return Math.ceil(w.capacity / w.amount) * w.delay;
+}
+
+export interface AmmoSample {
+    t: number;
+    rounds: number;
+    firing: boolean;
+}
+
+// Replay a burst-and-quiet trigger pattern against the reload rule. Mirrors
+// `SectionReload::advance` (ammo.rs:161-180): while shots are landing the
+// clock is pinned at zero, and it only accumulates through a quiet stretch -
+// or through a stretch where the trigger is down on an EMPTY weapon, which
+// reloads exactly like silence does.
+export function ammoTrace(
+    w: AmmoRule,
+    burst: number,
+    quiet: number,
+    span: number,
+    step = 0.02
+): AmmoSample[] {
+    const cycle = burst + quiet;
+    let rounds = w.capacity;
+    let clock = 0;
+    const out: AmmoSample[] = [{ t: 0, rounds, firing: burst > 0 }];
+    for (let t = 0; t < span - 1e-9; t += step) {
+        const firing = cycle > 0 && t % cycle < burst;
+        if (firing && rounds > 0) {
+            rounds = Math.max(0, rounds - w.rate * step);
+            clock = 0;
+        } else {
+            clock += step;
+            while (w.delay > 0 && clock >= w.delay) {
+                clock -= w.delay;
+                rounds = Math.min(w.capacity, rounds + w.amount);
+                if (rounds >= w.capacity) {
+                    clock = 0;
+                    break;
+                }
+            }
+        }
+        out.push({ t: t + step, rounds, firing });
+    }
+    return out;
+}
+
+// Whether the mount can put its barrel on a target at this elevation. The
+// reachable band is derived from the elevation hinge's own limits, never from
+// a separate occlusion test (arc.rs:46-102).
+export function turretBears(elevationDeg: number): boolean {
+    return (
+        elevationDeg >= TURRET_DEPRESSION_DEG &&
+        elevationDeg <= TURRET_ELEVATION_DEG
+    );
+}
+
+// The fraction of the whole sky one mount can bear on. Traverse is unbounded,
+// so the blind volume is exactly the cap below the depression floor and the
+// covered fraction is `(1 - sin(floor)) / 2`.
+export function turretSkyFraction(): number {
+    return (1 - Math.sin((TURRET_DEPRESSION_DEG * Math.PI) / 180)) / 2;
+}
+
+// Seconds to bring the barrel round. Traverse and elevation are separate
+// hinges turning at the same rate at the same time, so the swing costs the
+// LARGER of the two, not their sum.
+export function turretSlewSecs(
+    traverseDeg: number,
+    elevationDeg: number
+): number {
+    return (
+        Math.max(Math.abs(traverseDeg), Math.abs(elevationDeg)) /
+        TURRET_SLEW_DEG_S
+    );
+}
+
+// How much of the authored weave amplitude survives at `distance` from the
+// target (projectile.rs:330-334): full beyond three blast radii, linear to
+// zero half a radius out, so the run-in ends on the aim point.
+export function weaveFade(distance: number, blastRadius: number): number {
+    const terminal = blastRadius * WEAVE_ZERO_RADII;
+    const full = blastRadius * WEAVE_FULL_RADII;
+    return clamp((distance - terminal) / (full - terminal), 0, 1);
 }
 
 // ---- DOM helpers ----------------------------------------------------------
@@ -4158,12 +4298,868 @@ function initNovaOsSurfaces(host: HTMLElement): void {
     show(undefined);
 }
 
+// ---- ammo-rhythm ----------------------------------------------------------
+
+interface AmmoWeapon extends AmmoRule {
+    name: string;
+    unit: string;
+    short: string;
+}
+
+const AMMO_WEAPONS: AmmoWeapon[] = [
+    {
+        name: "PDC turret",
+        unit: "rounds",
+        short: "rd",
+        capacity: PDC_CAPACITY,
+        rate: PDC_FIRE_RATE,
+        delay: PDC_RELOAD_DELAY,
+        amount: PDC_RELOAD_AMOUNT,
+    },
+    {
+        name: "torpedo bay",
+        unit: "torpedoes",
+        short: "tp",
+        capacity: BAY_CAPACITY,
+        rate: BAY_FIRE_RATE,
+        delay: BAY_RELOAD_DELAY,
+        amount: BAY_RELOAD_AMOUNT,
+    },
+];
+
+// A magazine as a RATE LIMIT rather than a budget: hold a trigger pattern
+// against the reload rule and watch the level. The point the plot makes that
+// prose cannot is that the batch is all-or-nothing on a whole quiet interval,
+// so a pause one tick short of the delay returns absolutely nothing.
+function initAmmoRhythm(host: HTMLElement): void {
+    header(
+        host,
+        "Trigger discipline: what a magazine is worth",
+        "A weapon is never left with nothing - it refills. What it imposes " +
+            "is a RHYTHM: a batch only lands after a whole quiet interval, " +
+            "and every shot that lands restarts that interval. Set a burst " +
+            "and a pause and read what the weapon actually holds."
+    );
+
+    const X0 = 46;
+    const X1 = 546;
+    const Y0 = 176;
+    const Y1 = 14;
+
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 200",
+        role: "img",
+        "aria-label":
+            "Ammunition remaining over time under a repeating burst and " +
+            "pause, against the weapon's capacity and its sustained rate.",
+    });
+    const bands = svgEl("g", {});
+    svg.appendChild(bands);
+    for (const frac of [0, 0.5, 1]) {
+        const y = Y0 - frac * (Y0 - Y1);
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(X0),
+                y1: String(y),
+                x2: String(X1),
+                y2: String(y),
+                class: "widget-mark--grid",
+            })
+        );
+    }
+    const capLabel = svgEl(
+        "text",
+        {
+            x: String(X0 - 6),
+            y: String(Y1 + 3),
+            "text-anchor": "end",
+            class: "widget-mark--axis",
+        },
+        ""
+    );
+    svg.appendChild(capLabel);
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(X0 - 6),
+                y: String(Y0 + 3),
+                "text-anchor": "end",
+                class: "widget-mark--axis",
+            },
+            "0"
+        )
+    );
+    // The dry line is the fault threshold, so it wears the gate colour and
+    // ships with a label rather than relying on the red alone. Bottom LEFT:
+    // every trace opens at capacity, so that corner is the one the curve is
+    // guaranteed to be nowhere near.
+    const dryLabel = svgEl(
+        "text",
+        {
+            x: String(X0 + 4),
+            y: String(Y0 - 6),
+            "text-anchor": "start",
+            class: "widget-mark--label-gate",
+        },
+        ""
+    );
+    svg.appendChild(dryLabel);
+    const level = svgEl("path", { d: "", class: "widget-mark--now" });
+    svg.appendChild(level);
+    const spanLabel = svgEl(
+        "text",
+        {
+            x: String(X1),
+            y: String(Y0 + 16),
+            "text-anchor": "end",
+            class: "widget-mark--axis",
+        },
+        ""
+    );
+    svg.appendChild(spanLabel);
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+
+    const stats = el("div", "widget__stats");
+    const sustainedStat = stat(stats, "sustained");
+    const emptyStat = stat(stats, "held trigger empties in");
+    const refillStat = stat(stats, "quiet from empty to full");
+    const floorStat = stat(stats, "this pattern settles at");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const w = AMMO_WEAPONS[Number(weaponControl.input.value)];
+        const burst = Number(burstControl.input.value);
+        const quiet = Number(quietControl.input.value);
+        const span = clamp(3 * (burst + quiet), 24, 96);
+        const trace = ammoTrace(w, burst, quiet, span, span / 900);
+
+        const x = (t: number): number => X0 + (t / span) * (X1 - X0);
+        const y = (r: number): number => Y0 - (r / w.capacity) * (Y0 - Y1);
+        level.setAttribute(
+            "d",
+            `M${trace
+                .map((s) => `${x(s.t).toFixed(1)},${y(s.rounds).toFixed(1)}`)
+                .join(" L")}`
+        );
+        // One shaded block per firing stretch, so the burst reads off the
+        // glass without a legend.
+        bands.replaceChildren();
+        const cycle = burst + quiet;
+        if (cycle > 0 && burst > 0)
+            for (let start = 0; start < span; start += cycle)
+                bands.appendChild(
+                    svgEl("rect", {
+                        x: String(x(start)),
+                        y: String(Y1),
+                        width: String(
+                            x(Math.min(start + burst, span)) - x(start)
+                        ),
+                        height: String(Y0 - Y1),
+                        class: "widget-mark--band",
+                    })
+                );
+        capLabel.textContent = `${w.capacity}`;
+        spanLabel.textContent = `${span.toFixed(0)} s`;
+
+        const tail = trace.filter((s) => s.t >= span - Math.max(cycle, 1e-6));
+        const floor = Math.min(...tail.map((s) => s.rounds));
+        const ranDry = trace.some((s) => s.firing && s.rounds <= 0.001);
+        dryLabel.textContent = ranDry ? "ran dry" : "";
+        sustainedStat.textContent = `${sustainedRate(w).toFixed(2)} ${w.unit}/s`;
+        emptyStat.textContent = `${(w.capacity / w.rate).toFixed(2)} s`;
+        refillStat.textContent = `${refillSecs(w).toFixed(0)} s`;
+        floorStat.textContent = `${floor.toFixed(0)} ${w.short}`;
+
+        const batches = Math.floor(quiet / w.delay);
+        readout.classList.remove("is-fault", "is-warn");
+        if (batches === 0) {
+            readout.classList.add("is-fault");
+            readout.textContent =
+                `A ${quiet.toFixed(2)}-second pause returns NOTHING. The ` +
+                `batch is worth ${w.amount} ${w.unit} or nothing at all, ` +
+                `and it needs the full ${w.delay.toFixed(0)} quiet seconds ` +
+                "to land - a pause a tick short of that is the same as no " +
+                "pause. This pattern is spending a magazine it is not " +
+                "refilling.";
+            return;
+        }
+        const spent = Math.min(w.rate * burst, w.capacity);
+        const back = batches * w.amount;
+        if (back >= spent) {
+            readout.textContent =
+                `${quiet.toFixed(2)} quiet seconds buy ${batches} batch` +
+                `${batches === 1 ? "" : "es"} - ${back} ${w.unit} against ` +
+                `the ${spent.toFixed(0)} the burst spends. The weapon holds ` +
+                "this pattern forever; the magazine is never the thing you " +
+                "run out of.";
+        } else {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                `The burst spends ${spent.toFixed(0)} ${w.unit} and the ` +
+                `pause returns ${back}, so this pattern loses ` +
+                `${(spent - back).toFixed(0)} a cycle. It works until the ` +
+                `weapon reaches its floor, and from there you are firing at ` +
+                `the refill rate whatever the trigger is doing.`;
+        }
+    };
+
+    const weaponControl = control(
+        "Weapon",
+        0,
+        AMMO_WEAPONS.length - 1,
+        1,
+        0,
+        (v) => AMMO_WEAPONS[v].name,
+        update
+    );
+    const burstControl = control(
+        "Burst",
+        0.25,
+        10,
+        0.25,
+        3,
+        (v) => `${v.toFixed(2)} s`,
+        update
+    );
+    const quietControl = control(
+        "Pause",
+        0,
+        20,
+        0.25,
+        3,
+        (v) => `${v.toFixed(2)} s`,
+        update
+    );
+    const controls = el("div", "widget__controls");
+    controls.appendChild(weaponControl.row);
+    controls.appendChild(burstControl.row);
+    controls.appendChild(quietControl.row);
+
+    const note = el(
+        "p",
+        "widget__note",
+        "Sustained is the rate a weapon holds forever by firing each batch " +
+            "the moment it lands. An EMPTY trigger pull does not restart " +
+            "the interval, so a dry weapon reloads while you are still " +
+            "holding the trigger down - the shaded stretches keep running " +
+            "the clock once the level hits zero."
+    );
+
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(note);
+    update();
+}
+
+// ---- turret-arc -----------------------------------------------------------
+
+// What one mount can and cannot bear on. Traverse is unbounded, so the whole
+// blind volume is the cap under the keel - and the reader can see that it is
+// the ship's own hull in the way, not an authored arc.
+function initTurretArc(host: HTMLElement): void {
+    header(
+        host,
+        "Where a mount can bear",
+        `A turret swings all the way round, but its barrel stops ` +
+            `${Math.abs(TURRET_DEPRESSION_DEG)} degrees below level - it ` +
+            "cannot depress back through its own ship. Put a target " +
+            "somewhere and see whether this mount is one of the ones that " +
+            "answers."
+    );
+
+    const CX = 280;
+    const CY = 152;
+    const R = 126;
+    const rad = (deg: number): number => (deg * Math.PI) / 180;
+    const pt = (deg: number, r: number): [number, number] => [
+        CX + r * Math.cos(rad(deg)),
+        CY - r * Math.sin(rad(deg)),
+    ];
+    // Screen y runs down, so an increasing elevation sweeps counter-clockwise
+    // on the glass: sweep-flag 0.
+    const sector = (a0: number, a1: number, r: number): string => {
+        const [x0, y0] = pt(a0, r);
+        const [x1, y1] = pt(a1, r);
+        const large = Math.abs(a1 - a0) > 180 ? 1 : 0;
+        return `M${CX} ${CY} L${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${large} 0 ${x1.toFixed(1)} ${y1.toFixed(1)} Z`;
+    };
+
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 300",
+        role: "img",
+        "aria-label":
+            "A turret seen from the side: the elevation band it covers " +
+            "sweeps from ten degrees below level up over the top and down " +
+            "the far side, and the remaining cone under the mount is blind " +
+            "because the ship's own hull is there.",
+    });
+    // Covered first, blind over it, so the wedge edge reads as a cut.
+    svg.appendChild(
+        svgEl("path", {
+            d: sector(TURRET_DEPRESSION_DEG, 180 - TURRET_DEPRESSION_DEG, R),
+            class: "widget-mark--cone",
+        })
+    );
+    svg.appendChild(
+        svgEl("path", {
+            d: sector(
+                180 - TURRET_DEPRESSION_DEG,
+                360 + TURRET_DEPRESSION_DEG,
+                R
+            ),
+            class: "widget-mark--band",
+        })
+    );
+    for (const side of [1, -1]) {
+        const [fx, fy] = pt(
+            side > 0 ? TURRET_DEPRESSION_DEG : 180 - TURRET_DEPRESSION_DEG,
+            R
+        );
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(CX),
+                y1: String(CY),
+                x2: fx.toFixed(1),
+                y2: fy.toFixed(1),
+                class: "widget-mark--gate",
+            })
+        );
+    }
+    // The hull the mount is bolted to, filling the wedge it cannot shoot into.
+    svg.appendChild(
+        svgEl("rect", {
+            x: String(CX - 96),
+            y: String(CY + 6),
+            width: "192",
+            height: "34",
+            rx: "3",
+            class: "widget-mark--shadow-stroke",
+        })
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(CX),
+                y: String(CY + 27),
+                "text-anchor": "middle",
+                class: "widget-mark--word",
+            },
+            "OWN HULL"
+        )
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(CX),
+                y: String(CY + 68),
+                "text-anchor": "middle",
+                class: "widget-mark--label-gate",
+            },
+            "blind - no mount covers this"
+        )
+    );
+    for (const [deg, label] of [
+        [TURRET_ELEVATION_DEG, "+90 straight up"],
+        [0, "0 level"],
+    ] as [number, string][]) {
+        const [lx, ly] = pt(deg, R + 8);
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(deg === 0 ? lx + 4 : lx),
+                    y: String(deg === 0 ? ly + 3 : ly - 4),
+                    "text-anchor": deg === 0 ? "start" : "middle",
+                    class: "widget-mark--axis",
+                },
+                label
+            )
+        );
+    }
+    // Named off the PORT end of the floor and pushed into the left margin: the
+    // starboard end of the same line runs straight through the hull block, and
+    // two red words over that block is exactly where the reader stops reading.
+    const floorLabel = pt(180 - TURRET_DEPRESSION_DEG, R + 10);
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(floorLabel[0].toFixed(1)),
+                y: String((floorLabel[1] + 14).toFixed(1)),
+                "text-anchor": "end",
+                class: "widget-mark--label-gate",
+            },
+            `${TURRET_DEPRESSION_DEG} depression floor`
+        )
+    );
+    const ray = svgEl("line", {
+        x1: String(CX),
+        y1: String(CY),
+        class: "widget-mark--now",
+    });
+    svg.appendChild(ray);
+    const blip = svgEl("circle", { r: "5", class: "widget-mark--blip" });
+    svg.appendChild(blip);
+    svg.appendChild(
+        svgEl("circle", {
+            cx: String(CX),
+            cy: String(CY),
+            r: "6",
+            class: "widget-mark--ship",
+        })
+    );
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+
+    const stats = el("div", "widget__stats");
+    const bearsStat = stat(stats, "this mount");
+    const slewStat = stat(stats, "swing takes");
+    const heldStat = stat(stats, "rounds not fired while slewing");
+    const skyStat = stat(stats, "one mount covers");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const elevation = Number(elevControl.input.value);
+        const traverse = Number(traverseControl.input.value);
+        const bears = turretBears(elevation);
+        // Traverse is drawn as foreshortening: a target swung round behind
+        // the mount reads as one closer to the scope centre, which keeps the
+        // single elevation plane honest about what decides the bearing.
+        const reach = R * (0.34 + 0.66 * Math.cos(rad(traverse / 2)));
+        const [tx, ty] = pt(elevation, reach);
+        ray.setAttribute("x2", tx.toFixed(1));
+        ray.setAttribute("y2", ty.toFixed(1));
+        ray.setAttribute(
+            "class",
+            bears ? "widget-mark--now" : "widget-mark--det"
+        );
+        blip.setAttribute("cx", tx.toFixed(1));
+        blip.setAttribute("cy", ty.toFixed(1));
+
+        const slew = turretSlewSecs(traverse, elevation);
+        bearsStat.textContent = bears ? "bears" : "cannot bear";
+        slewStat.textContent = `${slew.toFixed(2)} s`;
+        heldStat.textContent = `${Math.round(slew * PDC_FIRE_RATE)}`;
+        skyStat.textContent = `${(turretSkyFraction() * 100).toFixed(1)}% of the sky`;
+
+        readout.classList.remove("is-fault", "is-warn");
+        if (!bears) {
+            readout.classList.add("is-fault");
+            readout.textContent =
+                `${elevation} degrees is under the depression floor, so this ` +
+                "mount holds and contributes nothing - however far round it " +
+                "swings, the barrel would be pointing back through the hull. " +
+                "The mounts on the other side of the ship take this one; " +
+                "that is why a torpedo run under the keel meets less fire " +
+                "than one across the beam.";
+            return;
+        }
+        readout.textContent =
+            `The mount can put its barrel there, and takes ${slew.toFixed(2)} ` +
+            `seconds to do it - ${Math.round(slew * PDC_FIRE_RATE)} rounds it ` +
+            "does not fire, because a gun shoots only while the barrel is " +
+            `already ON the aim point (within ${FIRE_GATE_DEG.toFixed(2)} ` +
+            "degrees). Wrenching the ship around mid-burst stops the guns " +
+            "until the barrels catch up.";
+    };
+
+    const elevControl = control(
+        "Target elevation",
+        -90,
+        90,
+        1,
+        24,
+        (v) => `${v} deg`,
+        update
+    );
+    const traverseControl = control(
+        "Traverse to swing",
+        0,
+        180,
+        5,
+        60,
+        (v) => `${v} deg`,
+        update
+    );
+    const controls = el("div", "widget__controls");
+    controls.appendChild(elevControl.row);
+    controls.appendChild(traverseControl.row);
+
+    const note = el(
+        "p",
+        "widget__note",
+        `Both hinges turn at ${TURRET_SLEW_DEG_S} deg/s at the same time, so ` +
+            "a swing costs the larger of the two angles rather than their " +
+            "sum; the timings above assume the barrel starts level and on " +
+            `the old bearing. Reach is ${PDC_REACH_U} u - muzzle speed times ` +
+            "how long a round lives, not an authored range."
+    );
+
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(note);
+    update();
+}
+
+// ---- torpedo-run ----------------------------------------------------------
+
+interface TorpedoType {
+    name: string;
+    weaveAngle: number;
+    cruise: number; // authored cap, u/s
+    lineSpeed: number; // measured speed along the direct line, u/s
+    runSecs: number; // measured time over the 300 u run-in
+    rounds: number; // rounds one stock PDC spends to stop it
+    killedAt: number; // where that PDC finally kills it, u out
+    lane: number;
+}
+
+// The run-in the harness measured: 300 u, one stock PDC. Every number in the
+// table is the module header of
+// crates/nova_authoring/src/base_content/sections/ordnance.rs:13-21 - a
+// measurement, not a derivation, so nothing here is interpolated.
+const TORPEDO_RUN_IN = 300;
+const TORPEDO_TYPES: TorpedoType[] = [
+    {
+        name: "LANCE",
+        weaveAngle: 0,
+        cruise: 35,
+        lineSpeed: 31.3,
+        runSecs: 9.1,
+        rounds: 116,
+        killedAt: 114,
+        lane: 86,
+    },
+    {
+        name: "SERPENT",
+        weaveAngle: SERPENT_WEAVE_ANGLE,
+        cruise: 32,
+        lineSpeed: 29.1,
+        runSecs: 9.78,
+        rounds: 390,
+        killedAt: 40,
+        lane: 178,
+    },
+];
+
+// Both torpedoes race one run-in under one clock, because the whole trade is
+// a comparison: the Lance arrives first, the Serpent survives longer.
+function initTorpedoRun(host: HTMLElement): void {
+    header(
+        host,
+        "The run-in: Lance against Serpent",
+        "Same warhead, same rack, same blast - the only difference is how " +
+            "they cross the last few hundred units. Press PLAY and watch " +
+            "both go in. Arm the defender and watch where each one dies."
+    );
+
+    const X0 = 48;
+    const X1 = 512;
+    const dx = (d: number): number => X1 - (d / TORPEDO_RUN_IN) * (X1 - X0);
+    // The one measured amplitude: at the shipped 0.44 rad and 1.4 rad/s the
+    // torpedo swings 11.1 u off the direct line (torpedo_section/mod.rs). The
+    // drawn swing scales off that anchor with sin(angle), never off a number
+    // nobody measured.
+    const MEASURED_SWING_U = 11.1;
+    const pxPerU = (X1 - X0) / TORPEDO_RUN_IN;
+    const swingPx = (angle: number): number =>
+        (MEASURED_SWING_U * pxPerU * Math.sin(angle)) /
+        Math.sin(SERPENT_WEAVE_ANGLE);
+
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 236",
+        role: "img",
+        "aria-label":
+            "Two torpedo run-ins over three hundred units: a Lance flying " +
+            "the bare intercept and a Serpent corkscrewing off it, the " +
+            "corkscrew tapering to nothing in the terminal band, with the " +
+            "point where one point-defense mount kills each of them.",
+    });
+    // The band where the weave tapers out, drawn once behind both lanes.
+    svg.appendChild(
+        svgEl("rect", {
+            x: String(dx(TORPEDO_BLAST_RADIUS * WEAVE_FULL_RADII)),
+            y: "40",
+            width: String(
+                dx(TORPEDO_BLAST_RADIUS * WEAVE_ZERO_RADII) -
+                    dx(TORPEDO_BLAST_RADIUS * WEAVE_FULL_RADII)
+            ),
+            height: "168",
+            class: "widget-mark--band",
+        })
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(dx(TORPEDO_BLAST_RADIUS * WEAVE_FULL_RADII) + 4),
+                y: "34",
+                class: "widget-mark--axis",
+            },
+            "weave tapers out"
+        )
+    );
+    svg.appendChild(
+        svgEl("rect", {
+            x: String(X1),
+            y: "70",
+            width: "26",
+            height: "124",
+            rx: "3",
+            class: "widget-mark--shadow-stroke",
+        })
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(X1 + 13),
+                y: "210",
+                "text-anchor": "middle",
+                class: "widget-mark--axis",
+            },
+            "target"
+        )
+    );
+    for (const d of [300, 200, 100, 0])
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(dx(d)),
+                    y: "228",
+                    "text-anchor": "middle",
+                    class: "widget-mark--axis",
+                },
+                d === 300 ? "300 u out" : String(d)
+            )
+        );
+
+    interface Lane {
+        path: SVGPathElement;
+        dart: SVGPathElement;
+        kill: SVGCircleElement;
+        killLabel: SVGTextElement;
+        state: SVGTextElement;
+    }
+    const lanes: Lane[] = TORPEDO_TYPES.map((type) => {
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(X0),
+                y1: String(type.lane),
+                x2: String(X1),
+                y2: String(type.lane),
+                class: "widget-mark--ray",
+            })
+        );
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(X0),
+                    y: String(type.lane - 38),
+                    class: "widget-mark--word",
+                },
+                type.name
+            )
+        );
+        // Clear of the weave: the corkscrew reaches its full amplitude at the
+        // launch end, which is exactly where these labels sit.
+        const detail = svgEl(
+            "text",
+            {
+                x: String(X0),
+                y: String(type.lane - 26),
+                class: "widget-mark--detail",
+            },
+            `${type.cruise} u/s cap, weave ${type.weaveAngle.toFixed(2)} rad`
+        );
+        svg.appendChild(detail);
+        const path = svgEl("path", { d: "", class: "widget-mark--now" });
+        svg.appendChild(path);
+        const kill = svgEl("circle", {
+            cx: String(dx(type.killedAt)),
+            cy: String(type.lane),
+            r: "7",
+            class: "widget-mark--impact",
+            visibility: "hidden",
+        });
+        svg.appendChild(kill);
+        const killLabel = svgEl(
+            "text",
+            {
+                x: String(dx(type.killedAt)),
+                y: String(type.lane + 22),
+                "text-anchor": "middle",
+                class: "widget-mark--label-gate",
+                visibility: "hidden",
+            },
+            `killed ${type.killedAt} u out`
+        );
+        svg.appendChild(killLabel);
+        const dart = svgEl("path", { d: "", class: "widget-mark--dart" });
+        svg.appendChild(dart);
+        // Rides the torpedo rather than the lane end, so STOPPED names the
+        // place it actually died instead of the target it never reached.
+        const state = svgEl(
+            "text",
+            {
+                x: String(X1),
+                y: String(type.lane),
+                "text-anchor": "middle",
+                class: "widget-mark--word",
+            },
+            ""
+        );
+        svg.appendChild(state);
+        return { path, dart, kill, killLabel, state };
+    });
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+
+    const stats = el("div", "widget__stats");
+    const arrivalStat = stat(stats, "arrives");
+    const runnerStat = stat(stats, "closes on a 25 u/s runner");
+    const costStat = stat(stats, "rounds one PDC spends");
+    const readout = el("p", "widget__readout");
+
+    let defended = false;
+    // Position on the direct line at scope time `t`, and the lateral offset
+    // the corkscrew has put on it there. The run is anchored on the arrival
+    // time measured for THIS run-in, not on the cruise cap or on the speed
+    // along the line: those are separate measurements of separate questions,
+    // and dividing one by the other lands the torpedo somewhere the harness
+    // never put it. `lineSpeed` is only ever read for the runner stat, which
+    // is the question it was measured to answer.
+    const distanceAt = (type: TorpedoType, t: number): number =>
+        Math.max(0, TORPEDO_RUN_IN * (1 - t / type.runSecs));
+    const offsetAt = (type: TorpedoType, t: number): number =>
+        swingPx(type.weaveAngle) *
+        Math.sin(SERPENT_WEAVE_RATE * t) *
+        weaveFade(distanceAt(type, t), TORPEDO_BLAST_RADIUS);
+
+    const duration = (): number =>
+        Math.max(...TORPEDO_TYPES.map((t) => t.runSecs));
+
+    const render = (t: number): void => {
+        TORPEDO_TYPES.forEach((type, index) => {
+            const lane = lanes[index];
+            const dead = defended && distanceAt(type, t) <= type.killedAt;
+            const stopT = dead
+                ? type.runSecs * (1 - type.killedAt / TORPEDO_RUN_IN)
+                : t;
+            const points: string[] = [];
+            for (let s = 0; s <= stopT; s += 0.04)
+                points.push(
+                    `${dx(distanceAt(type, s)).toFixed(1)},${(type.lane + offsetAt(type, s)).toFixed(1)}`
+                );
+            points.push(
+                `${dx(distanceAt(type, stopT)).toFixed(1)},${(type.lane + offsetAt(type, stopT)).toFixed(1)}`
+            );
+            lane.path.setAttribute("d", `M${points.join(" L")}`);
+            const hx = dx(distanceAt(type, stopT));
+            const hy = type.lane + offsetAt(type, stopT);
+            lane.dart.setAttribute(
+                "d",
+                dead
+                    ? ""
+                    : `M${(hx + 7).toFixed(1)} ${hy.toFixed(1)} L${(hx - 5).toFixed(1)} ${(hy - 4).toFixed(1)} L${(hx - 5).toFixed(1)} ${(hy + 4).toFixed(1)} Z`
+            );
+            lane.kill.setAttribute("visibility", dead ? "visible" : "hidden");
+            lane.killLabel.setAttribute(
+                "visibility",
+                defended ? "visible" : "hidden"
+            );
+            lane.state.textContent = dead
+                ? "STOPPED"
+                : distanceAt(type, t) <= 0
+                  ? "HIT"
+                  : "";
+            // Centred on the torpedo but held clear of the frame edges, so a
+            // word never runs out of the viewBox at either end of the run.
+            lane.state.setAttribute("x", String(clamp(hx, X0 + 34, X1 - 20)));
+            lane.state.setAttribute("y", String((hy - 14).toFixed(1)));
+        });
+    };
+
+    const transport = makeTransport(duration, render);
+
+    const setDefended = (on: boolean): void => {
+        defended = on;
+        defenderKey.classList.toggle("is-on", on);
+        defenderKey.setAttribute("aria-pressed", String(on));
+        arrivalStat.textContent = TORPEDO_TYPES.map(
+            (t) => `${t.name.toLowerCase()} ${t.runSecs.toFixed(2)} s`
+        ).join(", ");
+        runnerStat.textContent = TORPEDO_TYPES.map(
+            (t) => `${(t.lineSpeed - 25).toFixed(1)} u/s`
+        ).join(" / ");
+        costStat.textContent = on
+            ? TORPEDO_TYPES.map((t) => `${t.rounds}`).join(" / ")
+            : "not defended";
+        readout.classList.toggle("is-warn", on);
+        readout.textContent = on
+            ? "One stock PDC stops both, and that is the whole point: it " +
+              `spends ${TORPEDO_TYPES[0].rounds} rounds on the Lance and ` +
+              `kills it ${TORPEDO_TYPES[0].killedAt} u out, then spends ` +
+              `${TORPEDO_TYPES[1].rounds} on the Serpent and only catches ` +
+              `it ${TORPEDO_TYPES[1].killedAt} u out - on its own doorstep. ` +
+              "Saturation is what beats point defense; one torpedo at a " +
+              "time never does."
+            : "Nothing shooting back, and the Lance simply wins: it holds " +
+              `the faster cap and arrives ${(TORPEDO_TYPES[1].runSecs - TORPEDO_TYPES[0].runSecs).toFixed(2)} ` +
+              "seconds sooner over the same 300 u. That is what the weave " +
+              "costs, and it is why the type you load depends entirely on " +
+              "whether the target can answer.";
+        transport.seekEnd();
+    };
+    const defenderKey = el(
+        "button",
+        "widget__btn widget__btn--wide",
+        "ONE STOCK PDC"
+    );
+    defenderKey.type = "button";
+    defenderKey.addEventListener("click", () => setDefended(!defended));
+    const keys = el("div", "widget__keys");
+    keys.appendChild(defenderKey);
+
+    const note = el(
+        "p",
+        "widget__note",
+        "Arrival times, kill ranges and round counts are the harness " +
+            "measurement over this exact 300 u run-in against one stock " +
+            "mount - not a formula run on the cruise caps. The drawn " +
+            "corkscrew is scaled from the one swing the harness measured: " +
+            `${MEASURED_SWING_U} u off the direct line at the shipped ` +
+            `${SERPENT_WEAVE_ANGLE} rad and ${SERPENT_WEAVE_RATE} rad/s.`
+    );
+
+    host.appendChild(keys);
+    host.appendChild(plot);
+    host.appendChild(transport.row);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(note);
+    setDefended(false);
+}
+
 // ---- activation -----------------------------------------------------------
 
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "aim-decay": initAimDecay,
     "round-travel": initRoundTravel,
     "blast-layers": initBlastLayers,
+    "ammo-rhythm": initAmmoRhythm,
+    "turret-arc": initTurretArc,
+    "torpedo-run": initTorpedoRun,
     "controller-stacking": initControllerStacking,
     "gravity-well": initGravityWell,
     "dominant-well": initDominantWell,

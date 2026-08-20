@@ -1006,6 +1006,27 @@ main {
 .controls tr:last-child td {
     border-bottom: none;
 }
+/* Three-column form: the action, then one column per input device, so a
+   gamepad player reads down one column instead of picking their half out of
+   every cell. The two device columns are equal - neither is a footnote to the
+   other - and the action column wraps, because naming a verb takes words. */
+.controls--split th {
+    padding: 9px 12px;
+    text-align: left;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--phosphor-dim);
+    background: var(--recess);
+    border-bottom: 1px solid var(--edge-faint);
+}
+.controls--split td:first-child {
+    width: 46%;
+    white-space: normal;
+}
+.controls--split td:not(:first-child) {
+    width: 27%;
+}
 
 /* ---- blog list (bevy.org/news-style stacked cards) ----------------------
    One post per row: a wide horizontal card with a 16:9 thumbnail beside the
@@ -2466,6 +2487,16 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     }
     .controls td:first-child {
         width: 45%;
+    }
+    /* Three columns of mono on a phone: the action column gives way first,
+       and the gutters tighten, so the device columns keep their glyphs on one
+       line rather than breaking a chord across two. */
+    .controls--split td:first-child {
+        width: 40%;
+    }
+    .controls--split th,
+    .controls--split td {
+        padding: 8px 7px;
     }
     /* Mono glyphs are wider, so the narrow viewport trims a step further:
        smaller body copy and tighter gutters keep a usable line length instead

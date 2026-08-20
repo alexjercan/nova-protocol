@@ -16,9 +16,21 @@
     </div>
 </figure>
 
-A turret is an **articulated mount** - a base, the joints that swivel and elevate it, and one or more barrels - that aims at the current combat lock with true intercept lead and fires bullet projectiles. Its coverage is bounded by its yaw and pitch limits, and its output by its fire rate; a mount with several muzzles aims and fires all of them at once.
+A turret is an **articulated mount** - a base, the joints that swivel and elevate it, and one or more barrels - that aims at the current combat lock with true intercept lead and fires bullet projectiles. Its output is bounded by its fire rate, and a mount with several muzzles aims and fires all of them at once.
 
 Turrets draw their aim from the combat lock and prefer a fine-locked section if you have one, falling back to live structure and then the camera ray.
+
+## What it can bear on
+
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (turret_joint_tree :111-189: traverse limits None/None :142-143, elevation min -TURRET_DEPRESSION_LIMIT :157 where that constant is PI/18 at :84, elevation max FRAC_PI_2 :158, hinge speed PI rad/s :141,:150; muzzle_speed 100.0 :273 x projectile_lifetime 2.0 :280 = 200 u of reach, and crates/nova_ship/src/sections/turret_section/config.rs:124-126 states that product IS the reach) and crates/nova_ship/src/sections/turret_section/aim.rs (fire gate TURRET_ON_TARGET_RAD = 1.6 / 100 :19,:24,:47, doc'd 0.016 rad / 0.92 deg at :26-27; the reachability test is derived from the elevation hinge alone, arc.rs:46-102). -->
+
+The mount turns all the way round, so nothing is out of reach sideways. What bounds it is the barrel's floor: it stops ten degrees below level, because below that it would be pointing back through the ship it is bolted to.
+
+<div class="widget" data-widget="turret-arc">
+<p>Traverse is unlimited and the barrel elevates from 10 degrees below level to straight up, so one mount covers 58.7 percent of the sky and the rest is a blind cone under its own keel. Both hinges turn at 180 deg/s at once, so a swing costs the larger of the two angles rather than their sum - a 90 degree traverse takes half a second, which is 50 rounds the gun does not fire while it is moving. Reach is 200 u: muzzle speed times how long a round lives, not an authored range.</p>
+</div>
+
+That blind cone is the whole reason [point defense](../../combat-weapons/#point-defense) is assigned per mount rather than per battery, and the reason a salvo arriving from one side meets fewer guns than one across the beam.
 
 A beaten mount cracks and, past about a third of its health gone, throws sparks - but it loses nothing of itself and it shoots exactly as well as it did new. A turret that had been eaten away would be answering "how is that still firing?" with "it is not, really", and it is. It stops when it dies, and not before.
 
@@ -41,7 +53,7 @@ A beaten mount cracks and, past about a third of its health gone, throws sparks 
 
 ## Variants
 
-Every shipped gun rides the same mount: yaw unlimited, pitch from 10 degrees below level to 90 above, slewing at 180 deg/s, one muzzle. Reach is muzzle speed times projectile lifetime. There are two turrets, and they differ only in the round they load - the ten per-craft `*_turret_*` modules were the same PDC on the same joint tree and have been removed; every craft mounts the shared one.
+Every craft mounts the same gun. There are two turrets in the catalog, they ride the identical mount, and the only thing that separates them is the round they load.
 
 <div class="catalog">
 <!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: shared mount turret_joint_tree :111-189 (yaw unlimited :142-143, pitch -10deg :157 to +90deg :158, slew PI :141); pdc_*_turret_section builder :215-290 (health :229, fire rate 100 :259, muzzle 100 :270, lifetime 2.0 :277, magazine 500 :283, reload 3.0s/200 :285-286) with kinds and damage at :406-426 (kinetic 4.0 :414 via :45, pierce 2.0 :425 via :55). Every craft mounts the kinetic one: ships/shared.rs `module` and `placement`. -->

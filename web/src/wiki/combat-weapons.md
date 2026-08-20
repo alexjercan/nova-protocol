@@ -29,7 +29,7 @@ A gun is a **short-range** weapon. A round is not tracked forever: it expires af
 
 A torpedo homes on the combat lock with **proportional-navigation** guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It deals **blast (area) damage** that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.
 
-A torpedo aimed at a locked ship or rock **touches it before it bursts**: the fuze fires about a metre off the nearest part of that body's skin, so the warhead delivers the pressure it is rated for and the crater lands on the hull. Fire one at a bare point in space instead - a scripted volley, or a torpedo whose target dies mid-flight - and it still bursts a half-radius short, because there is no surface left to reach.
+A torpedo aimed at a locked ship or rock **touches it before it bursts**: the fuze fires about ten metres off the nearest part of that body's skin, so the warhead delivers the pressure it is rated for and the crater lands on the hull. Fire one at a bare point in space instead - a scripted volley, or a torpedo whose target dies mid-flight - and it still bursts a half-radius short, because there is no surface left to reach.
 
 A bay does not just launch "a torpedo" - it launches a **torpedo type**, and a ship's tubes are loaded with one before the fight starts. Two types fly in the base game, and they carry the same warhead, the same rack and the same blast. What differs is how they run in, and each has its own colour in flight so you can see which one is coming.
 
@@ -37,7 +37,7 @@ A bay does not just launch "a torpedo" - it launches a **torpedo type**, and a s
 
 **Lance** - the bombardment torpedo. No weave at all: the bare intercept, flown straight, and the faster cruise of the two. It is the cheaper one to shoot down and does not pretend otherwise, which is exactly why it is what you fire at something that cannot answer: it gets there sooner, and against a ship running away it closes half again as fast as a Serpent. A defender meeting Lances is a defender whose point defense works.
 
-Which type is in the tubes is the difference between a salvo that costs a defender a magazine and one that costs it four. The campaign uses that on purpose: the first gunship that fires torpedoes at you fires Lances, and the flagship at the end fires Serpents.
+Which type is in the tubes is the difference between a salvo that costs a defender a magazine and one that costs it four. The campaign uses that on purpose: the first gunship that fires torpedoes at you fires Lances, and the flagship at the end fires Serpents. The [torpedo bay](../sections/torpedo-bay/#the-two-run-ins) page runs both run-ins side by side against a defending mount, with the measured cost of each.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-combat-torpedo.png -->
@@ -78,9 +78,9 @@ has no health - what is left of the rock IS what is left of the rock.
 
 Three things follow, and all of them are things you do with the trigger.
 
-- **Hold it and the same hole deepens.** A round that lands within about a metre
-  of the last one joins that crater; a round further off opens its own. So the
-  hole follows your aim instead of piling into the first place you shot.
+- **Hold it and the same hole deepens.** A round that lands within about ten
+  metres of the last one joins that crater; a round further off opens its own.
+  So the hole follows your aim instead of piling into the first place you shot.
 - **Rocks take real time.** Material costs the same everywhere - a pebble and a
   planetoid give up the same amount to the same round - so a small rock is
   seconds of fire and a big one is minutes. Sustained fire is the only way
@@ -122,7 +122,8 @@ spend the whole engagement swinging and hit nothing.
 
 The practical consequence for you: **saturate a facing**. Torpedoes arriving
 from one side, or from below a hull, meet only the mounts that can actually
-train on them.
+train on them. The [turret](../sections/turret/#what-it-can-bear-on) page draws
+the band one mount covers and the cone it cannot.
 
 ### Your own battery
 
@@ -150,14 +151,22 @@ it just does not answer.
 
 ## Ammo & reloading
 
-Weapons carry a finite magazine, shown by a small diegetic gauge riding on the weapon: a **ring** on each turret that drains as it fires, and a **row of pips** on the torpedo bay, one per loaded torpedo. A successful shot resets that weapon's reload timer. While it stays quiet, the next incoming batch pulses above the solid live rounds and brightens toward completion. The gauge remains visible until the batch arrives. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)
+Every weapon in the game refills. A magazine is a **rate limit**, not a budget: no ship is ever left alive with nothing to fight with. What a weapon imposes instead is a rhythm, and it is the same rule for all of them - a batch lands only after a whole quiet interval, and every shot that lands restarts that interval.
 
-Every weapon in the game refills. A magazine is a **rate limit**, not a budget: no ship is ever left alive with nothing to fight with. What differs is the rhythm each weapon's refill imposes:
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (PDC ammo_capacity 500 :286, reload delay 3.0 :288 / amount 200 :289, fire_rate 100 :262; bay ammo_capacity 6 :591, reload delay 10.0 :603 / amount 1 :604, fire_rate 1.0 :558) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock :136, a whole batch lands at the delay :171-174, clamped at capacity :156, empty pulls never reset :134). The sustained column is standard.rs:594's own formula, amount / (delay + amount / rate). -->
 
-- **Turrets recharge in batches.** A player-grade PDC restores 200 of its 500 rounds after three quiet seconds, then repeats until full. Firing interrupts the timer, so sustained point-defense work outruns recovery.
-- **Torpedo bays rearm one at a time.** A bay holds six torpedoes and restores one after ten seconds without a launch. The six are the real weapon - fired together they are a salvo the defender's guns cannot answer all of. Every launch delays the next replacement.
+| Weapon | Magazine | Cyclic rate | One batch | Quiet, empty to full | Sustained |
+| --- | --- | --- | --- | --- | --- |
+| PDC turret | 500 rounds | 100 /s | 200 rounds per 3 s | 9 s | 40 rounds/s |
+| Torpedo bay | 6 torpedoes | 1 /s | 1 torpedo per 10 s | 60 s | 0.09 /s |
 
-That is what makes a torpedo fight an attrition fight. A salvo costs the defender rounds whether or not it connects, and rounds come back at a rate too. Patience wins nothing for either side: torpedoes get through by arriving faster than the guns can answer, not by outlasting them.
+<div class="widget" data-widget="ammo-rhythm">
+<p>A PDC turret holds 500 rounds and spends them at 100 a second, so a held trigger runs it dry in five seconds. It gets 200 back for every three seconds it stays quiet - all at once, or not at all: a pause a tick short of three seconds returns nothing, and any shot that lands starts the three seconds again. Firing each batch as it arrives sustains 40 rounds a second against a cyclic 100. A torpedo bay works the same way at a different scale: six torpedoes, one back per ten quiet seconds, a full minute from empty to a fresh rack.</p>
+</div>
+
+The level is diegetic, on a gauge riding the weapon itself: a **ring** on each turret that drains as it fires, and a **row of pips** on the torpedo bay, one per loaded torpedo. While a weapon stays quiet the incoming batch pulses above the solid live rounds and brightens toward completion, and the gauge stays visible until it lands. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)
+
+The six are the torpedo bay's real weapon. Fired together they are a salvo the defender's guns cannot answer all of, and that is what makes a torpedo fight an attrition fight: a salvo costs the defender rounds whether or not it connects, and those rounds come back at a rate too. Patience wins nothing for either side. Torpedoes get through by arriving faster than the guns can answer, not by outlasting them.
 
 ## Damage types
 
@@ -259,4 +268,6 @@ The result scales through geometry rather than a ship-size bonus. A thin small c
     </div>
 </figure>
 
-Ordnance is not free to shoot down, either. A warhead now carries enough hit points that no single PDC round can swat it - an intercept costs a short burst, not one lucky tap - while the siege bay's armoured torpedoes take sustained fire across the whole closing window.
+<!-- projectile_health 10.0, sized above the hardest single PDC round (4.0 authored x the 2.0 Kinetic speed ceiling): crates/nova_authoring/src/base_content/sections/standard.rs:583 with the reasoning at :580-582; siege bay 5000.0 at :509. -->
+
+Ordnance is not free to shoot down, either. A warhead carries more hit points than the hardest single PDC round can deliver, so an intercept costs a short burst rather than one lucky tap - and the siege bay's armoured torpedoes take sustained fire across the whole closing window.

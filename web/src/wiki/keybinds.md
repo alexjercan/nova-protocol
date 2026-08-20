@@ -1,276 +1,323 @@
 # Keybinds
 
-The full control reference. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with [Your first flight](../getting-started/), which teaches these one at a time. The same bindings are viewable in-game under **Settings > Controls**, reachable from both the main menu and the pause menu.
+The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with [Your first flight](../getting-started/), which teaches these one at a time. The same bindings are viewable in-game under **Settings > Controls**, reachable from both the main menu and the pause menu.
+
+A dash means the action has no binding on that device.
 
 ## Flight
 
-<table class="controls">
-    <tr>
-        <td>Main thruster burn</td>
-        <td>
-            <kbd>W</kbd> / <kbd>Space</kbd> &nbsp;or&nbsp;
-            <span
-                class="pf pf-shoulder-right"
-                role="img"
-                aria-label="Right bumper"
-            ></span>
-        </td>
-    </tr>
-    <tr>
-        <td>GOTO - fly to the current lock</td>
-        <td>
-            <kbd>G</kbd> &nbsp;or&nbsp;
-            <span
-                class="pf pf-face-north"
-                role="img"
-                aria-label="North face button"
-            ></span>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            ORBIT - park into orbit around a gravity well
-        </td>
-        <td>
-            <kbd>O</kbd> &nbsp;or&nbsp;
-            <span
-                class="pf pf-face-south"
-                role="img"
-                aria-label="South face button"
-            ></span>
-        </td>
-    </tr>
-    <tr>
-        <td>STOP - face retrograde and burn to rest</td>
-        <td>
-            <kbd>X</kbd> &nbsp;or&nbsp;
-            <span
-                class="pf pf-face-east"
-                role="img"
-                aria-label="East face button"
-            ></span>
-        </td>
-    </tr>
-    <tr>
-        <td>CANCEL autopilot (resume manual)</td>
-        <td>
-            <kbd>Z</kbd> &nbsp;or&nbsp;
-            <span
-                class="pf pf-face-west"
-                role="img"
-                aria-label="West face button"
-            ></span>
-        </td>
-    </tr>
-    <tr>
-        <td>RCS fine translation (when a scenario grants it)</td>
-        <td>
-            <kbd>Shift</kbd> (hold) +
-            <span
-                class="pf pf-mouse-device"
-                role="img"
-                aria-label="Mouse motion"
-            ></span>
-            /
-            <span
-                class="pf pf-mouse-scroll"
-                role="img"
-                aria-label="Scroll wheel"
-            ></span>
-        </td>
-    </tr>
+<table class="controls controls--split">
+    <thead>
+        <tr>
+            <th>Action</th>
+            <th>Keyboard &amp; mouse</th>
+            <th>Gamepad</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Main thruster burn</td>
+            <td><kbd>W</kbd> / <kbd>Space</kbd></td>
+            <td>
+                <span
+                    class="pf pf-shoulder-right"
+                    role="img"
+                    aria-label="Right bumper"
+                ></span>
+            </td>
+        </tr>
+        <tr>
+            <td>GOTO - fly to the current lock</td>
+            <td><kbd>G</kbd></td>
+            <td>
+                <span
+                    class="pf pf-face-north"
+                    role="img"
+                    aria-label="North face button"
+                ></span>
+            </td>
+        </tr>
+        <tr>
+            <td>ORBIT - park into orbit around a gravity well</td>
+            <td><kbd>O</kbd></td>
+            <td>
+                <span
+                    class="pf pf-face-south"
+                    role="img"
+                    aria-label="South face button"
+                ></span>
+            </td>
+        </tr>
+        <tr>
+            <td>STOP - face retrograde and burn to rest</td>
+            <td><kbd>X</kbd></td>
+            <td>
+                <span
+                    class="pf pf-face-east"
+                    role="img"
+                    aria-label="East face button"
+                ></span>
+            </td>
+        </tr>
+        <tr>
+            <td>CANCEL autopilot (resume manual)</td>
+            <td><kbd>Z</kbd></td>
+            <td>
+                <span
+                    class="pf pf-face-west"
+                    role="img"
+                    aria-label="West face button"
+                ></span>
+            </td>
+        </tr>
+        <tr>
+            <td>RCS fine translation (when a scenario grants it)</td>
+            <td>
+                <kbd>Shift</kbd> (hold) +
+                <span
+                    class="pf pf-mouse-device"
+                    role="img"
+                    aria-label="Mouse motion"
+                ></span>
+                /
+                <span
+                    class="pf pf-mouse-scroll"
+                    role="img"
+                    aria-label="Scroll wheel"
+                ></span>
+            </td>
+            <td>-</td>
+        </tr>
+    </tbody>
 </table>
 
 RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the mainline campaign flies without it. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
 
 ## Targeting and camera
 
-<table class="controls">
-    <tr>
-        <td>Aim / look</td>
-        <td>
-            <span
-                class="pf pf-mouse-device"
-                role="img"
-                aria-label="Mouse motion"
-            ></span>
-            &nbsp;or&nbsp;
-            <span
-                class="pf pf-stick-right"
-                role="img"
-                aria-label="Right stick"
-            ></span>
-        </td>
-    </tr>
-    <tr>
-        <td>Free look</td>
-        <td>
-            <kbd>Alt</kbd> (hold) &nbsp;or&nbsp;
-            <span
-                class="pf pf-shoulder-left"
-                role="img"
-                aria-label="Left bumper"
-            ></span>
-            (hold)
-        </td>
-    </tr>
-    <tr>
-        <td>Raise weapons (combat stance)</td>
-        <td>
-            <span
-                class="pf pf-mouse-2"
-                role="img"
-                aria-label="Right mouse button"
-            ></span>
-            (hold) &nbsp;or&nbsp;
-            <span
-                class="pf pf-trigger-left"
-                role="img"
-                aria-label="Left trigger"
-            ></span>
-            (hold)
-        </td>
-    </tr>
-    <tr>
-        <td>Radar lock (hold to sweep)</td>
-        <td>
-            <kbd>Ctrl</kbd> (hold) &nbsp;or&nbsp;
-            <span
-                class="pf pf-dpad-up"
-                role="img"
-                aria-label="D-Pad up"
-            ></span>
-            (hold)
-        </td>
-    </tr>
-    <tr>
-        <td>Clear lock (staged: combat, then nav)</td>
-        <td>
-            <kbd>Ctrl</kbd> (tap) &nbsp;or&nbsp;
-            <span
-                class="pf pf-dpad-up"
-                role="img"
-                aria-label="D-Pad up"
-            ></span>
-            (tap)
-        </td>
-    </tr>
-    <tr>
-        <td>Cycle fine-lock component</td>
-        <td>
-            <span
-                class="pf pf-mouse-scroll"
-                role="img"
-                aria-label="Scroll wheel"
-            ></span>
-            / <kbd>[</kbd> <kbd>]</kbd> &nbsp;or&nbsp;
-            <span
-                class="pf pf-dpad-left"
-                role="img"
-                aria-label="D-Pad left"
-            ></span>
-            <span
-                class="pf pf-dpad-right"
-                role="img"
-                aria-label="D-Pad right"
-            ></span>
-        </td>
-    </tr>
+<table class="controls controls--split">
+    <thead>
+        <tr>
+            <th>Action</th>
+            <th>Keyboard &amp; mouse</th>
+            <th>Gamepad</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Aim / look</td>
+            <td>
+                <span
+                    class="pf pf-mouse-device"
+                    role="img"
+                    aria-label="Mouse motion"
+                ></span>
+            </td>
+            <td>
+                <span
+                    class="pf pf-stick-right"
+                    role="img"
+                    aria-label="Right stick"
+                ></span>
+            </td>
+        </tr>
+        <tr>
+            <td>Free look</td>
+            <td><kbd>Alt</kbd> (hold)</td>
+            <td>
+                <span
+                    class="pf pf-shoulder-left"
+                    role="img"
+                    aria-label="Left bumper"
+                ></span>
+                (hold)
+            </td>
+        </tr>
+        <tr>
+            <td>Raise weapons (combat stance)</td>
+            <td>
+                <span
+                    class="pf pf-mouse-2"
+                    role="img"
+                    aria-label="Right mouse button"
+                ></span>
+                (hold)
+            </td>
+            <td>
+                <span
+                    class="pf pf-trigger-left"
+                    role="img"
+                    aria-label="Left trigger"
+                ></span>
+                (hold)
+            </td>
+        </tr>
+        <tr>
+            <td>Radar lock (hold to sweep)</td>
+            <td><kbd>Ctrl</kbd> (hold)</td>
+            <td>
+                <span
+                    class="pf pf-dpad-up"
+                    role="img"
+                    aria-label="D-Pad up"
+                ></span>
+                (hold)
+            </td>
+        </tr>
+        <tr>
+            <td>Clear lock (staged: combat, then nav)</td>
+            <td><kbd>Ctrl</kbd> (tap)</td>
+            <td>
+                <span
+                    class="pf pf-dpad-up"
+                    role="img"
+                    aria-label="D-Pad up"
+                ></span>
+                (tap)
+            </td>
+        </tr>
+        <tr>
+            <td>Cycle fine-lock component</td>
+            <td>
+                <span
+                    class="pf pf-mouse-scroll"
+                    role="img"
+                    aria-label="Scroll wheel"
+                ></span>
+                / <kbd>[</kbd> <kbd>]</kbd>
+            </td>
+            <td>
+                <span
+                    class="pf pf-dpad-left"
+                    role="img"
+                    aria-label="D-Pad left"
+                ></span>
+                <span
+                    class="pf pf-dpad-right"
+                    role="img"
+                    aria-label="D-Pad right"
+                ></span>
+            </td>
+        </tr>
+    </tbody>
 </table>
 
 ## Weapons
 
-<table class="controls">
-    <tr>
-        <td>Fire turrets</td>
-        <td>
-            <span
-                class="pf pf-mouse-1"
-                role="img"
-                aria-label="Left mouse button"
-            ></span>
-            (default)
-        </td>
-    </tr>
-    <tr>
-        <td>Launch torpedo</td>
-        <td>
-            <span
-                class="pf pf-mouse-1"
-                role="img"
-                aria-label="Left mouse button"
-            ></span>
-            (default)
-        </td>
-    </tr>
+<table class="controls controls--split">
+    <thead>
+        <tr>
+            <th>Action</th>
+            <th>Keyboard &amp; mouse</th>
+            <th>Gamepad</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Fire turrets</td>
+            <td>
+                <span
+                    class="pf pf-mouse-1"
+                    role="img"
+                    aria-label="Left mouse button"
+                ></span>
+                (default)
+            </td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>Launch torpedo</td>
+            <td>
+                <span
+                    class="pf pf-mouse-1"
+                    role="img"
+                    aria-label="Left mouse button"
+                ></span>
+                (default)
+            </td>
+            <td>-</td>
+        </tr>
+    </tbody>
 </table>
 
 Weapon sections are rebindable: in the editor, click a section to bind it to any key or mouse button, so a ship's turret and torpedo controls are whatever its build assigns. The shipped ship fires both turrets and torpedoes on the left mouse button; a torpedo only launches while you hold a raised (red) combat lock.
 
 ## Interface
 
-<table class="controls">
-    <tr>
-        <td>Cycle HUD (On / Cinematic)</td>
-        <td>
-            <kbd>`</kbd> (grave / tilde) &nbsp;or&nbsp;
-            <span
-                class="pf pf-select"
-                role="img"
-                aria-label="Select button"
-            ></span>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <a href="../nova-os/">NOVA OS</a> ship-computer terminal
-            (commands; pauses, frees the cursor)
-        </td>
-        <td>
-            <kbd>Tab</kbd> &nbsp;or&nbsp;
-            <span
-                class="pf pf-stick-right-click"
-                role="img"
-                aria-label="Right stick click"
-            ></span>
-        </td>
-    </tr>
-    <tr>
-        <td>Dismiss oldest visible comms card</td>
-        <td><kbd>V</kbd></td>
-    </tr>
-    <tr>
-        <td>Skip queued comms backlog into view</td>
-        <td><kbd>B</kbd></td>
-    </tr>
-    <tr>
-        <td>Pause menu</td>
-        <td>
-            <kbd>Esc</kbd> &nbsp;or&nbsp;
-            <span
-                class="pf pf-start"
-                role="img"
-                aria-label="Start button"
-            ></span>
-        </td>
-    </tr>
-    <tr>
-        <td>Back to editor (Sandbox only)</td>
-        <td>
-            <kbd>F1</kbd> &nbsp;or&nbsp;
-            <span
-                class="pf pf-stick-left-click"
-                role="img"
-                aria-label="Left stick click"
-            ></span>
-        </td>
-    </tr>
+<table class="controls controls--split">
+    <thead>
+        <tr>
+            <th>Action</th>
+            <th>Keyboard &amp; mouse</th>
+            <th>Gamepad</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Cycle HUD (On / Cinematic)</td>
+            <td><kbd>`</kbd> (grave / tilde)</td>
+            <td>
+                <span
+                    class="pf pf-select"
+                    role="img"
+                    aria-label="Select button"
+                ></span>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <a href="../nova-os/">NOVA OS</a> ship-computer terminal
+                (commands; pauses, frees the cursor)
+            </td>
+            <td><kbd>Tab</kbd></td>
+            <td>
+                <span
+                    class="pf pf-stick-right-click"
+                    role="img"
+                    aria-label="Right stick click"
+                ></span>
+            </td>
+        </tr>
+        <tr>
+            <td>Dismiss oldest visible comms card</td>
+            <td><kbd>V</kbd></td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>Skip queued comms backlog into view</td>
+            <td><kbd>B</kbd></td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>Pause menu</td>
+            <td><kbd>Esc</kbd></td>
+            <td>
+                <span
+                    class="pf pf-start"
+                    role="img"
+                    aria-label="Start button"
+                ></span>
+            </td>
+        </tr>
+        <tr>
+            <td>Back to editor (Sandbox only)</td>
+            <td><kbd>F1</kbd></td>
+            <td>
+                <span
+                    class="pf pf-stick-left-click"
+                    role="img"
+                    aria-label="Left stick click"
+                ></span>
+            </td>
+        </tr>
+    </tbody>
 </table>
 
 ## Editor
 
-The editor is mouse-first; these are the keys that save a trip to the rail. The
-bottom-left legend shows the ones that apply to whatever you are holding.
+The editor is mouse-first and has no gamepad bindings; these are the keys that
+save a trip to the rail. The bottom-left legend shows the ones that apply to
+whatever you are holding.
 
 <table class="controls">
     <tr>

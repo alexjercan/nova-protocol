@@ -20,13 +20,23 @@ The torpedo bay fires **guided torpedoes** that home on the combat lock with pro
 
 A torpedo is a section like any other, so it inherits the same physics and mounting rules as the rest of the build. Where turret fire is precise and pointed, torpedoes are about zoning and catching clustered or fragile targets.
 
-**The warhead touches before it bursts.** Against a locked ship or rock the fuze fires about a metre off the nearest part of that body, so the pressure lands at full strength on the plating rather than short of it. A torpedo with nothing left to touch - one sent at a bare point in space, or one whose target dies mid-flight - bursts a half-radius out instead.
+**The warhead touches before it bursts.** Against a locked ship or rock the fuze fires about ten metres off the nearest part of that body, so the pressure lands at full strength on the plating rather than short of it. A torpedo with nothing left to touch - one sent at a bare point in space, or one whose target dies mid-flight - bursts a half-radius out instead.
 
 A blast then works from the outside in. A section that survives shields everything behind it; a destroyed section lets 65 percent of the remaining pressure continue. One hit can gut a thin craft, while a deep capital loses a local breach instead of its whole hull. Later hits travel farther through the opened hole.
 
 The bay itself cracks and sparks as it is worn down, and keeps launching until it dies.
 
-A bay is loaded with a **torpedo type**, and the editor offers two: **Torpedo Bay (Serpent)** and **Torpedo Bay (Lance)**. Same tube, same warhead, same blast, same six-round rack - the only difference is the run-in. A Serpent corkscrews, so a defender spends roughly three times the rounds stopping it and only kills it on its own doorstep, and it pays for that by cruising slower. A Lance flies the bare intercept at the faster cruise, arriving sooner on the shortest path there is - and a defender's guns kill it comfortably short of what it was aimed at. Each flies in its own colour, so what is inbound is readable at a glance. See [Combat & weapons](../../combat-weapons/) for the trade in full.
+## The two run-ins
+
+A bay is loaded with a **torpedo type**, and the editor offers two: **Torpedo Bay (Serpent)** and **Torpedo Bay (Lance)**. Same tube, same warhead, same blast, same six-round rack. The only thing that differs is the run-in, and each flies in its own colour so what is inbound is readable at a glance.
+
+<!-- Every figure in the widget is the measured table at the head of crates/nova_authoring/src/base_content/sections/ordnance.rs:13-21 (cruise caps, weave half-angles, rounds one PDC spends, where it kills each, time over a 300 u run-in, speed along the line), plus the closing rates against a 25 u/s runner at ordnance.rs:23-25. Authored sources: Lance LANCE_MAX_SPEED 35.0 ordnance.rs:49 with weave 0.0 :72-73; Serpent max_speed 32.0 / weave_angle 0.44 / weave_rate 1.4 at crates/nova_ship/src/sections/torpedo_section/mod.rs:347-349; the 11.1 u swing at that angle and rate is measured in the weave_rate doc, mod.rs:293-303. Weave taper: full beyond 3x blast radius, zero at 0.5x, crates/nova_ship/src/sections/torpedo_section/projectile.rs:330-334. -->
+
+<div class="widget" data-widget="torpedo-run">
+<p>Over a 300 u run-in a Lance arrives in 9.10 seconds and a Serpent in 9.78 - the weave is paid for in cruise speed, 32 u/s against 35. Against one stock point-defense mount that price buys a great deal: the PDC spends 116 rounds on the Lance and kills it 114 u short of its target, then spends 390 on the Serpent and only catches it 40 u out, on the doorstep. The corkscrew tapers to nothing over the last stretch, so a Serpent that survives still arrives dead on the aim point.</p>
+</div>
+
+So the Serpent is what you fire at something that shoots back, and the Lance at something that cannot - against a target running at the player's speed cap the Lance closes half again as fast. See [Combat & weapons](../../combat-weapons/#torpedoes) for how the two types read in flight.
 
 <figure class="figure">
     <!-- Capture: assets/loop-section-torpedo-bay.webm (short gameplay loop) -->
