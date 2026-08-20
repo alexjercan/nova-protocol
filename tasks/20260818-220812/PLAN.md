@@ -47,16 +47,29 @@ Census and ablation as probe capabilities, before `arena-ablation` is deleted
 and they have to be reinvented. Feature-gated, loud on a typo, ablate by
 `SystemSet` from the probe side.
 
-## Phase 3 - the batch too small to measure alone
+## Phase 3 - the floor, then the batch too small to measure alone
 
-Individually 2-10% and invisible against the noise floor; together they should
-clear it. Land as one batch with one before/after.
+**Re-ranked 2026-08-20 (D9).** The floor was a phase 4 item behind this batch.
+The owner's post-fix hand-run moved it: one ship reads 36-48 FPS, so 75-90% of
+a single-ship frame is floor, and it is still 34% at seventeen ships. It goes
+first.
 
-- `ThrusterExhaustMaterial` re-prepared every frame per thruster (0.98 alone) -
-  same family of defect as the cracks: a material rewritten per frame.
-- Dressing geometry: rocks, derelicts and the planetoid are 86% of all vertices
-  for under 10% of instances (0.90 alone).
-- Whatever the `wfc_ships` ablation adds.
+1. **The ~21.5 ms floor.** An empty gallery - 1,124 entities, zero meshes, zero
+   sections - eats a whole 60 FPS budget. Nothing about it is ships. Find out
+   what it IS before costing a fix; a present-mode or vsync artefact and a
+   real 21 ms of work want opposite responses.
+2. **`ThrusterExhaustMaterial`** re-prepared every frame per thruster - now 32%
+   of what a ship costs (1.54 of 4.76 ms), up from 15%, because the cracks fix
+   removed the term above it. Same defect class as the cracks: a material
+   rewritten per frame.
+3. **Per-hull section-material duplication** (D7). Every hull instantiates its
+   own copies of the same ~35 section materials: 381 bins at 11 ships where 35
+   would do. A gltf / `WorldAssetRoot` instancing question.
+4. **Dressing geometry**: rocks, derelicts and the planetoid are 86% of all
+   vertices for under 10% of instances (0.90 alone).
+
+Items 2-4 are individually 2-10% and invisible against the noise floor; land
+them as one batch with one before/after. Item 1 is measurable alone.
 
 ## Phase 4 - the next round of stress and ablation
 
@@ -66,7 +79,10 @@ Using the promoted harness, so a round is cheap. Known targets:
   rounds and 86 torpedoes can. **If this is the projectile broad phase, the
   honest fix is "a round should not be a physics body" - which is gameplay
   logic and needs the owner.** Do not decide it in this run.
-- **The ~17 ms zero-ship floor.** An empty scene eating a 60 FPS budget.
+- **The 7 ms spread at ONE ship** (36-48 FPS). Steady state does not do that.
+  Two candidates: the un-pinned fixed-step amplifier alternating 1 and 2 steps
+  a frame, or `process_pipeline_queue_system` below. Cheap to separate - the
+  pin costs +1.5% on this subject.
 - **`process_pipeline_queue_system`, 68 ms mid-run.** A deliberate main-thread
   block, kept because async compilation SIGSEGVs one run in five
   (`nova_core/src/lib.rs:390-397`). Any "never block the main thread" rule owes

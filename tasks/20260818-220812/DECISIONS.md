@@ -132,3 +132,42 @@ the end: taking BOTH remaining drawn costs gives ~2.2 ms a ship. Eight ships is
 then 17.8 ms on top of a **16.74 ms empty-scene floor** - about 34 ms, 29 FPS.
 **The floor is now the dominant term and the epic's 60 FPS goal cannot be
 reached without it.**
+
+## D9 - the floor is promoted above the phase 3 batch
+
+Recorded 2026-08-20, on the owner's own post-fix hand-run:
+`tasks/20260819-173219/notes-owner-handrun.md`. 17 ships went 7 -> 16 FPS, and
+ONE ship reads 36-48 FPS.
+
+The plan ranked the ~17-21 ms floor in phase 4, behind a phase 3 batch of items
+worth 2-10% each. That ranking was set when a ship cost 10.37 ms and the floor
+was 13% of an 11-ship frame. It is now the largest single term at every ship
+count the owner plays: 75-90% of a single-ship frame, and 34% at seventeen.
+
+**So the floor moves ahead of the phase 3 batch.** Phase 3 keeps
+`ThrusterExhaustMaterial` - it is now 32% of what a ship costs and is the same
+defect class as the cracks - but the dressing-geometry item goes behind the
+floor.
+
+Reversed by: a floor investigation that finds the 21.5 ms is irreducible - a
+driver, a present-mode or a vsync artefact rather than work. In that case the
+phase 3 order stands unchanged and the epic's FPS target needs restating
+instead.
+
+## D10 - 60 FPS at 4v4 is out of reach for this epic's rules, 30 is not
+
+The bound, from measured parts: eight fighting hulls cost 8 x 2.00 ms of
+NON-drawn work - physics, colliders, AI, health, integrity - which the epic's
+"physics and gameplay logic are not negotiable" rule protects. That is 16.0 ms
+before the floor and before a single triangle. The 60 FPS budget is 16.67 ms.
+
+So even deleting the renderer and the floor entirely leaves ~62 FPS, and any
+real scene is under it. **60 FPS at 4v4 requires touching the protected half.**
+
+Not asking, per rule 6 - this is a target question, not a change to what the
+game does. Presented at the end of the run. The reachable target on presentation
+work alone is ~30 FPS at 4v4, needing the floor halved AND per-ship from 4.76 to
+3.0; both are named work, neither is speculative.
+
+Reversed by: the owner restating the target, or a decision that a round is not
+a physics body (which phase 4 already flags as needing the owner).
