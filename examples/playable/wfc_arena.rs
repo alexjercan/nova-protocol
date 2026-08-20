@@ -619,6 +619,9 @@ const MEASURED_SHIPS_PER_TEAM: usize = 4;
 /// measured. Shortening the window costs percentile resolution - p99 is the
 /// fourth-worst frame of 360, against the ninth-worst of 900 - and that is the
 /// price of measuring one scene instead of two.
+// Only the `debug` build wires a capture, so the window it sizes is dead
+// weight without it.
+#[cfg(feature = "debug")]
 const MEASURED_WINDOW: (u32, u32) = (60, 360);
 
 /// Whether this binary is a probe MEASUREMENT pass rather than a photograph.
