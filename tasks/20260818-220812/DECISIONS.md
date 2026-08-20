@@ -743,3 +743,101 @@ What is a real win, because it is present in BOTH transports:
 2. The per-scene constant that makes 1v1 and 4v4 overlap.
 3. `PostUpdate`'s 1.23 ms a frame of unattributed time.
 4. `state_to_world_system` 0.23 ms and `update_ai_target` 0.21 ms.
+
+## D19 - what the frame actually spikes on, and a correction to D17
+
+### The correction first
+
+**D17's "1v1" captures were all 4v4, and its trace never reached the fight.**
+
+`wfc_arena::default_roster()` fields `MEASURED_SHIPS_PER_TEAM = 4` per side
+whenever `measuring()` holds, and `measuring()` is `perf_armed() ||
+cfg!(feature = "trace")`. **Arming the capture changes the subject.** A real duel
+needs an explicit `--ship amber --ship onyx`. So D17's claim that "4x the ships
+costs 15-30%, so the headless arena is limited by a per-scene constant" compared
+4v4 against 4v4 and is WITHDRAWN.
+
+Measured properly, a true headless 1v1 reads 6.7-8.2 ms mean (122-148 fps) with
+a 1% low of 16-22 fps, against 4v4's 9.8-16.4 ms and 9-15 fps. Ship count does
+scale it, sublinearly - roughly 1.5-2x for 4x the hulls.
+
+Separately, D17's per-system table came from a trace that stops at first contact:
+`trace_pass_env` arms `TRACE_CHROME` without `NOVA_PERF`, so nothing holds the
+process open. It measured LOAD and APPROACH, which is why visibility and
+`PostUpdate` topped it - that is what dominates a cheap frame.
+
+**What survives, and it is the half that mattered**: the mean has headroom and
+the TAIL is the defect, at both roster sizes, with no renderer present.
+
+Two general lessons, both worth more than the numbers: **a measurement flag that
+changes the subject**, and **a trace that does not cover the phase you are
+asking about**. Both produced confident, wrong attributions.
+
+### The ranked causes
+
+1. **A fixed step nearly eats its own interval.** 58.3% of the fight window's
+   wall time is inside `FixedMain`, at **9.02 ms mean per step against a 15.625
+   ms budget**. Per-step cost RISES with frame time (7.53 / 9.93 / 9.93 / 19.55
+   ms by bucket), which is the opposite of what a pure catch-up artefact does -
+   so here the steps are cause, not effect. Over 90% is avian: 6 substeps over
+   **4,663 colliders, because every hull section is one.** Nova's own share
+   inside a step is `shoot_spawn_projectile` 0.39 ms and
+   `on_impact_collision_deal_damage` 0.18 ms.
+2. **`torpedo_detonate_system` (`projectile.rs:98`).**
+   `project_point_predicate` with a DEFAULT filter and the target test inside
+   the predicate, so the BVH cannot prune and it walks toward the whole tree -
+   per torpedo, per frame, in `Update`. 17.39 ms on one frame, 802 ms total.
+3. **The blast and sever cascade.** Worst fight frame 112.78 ms, 99.47 ms of it
+   in four steps: `resolve_nova_blast_hits` 11.1 ms plus a 14.4 ms flush,
+   `trigger_collision_events` 9.9 ms, `queue_depleted_section_sever` x773, and
+   **1,522 collider-tree edits in a single frame**.
+4. **The load hitch is the scenario spawn drain.** `state_to_world_system` 568.4
+   ms over frames 0-399, max 23.1 ms: `SPAWN_DRAIN_BUDGET` is 3 ms and is checked
+   AFTER the command, and one authored hull is one command, so it overruns 4-8x
+   on 43 consecutive frames.
+
+### Ruled OUT, with the numbers that rule them out
+
+- **`synchronous_pipeline_compilation`**: there is no render sub-app headless.
+- **Mid-run asset loading**: 2,034 spans, 11.78 ms total, max 0.07 ms, and never
+  on tid 0.
+- **Log volume**: suppressing 52,446 lines made p99 WORSE (94.08 against 73.57).
+- **Archetype fragmentation**: 527 -> 525 flat, and 20 archetypes hold 89% of
+  entities. **This closes phase 6 step 4.** The 586 figure was real and
+  irrelevant.
+
+### The scenario engine is NOT a frame-rate problem
+
+**150.6 us of a 12.24 ms fight frame - 1.2%. The interpreter itself
+(`queue_system`) is 2.7 us, or 0.02%.** Nothing in the dispatcher iterates
+entities, filters match a `serde_json::Value` payload, and handlers are
+name-bucketed. A scenario needs roughly **1,000 `OnUpdate` handlers before
+dispatch costs 1 ms**.
+
+**This settles the Lua question on the performance axis: moving the interpreter
+cannot buy frame time, because it is not spending any.** Whatever argues for or
+against a script language, it is not this.
+
+Where `nova_scenario`'s cost actually sits, and none of it is the interpreter:
+
+- Two GLOBAL `add_observer` collision observers (`area::on_collision_start_event`,
+  `salvage::on_crate_pickup_play_sfx`): 23,363 invocations each in 4.1 s in a
+  scenario with **zero areas and zero crates**. 56.5 us/frame, 21x the
+  interpreter.
+- `sample_scenario_queries`: 24.1 us/frame, ungated, two String allocations per
+  matching entity per frame whether or not any watch exists.
+- Four `asteroid_carve` systems: 14.4 us/frame after the fields are seeded.
+
+A mod author CAN tank it, but through entity count and clone-per-frame growth in
+`StoryMessage`/`Objective`, not through rule complexity. `SpawnScenarioObject` on
+`OnUpdate` self-gates and silently STOPS the scenario, which is its own defect.
+
+### What to fix first
+
+`torpedo_detonate_system`'s spatial query: one function, on the critical path,
+and the target entity is already in hand. Then the two global observers, one line
+each. Then the real one - **4,663 per-section colliders at 6 substeps a step is
+the fixed step**, and only that moves the 1% low.
+
+Explicitly NOT the headless visibility work. D18 already records that it buys the
+player nothing.

@@ -52,37 +52,71 @@ bays, **the simulation is nowhere near its budget.** Physics and logic are not
 what makes this range expensive; its cost was assets, and that has now been cut
 twice.
 
-## Result 2 - the ARENA misses 60 fps with no renderer at all
+## CORRECTION, 2026-08-20, before reading Result 2
 
-Same protocol, `wfc_arena`. Captures that were not contaminated (see the footgun
-below):
+**Every capture in Result 2 labelled "1v1" was a 4v4.** `wfc_arena`'s
+`default_roster()` fields `MEASURED_SHIPS_PER_TEAM = 4` per side whenever
+`measuring()` holds, and `measuring()` is `perf_armed() || cfg!(feature =
+"trace")`. Arming the capture CHANGES THE SUBJECT. A real duel needs an explicit
+`--ship amber --ship onyx`.
+
+So the conclusion drawn below - "4x the ships costs 15-30%, so the headless
+arena is limited by a per-scene constant" - **compared 4v4 against 4v4 and is
+withdrawn.** Measured properly, three captures of a true 1v1:
 
 | roster | mean | p95 | p99 | 1% low | max steps/frame |
 |---|--:|--:|--:|--:|--:|
-| 1v1 | 9.76 ms | 34.5 | 66.8 | 15.0 fps | 6 |
-| 1v1 | 12.25 ms | 49.0 | 82.9 | 12.1 fps | 6 |
-| 1v1 | 12.62 ms | 46.2 | 78.3 | 12.8 fps | - |
-| 1v1 | 16.38 ms | 56.3 | 89.9 | 11.1 fps | - |
+| 1v1 | 6.96 ms | 21.3 | 45.6 | 21.9 fps | 4 |
+| 1v1 | 6.74 ms | 23.0 | 45.1 | 22.2 fps | 3 |
+| 1v1 | 8.22 ms | 36.8 | 62.7 | 16.0 fps | 7 |
+
+Ship count DOES scale the cost: 1v1 means 6.7-8.2 ms against 4v4's 9.8-16.4, and
+1% lows of 16-22 fps against 9-15. Sublinear - roughly 1.5-2x for 4x the hulls -
+but not flat.
+
+**What survives, and it is the important half**: a headless 1v1 averages 122-148
+fps and still drops to 16-22 fps at its 1% low. The mean has plenty of headroom.
+**The tail is the defect**, and no amount of render work addresses it. See
+`notes-frame-spikes.md` for what the tail is made of.
+
+The trap generalises: **a measurement flag that changes the subject.** Worth an
+audit of every other `measuring()`-style branch.
+
+## Result 2 - the ARENA hitches badly with no renderer at all
+
+Same protocol, `wfc_arena`. Captures that were not contaminated (see the footgun
+below). **Every row is a 4v4** - read the correction above before this table.
+
+| roster | mean | p95 | p99 | 1% low | max steps/frame |
+|---|--:|--:|--:|--:|--:|
+| 4v4 | 9.76 ms | 34.5 | 66.8 | 15.0 fps | 6 |
+| 4v4 | 12.25 ms | 49.0 | 82.9 | 12.1 fps | 6 |
+| 4v4 | 12.62 ms | 46.2 | 78.3 | 12.8 fps | - |
+| 4v4 | 16.38 ms | 56.3 | 89.9 | 11.1 fps | - |
 | 4v4 | 11.69 ms | 45.4 | 86.0 | 11.6 fps | - |
 | 4v4 | 12.81 ms | 58.8 | 110.8 | 9.0 fps | 8 |
 | 4v4 | 13.20 ms | 52.9 | 84.9 | 11.8 fps | 8 |
 
 **This is the finding.** Nothing is drawn. There is no window, no adapter, no
 render world. And the arena still averages 10-16 ms a frame with a 1% low
-between 9 and 15 fps, running up to EIGHT fixed steps in one frame.
+between 9 and 15 fps, running up to EIGHT fixed steps in one frame - and a true
+1v1, measured properly, still drops to 16-22 fps at its 1% low.
 
-Two consequences, and the second is the uncomfortable one:
+The consequence that survives the correction:
 
-1. **The owner's "1v1 at 60 fps" target cannot be reached by render work
-   alone.** Deleting the entire renderer does not get 1v1 to a reliable 60.
-2. **Four times the ships costs 15-30%, not 4x.** 1v1 and 4v4 overlap. Whatever
-   dominates the headless arena frame is a per-SCENE constant, not a per-ship
-   cost - which is the exact opposite of the rendered line (roughly 8 ms per
-   ship), and it means the two transports are limited by different things.
+**Render work alone cannot fix this.** Deleting the entire renderer leaves a
+tail that misses 60 fps by a factor of three or more at both roster sizes. The
+MEAN was never the problem; the tail is, and the tail is simulation.
 
 ## Where the headless time goes
 
-Traced 1v1, 2,483 frames, self-time per frame:
+Traced 4v4 (NOT a 1v1, see the correction above), 2,483 frames, self-time per
+frame. **And this trace never reaches the fight** - `trace_pass_env` arms
+`TRACE_CHROME` without `NOVA_PERF`, so nothing holds the process open past first
+contact. The table below is therefore the LOAD and APPROACH phases, which is why
+visibility and `PostUpdate` top it: that is what dominates a CHEAP frame.
+Superseded by `notes-frame-spikes.md`, which traced a run that does reach the
+fight.
 
 | what | per frame | note |
 |---|--:|---|
