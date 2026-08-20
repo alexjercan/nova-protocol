@@ -178,3 +178,191 @@ Flagged only - `docs/` is another lane's and neither was changed.
   `prefers-color-scheme` branch in `style.css`, so there is no second theme to
   check; `tests/theme.test.ts` check (f) is what keeps the retired light-3D
   skin out.
+
+# Section-page widgets pass
+
+Second pass on the same lane. The first attempt was killed mid-flight and its
+work landed as an unverified WIP commit; this section is the audit of that work
+plus the fixes it needed. Four widgets, three pages.
+
+## What each widget shows
+
+`controller-arm` - `wiki/sections/controller.md`, "What sets how hard a ship
+turns". The shipped corvette in plan view with its balance point, a ring at its
+structural arm, and the `8 G / arm` curve beside it with the hull's point read
+off it. Nine buttons shoot sections off. Losing a part moves the balance point,
+moves the arm, moves the point on the curve, and severs anything the structural
+graph no longer reaches.
+
+`controller-margin` - same page, under "A hard turn spends the margin". One
+slider: the rate the hull is already turning at, against what is left to turn
+HARDER with. Flat, then a cliff, then the whole budget back in the over-spun
+band so a rammed ship can brake.
+
+`hull-armour` - `wiki/sections/hull.md`, "Variants". The ten catalog hull parts
+ranked two ways. Opens on the catalog's own order (health) and the toggle
+re-ranks by health per unit of mass, which inverts it.
+
+`thruster-mass` - `wiki/sections/thruster.md`. Acceleration against basic drives
+added, one curve per shipped hull, with a hard ceiling at 64 u/s2. Two sliders:
+which hull, how many extra drives.
+
+## Why the controller pair answers the complaint
+
+The old `controller-stacking` failed on four counts. Against each:
+
+1. **Log scale over five decades.** Neither replacement uses one. `controller-arm`
+   plots ceiling against ARM over 1.0-3.0 u linear, where `8 G / arm` is a
+   visible hyperbola and the hull's move along it is a visible move.
+   `controller-margin` is linear on both axes and its whole point is the SHAPE
+   of one curve.
+2. **X axis answered the stacking question.** Both new x axes are the ceiling's
+   own variables: structural arm, and current turn rate. Stacking is a
+   different question and it still has the measured flip-time table under
+   "Stacking controllers", which was left alone.
+3. **Subjects were test fixtures.** Both fly `cargoa`, the shipped corvette,
+   assembled from its own authored boxes. `thruster-mass` flies all three
+   shipped hulls. No rig from `flight/tests/stacking.rs` appears in a widget.
+4. **The page's three best claims had no visual.** All three now do.
+   "Every shipped ship is held by the STRUCTURAL ceiling with a wide margin" is
+   the `what binds` stat and the 41.9-against-2.84 readout. "A wreck turns
+   sharper" is the NOSE button: 2.76 u -> 2.43 u, 2.84 -> 3.23 rad/s2, a 180 in
+   1.97 s against 2.10 s. "A hard turn spends the margin" is the whole of
+   `controller-margin`.
+
+Nothing was cut. Both earn their place: they answer two different claims and
+neither could carry the other's.
+
+## Numbers lifted, with source
+
+The model. Paths under `crates/`:
+
+- `nova_events/src/scale.rs`: `METERS_PER_UNIT` 10.0 :14, `LOAD_LIMIT` 8*9.81
+  :23.
+- `nova_ship/src/physics/attitude.rs`: the two ceilings and the lower one
+  :72-93; the arm to the outer FACE of the furthest section :146-166, whose own
+  doc reads 2.76 u for the shipped corvette :140-141; assembled mass properties
+  :175-186; sustained rate `sqrt(structural)` :108-110; `available(spin)` and
+  the vector addition :121-130.
+- `nova_ship/src/sections/base_section.rs`: density 1 and not authorable, so a
+  section's mass IS its authored box :376; the unit-cube fallback for a section
+  with no authored collider :79-85.
+- `nova_ship/src/sections/thruster_section.rs`: magnitude is an IMPULSE PER
+  FIXED TICK with no `dt` :276-295 and :370-373, at Bevy's own 64 Hz :289-292.
+  Ships carry no `LinearDamping` and no speed cap, so `100 / a` is the honest
+  sprint time.
+- `nova_ship/src/sections/integrity.rs`: a cut that disconnects the graph
+  severs it, and the body holding the computers keeps ship identity :231-349.
+- `nova_editor/src/attitude.rs:18-70` is the reference implementation the
+  widget's `hullState` mirrors: same colliders, same density 1.0, same
+  `structural_arm` off the measured centre of mass.
+
+The hulls. `nova_authoring/src/base_content/`:
+
+- `ships/cargo_a.rs` parts :16-96 and structural mates :98-108; `ships/racer.rs`
+  parts :13-88 with the base assembly taking the meshed seven :107-115;
+  `ships/cargo_b.rs` parts :9-82. All assembled through `ships/shared.rs:44-50`
+  (centre and size off the authored box) and `:235` (the collider IS that box).
+- `sections/standard.rs`: `PDC_TURRET_SIZE` 0.5 :71 and the PDC's own cube
+  collider :240-242, which is what actually lands on a mount POINT;
+  `TURRET_BASE_HEALTH` 130 :32; `max_torque` 1501 :384 (and `shared.rs:302` for
+  the fuselage computers); thruster `magnitude` 1.0 :354 with no collider :337;
+  `reinforced_hull_section` 200 :308 no collider :311; `light_hull_section` 60
+  :408 no collider :411.
+
+Derived in the widget, not authored anywhere - which is the argument all four
+make:
+
+- corvette mass 15.86, largest principal inertia 35.79, arm 2.7615 u. That arm
+  matches `attitude.rs`'s own 2.76 u to two decimals, which is the check that
+  the assembly model is the game's. It only matches WITH the two turret mount
+  cubes counted; without them it reads 2.74.
+- structural ceiling 2.8435, torque ceiling 41.94, ratio 14.8, 180 flip 2.103 s,
+  sustained rate 96.6 deg/s.
+- nose off: 6 sections held, both turrets adrift, arm 2.431, ceiling 3.2296,
+  flip 1.973 s, balance point z 0.235 -> 0.661 (aft).
+- margin: 97 % left at 48 deg/s, 83 % at 72, 0 % at 97.
+- hull masses 8.28 (racer), 15.86 (cargoa), 18.95 (cargob); two drives each, so
+  15.45 / 8.07 / 6.75 u/s2, and `n` drives asymptote to 64.
+- armour per mass, best to worst: CargoA Pod 216.1, Reinforced 200, Racer Tail
+  136.3, Racer Nose 119.6, Racer Wing 105.3, CargoB Tail 94.6, CargoA Tail 83.0,
+  CargoA Nose 72.1, CargoB Nose 61.5, Light 60. Spread 3.6x.
+
+## Defects found in the inherited work
+
+Every number in the WIP commit was recomputed from the Rust and every one of
+them held, including the `METERS_PER_UNIT` conversion in the thruster widget's
+`in G` stat, which is the trap that has fired three times this cycle. What was
+wrong was elsewhere:
+
+1. **`controller-arm`'s plan view was mirrored.** Captioned "from above" and
+   drawn from BELOW. A ship faces -Z with starboard at +X, so a plan view with
+   the nose at screen left puts starboard at the TOP; the widget mapped +X
+   downward. Every port/starboard label was on the wrong side - POD P above the
+   fuselage, POD S below, and the same for the drives and the two severed
+   turrets. Geometry, arm and ceiling were unaffected (the hull is
+   symmetric), which is why nothing else caught it. FIXED: `py` runs against
+   +X, the section rect takes its top edge from `+size/2`, and the arm ray's
+   cross-axis term is negated to match.
+2. **The fallback prose and the live widget disagreed on the same number.** The
+   page fallback says the computer offers "41.9"; the widget printed
+   `toFixed(0)`, so a reader with JS saw "42" for the identical claim. FIXED:
+   the stat and the readout carry one decimal.
+3. **`hull-armour` opened on the answer.** It defaulted to PER MASS, while its
+   own fallback prose, the sentence above it on the page, and its own header
+   ("Switch the ranking and watch it come apart") all put the reader on the
+   HEALTH ranking. FIXED: opens on the catalog's order; the switch is the
+   argument.
+4. **`hull.md` carried two contradictory citations for the same two numbers.**
+   The catalog table's comment cites `standard.rs:292` and `:434` for the two
+   unit-cell healths; the real lines are :308 and :408, which is what the
+   lane's own new comment two lines above says. Pre-existing drift, but the
+   page now stated both. FIXED to :308 and :408.
+
+Checked and NOT defects:
+
+- No orphaned prose. Nothing on `controller.md` referred to the removed
+  `controller-stacking`, and the measured flip-time table under "Stacking
+  controllers" is intact.
+- No new `:root` token and no new mark class. All four widgets reuse the
+  existing vocabulary, so `tests/theme.test.ts` (d)/(e)/(f) are untouched and
+  `style.css` was not opened.
+- `.widget-mark--gate` has no `fill: none`, and `controller-arm` sets it inline
+  on its curve path - the one place the omission would have flooded the plot.
+- All four `data-widget` blocks carry fallback prose that states a result on its
+  own, and every number in all four was verified above.
+- "fixed tick" and "collider" read as engine words on a player page, but both
+  are already the wiki's own vocabulary (`combat-weapons.md:75,:221,:225,:231`),
+  so the notes were left in the house voice rather than re-litigated here.
+
+Found while reading, NOT fixed - `crates/` is another lane's:
+
+- `ships/cargo_a.rs`'s module doc says the corvette's turrets sit on "their
+  forward shoulders" of the pods. `CARGOA_EDGES` :105-107 and the comment at
+  :87-93 both put them on the NOSE cheeks. The doc is stale; the widget follows
+  the edges.
+
+## What was rendered and checked
+
+Built `dist/`, served it, and inspected every widget in headless Chromium at
+1280 px wide, plus the DOM text of each hydrated block:
+
+- `controller-arm`: intact, NOSE out (severs both turrets), FUSELAGE out (the
+  derelict fault state - every section severed, stats blanked, `is-fault`
+  readout), and a five-section wreck. Re-rendered all of them after the mirror
+  fix.
+- `controller-margin`: 0, 72 (the default) and the over-spun band past 97 deg/s,
+  where the recovery segment comes back to full authority.
+- `hull-armour`: both rankings, before and after the default flip.
+- `thruster-mass`: all three hulls, +0 and +8 drives.
+
+One skin only. There is no light theme: `style.css` has no
+`prefers-color-scheme` branch and no `data-theme` selector, and
+`tests/theme.test.ts` exists to keep the retired light-3D vocabulary
+unconsumed. Both themes were asked for; there is one, and it was checked.
+
+## Cut
+
+Nothing. `controller-stacking` was already gone in the inherited commit and its
+replacement pair is the right trade - the page's remaining stacking content is a
+measured table, which is the correct form for four rows of flown timings.

@@ -46,11 +46,6 @@ const EXPLOSIVE_SECTION_TRANSMISSION = 0.65; // damage.rs:394
 // (damage.rs:435-442); each destroyed structural layer transmits 65%, a
 // surviving layer stops the wave (damage.rs:445-447; ray walk 494-551).
 
-// Flight computer stacking (crates/nova_ship/src/sections/controller_section.rs).
-// Torque itself sums with no curve and no cap (:389-392); the only curve left
-// is the one on precision.
-const STACK_PRECISION_LIMIT = 1.5; // controller_section.rs:259
-
 // Gravity wells (crates/nova_gameplay/src/gravity.rs). Mass (`mu`) is the ONLY
 // authored gravity quantity: both the pull `a = mu / r^2` and the reach (the
 // SOI, where that pull decays to the cutoff) fall out of it (gravity.rs:22-28).
@@ -99,7 +94,16 @@ const LOAD_LIMIT = 8 * 9.81; // m/s^2, scale.rs:23
 const CONTROLLER_MAX_TORQUE = 1501; // standard.rs:384
 // The shipped corvette's structural arm: centre of mass to the outer FACE of
 // its furthest section (attitude.rs:146-164). The GOTO widget flies this hull.
+// `hullState(CARGOA_PARTS)` re-derives it from the craft's own boxes and
+// agrees, which is the check that the assembly model below is the game's.
 const CORVETTE_ARM_U = 2.76;
+
+// Thrust is authored as an IMPULSE PER FIXED TICK and handed to avian with no
+// `dt` factor, so a hull's acceleration is its summed magnitude times the tick
+// RATE over its mass (thruster_section.rs:276-295,:370-373). Nothing
+// configures `Time<Fixed>`, so that rate is Bevy's own.
+const FIXED_TICK_HZ = 64; // thruster_section.rs:289-292
+const THRUSTER_MAGNITUDE = 1.0; // standard.rs:354, ships/shared.rs:281
 
 // Catalog fixtures (crates/nova_authoring/src/base_content/sections/standard.rs).
 const LIGHT_HULL_HP = 60; // standard.rs:400-419 (light_hull_section)
@@ -305,12 +309,6 @@ export function blastFront(
         destroyed,
         stopped: false,
     };
-}
-
-// The precision curve, and only the precision curve: authority has none of its
-// own (controller_section.rs:267-269).
-export function stackCurve(n: number, limit: number): number {
-    return limit - (limit - 1) / Math.max(1, n);
 }
 
 // The two ceilings and the lower one (attitude.rs:72-93). Inertia is the
@@ -2235,62 +2233,875 @@ function initBlastLayers(host: HTMLElement): void {
     else transport.play();
 }
 
-// ---- controller-stacking --------------------------------------------------
+// ---- shipped hulls --------------------------------------------------------
 
-interface StackRig {
-    name: string;
-    detail: string;
-    inertia: number; // largest principal moment of angular inertia
-    arm: number; // structural arm, world units
+type Vec3T = [number, number, number];
+
+interface ShipPart {
+    id: string;
+    label: string;
+    health: number;
+    center: Vec3T;
+    size: Vec3T;
 }
 
-// The three measured rigs (crates/nova_ship/src/flight/tests/stacking.rs, rig
-// table :283-305, built from unit cuboids at density :95-146): cells in a
-// line, the last at twenty times the density. Inertia and arm are what avian
-// and `structural_arm` measure for them, not authored numbers.
-const STACK_RIGS: StackRig[] = [
-    { name: "fighter", detail: "3 cells", inertia: 2.5, arm: 1.5 },
-    { name: "cruiser", detail: "15 cells", inertia: 282.5, arm: 7.5 },
-    { name: "barge", detail: "15 dense cells", inertia: 5650, arm: 7.5 },
+// One authored craft part, in the terms the ship files write it in: an origin
+// plus the bounding box the art was cut to. The section sits at the middle of
+// that box and its collider IS the box, so nothing here is re-derived
+// (crates/nova_authoring/src/base_content/ships/shared.rs:44-50,:235).
+function shipPart(
+    id: string,
+    label: string,
+    health: number,
+    origin: Vec3T,
+    boxMin: Vec3T,
+    boxMax: Vec3T
+): ShipPart {
+    return {
+        id,
+        label,
+        health,
+        center: [
+            origin[0] + (boxMin[0] + boxMax[0]) * 0.5,
+            origin[1] + (boxMin[1] + boxMax[1]) * 0.5,
+            origin[2] + (boxMin[2] + boxMax[2]) * 0.5,
+        ],
+        size: [
+            boxMax[0] - boxMin[0],
+            boxMax[1] - boxMin[1],
+            boxMax[2] - boxMin[2],
+        ],
+    };
+}
+
+// A turret MOUNT POINT carries no art and no box of its own: the shared PDC
+// fills it, so the section that lands there is the PDC's own cube
+// (sections/standard.rs:71,:228,:240-242).
+const PDC_TURRET_SIZE = 0.5; // standard.rs:71
+const TURRET_BASE_HEALTH = 130; // standard.rs:32
+function turretMount(id: string, label: string, center: Vec3T): ShipPart {
+    return {
+        id,
+        label,
+        health: TURRET_BASE_HEALTH,
+        center,
+        size: [PDC_TURRET_SIZE, PDC_TURRET_SIZE, PDC_TURRET_SIZE],
+    };
+}
+
+// The shipped corvette (ships/cargo_a.rs:16-96): two drives on two pods, a
+// nose carrying both guns on its cheeks, a tail, and the fuselage that IS the
+// flight computer.
+const CARGOA_PARTS: ShipPart[] = [
+    shipPart(
+        "engine_starboard",
+        "DRV S",
+        70,
+        [1.0, 0.5, 2.0],
+        [-0.19, -0.2975, -0.5],
+        [0.6, 0.4975, 0.45]
+    ),
+    shipPart(
+        "engine_port",
+        "DRV P",
+        70,
+        [-1.0, 0.5, 2.0],
+        [-0.6, -0.2975, -0.5],
+        [0.19, 0.4975, 0.45]
+    ),
+    shipPart(
+        "pod_starboard",
+        "POD S",
+        350,
+        [1.0, 0.5, 0.5],
+        [-0.19, -0.3, -1.05],
+        [0.6, 0.7, 1.0]
+    ),
+    shipPart(
+        "pod_port",
+        "POD P",
+        350,
+        [-1.0, 0.5, 0.5],
+        [-0.6, -0.3, -1.05],
+        [0.19, 0.7, 1.0]
+    ),
+    shipPart(
+        "nose",
+        "NOSE",
+        180,
+        [0.0, 1.0, -2.0],
+        [-0.8, -0.8, -0.45],
+        [0.8, 0.4, 0.85]
+    ),
+    shipPart(
+        "tail",
+        "TAIL",
+        150,
+        [0.0, 0.5, 2.0],
+        [-0.81, -0.5, -0.5],
+        [0.81, 0.675, 0.45]
+    ),
+    shipPart(
+        "fuselage",
+        "FUSELAGE",
+        350,
+        [0.0, 1.0, 0.0],
+        [-0.81, -1.0, -1.15],
+        [0.81, 0.6, 1.5]
+    ),
+    turretMount("turret_starboard", "T", [0.95, 0.8, -1.8]),
+    turretMount("turret_port", "T", [-0.95, 0.8, -1.8]),
 ];
 
-// The attitude envelope drawn against computer count: the torque ceiling rises
-// linearly, the structural ceiling stands still, and the hull gets the lower
-// of the two. A hull whose torque line already sits above the structural one
-// gains nothing from a stack - which is every hull the game ships.
-function initControllerStacking(host: HTMLElement): void {
+// The authored structural mates (cargo_a.rs:98-108). Both guns hang off the
+// NOSE, and each drive hangs off its own pod - which is what decides who goes
+// adrift when a part in the middle dies.
+const CARGOA_MATES: [string, string][] = [
+    ["fuselage", "nose"],
+    ["fuselage", "tail"],
+    ["fuselage", "pod_starboard"],
+    ["fuselage", "pod_port"],
+    ["pod_starboard", "engine_starboard"],
+    ["pod_port", "engine_port"],
+    ["nose", "turret_starboard"],
+    ["nose", "turret_port"],
+];
+
+// The civilian yacht, which flies UNARMED: the base assembly takes the meshed
+// seven and leaves its two mount points empty (ships/racer.rs:13-88,:107-115).
+const RACER_PARTS: ShipPart[] = [
+    shipPart(
+        "engine_starboard",
+        "DRV S",
+        70,
+        [0.5, 0.5, 1.5],
+        [-0.09, -0.3, -0.3],
+        [0.4, 0.44189, 0.32567]
+    ),
+    shipPart(
+        "engine_port",
+        "DRV P",
+        70,
+        [-0.5, 0.5, 1.5],
+        [-0.4, -0.3, -0.3],
+        [0.09, 0.44189, 0.32567]
+    ),
+    shipPart(
+        "wing_starboard",
+        "WING S",
+        180,
+        [1.0, 0.5, 0.0],
+        [-0.59, -0.5, -0.964329],
+        [0.2, 0.5, 1.2]
+    ),
+    shipPart(
+        "wing_port",
+        "WING P",
+        180,
+        [-1.0, 0.5, 0.0],
+        [-0.2, -0.5, -0.964329],
+        [0.59, 0.5, 1.2]
+    ),
+    shipPart(
+        "nose",
+        "NOSE",
+        120,
+        [0.0, 0.5, -1.5],
+        [-0.4, -0.5, -0.52567],
+        [0.4, 0.72265, 0.5]
+    ),
+    shipPart(
+        "tail",
+        "TAIL",
+        120,
+        [0.0, 1.0, 1.5],
+        [-0.41, -0.8, -0.3],
+        [0.41, 0.5, 0.52567]
+    ),
+    shipPart(
+        "fuselage",
+        "FUSELAGE",
+        240,
+        [0.0, 0.5, 0.0],
+        [-0.41, -0.5, -1.0],
+        [0.41, 0.9, 1.2]
+    ),
+];
+
+// The torpedo hauler (ships/cargo_b.rs:9-82). Its two big side pods are the
+// tubes, and its guns stand on their shoulders rather than on the nose.
+const CARGOB_PARTS: ShipPart[] = [
+    shipPart(
+        "engine_starboard",
+        "DRV S",
+        70,
+        [1.0, 0.5, 2.0],
+        [-0.39, -0.3, -0.5],
+        [0.4, 0.7, 0.5]
+    ),
+    shipPart(
+        "engine_port",
+        "DRV P",
+        70,
+        [-1.0, 0.5, 2.0],
+        [-0.4, -0.3, -0.5],
+        [0.39, 0.7, 0.5]
+    ),
+    shipPart(
+        "pod_starboard",
+        "POD S",
+        350,
+        [1.0, 0.5, -0.5],
+        [-0.39, -0.3, -2.0],
+        [0.5, 0.7, 2.0]
+    ),
+    shipPart(
+        "pod_port",
+        "POD P",
+        350,
+        [-1.0, 0.5, -0.5],
+        [-0.5, -0.3, -2.0],
+        [0.39, 0.7, 2.0]
+    ),
+    shipPart(
+        "nose",
+        "NOSE",
+        180,
+        [0.0, 1.0, -2.0],
+        [-0.61, -0.8, -0.5],
+        [0.61, 0.8, 1.0]
+    ),
+    shipPart(
+        "tail",
+        "TAIL",
+        150,
+        [0.0, 0.5, 2.0],
+        [-0.61, -0.5, -0.5],
+        [0.61, 0.8, 0.5]
+    ),
+    shipPart(
+        "fuselage",
+        "FUSELAGE",
+        300,
+        [0.0, 1.0, 0.5],
+        [-0.61, -1.0, -1.5],
+        [0.61, 0.8, 1.0]
+    ),
+    turretMount("turret_starboard", "T", [1.55, 1.2, 0.0]),
+    turretMount("turret_port", "T", [-1.55, 1.2, 0.0]),
+];
+
+// The largest eigenvalue of a symmetric 3x3, closed form. This is the
+// "conservative axis" the attitude budget is taken against
+// (attitude.rs:69-71): one scalar has to cover a hull that rolls far more
+// easily than it yaws, so it is the WORST of the three.
+function largestPrincipal(m: number[][]): number {
+    const offDiagonal = m[0][1] ** 2 + m[0][2] ** 2 + m[1][2] ** 2;
+    if (offDiagonal < 1e-12) return Math.max(m[0][0], m[1][1], m[2][2]);
+    const q = (m[0][0] + m[1][1] + m[2][2]) / 3;
+    const p2 =
+        (m[0][0] - q) ** 2 +
+        (m[1][1] - q) ** 2 +
+        (m[2][2] - q) ** 2 +
+        2 * offDiagonal;
+    const p = Math.sqrt(p2 / 6);
+    const b = m.map((row, i) => row.map((v, j) => (v - (i === j ? q : 0)) / p));
+    const determinant =
+        b[0][0] * (b[1][1] * b[2][2] - b[1][2] * b[2][1]) -
+        b[0][1] * (b[1][0] * b[2][2] - b[1][2] * b[2][0]) +
+        b[0][2] * (b[1][0] * b[2][1] - b[1][1] * b[2][0]);
+    const phi = Math.acos(clamp(determinant / 2, -1, 1)) / 3;
+    return q + 2 * p * Math.cos(phi);
+}
+
+interface HullState {
+    mass: number;
+    centerOfMass: Vec3T;
+    inertia: number;
+    arm: number;
+    armSetBy: string;
+}
+
+// What avian would measure for a hull assembled from these sections, plus the
+// structural arm derived off it (attitude.rs:146-186). Density is 1 and not
+// authorable, so a section's mass is exactly its box volume
+// (base_section.rs:376) - which is why NOTHING in this function reads an
+// authored number. Every shipped section is mounted axis-aligned except the
+// turret mounts, whose box is a cube and so is the same under any rotation;
+// that is what lets the arm drop the rotation term the Rust carries.
+export function hullState(parts: ShipPart[]): HullState {
+    let mass = 0;
+    const com: Vec3T = [0, 0, 0];
+    for (const part of parts) {
+        const m = part.size[0] * part.size[1] * part.size[2];
+        mass += m;
+        for (let i = 0; i < 3; i++) com[i] += m * part.center[i];
+    }
+    if (mass <= 0) {
+        return {
+            mass: 0,
+            centerOfMass: [0, 0, 0],
+            inertia: 0,
+            arm: 0,
+            armSetBy: "",
+        };
+    }
+    for (let i = 0; i < 3; i++) com[i] /= mass;
+
+    const tensor = [
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+    ];
+    for (const part of parts) {
+        const [a, b, c] = part.size;
+        const m = a * b * c;
+        const own = [
+            (m * (b * b + c * c)) / 12,
+            (m * (a * a + c * c)) / 12,
+            (m * (a * a + b * b)) / 12,
+        ];
+        const d = part.center.map((v, i) => v - com[i]);
+        const r2 = d[0] ** 2 + d[1] ** 2 + d[2] ** 2;
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 3; j++) {
+                tensor[i][j] +=
+                    i === j
+                        ? own[i] + m * (r2 - d[i] * d[i])
+                        : -m * d[i] * d[j];
+            }
+        }
+    }
+
+    let arm = 0;
+    let armSetBy = "";
+    for (const part of parts) {
+        const d = part.center.map((v, i) => v - com[i]);
+        const distance = Math.hypot(d[0], d[1], d[2]);
+        const half = part.size.map((s) => s * 0.5);
+        // A section sitting ON the balance point has no radial ray of its own:
+        // its own furthest face is the whole arm it offers (attitude.rs:155-159).
+        const reach =
+            distance <= 1e-6
+                ? Math.max(half[0], half[1], half[2])
+                : distance +
+                  half.reduce(
+                      (sum, h, i) => sum + (h * Math.abs(d[i])) / distance,
+                      0
+                  );
+        if (reach > arm) {
+            arm = reach;
+            armSetBy = part.id;
+        }
+    }
+    return {
+        mass,
+        centerOfMass: com,
+        inertia: largestPrincipal(tensor),
+        arm,
+        armSetBy,
+    };
+}
+
+// Which sections are still THE SHIP after `destroyed` have been shot off.
+//
+// A cut that disconnects the structural graph severs it: the body carrying the
+// live computers keeps ship identity and every other piece drifts away as an
+// inert wreck (nova_ship/src/sections/integrity.rs:231-349). The fuselage is
+// the only computer on all three shipped craft, so the retained body is the
+// one it sits in.
+export function severedParts(
+    parts: ShipPart[],
+    mates: [string, string][],
+    destroyed: Set<string>
+): { held: ShipPart[]; adrift: ShipPart[] } {
+    const live = parts.filter((part) => !destroyed.has(part.id));
+    if (destroyed.has("fuselage")) return { held: [], adrift: live };
+    const reached = new Set<string>(["fuselage"]);
+    for (let pass = 0; pass < live.length; pass++) {
+        for (const [a, b] of mates) {
+            if (destroyed.has(a) || destroyed.has(b)) continue;
+            if (reached.has(a)) reached.add(b);
+            if (reached.has(b)) reached.add(a);
+        }
+    }
+    return {
+        held: live.filter((part) => reached.has(part.id)),
+        adrift: live.filter((part) => !reached.has(part.id)),
+    };
+}
+
+// ---- controller-arm -------------------------------------------------------
+
+// The corvette in plan view, with the balance point, the structural arm as a
+// ring, and the ceiling that arm buys read off the 8 G curve beside it. Shoot
+// pieces off and both move - which is the whole model: the ceiling is not
+// authored anywhere, it falls out of where the metal ended up.
+function initControllerArm(host: HTMLElement): void {
     header(
         host,
-        "The two ceilings",
-        "A hull turns at the LOWER of its computers' torque over its " +
-            "inertia and 8 G over its structural arm. Add computers and " +
-            "watch which one answers."
+        "The arm: what the metal allows",
+        "Hull metal takes 8 G at any point on it, so the turn ceiling is " +
+            "that limit over the arm from the ship's balance point to its " +
+            "furthest face. Shoot pieces off the corvette and watch the " +
+            "balance point move, the arm shorten and the ceiling climb."
     );
 
-    const N_MAX = 10;
-    const X0 = 44;
-    const X1 = 550;
-    const Y0 = 174;
-    const Y1 = 12;
-    const A_MIN = 0.1;
-    const A_MAX = 10000;
-    const LOG_MIN = Math.log10(A_MIN);
-    const LOG_SPAN = Math.log10(A_MAX) - LOG_MIN;
-    const x = (n: number): number => X0 + ((n - 1) / (N_MAX - 1)) * (X1 - X0);
-    const y = (a: number): number => {
-        const frac = (Math.log10(clamp(a, A_MIN, A_MAX)) - LOG_MIN) / LOG_SPAN;
-        return Y0 - frac * (Y0 - Y1);
+    // Plan view, drawn in the INTACT ship's frame so the hull stays put and
+    // the balance point is the thing seen to move. A ship faces -Z with
+    // starboard at +X, so a view from ABOVE with the nose at screen left puts
+    // starboard at the TOP - `py` runs against +X, or the caption is lying and
+    // every port/starboard label is on the wrong side.
+    const SCALE = 42;
+    const AX = 154;
+    const AY = 144;
+    const px = (z: number): number => AX + z * SCALE;
+    const py = (x: number): number => AY - x * SCALE;
+
+    // The 8 G curve beside it. Linear on both axes: the two ceilings are a
+    // factor of fifteen apart on this hull, so drawing them as two lines would
+    // need a log scale that flattens the only curve worth seeing.
+    const BX0 = 336;
+    const BX1 = 548;
+    const BY0 = 210;
+    const BY1 = 40;
+    const ARM_MIN = 1.0;
+    const ARM_MAX = 3.0;
+    const CEIL_MAX = 8;
+    const bx = (a: number): number =>
+        BX0 +
+        ((clamp(a, ARM_MIN, ARM_MAX) - ARM_MIN) / (ARM_MAX - ARM_MIN)) *
+            (BX1 - BX0);
+    const by = (c: number): number =>
+        BY0 - (clamp(c, 0, CEIL_MAX) / CEIL_MAX) * (BY0 - BY1);
+
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 280",
+        role: "img",
+        "aria-label":
+            "Left: the corvette from above, with its balance point, a ring " +
+            "at its structural arm, and any sections shot off or set adrift " +
+            "marked. Right: turn ceiling against structural arm, with the " +
+            "intact ship and the current wreck marked on the curve.",
+    });
+
+    svg.appendChild(
+        svgEl(
+            "text",
+            { x: "8", y: "16", class: "widget-mark--axis" },
+            "corvette, from above - nose to the left"
+        )
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            { x: String(BX0), y: "16", class: "widget-mark--axis" },
+            "ceiling (rad/s^2) against arm (u)"
+        )
+    );
+
+    // --- panel B furniture, drawn once ---
+    for (const c of [2, 4, 6, 8]) {
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(BX0),
+                y1: String(by(c)),
+                x2: String(BX1),
+                y2: String(by(c)),
+                class: "widget-mark--grid",
+            })
+        );
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(BX0 - 5),
+                    y: String(by(c) + 3),
+                    "text-anchor": "end",
+                    class: "widget-mark--axis",
+                },
+                String(c)
+            )
+        );
+    }
+    for (const a of [1, 1.5, 2, 2.5, 3]) {
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(bx(a)),
+                    y: String(BY0 + 14),
+                    "text-anchor": "middle",
+                    class: "widget-mark--axis",
+                },
+                a.toFixed(1)
+            )
+        );
+    }
+    const curve: string[] = [];
+    for (let a = ARM_MIN; a <= ARM_MAX + 1e-9; a += 0.05) {
+        curve.push(
+            `${bx(a).toFixed(1)},${by(structuralCeiling(a)).toFixed(1)}`
+        );
+    }
+    // `fill` has to be said out loud: the gate mark was written for a straight
+    // LINE, which has no fill, and an unfilled path would otherwise flood the
+    // area under the curve with the default black.
+    svg.appendChild(
+        svgEl("path", {
+            d: `M${curve.join(" L")}`,
+            fill: "none",
+            class: "widget-mark--gate",
+        })
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(bx(ARM_MIN) + 6),
+                y: String(by(structuralCeiling(ARM_MIN)) - 6),
+                class: "widget-mark--label-gate",
+            },
+            "8 G / arm"
+        )
+    );
+
+    const intact = hullState(CARGOA_PARTS);
+    // Only drawn once there is damage to compare against: on the intact hull
+    // this dot sits exactly under the live one.
+    const intactDot = svgEl("circle", {
+        cx: String(bx(intact.arm)),
+        cy: String(by(structuralCeiling(intact.arm))),
+        r: "4",
+        class: "widget-mark--dot-old",
+    });
+    const intactLabel = svgEl(
+        "text",
+        {
+            x: String(bx(intact.arm)),
+            y: String(by(structuralCeiling(intact.arm)) + 16),
+            "text-anchor": "middle",
+            class: "widget-mark--label-old",
+        },
+        "intact"
+    );
+    svg.appendChild(intactDot);
+    svg.appendChild(intactLabel);
+    const nowDot = svgEl("circle", { r: "6", class: "widget-mark--dot-now" });
+
+    // --- panel A furniture ---
+    const ring = svgEl("circle", { r: "0", class: "widget-mark--ring" });
+    const ray = svgEl("line", { class: "widget-mark--ray" });
+    const comDot = svgEl("circle", { r: "3.5", class: "widget-mark--dot-now" });
+    // The live reading sits in the empty quarter under the curve rather than
+    // on the ray, which runs straight through the hull it is measuring.
+    const armLabel = svgEl(
+        "text",
+        { x: String(BX0 - 16), y: "248", class: "widget-mark--label-now" },
+        ""
+    );
+    const adriftWord = svgEl(
+        "text",
+        { x: "8", y: "272", class: "widget-mark--word is-dead" },
+        ""
+    );
+    const hullGroup = svgEl("g", {});
+    svg.appendChild(ring);
+    svg.appendChild(hullGroup);
+    svg.appendChild(ray);
+    svg.appendChild(comDot);
+    svg.appendChild(armLabel);
+    svg.appendChild(adriftWord);
+    svg.appendChild(nowDot);
+
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+
+    const stats = el("div", "widget__stats");
+    const armStat = stat(stats, "structural arm");
+    const ceilingStat = stat(stats, "turn ceiling");
+    const bindsStat = stat(stats, "what binds");
+    const torqueStat = stat(stats, "the computer offers");
+    const flipStat = stat(stats, "180 flip");
+    const readout = el("p", "widget__readout");
+
+    const destroyed = new Set<string>();
+    const keys = el("div", "widget__keys");
+    const keyButtons = new Map<string, HTMLButtonElement>();
+
+    const update = (): void => {
+        const { held, adrift } = severedParts(
+            CARGOA_PARTS,
+            CARGOA_MATES,
+            destroyed
+        );
+        const state = hullState(held);
+        const structural = structuralCeiling(state.arm);
+        // ONE computer: the fuselage is the corvette's only Controller part
+        // (cargo_a.rs:77-86), and it is the only one the shipped craft carry.
+        // Torque sums with no curve and no cap (controller_section.rs:385-388),
+        // so with the fuselage gone there is no propulsive ceiling at all -
+        // and no ship, because the fuselage is also what holds it together.
+        const torque = torqueCeiling(CONTROLLER_MAX_TORQUE, state.inertia);
+        const ceiling = Math.min(structural, torque);
+
+        hullGroup.replaceChildren();
+        for (const part of CARGOA_PARTS) {
+            if (destroyed.has(part.id)) continue;
+            const gone = adrift.includes(part);
+            hullGroup.appendChild(
+                svgEl("rect", {
+                    x: String(px(part.center[2] - part.size[2] * 0.5)),
+                    y: String(py(part.center[0] + part.size[0] * 0.5)),
+                    width: String(part.size[2] * SCALE),
+                    height: String(part.size[0] * SCALE),
+                    rx: "2",
+                    class: `widget-mark--section${gone ? " is-dead" : ""}`,
+                })
+            );
+            hullGroup.appendChild(
+                svgEl(
+                    "text",
+                    {
+                        x: String(px(part.center[2])),
+                        // Along the TOP edge of the box rather than through
+                        // its middle: the balance point sits inside the
+                        // fuselage, and a centred label runs straight under it.
+                        y: String(py(part.center[0] + part.size[0] * 0.5) + 11),
+                        "text-anchor": "middle",
+                        class: gone
+                            ? "widget-mark--word is-dead"
+                            : "widget-mark--detail",
+                    },
+                    part.label
+                )
+            );
+        }
+
+        // Named while the list is short enough to read, counted after that:
+        // the plan view already marks them, and one line of glass cannot
+        // carry eight part names.
+        const adriftNames = adrift.map((part) => part.id.replace(/_/g, " "));
+        adriftWord.textContent = !adrift.length
+            ? ""
+            : adrift.length <= 3
+              ? `severed: ${adriftNames.join(", ")} - no longer this ship`
+              : `${adrift.length} sections severed - no longer this ship`;
+
+        if (!held.length) {
+            ring.setAttribute("r", "0");
+            ray.setAttribute("x1", "0");
+            ray.setAttribute("y1", "0");
+            ray.setAttribute("x2", "0");
+            ray.setAttribute("y2", "0");
+            comDot.setAttribute("cx", "-20");
+            comDot.setAttribute("cy", "-20");
+            armLabel.textContent = "";
+            nowDot.setAttribute("cx", "-20");
+            nowDot.setAttribute("cy", "-20");
+            intactDot.setAttribute("opacity", "1");
+            intactLabel.setAttribute("opacity", "1");
+            armStat.textContent = "-";
+            ceilingStat.textContent = "-";
+            bindsStat.textContent = "nothing steers";
+            torqueStat.textContent = "0 rad/s^2";
+            flipStat.textContent = "-";
+            readout.classList.add("is-fault");
+            readout.textContent = destroyed.has("fuselage")
+                ? "The fuselage carried the only flight computer, so nothing " +
+                  "is steering: what is left of the corvette is a drifting, " +
+                  "tumbling derelict, and every piece of it has severed away."
+                : "Nothing left of the ship at all.";
+            return;
+        }
+        readout.classList.remove("is-fault");
+
+        const cx = px(state.centerOfMass[2]);
+        const cy = py(state.centerOfMass[0]);
+        comDot.setAttribute("cx", String(cx));
+        comDot.setAttribute("cy", String(cy));
+        ring.setAttribute("cx", String(cx));
+        ring.setAttribute("cy", String(cy));
+        ring.setAttribute("r", String(state.arm * SCALE));
+
+        const setter =
+            held.find((part) => part.id === state.armSetBy) ?? held[0];
+        const dz = setter.center[2] - state.centerOfMass[2];
+        const dx = setter.center[0] - state.centerOfMass[0];
+        const length = Math.hypot(dz, dx) || 1;
+        const tipX = cx + (dz / length) * state.arm * SCALE;
+        const tipY = cy - (dx / length) * state.arm * SCALE;
+        ray.setAttribute("x1", String(cx));
+        ray.setAttribute("y1", String(cy));
+        ray.setAttribute("x2", String(tipX));
+        ray.setAttribute("y2", String(tipY));
+        armLabel.textContent = `arm ${state.arm.toFixed(2)} u, ceiling ${structural.toFixed(2)} rad/s^2`;
+
+        nowDot.setAttribute("cx", String(bx(state.arm)));
+        nowDot.setAttribute("cy", String(by(structural)));
+        const damaged = destroyed.size > 0;
+        intactDot.setAttribute("opacity", damaged ? "1" : "0");
+        intactLabel.setAttribute("opacity", damaged ? "1" : "0");
+
+        armStat.textContent = `${state.arm.toFixed(2)} u`;
+        ceilingStat.textContent = `${ceiling.toFixed(2)} rad/s^2`;
+        bindsStat.textContent =
+            torque < structural ? "torque-limited" : "structure-limited";
+        torqueStat.textContent = `${torque.toFixed(1)} rad/s^2`;
+        flipStat.textContent = `${flipSeconds(ceiling).toFixed(2)} s`;
+
+        const gain = (structural / structuralCeiling(intact.arm) - 1) * 100;
+        if (!destroyed.size) {
+            readout.textContent =
+                `Nine sections, ${state.arm.toFixed(2)} u of arm. The metal ` +
+                `gives up at ${structural.toFixed(2)} rad/s^2, and the one ` +
+                `flight computer in its fuselage could push ` +
+                `${torque.toFixed(1)} - ${(torque / structural).toFixed(0)} ` +
+                "times as hard. Every shipped craft sits this far clear of " +
+                "its computers, which is why fitting more of them buys no " +
+                "turn rate at all.";
+        } else if (gain <= -0.5) {
+            readout.textContent =
+                `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
+                `gone${adrift.length ? ` and ${adrift.length} adrift` : ""}, ` +
+                `and the arm has grown to ${state.arm.toFixed(2)} u - so the ` +
+                `wreck turns ${Math.abs(gain).toFixed(0)}% SOFTER than the ` +
+                "whole ship did. Losing weight off one end drags the balance " +
+                "point toward the other, and the reach to whatever is left " +
+                "out there gets longer.";
+        } else if (gain >= 0.5) {
+            readout.textContent =
+                `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
+                `gone${adrift.length ? ` and ${adrift.length} adrift` : ""}. ` +
+                `The arm is down to ${state.arm.toFixed(2)} u and the wreck ` +
+                `turns ${gain.toFixed(0)}% harder than the whole ship did - ` +
+                `a 180 in ${flipSeconds(ceiling).toFixed(2)} s against ` +
+                `${flipSeconds(structuralCeiling(intact.arm)).toFixed(2)} s.`;
+        } else {
+            readout.textContent =
+                `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
+                `gone${adrift.length ? ` and ${adrift.length} adrift` : ""}, ` +
+                `and the arm is still ${state.arm.toFixed(2)} u. Damage only ` +
+                "buys a turn when it takes weight off ONE end: cut the same " +
+                "amount off both and the balance point stays where it was.";
+        }
+    };
+
+    for (const part of CARGOA_PARTS) {
+        const name =
+            part.id === "turret_starboard"
+                ? "TURRET S"
+                : part.id === "turret_port"
+                  ? "TURRET P"
+                  : part.label;
+        const btn = el("button", "widget__btn", name);
+        btn.type = "button";
+        btn.setAttribute("aria-pressed", "false");
+        btn.addEventListener("click", () => {
+            if (destroyed.has(part.id)) destroyed.delete(part.id);
+            else destroyed.add(part.id);
+            const out = destroyed.has(part.id);
+            btn.textContent = out ? `${name} OUT` : name;
+            btn.classList.toggle("is-hot", out);
+            btn.setAttribute("aria-pressed", String(out));
+            update();
+        });
+        keyButtons.set(part.id, btn);
+        keys.appendChild(btn);
+    }
+    const rebuild = el("button", "widget__btn", "REBUILD");
+    rebuild.type = "button";
+    rebuild.addEventListener("click", () => {
+        destroyed.clear();
+        for (const [id, btn] of keyButtons) {
+            const part = CARGOA_PARTS.find((p) => p.id === id);
+            btn.textContent =
+                id === "turret_starboard"
+                    ? "TURRET S"
+                    : id === "turret_port"
+                      ? "TURRET P"
+                      : (part?.label ?? id);
+            btn.classList.remove("is-hot");
+            btn.setAttribute("aria-pressed", "false");
+        }
+        update();
+    });
+    keys.appendChild(rebuild);
+
+    const note = el(
+        "p",
+        "widget__note",
+        "The lit dot is the ship's balance point and the ring is its arm: " +
+            "the reach to the outer FACE of the furthest section, not to its " +
+            "centre. Mass is not authored anywhere - a section weighs its " +
+            "own authored box - so both the balance point and the arm are " +
+            "read off the corvette's parts and nothing else. Both guns hang " +
+            "off the nose and each drive off its own pod, so killing a part " +
+            "in the middle cuts the pieces beyond it loose."
+    );
+
+    host.appendChild(keys);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(note);
+    update();
+}
+
+// ---- controller-margin ----------------------------------------------------
+
+// The 8 G budget as ONE acceleration at the hull's furthest point, split
+// between the sideways load a turn already carries and what is left to turn
+// harder with. The two add as a vector (attitude.rs:112-130), so authority
+// does not fall off gently - it holds, then collapses.
+function initControllerMargin(host: HTMLElement): void {
+    header(
+        host,
+        "A hard turn spends the margin",
+        "The 8 G limit is one acceleration at the ship's furthest point, " +
+            "and a turn already spends part of it just holding the curve. " +
+            "Roll the corvette's turn rate up and watch what is left to " +
+            "turn HARDER with."
+    );
+
+    const arm = hullState(CARGOA_PARTS).arm;
+    const structural = structuralCeiling(arm);
+    const sustained = sustainedTurnRate(arm);
+    const sustainedDeg = (sustained * 180) / Math.PI;
+    const MAX_DEG = sustainedDeg * 1.18;
+
+    const X0 = 46;
+    const X1 = 548;
+    const Y0 = 168;
+    const Y1 = 16;
+    const x = (deg: number): number =>
+        X0 + (clamp(deg, 0, MAX_DEG) / MAX_DEG) * (X1 - X0);
+    const y = (a: number): number =>
+        Y0 - (clamp(a, 0, structural) / structural) * (Y0 - Y1);
+    // attitude.rs:121-130, in the widget's units: the two loads are
+    // perpendicular components of one acceleration, so the tangential half is
+    // what is left of the budget after the centripetal half. Past the corner
+    // the hull is already over the limit and the whole budget comes back, to
+    // shed rate with.
+    const available = (deg: number): number => {
+        const spin = (deg * Math.PI) / 180;
+        const centripetal = spin * spin;
+        return centripetal <= structural
+            ? Math.sqrt(structural * structural - centripetal * centripetal)
+            : structural;
     };
 
     const svg = svgEl("svg", {
         viewBox: "0 0 560 200",
         role: "img",
         "aria-label":
-            "Turn ceiling against computer count on a logarithmic scale: a " +
-            "rising torque line, a flat structural line, and the lower of " +
-            "the two as the ceiling the hull actually gets.",
+            "Turn authority left against the rate the hull is already " +
+            "turning at: flat at first, collapsing to nothing at the " +
+            "sustained rate, and coming back beyond it so an over-spun hull " +
+            "can brake.",
     });
-    for (const a of [0.1, 1, 10, 100, 1000, 10000]) {
+    for (const frac of [0, 0.25, 0.5, 0.75, 1]) {
+        const a = structural * frac;
         svg.appendChild(
             svgEl("line", {
                 x1: String(X0),
@@ -2304,198 +3115,173 @@ function initControllerStacking(host: HTMLElement): void {
             svgEl(
                 "text",
                 {
-                    x: String(X0 - 6),
+                    x: String(X0 - 5),
                     y: String(y(a) + 3),
                     "text-anchor": "end",
                     class: "widget-mark--axis",
                 },
-                String(a)
+                a.toFixed(1)
             )
         );
     }
-    for (let n = 1; n <= N_MAX; n++) {
+    for (const deg of [0, 25, 50, 75]) {
         svg.appendChild(
             svgEl(
                 "text",
                 {
-                    x: String(x(n)),
-                    y: String(Y0 + 16),
+                    x: String(x(deg)),
+                    y: String(Y0 + 15),
                     "text-anchor": "middle",
                     class: "widget-mark--axis",
                 },
-                String(n)
+                `${deg}`
             )
         );
     }
-
-    // The structural ceiling: a hard limit the player can do nothing about, so
-    // it wears the gate colour.
-    const structuralLine = svgEl("line", {
-        x1: String(X0),
-        x2: String(X1),
-        class: "widget-mark--gate",
-    });
-    svg.appendChild(structuralLine);
-    const structuralLabel = svgEl(
-        "text",
-        {
-            x: String(X1 - 2),
-            "text-anchor": "end",
-            class: "widget-mark--label-gate",
-        },
-        "structure: 8 G / arm"
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(X1),
+                y: String(Y0 + 15),
+                "text-anchor": "end",
+                class: "widget-mark--axis",
+            },
+            "turn rate, deg/s"
+        )
     );
-    svg.appendChild(structuralLabel);
-    const torqueLine = svgEl("path", { d: "", class: "widget-mark--old" });
-    svg.appendChild(torqueLine);
-    // Named on the curve rather than at the frame edge: on a torque-bound hull
-    // the two lines meet, and two right-aligned labels would sit on top of
-    // each other exactly where the reader needs to tell them apart.
-    const LABEL_N = 4;
-    const torqueLabel = svgEl(
-        "text",
-        {
-            x: String(x(LABEL_N)),
-            "text-anchor": "middle",
-            class: "widget-mark--label-old",
-        },
-        "computers: torque / inertia"
+    // The over-spun band: reachable only when something else put the rate
+    // there, so it is marked as ground the ship does not steer into.
+    svg.appendChild(
+        svgEl("rect", {
+            x: String(x(sustainedDeg)),
+            y: String(Y1),
+            width: String(x(MAX_DEG) - x(sustainedDeg)),
+            height: String(Y0 - Y1),
+            class: "widget-mark--band",
+        })
     );
-    svg.appendChild(torqueLabel);
-    const ceilingLine = svgEl("path", { d: "", class: "widget-mark--now" });
-    svg.appendChild(ceilingLine);
-    const ceilingDots: SVGCircleElement[] = [];
-    for (let n = 1; n <= N_MAX; n++) {
-        const dot = svgEl("circle", {
-            cx: String(x(n)),
-            r: "3",
-            class: "widget-mark--dot-now",
-        });
-        ceilingDots.push(dot);
-        svg.appendChild(dot);
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String((x(sustainedDeg) + x(MAX_DEG)) / 2),
+                y: String(Y1 + 12),
+                "text-anchor": "middle",
+                class: "widget-mark--detail",
+            },
+            "over-spun"
+        )
+    );
+    const climb: string[] = [];
+    for (let deg = 0; deg <= sustainedDeg; deg += sustainedDeg / 160) {
+        climb.push(`${x(deg).toFixed(1)},${y(available(deg)).toFixed(1)}`);
     }
-    const ceilingLabel = svgEl(
-        "text",
-        {
-            x: String(X0 + 4),
-            "text-anchor": "start",
-            class: "widget-mark--label-now",
-        },
-        "what the hull gets"
+    svg.appendChild(
+        svgEl("path", { d: `M${climb.join(" L")}`, class: "widget-mark--now" })
     );
-    svg.appendChild(ceilingLabel);
-    const cursorDot = svgEl("circle", {
-        r: "6",
-        class: "widget-mark--dot-now",
+    svg.appendChild(
+        svgEl("path", {
+            d: `M${x(sustainedDeg).toFixed(1)},${y(structural).toFixed(1)} L${x(MAX_DEG).toFixed(1)},${y(structural).toFixed(1)}`,
+            class: "widget-mark--now",
+        })
+    );
+    svg.appendChild(
+        svgEl("line", {
+            x1: String(x(sustainedDeg)),
+            y1: String(Y1),
+            x2: String(x(sustainedDeg)),
+            y2: String(Y0),
+            class: "widget-mark--gate",
+        })
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(x(sustainedDeg) - 5),
+                y: String(Y1 + 12),
+                "text-anchor": "end",
+                class: "widget-mark--label-gate",
+            },
+            `committed at ${sustainedDeg.toFixed(0)} deg/s`
+        )
+    );
+    const cursor = svgEl("line", {
+        y1: String(Y1),
+        y2: String(Y0),
+        class: "widget-mark--cursor",
     });
-    svg.appendChild(cursorDot);
+    svg.appendChild(cursor);
+    const dot = svgEl("circle", { r: "5", class: "widget-mark--dot-now" });
+    svg.appendChild(dot);
     const plot = el("div", "widget__plot");
     plot.appendChild(svg);
 
     const stats = el("div", "widget__stats");
-    const ceilingStat = stat(stats, "turn ceiling");
-    const bindsStat = stat(stats, "what binds");
-    const flipStat = stat(stats, "180 flip");
-    const sustainedStat = stat(stats, "sustained turn");
-    const precisionStat = stat(stats, "stop-on-heading precision");
+    const rateStat = stat(stats, "turn rate");
+    const leftStat = stat(stats, "authority left");
+    const spentStat = stat(stats, "budget spent holding it");
     const readout = el("p", "widget__readout");
 
     const update = (): void => {
-        const rig = STACK_RIGS[Number(rigControl.input.value)];
-        const n = Number(nControl.input.value);
-        const structural = structuralCeiling(rig.arm);
-        const torqueAt = (count: number): number =>
-            torqueCeiling(count * CONTROLLER_MAX_TORQUE, rig.inertia);
-        const ceiling = Math.min(torqueAt(n), structural);
-        const torqueBound = torqueAt(n) < structural;
+        const deg = Number(rateControl.input.value);
+        const left = available(deg);
+        cursor.setAttribute("x1", String(x(deg)));
+        cursor.setAttribute("x2", String(x(deg)));
+        dot.setAttribute("cx", String(x(deg)));
+        dot.setAttribute("cy", String(y(left)));
 
-        structuralLine.setAttribute("y1", String(y(structural)));
-        structuralLine.setAttribute("y2", String(y(structural)));
-        structuralLabel.setAttribute("y", String(y(structural) - 6));
-        const torquePoints: string[] = [];
-        const ceilingPoints: string[] = [];
-        for (let step = 1; step <= N_MAX; step += 0.25) {
-            torquePoints.push(
-                `${x(step).toFixed(1)},${y(torqueAt(step)).toFixed(1)}`
-            );
-            ceilingPoints.push(
-                `${x(step).toFixed(1)},${y(Math.min(torqueAt(step), structural)).toFixed(1)}`
-            );
-        }
-        torqueLine.setAttribute("d", `M${torquePoints.join(" L")}`);
-        ceilingLine.setAttribute("d", `M${ceilingPoints.join(" L")}`);
-        ceilingDots.forEach((dot, index) => {
-            const count = index + 1;
-            dot.setAttribute(
-                "cy",
-                String(y(Math.min(torqueAt(count), structural)))
-            );
-        });
-        torqueLabel.setAttribute("y", String(y(torqueAt(LABEL_N)) - 8));
-        ceilingLabel.setAttribute(
-            "y",
-            String(y(Math.min(torqueAt(1), structural)) - 8)
-        );
-        cursorDot.setAttribute("cx", String(x(n)));
-        cursorDot.setAttribute("cy", String(y(ceiling)));
-
-        ceilingStat.textContent = `${ceiling.toFixed(2)} rad/s^2`;
-        bindsStat.textContent = torqueBound
-            ? "torque-limited"
-            : "structure-limited";
-        flipStat.textContent = `${flipSeconds(ceiling).toFixed(2)} s`;
-        sustainedStat.textContent = `${((sustainedTurnRate(rig.arm) * 180) / Math.PI).toFixed(0)} deg/s`;
-        precisionStat.textContent = `x${stackCurve(n, STACK_PRECISION_LIMIT).toFixed(2)}`;
-
-        if (torqueBound) {
-            const meet = Math.ceil(
-                (structural * rig.inertia) / CONTROLLER_MAX_TORQUE
-            );
+        rateStat.textContent = `${deg.toFixed(0)} deg/s`;
+        leftStat.textContent = `${left.toFixed(2)} rad/s^2`;
+        spentStat.textContent = `${Math.round(100 - (100 * left) / structural)}%`;
+        if (deg < sustainedDeg * 0.5) {
+            readout.classList.remove("is-warn");
             readout.textContent =
-                `The ${rig.name} runs out of computer before it runs out of ` +
-                `metal. Each one is worth another ${torqueAt(1).toFixed(2)} ` +
-                `rad/s^2, up to the ${structural.toFixed(2)} its length ` +
-                `allows - reached at ${meet} computers, after which the ` +
-                "extras only buy precision.";
+                `At ${deg.toFixed(0)} deg/s the corvette has ` +
+                `${Math.round((100 * left) / structural)}% of its budget ` +
+                "still in hand. Below about half the committed rate the " +
+                "sideways load is a rounding error and the ship tightens " +
+                "as fast as it did from rest.";
+        } else if (deg < sustainedDeg) {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                `At ${deg.toFixed(0)} deg/s holding the curve already costs ` +
+                `${Math.round(100 - (100 * left) / structural)}% of the ` +
+                "budget, and the last of it goes fast: the two loads add as " +
+                "a vector, so authority does not taper - it holds, then " +
+                "falls off a cliff.";
         } else {
+            readout.classList.add("is-warn");
             readout.textContent =
-                `The ${rig.name} would tear first: ${n} computer` +
-                `${n === 1 ? "" : "s"} put ${torqueAt(n).toFixed(0)} rad/s^2 ` +
-                `on the table and the hull can use ${structural.toFixed(2)}. ` +
-                "More computers buy no turn rate at all - only precision, " +
-                "and redundancy.";
+                `Past ${sustainedDeg.toFixed(0)} deg/s the turn alone is over ` +
+                "the limit. Nothing a player does gets here - a ram or a " +
+                "blast does - and the ship gets its whole budget back to " +
+                "SHED the rate with, rather than being trapped in a spin it " +
+                "can never stop.";
         }
     };
-    const rigControl = control(
-        "Hull",
+    const rateControl = control(
+        "Turn rate",
         0,
-        STACK_RIGS.length - 1,
+        Math.round(MAX_DEG),
         1,
-        0,
-        (v) => `${STACK_RIGS[v].name} (${STACK_RIGS[v].detail})`,
-        update
-    );
-    const nControl = control(
-        "Computers",
-        1,
-        N_MAX,
-        1,
-        1,
-        (v) => String(v),
+        Math.round(sustainedDeg * 0.75),
+        (v) => `${v} deg/s`,
         update
     );
     const controls = el("div", "widget__controls");
-    controls.appendChild(rigControl.row);
-    controls.appendChild(nControl.row);
+    controls.appendChild(rateControl.row);
 
     const note = el(
         "p",
         "widget__note",
-        "The hulls are the harness's own rigs: unit cells in a line, the " +
-            "last at twenty times the density. Every craft the game ships " +
-            "today is structure-limited like the first two. Sustained turn " +
-            "is the rate at which the centripetal load alone spends the " +
-            "whole 8 G budget, leaving nothing to turn harder with."
+        "The corvette's own numbers: a " +
+            `${arm.toFixed(2)} u arm, so ${structural.toFixed(2)} rad/s^2 ` +
+            `of budget and ${sustainedDeg.toFixed(0)} deg/s of committed ` +
+            "turn. A longer ship commits earlier and a shorter one later, " +
+            "but the shape of this curve is the same on every hull, because " +
+            "the arm divides out of it."
     );
 
     host.appendChild(controls);
@@ -5151,6 +5937,400 @@ function initTorpedoRun(host: HTMLElement): void {
     setDefended(false);
 }
 
+// ---- thruster-mass --------------------------------------------------------
+
+// Thrust is authored per drive; MASS is not authored at all. A section weighs
+// exactly its own box (base_section.rs:376), so the same two drives move three
+// shipped hulls at three different rates and nothing anywhere says so.
+interface DriveRig {
+    name: string;
+    detail: string;
+    parts: ShipPart[];
+    drives: number;
+}
+const DRIVE_RIGS: DriveRig[] = [
+    { name: "racer", detail: "civilian yacht", parts: RACER_PARTS, drives: 2 },
+    { name: "corvette", detail: "cargoa", parts: CARGOA_PARTS, drives: 2 },
+    { name: "hauler", detail: "cargob", parts: CARGOB_PARTS, drives: 2 },
+];
+
+function initThrusterMass(host: HTMLElement): void {
+    header(
+        host,
+        "What the drive has to move",
+        "Every shipped drive pushes with the same 1.0, and every hull " +
+            "carries two of them. What differs is the MASS on the other " +
+            "side of it - a section weighs its own box, and nothing " +
+            "authors that. Bolt basic drives on and watch it out."
+    );
+
+    const EXTRA_MAX = 8;
+    const ACCEL_MAX = 70;
+    const X0 = 48;
+    const X1 = 484;
+    const Y0 = 196;
+    const Y1 = 22;
+    const x = (k: number): number => X0 + (k / EXTRA_MAX) * (X1 - X0);
+    const y = (a: number): number =>
+        Y0 - (clamp(a, 0, ACCEL_MAX) / ACCEL_MAX) * (Y0 - Y1);
+    // A basic drive is a unit cube (base_section.rs:79-85) pushing 1.0
+    // (standard.rs:354), so each one added is +1 of impulse over +1 of mass.
+    const accel = (rig: DriveRig, extra: number): number =>
+        ((rig.drives + extra) * THRUSTER_MAGNITUDE * FIXED_TICK_HZ) /
+        (hullState(rig.parts).mass + extra);
+
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 230",
+        role: "img",
+        "aria-label":
+            "Acceleration against drives added, one curve per shipped hull. " +
+            "All three climb toward the same hard ceiling, and the light " +
+            "yacht starts more than twice as high as the hauler.",
+    });
+    for (const a of [0, 20, 40, 60]) {
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(X0),
+                y1: String(y(a)),
+                x2: String(X1),
+                y2: String(y(a)),
+                class: "widget-mark--grid",
+            })
+        );
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(X0 - 5),
+                    y: String(y(a) + 3),
+                    "text-anchor": "end",
+                    class: "widget-mark--axis",
+                },
+                String(a)
+            )
+        );
+    }
+    for (let k = 0; k <= EXTRA_MAX; k += 2) {
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(x(k)),
+                    y: String(Y0 + 15),
+                    "text-anchor": "middle",
+                    class: "widget-mark--axis",
+                },
+                `+${k}`
+            )
+        );
+    }
+    svg.appendChild(
+        svgEl(
+            "text",
+            { x: String(X0 - 5), y: "14", class: "widget-mark--axis" },
+            "u/s^2 against basic drives added"
+        )
+    );
+    svg.appendChild(
+        svgEl("line", {
+            x1: String(X0),
+            y1: String(y(FIXED_TICK_HZ)),
+            x2: String(X1),
+            y2: String(y(FIXED_TICK_HZ)),
+            class: "widget-mark--gate",
+        })
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(X1),
+                y: String(y(FIXED_TICK_HZ) - 5),
+                "text-anchor": "end",
+                class: "widget-mark--label-gate",
+            },
+            `${FIXED_TICK_HZ} u/s^2 - a hull built of nothing but drives`
+        )
+    );
+
+    // The corvette and the hauler end within 3 u/s^2 of each other, which is
+    // seven pixels: the end labels are pushed apart to a readable gap rather
+    // than left to sit on the curve heights exactly.
+    const ends = DRIVE_RIGS.map((rig, index) => ({
+        index,
+        endY: y(accel(rig, EXTRA_MAX)),
+    })).sort((a, b) => a.endY - b.endY);
+    const labelY = new Array<number>(DRIVE_RIGS.length).fill(0);
+    let floor = -Infinity;
+    for (const end of ends) {
+        const placed = Math.max(end.endY, floor + 13);
+        labelY[end.index] = placed;
+        floor = placed;
+    }
+    const curves = DRIVE_RIGS.map((rig, index) => {
+        const points: string[] = [];
+        for (let k = 0; k <= EXTRA_MAX; k += 0.25) {
+            points.push(`${x(k).toFixed(1)},${y(accel(rig, k)).toFixed(1)}`);
+        }
+        const path = svgEl("path", { d: `M${points.join(" L")}`, class: "" });
+        svg.appendChild(path);
+        const label = svgEl(
+            "text",
+            { x: String(X1 + 6), y: String(labelY[index] + 3), class: "" },
+            rig.name
+        );
+        svg.appendChild(label);
+        return { path, label };
+    });
+    const cursor = svgEl("circle", { r: "5", class: "widget-mark--dot-now" });
+    svg.appendChild(cursor);
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+
+    const stats = el("div", "widget__stats");
+    const massStat = stat(stats, "hull mass");
+    const drivesStat = stat(stats, "drives");
+    const accelStat = stat(stats, "acceleration");
+    const gStat = stat(stats, "in G");
+    const sprintStat = stat(stats, "0 to 100 u/s");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const rig = DRIVE_RIGS[Number(rigControl.input.value)];
+        const extra = Number(extraControl.input.value);
+        const mass = hullState(rig.parts).mass + extra;
+        const a = accel(rig, extra);
+
+        curves.forEach((curve, index) => {
+            const lit = DRIVE_RIGS[index] === rig;
+            curve.path.setAttribute(
+                "class",
+                lit ? "widget-mark--now" : "widget-mark--old"
+            );
+            curve.label.setAttribute(
+                "class",
+                lit ? "widget-mark--label-now" : "widget-mark--label-old"
+            );
+        });
+        cursor.setAttribute("cx", String(x(extra)));
+        cursor.setAttribute("cy", String(y(a)));
+
+        massStat.textContent = mass.toFixed(2);
+        drivesStat.textContent = String(rig.drives + extra);
+        accelStat.textContent = `${a.toFixed(2)} u/s^2`;
+        gStat.textContent = `${((a * METERS_PER_UNIT) / 9.81).toFixed(1)} G`;
+        sprintStat.textContent = `${(100 / a).toFixed(1)} s`;
+
+        const stock = DRIVE_RIGS.map((r) => accel(r, 0));
+        if (extra === 0) {
+            readout.textContent =
+                `Stock, all three carry two drives pushing 1.0 each. The ` +
+                `yacht weighs ${hullState(RACER_PARTS).mass.toFixed(2)} and ` +
+                `pulls ${stock[0].toFixed(1)} u/s^2; the hauler weighs ` +
+                `${hullState(CARGOB_PARTS).mass.toFixed(2)} and pulls ` +
+                `${stock[2].toFixed(1)}. Nothing authored that gap - it is ` +
+                "the volume of the boxes each hull is built from.";
+        } else {
+            const gain = ((a / accel(rig, 0) - 1) * 100).toFixed(0);
+            readout.textContent =
+                `${extra} basic drive${extra === 1 ? "" : "s"} on the ` +
+                `${rig.name}: ${a.toFixed(1)} u/s^2, ${gain}% up on stock. ` +
+                "Each one is a unit of mass as well as a unit of push, so " +
+                `the return tapers - and no stack of them passes ` +
+                `${FIXED_TICK_HZ} u/s^2, which is what one drive would do ` +
+                "carrying only itself.";
+        }
+    };
+    const rigControl = control(
+        "Hull",
+        0,
+        DRIVE_RIGS.length - 1,
+        1,
+        1,
+        (v) => `${DRIVE_RIGS[v].name} (${DRIVE_RIGS[v].detail})`,
+        update
+    );
+    const extraControl = control(
+        "Basic drives added",
+        0,
+        EXTRA_MAX,
+        1,
+        0,
+        (v) => `+${v}`,
+        update
+    );
+    const controls = el("div", "widget__controls");
+    controls.appendChild(rigControl.row);
+    controls.appendChild(extraControl.row);
+
+    const note = el(
+        "p",
+        "widget__note",
+        "Thrust is authored as an impulse per physics tick rather than a " +
+            `force, and the game runs ${FIXED_TICK_HZ} of them a second, so ` +
+            "a hull's acceleration is its summed magnitude times that rate " +
+            "over its mass. The curves assume every drive is aimed along " +
+            "the ship's nose and balanced about its centre of mass; a " +
+            "lopsided set spends part of itself cancelling its own torque."
+    );
+
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(note);
+    update();
+}
+
+// ---- hull-armour ----------------------------------------------------------
+
+// Health is authored per part; the mass that carries it is NOT. So the
+// catalog's health column and the cost of bolting a part on rank the shipped
+// hulls in different orders, and only one of those orders is a build decision.
+interface ArmourPart {
+    name: string;
+    health: number;
+    mass: number;
+}
+
+function craftPart(parts: ShipPart[], id: string, name: string): ArmourPart {
+    const part = parts.find((p) => p.id === id);
+    if (!part) throw new Error(`no shipped part ${id}`);
+    return {
+        name,
+        health: part.health,
+        mass: part.size[0] * part.size[1] * part.size[2],
+    };
+}
+
+// The two unit-cell hulls author no collider at all (standard.rs:311,:411), so
+// each is the default unit cube - one of mass, exactly
+// (base_section.rs:79-85). Their health is standard.rs:308,:408.
+const CARGOA_NOSE = craftPart(CARGOA_PARTS, "nose", "CargoA // Nose");
+const RACER_TAIL = craftPart(RACER_PARTS, "tail", "Racer // Tail");
+const ARMOUR_PARTS: ArmourPart[] = [
+    { name: "Reinforced Hull Section", health: 200, mass: 1 },
+    { name: "Light Hull Section", health: 60, mass: 1 },
+    craftPart(RACER_PARTS, "wing_starboard", "Racer // Wing"),
+    craftPart(RACER_PARTS, "nose", "Racer // Nose"),
+    RACER_TAIL,
+    craftPart(CARGOA_PARTS, "pod_starboard", "CargoA // Pod"),
+    CARGOA_NOSE,
+    craftPart(CARGOA_PARTS, "tail", "CargoA // Tail"),
+    craftPart(CARGOB_PARTS, "nose", "CargoB // Nose"),
+    craftPart(CARGOB_PARTS, "tail", "CargoB // Tail"),
+];
+
+function initHullArmour(host: HTMLElement): void {
+    header(
+        host,
+        "Armour, and what it costs to carry",
+        "A hull part's mass is its own authored box and nothing else - no " +
+            "part is denser than another. So the health column is not the " +
+            "order you want when you are picking what to bolt on. Switch " +
+            "the ranking and watch it come apart."
+    );
+
+    const rows = el("div");
+    const stats = el("div", "widget__stats");
+    const bestStat = stat(stats, "best per mass");
+    const worstStat = stat(stats, "worst per mass");
+    const spreadStat = stat(stats, "spread");
+    const readout = el("p", "widget__readout");
+    // Opens on the CATALOG's order, which is the order the reader arrived
+    // with and the one the fallback prose states. The switch is the argument.
+    let perMass = false;
+
+    const value = (part: ArmourPart): number =>
+        perMass ? part.health / part.mass : part.health;
+
+    const update = (): void => {
+        const ranked = [...ARMOUR_PARTS].sort((a, b) => value(b) - value(a));
+        const top = value(ranked[0]);
+        rows.replaceChildren();
+        for (const part of ranked) {
+            const label = el(
+                "p",
+                "widget__rowlabel",
+                `${part.name} - ${part.health} hp, ${part.mass.toFixed(2)} mass, ` +
+                    `${(part.health / part.mass).toFixed(0)} per mass`
+            );
+            const bar = el("div", "widget__bar");
+            const fill = el("div", "widget__bar-fill");
+            fill.style.width = `${((value(part) / top) * 100).toFixed(1)}%`;
+            bar.appendChild(fill);
+            rows.appendChild(label);
+            rows.appendChild(bar);
+        }
+
+        const byMass = [...ARMOUR_PARTS].sort(
+            (a, b) => b.health / b.mass - a.health / a.mass
+        );
+        const best = byMass[0];
+        const worst = byMass[byMass.length - 1];
+        bestStat.textContent = `${best.name}, ${(best.health / best.mass).toFixed(0)}`;
+        worstStat.textContent = `${worst.name}, ${(worst.health / worst.mass).toFixed(0)}`;
+        spreadStat.textContent = `x${(best.health / best.mass / (worst.health / worst.mass)).toFixed(1)}`;
+
+        const cargoaNose = CARGOA_NOSE;
+        const racerTail = RACER_TAIL;
+        readout.textContent = perMass
+            ? `Ranked by what it costs to carry, the ${racerTail.name} beats ` +
+              `the ${cargoaNose.name}: ` +
+              `${(racerTail.health / racerTail.mass).toFixed(0)} against ` +
+              `${(cargoaNose.health / cargoaNose.mass).toFixed(0)}. The nose ` +
+              `is ${cargoaNose.mass.toFixed(2)} of mass to the tail's ` +
+              `${racerTail.mass.toFixed(2)}, and every bit of that mass is ` +
+              "acceleration you do not get."
+            : `Ranked by health alone the ${cargoaNose.name} (` +
+              `${cargoaNose.health}) looks like better armour than the ` +
+              `${racerTail.name} (${racerTail.health}). It is nearly three ` +
+              "times the box, so per unit of mass it is barely half as good. " +
+              "This is the order the catalog table gives you.";
+    };
+
+    const keys = el("div", "widget__keys");
+    const buttons: HTMLButtonElement[] = [];
+    for (const [label, wanted] of [
+        ["BY HEALTH", false],
+        ["PER MASS", true],
+    ] as [string, boolean][]) {
+        const btn = el("button", "widget__btn", label);
+        btn.type = "button";
+        btn.addEventListener("click", () => {
+            perMass = wanted;
+            for (const other of buttons) {
+                const on = other === btn;
+                other.classList.toggle("is-on", on);
+                other.setAttribute("aria-pressed", String(on));
+            }
+            update();
+        });
+        buttons.push(btn);
+        keys.appendChild(btn);
+    }
+    buttons[0].classList.add("is-on");
+    buttons[0].setAttribute("aria-pressed", "true");
+    buttons[1].setAttribute("aria-pressed", "false");
+
+    const note = el(
+        "p",
+        "widget__note",
+        "Mass is the volume of the authored collider box, exactly - the " +
+            "shape the part is hit on, never its art. It is the whole of " +
+            "what a hull cell costs you in a straight line; what it costs " +
+            "you in a turn depends on WHERE you bolt it, because the turn " +
+            "ceiling is set by the reach to the ship's furthest face."
+    );
+
+    host.appendChild(keys);
+    host.appendChild(rows);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(note);
+    update();
+}
+
 // ---- activation -----------------------------------------------------------
 
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
@@ -5160,7 +6340,10 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "ammo-rhythm": initAmmoRhythm,
     "turret-arc": initTurretArc,
     "torpedo-run": initTorpedoRun,
-    "controller-stacking": initControllerStacking,
+    "controller-arm": initControllerArm,
+    "controller-margin": initControllerMargin,
+    "thruster-mass": initThrusterMass,
+    "hull-armour": initHullArmour,
     "gravity-well": initGravityWell,
     "dominant-well": initDominantWell,
     "goto-verb": initGotoVerb,

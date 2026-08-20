@@ -16,7 +16,13 @@
     </div>
 </figure>
 
-The thruster produces **forward thrust** and drives the exhaust plume. Throttle is analog, so a build's thrust authority comes from each thruster's magnitude and how many you fit - more thrusters, more push.
+The thruster produces **forward thrust** and drives the exhaust plume. Throttle is analog, so a build's thrust authority comes from each thruster's magnitude and how many you fit - more thrusters, more push. What that push is _worth_ is the other half of it: a section weighs the box it is hit on, so a roomy hull is a slow one and no part of it says so anywhere.
+
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (basic_thruster_section magnitude 1.0 :354, no authored collider :337 so the unit cube default applies) and crates/nova_ship/src/sections/ (thruster magnitude is an IMPULSE PER FIXED TICK handed to avian with no dt, thruster_section.rs:276-295 and :370-373, at Bevy's own 64 Hz :289-292; density 1 and not authorable, base_section.rs:376; unit-cube collider default base_section.rs:79-85). Hull masses are the summed volumes of the craft's own authored boxes: crates/nova_authoring/src/base_content/ships/racer.rs:13-88 with the base assembly taking the meshed seven :107-115, cargo_a.rs:16-96, cargo_b.rs:9-82, all built through shared.rs:44-50,:235. G conversion is METERS_PER_UNIT 10.0, crates/nova_events/src/scale.rs:14. -->
+
+<div class="widget" data-widget="thruster-mass">
+<p>Every shipped drive pushes with the same 1.0 and all three shipped hulls carry two of them. The civilian yacht weighs 8.28 and pulls 15.5 u/s2; the torpedo hauler weighs 18.95 and pulls 6.8. Nothing authors that gap - a section's mass is exactly the volume of the box it is hit on, so it is the shape of the craft and nothing else. Bolting basic drives on closes it, with a tapering return: each one is a unit of mass as well as a unit of push, and no stack of them passes 64 u/s2 - what a single drive would do carrying only itself.</p>
+</div>
 
 A thruster bolts on by its forward end and by that end only. The rest of it is barrel, nozzle bell and exhaust, so the builder always seats it nose-in with the plume clear of the ship - you choose the face it grows from, not which way round it sits.
 
