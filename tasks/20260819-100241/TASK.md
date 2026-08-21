@@ -1,8 +1,8 @@
 # Ration wreck spawning again: the worst frame got worse without it
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 10
-- TAGS: v0.11.0,performance,destruction
+- TAGS: v0.11.0, performance, destruction
 
 Epic: `20260818-220812`. Follow-up to `20260818-224219`, landed as `6a2d6eb5`.
 
@@ -55,3 +55,29 @@ cheap rather than merely staggered, this is not that task.
   before the detach landed, measured, not inferred.
 - The body still leaves the field the frame it dies. Assert it.
 - Death-path self time stays near 2.5 ms a run.
+
+## CLOSED 2026-08-21 - the cost moved, the DoD is met without the fix
+
+`20260819-173219` phase B2. Measured on the bounded arena window at `ddaf1997`,
+eight captures, real display.
+
+The burst is still large: **229 `detach_destroyed_body` calls inside one second**
+of the capture window (289 across the window; a second capture 115 in a second,
+167 across). So nothing rationed it and nothing needed to.
+
+The worst frame in that window is **59.74 ms**, and across all eight captures the
+worst frame spans 51.0-64.8 ms with a median of 59.47. This task asks for the
+burst frame to land below the 84.6 ms it cost before the detach landed. It does,
+on every capture.
+
+**State the instrument gap plainly:** 84.6 and 91.6 ms were TRACED captures under
+Xvfb; these are untraced on a real display. Both differences flatter the new
+number, so the margin is smaller than it reads. What is not in doubt is the
+mechanism - the fixed loop went single-threaded (D21: duel worst frame 49.17 ->
+28.25) and a saturated projectile step dropped 2,221 dynamic bodies to 340
+(`20260821-092923`). **The tail this task was filed against is not the tail the
+game has.**
+
+The queue design recorded above is still correct and still the right shape - hold
+resolved SPAWN records, never dying entities, so a body leaves the field the frame
+it dies. Reopen against that design if a burst tail reappears.

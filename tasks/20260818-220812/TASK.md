@@ -67,19 +67,18 @@ Examples and docs:
   scanout, so presenting is a CPU copy of every window pixel and adds ~13.7 ms
   at 720p. That constant is what the retracted "16.74 ms floor" was
   (`DECISIONS.md` D12).
-- A `wfc_arena` 4v4 still gets a MEASURED number, as the scaling check - **but
-  not yet that number.** The 295.76 ms worst frame quoted from `20260819-123928/NOTES.md`
-  is RETRACTED, and that page now says so. Two faults, either one fatal: the
-  capture opened on a scoreboard predicate with no upper bound, so 2 of 10
-  repeats ran past `match ended` into a PAUSED result screen (one spent 555 of
-  its 900 frames with the simulation stopped, at 88 ms/frame, and still read as
-  a plausible 93 ms mean); and 295.76 ms was ONE slowest frame of ONE window on
-  a subject whose worst frame spreads 169% of its median across honest repeats.
-  The INSTRUMENT is fixed (`20260819-173219` phase B1): the arena's window is
-  bounded to a fixed count of frames the simulation actually ran through, and
-  any capture that meets a stopped `Time<Virtual>` is REFUSED - it writes no
-  statistics and fails the run under its own check name. The replacement figure
-  is pending a repeat set on an idle box.
+- **A `wfc_arena` 4v4 has its MEASURED number: mean 20.13 ms, worst frame
+  59.47 ms**, median of eight captures on the bounded 60 + 360 window, real
+  display, `ddaf1997` (`20260819-173219` phase B2). Zero captures refused, so the
+  bound is validated on this host.
+  This REPLACES the retracted 295.76 ms and is not a delta against it: that figure
+  came from an unbounded window under Xvfb, which carries ~13.7 ms of per-pixel
+  present (D12), and was one slowest frame of one window on a subject whose worst
+  frame then spread 169% of its median. Compare the two on dispersion only - which
+  is the result: worst-frame cv 46.4% -> 7.9%, and the smallest detectable
+  improvement 129% -> 12%.
+  On the bounded window the worst frame is now a BETTER statistic than p99 (12%
+  against 20%), reversing Phase A's choice; phase B2 section 2 says why.
   `asteroid_field` was named here in error - it was deleted in `d20a37c4`, the
   same day this epic was written.
 - No system in a profiled fight owns a frame on its own.

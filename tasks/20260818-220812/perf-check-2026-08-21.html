@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nova Protocol - the perf check, 2026-08-21</title>
+<style>
+:root {
+  --ink: #0a1014;
+  --surface: #101a20;
+  --surface-2: #16232a;
+  --rule: #1f3038;
+  --text: #c6d5dc;
+  --dim: #7b929c;
+  --dimmer: #566b75;
+
+  /* State, not decoration. Same four as perf-map.html, deliberately. */
+  --won: #4ec9a8;
+  --wrong: #e5734f;
+  --closed: #647d88;
+  --open: #f2c14e;
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 60rem; margin: 0 auto; padding: 0 1.5rem 6rem; }
+
+header.top {
+  border-bottom: 1px solid var(--rule);
+  padding: 4rem 0 2.5rem;
+  margin-bottom: 3rem;
+}
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  margin: 0 0 1.25rem;
+}
+h1 {
+  font-size: clamp(2rem, 5.5vw, 3.1rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  font-weight: 720;
+  margin: 0 0 1.25rem;
+  text-wrap: balance;
+}
+.standfirst {
+  font-size: 1.12rem;
+  color: var(--dim);
+  max-width: 44rem;
+  margin: 0;
+}
+.standfirst strong { color: var(--text); font-weight: 600; }
+
+.arc {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 2.5rem 0 0;
+}
+.arc div { background: var(--surface); padding: 1rem 1.1rem; }
+.arc dt {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  margin: 0 0 0.4rem;
+}
+.arc dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 1.28rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  white-space: nowrap;
+}
+.arc dd small { font-size: 0.8rem; color: var(--dim); letter-spacing: 0; }
+
+section { margin: 4rem 0 0; }
+h2 {
+  font-size: 1.6rem;
+  letter-spacing: -0.015em;
+  font-weight: 680;
+  margin: 0 0 0.5rem;
+  text-wrap: balance;
+}
+h2 .num {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--dimmer);
+  letter-spacing: 0.1em;
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 400;
+}
+h3 { font-size: 1.05rem; font-weight: 640; margin: 2rem 0 0.6rem; letter-spacing: -0.01em; }
+.lede { color: var(--dim); max-width: 46rem; margin: 0 0 1.75rem; }
+p { max-width: 46rem; }
+
+.scroll { overflow-x: auto; margin: 1.5rem 0; }
+table { border-collapse: collapse; width: 100%; min-width: 38rem; font-size: 0.92rem; }
+th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  font-weight: 400;
+  padding: 0 0.9rem 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: bottom;
+}
+td {
+  padding: 0.7rem 0.9rem 0.7rem 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tbody tr:hover td { background: rgba(255,255,255,0.018); }
+tr.total td { border-top: 1px solid var(--dimmer); font-weight: 600; }
+
+.chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.won { color: var(--won); }
+.wrong { color: var(--wrong); }
+.closed { color: var(--closed); }
+.open { color: var(--open); }
+
+code, .m { font-family: var(--mono); font-size: 0.88em; }
+code { color: var(--text); background: var(--surface-2); padding: 0.1em 0.35em; border-radius: 2px; }
+
+.callout {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--open);
+  padding: 1.4rem 1.6rem;
+  margin: 2rem 0;
+}
+.callout.good { border-left-color: var(--won); }
+.callout.good strong { color: var(--won); }
+.callout.bad { border-left-color: var(--wrong); }
+.callout.bad strong { color: var(--wrong); }
+.callout p { margin: 0 0 0.8rem; max-width: none; }
+.callout p:last-child { margin-bottom: 0; }
+.callout strong { color: var(--open); }
+
+.cards { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 1.75rem 0; }
+.card { background: var(--surface); padding: 1.5rem; }
+.card h3 { margin: 0.7rem 0 0.6rem; font-size: 1.12rem; letter-spacing: -0.01em; font-weight: 640; }
+.card p { margin: 0 0 0.85rem; font-size: 0.95rem; }
+.card p:last-child { margin-bottom: 0; }
+.rank { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--dimmer); }
+
+.split { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 1.75rem 0; }
+@media (min-width: 44rem) { .split { grid-template-columns: 1fr 1fr; } }
+.split > div { background: var(--surface); padding: 1.4rem 1.5rem; }
+.split h4 { margin: 0 0 0.7rem; font-size: 0.72rem; font-family: var(--mono); letter-spacing: 0.13em; text-transform: uppercase; color: var(--dimmer); }
+.split ul { margin: 0; padding-left: 1.1rem; font-size: 0.92rem; color: var(--dim); }
+.split li { margin-bottom: 0.5rem; }
+
+footer {
+  margin-top: 5rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--rule);
+  color: var(--dimmer);
+  font-size: 0.85rem;
+  font-family: var(--mono);
+}
+footer p { max-width: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Epic 20260818-220812 / perf check / 2026-08-21 / ddaf1997</p>
+  <h1>The 4v4 has a number again, and the instrument is what changed most</h1>
+  <p class="standfirst">
+    Phase A could not measure the headline benchmark: on an unbounded window its worst
+    frame spread <strong>169% of its own median</strong> and nothing below a halving was
+    detectable. Bounded, and after the fixed loop went single-threaded and a round stopped
+    being a physics body, the same subject reports a worst frame stable to <strong>7.9%</strong>
+    - and the retracted 295.76 ms finally has a replacement.
+    The one true before/after in here is the point-defence case, measured on the baseline's own
+    protocol: <strong>worst frame 71.1 -&gt; 44.9 ms and the 1% low up 60%</strong>.
+  </p>
+
+  <dl class="arc">
+    <div><dt>4v4 frame, median of 8</dt><dd>20.13 <small>ms</small></dd></div>
+    <div><dt>4v4 worst frame</dt><dd>59.47 <small>ms</small></dd></div>
+    <div><dt>Detectable change</dt><dd>129 -&gt; 12 <small>%</small></dd></div>
+    <div><dt>PD worst frame, paired</dt><dd>71.1 -&gt; 44.9 <small>ms</small></dd></div>
+    <div><dt>PD 1% low, paired</dt><dd>18.4 -&gt; 29.4 <small>fps</small></dd></div>
+    <div><dt>Fixed-step ceiling hit</dt><dd>never</dd></div>
+  </dl>
+</header>
+
+<section>
+  <h2><span class="num">01</span>The replacement number</h2>
+  <p class="lede">
+    Eight captures of <code>wfc_arena</code> 4v4 at <code>ddaf1997</code>, on the bounded
+    60 + 360 window Phase B1 built, serialised on an otherwise idle box. This discharges the
+    three items that task still owed.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>capture</th><th class="num">mean</th><th class="num">p50</th>
+        <th class="num">p95</th><th class="num">p99</th><th class="num">worst</th>
+        <th class="num">1% low</th><th class="num">steps</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>#1</td><td class="num">21.70</td><td class="num">20.43</td><td class="num">33.81</td><td class="num">45.75</td><td class="num">59.74</td><td class="num">21.9</td><td class="num">500</td></tr>
+      <tr><td>#2</td><td class="num">22.31</td><td class="num">19.10</td><td class="num">43.50</td><td class="num">56.08</td><td class="num">59.20</td><td class="num">17.8</td><td class="num">514</td></tr>
+      <tr><td>#3</td><td class="num">19.13</td><td class="num">16.39</td><td class="num">34.08</td><td class="num">56.07</td><td class="num">64.80</td><td class="num">17.8</td><td class="num">441</td></tr>
+      <tr><td>#4</td><td class="num">19.52</td><td class="num">16.86</td><td class="num">34.98</td><td class="num">54.61</td><td class="num">63.93</td><td class="num">18.3</td><td class="num">450</td></tr>
+      <tr><td>#5</td><td class="num">21.52</td><td class="num">19.24</td><td class="num">38.71</td><td class="num">49.62</td><td class="num">63.72</td><td class="num">20.2</td><td class="num">496</td></tr>
+      <tr><td>#6</td><td class="num">19.52</td><td class="num">17.04</td><td class="num">33.32</td><td class="num">41.71</td><td class="num">59.04</td><td class="num">24.0</td><td class="num">450</td></tr>
+      <tr><td>#7</td><td class="num">20.73</td><td class="num">18.84</td><td class="num">34.23</td><td class="num">45.68</td><td class="num">53.18</td><td class="num">21.9</td><td class="num">477</td></tr>
+      <tr><td>#8</td><td class="num">19.12</td><td class="num">16.70</td><td class="num">34.15</td><td class="num">44.62</td><td class="num">51.00</td><td class="num">22.4</td><td class="num">441</td></tr>
+      <tr class="total"><td>median of set</td><td class="num">20.13</td><td class="num">17.94</td><td class="num">34.19</td><td class="num">47.69</td><td class="num">59.47</td><td class="num">21.0</td><td class="num">474</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout bad">
+    <p><strong>These are NOT comparable with Phase A's absolutes, and the reason is the
+    instrument, not the game.</strong> Phase A measured under Xvfb, which adds about 13.7 ms
+    of per-pixel CPU copy at 720p (D12). This set was taken on the real display, on a hidden
+    workspace, which D13 measured as free.</p>
+    <p>So read the DISPERSION columns against Phase A, not the millisecond columns. The
+    absolute is offered as a fresh figure that replaces a retracted one, not as a delta
+    against it.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">02</span>The instrument, before and after the bound</h2>
+  <p class="lede">
+    Same statistic, same repeat count, same gate. The only differences are the window and
+    seventy-odd commits of engine work. Every cell is dispersion, so the Xvfb constant
+    divides out and the comparison is honest.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>statistic</th>
+        <th class="num">Phase A range</th><th class="num">Phase A cv</th>
+        <th class="num">now range</th><th class="num">now cv</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>mean</td><td class="num">38.2%</td><td class="num">10.7%</td><td class="num">15.9%</td><td class="num">5.9%</td></tr>
+      <tr><td>median</td><td class="num">38.8%</td><td class="num">12.6%</td><td class="num">22.5%</td><td class="num">7.8%</td></tr>
+      <tr><td>p99</td><td class="num">154.7%</td><td class="num">42.7%</td><td class="num">30.1%</td><td class="num">10.8%</td></tr>
+      <tr><td><b>worst frame</b></td><td class="num">168.7%</td><td class="num">46.4%</td><td class="num"><b>23.2%</b></td><td class="num"><b>7.9%</b></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Smallest detectable improvement, by bootstrap</h3>
+  <p>
+    Resample n captures with replacement, run the gate, read the statistic; the smallest
+    detectable improvement is the separation of two independent sets at 1.96 sigma. Same
+    procedure Phase A used, on the new captures.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>reported statistic</th><th class="num">n</th><th class="num">tolerance</th><th class="num">admitted</th><th class="num">cv</th><th class="num">detects</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><b>worst frame, median of admitted</b></td><td class="num">8</td><td class="num">20%</td><td class="num">7.84</td><td class="num">4.3%</td><td class="num"><b>12%</b></td></tr>
+      <tr><td>worst frame, median of admitted</td><td class="num">8</td><td class="num">12%</td><td class="num">6.64</td><td class="num">5.3%</td><td class="num">15%</td></tr>
+      <tr><td>worst frame, one capture</td><td class="num">1</td><td class="num">-</td><td class="num">1.00</td><td class="num">8.0%</td><td class="num">22%</td></tr>
+      <tr><td>p99, median of admitted</td><td class="num">8</td><td class="num">20%</td><td class="num">7.85</td><td class="num">7.3%</td><td class="num">20%</td></tr>
+      <tr><td>p99, one capture</td><td class="num">1</td><td class="num">-</td><td class="num">10.9%</td><td class="num">10.9%</td><td class="num">30%</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout good">
+    <p><strong>The choice Phase A made is now the wrong one, and it should be reversed.</strong>
+    Phase A reported the median admitted <em>p99</em> because on an unbounded window the worst
+    frame was a lottery - 46% detectable at best, against p99's 27%. On the bounded window
+    that inverts: <strong>the worst frame detects 12% and p99 detects 20%.</strong></p>
+    <p>The mechanism is straightforward once stated. p99 of 360 frames is the fourth-worst
+    sample and behaves like an order statistic of a small set. The worst frame of a window
+    that contains the same EVENT every run - here the death burst, section 06 - is a
+    measurement of that event. Bounding the window did not merely reduce noise; it changed
+    what the tail is a sample OF.</p>
+    <p>A single capture now detects 22%, which is better than Phase A could reach with eight.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">03</span>The clamp regime is gone</h2>
+  <p class="lede">
+    Phase A rejected fixed-timestep amplification as a CAUSE, but recorded it as a real
+    amplifier: four of ten runs reached the 16-step ceiling and sat there at 322-354 ms a
+    frame for up to 36 consecutive frames. That regime does not occur at all now.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>capture</th><th class="num">total steps</th><th class="num">max steps in a frame</th><th class="num">mean steps</th><th class="num">zero-step frames</th><th class="num">their worst</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>#1</td><td class="num">500</td><td class="num">4</td><td class="num">1.39</td><td class="num">11</td><td class="num">14.9 ms</td></tr>
+      <tr><td>#2</td><td class="num">514</td><td class="num">4</td><td class="num">1.43</td><td class="num">12</td><td class="num">14.8 ms</td></tr>
+      <tr><td>#3</td><td class="num">441</td><td class="num">4</td><td class="num">1.23</td><td class="num">22</td><td class="num">13.8 ms</td></tr>
+      <tr><td>#4</td><td class="num">450</td><td class="num">5</td><td class="num">1.25</td><td class="num">24</td><td class="num">14.8 ms</td></tr>
+      <tr><td>#5</td><td class="num">496</td><td class="num">4</td><td class="num">1.38</td><td class="num">11</td><td class="num">14.2 ms</td></tr>
+      <tr><td>#6</td><td class="num">450</td><td class="num">4</td><td class="num">1.25</td><td class="num">14</td><td class="num">14.7 ms</td></tr>
+      <tr><td>#7</td><td class="num">477</td><td class="num">3</td><td class="num">1.32</td><td class="num">15</td><td class="num">15.1 ms</td></tr>
+      <tr><td>#8</td><td class="num">441</td><td class="num">4</td><td class="num">1.23</td><td class="num">23</td><td class="num">14.2 ms</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout bad">
+    <p><strong>A Phase B1 diagnostic reading is now false, and the check that rests on it is
+    not.</strong> Phase B1 read the zero-step bucket as the stopped-clock tail, and justified
+    it: the fastest frame in either affected run was 57.6 ms against a 15.625 ms timestep, so
+    a frame could only run zero steps if the clock had stopped.</p>
+    <p>That justification is dead. Every zero-step frame in this set is
+    <strong>13.8 to 15.1 ms - faster than the timestep</strong> - so it is an ordinary frame
+    that did not cross a step boundary. There are 11 to 24 of them per capture and none of
+    them means anything is wrong.</p>
+    <p>The <code>capture_simulated</code> CHECK is unaffected, because it reads
+    <code>Time&lt;Virtual&gt;::is_paused()</code> off the clock rather than inferring from the
+    bucket table. That was the right call and it is why this correction costs nothing. The
+    bucket table is now a workload reading only.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">04</span>Where the frame goes now</h2>
+  <p class="lede">
+    Median of the eight captures' final 200-frame framecost window - the instrument promoted
+    in <span class="m">20260820-003401</span>. The render world runs pipelined against the
+    main world, so the two columns overlap in wall time and only the main world paces.
+  </p>
+
+  <div class="split">
+    <div>
+      <h4>Main world - 19.83 ms</h4>
+      <ul>
+        <li><b style="color:var(--text)">RunFixedMainLoop 12.41 ms</b> - the simulation, 59% of the frame</li>
+        <li>PostUpdate 4.59 ms</li>
+        <li>Update 2.03 ms</li>
+        <li>PreUpdate 0.46 ms</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Render world - 13.08 ms</h4>
+      <ul>
+        <li>Prepare 5.09 ms (WritePhaseBuffers 1.93, BindGroups 1.38, Resources 1.02)</li>
+        <li>Render/graph 3.53 ms</li>
+        <li>PrepareMeshes 1.07 ms</li>
+        <li>PrepareAssets 0.76 ms</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>
+    <b>The simulation is the pacer, which is what D18 predicted when it re-aimed the epic.</b>
+    12.41 ms of fixed loop across a median 1.32 steps a frame is roughly
+    <b>9.4 ms per fixed step against a 15.625 ms budget</b>. Phase 6 of the plan sets 8 ms as
+    the ceiling and 5 ms as the target, for margin before a hitch can cascade. The step is
+    above the ceiling and the margin is thin - which is consistent with a worst frame that
+    still reaches 59 ms.
+  </p>
+  <p>
+    <code>PostUpdate</code> at 4.59 ms is the second-largest main-world item and is
+    unattributed at this granularity. The plan already ranks it; this check sizes it larger
+    than the 1.23 ms the headless run reported, which is expected - rendered, PostUpdate
+    carries visibility and transform propagation that headless does not.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">05</span>Point defence, paired</h2>
+  <p class="lede">
+    The only true before/after in this check. Same subject, same host, same protocol -
+    Xvfb, presentation forced to <code>immediate</code>, 180 + 900 frames, eight repeats -
+    matched deliberately to the <span class="m">cbc86980</span> baseline so the pair is
+    like-for-like. Seven of eight captures admitted; the eighth is section 05b.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>statistic</th>
+        <th class="num">cbc86980</th><th class="num">its cv</th>
+        <th class="num">ddaf1997</th><th class="num">its cv</th>
+        <th class="num">delta</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>mean</td><td class="num">30.15</td><td class="num">5.3%</td><td class="num">23.13</td><td class="num">4.4%</td><td class="num" style="color:var(--won)">-23%</td></tr>
+      <tr><td>median</td><td class="num">27.23</td><td class="num">6.1%</td><td class="num">22.65</td><td class="num">7.4%</td><td class="num" style="color:var(--won)">-17%</td></tr>
+      <tr><td>p95</td><td class="num">44.89</td><td class="num">4.0%</td><td class="num">29.58</td><td class="num">5.7%</td><td class="num" style="color:var(--won)">-34%</td></tr>
+      <tr><td>p99</td><td class="num">54.25</td><td class="num">59.7%</td><td class="num">33.98</td><td class="num">5.6%</td><td class="num" style="color:var(--won)">-37%</td></tr>
+      <tr><td><b>worst frame</b></td><td class="num">71.08</td><td class="num">82.2%</td><td class="num"><b>44.93</b></td><td class="num">18.7%</td><td class="num" style="color:var(--won)"><b>-37%</b></td></tr>
+      <tr><td>1% low, fps</td><td class="num">18.44</td><td class="num">-</td><td class="num">29.43</td><td class="num">-</td><td class="num" style="color:var(--won)">+60%</td></tr>
+      <tr><td>max fixed steps in a frame</td><td class="num">16</td><td class="num">-</td><td class="num">4</td><td class="num">-</td><td class="num">-</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout good">
+    <p><strong>Read the cv columns for the tail, not just the millisecond columns.</strong> The
+    baseline's p99 and worst frame carried cv of 59.7% and 82.2% because ONE of its eight
+    captures entered the 16-step clamp and reported a 322.56 ms frame. Nothing in this set
+    exceeds four steps in a frame, and the tail's dispersion falls to 5.6% and 18.7%.</p>
+    <p>The mechanism is measured elsewhere and is not in doubt. Per-step, over the saturated
+    hold: wall median <b>5.81 -&gt; 4.61 ms</b>, contacts <b>1,945 -&gt; 190</b>, dynamic
+    bodies <b>2,221 -&gt; 340</b>, and the worst step <b>17.4 -&gt; 11.8 ms</b> - back inside
+    the 15.625 ms tick, which is exactly where the clamp stops being reachable. Solver
+    constraints did not move at all (38 -&gt; 38), confirming D20: those contacts were AABB
+    overlap pairs from speculative margins on fast bullets that never reached the solver.</p>
+  </div>
+
+  <p>
+    <b>The absolutes here are floored by the instrument, so the game-side improvement is
+    larger than -23%.</b> Both arms carry Xvfb's per-pixel present cost, measured at about
+    13.7 ms at 720p (D12). Subtracting it as a constant puts the game-side frame at roughly
+    16.5 ms before and 9.4 ms after, which is nearer -43%. That is an INFERENCE from a
+    constant measured in another context, not a measurement, and it is offered only so the
+    -23% is not read as the whole story.
+  </p>
+
+  <h3 id="pd-refusal">05b. The refusal, and what it says about this subject</h3>
+  <p>
+    Capture #3 was refused: <code>reason=refresh_capped</code>, 80.1% of its window within 5%
+    of a 25.812 ms median. The run therefore FAILS <code>capture_simulated</code> and
+    <code>log_clean</code> - twice for one cause, by design. Presentation was verified as
+    <code>immediate</code> on every capture, so this is not the mode falling back.
+  </p>
+  <p>
+    The clustering figures across the eight tell the story: <span class="m">0.140, 0.270,
+    0.371, 0.444, 0.446, 0.460, 0.500</span> and the refused <span class="m">0.801</span>.
+    D13 calibrated this check against measured <code>immediate</code> captures spreading
+    0.03-0.44. This subject now sits at the top of that band and occasionally above it.
+  </p>
+  <div class="callout">
+    <p><strong>The reading is that the subject has nearly outgrown Xvfb as an instrument,
+    and this is D12's lesson recurring rather than a new defect.</strong> As the game side of
+    the frame shrinks, a fixed per-pixel present cost becomes a larger share of it, and a
+    frame time dominated by a constant is exactly what a refresh-cap detector is built to
+    refuse. It is right to refuse it.</p>
+    <p>Consequence for whoever measures this next: <b>this pairing is at the end of its
+    life.</b> One more improvement of this size and the Xvfb arm stops being able to admit a
+    capture at all. The successor is a real-display or headless protocol - and re-baselining
+    is the cost of switching, which is why it was not switched inside this check.</p>
+  </div>
+
+  <p>
+    One validity note worth keeping, because it is the property Phase A said a baseline
+    subject needs and the 4v4 did not have. The range's own workload counters across the
+    eight captures: <b>13.39-13.88 rounds a step</b> (a 3.6% spread), trigger duty
+    0.719-0.745, mean aim error 5.13-5.48 degrees. The baseline set's peak live rounds
+    spanned 934 to 2,425. <b>This subject now measures the same workload every run</b>, which
+    is what D16's frame-rate invariance work bought and what makes the numbers above
+    comparable at all.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">06</span>The wreck burst, and the task filed against it</h2>
+  <p class="lede">
+    <span class="m">20260819-100241</span> was filed because deleting the slicer also deleted
+    the rationing that lived in the same file. Roughly 200 wrecks then stood in one frame, and
+    the arena's worst frame went 84.6 -&gt; 91.6 ms even though the death path itself got
+    18x cheaper.
+  </p>
+
+  <p>
+    The burst is still there and it is still large. Counting
+    <code>detach_destroyed_body</code> inside the capture window:
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>capture</th><th class="num">detachments in window</th><th class="num">peak in one second</th><th class="num">worst frame</th></tr></thead>
+    <tbody>
+      <tr><td>#1</td><td class="num">289</td><td class="num">229</td><td class="num">59.74 ms</td></tr>
+      <tr><td>#2</td><td class="num">167</td><td class="num">115</td><td class="num">59.20 ms</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout good">
+    <p><strong>229 wrecks detaching inside one second, and the worst frame in that window is
+    59.74 ms.</strong> Across all eight captures the worst frame spans 51.0 to 64.8 ms. The
+    task's own definition of done asks for the burst frame to land below the 84.6 ms it cost
+    before the detach landed. It does, on every capture.</p>
+    <p>State the instrument gap plainly: 84.6 and 91.6 ms were TRACED captures under Xvfb, and
+    these are untraced on a real display. Both differences flatter the new number, so the
+    margin is smaller than it looks. What is not in doubt is the mechanism - the fixed loop
+    went single-threaded (D21, worst frame 49.17 -&gt; 28.25 on the duel) and a saturated
+    projectile step dropped 2,221 dynamic bodies to 340. The tail this task was filed against
+    is not the tail the game has.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">07</span>What this check does not answer</h2>
+  <p class="lede">
+    Recorded so nobody ranks against a cost that has moved, which is the failure this epic has
+    now hit five times.
+  </p>
+
+  <div class="cards">
+    <div class="card">
+      <p class="rank">Open / instrument</p>
+      <h3>The window is now short in GAME time, and nobody re-derived it</h3>
+      <p>
+        360 frames covered 71-101 seconds of fight when a frame cost 94 ms. At 20 ms it covers
+        <b>441-514 steps, about 7-8 seconds</b>. The bound was derived from frame counts on a
+        five-times-slower game, and it silently shrinks as the game gets faster.
+      </p>
+      <p>
+        Zero refusals across eight captures validates the bound as SAFE. It does not validate
+        it as sufficient. The plan already names this - the three frame-count windows want
+        re-indexing to simulated time - and this check is the second piece of evidence for it.
+      </p>
+    </div>
+    <div class="card">
+      <p class="rank">Open / not measured</p>
+      <h3>Pipeline compilation is still the only live bake candidate</h3>
+      <p>
+        <code>synchronous_pipeline_compilation: true</code> is unchanged and deliberate: an
+        async compile task holding a device reference at teardown SIGSEGVs one run in five.
+        So a first-draw shader compile is a chosen main-thread block.
+      </p>
+      <p>
+        <b>It is not measured in this tree.</b> D19 could not see it - there is no render
+        sub-app headless - and the arena's capture opens 11.6 s in, by which time first draws
+        are done. The 68.09 ms figure it was ranked on is old and belongs to a different tree.
+      </p>
+    </div>
+    <div class="card">
+      <p class="rank">Not measured</p>
+      <h3>The 60 FPS line was not re-taken</h3>
+      <p>
+        D11's target is a 1v1 at 60 FPS, and its reference is the frozen <code>wfc_ships</code>
+        gallery: empty 3.02 ms, one hull 27.60, two 34.82, three 44.04, on a real display.
+        Nothing in this check re-measured it.
+      </p>
+      <p>
+        The gallery is a static scene, so neither the fixed-loop executor nor swept rounds
+        should touch it - but "should not" is not a measurement, and the standing rule is that
+        a number that did not move gets reported as a number that did not move. It is
+        unreported here, not unchanged.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">08</span>Verdicts</h2>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>task</th><th>verdict</th><th>because</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>20260819-173219</b><br><span class="m" style="color:var(--dimmer)">perf baselines, 4v4 benchmark</span></td>
+        <td><span class="chip won">close</span></td>
+        <td>
+          Every "done when" is met. The metric is written down (20% tolerance, n=8). The
+          coverage table exists and its one named hole - targeting and point defence, loaded by
+          nothing - now has a case built for it, <code>stress_point_defense</code>, on the
+          shipped roster and measured below. The coverage SWEEP has not been re-run, so the
+          table's "twice the idle floor" criterion is not re-asserted here; the hole has a
+          case, which is what the task asked for.
+          The 4v4 baseline is recorded and re-runnable at zero refusals. All four candidates
+          have a verdict: fixed-step REJECTED, render schedule resolved into D13/D15, the
+          projectile broad phase rejected then REVERSED by D20 and the underlying cost removed,
+          the thruster material confirmed and fixed. The three items Phase B1 still owed are
+          discharged above.
+        </td>
+      </tr>
+      <tr>
+        <td><b>20260819-100241</b><br><span class="m" style="color:var(--dimmer)">ration wreck spawning</span></td>
+        <td><span class="chip closed">close, cost moved</span></td>
+        <td>
+          Its definition of done is met without the fix. 229 detachments in one second and the
+          worst frame is 59.74 ms against the 84.6 ms it asks to beat. The task is honest that
+          rationing spreads arrival cost rather than removing it; what removed it was the fixed
+          loop and the body count. Reopen if a burst tail reappears - the queue design is
+          recorded and still correct.
+        </td>
+      </tr>
+      <tr>
+        <td><b>20260818-221040</b><br><span class="m" style="color:var(--dimmer)">bake scenario work into the load</span></td>
+        <td><span class="chip open">stays open, re-scoped</span></td>
+        <td>
+          Two of its three audit items are ALREADY DONE by other tasks and should be struck:
+          asteroid seeding runs on the async pool and drops its grid deliberately, and the
+          scenario spawn drain is chunked at 3 ms, gated by <code>scenario_has_settled</code>,
+          and covered by a panel that stays up until it clears
+          (<span class="m">20260816-122158</span>, <span class="m">20260816-112353</span>, both
+          closed). One item remains - pipeline pre-warm - and it needs a measurement before it
+          is worth ranking.
+        </td>
+      </tr>
+      <tr>
+        <td><b>20260818-221107</b><br><span class="m" style="color:var(--dimmer)">preload the next scenario</span></td>
+        <td><span class="chip closed">wontdo</span></td>
+        <td>
+          Its payoff is "selecting a preloaded entry is measurably faster than a cold one" and
+          nobody has measured a cold one being slow. Its stated dependency is PERF-BAKE settling
+          what load-time work is, and the answer is: almost none left. It also asks for
+          cancellable speculative work whose failure mode is loading scenarios nobody opens.
+          That is the speculative machinery the epic's own rules forbid.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer>
+  <p>
+    Host: NVIDIA GeForce RTX 3060 Ti, vulkan, 12th Gen i9-12900F, 31 GiB, NixOS. Build: dev
+    (first-party opt-level 1, dependencies 3) - these RANK, they do not certify.
+    1280x720. Tree <span class="m">ddaf1997</span>.
+  </p>
+  <p>
+    <code>wfc_arena</code>: real display, present autonovsync, clustered 0.106, window 60 + 360
+    declared by the scene. <code>stress_point_defense</code>: Xvfb, present forced to
+    <code>immediate</code>, window 180 + 900 - matched to the <span class="m">cbc86980</span>
+    baseline protocol so the pair is like-for-like.
+  </p>
+  <p>
+    Rows in <span class="m">tasks/20260819-173219/measurements/</span>. One measurement lane at
+    a time; nothing was built while anything was measured.
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

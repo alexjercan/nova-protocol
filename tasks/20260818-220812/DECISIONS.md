@@ -1023,3 +1023,68 @@ never frozen, so `assert_com_follows_sections` unwraps a `None`.
 and the COM stable to 1e-4, and something now reaches the damage beat first.
 This is the wall-clock assumption already reported earlier in the epic and never
 filed. It is on the probe roster, so CI has been red on it.
+
+## D22 - the 4v4 has a number, the worst frame beats p99, and four tasks resolve
+
+`tasks/20260819-173219/NOTES.md` phase B2, rendered as
+`perf-check-2026-08-21.html` beside this file. Tree `ddaf1997`.
+
+### The replacement figure
+
+`wfc_arena` 4v4, bounded 60 + 360 window, real display, eight captures:
+**mean 20.13 ms, worst frame 59.47 ms**, zero refusals. This replaces the
+retracted 295.76 ms and is NOT a delta against it - that came from an unbounded
+window under Xvfb's ~13.7 ms present cost. Compare dispersion only.
+
+`stress_point_defense`, paired on the `cbc86980` protocol exactly: worst frame
+**71.08 -> 44.93 ms**, p99 54.25 -> 33.98, 1% low **18.44 -> 29.43 fps**. Seven
+of eight admitted.
+
+### Phase A's reported statistic should be REVERSED
+
+Phase A chose the median admitted p99 because on an unbounded window the worst
+frame was a lottery - 46% detectable against p99's 27%. Bounded, that inverts:
+**worst frame detects 12%, p99 detects 20%**, and one capture now detects 22%.
+
+The reason is not "less noise". p99 of 360 frames is the fourth-worst sample and
+behaves like an order statistic of a small set; the worst frame of a window that
+contains the same EVENT every run is a measurement OF that event. Bounding
+changed what the tail is a sample of.
+
+### A B1 diagnostic is dead, and the check that rests on it is not
+
+B1 read the zero-step bucket as the stopped-clock tail, justified because the
+fastest frame in the affected runs was 57.6 ms against a 15.625 ms timestep. Every
+zero-step frame now is 13.8-15.1 ms - an ordinary frame that did not cross a step
+boundary, 11-24 per capture. `capture_simulated` reads `is_paused()` off the clock
+rather than inferring from buckets, so the CHECK is unaffected. That was the right
+call and it is why the correction costs nothing.
+
+### The PD pairing is at the end of its life
+
+Capture #3 refused, `refresh_capped`, at 0.801 clustering against D13's calibrated
+0.03-0.44 band for `immediate`. Presentation was verified `immediate` throughout,
+so it is not a fallback. As the game side of the frame shrinks, Xvfb's fixed
+per-pixel cost becomes a larger share, and a frame dominated by a constant is what
+that detector exists to refuse. **One more improvement of this size and the Xvfb
+arm cannot admit a capture at all.** The successor is real-display or headless,
+and re-baselining is the switching cost.
+
+### The simulation is the pacer, as D18 predicted
+
+Median framecost: frame 21.06 ms, `RunFixedMainLoop` **12.41 ms (59%)**,
+`PostUpdate` 4.59, render `Prepare` 5.09 pipelined against it. 12.41 ms across
+1.32 steps a frame is ~9.4 ms a step against a 15.625 ms budget - above phase 6's
+8 ms ceiling, far above its 5 ms target.
+
+### Task verdicts
+
+- **`20260819-173219` CLOSED.** Every "done when" met; the three items B1 owed are
+  discharged.
+- **`20260819-100241` CLOSED, cost moved.** 229 wrecks detach inside one second
+  and the worst frame is 59.74 ms against the 84.6 ms its DoD asks to beat. Fifth
+  task in this epic to die because the cost it was ranked against moved.
+- **`20260818-221107` WONTDO**, owner call, with the evidence recorded on the task.
+- **`20260818-221040` re-scoped**, two of three audit items struck as already done,
+  one left: pipeline pre-warm, **unmeasured in this tree**. Ranking a fix against
+  its old 68.09 ms would be the sixth such mistake. Measure first.

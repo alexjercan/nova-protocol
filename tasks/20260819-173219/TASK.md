@@ -1,8 +1,8 @@
 # Perf baselines across the example suite, 4v4 as the benchmark
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: v0.11.0,performance,harness
+- TAGS: v0.11.0, performance, harness
 
 Epic: `20260818-220812`. `PERF-BENCH`.
 

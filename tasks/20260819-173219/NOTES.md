@@ -805,3 +805,174 @@ none is currently the headline benchmark.
    like a stable 20-30 FPS by hand" and the probe's 4v4 number are not
    necessarily about the same scene, and the comparison needs the roster pinned
    on both sides before it means anything.
+
+# Phase B2: the measurement pass
+
+Discharges the three items section 6 left owed. Serialised on an idle box, one
+measurement lane at a time, nothing built while anything was measured. Tree
+`ddaf1997`. The rendered explainer is
+`tasks/20260818-220812/perf-check-2026-08-21.html`; this section is the record
+behind it.
+
+## 1. The 4v4, on the bounded window
+
+Eight captures, `probe run wfc_arena --repeat 8`, the scene-declared 60 + 360
+window, REAL display, `present=autonovsync`, `clustered=0.106`. Rows in
+`measurements/arena-bounded-repeat8.csv`.
+
+| statistic | median of set | range | cv |
+|---|---:|---:|---:|
+| mean | 20.13 ms | 15.9% | 5.9% |
+| median | 17.94 ms | 22.5% | 7.8% |
+| p95 | 34.19 ms | 29.8% | 9.2% |
+| p99 | 47.69 ms | 30.1% | 10.8% |
+| worst frame | 59.47 ms | 23.2% | 7.9% |
+
+**This is the numeric replacement for the retracted 295.76 ms**, and it is NOT a
+delta against it. Phase A measured under Xvfb, which adds ~13.7 ms of per-pixel
+present at 720p (D12); this set is on the real display. Compare the DISPERSION
+columns with Phase A, never the milliseconds.
+
+`capture_simulated` PASS, **8 captures refused: 0**. The 420-frame bound is
+validated on this host, which is what section 6 asked for.
+
+## 2. The instrument, and a reversal of Phase A's choice
+
+Bootstrap over the eight, same procedure as Phase A.
+
+| reported statistic | n | tolerance | admitted | cv | detects |
+|---|--:|--:|--:|--:|--:|
+| **worst frame, median of admitted** | 8 | 20% | 7.84 | 4.3% | **12%** |
+| worst frame, median of admitted | 8 | 12% | 6.64 | 5.3% | 15% |
+| worst frame, one capture | 1 | - | 1.00 | 8.0% | 22% |
+| p99, median of admitted | 8 | 20% | 7.85 | 7.3% | 20% |
+| p99, one capture | 1 | - | 1.00 | 10.9% | 30% |
+
+**Phase A chose the median admitted p99 and that choice should now be reversed:
+on the bounded window the worst frame detects 12% and p99 detects 20%.**
+
+Phase A's reasoning was correct for its data - an unbounded worst frame was a
+lottery at 46% against p99's 27%. Bounding did not merely reduce noise. p99 of
+360 frames is the fourth-worst sample and behaves like an order statistic of a
+small set; the worst frame of a window that contains the same EVENT every run is
+a measurement OF that event. It changed what the tail is a sample of.
+
+One capture now detects 22%, better than Phase A could reach with eight.
+
+## 3. The clamp regime does not occur
+
+`measurements/fixed-steps-ddaf1997.csv`. Across the eight: total steps 441-514,
+**max steps in any frame 3-5**, mean 1.23-1.43. Phase A had four of ten runs
+pinned at the 16-step ceiling at 322-354 ms a frame for up to 36 consecutive
+frames.
+
+**A Phase B1 diagnostic reading is now FALSE.** B1 read the zero-step bucket as
+the stopped-clock tail and justified it: the fastest frame in either affected run
+was 57.6 ms against a 15.625 ms timestep, so zero steps meant a stopped clock.
+Every zero-step frame in this set is 13.8-15.1 ms - FASTER than the timestep - so
+it is an ordinary frame that did not cross a step boundary. There are 11-24 per
+capture and none of them means anything is wrong.
+
+The `capture_simulated` CHECK is unaffected: it reads `Time<Virtual>::is_paused()`
+off the clock rather than inferring from the buckets. That was the right call and
+it is why this correction costs nothing. The bucket table is a workload reading
+only, from here on.
+
+## 4. Where the frame goes
+
+Median of the eight captures' final 200-frame `framecost` window.
+
+| | ms | |
+|---|---:|---|
+| frame | 21.06 | |
+| main world | 19.83 | paces |
+| render world | 13.08 | pipelined against it |
+| `RunFixedMainLoop` | **12.41** | 59% of the frame |
+| `PostUpdate` | 4.59 | unattributed at this granularity |
+| `Update` | 2.03 | |
+| render `Prepare` | 5.09 | WritePhaseBuffers 1.93, BindGroups 1.38 |
+| `Render/graph` | 3.53 | |
+
+12.41 ms of fixed loop across a median 1.32 steps a frame is roughly **9.4 ms a
+step against a 15.625 ms budget** - above the 8 ms ceiling the plan's phase 6
+sets, and well above its 5 ms target. The simulation is the pacer, which is what
+D18 predicted.
+
+## 5. Point defence, paired
+
+The only true before/after here. Same subject, host and protocol as the
+`cbc86980` `repeat8-free` arm: Xvfb, `NOVA_PROBE_PRESENT=immediate`, 180 + 900,
+eight repeats. Rows in `measurements/pd-stress-repeat8-ddaf1997.csv`.
+
+| statistic | cbc86980 | its cv | ddaf1997 | its cv | delta |
+|---|---:|---:|---:|---:|---:|
+| mean | 30.15 | 5.3% | 23.13 | 4.4% | -23% |
+| median | 27.23 | 6.1% | 22.65 | 7.4% | -17% |
+| p95 | 44.89 | 4.0% | 29.58 | 5.7% | -34% |
+| p99 | 54.25 | 59.7% | 33.98 | 5.6% | -37% |
+| **worst frame** | 71.08 | 82.2% | **44.93** | 18.7% | **-37%** |
+| 1% low | 18.44 fps | - | 29.43 fps | - | +60% |
+| max fixed steps | 16 | - | 4 | - | |
+
+The baseline's p99 and worst carried cv of 59.7% and 82.2% because ONE of its
+eight captures entered the clamp and reported a 322.56 ms frame. Nothing here
+exceeds four steps.
+
+**The absolutes are floored by the instrument.** Both arms carry Xvfb's ~13.7 ms;
+subtracting it as a constant puts the game side at ~16.5 ms before and ~9.4 ms
+after, nearer -43%. That is an inference from a constant measured elsewhere, not
+a measurement, and it is recorded only so -23% is not read as the whole story.
+
+### The refusal, and the end of this pairing
+
+Capture #3 refused: `refresh_capped`, 80.1% of the window within 5% of a
+25.812 ms median. The run FAILS `capture_simulated` and `log_clean` - twice for
+one cause, by design. Presentation was verified `immediate` on every capture, so
+this is not a mode fallback.
+
+Clustering across the eight: 0.140, 0.270, 0.371, 0.444, 0.446, 0.460, 0.500 and
+the refused 0.801. D13 calibrated the check against `immediate` captures
+spreading 0.03-0.44.
+
+**The subject has nearly outgrown Xvfb, and this is D12's lesson recurring.** As
+the game side of the frame shrinks, a fixed per-pixel present cost becomes a
+larger share of it, and a frame time dominated by a constant is what a
+refresh-cap detector exists to refuse. It is right to refuse it.
+
+So **this pairing is at the end of its life**: one more improvement of this size
+and the Xvfb arm cannot admit a capture at all. The successor is a real-display
+or headless protocol, and re-baselining is the cost of switching - which is why
+it was not switched inside this pass.
+
+Validity note worth keeping: the range's own counters across the eight are
+13.39-13.88 rounds a step (3.6% spread), trigger duty 0.719-0.745, mean aim error
+5.13-5.48 deg. The baseline set's peak live rounds spanned 934-2,425. The subject
+now measures the same workload every run, which is what D16 bought and what makes
+the table above comparable at all.
+
+## 6. The roster note section 6 asked for
+
+`wfc_arena::default_roster()` fields `MEASURED_SHIPS_PER_TEAM = 4` a side whenever
+`measuring()` holds, and `measuring()` is `perf_armed() || cfg!(feature = "trace")`.
+A hand-run with no `--ship` fields a 1v1 DUEL. **Arming the capture changes the
+subject** (D19). So "the arena feels like N fps by hand" and any probe figure are
+not necessarily about the same scene, and a comparison needs the roster pinned on
+both sides before it means anything.
+
+## 7. What this pass does NOT answer
+
+1. **The window is now short in GAME time and nobody re-derived it.** 360 frames
+   covered 71-101 s of fight at 94 ms a frame; at 20 ms it covers 441-514 steps,
+   about 7-8 s. Zero refusals validates the bound as SAFE, not as sufficient. The
+   plan already wants the three frame-count windows re-indexed to simulated time;
+   this is the second piece of evidence for it.
+2. **Pipeline compilation is unmeasured in this tree.** `synchronous_pipeline_compilation`
+   is unchanged and deliberate, so a first-draw compile is a chosen main-thread
+   block. D19 could not see it - no render sub-app headless - and the arena
+   capture opens 11.6 s in, past the first draws. The 68.09 ms it was ranked on
+   belongs to an older tree.
+3. **The 60 FPS line was not re-taken.** D11's reference is the frozen `wfc_ships`
+   gallery (empty 3.02, one hull 27.60, two 34.82, three 44.04, real display).
+   Nothing here re-measured it. A static gallery should not care about the fixed
+   loop or swept rounds, but "should not" is not a measurement - it is unreported
+   here, not unchanged.

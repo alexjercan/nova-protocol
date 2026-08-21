@@ -80,6 +80,47 @@ the worst spans of every profiled run are load-time already - cubemap decode
 single baseline before baking, so that when load DOES become a problem there is
 a before number to compare against. That is a measurement, not a gate.
 
+## RE-SCOPED 2026-08-21 by the perf check
+
+`20260819-173219` phase B2, and the rendered explainer
+`tasks/20260818-220812/perf-check-2026-08-21.html`. **Two of the three audit items
+are already DONE by other tasks and are struck. One item remains, and it is not
+yet measured in this tree.**
+
+- ~~Asteroid field seeding~~ - STRUCK. It runs on `AsyncComputeTaskPool`, one job
+  at a time per rock, and the rock keeps drawing the surface it had until the job
+  lands (`asteroid_carve.rs` module doc). The whole carve path is 0.12 ms a frame
+  under sustained fire. Baking it would buy LATENCY - how long a rock wears its
+  placeholder - and cost the resident grid, 140 KB on an arena rock and 275 KB on
+  the largest, times every rock a scenario scatters whether or not it is ever
+  shot. The drop is deliberate, not an oversight.
+- ~~Collider construction, and the scenario spawn burst generally~~ - STRUCK.
+  `state_to_world` chunks the queue under `SPAWN_DRAIN_BUDGET` (3 ms, one command
+  per check so an object stays atomic), the scenario SCRIPT is gated on
+  `scenario_has_settled` so no handler sees a half-built world, and the loading
+  panel is held up by that same gate with a 0.6 s floor and a 50 ms settled test.
+  Landed by `20260816-122158` and `20260816-112353`, both CLOSED.
+- **Pipeline pre-warm - the only live item, and it needs a number before it is
+  ranked.** `synchronous_pipeline_compilation: true` is unchanged and deliberate
+  (`nova_core/src/lib.rs`, task `20260805-111329`: an async compile task holding a
+  device reference at teardown SIGSEGVs one run in five). So a first-draw shader
+  compile IS a chosen main-thread block, which is what this task exists to remove.
+
+  **But 68.09 ms is an old figure from a different tree and nothing in the current
+  suite can see the spike.** D19 ruled it out headless for the trivial reason that
+  there is no render sub-app there. The arena's capture opens 11.6 s in, past every
+  first draw. Measuring it needs a RENDERED capture that spans first draw - which
+  no current subject provides.
+
+  Ranking a fix against 68.09 ms would be the sixth time this epic ranked against a
+  cost that had already moved. **Measure first.**
+
+Load time, the one cheap thing this task still owed: `wfc_arena` reaches
+`Playing` about **1.1 s** after its first log line (boot assets 0.27 s, asset
+loading to 0.72 s, scenario built and Playing at 1.12 s), consistent across eight
+captures. That is an example building its own scene, not a shipped scenario load,
+so it is a first data point rather than the baseline the task asked for.
+
 ## Done when
 
 - The audit is written down with a per-item verdict, in this task.
