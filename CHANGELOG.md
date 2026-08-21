@@ -333,6 +333,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Performance
 
+- The fixed loop runs single-threaded: its schedules are too small to pay for
+  the executor's fan-out. A 1v1 arena fight's per-step median drops 7.9 ms to
+  6.1 and its 1% low rises 27 fps to 48.
 - A section's placeholder body and its exhaust flames are built ONCE and
   shared, not minted per entity. Three WFC hulls introduce 83 distinct meshes
   instead of 242, and the frame drops 37%.

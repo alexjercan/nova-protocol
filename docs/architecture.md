@@ -305,6 +305,11 @@ Why gameplay is split across both: the chain runs in `Update` for
 render-rate work and in `FixedUpdate` for sim-rate work; the same set order in
 both keeps ordering consistent wherever a system lands.
 
+The fixed loop runs on the SINGLE-THREADED executor (`AppBuilder::assemble`), so
+a `FixedUpdate` system gets no parallelism from its neighbours - only from its
+own `par_iter`. That is a deliberate trade for the schedules' size; the number
+behind it is in [Measuring performance](performance.md#the-fixed-loop-is-single-threaded-on-purpose).
+
 What breaks if a system lands in the wrong schedule -- worked example: a
 `FixedUpdate` system reading `GlobalTransform`. `thruster_impulse_system` used to
 apply its impulse at the thruster child's `GlobalTransform`, i.e. the previous
