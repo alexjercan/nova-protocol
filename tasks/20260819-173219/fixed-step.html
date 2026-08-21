@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The fixed step: where a Nova Protocol frame actually goes</title>
+<style>
+:root {
+  --ground: #F1F3F6;
+  --panel: #FFFFFF;
+  --ink: #15181D;
+  --muted: #61666E;
+  --faint: #8B9099;
+  --rule: #D7DBE1;
+  --budget: #C6CCD4;
+  --measured: #2F5F7E;
+  --measured-soft: #E4ECF2;
+  --over: #9E4429;
+  --over-soft: #F6E7E1;
+  --note: #6E5A22;
+  --shadow: 0 1px 2px rgba(21, 24, 29, .06), 0 8px 24px -16px rgba(21, 24, 29, .28);
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+  --sans: ui-sans-serif, system-ui, "Inter var", "Segoe UI", Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #101216;
+    --panel: #171A1F;
+    --ink: #E6E8EB;
+    --muted: #9AA1AA;
+    --faint: #6B727C;
+    --rule: #262A31;
+    --budget: #333941;
+    --measured: #79B4D6;
+    --measured-soft: #1B2A34;
+    --over: #D9805F;
+    --over-soft: #2E1F19;
+    --note: #C9AE6B;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #101216; --panel: #171A1F; --ink: #E6E8EB; --muted: #9AA1AA;
+  --faint: #6B727C; --rule: #262A31; --budget: #333941;
+  --measured: #79B4D6; --measured-soft: #1B2A34;
+  --over: #D9805F; --over-soft: #2E1F19; --note: #C9AE6B;
+  --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -18px rgba(0,0,0,.8);
+}
+:root[data-theme="light"] {
+  --ground: #F1F3F6; --panel: #FFFFFF; --ink: #15181D; --muted: #61666E;
+  --faint: #8B9099; --rule: #D7DBE1; --budget: #C6CCD4;
+  --measured: #2F5F7E; --measured-soft: #E4ECF2;
+  --over: #9E4429; --over-soft: #F6E7E1; --note: #6E5A22;
+  --shadow: 0 1px 2px rgba(21,24,29,.06), 0 8px 24px -16px rgba(21,24,29,.28);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.wrap { max-width: 60rem; margin: 0 auto; padding: 3.5rem 1.5rem 6rem; }
+/* Flex + gap rather than margins on <p>: sibling paragraphs inside a column
+   otherwise sit flush, because the reset zeroes p margins. */
+.col { max-width: 40rem; display: flex; flex-direction: column; gap: .9rem; }
+
+h1, h2, h3 { line-height: 1.2; text-wrap: balance; margin: 0; font-weight: 620; }
+h1 { font-size: clamp(1.9rem, 1.2rem + 2.4vw, 2.9rem); letter-spacing: -.022em; }
+h2 { font-size: 1.45rem; letter-spacing: -.014em; }
+h3 { font-size: 1.02rem; letter-spacing: -.006em; }
+p { margin: 0; }
+strong { font-weight: 640; }
+code { font-family: var(--mono); font-size: .89em; background: var(--measured-soft); padding: .1em .32em; border-radius: 3px; }
+
+.eyebrow {
+  font-family: var(--mono); font-size: .72rem; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--faint);
+}
+.lede { font-size: 1.13rem; color: var(--muted); margin-top: 1.1rem; }
+header { border-bottom: 1px solid var(--rule); padding-bottom: 2.25rem; margin-bottom: 3rem; }
+.meta {
+  display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin-top: 1.5rem;
+  font-family: var(--mono); font-size: .76rem; color: var(--faint);
+}
+
+section { margin-top: 3.25rem; display: flex; flex-direction: column; gap: 1.1rem; }
+section > h2 { display: flex; align-items: baseline; gap: .7rem; }
+section > h2 .n {
+  font-family: var(--mono); font-size: .78rem; color: var(--faint);
+  font-weight: 400; letter-spacing: .08em;
+}
+
+.panel {
+  background: var(--panel); border: 1px solid var(--rule);
+  border-radius: 10px; padding: 1.4rem 1.5rem; box-shadow: var(--shadow);
+}
+
+/* --- budget bars: the spine of the argument --- */
+.budget { display: flex; flex-direction: column; gap: 1.15rem; }
+.bar-row { display: grid; grid-template-columns: 9.5rem 1fr; gap: 1rem; align-items: center; }
+@media (max-width: 34rem) { .bar-row { grid-template-columns: 1fr; gap: .35rem; } }
+.bar-label { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+.bar-label b { display: block; color: var(--ink); font-weight: 600; font-size: .84rem; }
+.track {
+  position: relative; height: 2.1rem; background: var(--budget);
+  border-radius: 4px; overflow: hidden;
+}
+.fill { position: absolute; inset: 0 auto 0 0; background: var(--measured); }
+.fill.hot { background: var(--over); }
+.fill-text {
+  position: absolute; top: 50%; transform: translateY(-50%); left: .6rem;
+  font-family: var(--mono); font-size: .78rem; color: var(--panel); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fill-text.outside { left: auto; color: var(--ink); }
+.track-cap {
+  position: absolute; right: .55rem; top: 50%; transform: translateY(-50%);
+  font-family: var(--mono); font-size: .72rem; color: var(--muted);
+}
+
+figure { margin: 0; }
+figcaption { font-size: .84rem; color: var(--muted); margin-top: .8rem; }
+
+canvas { display: block; width: 100%; height: auto; }
+
+/* --- tables --- */
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: .52rem .75rem; border-bottom: 1px solid var(--rule); }
+th {
+  font-family: var(--mono); font-size: .7rem; text-transform: uppercase;
+  letter-spacing: .09em; color: var(--faint); font-weight: 500;
+}
+td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: none; }
+tr.total td { font-weight: 640; border-top: 2px solid var(--rule); }
+.dim { color: var(--muted); }
+
+/* --- verdict chips --- */
+.chip {
+  display: inline-block; font-family: var(--mono); font-size: .66rem;
+  letter-spacing: .09em; text-transform: uppercase; padding: .18rem .45rem;
+  border-radius: 3px; vertical-align: .1em; white-space: nowrap;
+}
+.chip.kept { background: var(--measured-soft); color: var(--measured); }
+.chip.out  { background: var(--over-soft); color: var(--over); }
+.chip.open { background: transparent; color: var(--note); border: 1px solid currentColor; }
+
+.finding { display: flex; flex-direction: column; gap: .5rem; padding: 1.15rem 0; border-bottom: 1px solid var(--rule); }
+.finding:last-child { border-bottom: none; padding-bottom: 0; }
+.finding h3 { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+.finding p { color: var(--muted); font-size: .93rem; }
+.finding .why { color: var(--ink); }
+
+.callout {
+  border-left: 3px solid var(--over); background: var(--over-soft);
+  padding: 1.1rem 1.3rem; border-radius: 0 8px 8px 0;
+  display: flex; flex-direction: column; gap: .6rem;
+}
+.callout.calm { border-left-color: var(--measured); background: var(--measured-soft); }
+.callout h3 { font-size: .96rem; }
+.callout p { font-size: .93rem; }
+
+ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: .45rem; }
+li { padding-left: .2rem; }
+li::marker { color: var(--faint); }
+
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.stat { background: var(--panel); padding: .95rem 1rem; display: flex; flex-direction: column; gap: .2rem; }
+.stat .k { font-family: var(--mono); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.stat .v { font-family: var(--mono); font-size: 1.32rem; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.stat .v .arrow { color: var(--faint); font-size: .8em; padding: 0 .12em; }
+.stat .v .to { color: var(--measured); }
+.stat .d { font-size: .76rem; color: var(--muted); }
+
+footer { margin-top: 4.5rem; padding-top: 1.75rem; border-top: 1px solid var(--rule); font-size: .84rem; color: var(--faint); display: flex; flex-direction: column; gap: .5rem; }
+footer code { background: none; padding: 0; }
+a { color: var(--measured); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Nova Protocol / task 20260819-173219 / v0.11.0 performance</div>
+  <h1>The fixed step, and why the frame rate is not a rendering problem</h1>
+  <p class="lede">The average frame was never the defect. The worst one was, and it is made of
+  simulation. This is what nine measurement lanes found, what got fixed, what got
+  ruled out with a number, and the one decision still waiting.</p>
+  <div class="meta">
+    <span>2026-08-21</span>
+    <span>dev profile, headless</span>
+    <span>arena duel unless stated</span>
+    <span>every figure measured unless marked ESTIMATE</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="n">01</span> The shape of the problem</h2>
+  <div class="col">
+    <p>The game runs two clocks. The frame clock draws as fast as the machine can. The
+    <strong>fixed clock runs at a constant 64 Hz</strong>, so physics and fixed-clock logic advance in
+    slices of <strong>15.625 ms of simulated time</strong>, whatever the frame rate. That is what keeps
+    a collision at 30 fps identical to one at 144 fps.</p>
+    <p>Each real frame, the engine runs however many fixed steps it owes. And the cost of one
+    step is what this document is about.</p>
+  </div>
+
+  <div class="panel budget">
+    <div class="bar-row">
+      <div class="bar-label"><b>Before</b>1v1 fight, matched band</div>
+      <div class="track">
+        <div class="fill hot" style="width:50.5%"></div>
+        <div class="fill-text">7.89 ms step</div>
+        <div class="track-cap">15.625 ms budget</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"><b>After</b>single-threaded fixed loop</div>
+      <div class="track">
+        <div class="fill" style="width:38.9%"></div>
+        <div class="fill-text">6.08 ms step</div>
+        <div class="track-cap">15.625 ms budget</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"><b>Empty world</b>nothing spawned</div>
+      <div class="track">
+        <div class="fill" style="width:14.7%; opacity:.55"></div>
+        <div class="fill-text outside" style="left:16.5%">2.3 ms of fixed machinery before any gameplay exists</div>
+      </div>
+    </div>
+  </div>
+  <figcaption>Steps matched at 650-750 dynamic bodies so the two arms compare like with like.
+  Unmatched whole-run averages are not comparable, because a faster simulation ends the fight sooner
+  and quietly measures a lighter scene.</figcaption>
+</section>
+
+<section>
+  <h2><span class="n">02</span> Why a step at 58% of budget is not "fine"</h2>
+  <div class="col">
+    <p>If a frame takes longer than 15.625 ms of wall time, the engine owes <strong>two</strong> steps
+    next frame. Two steps cost twice as much, which overruns harder, which owes more steps. It is
+    self-amplifying.</p>
+    <p>Every other hitch in the game gets multiplied by the same factor. So the step cost is not one
+    line item among many. It is the coefficient on all of them.</p>
+  </div>
+
+  <figure class="panel">
+    <canvas id="amp" width="1200" height="460" aria-label="Amplifier curve: hitch multiplier against fixed step cost. The curve is flat and low until roughly 8 milliseconds, then rises steeply and goes vertical at 15.625 milliseconds."></canvas>
+    <figcaption><strong>multiplier = 1 / (1 - step / 15.625)</strong>. It is a cliff, not a slope, which is why
+    the working target became an 8 ms ceiling and 5 ms desirable rather than the round 10 ms
+    we started with. 10 ms already sits on the steep part.</figcaption>
+  </figure>
+
+  <div class="stat-row">
+    <div class="stat"><span class="k">at 5 ms</span><span class="v">1.5&times;</span><span class="d">32% of budget</span></div>
+    <div class="stat"><span class="k">at 8 ms</span><span class="v">2.0&times;</span><span class="d">51% of budget</span></div>
+    <div class="stat"><span class="k">measured 9.02</span><span class="v">2.4&times;</span><span class="d">58% of budget</span></div>
+    <div class="stat"><span class="k">at 12 ms</span><span class="v">4.3&times;</span><span class="d">77% of budget</span></div>
+    <div class="stat"><span class="k">at 15.6 ms</span><span class="v">&infin;</span><span class="d">never catches up</span></div>
+  </div>
+  <p class="col dim">Observed in the wild: up to <strong>eight fixed steps in a single frame</strong>, and frames
+  of 112 ms.</p>
+</section>
+
+<section>
+  <h2><span class="n">03</span> Where the step actually goes</h2>
+  <div class="col">
+    <p>The assumption going in was that this is collision cost, and that four thousand colliders
+    at six solver substeps explains it. Measured off avian's own phase timers, on a heavy 1v1
+    fight slice, that assumption is wrong.</p>
+  </div>
+  <div class="panel scroll">
+    <table>
+      <thead><tr><th>Phase of the fixed step</th><th class="num">ms</th><th class="num">share</th></tr></thead>
+      <tbody>
+        <tr><td>Broad phase</td><td class="num">1.26</td><td class="num">12%</td></tr>
+        <tr><td>Narrow phase</td><td class="num">0.96</td><td class="num">9%</td></tr>
+        <tr><td>Solver, including all six substeps</td><td class="num">1.32</td><td class="num">13%</td></tr>
+        <tr><td><strong>Everything else in FixedMain</strong> <span class="dim">- collision-event dispatch and damage observers, AABB and tree writeback, transform propagation, schedule-executor overhead</span></td><td class="num"><strong>6.94</strong></td><td class="num"><strong>66%</strong></td></tr>
+        <tr class="total"><td>Whole step, wall</td><td class="num">10.48</td><td class="num">100%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <h3>The observation that reframes everything</h3>
+    <p><strong>Contact constraints never exceeded 51, and average two to four.</strong> Almost nothing in a
+    fight ever actually touches. The three to four thousand "contacts" are AABB overlap pairs
+    produced by speculative margins on fast-moving bullets: they cost broad and narrow phase time
+    and almost never reach the solver.</p>
+    <p>So six substeps re-integrate roughly 900 bodies, six times over, to resolve two contact
+    manifolds. <strong>The cost is not collision. The cost is having 900 bodies</strong> - and about 770 of
+    them are rounds in flight, even on a quiet step.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">04</span> Everything tried, and its verdict</h2>
+  <div class="panel">
+
+    <div class="finding">
+      <h3>Run the fixed loop single-threaded <span class="chip kept">kept</span></h3>
+      <p class="why">The fixed schedules are small and run 64 times a second, and the multithreaded
+      executor charges a task fan-out per schedule per run that they cannot amortise.</p>
+      <p>Step median 7.89 <span class="dim">-&gt;</span> 6.08 ms (p=.032). Frame p99 36.9 <span class="dim">-&gt;</span> 21.0 ms.
+      <strong>1% low 27.1 <span class="dim">-&gt;</span> 47.5 fps</strong> (p=.001). Avian's own physics schedules were deliberately
+      left multithreaded: single-threading those measured nothing on the step and made the frame
+      tail worse (p99 36.9 <span class="dim">-&gt;</span> 40.6, p=.038), because the solver's parallel passes are the
+      one part that genuinely saturates threads.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Fuze torpedoes off the target's own colliders <span class="chip kept">kept</span></h3>
+      <p class="why">The old code did a world-wide point projection and declined foreign colliders in
+      a predicate. A declined proxy returns infinity, which never tightens the traversal's search
+      radius, so the walk degraded toward the whole tree - per torpedo, per frame.</p>
+      <p>1% low 23.3 <span class="dim">-&gt;</span> 30.0 fps. Worst frame 57.2 <span class="dim">-&gt;</span> 41.0 ms.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Scope the scenario collision observers <span class="chip kept">kept</span></h3>
+      <p class="why">Two global observers meant every collision in the world dispatched into the
+      scenario crate and was declined on the first query.</p>
+      <p>22,241 wasted invocations <span class="dim">-&gt;</span> 0, in a range containing no areas and no crates.
+      Point-defence p99 8.4 <span class="dim">-&gt;</span> 6.9 ms.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Reduce solver substeps <span class="chip out">ruled out</span></h3>
+      <p>6 <span class="dim">-&gt;</span> 4 moves nothing (p=0.92). 6 <span class="dim">-&gt;</span> 2 is <strong>net worse</strong>: median step
+      8.33 <span class="dim">-&gt;</span> 10.55 ms, because peak contact constraints explode 55 <span class="dim">-&gt;</span> 1,085 during rams
+      and hulls visibly interpenetrate. 6 <span class="dim">-&gt;</span> 1 degrades point defence (1% low 122 <span class="dim">-&gt;</span> 62 fps)
+      and changes outcomes. Six is correct.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Stop sections of one hull testing each other <span class="chip out">ruled out</span></h3>
+      <p>Structurally absent. One rigid body per hull, and avian skips same-body pairs outright.
+      There was never a fix to make.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Sleep idle or distant hulls <span class="chip out">ruled out</span></h3>
+      <p>40-41 bodies already sleep, and the point-defence controller's torque wakes every ship
+      every tick anyway.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Batch the collision-event consumers <span class="chip out">ruled out</span></h3>
+      <p>Bought nothing (step median p=.49, 1% low p=.61) - the estimate rested on 12,673 events,
+      but that was a <strong>whole-run</strong> total and a fight step raises 100-180. It also moved a saturation
+      invariant (peak live rounds 2,420 <span class="dim">-&gt;</span> 2,190, p=0.001), because the game leans on the
+      impact and bullet consumers interleaving per contact.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Archetype fragmentation, asset loads, log volume, pipeline compilation <span class="chip out">ruled out</span></h3>
+      <p>Archetypes 527 <span class="dim">-&gt;</span> 525, flat, with 20 archetypes holding 89% of entities. Mid-run asset
+      loads peak at 0.07 ms and never on the main thread. Suppressing 52,446 log lines made p99
+      <em>worse</em>. There is no render sub-app headless at all.</p>
+    </div>
+
+    <div class="finding">
+      <h3>A round is not a physics body <span class="chip open">owner's call</span></h3>
+      <p class="why">Swept projectiles: no per-round body, collider or tree churn. Damage inputs
+      preserved exactly. This is the item section 03 points at.</p>
+      <p><strong>ESTIMATE</strong>: 2.5-4.5 ms off a 4v4 step, 1.5-2.5 off a 1v1. Biggest single lever
+      remaining.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Two-tier hull-then-section collision <span class="chip open">owner's call</span></h3>
+      <p><strong>ESTIMATE</strong>: 2.5-3.5 ms, but weeks-scale, and partly obsoleted if the item above
+      lands first. Do that one, re-measure, then decide this.</p>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">05</span> A rejection that was wrong, and why it was wrong</h2>
+  <div class="col">
+    <p>Earlier in this epic, "a round should not be a physics body" was <em>closed</em> rather than
+    escalated. The evidence was a single number, and the number was correct:
+    <code>collect_collision_pairs&lt;ProjectileHooks&gt;</code> measured 0.192 ms of a 26 ms frame.</p>
+  </div>
+  <div class="callout calm">
+    <h3>The cost of a round being a body was never in pair collection</h3>
+    <p>It is in the per-step bookkeeping <em>every</em> body pays: integration, AABB update, tree
+    update, writeback, transform propagation. That is spread across a dozen systems, none of which
+    has "projectile" in its name.</p>
+    <p>So we profiled the one system named after the suspect, found it cheap, and closed the case.
+    The general lesson, which cost this epic several days: <strong>a cost spread evenly across many
+    systems is invisible to a ranked profile, and naming one system after the suspect makes it look
+    exonerated.</strong></p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">06</span> What the instruments got wrong</h2>
+  <div class="col">
+    <p>Five confidently wrong conclusions were produced during this work, all by careful people
+    following the protocol. Each came from the measuring apparatus, not the game.</p>
+  </div>
+  <div class="panel">
+    <ul>
+      <li><strong>A measurement flag that changes the subject.</strong> Arming the capture makes the arena
+      field a 4v4 instead of a duel. A whole comparison of "1v1 against 4v4" was 4v4 against 4v4.</li>
+      <li><strong>Windows indexed by frame count.</strong> Three instruments held their window for a number
+      of frames. Headless runs five to ten times faster, so each became a fifth of the simulated
+      duration it was sized for - which made a correct point-defence fix look like a regression, and
+      made the census report an identical scene for two different rosters.</li>
+      <li><strong>A trace that stops before the phase you are asking about.</strong> The default traced run
+      never reaches the fight, so a per-system table described loading and approach. Visibility work
+      topped it, because that is what dominates a cheap frame.</li>
+      <li><strong>A gate that opens onto the aftermath.</strong> The arena's capture waited for both teams to
+      have dealt damage - and a team wipe credits damage, so the gate could open on the frame the
+      fight ended. Now refused explicitly.</li>
+      <li><strong>Step counts read backwards.</strong> A slow frame <em>owes</em> steps, so a high step count on a
+      slow frame can be an effect. The tell that it is genuinely a cause here is that per-step cost
+      rises with frame time, which a pure catch-up artefact would not do.</li>
+    </ul>
+  </div>
+  <p class="col dim">All five are now either fixed or written into the conventions. The habit that
+  caught each of them was the same: compare like with like, and prefer a count over a millisecond.</p>
+</section>
+
+<section>
+  <h2><span class="n">07</span> Where this leaves the target</h2>
+  <div class="stat-row">
+    <div class="stat"><span class="k">1% low, duel</span><span class="v">27.1<span class="arrow">-&gt;</span><span class="to">47.5</span></span><span class="d">fps, measured</span></div>
+    <div class="stat"><span class="k">worst frame</span><span class="v">49.2<span class="arrow">-&gt;</span><span class="to">28.3</span></span><span class="d">ms, measured</span></div>
+    <div class="stat"><span class="k">frame p99</span><span class="v">36.9<span class="arrow">-&gt;</span><span class="to">21.0</span></span><span class="d">ms, measured</span></div>
+    <div class="stat"><span class="k">step, matched</span><span class="v">7.89<span class="arrow">-&gt;</span><span class="to">6.08</span></span><span class="d">ms, measured</span></div>
+  </div>
+  <div class="col">
+    <p>The fixed step is now under the 8 ms ceiling on a duel. <strong>Rounds-as-bodies is the one
+    remaining lever large enough to reach the 5 ms target</strong>, and it is a gameplay decision rather
+    than a presentation one, which is why it is not being taken quietly.</p>
+    <p>The mechanic it touches stays either way: collision damage is how bullets do damage, and the
+    swept-projectile form preserves the damage inputs exactly. What changes is whether a round
+    spends every substep being integrated, AABB'd, tree-updated and written back in order to
+    resolve, on a typical step, two contacts.</p>
+  </div>
+</section>
+
+<footer>
+  <p>Sources: <code>notes-fixed-step.md</code>, <code>notes-frame-spikes.md</code>,
+  <code>notes-step-batching.md</code>, <code>notes-headless-simulation.md</code>,
+  <code>notes-probe-host-memory.md</code>, and decisions D14 through D21 in
+  <code>tasks/20260818-220812/DECISIONS.md</code>.</p>
+  <p>Raw measurement tables under <code>tasks/20260819-173219/measurements/</code>.
+  Statistical claims are Mann-Whitney U on interleaved paired arms.</p>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var c = document.getElementById('amp');
+  if (!c || !c.getContext) return;
+  var ctx = c.getContext('2d');
+
+  function css(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function draw() {
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = c.clientWidth || 1200;
+    var cssH = Math.round(cssW * 0.38);
+    c.width = Math.round(cssW * dpr);
+    c.height = Math.round(cssH * dpr);
+    c.style.height = cssH + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    // padR clears the "15.625" tick label, which is centred on the last tick.
+    var padL = 52, padR = 46, padT = 16, padB = 34;
+    var w = cssW - padL - padR, h = cssH - padT - padB;
+    var T = 15.625, maxY = 6;
+
+    var ink = css('--ink'), muted = css('--muted'), faint = css('--faint');
+    var rule = css('--rule'), measured = css('--measured'), over = css('--over');
+
+    var X = function (ms) { return padL + (ms / T) * w; };
+    var Y = function (m) { return padT + h - Math.min(m, maxY) / maxY * h; };
+
+    ctx.font = '11px ' + css('--mono');
+    ctx.strokeStyle = rule; ctx.lineWidth = 1;
+    ctx.fillStyle = faint;
+
+    // horizontal gridlines at integer multipliers
+    for (var m = 1; m <= maxY; m++) {
+      var y = Math.round(Y(m)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + w, y); ctx.stroke();
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText(m + 'x', padL - 8, y);
+    }
+    // x ticks
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    [0, 4, 8, 12, 15.625].forEach(function (ms) {
+      var x = Math.round(X(ms)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(x, padT + h); ctx.lineTo(x, padT + h + 4); ctx.stroke();
+      ctx.fillText(ms === 15.625 ? '15.625' : String(ms), x, padT + h + 8);
+    });
+    ctx.textAlign = 'left';
+    ctx.fillText('fixed step cost (ms)', padL, padT + h + 20);
+
+    // the curve
+    ctx.beginPath();
+    for (var px = 0; px <= w; px++) {
+      var ms = (px / w) * T;
+      var mult = 1 / (1 - ms / T);
+      var yy = Y(mult);
+      if (px === 0) ctx.moveTo(padL + px, yy); else ctx.lineTo(padL + px, yy);
+      if (mult > maxY) break;
+    }
+    ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.stroke();
+
+    // the 8 ms ceiling
+    var xc = Math.round(X(8)) + 0.5;
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = muted; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(xc, padT); ctx.lineTo(xc, padT + h); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = muted; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('8 ms ceiling', xc + 6, padT + 2);
+
+    // `align` puts the label on the side the curve is NOT climbing into, so an
+    // annotation never sits on top of the line it annotates.
+    function dot(ms, label, color, above, align) {
+      var mult = 1 / (1 - ms / T);
+      var x = X(ms), y = Y(mult);
+      ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.textAlign = align; ctx.textBaseline = above ? 'bottom' : 'top';
+      ctx.fillText(label, x + (align === 'right' ? -9 : 9), y + (above ? -7 : 7));
+    }
+    dot(9.02, 'measured 9.02 ms  =  2.4x', over, true, 'right');
+    dot(6.08, 'after the executor fix  =  1.6x', measured, false, 'left');
+  }
+
+  draw();
+  window.addEventListener('resize', draw);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', draw);
+  }
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
+</body>
+</html>
