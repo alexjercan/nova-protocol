@@ -61,25 +61,21 @@ so.
 | `NOVA_AUTOPILOT` | the scripted state driver | `AutopilotPlugin` | any (presence only) |
 | `NOVA_CAPTURE` | the CAPTURE path of a script that has one: its shot steps write PNGs instead of driving straight through | `capturing()`, which a script reads while building its steps | any (presence only) |
 | `NOVA_CAPTURE_DIR` | nothing on its own | `capture_window`, and the scenario `Screenshot` action (`nova_scenario/src/actions/view.rs`) reads it independently | directory that relative capture paths resolve under; absolute paths ignore it |
-| `NOVA_PROBE_CONTRACT` | the contract writer | `ProbeContract` | file path the run writes its declared capabilities to (probe passes `probe-contract.json`), so the grader can tell an unwired capability from a failed one. Unset - a hand-run example - writes nothing |
-| `NOVA_PROBE_SNAPSHOT` | the world-state snapshot sink | `SnapshotPlugin` | JSONL file path. One snapshot per line: ships, their sections, each section's fixtures and weapon state, and every round in flight. Read it with `jq` |
-| `NOVA_PROBE_SNAPSHOT_FRAMES` | nothing on its own | `SnapshotPlugin` | comma-separated frame numbers to snapshot at. A repeated value snapshots that frame twice, which is the determinism check: the two lines must be byte-identical. Unset - only `F9` and script calls take one |
 | `NOVA_AUTOPILOT_DEADLINE` | nothing on its own | the completion watcher | seconds before the run gives up and error-exits naming the laggards (default 120); the RUN-level backstop under a script's own per-step deadlines |
-| `NOVA_MENU_BACKDROP` | pins the menu's backdrop draw to one scenario, so a capture run (or a backdrop being authored) looks at a SPECIFIC scene instead of re-rolling the menu | `load_menu_ambience` (`nova_menu/src/ambience.rs`) | a `menu_backdrop`-flagged scenario id (for example `menu_duel`); an unknown or error-flagged id warns and falls back to the random draw |
 
 `NOVA_CAPTURE` arms the SHOTS, never a driver. A capturing run therefore sets
 `NOVA_AUTOPILOT` too, and one script owns the window: there is no second driver
 to fight it over `NextState`.
 
-That is the DRIVER contract in full. It is not every `NOVA_*` variable the
-workspace reads: the frame-time capture takes a dozen `NOVA_PROBE_*` knobs of
-its own (window, resolution, presentation mode, fixed-step ceiling, census and
-frame-cost cadence), and those are tabulated once, in `nova_probe`'s crate
+That is the DRIVER contract in full - four variables. It is not every `NOVA_*`
+variable the workspace reads: [Environment variables](environment-variables.md)
+indexes the whole set and says which crate owns each, and the measurement
+knobs' own values and defaults are tabulated once in `nova_probe`'s crate
 rustdoc - `cargo doc --open -p nova_probe` - because the same table serves the
 wasm build as URL query parameters. [Measuring performance](performance.md)
 covers what they are FOR. A variable that arms nothing is silent, so a run
-pinned to a name that is not in one of those two places does a plain
-play-through and reports nothing wrong.
+pinned to a name that is on none of those pages does a plain play-through and
+reports nothing wrong.
 
 ## Reading the world instead of looking at it
 

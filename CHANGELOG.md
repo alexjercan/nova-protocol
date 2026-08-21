@@ -454,6 +454,7 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- The dev book indexes every environment variable on one page: what each gates, which crate owns it, and whether it is harness-only, tooling or player-facing.
 - Every environment variable the game reads is a declared constant with one home, and `tests/env_contract.rs` names the whole set - a new one off the roster fails a test instead of arming nothing.
 - `--mute` zeroes the audio output, the other half of the outputs-off pair with `--norender`. `NOVA_MUTE` is its environment twin, and a muted run now says so once at startup.
 - New probe capability: `NOVA_PROBE_STEPDIAG` writes a per-fixed-step CSV of avian's own phase timers and body counts; `NOVA_PROBE_STEPDIAG_BODIES` picks the body-count regime its summary covers.
