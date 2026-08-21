@@ -1,0 +1,32 @@
+
+=== arm base (8 runs, fight bodies>=500) ===
+  r1  frame_mean=4.15  frame_p99=22.91  frame_max=41.02  low_fps=43.65
+  r2  frame_mean=4.37  frame_p99=43.52  frame_max=50.20  low_fps=22.98
+  r3  frame_mean=2.94  frame_p99=14.53  frame_max=23.42  low_fps=68.84
+  r4  frame_mean=6.24  frame_p99=31.67  frame_max=47.45  low_fps=31.58
+  r5  frame_mean=6.22  frame_p99=36.70  frame_max=42.45  low_fps=27.25
+  r6  frame_mean=5.39  frame_p99=23.50  frame_max=35.76  low_fps=42.55
+  r7  frame_mean=4.14  frame_p99=23.97  frame_max=29.98  low_fps=41.72
+  r8  frame_mean=6.15  frame_p99=37.54  frame_max=52.87  low_fps=26.64
+
+=== arm landed (8 runs, fight bodies>=500) ===
+  r1  frame_mean=5.33  frame_p99=21.35  frame_max=24.94  low_fps=46.84
+  r2  frame_mean=4.33  frame_p99=20.16  frame_max=23.76  low_fps=49.60
+  r3  frame_mean=6.98  frame_p99=24.70  frame_max=36.83  low_fps=40.48
+  r4  frame_mean=6.17  frame_p99=22.57  frame_max=25.43  low_fps=44.30
+  r5  frame_mean=7.17  frame_p99=26.81  frame_max=36.98  low_fps=37.30
+  r6  frame_mean=5.69  frame_p99=24.63  frame_max=33.09  low_fps=40.59
+  r7  frame_mean=3.46  frame_p99=19.31  frame_max=21.68  low_fps=51.79
+  r8  frame_mean=4.85  frame_p99=22.42  frame_max=26.12  low_fps=44.60
+
+metric frame_p99: arm medians and U vs base
+  base: median 27.82 range 14.53-43.52
+  landed: median 22.50 range 19.31-26.81 U=17 p=0.115
+
+metric frame_max: arm medians and U vs base
+  base: median 41.73 range 23.42-52.87
+  landed: median 25.78 range 21.68-36.98 U=12 p=0.036
+
+metric low_fps: arm medians and U vs base
+  base: median 36.65 range 22.98-68.84
+  landed: median 44.45 range 37.30-51.79 U=47 p=0.115

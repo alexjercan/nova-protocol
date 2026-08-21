@@ -11,6 +11,8 @@ use std::process::ExitCode;
 
 use bevy::{
     app::Plugins,
+    // NOTE: neither executor type is in bevy's prelude.
+    ecs::schedule::{ScheduleLabel, SingleThreadedExecutor},
     log::{Level, LogPlugin},
     prelude::*,
     // NOTE: RenderPlugin is not in bevy's prelude.
@@ -183,6 +185,7 @@ impl AppBuilder {
 
     fn assemble(render: bool) -> Self {
         let mut app = App::new();
+        single_thread_the_fixed_loop(&mut app);
         // NOTE: the `mods://` source must be registered BEFORE AssetPlugin lands
         // with DefaultPlugins below - bevy builds the registered sources at
         // AssetPlugin insertion, not lazily. It cannot live inside
@@ -652,6 +655,39 @@ pub fn assets_plugin() -> AssetPlugin {
         meta_check: bevy::asset::AssetMetaCheck::Always,
         ..default()
     }
+}
+
+/// Run the whole fixed loop on the single-threaded executor.
+///
+/// `FixedFirst` through `FixedLast` are SMALL schedules that run 64 times a
+/// second, and the multithreaded executor charges a task fan-out per schedule
+/// per run that they cannot amortise - most of what a fixed step spends is
+/// per-step bookkeeping across many tiny systems, not one parallel pass. In a
+/// 1v1 arena fight, matched at 650-750 dynamic bodies, this takes the per-step
+/// median from 7.9 ms to 6.1 and the capture's 1% low from 27 fps to 48; in
+/// `stress_point_defense` at ~2,040 bodies it takes the median from 3.17 ms to
+/// 2.84 and the worst step from 14.8 to 10.8.
+///
+/// Avian's `PhysicsSchedule` and `SubstepSchedule` are deliberately LEFT
+/// multithreaded: switching those measured nothing on the step and made the
+/// frame tail WORSE (p99 36.9 -> 40.6 ms), because the solver's `par_for_each`
+/// passes are the one part of the fixed loop that does saturate threads.
+///
+/// Execution policy for the whole app, not for one subsystem, so it lives in
+/// the composition root: every app the builder makes gets it and no plugin has
+/// to know.
+fn single_thread_the_fixed_loop(app: &mut App) {
+    fn single(app: &mut App, label: impl ScheduleLabel) {
+        app.edit_schedule(label, |schedule| {
+            schedule.set_executor(SingleThreadedExecutor::new());
+        });
+    }
+
+    single(app, FixedFirst);
+    single(app, FixedPreUpdate);
+    single(app, FixedUpdate);
+    single(app, FixedPostUpdate);
+    single(app, FixedLast);
 }
 
 fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {

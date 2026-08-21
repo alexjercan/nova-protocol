@@ -195,6 +195,22 @@ a draw call bins on, so the pair is what separates "the scene is big" from "the
 scene batches badly" (see
 [Why cracks are QUANTISED](sections.md#why-cracks-are-quantised)).
 
+## The fixed loop is single-threaded on purpose
+
+`AppBuilder::assemble` puts `FixedFirst` through `FixedLast` on Bevy's
+single-threaded executor, so a schedule table's fixed-loop rows are self time,
+not fan-out. Those schedules run 64 times a second and are made of many small
+systems; the multithreaded executor's per-schedule task fan-out costs more than
+the parallelism buys. Matched at 650-750 dynamic bodies in a 1v1
+`wfc_arena` fight, the per-step median measured 7.9 ms multithreaded against
+6.1 single-threaded, with the capture's 1% low 27 fps against 48;
+`stress_point_defense` at ~2,040 bodies measured 3.17 ms against 2.84.
+
+Avian's `PhysicsSchedule` and `SubstepSchedule` are LEFT multithreaded. The same
+switch applied to them moved no step metric and made the frame tail worse (p99
+36.9 ms against 40.6): the solver's `par_for_each` passes are the one part of a
+fixed step that does saturate threads. Re-measure before moving either boundary.
+
 ## The window, and the deadline sized to it
 
 The capture window is the capture crate's full 180/900 baseline unless the
