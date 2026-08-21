@@ -1088,3 +1088,88 @@ Median framecost: frame 21.06 ms, `RunFixedMainLoop` **12.41 ms (59%)**,
 - **`20260818-221040` re-scoped**, two of three audit items struck as already done,
   one left: pipeline pre-warm, **unmeasured in this tree**. Ranking a fix against
   its old 68.09 ms would be the sixth such mistake. Measure first.
+
+## D23 - cracks are the tail, the pipeline spike is not real, and the release baseline changes both
+
+Two lanes, both HEAD-only ablations, both interleaved on a quiet box. Full
+write-ups in `tasks/20260819-173219/measurements/` and
+`tasks/20260818-221040/TASK.md`.
+
+### The cross-release comparison found a regression, and it is damage cracks
+
+v0.11.0's p95 on `broadside` measured **+8.8%** against v0.10.0, 6/6 pairs same
+sign, reproducing across five passes on two subjects and both present modes.
+Ablating `SectionCracksPlugin` on HEAD recovers it:
+
+| | combat | idle |
+|---|--:|--:|
+| mean | -8.2% | -10.4% |
+| median | -9.8% | -10.6% |
+| p95 | -8.4% | **-12.7%** |
+| 1% low | +5.2% | **+13.4%** |
+| peak RSS | -0.3% | -0.2% |
+
+12/12 pairs across both subjects, every metric, same sign, no refusals in 24
+runs. Both arms were the SAME binary in the SAME worktree, the plugin env-gated
+rather than commented out, so "a second build" is not a confound.
+
+**The idle scene shows it at FULL strength - slightly stronger than combat.** So
+the cost is the material SPLIT, not the damage-grading systems: 65 section
+meshes draw through an extended pipeline that cannot batch with anything drawn
+as `StandardMaterial`. Cracks cost the same whether or not anything is cracked.
+
+**A documented claim is false, and it is the one that authorised the design.**
+`damage_cracks.rs` says "bucket 0 is the pristine step, so an undamaged fleet
+batches as if the effect were not there", and a test asserts an undamaged fleet
+draws through the pristine bucket alone. The test is correct about MATERIAL
+COUNT. The conclusion does not follow: one bin in a costlier pipeline is not the
+same as not being there. Measured, an undamaged fleet pays 10.4% of mean frame.
+
+The fix that follows: **at bucket 0, leave the section on its source material**
+and swap the extended material in only at bucket >= 1. A pristine fleet then
+costs what v0.10.0 cost and a battered one pays in proportion. Note the ablation
+arm was HANDICAPPED - it draws 61 distinct standard handles where stock draws 1
+- and still won by 8-12%, so a real fix should do better than the arm did.
+
+**And this is why the cross-release headline read flat.** HEAD already beat
+v0.10.0 on median by 5.3%; without cracks it beats it by roughly 15%. The
+cycle's simulation work IS paying off - one presentation feature was eating it.
+
+### The pipeline spike is REJECTED
+
+`PipelineCache::process_pipeline_queue_system`, 630 calls on a rendered
+`probe scenario broadside` with the warm-up off: p50 **2.3 microseconds**, max
+63.93 ms at t=0.56 s during BOOT. 98.5 ms falls under the boot screen, 125.4 ms
+under the scenario panel, 10.4 ms at or past the panel edge. **Zero calls over
+1 ms after t=2.79 s**, across ~14 s and 551 frames of gameplay.
+
+The run fought - 64,692 `damage_cracks` spans, 55,852 `SectionCracksMaterial`,
+41,904 torpedo, 61,741 hanabi - so the first-draw candidates were exercised and
+cost no compile. Pre-warming would move at most 10.4 ms once per session.
+`synchronous_pipeline_compilation: true` stays, and now has a number behind it
+rather than only the SIGSEGV argument.
+
+A wgpu pipeline cache on disk is NOT reachable: bevy 0.19 hardcodes
+`cache: None` on both descriptors and never requests the feature, which is
+Vulkan-only.
+
+### Third instrument failure of the epic, same cause
+
+The designed detector for the pipeline lane was framecost's
+`Render/submit+present` row against its 0.115 ms clean baseline. Under Xvfb that
+row runs **8-9 ms sustained, half the frame**, because it carries Xvfb's
+`present_frames`; the 0.115 ms baseline was taken on a real display. The lane
+noticed and fell back to the trace.
+
+That is D12's constant appearing for the third time in a new disguise, after the
+retracted 16.74 ms floor and the presentation cap that nearly manufactured a
+"no change" cross-release headline. **A baseline taken on one display path does
+not transfer to another**, and every future detector calibrated on a clean row
+owes that check before it is trusted.
+
+### What this leaves for the release post
+
+The honest performance story is no longer "flat". It is: the release is faster
+on the median, one presentation feature is eating the win, and the win is
+structural - **1,035 rigid bodies and 1,046 colliders for a thousand bullets
+became 35 and 46.**

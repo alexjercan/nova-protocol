@@ -123,6 +123,97 @@ so it is a first data point rather than the baseline the task asked for.
 
 ## Done when
 
-- The audit is written down with a per-item verdict, in this task.
-- Asteroid seeding no longer happens on first hit in a shipped scenario.
-- Load time measured before and after, and inside budget.
+- ~~The audit is written down with a per-item verdict, in this task.~~ DONE,
+  2026-08-22, below.
+- ~~Asteroid seeding no longer happens on first hit in a shipped scenario.~~
+  Satisfied DIFFERENTLY to how it is written, and the difference is recorded:
+  seeding still happens on first hit, but on `AsyncComputeTaskPool` behind a
+  placeholder, so it does not cost the frame this task was opened about. Baking
+  it would buy latency at the price of a resident grid per scattered rock.
+- ~~Load time measured before and after, and inside budget.~~ Measured; there is
+  no "after" because nothing was baked. `wfc_arena` reaches `Playing` in ~1.1 s.
+- **REMAINS**: the four Tier 1 items below. They are the same shape as this task
+  - work whose input is known in advance, paid at first use - but they are
+  CACHING and SCHEDULING, not baking, and the largest of them is a mid-mission
+  spawn rather than anything to do with load.
+
+## MEASURED 2026-08-22: the pipeline item is CLOSED, and the audit found four others
+
+### Pipeline pre-warm: the spike is not real in this tree
+
+`probe scenario broadside`, `NOVA_PROBE_WARMUP=0`, 636 frames, real GPU, all
+eight checks PASS. `PipelineCache::process_pipeline_queue_system` over 630 calls:
+total 235.71 ms, **p50 2.3 microseconds**, max 63.93 ms.
+
+Where the cost sits, anchored to the trace clock (validated to 2.4 ms against a
+log line nested in a known span; `Playing` at t=1.557 s, the panel's guaranteed
+minimum dwell ends at t=2.157 s):
+
+| | ms | covered |
+|---|--:|---|
+| under the boot screen | 98.5 | yes |
+| under the scenario panel | 125.4 | yes |
+| at or past the panel edge | 10.4 | upper bound |
+| the other 621 calls | ~1.4 | - |
+
+**95% is provably inside a loading screen, and there are ZERO calls over 1 ms
+after t=2.79 s** - across ~14 s and 551 frames of gameplay. The 68.09 ms figure
+this item was ranked on was never mid-run: the worst call here is 63.93 ms at
+t=0.56 s, during boot, before a scenario exists.
+
+Checked for the obvious false negative: **the run fought.** 64,692
+`damage_cracks` spans, 55,852 `SectionCracksMaterial`, 41,904 torpedo, 61,741
+hanabi, 6 `CarveSpew`. The three biggest first-draw candidates were exercised
+and cost no compile.
+
+**Pre-warming would move at most 10.4 ms, once per session. Not worth doing.**
+`synchronous_pipeline_compilation: true` stays, and it now has a number behind
+it rather than only the SIGSEGV argument. Arm B was not run: with arm A clean
+for the mid-fight question the A/B answers nothing, at the price of a known
+1-in-5 SIGSEGV.
+
+One instrument note, because it is the third time this has bitten: the framecost
+`Render/submit+present` row was the designed detector and it was **unusable
+under Xvfb** - 8-9 ms sustained, ~50% of the frame, because that row carries
+Xvfb's `present_frames`. Its 0.115 ms clean baseline was taken on a real display.
+The trace fallback carried the measurement.
+
+### What the audit found instead, and it is not baking
+
+Four items in this task's scope that ARE real, ranked by what they buy:
+
+1. **A mid-mission ship spawn is unbudgeted, and it is the largest confirmed
+   violation of the epic's rule.** `state_to_world` chunks under
+   `SPAWN_DRAIN_BUDGET`, but the budget is checked AFTER each command and one
+   command is atomic - so a Spaceship spawn runs `spawn_ship_skin` whole, at a
+   measured 20.77 ms, in a frame the player is flying. No panel covers it:
+   `spawn_scenario_load_screen` raises only on `LoadScenario`, never on a script
+   spawn. Shipped scenarios that do this mid-mission: `lifeline` 7 ships,
+   `shakedown_run` 6 objects, `final_tally` 2, `broadside` 2, `menu_duel` 2. All
+   `ScatterObjects` are `OnStart`-only, so no asteroid is involved.
+2. **A blast mints a fresh `EffectAsset` per detonation** - `EffectAsset::new(32768, ..)`
+   plus a full `ExprWriter` graph rebuild, every time
+   (`torpedo_section/render.rs:447`). hanabi's `ShaderCache` is keyed on
+   generated WGSL so nothing recompiles, but the 32k-particle buffer is
+   re-allocated per blast and a salvo holds several at once. Build it once into
+   a resource.
+3. **A muzzle `EffectAsset` per barrel** (`turret_section/render.rs:401`), N
+   byte-identical 32k assets for N barrels. Dedupe to one handle.
+4. **NOVA OS ship and map scenes are re-minted every time the player opens the
+   tab** (`nova_os_ui/src/ship/scene.rs`, `map/scene.rs`), torn down on close.
+   Mid-flight, and `MAP_RING_RADII` is a `const`.
+
+Struck as decided-lazy, with reasons: the carve trimesh and the severed-piece
+hull (input genuinely does not exist until the shot, both already on a worker);
+the velocity HUD's 32,768-triangle octahedron (fires at player spawn, i.e.
+inside the load already); per-crate, per-beacon and per-rock materials (all
+`OnStart`, so a dedupe is a batching win, not a stutter win); asteroid mesh and
+hull construction (load-only in shipped content).
+
+### Two claims this task carried that were stale
+
+- `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` / `NOVA_PERF_MAX_DELTA` are not read
+  by anything. `probe_param` builds `NOVA_PROBE_<NAME>`. Corrected in
+  `20260819-173219/NOTES.md`.
+- `sample_scenario_queries` is NOT ungated: it carries
+  `run_if(scenario_reads_an_entity_query)` and no shipped scenario reads one.
