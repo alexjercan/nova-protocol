@@ -49,7 +49,7 @@ is a statement about the machine, never about the code.
 
 Two knobs came with it, and both earned their place in section 3: every
 capture now records how many FIXED STEPS ran inside each frame, and
-`NOVA_PERF_MAX_DELTA` forces the fixed-step ceiling for a run.
+`NOVA_PROBE_MAX_DELTA` forces the fixed-step ceiling for a run.
 
 ### The distribution, measured
 
@@ -274,7 +274,7 @@ frames covered 71 s to 101 s of simulated fight (`total_steps` 4550 to 6453 at
 fight in the window, which makes the next frame slower. The window's CONTENT
 is coupled to the machine's speed.
 
-Pinning `NOVA_PERF_MAX_DELTA` low enough to bind every frame breaks that
+Pinning `NOVA_PROBE_MAX_DELTA` low enough to bind every frame breaks that
 coupling on paper - virtual time then advances a constant amount per frame, so
 900 frames are always the same span of game. It was tried (section 3) and it
 does not help:
@@ -420,7 +420,7 @@ would then bound the tail without making anything faster.
 
 The capture now records how many fixed steps ran inside each captured frame,
 bucketed by count (`fixed_steps` in the per-run JSON and on the summary line),
-and `NOVA_PERF_MAX_DELTA` forces the ceiling so the intervention can be run.
+and `NOVA_PROBE_MAX_DELTA` forces the ceiling so the intervention can be run.
 
 ### The identity that makes the naive reading useless
 
@@ -470,7 +470,7 @@ The intervention says otherwise.
 
 ### The intervention, and the rejection
 
-`NOVA_PERF_MAX_DELTA = 0.0625` pins the ceiling at four steps - 62.5 ms of
+`NOVA_PROBE_MAX_DELTA = 0.0625` pins the ceiling at four steps - 62.5 ms of
 simulation, less than half what the scene needs, so it binds every single
 frame. Four captures:
 
@@ -514,7 +514,7 @@ cause.**
 of a slow frame, not as an explanation of one. **What makes the first 250 ms
 frame is still unanswered, and it is where the next phase should look.**
 
-The `NOVA_PERF_MAX_DELTA` knob and the fixed-step record stay: they are what
+The `NOVA_PROBE_MAX_DELTA` knob and the fixed-step record stay: they are what
 made this answerable, they are what caught the paused result screen in section
 1, and the next person to propose this will want the same evidence.
 
@@ -525,7 +525,7 @@ All of it is harness. No gameplay system was added, moved or reordered.
 
 | file | change |
 |---|---|
-| `crates/nova_probe/src/capabilities/frametime.rs` | counts fixed steps per captured frame (`FixedFirst` tally drained in `Update`, before any early return); `NOVA_PERF_MAX_DELTA` forces `Time<Virtual>::max_delta`, held every frame in `First` before `TimeSystems` |
+| `crates/nova_probe/src/capabilities/frametime.rs` | counts fixed steps per captured frame (`FixedFirst` tally drained in `Update`, before any early return); `NOVA_PROBE_MAX_DELTA` forces `Time<Virtual>::max_delta`, held every frame in `First` before `TimeSystems` |
 | `crates/nova_probe/src/stats.rs` | `FixedStepStats` - the per-step-count buckets, JSON-only so the comparable CSV schema does not move - plus `parse_fixed_steps_line`, the scrape the report reads them back through |
 | `crates/nova_probe_cli/src/native/cli.rs` | `--repeat <n>` on `run` and `scenario`, refused where there is no frame-time pass to repeat |
 | `crates/nova_probe_cli/src/native/run.rs` | the frame-time pass loops, one process and one `fps-run-<i>.log` per repeat |
@@ -544,7 +544,7 @@ pass for exactly those two examples, so this was reachable from the front door.
 The parameter is now optional and the capture stands down with a warning,
 releasing its collector instead of holding the app to the deadline.
 
-`NOVA_PERF_MAX_DELTA` is a MEASUREMENT knob and stays one. Lowering
+`NOVA_PROBE_MAX_DELTA` is a MEASUREMENT knob and stays one. Lowering
 `max_delta` in a shipping build trades a bounded stutter for simulation time
 the world never runs; section 3 says what that costs.
 
@@ -640,8 +640,8 @@ to get wrong.
 
 **The window is declared by the SCENE.** `FrameTimePlugin::window(warmup,
 frames)` (and `NovaProbePlugin::frametime_window`) lets an example state its own
-window in place of probe's 180 + 900 baseline; an operator's `NOVA_PERF_WARMUP` /
-`NOVA_PERF_FRAMES` still wins over both. Probe's CLI used to push the baseline
+window in place of probe's 180 + 900 baseline; an operator's `NOVA_PROBE_WARMUP` /
+`NOVA_PROBE_FRAMES` still wins over both. Probe's CLI used to push the baseline
 window into the child's environment unconditionally, which would have silently
 overwritten the declaration, so it now forwards those two variables only when
 the operator actually set them. The completion deadline is still sized on the
@@ -786,7 +786,7 @@ none is currently the headline benchmark.
 | `crates/nova_probe/src/stats.rs` | `CaptureAbort` and `parse_capture_abort_line` - the abort line is a refused capture's only record, so the host half reads it out of the log |
 | `crates/nova_probe_cli/src/evaluation/checks/capture_simulated.rs` | the new check: a refused capture FAILS the run and is named |
 | `crates/nova_probe_cli/src/evaluation/checks/mod.rs` | `capture_simulated` on the roster, before `fps_within_baseline` |
-| `crates/nova_probe_cli/src/native/env.rs` | forward `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` only when the operator set them, so an example's declared window survives |
+| `crates/nova_probe_cli/src/native/env.rs` | forward `NOVA_PROBE_WARMUP` / `NOVA_PROBE_FRAMES` only when the operator set them, so an example's declared window survives |
 | `crates/nova_probe_cli/src/report/mod.rs`, `report/html.rs` | the Refused captures table, rendered outside the frame section |
 | `examples/playable/wfc_arena.rs` | `MEASURED_WINDOW = (60, 360)`, with the derivation from Phase A's captures on the constant |
 | `tasks/20260819-123928/NOTES.md`, `tasks/20260818-220812/TASK.md` | the 295.76 ms row retracted, with both reasons |
