@@ -667,7 +667,10 @@ impl Plugin for TorpedoSectionPlugin {
             app.add_systems(Update, animate_blast_radius_visual);
 
             // Hanabi detonation burst: runs on wasm too now that the web build
-            // uses the WebGPU backend.
+            // uses the WebGPU backend. The fallback burst lives in a resource so
+            // a salvo shares one effect asset instead of minting one per
+            // detonation.
+            app.init_resource::<DefaultBlastEffect>();
             app.add_observer(insert_particle_effect);
 
             // Launch burst at the bay: build the effect on the spawner, fire it

@@ -319,10 +319,98 @@ pub(super) fn insert_turret_joint_render(
     }
 }
 
+/// The generated muzzle flash, built once and shared by every barrel.
+///
+/// Every barrel used to mint its own, and they were byte-identical: the
+/// direction, the colour and the ship's own velocity all arrive through
+/// hanabi PROPERTIES at runtime, so nothing about the graph is per-barrel.
+/// A clad warship carries a lot of barrels.
+fn build_default_muzzle_effect() -> EffectAsset {
+    let spawner = SpawnerSettings::once(100.0.into())
+        // NOTE: do not emit on instantiation - the muzzle flash only
+        // fires when the shot calls reset().
+        .with_emit_on_start(false);
+
+    let writer = ExprWriter::new();
+
+    let age = writer.lit(0.).expr();
+    let init_age = SetAttributeModifier::new(Attribute::AGE, age);
+
+    // Give a bit of variation by randomizing the lifetime per particle
+    let lifetime = writer.lit(0.01).uniform(writer.lit(0.1)).expr();
+    let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
+
+    // Attribute::COLOR saves the property value PER PARTICLE at spawn,
+    // so a later property change leaves live particles alone.
+    let spawn_color = writer.add_property("spawn_color", 0xFFFFFFFFu32.into());
+    let color = writer.prop(spawn_color).expr();
+    let init_color = SetAttributeModifier::new(Attribute::COLOR, color);
+
+    let normal = writer.add_property("normal", Vec3::ZERO.into());
+    let normal = writer.prop(normal);
+
+    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.prop(base_velocity);
+
+    let pos = writer.lit(Vec3::ZERO);
+    let init_pos = SetAttributeModifier::new(Attribute::POSITION, pos.expr());
+
+    // A random direction mostly along the muzzle normal, with a little
+    // spread - cheaper than bounding the spray with a KillAabbModifier,
+    // which would spawn particles only to kill them.
+    let spread_x = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.2);
+    let spread_y = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.2);
+    let spread_z = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.2);
+    let spread = writer.lit(Vec3::X) * spread_x
+        + writer.lit(Vec3::Y) * spread_y
+        + writer.lit(Vec3::Z) * spread_z;
+    let speed = writer.rand(ScalarType::Float) * writer.lit(5.0);
+    let velocity = (normal + spread * writer.lit(2.5)).normalized() * speed;
+    let velocity = velocity + base_velocity;
+    let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
+
+    EffectAsset::new(32768, spawner, writer.finish())
+        .with_name("spawn_on_command")
+        .init(init_pos)
+        .init(init_vel)
+        .init(init_age)
+        .init(init_lifetime)
+        .init(init_color)
+        // Set a size of 3 (logical) pixels, constant in screen space, independent of projection
+        .render(SetSizeModifier {
+            size: Vec3::splat(3.).into(),
+        })
+        .render(ScreenSpaceSizeModifier)
+}
+
+/// The generated muzzle flash, held so it is built ONCE. Authoring an
+/// effect on the barrel overrides it; this is the fallback.
+///
+/// Lazy rather than [`FromWorld`], so an app with no turrets - or one at a
+/// graphics tier with particles off - builds nothing.
+#[derive(Resource, Default, Debug)]
+pub(crate) struct DefaultMuzzleEffect(Option<Handle<EffectAsset>>);
+
+impl DefaultMuzzleEffect {
+    /// The shared flash, building it on the first barrel that needs it.
+    fn handle(&mut self, effects: &mut Assets<EffectAsset>) -> Handle<EffectAsset> {
+        self.0
+            .get_or_insert_with(|| effects.add(build_default_muzzle_effect()))
+            .clone()
+    }
+
+    /// Whether the effect has been built. Test surface.
+    #[cfg(test)]
+    pub(crate) fn is_built(&self) -> bool {
+        self.0.is_some()
+    }
+}
+
 pub(super) fn insert_turret_barrel_muzzle_effect(
     add: On<Add, TurretSectionBarrelMuzzleMarker>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
+    mut default_muzzle: ResMut<DefaultMuzzleEffect>,
     asset_server: Res<AssetServer>,
     budget: Option<Res<GraphicsBudget>>,
     q_effect: Query<&TurretSectionBarrelMuzzleEffect, With<TurretSectionBarrelMuzzleMarker>>,
@@ -344,83 +432,16 @@ pub(super) fn insert_turret_barrel_muzzle_effect(
         return;
     };
 
-    match &**effect_handle {
-        Some(asset_ref) => {
-            let effect = asset_ref.resolve(&asset_server);
-            commands.entity(entity).insert((children![(
-                Name::new("Muzzle Effect"),
-                TurretSectionBarrelMuzzleEffectMarker,
-                ParticleEffect::new(effect),
-                EffectProperties::default(),
-            ),],));
-        }
-        None => {
-            let spawner = SpawnerSettings::once(100.0.into())
-                // NOTE: do not emit on instantiation - the muzzle flash only
-                // fires when the shot calls reset().
-                .with_emit_on_start(false);
-
-            let writer = ExprWriter::new();
-
-            let age = writer.lit(0.).expr();
-            let init_age = SetAttributeModifier::new(Attribute::AGE, age);
-
-            // Give a bit of variation by randomizing the lifetime per particle
-            let lifetime = writer.lit(0.01).uniform(writer.lit(0.1)).expr();
-            let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
-
-            // Attribute::COLOR saves the property value PER PARTICLE at spawn,
-            // so a later property change leaves live particles alone.
-            let spawn_color = writer.add_property("spawn_color", 0xFFFFFFFFu32.into());
-            let color = writer.prop(spawn_color).expr();
-            let init_color = SetAttributeModifier::new(Attribute::COLOR, color);
-
-            let normal = writer.add_property("normal", Vec3::ZERO.into());
-            let normal = writer.prop(normal);
-
-            let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
-            let base_velocity = writer.prop(base_velocity);
-
-            let pos = writer.lit(Vec3::ZERO);
-            let init_pos = SetAttributeModifier::new(Attribute::POSITION, pos.expr());
-
-            // A random direction mostly along the muzzle normal, with a little
-            // spread - cheaper than bounding the spray with a KillAabbModifier,
-            // which would spawn particles only to kill them.
-            let spread_x = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.2);
-            let spread_y = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.2);
-            let spread_z = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.2);
-            let spread = writer.lit(Vec3::X) * spread_x
-                + writer.lit(Vec3::Y) * spread_y
-                + writer.lit(Vec3::Z) * spread_z;
-            let speed = writer.rand(ScalarType::Float) * writer.lit(5.0);
-            let velocity = (normal + spread * writer.lit(2.5)).normalized() * speed;
-            let velocity = velocity + base_velocity;
-            let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
-
-            let effect = effects.add(
-                EffectAsset::new(32768, spawner, writer.finish())
-                    .with_name("spawn_on_command")
-                    .init(init_pos)
-                    .init(init_vel)
-                    .init(init_age)
-                    .init(init_lifetime)
-                    .init(init_color)
-                    // Set a size of 3 (logical) pixels, constant in screen space, independent of projection
-                    .render(SetSizeModifier {
-                        size: Vec3::splat(3.).into(),
-                    })
-                    .render(ScreenSpaceSizeModifier),
-            );
-
-            commands.entity(entity).insert((children![(
-                Name::new("Muzzle Effect"),
-                TurretSectionBarrelMuzzleEffectMarker,
-                ParticleEffect::new(effect),
-                EffectProperties::default(),
-            ),],));
-        }
-    }
+    let effect = match &**effect_handle {
+        Some(asset_ref) => asset_ref.resolve(&asset_server),
+        None => default_muzzle.handle(&mut effects),
+    };
+    commands.entity(entity).insert((children![(
+        Name::new("Muzzle Effect"),
+        TurretSectionBarrelMuzzleEffectMarker,
+        ParticleEffect::new(effect),
+        EffectProperties::default(),
+    ),],));
 }
 
 #[cfg(test)]

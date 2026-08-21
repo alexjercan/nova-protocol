@@ -34,8 +34,30 @@
 //! mesh in a bin of its own - 2,652 bins of one instance each on an eleven-ship
 //! gallery, and roughly half the frame rate. Buckets cap the bins at source
 //! materials times [`SECTION_CRACK_BUCKETS`] however many ships are in the
-//! scene, and bucket 0 is the pristine step, so an undamaged fleet batches as
-//! if the effect were not there.
+//! scene.
+//!
+//! # A pristine section is not swapped at all
+//!
+//! Bucket 0 is the pristine step, and a mesh in it KEEPS its own
+//! `MeshMaterial3d<StandardMaterial>`. The bucket-0 material is never built.
+//!
+//! This is not an optimisation of a working scheme, it is the repair of a wrong
+//! one. A pristine section used to be swapped onto a bucket-0
+//! [`SectionCracksMaterial`], on the reasoning that one shared bucket is one
+//! bin, so an undamaged fleet batches as if the effect were not there. The bin
+//! count was right and the conclusion did not follow: a bucket-0 material is an
+//! [`ExtendedMaterial`], which is a DIFFERENT PIPELINE, and its draws cannot
+//! batch with anything still drawn as a [`StandardMaterial`]. Measured by
+//! ablation, an idle scene with nothing damaged anywhere paid 10.4% of mean
+//! frame time and 12.7% of p95 for cracks it was not showing.
+//!
+//! The swap is therefore deferred to the first bucket that draws something, and
+//! reversed if a section is ever healed back to pristine. An undamaged fleet now
+//! costs what it costs without this module, and a battered one pays in
+//! proportion to how battered it is.
+//!
+//! The shader was always built for this: crack width is `damage * damage`, so
+//! bucket 0 renders EXACTLY the source material. Not swapping it is invisible.
 //!
 //! The cracked material is also what a dead section wears as it tumbles away:
 //! destruction detaches the art rather than re-drawing it, so the last bucket
@@ -176,8 +198,10 @@ pub struct SectionCracks {
     pub source: Handle<StandardMaterial>,
     /// Which of the [`SECTION_CRACK_BUCKETS`] steps this mesh is drawn at.
     pub bucket: usize,
-    /// The shared material for that bucket, which this mesh draws with.
-    pub material: Handle<SectionCracksMaterial>,
+    /// The shared material for that bucket, which this mesh draws with, or
+    /// `None` at bucket 0 - where the mesh keeps its own [`Self::source`] and
+    /// no cracked material exists at all. `None` and `bucket == 0` always agree.
+    pub material: Option<Handle<SectionCracksMaterial>>,
 }
 
 /// Every cracked material built so far, keyed by the source material it was
@@ -382,6 +406,24 @@ fn resolve_pending_cracks(
 ) {
     for (entity, material, pending) in &q_pending {
         let bucket = crack_bucket(q_level.get(pending.section).map_or(0.0, |level| level.0));
+
+        // Pristine: capture it, but leave it on its own material. Nothing is
+        // built and nothing is swapped, so this does not wait on the source
+        // asset either - a pristine mesh is captured the frame it is marked
+        // whether or not its gltf material has resolved.
+        if bucket == 0 {
+            commands
+                .entity(entity)
+                .try_insert(SectionCracks {
+                    section: pending.section,
+                    source: material.0.clone(),
+                    bucket,
+                    material: None,
+                })
+                .try_remove::<PendingSectionCracks>();
+            continue;
+        }
+
         let Some(handle) = registry.material(&material.0, bucket, &standard, &mut cracked) else {
             // Asset not loaded yet; keep the pending marker and retry next frame.
             continue;
@@ -396,7 +438,7 @@ fn resolve_pending_cracks(
                     section: pending.section,
                     source: material.0.clone(),
                     bucket,
-                    material: handle,
+                    material: Some(handle),
                 },
             ))
             .try_remove::<MeshMaterial3d<StandardMaterial>>()
@@ -426,17 +468,36 @@ fn grade_section_cracks(
         if bucket == cracks.bucket {
             continue;
         }
+
+        // Healed back to pristine: hand the mesh its own material back and drop
+        // the cracked one, so a repaired section stops paying the extended
+        // pipeline the same way an untouched one never starts.
+        if bucket == 0 {
+            // NOTE: same despawn race as `mark_section_meshes`.
+            commands
+                .entity(entity)
+                .try_insert(MeshMaterial3d(cracks.source.clone()))
+                .try_remove::<MeshMaterial3d<SectionCracksMaterial>>();
+            cracks.bucket = bucket;
+            cracks.material = None;
+            continue;
+        }
+
         let Some(handle) = registry.material(&cracks.source, bucket, &standard, &mut cracked)
         else {
             continue;
         };
 
         // NOTE: same despawn race as `mark_section_meshes`.
-        commands
-            .entity(entity)
-            .try_insert(MeshMaterial3d(handle.clone()));
+        let mut entity = commands.entity(entity);
+        entity.try_insert(MeshMaterial3d(handle.clone()));
+        // Leaving pristine for the first time: the source material is still on
+        // the mesh and has to come off, or it draws through both pipelines.
+        if cracks.bucket == 0 {
+            entity.try_remove::<MeshMaterial3d<StandardMaterial>>();
+        }
         cracks.bucket = bucket;
-        cracks.material = handle;
+        cracks.material = Some(handle);
     }
 }
 
@@ -501,9 +562,14 @@ mod tests {
             .world()
             .get::<SectionCracks>(mesh)
             .expect("the mesh was captured");
+        // Pristine reads 0.0 with no material to read it from: bucket 0 draws
+        // the source material, which is what damage 0.0 renders as anyway.
+        let Some(material) = cracks.material.as_ref() else {
+            return 0.0;
+        };
         app.world()
             .resource::<Assets<SectionCracksMaterial>>()
-            .get(&cracks.material)
+            .get(material)
             .expect("its material exists")
             .extension
             .damage
@@ -767,8 +833,8 @@ mod tests {
 
         assert_eq!(
             crack_materials(&app),
-            1,
-            "an undamaged fleet draws through the pristine bucket alone"
+            0,
+            "an undamaged fleet builds no cracked material at all"
         );
 
         // A different damage level for every section, so one material per
@@ -781,21 +847,112 @@ mod tests {
 
         assert_eq!(
             crack_materials(&app),
-            SECTION_CRACK_BUCKETS,
-            "forty damage levels draw through the buckets and nothing more"
+            SECTION_CRACK_BUCKETS - 1,
+            "forty damage levels draw through the buckets past pristine, and nothing more"
         );
+        // Sections 3 and 4 are both in bucket 1; 0 and 1 are still pristine and
+        // hold no material to compare.
         assert_eq!(
             app.world()
-                .get::<SectionCracks>(sections[0].1)
+                .get::<SectionCracks>(sections[3].1)
                 .unwrap()
                 .material
-                .id(),
+                .as_ref()
+                .map(Handle::id),
             app.world()
-                .get::<SectionCracks>(sections[1].1)
+                .get::<SectionCracks>(sections[4].1)
                 .unwrap()
                 .material
-                .id(),
+                .as_ref()
+                .map(Handle::id),
             "two sections in the same bucket share one material"
+        );
+    }
+
+    /// THE claim the pristine skip rests on: an undamaged section is not moved
+    /// onto a second material pipeline, because a bucket-0 material draws
+    /// identically to the source and cannot batch with it.
+    #[test]
+    fn a_pristine_section_keeps_its_own_material() {
+        let mut app = cracks_app();
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+        let (_, mesh) = section_with_mesh(&mut app, &shared);
+
+        app.update();
+        app.update();
+
+        let cracks = app
+            .world()
+            .get::<SectionCracks>(mesh)
+            .expect("a pristine mesh is still captured");
+        assert_eq!(cracks.bucket, 0);
+        assert!(cracks.material.is_none(), "and holds no cracked material");
+        assert!(
+            app.world()
+                .get::<MeshMaterial3d<StandardMaterial>>(mesh)
+                .is_some(),
+            "it still draws through its own source material"
+        );
+        assert!(
+            app.world()
+                .get::<MeshMaterial3d<SectionCracksMaterial>>(mesh)
+                .is_none(),
+            "and not through the cracked pipeline"
+        );
+        assert_eq!(crack_materials(&app), 0, "nothing was built for it");
+    }
+
+    /// Damage swaps the pipeline on, healing swaps it back off, and the mesh is
+    /// never drawn through both at once.
+    #[test]
+    fn a_section_swaps_onto_cracks_when_hurt_and_back_when_healed() {
+        let mut app = cracks_app();
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+        let (section, mesh) = section_with_mesh(&mut app, &shared);
+
+        app.update();
+        app.update();
+
+        app.world_mut().get_mut::<Health>(section).unwrap().current = 20.0;
+        app.update();
+
+        assert!(app.world().get::<SectionCracks>(mesh).unwrap().bucket > 0);
+        assert!(
+            app.world()
+                .get::<MeshMaterial3d<SectionCracksMaterial>>(mesh)
+                .is_some(),
+            "a hurt section draws cracked"
+        );
+        assert!(
+            app.world()
+                .get::<MeshMaterial3d<StandardMaterial>>(mesh)
+                .is_none(),
+            "and its source material came off, so it draws through one pipeline"
+        );
+
+        app.world_mut().get_mut::<Health>(section).unwrap().current = 100.0;
+        app.update();
+
+        let cracks = app.world().get::<SectionCracks>(mesh).unwrap();
+        assert_eq!(cracks.bucket, 0);
+        assert!(cracks.material.is_none());
+        assert!(
+            app.world()
+                .get::<MeshMaterial3d<StandardMaterial>>(mesh)
+                .is_some(),
+            "a healed section gets its own material back"
+        );
+        assert!(
+            app.world()
+                .get::<MeshMaterial3d<SectionCracksMaterial>>(mesh)
+                .is_none(),
+            "and stops paying the extended pipeline"
         );
     }
 
@@ -811,9 +968,13 @@ mod tests {
             .world_mut()
             .resource_mut::<Assets<StandardMaterial>>()
             .add(StandardMaterial::default());
-        let (_, mesh) = section_with_mesh(&mut app, &shared);
+        let (section, mesh) = section_with_mesh(&mut app, &shared);
         // The captured mesh must hold the LAST strong handle to the source.
         drop(shared);
+        // HURT, so a bucket material is built at all - a pristine section draws
+        // its source and the registry stays empty, which would prove nothing
+        // about forgetting.
+        app.world_mut().get_mut::<Health>(section).unwrap().current = 25.0;
 
         app.update();
         app.update();
@@ -845,7 +1006,12 @@ mod tests {
             .world()
             .resource::<Assets<StandardMaterial>>()
             .reserve_handle();
-        let (_, mesh) = section_with_mesh(&mut app, &handle);
+        let (section, mesh) = section_with_mesh(&mut app, &handle);
+        // HURT, because only a mesh past the pristine bucket has to build a
+        // material and therefore has anything to wait for. A pristine one is
+        // captured on its own source handle whether or not the asset resolved,
+        // which the assertion at the end of this test pins.
+        app.world_mut().get_mut::<Health>(section).unwrap().current = 25.0;
 
         app.update();
         app.update();
@@ -869,6 +1035,25 @@ mod tests {
             "must capture once the asset loads"
         );
         assert!(app.world().get::<PendingSectionCracks>(mesh).is_none());
+
+        // And the pristine case does not wait at all: same unresolved handle,
+        // full health, captured on the first pass.
+        let pending = app
+            .world()
+            .resource::<Assets<StandardMaterial>>()
+            .reserve_handle();
+        let (_, whole_mesh) = section_with_mesh(&mut app, &pending);
+        app.update();
+        app.update();
+
+        assert!(
+            app.world().get::<SectionCracks>(whole_mesh).is_some(),
+            "a pristine mesh needs no material, so it never waits for one"
+        );
+        assert!(app
+            .world()
+            .get::<PendingSectionCracks>(whole_mesh)
+            .is_none());
     }
 
     /// Regression: a ship exploding chain-destroys its section leaves, and the

@@ -27,7 +27,7 @@ use firing::shoot_spawn_projectile;
 use nova_gameplay::prelude::*;
 use render::{
     insert_projectile_render, insert_turret_barrel_muzzle_effect, insert_turret_joint_render,
-    on_projectile_marker_effect, DefaultProjectileRender,
+    on_projectile_marker_effect, DefaultMuzzleEffect, DefaultProjectileRender,
 };
 use setup::{apply_turret_config_to_children, insert_turret_section};
 
@@ -250,7 +250,10 @@ impl Plugin for TurretSectionPlugin {
             app.add_observer(insert_projectile_render);
 
             // Hanabi muzzle-flash and projectile-trail effects: run on wasm too
-            // now that the web build uses the WebGPU backend.
+            // now that the web build uses the WebGPU backend. The fallback flash
+            // lives in a resource so every barrel on every ship shares one
+            // effect asset.
+            app.init_resource::<DefaultMuzzleEffect>();
             app.add_observer(insert_turret_barrel_muzzle_effect);
             app.add_observer(on_projectile_marker_effect);
         }
