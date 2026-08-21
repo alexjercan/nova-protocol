@@ -163,7 +163,7 @@ fn main() -> bevy::app::AppExit {
                 .add();
         }
 
-        app.add_plugins(
+        app.add_plugins(nova_screenshot(
             script
                 // The emptied ring completes its objective through an
                 // expression-filtered OnUpdate latch.
@@ -171,8 +171,10 @@ fn main() -> bevy::app::AppExit {
                 .until(scenario_variable_is("ring_cleared", 1.0))
                 .deadline(20.0)
                 .add()
-                // Last beat: the driver reports done after it, so a clean pass
-                // ends here rather than idling out a runway.
+                // The script's last beat: `nova_screenshot` appends the
+                // capture beat behind it, and the driver reports done after
+                // that - so a clean pass ends here rather than idling out a
+                // runway.
                 .step("report the whole grammar")
                 .on_enter(report_grammar)
                 .add()
@@ -181,10 +183,9 @@ fn main() -> bevy::app::AppExit {
                 // rounds replay, so the capture measures ACTIVITY.
                 .loop_from(LOAD_STEP)
                 .on_loop(reload_the_showcase),
-        );
-        app.add_plugins(nova_screenshot());
+        ));
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
-        // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE is set):
+        // Run-timeline recorder (inert unless NOVA_PROBE_TIMELINE is set):
         // this example exercises the whole scenario language, so its recorded
         // timeline doubles as the recorder's stability probe.
         // Every tally this scenario keeps is one-way by design. A reload

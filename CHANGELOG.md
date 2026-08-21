@@ -249,6 +249,7 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Modding & Mod Portal
 
+- **(breaking)** The mod portal and cache take the `NOVA_MODDING_*` prefix: `NOVA_MOD_CACHE_ROOT` is `NOVA_MODDING_CACHE_ROOT` and `NOVA_PORTAL_URL` is `NOVA_MODDING_PORTAL_URL`.
 - **(breaking)** A mod declares its own balance acknowledgments in a
   `balance_acks.ron` beside its manifest; the linter reads them from the bundle
   it lints. No list in this repository names a mod.
@@ -453,15 +454,22 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- The dev book indexes every environment variable on one page: what each gates, which crate owns it, and whether it is harness-only, tooling or player-facing.
+- Every environment variable the game reads is a declared constant with one home, and `tests/env_contract.rs` names the whole set - a new one off the roster fails a test instead of arming nothing.
+- `--mute` zeroes the audio output, the other half of the outputs-off pair with `--norender`. `NOVA_MUTE` is its environment twin, and a muted run now says so once at startup.
+- New probe capability: `NOVA_PROBE_STEPDIAG` writes a per-fixed-step CSV of avian's own phase timers and body counts; `NOVA_PROBE_STEPDIAG_BODIES` picks the body-count regime its summary covers.
+- **(breaking)** Every `NOVA_PERF_*` environment variable is now `NOVA_PROBE_*`, and `NOVA_PERF` is `NOVA_PROBE` - finishing the crate's rename to `nova_probe`. No aliases.
+- **(breaking)** `NOVA_SHOT` and its screenshot driver are gone. A range's one settled picture is `nova_screenshot(script)`, a beat on its own autopilot, armed by `NOVA_CAPTURE` like every shot.
+- **(breaking)** `NOVA_SHOT_DIR` is now `NOVA_CAPTURE_DIR`: one name for the directory every still, loop and scenario `Screenshot` action stages under.
 - A `--features debug` boot prints 62 lines instead of 360: per-item spawn and setup lines are `trace!`, batch lines carry counts, and one `nova=` prefix directive covers all 22 crates, not nine.
 - A headless run no longer opens with a bevy ERROR and three WARNs it provokes by construction; the clamp is headless-only, so a rendering run keeps those targets at their normal level.
-- A capture breaks its frame down by name: main-world schedules, render phases with `PrepareAssets`, `Prepare`'s sub-sets and submit/present split out, and GPU passes under `NOVA_PERF_RENDER_DIAG`.
+- A capture breaks its frame down by name: main-world schedules, render phases with `PrepareAssets`, `Prepare`'s sub-sets and submit/present split out, and GPU passes under `NOVA_PROBE_RENDER_DIAG`.
 - A capture is measured, not paced: it sizes its window before winit creates it, runs continuously, and REFUSES a run the WM re-sized, the update mode throttled, or the display capped at refresh.
 - A measured run wears `WM_CLASS` `nova-measure`, so `for_window [class="nova-measure"] move container to workspace 3` keeps captures off the desk. A hidden workspace measures the same as a visible one.
 - A capture counts the world it measured - entities per component, archetypes, and mesh instances against DISTINCT mesh handles - beside the frame-time stats.
-- `NOVA_PERF_PRESENT` names the presentation mode instead of requesting it; `wfc_ships --ships 0` stands the empty row, and a measured row holds its capture until the ships have finished spawning.
+- `NOVA_PROBE_PRESENT` names the presentation mode instead of requesting it; `wfc_ships --ships 0` stands the empty row, and a measured row holds its capture until the ships have finished spawning.
 - The profile table counts deferred command flushes, where observers actually run, and the run report leads its frame section with worst frame, mean and the implied FPS, flagged under 60.
-- `probe run --repeat <n>` gates each capture on its mean and median before reading the worst frame, and a capture records fixed steps per frame plus a `NOVA_PERF_MAX_DELTA` ceiling knob.
+- `probe run --repeat <n>` gates each capture on its mean and median before reading the worst frame, and a capture records fixed steps per frame plus a `NOVA_PROBE_MAX_DELTA` ceiling knob.
 - A capture REFUSES a window it cannot measure - a stopped simulation, or a scene the example says is over - with no stats and a named failing check; a scene that can end declares its own window.
 - The run report STREAMS trace.json instead of reading it whole: a 2.6 GB trace costs 70 MB of host memory instead of 11 GB, and a trace cut short still ranks what it did record.
 - Each `screenshots/` producer captures ONE thing in at most three frames, and its name says what it makes: `screenshot_*` stills, `loop_*` video.
@@ -531,7 +539,7 @@ does NOT get an entry - and it is the only place they are written down.
 - Engine tests stopped reading installed mods: seven rigs over `webmods/` are
   rebuilt as four synthetic-scenario rigs with generic ids, so no mod can block
   an engine change.
-- New probe capability: `NOVA_PERF_SNAPSHOT` dumps world state as JSONL - ships,
+- New probe capability: `NOVA_PROBE_SNAPSHOT` dumps world state as JSONL - ships,
   sections, fixtures, weapons, ordnance - sorted and rounded so two snapshots of
   one frame diff clean.
 - A snapshot carries the DERIVED SKIN: per plate the eight boundary samples, the

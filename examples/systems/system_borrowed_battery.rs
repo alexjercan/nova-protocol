@@ -97,7 +97,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        app.add_plugins(
+        app.add_plugins(nova_screenshot(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 .step(LOAD_STEP)
                 .enter(GameStates::Loading)
@@ -151,10 +151,9 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .loop_from(LOAD_STEP)
                 .on_loop(respawn_the_range),
-        );
+        ));
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(nova_screenshot());
     }
 
     app.run()

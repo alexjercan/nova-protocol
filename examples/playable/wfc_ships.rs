@@ -101,7 +101,7 @@
 //! - `NOVA_AUTOPILOT=1`: smoke path - collapse the row, frame it, strip the
 //!   cladding, exit clean. This is the path `probe run` takes.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the row clad and then bare
-//!   (staged under `NOVA_SHOT_DIR`). Same ships in both frames, so the pair is
+//!   (staged under `NOVA_CAPTURE_DIR`). Same ships in both frames, so the pair is
 //!   a before and after rather than two rolls.
 
 use bevy::prelude::*;
@@ -175,7 +175,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        // Probe wiring (each plugin is inert without its NOVA_PERF_* env):
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
         // run timeline + engine-bound invariants, so `probe run` grades this
         // example instead of asserting nothing.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
@@ -184,7 +184,7 @@ fn main() -> bevy::app::AppExit {
         // and floor studies are measured on, so a capture pointed at it gets
         // one. Declaring only when armed keeps `probe run` unchanged and still
         // writes the artifact the sweep reads.
-        if nova_probe::perf_armed() {
+        if nova_probe::probe_armed() {
             app.add_plugins(
                 nova_probe::nova_frametime()
                     .window(90, 200)
@@ -201,7 +201,7 @@ fn main() -> bevy::app::AppExit {
         // Startup writer asking for 1920x1080 is both ambiguous with it and
         // refused by the window manager afterwards, which left the two
         // disagreeing about what had been measured.
-        if !nova_probe::perf_armed() {
+        if !nova_probe::probe_armed() {
             app.add_systems(Startup, force_capture_resolution);
         }
         app.add_systems(Startup, hide_dev_overlays);
@@ -281,7 +281,7 @@ fn wfc_plugin(app: &mut App, roster: Roster, requested: StyleRequest) {
     // `capturing()` (NOVA_CAPTURE, the screenshot arm) does not cover it. The
     // orbit made the measured attitude a function of load time: consecutive
     // captures of the same seed read 9.9 ms and 30.1 ms.
-    let composed = capturing() || std::env::var_os(nova_core::PERF_ENV).is_some();
+    let composed = capturing() || std::env::var_os(nova_core::PROBE_ENV).is_some();
     app.insert_resource(IdleOrbit::new(!composed));
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_row);
     app.add_systems(

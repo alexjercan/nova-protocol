@@ -65,11 +65,10 @@ fn main() -> bevy::app::AppExit {
             ));
         }
         // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
+        // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
         app.add_plugins(menu_script());
-        app.add_plugins(nova_screenshot());
     }
 
     app.run()
@@ -89,59 +88,66 @@ const SETTLE: u32 = 10;
 const BOOT_SECS: f32 = 90.0;
 
 /// The boot flow, one beat per gesture.
+///
+/// The picture is taken on the LAID-OUT MENU, which is what this range is
+/// about. `nova_screenshot` appends its beat to whatever it is handed, and the
+/// beats after this call leave the app inside the scenario load - a shot behind
+/// them photographs the loading screen.
 #[cfg(feature = "debug")]
 fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-        .step("menu_boot: reach the main menu")
-        .until(state_is(GameStates::MainMenu))
-        .add()
-        .step("menu_boot: let the menu lay out")
-        .until(frames(SETTLE))
-        .add()
-        .step("menu_boot: click New Game")
-        .on_enter(click_named("New Game Button"))
-        .until(frames(SETTLE))
-        .add()
-        // The menu buttons act on `Activate`, which fires on RELEASE over the
-        // same widget - so a click is two beats.
-        .step("menu_boot: release New Game")
-        .on_enter(|world: &mut World| {
-            release_mouse(MouseButton::Left)(world);
-            info!("menu_boot: clicked New Game");
-        })
-        .until(state_is(GameStates::Playing))
-        .deadline(BOOT_SECS)
-        .add()
-        .step("menu_boot: let the teardown finish")
-        .until(frames(SETTLE))
-        .add()
-        .step("menu_boot: the boot flow completed")
-        .on_enter(|world: &mut World| {
-            // The whole claim: gameplay state is up and the menu is GONE. What
-            // the scenario then contains is deliberately not asserted.
-            assert_eq!(
-                *world.resource::<State<GameStates>>().get(),
-                GameStates::Playing,
-                "New Game must reach gameplay state"
-            );
-            nova_probe::probe_marker(
-                world,
-                "outcome: new game reaches gameplay",
-                serde_json::json!({}),
-            );
-            let menu_buttons = world
-                .query::<&Name>()
-                .iter(world)
-                .filter(|name| name.as_str() == "New Game Button")
-                .count();
-            assert_eq!(
-                menu_buttons, 0,
-                "the main menu must be torn down once gameplay is up; \
+    nova_screenshot(
+        nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+            .step("menu_boot: reach the main menu")
+            .until(state_is(GameStates::MainMenu))
+            .add()
+            .step("menu_boot: let the menu lay out")
+            .until(frames(SETTLE))
+            .add(),
+    )
+    .step("menu_boot: click New Game")
+    .on_enter(click_named("New Game Button"))
+    .until(frames(SETTLE))
+    .add()
+    // The menu buttons act on `Activate`, which fires on RELEASE over the
+    // same widget - so a click is two beats.
+    .step("menu_boot: release New Game")
+    .on_enter(|world: &mut World| {
+        release_mouse(MouseButton::Left)(world);
+        info!("menu_boot: clicked New Game");
+    })
+    .until(state_is(GameStates::Playing))
+    .deadline(BOOT_SECS)
+    .add()
+    .step("menu_boot: let the teardown finish")
+    .until(frames(SETTLE))
+    .add()
+    .step("menu_boot: the boot flow completed")
+    .on_enter(|world: &mut World| {
+        // The whole claim: gameplay state is up and the menu is GONE. What
+        // the scenario then contains is deliberately not asserted.
+        assert_eq!(
+            *world.resource::<State<GameStates>>().get(),
+            GameStates::Playing,
+            "New Game must reach gameplay state"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: new game reaches gameplay",
+            serde_json::json!({}),
+        );
+        let menu_buttons = world
+            .query::<&Name>()
+            .iter(world)
+            .filter(|name| name.as_str() == "New Game Button")
+            .count();
+        assert_eq!(
+            menu_buttons, 0,
+            "the main menu must be torn down once gameplay is up; \
                  {menu_buttons} New Game button(s) survived"
-            );
-            nova_probe::probe_marker(world, "outcome: the menu tore down", serde_json::json!({}));
-            info!("menu_boot: the menu tore down and gameplay state is up");
-        })
-        .until(frames(1))
-        .add()
+        );
+        nova_probe::probe_marker(world, "outcome: the menu tore down", serde_json::json!({}));
+        info!("menu_boot: the menu tore down and gameplay state is up");
+    })
+    .until(frames(1))
+    .add()
 }

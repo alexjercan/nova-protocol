@@ -83,8 +83,7 @@ fn main() -> bevy::app::AppExit {
     {
         app.init_resource::<FinaleProbe>();
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(finale_script());
-        app.add_plugins(nova_screenshot());
+        app.add_plugins(nova_screenshot(finale_script()));
     }
 
     app.run()

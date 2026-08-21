@@ -109,58 +109,63 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
+        // The picture is taken at the range's PEAK. `nova_screenshot`
+        // appends its beat to whatever it is handed, and the beats after
+        // this call drain and tear the range down - a shot behind them
+        // photographs an empty world.
         app.add_plugins(
-            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                // The fleet is spawned by an OnStart handler, so waiting for
-                // the full section count is also the gate a looped reload
-                // needs: the old cycle's entities outlive the load replacing
-                // them.
-                .step(LOAD_STEP)
-                .enter(GameStates::Loading)
-                .until(the_fleet_is_up())
-                .deadline(SPAWN_DEADLINE_SECS)
-                .add()
-                // The scene is live again: close the reload interval so a frame
-                // capture excludes it. A no-op on the first cycle.
-                .step("close the reload interval")
-                .on_enter(nova_probe::capture_reload_end)
-                .on_enter(assert_the_fleet_is_whole)
-                .add()
-                .step("hold the fleet")
-                .until(elapsed(HOLD_SECS))
-                .add()
-                .step("assert the fleet acquired across itself")
-                .on_enter(assert_the_fleet_acquired)
-                .add()
-                // The churn: the whole fleet goes and comes back inside one
-                // run, so a leak or a stale relation shows here rather than at
-                // the end of a long capture.
-                .step("churn: drop the fleet")
-                .on_enter(tear_the_fleet_down)
-                .until(the_sky_is_empty())
-                .deadline(UNLOAD_DEADLINE_SECS)
-                .add()
-                .step("churn: build it again")
-                .on_enter(respawn_the_fleet)
-                .until(the_fleet_is_up())
-                .deadline(SPAWN_DEADLINE_SECS)
-                .add()
-                .step("assert the fleet came back")
-                .on_enter(assert_the_fleet_came_back)
-                .add()
-                .step("tear the fleet down")
-                .on_enter(tear_the_fleet_down)
-                .until(elapsed(TEARDOWN_SETTLE_SECS))
-                .add()
-                .step("check the world came back to baseline")
-                .on_enter(assert_back_to_baseline)
-                .add()
-                .loop_from(LOAD_STEP)
-                .on_loop(respawn_the_fleet_for_the_capture),
+            nova_screenshot(
+                nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+                    // The fleet is spawned by an OnStart handler, so waiting for
+                    // the full section count is also the gate a looped reload
+                    // needs: the old cycle's entities outlive the load replacing
+                    // them.
+                    .step(LOAD_STEP)
+                    .enter(GameStates::Loading)
+                    .until(the_fleet_is_up())
+                    .deadline(SPAWN_DEADLINE_SECS)
+                    .add()
+                    // The scene is live again: close the reload interval so a frame
+                    // capture excludes it. A no-op on the first cycle.
+                    .step("close the reload interval")
+                    .on_enter(nova_probe::capture_reload_end)
+                    .on_enter(assert_the_fleet_is_whole)
+                    .add()
+                    .step("hold the fleet")
+                    .until(elapsed(HOLD_SECS))
+                    .add()
+                    .step("assert the fleet acquired across itself")
+                    .on_enter(assert_the_fleet_acquired)
+                    .add()
+                    // The churn: the whole fleet goes and comes back inside one
+                    // run, so a leak or a stale relation shows here rather than at
+                    // the end of a long capture.
+                    .step("churn: drop the fleet")
+                    .on_enter(tear_the_fleet_down)
+                    .until(the_sky_is_empty())
+                    .deadline(UNLOAD_DEADLINE_SECS)
+                    .add()
+                    .step("churn: build it again")
+                    .on_enter(respawn_the_fleet)
+                    .until(the_fleet_is_up())
+                    .deadline(SPAWN_DEADLINE_SECS)
+                    .add()
+                    .step("assert the fleet came back")
+                    .on_enter(assert_the_fleet_came_back)
+                    .add(),
+            )
+            .step("tear the fleet down")
+            .on_enter(tear_the_fleet_down)
+            .until(elapsed(TEARDOWN_SETTLE_SECS))
+            .add()
+            .step("check the world came back to baseline")
+            .on_enter(assert_back_to_baseline)
+            .add()
+            .loop_from(LOAD_STEP)
+            .on_loop(respawn_the_fleet_for_the_capture),
         );
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(nova_screenshot());
     }
 
     app.run()

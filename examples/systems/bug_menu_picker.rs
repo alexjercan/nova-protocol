@@ -28,7 +28,7 @@
 //! ```
 //!
 //! With `NOVA_CAPTURE=1` it also shoots `scenarios-picker-<id>.png` per selection
-//! (staged under `NOVA_SHOT_DIR`), so the campaign indentation and the held
+//! (staged under `NOVA_CAPTURE_DIR`), so the campaign indentation and the held
 //! split can be EYEBALLED and not just measured.
 
 #[cfg(feature = "debug")]
@@ -69,8 +69,11 @@ fn main() -> bevy::app::AppExit {
             ));
         }
         app.init_resource::<ScenariosAutopilot>();
-        // Probe wiring (inert without its NOVA_PERF_* env).
+        // Probe wiring (inert without its NOVA_PROBE_* env).
         app.add_plugins(nova_probe::NovaProbePlugin::default());
+        // No `nova_screenshot` beat here: the walk shoots its own per-selection
+        // pictures, and it OWNS its completion - a beat appended after the step
+        // that reports done would never be reached.
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // SCRIPT-OWNED completion: the step
@@ -85,7 +88,6 @@ fn main() -> bevy::app::AppExit {
                 .deadline(SCENARIOS_AUTOPILOT_SECS)
                 .add(),
         );
-        app.add_plugins(nova_screenshot());
     }
 
     app.run()

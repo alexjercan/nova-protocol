@@ -39,7 +39,7 @@
 //! Two harnessed modes, the fleet's capture idiom:
 //! - `NOVA_AUTOPILOT=1`: smoke path - load the roster, frame it, exit clean.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the clad roster (staged
-//!   under `NOVA_SHOT_DIR`). `freeze_bodies` pins every subject, so two runs
+//!   under `NOVA_CAPTURE_DIR`). `freeze_bodies` pins every subject, so two runs
 //!   photograph the same attitude and a pair of shots is an A/B of the skin
 //!   rather than of the clock.
 

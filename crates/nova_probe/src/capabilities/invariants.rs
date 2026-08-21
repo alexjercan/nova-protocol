@@ -6,7 +6,7 @@
 //! (they assert state bounds, not schedules).
 //!
 //! One env-gated plugin, [`nova_invariants`]: inert unless
-//! `NOVA_PERF_INVARIANTS` is set. Any value arms record+warn mode; the value
+//! `NOVA_PROBE_INVARIANTS` is set. Any value arms record+warn mode; the value
 //! `strict` additionally PANICS on the first violation (turning a corrupted
 //! state into a loud harness failure at the moment of corruption). Each
 //! violation logs a `warn!` and, when the run-timeline recorder is armed,
@@ -54,11 +54,11 @@ use nova_scenario::{loader::ScenarioLoaded, variables::VariableLiteral, world::N
 use nova_ship::flight::prelude::FlightSpeedCap;
 
 use super::{
-    frametime::perf_param,
+    frametime::probe_param,
     timeline::{stamp, ProbeTimeline, TimelineEvent},
 };
 
-/// Env value (via [`perf_param`], so `NOVA_PERF_INVARIANTS` on native) that
+/// Env value (via [`probe_param`], so `NOVA_PROBE_INVARIANTS` on native) that
 /// arms the checks; the value `strict` also panics on the first violation.
 pub const INVARIANTS_PARAM: &str = "invariants";
 
@@ -73,7 +73,7 @@ pub const SPEED_SANITY_MULTIPLIER: f32 = 10.0;
 /// spawning without despawning.
 pub const ENTITY_SANITY_CAP: u32 = 200_000;
 
-/// Env-gated continuous-invariants preset. Inert unless `NOVA_PERF_INVARIANTS`
+/// Env-gated continuous-invariants preset. Inert unless `NOVA_PROBE_INVARIANTS`
 /// is set (or [`strict`](InvariantsPlugin::strict) is called, which tests use
 /// to avoid process-global env races). See the module docs for the v1 set.
 pub fn nova_invariants() -> InvariantsPlugin {
@@ -119,7 +119,7 @@ impl InvariantsPlugin {
 impl Plugin for InvariantsPlugin {
     fn build(&self, app: &mut App) {
         crate::contract::declare(app, crate::contract::Capability::Invariants);
-        let param = perf_param(INVARIANTS_PARAM);
+        let param = probe_param(INVARIANTS_PARAM);
         let armed = self.armed_override.unwrap_or(param.is_some());
         if !armed {
             return;
@@ -705,7 +705,7 @@ mod tests {
     fn unarmed_plugin_is_a_no_op() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        // No env override, no NOVA_PERF_INVARIANTS in the test env: inert.
+        // No env override, no NOVA_PROBE_INVARIANTS in the test env: inert.
         app.add_plugins(InvariantsPlugin {
             armed_override: Some(false),
             strict_override: None,

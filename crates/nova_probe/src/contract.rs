@@ -29,8 +29,8 @@ use std::collections::BTreeSet;
 
 use bevy::prelude::*;
 
-/// Param (via [`perf_param`](crate::capabilities::frametime::perf_param), so
-/// `NOVA_PERF_CONTRACT` on native) naming the path the contract is written to.
+/// Param (via [`probe_param`](crate::capabilities::frametime::probe_param), so
+/// `NOVA_PROBE_CONTRACT` on native) naming the path the contract is written to.
 /// Unset - a hand-run example - writes nothing.
 pub const CONTRACT_PARAM: &str = "contract";
 
@@ -158,7 +158,7 @@ pub fn declare(app: &mut App, capability: Capability) {
 /// contract fails the run instead of reading as "claims nothing".
 #[cfg(not(target_arch = "wasm32"))]
 fn write_contract(contract: Res<ProbeContract>) {
-    let Some(path) = crate::capabilities::frametime::perf_param(CONTRACT_PARAM) else {
+    let Some(path) = crate::capabilities::frametime::probe_param(CONTRACT_PARAM) else {
         return;
     };
     let path = std::path::PathBuf::from(path);

@@ -44,6 +44,8 @@
 /// public API of this module - the event/resource surface the mods menu binds
 /// to, plus the transport seam tests swap.
 pub mod prelude {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::PORTAL_URL_ENV;
     pub use super::{
         EhttpTransport, FetchPortalCatalog, FetchResult, InstallJobs, InstallPortalMod,
         InstallStatus, PendingRemovals, PortalClient, PortalConfig, PortalFetchTimeout,
@@ -65,6 +67,8 @@ use std::sync::{
 use bevy::{platform::time::Instant, prelude::*};
 use catalog::{decode_catalog, decode_last_good, last_good_store, on_fetch_portal_catalog};
 pub use catalog::{FetchPortalCatalog, RemoteCatalog, RemoteCatalogState};
+#[cfg(not(target_arch = "wasm32"))]
+pub use config::PORTAL_URL_ENV;
 pub use config::{PortalConfig, DEFAULT_PORTAL_URL};
 use install::{
     fail_install, fetch_file, on_install_portal_mod, on_uninstall_portal_mod, start_commit,

@@ -105,11 +105,10 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
+        // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(attitude_script());
-        app.add_plugins(nova_screenshot());
+        app.add_plugins(nova_screenshot(attitude_script()));
     }
 
     app.run()
@@ -153,8 +152,9 @@ fn attitude_script() -> Script {
         .until(command_delivered())
         .deadline(12.0)
         .add()
-        // Last beat: the driver reports done after it, so the run ends on the
-        // assertion rather than idling out a runway.
+        // The script's last beat: `nova_screenshot` appends the capture beat
+        // behind it, and the driver reports done after that - so the run ends
+        // on the assertion rather than idling out a runway.
         .step("assert rig b tracks")
         .on_enter(assert_rig_b_tracks)
         .add()

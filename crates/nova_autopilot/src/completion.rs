@@ -18,8 +18,8 @@
 //! Two rules keep it honest:
 //! - SUCCESS exits negotiate: no registered collector may write
 //!   `AppExit::Success` itself - it reports done and the watcher decides.
-//! - ERROR exits abort: a collector that FAILS (a screenshot that cannot
-//!   save, an expired self-completing script) writes `AppExit::error`
+//! - ERROR exits abort: a collector that FAILS (a loop the encoder could not
+//!   write, an expired self-completing script) writes `AppExit::error`
 //!   directly - an abort is not a completion and must not wait for anyone.
 //!
 //! Registration is env-gated with the collectors themselves: an unarmed
@@ -81,9 +81,6 @@ pub enum AutopilotCompletionSystems {
 
 /// Collector name the scripted autopilot driver registers under.
 pub const AUTOPILOT: &str = "autopilot";
-
-/// Collector name the settled-frame screenshot driver registers under.
-pub const SCREENSHOT: &str = "screenshot";
 
 /// Environment variable overriding the completion deadline, in seconds.
 pub const DEADLINE_ENV: &str = "NOVA_AUTOPILOT_DEADLINE";
@@ -263,7 +260,7 @@ mod tests {
     fn deadline_error_exits_naming_the_laggards() {
         let (observed, logs) = capturing_logs(|| {
             let mut app = app();
-            register(&mut app, SCREENSHOT);
+            register(&mut app, crate::loops::LOOP_CAPTURE);
             // The capture sink is thread-local, so the watcher has to run on
             // THIS thread rather than on a task-pool worker.
             app.edit_schedule(Last, |schedule| {
@@ -283,7 +280,7 @@ mod tests {
             "an expired deadline is an ERROR exit"
         );
         assert!(
-            logs.contains(SCREENSHOT),
+            logs.contains(crate::loops::LOOP_CAPTURE),
             "the deadline error must NAME the laggards; logged: {logs}"
         );
     }
@@ -292,7 +289,7 @@ mod tests {
     fn the_deadline_clock_tracks_wall_time_whatever_the_collector_count() {
         let mut app = app();
         register(&mut app, AUTOPILOT);
-        register(&mut app, SCREENSHOT);
+        register(&mut app, crate::loops::LOOP_CAPTURE);
         app.world_mut()
             .resource_mut::<HarnessCompletion>()
             .deadline_secs = f32::MAX;
@@ -341,6 +338,6 @@ mod tests {
 pub mod prelude {
     pub use super::{
         register, AutopilotCompletionSystems, HarnessCompletion, AUTOPILOT, DEADLINE_ENV,
-        DEFAULT_DEADLINE_SECS, SCREENSHOT,
+        DEFAULT_DEADLINE_SECS,
     };
 }

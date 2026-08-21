@@ -67,6 +67,14 @@ pub struct NativeStorage {
     root: std::path::PathBuf,
 }
 
+/// Environment variable that moves the settings store off the platform config
+/// dir - the test and tooling override.
+///
+/// Deliberately NOT part of the `NOVA_MODDING_*` family: this is the settings
+/// store root, and the name is already right.
+#[cfg(not(target_arch = "wasm32"))]
+pub const CONFIG_ROOT_ENV: &str = "NOVA_CONFIG_ROOT";
+
 #[cfg(not(target_arch = "wasm32"))]
 impl NativeStorage {
     /// A store rooted at an explicit directory. The seam a test writes
@@ -77,11 +85,11 @@ impl NativeStorage {
 
     /// The store at `$NOVA_CONFIG_ROOT`, else `dirs::config_dir()/nova-protocol`.
     ///
-    /// The override is the config-dir twin of `NOVA_MOD_CACHE_ROOT` and exists
+    /// The override is the config-dir twin of `NOVA_MODDING_CACHE_ROOT` and exists
     /// for the same reason: a test or tool that exercises the save path must
     /// not overwrite the developer's real settings.
     pub fn available() -> Option<Self> {
-        let root = match std::env::var_os("NOVA_CONFIG_ROOT") {
+        let root = match std::env::var_os(CONFIG_ROOT_ENV) {
             Some(root) => std::path::absolute(std::path::PathBuf::from(root)).ok()?,
             None => dirs::config_dir()?.join("nova-protocol"),
         };
@@ -212,6 +220,8 @@ pub fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()>
 /// Glob-import surface: `use nova_assets::storage::prelude::*` brings the
 /// storage trait, its platform selection and the error type into scope.
 pub mod prelude {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::CONFIG_ROOT_ENV;
     pub use super::{platform, PlatformStorage, Storage, StorageError};
 }
 

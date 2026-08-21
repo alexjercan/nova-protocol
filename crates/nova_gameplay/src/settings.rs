@@ -39,6 +39,7 @@ use crate::juice::prelude::JuiceSettings;
 pub mod prelude {
     pub use super::{
         GraphicsBudget, GraphicsQuality, HarnessMute, MasterVolume, NovaSettingsPlugin,
+        HARNESS_ENVS, MUTE_ENV,
     };
 }
 
@@ -81,25 +82,41 @@ impl MasterVolume {
     }
 }
 
+/// Environment variable that turns the AUDIO output off.
+///
+/// One half of the outputs-off pair: this silences the speakers, and
+/// `nova_core::NORENDER_ENV` (`NOVA_NORENDER`) drops the renderer. Each has a
+/// matching debug-only flag on the game binary - `--mute` and `--norender` -
+/// and each lives in the crate that owns the device it turns off. Set to
+/// anything but `"0"` to mute; `"0"` forces sound even under a harness.
+pub const MUTE_ENV: &str = "NOVA_MUTE";
+
 /// Zero audio output for scripted runs - nobody listens to an autopilot run, and
 /// Xvfb hides the window but not the speakers. Resolved from the environment
 /// ONCE at [`NovaSettingsPlugin`] build (a run's mute state cannot change
-/// mid-session): `NOVA_MUTE` set and not `"0"` mutes any run, `NOVA_MUTE=0`
-/// forces sound even under a harness, and with `NOVA_MUTE` unset a run is
-/// muted iff a harness env (`NOVA_AUTOPILOT`/`NOVA_SHOT`/`NOVA_CAPTURE`) is
-/// active - which covers every probe and capture run with no changes there.
-/// Tests inject the resource directly (insert after the plugin) instead of
-/// touching process env, so parallel tests cannot race on it.
+/// mid-session): [`MUTE_ENV`] set and not `"0"` mutes any run, `NOVA_MUTE=0`
+/// forces sound even under a harness, and with [`MUTE_ENV`] unset a run is
+/// muted iff one of [`HARNESS_ENVS`] is active - which covers every probe and
+/// capture run with no changes there.
+///
+/// The game binary's `--mute` inserts it directly, and so do the tests (insert
+/// after the plugin) rather than touching process env, which parallel tests
+/// would race on.
 #[derive(Resource, Clone, Copy, Default, Debug, PartialEq)]
 pub struct HarnessMute(pub bool);
 
+/// The harness variables whose mere presence mutes a run.
+///
+/// String literals, not `nova_autopilot`'s constants: `nova_gameplay` is a
+/// shipping crate and does not take a dev-tooling dependency for two strings.
+/// The repo-wide `tests/env_contract.rs` pins them against the crate that owns
+/// them, so the drift this duplication invites fails a test.
+pub const HARNESS_ENVS: [&str; 2] = ["NOVA_AUTOPILOT", "NOVA_CAPTURE"];
+
 impl HarnessMute {
     fn from_env() -> Self {
-        let nova_mute = std::env::var("NOVA_MUTE").ok();
-        // NOTE: string literals, not `nova_autopilot`'s consts. `nova_gameplay`
-        // is a shipping crate and does not take a dev-tooling dependency for
-        // three strings; the migration task's absence grep guards the drift.
-        let harness_env_active = ["NOVA_AUTOPILOT", "NOVA_SHOT", "NOVA_CAPTURE"]
+        let nova_mute = std::env::var(MUTE_ENV).ok();
+        let harness_env_active = HARNESS_ENVS
             .iter()
             .any(|key| std::env::var_os(key).is_some());
         Self(harness_muted_from(nova_mute.as_deref(), harness_env_active))
@@ -277,6 +294,22 @@ impl Plugin for NovaSettingsPlugin {
                 apply_graphics_quality.run_if(resource_changed::<GraphicsQuality>),
             ),
         );
+        // Startup, not build: the game binary's `--mute` inserts the resource
+        // AFTER this plugin, so only a system can read the value the run
+        // actually uses.
+        app.add_systems(Startup, report_harness_mute);
+    }
+}
+
+/// Say once whether this run is silent.
+///
+/// A muted run is indistinguishable from a working one until something should
+/// have made a sound and did not, so the decision is stated where a log reader
+/// can find it - which is also what makes `--mute` verifiable from outside the
+/// process.
+fn report_harness_mute(mute: Res<HarnessMute>) {
+    if mute.0 {
+        info!("nova audio: output muted for this run");
     }
 }
 

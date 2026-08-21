@@ -137,9 +137,9 @@ fn immediately() -> Arc<Predicate> {
 /// enters each step in turn - setting `NextState`, running the entry action -
 /// advances it the frame its predicate holds, logs every transition, and
 /// reports completion to the [`completion`] protocol after the last step (the
-/// app exits when EVERY registered collector - a frame capture, a screenshot -
-/// is done, not when the first one finishes). When the env var is unset it
-/// adds nothing.
+/// app exits when EVERY registered collector - a frame capture, a loop
+/// recorder - is done, not when the first one finishes). When the env var is
+/// unset it adds nothing.
 pub struct AutopilotPlugin<S: States + FreelyMutableState> {
     steps: Vec<Step<S>>,
     input: Option<Arc<EachFn>>,
@@ -867,7 +867,7 @@ mod tests {
             .on_loop(move |_| *counter.lock().unwrap() += 1)
             .input(move |_, t| recorder.lock().unwrap().push(t)));
         // A second, slower collector: what the autopilot loops FOR.
-        completion::register(&mut app, completion::SCREENSHOT);
+        completion::register(&mut app, crate::loops::LOOP_CAPTURE);
 
         let observed = run(&mut app, 30);
 
@@ -896,7 +896,7 @@ mod tests {
 
         app.world_mut()
             .resource_mut::<completion::HarnessCompletion>()
-            .done(completion::SCREENSHOT);
+            .done(crate::loops::LOOP_CAPTURE);
         // Two frames for the driver to notice and the watcher to decide -
         // NOT the rest of the cycle.
         assert_eq!(

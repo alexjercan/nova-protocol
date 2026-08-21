@@ -3,7 +3,7 @@
 //! wall-clock delta of every frame for a fixed window, then writes percentile
 //! frame-time stats (JSON + a CSV row, schema in [`crate::stats`]) and exits
 //! cleanly through the harness completion protocol (the app exits when
-//! every registered collector is done). Inert unless `NOVA_PERF` is set, so an
+//! every registered collector is done). Inert unless `NOVA_PROBE` is set, so an
 //! example adds it permanently and pays nothing in a normal run - the same
 //! contract the `nova_autopilot` / `nova_screenshot` harness presets (in
 //! `nova_debug`) follow.
@@ -14,10 +14,12 @@
 pub mod prelude {
     pub use super::{
         capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
-        nova_frametime, perf_armed, perf_param, resolve_git_sha, resolve_host, FrameTimePlugin,
-        PerfDriver, PerfLive, PerfReady, ReloadGate, ABORT_REFRESH_CAPPED, ABORT_SCENE_ENDED,
-        ABORT_SIMULATION_STOPPED, ABORT_UPDATE_THROTTLED, ABORT_WINDOW_SIZE, CAPTURE_COLLECTOR,
-        DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, NORENDER_ENV, PERF_ENV,
+        nova_frametime, probe_armed, probe_env, probe_param, resolve_git_sha, resolve_host,
+        FrameTimePlugin, PerfDriver, PerfLive, PerfReady, ReloadGate, ABORT_REFRESH_CAPPED,
+        ABORT_SCENE_ENDED, ABORT_SIMULATION_STOPPED, ABORT_UPDATE_THROTTLED, ABORT_WINDOW_SIZE,
+        CAPTURE_COLLECTOR, DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES,
+        FRAMES_PARAM, LABEL_PARAM, NORENDER_ENV, OUT_PARAM, PROBE_ENV, QUALITY_PARAM,
+        SCENARIO_PARAM, WARMUP_PARAM,
     };
 }
 
@@ -46,7 +48,7 @@ pub use nova_core::NORENDER_ENV;
 /// Declared in `nova_core` because the window builder needs it too - it gives an
 /// armed run a distinct `WM_CLASS` so a window manager can place captures away
 /// from the desk - and `nova_core` is the lowest crate both already depend on.
-pub use nova_core::PERF_ENV;
+pub use nova_core::PROBE_ENV;
 // `Health` comes from nova_gameplay's prelude, the same path the game's own
 // code resolves it through: naming any other path is how this query silently
 // stopped matching once nova took ownership of the type.
@@ -93,14 +95,24 @@ pub type PerfReady = dyn Fn(&World) -> bool + Send + Sync;
 /// then measures the aftermath at 2-3 ms and calls it a 4v4 brawl.
 pub type PerfLive = dyn Fn(&World) -> bool + Send + Sync;
 
-/// Read a perf parameter by logical name. Native: env var `NOVA_PERF_<UPPER>`
-/// (e.g. `warmup` -> `NOVA_PERF_WARMUP`). Wasm: the URL query parameter `<name>`
+/// The native environment name of the probe parameter `name`
+/// (`warmup` -> `NOVA_PROBE_WARMUP`).
+///
+/// The one place the prefix is spelled. The host harness pushes these into a
+/// child run and the child reads them back through [`probe_param`]; a literal
+/// on either side is a rename that compiles clean and arms nothing.
+pub fn probe_env(name: &str) -> String {
+    format!("{PROBE_ENV}_{}", name.to_ascii_uppercase())
+}
+
+/// Read a probe parameter by logical name. Native: env var `NOVA_PROBE_<UPPER>`
+/// (e.g. `warmup` -> `NOVA_PROBE_WARMUP`). Wasm: the URL query parameter `<name>`
 /// (e.g. `?warmup=300`). One source abstraction so the same harness runs from a
 /// shell env sweep and from a browser URL.
-pub fn perf_param(name: &str) -> Option<String> {
+pub fn probe_param(name: &str) -> Option<String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        std::env::var(format!("NOVA_PERF_{}", name.to_ascii_uppercase()))
+        std::env::var(probe_env(name))
             .ok()
             .filter(|s| !s.is_empty())
     }
@@ -110,12 +122,30 @@ pub fn perf_param(name: &str) -> Option<String> {
     }
 }
 
-/// Whether frame-time capture is requested. Native: `NOVA_PERF` is set. Wasm:
+/// Logical name of the warm-up window, so the host and the child agree on it.
+pub const WARMUP_PARAM: &str = "warmup";
+
+/// Logical name of the capture window, so the host and the child agree on it.
+pub const FRAMES_PARAM: &str = "frames";
+
+/// Logical name of the run's output directory.
+pub const OUT_PARAM: &str = "out";
+
+/// Logical name of the row label a capture records itself under.
+pub const LABEL_PARAM: &str = "label";
+
+/// Logical name of the scenario a measured run boots into.
+pub const SCENARIO_PARAM: &str = "scenario";
+
+/// Logical name of the graphics preset a measured run uses.
+pub const QUALITY_PARAM: &str = "quality";
+
+/// Whether frame-time capture is requested. Native: `NOVA_PROBE` is set. Wasm:
 /// the `?perf` query flag is present.
-pub fn perf_armed() -> bool {
+pub fn probe_armed() -> bool {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        std::env::var(PERF_ENV).is_ok()
+        std::env::var(PROBE_ENV).is_ok()
     }
     #[cfg(target_arch = "wasm32")]
     {
@@ -207,7 +237,7 @@ const REFRESH_CAP_MIN_MS: f64 = 4.0;
 pub const DEFAULT_RESOLUTION: (f32, f32) = (1280.0, 720.0);
 
 /// Env-gated frame-time capture preset for nova examples. See the crate docs.
-/// Inert unless `NOVA_PERF` (native) / `?perf` (wasm) is set. Chain
+/// Inert unless `NOVA_PROBE` (native) / `?perf` (wasm) is set. Chain
 /// [`drive`](FrameTimePlugin::drive) to measure an *active* scene.
 pub fn nova_frametime() -> FrameTimePlugin {
     FrameTimePlugin {
@@ -255,7 +285,7 @@ impl FrameTimePlugin {
 
     /// Declare this scene's own capture window, `(warmup, frames)`, in place of
     /// the [`DEFAULT_WARMUP_FRAMES`] / [`DEFAULT_CAPTURE_FRAMES`] baseline. An
-    /// operator's `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` still wins.
+    /// operator's `NOVA_PROBE_WARMUP` / `NOVA_PROBE_FRAMES` still wins.
     ///
     /// For a scene that can REACH AN END - a fight that can be won, a chapter
     /// that can be completed - the baseline window is not a free choice: the
@@ -377,13 +407,13 @@ struct PerfConfig {
     out_dir: Option<PathBuf>,
     resolution: (f32, f32),
     /// Optional forced `GraphicsBudget::render_scale`, holding the rest of the
-    /// preset fixed. Set (`NOVA_PERF_RENDER_SCALE` / `render_scale=`) to isolate
+    /// preset fixed. Set (`NOVA_PROBE_RENDER_SCALE` / `render_scale=`) to isolate
     /// the render-scale lever from the tier's particle/scatter cuts - measure
     /// the SAME tier at `1.0` vs a fraction so the delta is pure resolution
     /// Unset leaves the tier's own default.
     render_scale_override: Option<f32>,
     /// Optional forced `Time<Virtual>::max_delta`, in seconds
-    /// (`NOVA_PERF_MAX_DELTA` / `max_delta=`). The isolation knob for the
+    /// (`NOVA_PROBE_MAX_DELTA` / `max_delta=`). The isolation knob for the
     /// fixed-step loop: bevy's 0.25 s default lets one slow frame queue up to
     /// `0.25 / timestep` fixed steps, and whether that AMPLIFIES a stutter or
     /// merely tracks it is answerable by capping the ceiling and re-measuring.
@@ -392,7 +422,7 @@ struct PerfConfig {
     /// never a default.
     max_delta_override: Option<f32>,
     /// Presentation mode forced on the primary window
-    /// (`NOVA_PERF_PRESENT` / `present=`), defaulting to
+    /// (`NOVA_PROBE_PRESENT` / `present=`), defaulting to
     /// [`PresentMode::AutoNoVsync`].
     ///
     /// The default is a REQUEST and wgpu answers it silently: it falls back
@@ -403,7 +433,7 @@ struct PerfConfig {
     present_mode: PresentMode,
 }
 
-/// Parse the `NOVA_PERF_PRESENT` / `present=` override.
+/// Parse the `NOVA_PROBE_PRESENT` / `present=` override.
 fn parse_present_mode(value: &str) -> Option<PresentMode> {
     match value.trim().to_ascii_lowercase().as_str() {
         "immediate" => Some(PresentMode::Immediate),
@@ -417,31 +447,31 @@ fn parse_present_mode(value: &str) -> Option<PresentMode> {
 }
 
 impl PerfConfig {
-    /// Read the config from the active source ([`perf_param`]: env on native,
+    /// Read the config from the active source ([`probe_param`]: env on native,
     /// URL query on wasm), falling back to the example's declared window
     /// ([`FrameTimePlugin::window`]) and then to the documented defaults for
     /// anything unset or unparseable.
     fn resolve(declared_window: Option<(u32, u32)>) -> Self {
         fn parse_u32(key: &str, default: u32) -> u32 {
-            perf_param(key)
+            probe_param(key)
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(default)
         }
         let (warmup, frames) =
             declared_window.unwrap_or((DEFAULT_WARMUP_FRAMES, DEFAULT_CAPTURE_FRAMES));
         Self {
-            warmup_frames: parse_u32("warmup", warmup),
-            capture_frames: parse_u32("frames", frames),
-            label: perf_param("label").unwrap_or_else(|| "scene".to_string()),
-            out_dir: perf_param("out").map(PathBuf::from),
-            resolution: perf_param("res")
+            warmup_frames: parse_u32(WARMUP_PARAM, warmup),
+            capture_frames: parse_u32(FRAMES_PARAM, frames),
+            label: probe_param(LABEL_PARAM).unwrap_or_else(|| "scene".to_string()),
+            out_dir: probe_param(OUT_PARAM).map(PathBuf::from),
+            resolution: probe_param("res")
                 .and_then(|v| parse_resolution(&v))
                 .unwrap_or(DEFAULT_RESOLUTION),
-            render_scale_override: perf_param("render_scale").and_then(|v| v.trim().parse().ok()),
-            max_delta_override: perf_param("max_delta")
+            render_scale_override: probe_param("render_scale").and_then(|v| v.trim().parse().ok()),
+            max_delta_override: probe_param("max_delta")
                 .and_then(|v| v.trim().parse::<f32>().ok())
                 .filter(|secs| *secs > 0.0),
-            present_mode: perf_param("present")
+            present_mode: probe_param("present")
                 .and_then(|v| parse_present_mode(&v))
                 .unwrap_or(PresentMode::AutoNoVsync),
         }
@@ -453,7 +483,7 @@ impl RunMeta {
     /// [`RenderAdapterInfo`], which `RenderPlugin` clones into the MAIN world
     /// (bevy_render-0.19.0/src/settings.rs:197 `main_world.insert_resource`),
     /// so a plain main-world system can read it; `None` (e.g. a `--norender`
-    /// build) degrades to `unknown`. The rest comes from [`perf_param`]
+    /// build) degrades to `unknown`. The rest comes from [`probe_param`]
     /// overrides with platform fallbacks - see each helper.
     fn resolve(config: &PerfConfig, adapter: Option<&RenderAdapterInfo>) -> Self {
         let (backend, adapter_name) = match adapter {
@@ -464,7 +494,7 @@ impl RunMeta {
             backend,
             adapter: adapter_name,
             resolution: format!("{}x{}", config.resolution.0, config.resolution.1),
-            quality: perf_param("quality").unwrap_or_else(|| "default".to_string()),
+            quality: probe_param(QUALITY_PARAM).unwrap_or_else(|| "default".to_string()),
             git_sha: resolve_git_sha(),
             host: resolve_host(),
             // The CAPTURE binary's own build profile (schema v3): dev
@@ -480,11 +510,11 @@ impl RunMeta {
     }
 }
 
-/// The measured tree's short git SHA: the `NOVA_PERF_SHA` / `?sha=` override
+/// The measured tree's short git SHA: the `NOVA_PROBE_SHA` / `?sha=` override
 /// wins (the web build cannot shell out); otherwise ask git, degrading to
 /// `unknown` outside a repo or without git on PATH.
 pub fn resolve_git_sha() -> String {
-    if let Some(sha) = perf_param("sha") {
+    if let Some(sha) = probe_param("sha") {
         return sha;
     }
     #[cfg(not(target_arch = "wasm32"))]
@@ -506,10 +536,10 @@ pub fn resolve_git_sha() -> String {
     "unknown".to_string()
 }
 
-/// The host tag: the `NOVA_PERF_HOST` / `?host=` override wins; native falls
+/// The host tag: the `NOVA_PROBE_HOST` / `?host=` override wins; native falls
 /// back to `/etc/hostname`, wasm to the literal `browser`.
 pub fn resolve_host() -> String {
-    if let Some(host) = perf_param("host") {
+    if let Some(host) = probe_param("host") {
         return host;
     }
     #[cfg(not(target_arch = "wasm32"))]
@@ -666,7 +696,7 @@ impl Plugin for FrameTimePlugin {
         // Declared by WIRING, above the arming guard: adding this plugin IS
         // the frame-time claim, whether or not this run armed the capture.
         crate::contract::declare(app, crate::contract::Capability::FrameTime);
-        if !perf_armed() {
+        if !probe_armed() {
             return;
         }
         completion::register(app, CAPTURE_COLLECTOR);
@@ -860,7 +890,7 @@ fn perf_capture(
     // OPTIONAL, and the reason is a real crash: a `systems/` rig that wires
     // `NovaProbePlugin` on a bare `App` has no `GameStates` at all, and a
     // required `Res` there fails parameter validation and takes the whole run
-    // down the moment NOVA_PERF is set. A capture with no state machine to
+    // down the moment NOVA_PROBE is set. A capture with no state machine to
     // wait on cannot measure anything, so it stands down and releases its
     // collector instead of holding the app to the deadline.
     state_res: Option<Res<State<GameStates>>>,
@@ -1173,7 +1203,7 @@ fn abort_capture(
     completion.done(CAPTURE_COLLECTOR);
 }
 
-/// Log the summary line and, when `NOVA_PERF_OUT` is set, write a per-run JSON
+/// Log the summary line and, when `NOVA_PROBE_OUT` is set, write a per-run JSON
 /// file and append a row to the aggregated CSV (schema v3, run metadata
 /// included). The log line is always emitted - on wasm there is no filesystem,
 /// so a headless-browser driver scrapes it from the console.
@@ -1226,7 +1256,7 @@ fn emit_stats(
     }
 
     // Through the public writer, not a second copy of the append: it is the
-    // one that refuses to mix schemas, which a manual NOVA_PERF_OUT into an
+    // one that refuses to mix schemas, which a manual NOVA_PROBE_OUT into an
     // older results dir is exactly the case for.
     let csv_path = dir.join("frametime.csv");
     if let Err(error) = crate::stats::append_frametime_row(&csv_path, &config.label, stats, meta) {
@@ -1356,10 +1386,10 @@ mod tests {
     /// The window is the example's to declare, and the operator's to override.
     #[test]
     fn a_declared_window_beats_the_default_and_loses_to_the_operator() {
-        // No `NOVA_PERF_*` in this process (the suite runs without them), so
+        // No `NOVA_PROBE_*` in this process (the suite runs without them), so
         // the declaration is what resolves.
-        if std::env::var_os("NOVA_PERF_WARMUP").is_none()
-            && std::env::var_os("NOVA_PERF_FRAMES").is_none()
+        if std::env::var_os(probe_env(WARMUP_PARAM)).is_none()
+            && std::env::var_os(probe_env(FRAMES_PARAM)).is_none()
         {
             let default = PerfConfig::resolve(None);
             assert_eq!(default.warmup_frames, DEFAULT_WARMUP_FRAMES);

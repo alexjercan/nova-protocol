@@ -174,7 +174,7 @@ fn main() -> bevy::app::AppExit {
                 .add();
         }
 
-        app.add_plugins(
+        app.add_plugins(nova_screenshot(
             script
                 // Enrolled in capture looping (task 20260720-000616): when a
                 // frame capture outlives the script, the scene reloads and the
@@ -182,10 +182,9 @@ fn main() -> bevy::app::AppExit {
                 // an idle tail.
                 .loop_from(LOAD_STEP)
                 .on_loop(reload_the_run),
-        );
-        app.add_plugins(nova_screenshot());
+        ));
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
-        // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE names an
+        // Run-timeline recorder (inert unless NOVA_PROBE_TIMELINE names an
         // output path): the script below pushes its beats as markers, so an
         // armed run reads "raise -> sweep -> fire -> ... -> done" in the same
         // JSONL stream as the scenario's own events and variables.

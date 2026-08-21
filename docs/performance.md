@@ -14,7 +14,7 @@ below assumes a run has happened.
 
 An env-gated capture plugin drives the real gameplay app to `Playing`, warms
 up, records the wall-clock delta of every frame for a fixed window, and writes
-percentile stats. It is inert unless `NOVA_PERF` is set, so the whole fleet
+percentile stats. It is inert unless `NOVA_PROBE` is set, so the whole fleet
 carries it permanently. Probe runs it as a DEDICATED capture-only pass when the
 program declares it (the correctness recorder flushes per entry on the frame
 path - measurement and correctness never share a pass), the harness completion
@@ -125,7 +125,7 @@ still have a ship flying". It says nothing about how MANY are left on purpose: a
 four-on-one is a fight in progress, and refusing that would be a judgement about
 workload rather than about the scene existing.
 
-`NOVA_PERF_MAX_DELTA=<secs>` forces the ceiling for a run, which is how a claim
+`NOVA_PROBE_MAX_DELTA=<secs>` forces the ceiling for a run, which is how a claim
 about the fixed loop gets tested instead of argued. Capping it in a SHIPPING
 build would trade a bounded tail for simulation time the world never runs, so
 it stays a measurement knob.
@@ -155,17 +155,17 @@ after the graph has already finished. On this project's host, at 1280x720, an
 EMPTY scene costs 16.7 ms under `xvfb-run` and 3.0 ms against a real display -
 same binary, same window, same pin, same `Immediate` presentation. The gap is
 linear in window pixels (1.4 ms at 160x90, 11.5 ms at 720p, 50 ms at 1440p) and
-does not move when `NOVA_PERF_RENDER_SCALE` cuts the shading to a sixteenth, so
+does not move when `NOVA_PROBE_RENDER_SCALE` cuts the shading to a sixteenth, so
 it is the window and not the drawing.
 
 It is an ADDITIVE constant, not a scale factor. An A/B whose two arms share a
 window size divides it out, so ratios and ablations under Xvfb stand. A budget,
 an FPS gate and a "this scene costs N ms" claim do not.
 
-Two knobs make it visible. `NOVA_PERF_PRESENT=immediate` names the presentation
+Two knobs make it visible. `NOVA_PROBE_PRESENT=immediate` names the presentation
 mode instead of requesting `AutoNoVsync` - bevy logs the fallback for a named
 mode and says nothing for the auto ones, so this is how a run proves it was not
-capped at refresh. `NOVA_PERF_RENDER_DIAG=1` asks the renderer for GPU timestamp
+capped at refresh. `NOVA_PROBE_RENDER_DIAG=1` asks the renderer for GPU timestamp
 queries and turns on the frame-cost report's per-pass GPU table (it costs a
 resolve pass and a readback, about 3% of the frame, so it is never a default).
 
@@ -215,7 +215,7 @@ fixed step that does saturate threads. Re-measure before moving either boundary.
 
 The capture window is the capture crate's full 180/900 baseline unless the
 example declared one of its own, so probe numbers stay comparable with the
-sweep's; your `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` override both. The
+sweep's; your `NOVA_PROBE_WARMUP` / `NOVA_PROBE_FRAMES` override both. The
 completion deadline is SIZED to the BASELINE window (not a flat 120s, and a
 ceiling for any shorter one an example declares): probe sets
 `NOVA_AUTOPILOT_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
@@ -225,7 +225,7 @@ tripping the hang detector; a genuine hang still fails at a window-appropriate
 bound, and your own `NOVA_AUTOPILOT_DEADLINE` overrides it. Every example's `main`
 returns `AppExit`, so a deadline expiry is a non-zero process exit the
 `process_exit` check reports. See the crate docs for the full knob list
-(`NOVA_PERF_*`).
+(`NOVA_PROBE_*`).
 
 ## Sweeping presets, renderers and the web
 
@@ -253,7 +253,7 @@ rendered run, never instead of one.
 
 To measure a named SHIPPED scenario, use the `probe scenario` verb rather than
 `run --scenario`: it launches the game binary itself and needs no example.
-`run --scenario` only sets `NOVA_PERF_SCENARIO`, which no cataloged example
+`run --scenario` only sets `NOVA_PROBE_SCENARIO`, which no cataloged example
 reads on the native side; on `--platform web` it is load-bearing, because
 `nova_perf_web` takes the scenario id from the URL.
 
@@ -313,14 +313,14 @@ artifact: keep it while you are profiling, delete the run dir when you are not.
 
 - The capture, its window and its knobs: `FrameTimePlugin`, `nova_frametime` -
   `crates/nova_probe/src/capabilities/frametime.rs`. The crate rustdoc
-  (`cargo doc --open -p nova_probe`) carries the full `NOVA_PERF_*` table,
+  (`cargo doc --open -p nova_probe`) carries the full `NOVA_PROBE_*` table,
   native env var against wasm query string.
 - Where the milliseconds went: `FrameCostPlugin` -
   `crates/nova_probe/src/capabilities/framecost.rs`; the GPU half is gated on
   `nova_core::RENDER_DIAG_ENV`.
-- What an armed run looks like from outside: `nova_core::PERF_ENV` and
+- What an armed run looks like from outside: `nova_core::PROBE_ENV` and
   `nova_core::MEASURE_WINDOW_CLASS` - `crates/nova_core/src/lib.rs`.
-  `nova_probe` re-exports `PERF_ENV`; it lives down there because the window
+  `nova_probe` re-exports `PROBE_ENV`; it lives down there because the window
   builder needs it.
 - What the scene contained: `CensusPlugin` -
   `crates/nova_probe/src/capabilities/census.rs`.

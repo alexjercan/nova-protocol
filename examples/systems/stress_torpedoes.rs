@@ -146,59 +146,64 @@ fn main() -> bevy::app::AppExit {
         app.init_resource::<HeldInput>();
         app.init_resource::<PeakTorpedoes>();
         app.add_systems(Update, track_peak_torpedoes);
+        // The picture is taken at the range's PEAK. `nova_screenshot`
+        // appends its beat to whatever it is handed, and the beats after
+        // this call drain and tear the range down - a shot behind them
+        // photographs an empty world.
         app.add_plugins(
-            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .input(hold_inputs)
-                .step(LOAD_STEP)
-                .enter(GameStates::Loading)
-                .until(the_rack_is_up())
-                .deadline(SPAWN_DEADLINE_SECS)
-                .add()
-                // The scene is live again: close the reload interval so a frame
-                // capture excludes it. A no-op on the first cycle.
-                .step("close the reload interval")
-                .on_enter(nova_probe::capture_reload_end)
-                .on_enter(assert_the_rack_is_whole)
-                .add()
-                // Raise the stance and WAIT for the safety to go hot: a press
-                // that arrives cold latches nothing, forever.
-                .step("raise the weapons")
-                .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().combat = true)
-                .until(weapons_are_hot())
-                .deadline(HOT_DEADLINE_SECS)
-                .add()
-                .step("fill the sky")
-                .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().fire = true)
-                .until(the_sky_is_full())
-                .deadline(FILL_DEADLINE_SECS)
-                .add()
-                .step("hold the saturation")
-                .until(elapsed(HOLD_SECS))
-                .add()
-                .step("assert the sky filled")
-                .on_enter(assert_the_sky_filled)
-                .add()
-                .step("let the ordnance drain")
-                .on_enter(close_the_tubes)
-                .until(no_torpedoes_in_flight())
-                .deadline(DRAIN_DEADLINE_SECS)
-                .add()
-                .step("assert the ordnance drained")
-                .on_enter(assert_the_ordnance_drained)
-                .add()
-                .step("tear the range down")
-                .on_enter(tear_the_range_down)
-                .until(elapsed(TEARDOWN_SETTLE_SECS))
-                .add()
-                .step("check the world came back to baseline")
-                .on_enter(assert_back_to_baseline)
-                .add()
-                .loop_from(LOAD_STEP)
-                .on_loop(respawn_the_range),
+            nova_screenshot(
+                nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+                    .input(hold_inputs)
+                    .step(LOAD_STEP)
+                    .enter(GameStates::Loading)
+                    .until(the_rack_is_up())
+                    .deadline(SPAWN_DEADLINE_SECS)
+                    .add()
+                    // The scene is live again: close the reload interval so a frame
+                    // capture excludes it. A no-op on the first cycle.
+                    .step("close the reload interval")
+                    .on_enter(nova_probe::capture_reload_end)
+                    .on_enter(assert_the_rack_is_whole)
+                    .add()
+                    // Raise the stance and WAIT for the safety to go hot: a press
+                    // that arrives cold latches nothing, forever.
+                    .step("raise the weapons")
+                    .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().combat = true)
+                    .until(weapons_are_hot())
+                    .deadline(HOT_DEADLINE_SECS)
+                    .add()
+                    .step("fill the sky")
+                    .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().fire = true)
+                    .until(the_sky_is_full())
+                    .deadline(FILL_DEADLINE_SECS)
+                    .add()
+                    .step("hold the saturation")
+                    .until(elapsed(HOLD_SECS))
+                    .add()
+                    .step("assert the sky filled")
+                    .on_enter(assert_the_sky_filled)
+                    .add(),
+            )
+            .step("let the ordnance drain")
+            .on_enter(close_the_tubes)
+            .until(no_torpedoes_in_flight())
+            .deadline(DRAIN_DEADLINE_SECS)
+            .add()
+            .step("assert the ordnance drained")
+            .on_enter(assert_the_ordnance_drained)
+            .add()
+            .step("tear the range down")
+            .on_enter(tear_the_range_down)
+            .until(elapsed(TEARDOWN_SETTLE_SECS))
+            .add()
+            .step("check the world came back to baseline")
+            .on_enter(assert_back_to_baseline)
+            .add()
+            .loop_from(LOAD_STEP)
+            .on_loop(respawn_the_range),
         );
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(nova_screenshot());
     }
 
     app.run()

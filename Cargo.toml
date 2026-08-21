@@ -424,6 +424,15 @@ nova_probe = { path = "crates/nova_probe" }
 nova_debug = { path = "crates/nova_debug" }
 # widget_zoo example renders the nova_ui skin-aware widget set directly.
 nova_ui = { path = "crates/nova_ui" }
+# `tests/env_contract.rs` names every environment variable the game reads, so
+# it has to see the crate that DECLARES each one. They are all already in the
+# graph through nova_core; these edges only make them nameable from a test.
+nova_assets = { path = "crates/nova_assets" }
+nova_autopilot = { path = "crates/nova_autopilot" }
+nova_gameplay = { path = "crates/nova_gameplay" }
+nova_menu = { path = "crates/nova_menu" }
+nova_probe_cli = { path = "crates/nova_probe_cli" }
+nova_scenario = { path = "crates/nova_scenario" }
 # wfc_ships seeds its collapse from a pinned StdRng, the same generator the
 # scenario engine's scatter uses - same crate, same version, same rolls.
 rand = { version = "0.10.2" }

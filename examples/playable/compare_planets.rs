@@ -17,7 +17,7 @@
 //! - `NOVA_AUTOPILOT=1`: smoke path - load, frame, walk the swap steps, exit
 //!   clean. This is the path `probe run` takes.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the grid and two focus
-//!   swaps (staged under `NOVA_SHOT_DIR`).
+//!   swaps (staged under `NOVA_CAPTURE_DIR`).
 
 #[path = "shared/compare.rs"]
 mod compare;
@@ -96,7 +96,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        // Probe wiring (each plugin is inert without its NOVA_PERF_* env):
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
         // run timeline + engine-bound invariants, so `probe run` grades this
         // example instead of asserting nothing. No frame-time capture - a
         // posed lineup holds no steady-state load worth measuring.

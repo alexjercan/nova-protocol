@@ -107,7 +107,7 @@ const TORPEDO_BAYS: usize = 12;
 ///
 /// A MEASUREMENT knob, not content: the defaults above are what the range
 /// asserts against, and an override moves every floor with it. Named
-/// `NOVA_STRESS_PD_<KNOB>` beside the harness's own `NOVA_PERF_*` parameters.
+/// `NOVA_STRESS_PD_<KNOB>` beside the harness's own `NOVA_PROBE_*` parameters.
 fn scale_param(knob: &str, default: usize) -> usize {
     std::env::var(format!("NOVA_STRESS_PD_{knob}"))
         .ok()
@@ -269,7 +269,7 @@ const LOAD_STEP: &str = "spawn the range";
 /// unarmed run holds only long enough to sample the steady state.
 #[cfg(feature = "debug")]
 fn hold_frames() -> u32 {
-    if nova_probe::perf_armed() {
+    if nova_probe::probe_armed() {
         CAPTURE_HOLD_FRAMES
     } else {
         HOLD_FRAMES
@@ -381,66 +381,71 @@ fn main() -> bevy::app::AppExit {
         app.add_systems(FixedUpdate, track_trigger_duty);
         app.add_observer(count_intercepts);
         app.add_observer(count_rounds_fired);
+        // The picture is taken at the range's PEAK. `nova_screenshot`
+        // appends its beat to whatever it is handed, and the beats after
+        // this call drain and tear the range down - a shot behind them
+        // photographs an empty world.
         app.add_plugins(
-            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                // Both hulls are spawned by an OnStart handler, so waiting for
-                // the full section count is also the gate a looped reload needs:
-                // the old cycle's entities outlive the load replacing them.
-                .step(LOAD_STEP)
-                .enter(GameStates::Loading)
-                .until(the_range_is_up())
-                .deadline(SPAWN_DEADLINE_SECS)
-                .add()
-                // The scene is live again: close the reload interval so a frame
-                // capture excludes it. A no-op on the first cycle.
-                .step("close the reload interval")
-                .on_enter(nova_probe::capture_reload_end)
-                .on_enter(assert_the_range_stood_up)
-                .add()
-                // NO input is held, and that is the point: an unlocked, unraised
-                // player battery is exactly the state the Flight Computer takes,
-                // so the range measures the computer's own chain rather than a
-                // held trigger.
-                .step("open the tubes")
-                .on_enter(open_the_tubes)
-                .until(the_envelope_is_full())
-                .deadline(FILL_DEADLINE_SECS)
-                .add()
-                .step("hold the saturation")
-                .on_enter(mark_the_envelope_full)
-                .until(frames(hold_frames()))
-                .add()
-                .step("assert the range reached its scale")
-                .on_enter(assert_the_computer_took_the_battery)
-                .on_enter(assert_the_envelope_filled)
-                .on_enter(assert_the_mounts_were_working)
-                .on_enter(assert_the_battery_connected)
-                .on_enter(assert_the_sky_filled)
-                .add()
-                .step("let the sky drain")
-                .on_enter(close_the_tubes)
-                .until(nothing_in_flight())
-                .deadline(DRAIN_DEADLINE_SECS)
-                .add()
-                .step("assert the sky drained")
-                .on_enter(assert_the_sky_drained)
-                .add()
-                .step("tear the range down")
-                .on_enter(tear_the_range_down)
-                .until(elapsed(TEARDOWN_SETTLE_SECS))
-                .add()
-                .step("check the world came back to baseline")
-                .on_enter(assert_back_to_baseline)
-                .add()
-                .loop_from(LOAD_STEP)
-                .on_loop(respawn_the_range),
+            nova_screenshot(
+                nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+                    // Both hulls are spawned by an OnStart handler, so waiting for
+                    // the full section count is also the gate a looped reload needs:
+                    // the old cycle's entities outlive the load replacing them.
+                    .step(LOAD_STEP)
+                    .enter(GameStates::Loading)
+                    .until(the_range_is_up())
+                    .deadline(SPAWN_DEADLINE_SECS)
+                    .add()
+                    // The scene is live again: close the reload interval so a frame
+                    // capture excludes it. A no-op on the first cycle.
+                    .step("close the reload interval")
+                    .on_enter(nova_probe::capture_reload_end)
+                    .on_enter(assert_the_range_stood_up)
+                    .add()
+                    // NO input is held, and that is the point: an unlocked, unraised
+                    // player battery is exactly the state the Flight Computer takes,
+                    // so the range measures the computer's own chain rather than a
+                    // held trigger.
+                    .step("open the tubes")
+                    .on_enter(open_the_tubes)
+                    .until(the_envelope_is_full())
+                    .deadline(FILL_DEADLINE_SECS)
+                    .add()
+                    .step("hold the saturation")
+                    .on_enter(mark_the_envelope_full)
+                    .until(frames(hold_frames()))
+                    .add()
+                    .step("assert the range reached its scale")
+                    .on_enter(assert_the_computer_took_the_battery)
+                    .on_enter(assert_the_envelope_filled)
+                    .on_enter(assert_the_mounts_were_working)
+                    .on_enter(assert_the_battery_connected)
+                    .on_enter(assert_the_sky_filled)
+                    .add(),
+            )
+            .step("let the sky drain")
+            .on_enter(close_the_tubes)
+            .until(nothing_in_flight())
+            .deadline(DRAIN_DEADLINE_SECS)
+            .add()
+            .step("assert the sky drained")
+            .on_enter(assert_the_sky_drained)
+            .add()
+            .step("tear the range down")
+            .on_enter(tear_the_range_down)
+            .until(elapsed(TEARDOWN_SETTLE_SECS))
+            .add()
+            .step("check the world came back to baseline")
+            .on_enter(assert_back_to_baseline)
+            .add()
+            .loop_from(LOAD_STEP)
+            .on_loop(respawn_the_range),
         );
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         // The window opens on the SATURATED scene, not on `Playing`: the fill is
         // a ramp whose length depends on how fast the host ran it, so a fixed
         // warm-up from `Playing` would buy an arbitrary slice of the climb.
         app.add_plugins(nova_probe::NovaProbePlugin::default().ready_frametime(envelope_is_full));
-        app.add_plugins(nova_screenshot());
     }
 
     app.run()

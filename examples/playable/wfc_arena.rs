@@ -402,7 +402,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        // Probe wiring (inert without its NOVA_PERF_* env): run timeline,
+        // Probe wiring (inert without its NOVA_PROBE_* env): run timeline,
         // engine-bound invariants, and the frame-time capture over the 4v4
         // brawl - the release's headline profiling case.
         //
@@ -446,7 +446,7 @@ fn main() -> bevy::app::AppExit {
         // Startup writer asking for 1920x1080 is ambiguous with it - and now
         // refused outright, since a capture that is not the size it reports is
         // comparable with nothing.
-        if !nova_probe::perf_armed() {
+        if !nova_probe::probe_armed() {
             app.add_systems(Startup, force_capture_resolution);
         }
         app.add_systems(Startup, hide_dev_overlays);
@@ -648,13 +648,13 @@ const MEASURED_WINDOW: (u32, u32) = (60, 360);
 
 /// Whether this binary is a probe MEASUREMENT pass rather than a photograph.
 ///
-/// Both halves matter and they are read differently: `perf_armed` is the
+/// Both halves matter and they are read differently: `probe_armed` is the
 /// frame-time pass (env), `feature = "trace"` is the profiled pass (a
 /// build probe makes only for the chrome trace). If only one of them fielded
 /// the 4v4, the top-systems table would rank a lighter scene than the
 /// frame-time numbers describe, which is the exact way a profile lies.
 fn measuring() -> bool {
-    nova_probe::perf_armed() || cfg!(feature = "trace")
+    nova_probe::probe_armed() || cfg!(feature = "trace")
 }
 
 /// The roster a run with no `--ship` fields: one drafted hull per team, on the

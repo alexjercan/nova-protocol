@@ -123,7 +123,7 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
     html.push_str("<h2>Correctness</h2>\n");
     match &artifacts.timeline {
         None => html.push_str(
-            "<p>No timeline captured - arm <code>NOVA_PERF_TIMELINE</code> to record \
+            "<p>No timeline captured - arm <code>NOVA_PROBE_TIMELINE</code> to record \
              states, scenario events, variables and script beats.</p>\n",
         ),
         Some(timeline) => {

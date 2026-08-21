@@ -39,7 +39,7 @@
 //! - `NOVA_AUTOPILOT=1`: smoke path - load the gallery, frame it, exit clean.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the full gallery, a close
 //!   pass on the size family and one on the proposed shell candidates
-//!   (staged under `NOVA_SHOT_DIR`).
+//!   (staged under `NOVA_CAPTURE_DIR`).
 
 use std::path::{Path, PathBuf};
 

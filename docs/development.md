@@ -109,8 +109,11 @@ the overlays are shown. Native only: the module is compiled out under
 `target_arch = "wasm32"`, which has neither a Downloads directory nor a wall
 clock.
 
-Two debug-only CLI flags exist, both parsed in `src/main.rs` and both compiled
-in only under the `debug` feature:
+Three debug-only CLI flags exist, all parsed in `src/main.rs` and all compiled
+in only under the `debug` feature. Two of them are the OUTPUTS-OFF pair -
+`--norender` drops the renderer, `--mute` silences the speakers - and each has
+an environment twin an example can be armed with, since an example has no
+command line of its own:
 
 - `--norender` - build the app through `AppBuilder::headless()`: no wgpu device,
   no window, no winit event loop, and none of the visual game plugins. The main
@@ -139,6 +142,22 @@ in only under the `debug` feature:
   exists to prevent are all invisible headless, and `cargo check` does not see
   them either. Only a rendered run does. Run ranges headless for speed if you
   like; keep a rendered set as the canary.
+- `--mute` - zero the audio output. The other half of the outputs-off pair:
+  Xvfb hides the window but not the speakers, and nobody listens to a scripted
+  run. It inserts `HarnessMute(true)` after the builder, so it wins over
+  whatever the environment resolved. The volume SETTING is untouched, so
+  persistence and the settings menu never see it, and a muted run says
+  `nova audio: output muted for this run` once at startup.
+
+  The environment twin is `NOVA_MUTE`, which an example reads through
+  `HarnessMute::from_env`: set to anything but `0` it mutes, `NOVA_MUTE=0`
+  forces sound even under a harness, and unset it mutes iff a harness variable
+  (`NOVA_AUTOPILOT`, `NOVA_CAPTURE`) is set.
+
+  ```sh
+  cargo run --features debug -- --mute --scenario asteroid_field
+  NOVA_MUTE=1 cargo run --features debug --example stress_bullets
+  ```
 - `--debugdump` - print the system schedule graph (via `bevy_mod_debugdump`)
   and exit. It dumps the `Update` schedule (`debugdump` in
   `crates/nova_debug/src/lib.rs`).
@@ -354,12 +373,13 @@ the `nova_autopilot` crate and are documented on
 [The automation harness](automation-harness.md). This page only shows the run
 recipes; that page is the contract.
 
-Harness runs are SILENT: any harness env (`NOVA_AUTOPILOT`, `NOVA_SHOT`,
+Harness runs are SILENT: any harness env (`NOVA_AUTOPILOT`,
 `NOVA_CAPTURE`) zeroes the audio output via `HarnessMute` - Xvfb hides the
 window but not the speakers, and nobody listens to a scripted run. The
 volume SETTING is untouched (persistence and the settings menu never see
 the mute). `NOVA_MUTE=0` forces sound through a harness run;
-`NOVA_MUTE=1` mutes a normal one.
+`NOVA_MUTE=1` mutes a normal one, and the game binary's `--mute` flag does the
+same - see the outputs-off pair above.
 
 ### Examples as bug pins
 
@@ -541,7 +561,7 @@ Capture (needs a display + GPU; headless CI-style is Xvfb + lavapipe) into a
 staging dir, then package into `web/src/assets/`:
 
 ```sh
-export NOVA_SHOT_DIR=target/shots
+export NOVA_CAPTURE_DIR=target/shots
 for shot in $(python3 scripts/gen-web-screenshots.py --producers); do
     NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example "$shot" --features debug
 done
@@ -741,7 +761,7 @@ folders such as `before`, then each example compares against
 Probe runs are **profile-sandboxed**: a run measures a commit, so it must not
 depend on your desktop profile. Every native child run is pointed at an empty,
 probe-owned profile under its own run dir - `profile/mods`
-(`NOVA_MOD_CACHE_ROOT`, the downloaded-mod cache and its `installed.mods.ron`),
+(`NOVA_MODDING_CACHE_ROOT`, the downloaded-mod cache and its `installed.mods.ron`),
 `profile/data` (`XDG_DATA_HOME`) and `profile/config` (`XDG_CONFIG_HOME`, where
 `enabled_mods.ron` and `settings.ron` live) - and the tree is wiped at the start
 of each run. Without it, a mod cached in a structure an older commit cannot
@@ -753,7 +773,7 @@ yourself - probe preserves any of the three it finds already set, and prints
 which ones it left alone:
 
 ```sh
-NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run system_player_path
+NOVA_MODDING_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run system_player_path
 ```
 
 `XDG_CACHE_HOME` is deliberately NOT redirected (the shader cache lives there,
@@ -769,7 +789,7 @@ stops at the run and its verdict.
 ### Run timeline (correctness recording)
 
 `nova_probe` also records WHAT HAPPENED during a run: set
-`NOVA_PERF_TIMELINE=<out.jsonl>` on any example that adds
+`NOVA_PROBE_TIMELINE=<out.jsonl>` on any example that adds
 `nova_probe::nova_timeline()` - which `NovaProbePlugin` does unconditionally,
 so that is EVERY cataloged example - and the run appends one JSON object per
 line: every `GameStates`/pause transition, every fired scenario
@@ -780,7 +800,7 @@ keeps everything up to the panic. Compare runs by ORDER and VALUES, not
 timestamps (wall-clock and frame counts vary across hosts):
 
 ```sh
-NOVA_PERF_TIMELINE=/tmp/run.jsonl NOVA_AUTOPILOT=1 \
+NOVA_PROBE_TIMELINE=/tmp/run.jsonl NOVA_AUTOPILOT=1 \
   cargo run --example system_player_path --features debug
 ```
 
@@ -788,7 +808,7 @@ The timeline is native-only (no fs in the browser) and inert without the env
 var. It is the correctness half of the run-harness whose performance half is
 [Measuring performance](performance.md); the run report below renders both.
 
-Continuous INVARIANTS ride the same stream: set `NOVA_PERF_INVARIANTS=1` (or
+Continuous INVARIANTS ride the same stream: set `NOVA_PROBE_INVARIANTS=1` (or
 `=strict` to panic on the first violation) on a wired example and every frame
 asserts what the engine guarantees - health within `0..=max` and finite,
 velocities finite (plus an absurd-speed bound at 10x a ship's soft

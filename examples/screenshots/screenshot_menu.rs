@@ -6,11 +6,11 @@
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - walk the menu, exit clean,
 //!   capturing nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also write each PNG (staged under
-//!   `NOVA_SHOT_DIR`).
+//!   `NOVA_CAPTURE_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
+//! NOVA_CAPTURE_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_menu --features debug
 //! ```
 //!
@@ -47,7 +47,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        // Probe wiring (each plugin is inert without its NOVA_PERF_* env):
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
         // run timeline + engine-bound invariants, so `probe run` grades this
         // example instead of asserting nothing. No frame-time capture - the
         // walk is a sequence of posed framings with no steady-state window,

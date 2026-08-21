@@ -33,7 +33,7 @@
 //! hole used to swallow: the rock has to end up with a bite under EACH aim
 //! point, not one round hole centred on the first.
 //!
-//! Costs are logged with `RUST_LOG=nova_scenario=debug`. With `NOVA_PERF=1`,
+//! Costs are logged with `RUST_LOG=nova_scenario=debug`. With `NOVA_PROBE=1`,
 //! the frame-time probe also drives one accumulating 4-damage hit per frame
 //! into the PDC rock for the whole capture window.
 //!

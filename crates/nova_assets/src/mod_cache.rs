@@ -15,7 +15,7 @@
 //!   `<id>/<path>`) on the web.
 //!
 //! `<data_root>` is `dirs::data_dir/nova-protocol` (data, not config - the
-//! config dir stays prefs-only), OVERRIDABLE via the `NOVA_MOD_CACHE_ROOT`
+//! config dir stays prefs-only), OVERRIDABLE via the `NOVA_MODDING_CACHE_ROOT`
 //! environment variable. The override is read both at `mods:/`
 //! source-registration time and by every native path helper here, so the asset
 //! source and the cache always agree; tests point both at a temp dir with it.
@@ -59,7 +59,7 @@ pub mod prelude {
     pub use super::{install_local, read_mod_file, remove_mod, remove_mod_files, store_mod_files};
     pub use super::{
         read_index, register_mods_source, remove_index_record, upsert_index_record, write_index,
-        IndexRead, InstalledModRecord, MODS_SOURCE,
+        IndexRead, InstalledModRecord, MODS_SOURCE, MOD_CACHE_ROOT_ENV,
     };
 }
 
@@ -72,6 +72,13 @@ use serde::{Deserialize, Serialize};
 
 /// The `mods://` asset source id, registered by [`register_mods_source`].
 pub const MODS_SOURCE: &str = "mods";
+
+/// Environment variable that moves the local mod cache off the platform data
+/// dir - the test and tooling override, absolutized where it is read.
+///
+/// The `NOVA_MODDING_*` family is the mod portal and the local mod cache; the
+/// settings store's `NOVA_CONFIG_ROOT` is deliberately not one of them.
+pub const MOD_CACHE_ROOT_ENV: &str = "NOVA_MODDING_CACHE_ROOT";
 
 /// One DOWNLOADED (portal-installed) mod in the local cache index.
 ///
@@ -142,7 +149,7 @@ pub fn read_index() -> Option<Vec<InstalledModRecord>> {
 /// `<data_root>/portal_catalog.json` - where the portal client's last-good
 /// catalog store lives (`portal::last_good_store`). Beside the cache ON
 /// PURPOSE: the catalog is cached wire data, not a preference, and the cache
-/// root's `NOVA_MOD_CACHE_ROOT` test override is what keeps integration rigs
+/// root's `NOVA_MODDING_CACHE_ROOT` test override is what keeps integration rigs
 /// out of the developer's real store.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn portal_catalog_store_path() -> Option<std::path::PathBuf> {
@@ -495,7 +502,7 @@ mod backend {
 
     use super::{is_safe_id, is_safe_rel_path, IndexRead, InstalledModRecord};
 
-    /// `<data_root>`: `$NOVA_MOD_CACHE_ROOT` if set (the test/tooling override,
+    /// `<data_root>`: `$NOVA_MODDING_CACHE_ROOT` if set (the test/tooling override,
     /// see the module doc), else `dirs::data_dir()/nova-protocol`.
     ///
     /// The override is ABSOLUTIZED here, the single place it is read: a
@@ -503,7 +510,7 @@ mod backend {
     /// (`FileAssetReader` joins relative roots onto bevy's base path, the
     /// executable dir) and these fs helpers (which join onto the CWD).
     fn data_root() -> Option<PathBuf> {
-        match std::env::var_os("NOVA_MOD_CACHE_ROOT") {
+        match std::env::var_os(super::MOD_CACHE_ROOT_ENV) {
             Some(root) => std::path::absolute(PathBuf::from(root)).ok(),
             None => dirs::data_dir().map(|d| d.join("nova-protocol")),
         }

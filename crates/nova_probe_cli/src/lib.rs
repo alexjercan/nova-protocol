@@ -4,7 +4,7 @@
 //!
 //! The other half is `nova_probe`, which links into the game and writes those
 //! artifacts. The two never share a process: the filesystem and the
-//! `NOVA_PERF_*` / autopilot env vars are the IPC, which is why this crate is
+//! `NOVA_PROBE_*` / autopilot env vars are the IPC, which is why this crate is
 //! host-only with no wasm build at all - the split IS the `cfg`.
 //!
 //! The pipeline reads left to right, and so does the module tree:

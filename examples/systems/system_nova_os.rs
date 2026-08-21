@@ -68,7 +68,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        // Probe wiring (each plugin is inert without its NOVA_PERF_* env): run
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env): run
         // timeline + engine-bound invariants, so `probe run` grades this range.
         // No frame-time capture - the walk is a sequence of gestures with no
         // steady-state window, so a captured fps would measure the script.

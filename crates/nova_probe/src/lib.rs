@@ -48,7 +48,7 @@
 //!   per-frame cost and the headroom, not "60 fps, capped". It is a REQUEST:
 //!   wgpu falls back Immediate -> Mailbox -> Fifo on what the surface offers and
 //!   bevy logs the fallback only for an explicitly named mode, so
-//!   `NOVA_PERF_PRESENT=immediate` names the mode, and the capture then REFUSES
+//!   `NOVA_PROBE_PRESENT=immediate` names the mode, and the capture then REFUSES
 //!   a window whose deltas collapsed onto one period anyway - a compositor or a
 //!   silent fallback pacing the swap chain reads as a plausible number and is
 //!   the display's, not the game's.
@@ -97,37 +97,37 @@
 //! ```
 //!
 //! ```text
-//! NOVA_PERF=1 NOVA_PERF_LABEL=stress_bullets-gpu NOVA_PERF_PRESENT=immediate \
-//!   NOVA_PERF_OUT=/tmp/perf BEVY_ASSET_ROOT="$PWD" DISPLAY=:0 \
+//! NOVA_PROBE=1 NOVA_PROBE_LABEL=stress_bullets-gpu NOVA_PROBE_PRESENT=immediate \
+//!   NOVA_PROBE_OUT=/tmp/perf BEVY_ASSET_ROOT="$PWD" DISPLAY=:0 \
 //!   cargo run --example stress_bullets --features debug
 //! # look for: `nova perf: label=... frames=... mean=..ms p99=..ms mean_fps=.. 1%low_fps=..`
 //! ```
 //!
 //! ## Config source
 //!
-//! Parameters come from [`perf_param`]: **native** reads env vars
-//! `NOVA_PERF_<UPPER>`; **wasm** reads the URL query `<name>` (so a browser drives
-//! it by URL - see `probe run --platform web`). NOTE: the `NOVA_PERF_*` prefix
-//! predates the crate rename and stays, so scripts and docs do not churn. The
-//! knobs:
+//! Parameters come from [`probe_param`]: **native** reads env vars
+//! `NOVA_PROBE_<UPPER>`; **wasm** reads the URL query `<name>` (so a browser drives
+//! it by URL - see `probe run --platform web`). The knobs:
 //!
 //! | Native env / wasm query | Default | Meaning |
 //! |-------------------------|---------|---------|
-//! | `NOVA_PERF` / `?perf`         | (unset) | Arms the plugin. |
-//! | `NOVA_PERF_WARMUP` / `warmup` | `180`   | Frames discarded after reaching `Playing` (shader compile, asset upload, spikes; also lets a combat burst saturate). Wins over an example's declared window. |
-//! | `NOVA_PERF_FRAMES` / `frames` | `900`   | Frames captured for the stats window. Wins over an example's declared window. |
-//! | `NOVA_PERF_LABEL` / `label`   | `scene` | Label recorded in the row. |
-//! | `NOVA_PERF_OUT` / (n/a)       | (none)  | Native only: dir for `<label>.json` + a `frametime.csv` row. Web has no fs, so it logs the summary line only. |
-//! | `NOVA_PERF_RES` / `res`       | `1280x720` | Forced primary-window resolution `WxH`. |
-//! | `NOVA_PERF_RENDER_SCALE` / `render_scale` | (tier default) | Forces `GraphicsBudget::render_scale`, holding the rest of the preset fixed - isolates the render-scale lever (measure a tier at `1.0` vs a fraction). |
-//! | `NOVA_PERF_MAX_DELTA` / `max_delta` | (bevy's 0.25 s) | Forces `Time<Virtual>::max_delta`, in seconds - the ceiling on how many fixed steps one frame may run. Isolates fixed-step amplification; it trades a bounded tail for simulation time the world never runs, so it is a measurement knob, never a default. |
-//! | `NOVA_PERF_PRESENT` / `present`   | `autonovsync` | Presentation mode forced on the primary window (`immediate`, `mailbox`, `fifo`, `fiforelaxed`, `autovsync`, `autonovsync`). The default is only a REQUEST - name a mode explicitly and bevy logs the fallback when the surface cannot serve it. |
-//! | `NOVA_PERF_CENSUS_FRAME` / `census_frame` | `90` | Frames after `Playing` at which the scene census is taken. |
-//! | `NOVA_PERF_FRAMECOST_FRAMES` / `framecost_frames` | `200` | Frames averaged into one frame-cost report. |
-//! | `NOVA_PERF_RENDER_DIAG` | (unset) | Asks the renderer for GPU timestamp queries, so the frame-cost report can name each render pass. Costs a resolve pass and a readback per frame - a measurement knob, never a default. |
-//! | `NOVA_PERF_QUALITY` / `quality` | (app default) | Graphics preset for the run (read by the example/bin); recorded in the run metadata. |
-//! | `NOVA_PERF_SHA` / `sha`       | `git rev-parse` | Overrides the recorded git SHA (the web build cannot shell out). |
-//! | `NOVA_PERF_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |
+//! | `NOVA_PROBE` / `?perf`         | (unset) | Arms the plugin. |
+//! | `NOVA_PROBE_WARMUP` / `warmup` | `180`   | Frames discarded after reaching `Playing` (shader compile, asset upload, spikes; also lets a combat burst saturate). Wins over an example's declared window. |
+//! | `NOVA_PROBE_FRAMES` / `frames` | `900`   | Frames captured for the stats window. Wins over an example's declared window. |
+//! | `NOVA_PROBE_LABEL` / `label`   | `scene` | Label recorded in the row. |
+//! | `NOVA_PROBE_OUT` / (n/a)       | (none)  | Native only: dir for `<label>.json` + a `frametime.csv` row. Web has no fs, so it logs the summary line only. |
+//! | `NOVA_PROBE_RES` / `res`       | `1280x720` | Forced primary-window resolution `WxH`. |
+//! | `NOVA_PROBE_RENDER_SCALE` / `render_scale` | (tier default) | Forces `GraphicsBudget::render_scale`, holding the rest of the preset fixed - isolates the render-scale lever (measure a tier at `1.0` vs a fraction). |
+//! | `NOVA_PROBE_MAX_DELTA` / `max_delta` | (bevy's 0.25 s) | Forces `Time<Virtual>::max_delta`, in seconds - the ceiling on how many fixed steps one frame may run. Isolates fixed-step amplification; it trades a bounded tail for simulation time the world never runs, so it is a measurement knob, never a default. |
+//! | `NOVA_PROBE_PRESENT` / `present`   | `autonovsync` | Presentation mode forced on the primary window (`immediate`, `mailbox`, `fifo`, `fiforelaxed`, `autovsync`, `autonovsync`). The default is only a REQUEST - name a mode explicitly and bevy logs the fallback when the surface cannot serve it. |
+//! | `NOVA_PROBE_CENSUS_FRAME` / `census_frame` | `90` | Frames after `Playing` at which the scene census is taken. |
+//! | `NOVA_PROBE_FRAMECOST_FRAMES` / `framecost_frames` | `200` | Frames averaged into one frame-cost report. |
+//! | `NOVA_PROBE_RENDER_DIAG` | (unset) | Asks the renderer for GPU timestamp queries, so the frame-cost report can name each render pass. Costs a resolve pass and a readback per frame - a measurement knob, never a default. |
+//! | `NOVA_PROBE_STEPDIAG` / (n/a) | (unset) | Native only: CSV path for the per-FIXED-STEP physics diagnostics - avian's own broad/narrow/prepare/solve/finalize/spatial timers, contact and constraint counts, the step's wall time, and the live dynamic-body and collider counts. |
+//! | `NOVA_PROBE_STEPDIAG_BODIES` / (n/a) | `0` | Native only: the body-count REGIME floor. Only steps carrying at least this many live dynamic bodies enter the end-of-run summary, so two arms are compared over the same weight of world instead of over a whole run one of them ended early. |
+//! | `NOVA_PROBE_QUALITY` / `quality` | (app default) | Graphics preset for the run (read by the example/bin); recorded in the run metadata. |
+//! | `NOVA_PROBE_SHA` / `sha`       | `git rev-parse` | Overrides the recorded git SHA (the web build cannot shell out). |
+//! | `NOVA_PROBE_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |
 #![warn(missing_docs)]
 
 pub mod capabilities;

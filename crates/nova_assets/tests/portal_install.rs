@@ -19,7 +19,7 @@
 //!   failure asserts the ABSENCE evidence through the cache API (no files, no
 //!   index entry - the staged-commit discipline).
 //!
-//! The `NOVA_MOD_CACHE_ROOT`/`NOVA_PORTAL_URL` env overrides are
+//! The `NOVA_MODDING_CACHE_ROOT`/`NOVA_MODDING_PORTAL_URL` env overrides are
 //! PROCESS-GLOBAL, so every test serializes on one lock and owns a fresh temp
 //! root while holding it (separate test binaries are separate processes).
 
@@ -50,8 +50,8 @@ use sha2::{Digest, Sha256};
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
-/// Serializes the tests in this binary, points `NOVA_MOD_CACHE_ROOT` at a
-/// fresh temp dir and CLEARS `NOVA_PORTAL_URL` (the wire test sets it; mock
+/// Serializes the tests in this binary, points `NOVA_MODDING_CACHE_ROOT` at a
+/// fresh temp dir and CLEARS `NOVA_MODDING_PORTAL_URL` (the wire test sets it; mock
 /// tests must not inherit a previous test's server).
 struct CacheRootGuard {
     _lock: MutexGuard<'static, ()>,
@@ -62,8 +62,8 @@ fn cache_root_guard() -> CacheRootGuard {
     // A panicked test poisons the lock; the lock only serializes, so continue.
     let lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let root = tempfile::tempdir().expect("temp cache root");
-    std::env::set_var("NOVA_MOD_CACHE_ROOT", root.path());
-    std::env::remove_var("NOVA_PORTAL_URL");
+    std::env::set_var("NOVA_MODDING_CACHE_ROOT", root.path());
+    std::env::remove_var("NOVA_MODDING_PORTAL_URL");
     CacheRootGuard { _lock: lock, root }
 }
 
@@ -368,13 +368,13 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
 
     let base_url = serve_portal_tree(portal_dir.path().to_path_buf());
     // The production override path: PortalPlugin reads this at build.
-    std::env::set_var("NOVA_PORTAL_URL", &base_url);
+    std::env::set_var("NOVA_MODDING_PORTAL_URL", &base_url);
 
     let mut app = portal_app();
     assert_eq!(
         app.world().resource::<PortalConfig>().base_url,
         base_url,
-        "NOVA_PORTAL_URL steers the production config"
+        "NOVA_MODDING_PORTAL_URL steers the production config"
     );
     ready_shipped_catalog(&mut app);
 

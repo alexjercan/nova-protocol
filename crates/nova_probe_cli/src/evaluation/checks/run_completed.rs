@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn armed_but_unwired_skip_details_name_the_wiring_not_the_env() {
         // The live repro's misdirection: probe DID arm the env; the detail
-        // must say "not wired", not "arm NOVA_PERF_TIMELINE".
+        // must say "not wired", not "arm NOVA_PROBE_TIMELINE".
         let artifacts = RunArtifacts {
             manifest: Some(manifest_ok()),
             ..Default::default()
@@ -183,6 +183,6 @@ mod tests {
         let checks = evaluate_checks(&RunArtifacts::default());
         let c = check(&checks, "run_completed");
         assert_eq!(c.status, CheckStatus::Skipped);
-        assert!(c.detail.contains("NOVA_PERF_TIMELINE"), "{}", c.detail);
+        assert!(c.detail.contains("NOVA_PROBE_TIMELINE"), "{}", c.detail);
     }
 }

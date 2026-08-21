@@ -20,7 +20,7 @@
 # The wasm game fetches the portal SAME-ORIGIN (it derives the base from
 # window.location), so it never talks to this port directly - trunk or the
 # webpack dev server proxies to it. Native builds can point straight at it with
-# NOVA_PORTAL_URL. See web/src/wiki/modding/publish-a-mod.md.
+# NOVA_MODDING_PORTAL_URL. See web/src/wiki/modding/publish-a-mod.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
