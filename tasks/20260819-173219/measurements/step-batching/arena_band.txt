@@ -1,0 +1,99 @@
+band 650-750 dynamic bodies
+
+=== arm base (15 runs) ===
+  arena-r1  n=  21 bodies= 709.9 med=  6.73 p95= 14.29 p99= 14.77 max= 14.77 other=  4.81
+  arena-r2  n=  29 bodies= 688.4 med= 13.19 p95= 15.93 p99= 16.61 max= 16.61 other=  9.04
+  arena-r3  n=  58 bodies= 680.7 med=  9.38 p95= 13.87 p99= 14.34 max= 14.34 other=  6.61
+  arena-r4  n=  23 bodies= 702.8 med=  7.29 p95= 16.01 p99= 17.43 max= 17.43 other=  4.92
+  arena-r5  n=  76 bodies= 710.1 med=  9.56 p95= 16.23 p99= 17.05 max= 17.05 other=  6.52
+  arena-r6  n=  37 bodies= 683.6 med=  7.41 p95= 16.01 p99= 16.72 max= 16.72 other=  5.20
+  arena-r7  n=  86 bodies= 693.5 med= 10.04 p95= 15.43 p99= 18.94 max= 18.94 other=  6.71
+  arena-r8  n=  57 bodies= 697.7 med=  7.35 p95= 15.16 p99= 16.26 max= 16.26 other=  4.79
+  arena-r9  n=  31 bodies= 692.7 med=  9.46 p95= 16.37 p99= 17.44 max= 17.44 other=  6.68
+  arena2-r1  n=  46 bodies= 703.2 med=  6.77 p95= 13.46 p99= 15.55 max= 15.55 other=  4.44
+  arena2-r2  n=  36 bodies= 678.8 med=  2.80 p95=  7.08 p99=  8.01 max=  8.01 other=  1.86
+  arena2-r3  n=  65 bodies= 711.3 med=  6.04 p95= 13.16 p99= 16.21 max= 16.21 other=  4.12
+  arena2-r4  n=  50 bodies= 698.8 med=  7.89 p95= 12.98 p99= 13.75 max= 13.75 other=  5.37
+  arena2-r5  n=  65 bodies= 704.4 med= 11.07 p95= 14.48 p99= 15.30 max= 15.30 other=  7.49
+  arena2-r7  n=  45 bodies= 687.5 med=  7.96 p95= 16.82 p99= 20.27 max= 20.27 other=  5.80
+
+=== arm batch (9 runs) ===
+  arena-r1  n=  38 bodies= 704.1 med= 12.86 p95= 17.10 p99= 17.26 max= 17.26 other=  9.08
+  arena-r2  n=  73 bodies= 682.9 med=  6.01 p95= 14.63 p99= 18.31 max= 18.31 other=  4.69
+  arena-r3  n=  94 bodies= 692.2 med=  8.04 p95= 16.01 p99= 20.04 max= 20.04 other=  5.42
+  arena-r4  n=  29 bodies= 698.2 med=  9.12 p95= 12.44 p99= 13.00 max= 13.00 other=  5.95
+  arena-r5  n=  26 bodies= 705.2 med=  5.94 p95= 10.77 p99= 12.93 max= 12.93 other=  4.02
+  arena-r6  n=  46 bodies= 680.3 med=  8.61 p95= 18.08 p99= 21.80 max= 21.80 other=  6.27
+  arena-r7  n=  45 bodies= 673.9 med=  7.70 p95= 16.89 p99= 17.12 max= 17.12 other=  5.26
+  arena-r8  n=  31 bodies= 708.8 med=  6.81 p95= 14.49 p99= 14.57 max= 14.57 other=  4.32
+  arena-r9  n=  30 bodies= 703.5 med=  6.20 p95= 15.51 p99= 15.79 max= 15.79 other=  3.91
+
+=== arm stall (9 runs) ===
+  arena-r4  n=  33 bodies= 700.7 med=  6.30 p95= 14.53 p99= 14.55 max= 14.55 other=  4.05
+  arena-r6  n=  70 bodies= 695.8 med=  7.98 p95= 12.94 p99= 13.50 max= 13.50 other=  5.18
+  arena-r9  n=  59 bodies= 709.9 med=  5.24 p95= 12.49 p99= 14.13 max= 14.13 other=  3.42
+  arena2-r2  n=  39 bodies= 706.1 med=  9.78 p95= 14.50 p99= 14.57 max= 14.57 other=  5.99
+  arena2-r3  n=  32 bodies= 678.7 med=  4.24 p95= 10.06 p99= 13.04 max= 13.04 other=  2.75
+  arena2-r4  n=  43 bodies= 674.7 med=  5.40 p95= 11.11 p99= 12.31 max= 12.31 other=  3.61
+  arena2-r5  n=  24 bodies= 677.2 med=  3.61 p95= 12.77 p99= 13.09 max= 13.09 other=  2.49
+  arena2-r6  n=  28 bodies= 678.6 med=  3.68 p95=  6.85 p99=  9.03 max=  9.03 other=  2.29
+  arena2-r8  n=  37 bodies= 694.0 med=  6.64 p95= 13.69 p99= 14.36 max= 14.36 other=  4.65
+
+=== arm stfixed (5 runs) ===
+  arena2-r3  n=  61 bodies= 694.0 med=  6.08 p95= 11.66 p99= 17.45 max= 17.45 other=  4.01
+  arena2-r4  n=  26 bodies= 677.7 med=  7.33 p95= 11.82 p99= 12.28 max= 12.28 other=  4.58
+  arena2-r5  n=  31 bodies= 712.7 med=  4.39 p95= 14.18 p99= 15.54 max= 15.54 other=  2.88
+  arena2-r7  n=  46 bodies= 693.7 med=  5.16 p95= 13.26 p99= 13.88 max= 13.88 other=  3.62
+  arena2-r8  n=  30 bodies= 686.0 med=  6.81 p95= 13.60 p99= 14.38 max= 14.38 other=  4.64
+
+=== arm stphys (8 runs) ===
+  arena-r1  n=  39 bodies= 708.8 med=  6.53 p95= 15.17 p99= 15.48 max= 15.48 other=  4.65
+  arena-r3  n=  28 bodies= 691.0 med=  7.54 p95= 16.06 p99= 16.26 max= 16.26 other=  5.39
+  arena-r4  n=  30 bodies= 688.1 med=  7.55 p95= 16.84 p99= 21.11 max= 21.11 other=  5.55
+  arena-r5  n=  54 bodies= 698.0 med=  7.35 p95= 15.75 p99= 16.51 max= 16.51 other=  4.67
+  arena-r6  n=  44 bodies= 718.2 med=  7.84 p95= 14.47 p99= 15.74 max= 15.74 other=  5.52
+  arena-r7  n=  37 bodies= 683.1 med= 12.48 p95= 18.40 p99= 20.44 max= 20.44 other=  8.44
+  arena-r8  n=  26 bodies= 708.1 med= 10.38 p95= 15.77 p99= 16.87 max= 16.87 other=  6.94
+  arena-r9  n=  33 bodies= 668.9 med=  5.17 p95= 13.61 p99= 15.68 max= 15.68 other=  3.59
+
+metric med: arm medians and U vs base
+  base: median   7.89 range   2.80- 13.19
+  batch: median   7.70 range   5.94- 12.86 U=56 p=0.493
+  stall: median   5.40 range   3.61-  9.78 U=30 p=0.025
+  stfixed: median   6.08 range   4.39-  7.33 U=13 p=0.032
+  stphys: median   7.54 range   5.17- 12.48 U=56 p=0.796
+
+metric p95: arm medians and U vs base
+  base: median  15.16 range   7.08- 16.82
+  batch: median  15.51 range  10.77- 18.08 U=80 p=0.456
+  stall: median  12.77 range   6.85- 14.53 U=23 p=0.008
+  stfixed: median  13.26 range  11.66- 14.18 U=14 p=0.040
+  stphys: median  15.76 range  13.61- 18.40 U=78 p=0.245
+
+metric p99: arm medians and U vs base
+  base: median  16.26 range   8.01- 20.27
+  batch: median  17.12 range  12.93- 21.80 U=75 p=0.655
+  stall: median  13.50 range   9.03- 14.57 U=16 p=0.002
+  stfixed: median  14.38 range  12.28- 17.45 U=24 p=0.239
+  stphys: median  16.39 range  15.48- 21.11 U=72 p=0.439
+
+metric max: arm medians and U vs base
+  base: median  16.26 range   8.01- 20.27
+  batch: median  17.12 range  12.93- 21.80 U=75 p=0.655
+  stall: median  13.50 range   9.03- 14.57 U=16 p=0.002
+  stfixed: median  14.38 range  12.28- 17.45 U=24 p=0.239
+  stphys: median  16.39 range  15.48- 21.11 U=72 p=0.439
+
+metric other: arm medians and U vs base
+  base: median   5.37 range   1.86-  9.04
+  batch: median   5.26 range   3.91-  9.08 U=55 p=0.456
+  stall: median   3.61 range   2.29-  5.99 U=24 p=0.009
+  stfixed: median   4.01 range   2.88-  4.64 U=9 p=0.013
+  stphys: median   5.45 range   3.59-  8.44 U=58 p=0.897
+
+metric bodies: arm medians and U vs base
+  base: median 697.72 range 678.83-711.29
+  batch: median 698.24 range 673.93-708.77 U=62 p=0.743
+  stall: median 694.03 range 674.65-709.95 U=48 p=0.245
+  stfixed: median 693.72 range 677.69-712.68 U=32 p=0.631
+  stphys: median 694.52 range 668.91-718.23 U=58 p=0.897

@@ -1,0 +1,66 @@
+field                                                                 ablbullet                        base                       batch
+both hulls stood up whole.bays                          12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+both hulls stood up whole.mounts                        12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+both hulls stood up whole.sections                      37.000 [37.000-37.000] p=1.000      37.000 [37.000-37.000]     37.000 [37.000-37.000] p=1.000
+the battery shot torpedoes down.aim_error_deg           21.828 [20.656-21.918] p=0.009      19.324 [18.492-19.595]     18.040 [16.898-18.348] p=0.009
+the battery shot torpedoes down.engaged_secs             6.711 [6.671-7.037] p=0.009         7.319 [7.275-7.637]      7.470 [7.372-7.844] p=0.117
+the battery shot torpedoes down.fill_secs                6.476 [6.466-6.507] p=0.009         7.118 [7.070-7.136]      7.264 [7.189-7.325] p=0.009
+the battery shot torpedoes down.fired                 2975.000 [2971.000-3167.000] p=0.009   3575.000 [3516.000-3836.000]   3672.000 [3573.000-3983.000] p=0.347
+the battery shot torpedoes down.fps                    504.447 [417.169-607.395] p=0.117    573.159 [477.553-695.099]    563.090 [443.021-643.903] p=0.465
+the battery shot torpedoes down.frames_per_step          7.889 [6.518-9.479] p=0.117        8.969 [7.462-10.865]      8.791 [6.919-10.063] p=0.465
+the battery shot torpedoes down.hits_per_round           0.000 [0.000-0.000] p=0.009         0.001 [0.001-0.002]      0.003 [0.002-0.004] p=0.009
+the battery shot torpedoes down.intercepts               1.000 [1.000-1.000] p=0.009         5.000 [4.000-8.000]     10.000 [9.000-14.000] p=0.009
+the battery shot torpedoes down.rounds_per_sec         444.510 [441.585-450.896] p=0.009    488.552 [483.326-502.316]    492.068 [484.665-507.753] p=0.917
+the battery shot torpedoes down.rounds_per_step          6.942 [6.903-7.044] p=0.009         7.639 [7.561-7.861]      7.682 [7.570-7.934] p=0.917
+the battery shot torpedoes down.trigger_duty             0.374 [0.372-0.380] p=0.009         0.409 [0.405-0.421]      0.411 [0.405-0.426] p=0.917
+the battery was working the stream.floor                 6.000 [6.000-6.000] p=1.000         6.000 [6.000-6.000]      6.000 [6.000-6.000] p=1.000
+the battery was working the stream.mounts               12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+the battery was working the stream.peak                 12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+the computer took every mount.held                      12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+the envelope filled with inbound ordnance.bays          12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+the envelope filled with inbound ordnance.floor         48.000 [48.000-48.000] p=1.000      48.000 [48.000-48.000]     48.000 [48.000-48.000] p=1.000
+the envelope filled with inbound ordnance.peak          48.000 [48.000-48.000] p=0.009      55.000 [54.000-56.000]     49.000 [48.000-49.000] p=0.009
+the sky drained to nothing.rounds                        0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+the sky drained to nothing.torpedoes                     0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+the sky filled with point-defense rounds.colliders    2626.000 [2624.000-2642.000] p=0.144   2625.000 [2624.000-2625.000]   2378.000 [2371.000-2405.000] p=0.009
+the sky filled with point-defense rounds.floor         480.000 [480.000-480.000] p=1.000    480.000 [480.000-480.000]    480.000 [480.000-480.000] p=1.000
+the sky filled with point-defense rounds.mounts         12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+the sky filled with point-defense rounds.peak         2421.000 [2419.000-2437.000] p=0.210   2420.000 [2419.000-2420.000]   2175.000 [2169.000-2202.000] p=0.009
+the teardown left nothing behind.roots                   0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+the teardown left nothing behind.rounds                  0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+the teardown left nothing behind.sections                0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+the teardown left nothing behind.torpedoes               0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+
+=== bullet-only drained ===
+field                                                                   ablsolo                        base                       batch
+both hulls stood up whole.bays                          12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+both hulls stood up whole.mounts                        12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+both hulls stood up whole.sections                      37.000 [37.000-37.000] p=1.000      37.000 [37.000-37.000]     37.000 [37.000-37.000] p=1.000
+the battery shot torpedoes down.aim_error_deg           20.959 [20.548-21.010] p=0.009      19.422 [19.303-19.978]     18.328 [17.541-18.388] p=0.009
+the battery shot torpedoes down.engaged_secs             7.325 [7.312-7.374] p=0.117         7.301 [7.256-7.369]      7.474 [7.388-7.683] p=0.009
+the battery shot torpedoes down.fill_secs                7.138 [7.102-7.155] p=0.347         7.109 [7.072-7.195]      7.212 [7.192-7.316] p=0.016
+the battery shot torpedoes down.fired                 3471.000 [3442.000-3540.000] p=0.076   3556.000 [3465.000-3592.000]   3616.000 [3581.000-3832.000] p=0.028
+the battery shot torpedoes down.fps                    541.535 [522.360-639.802] p=0.754    535.274 [454.020-651.724]    554.220 [471.144-612.526] p=0.754
+the battery shot torpedoes down.frames_per_step          8.458 [8.161-9.996] p=0.754        8.353 [7.099-10.174]      8.665 [7.359-9.565] p=0.754
+the battery shot torpedoes down.hits_per_round           0.001 [0.001-0.001] p=0.175         0.001 [0.001-0.003]      0.003 [0.002-0.003] p=0.016
+the battery shot torpedoes down.intercepts               4.000 [3.000-5.000] p=0.095         5.000 [4.000-9.000]     10.000 [8.000-13.000] p=0.022
+the battery shot torpedoes down.rounds_per_sec         471.672 [469.867-480.050] p=0.016    487.027 [476.318-489.906]    484.679 [483.229-498.767] p=0.917
+the battery shot torpedoes down.rounds_per_step          7.362 [7.339-7.500] p=0.016         7.610 [7.436-7.656]      7.571 [7.549-7.789] p=0.754
+the battery shot torpedoes down.trigger_duty             0.395 [0.394-0.402] p=0.016         0.407 [0.398-0.410]      0.406 [0.404-0.418] p=0.602
+the battery was working the stream.floor                 6.000 [6.000-6.000] p=1.000         6.000 [6.000-6.000]      6.000 [6.000-6.000] p=1.000
+the battery was working the stream.mounts               12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+the battery was working the stream.peak                 12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+the computer took every mount.held                      12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+the envelope filled with inbound ordnance.bays          12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+the envelope filled with inbound ordnance.floor         48.000 [48.000-48.000] p=1.000      48.000 [48.000-48.000]     48.000 [48.000-48.000] p=1.000
+the envelope filled with inbound ordnance.peak          55.000 [54.000-55.000] p=0.347      54.000 [51.000-55.000]     50.000 [48.000-51.000] p=0.012
+the sky drained to nothing.rounds                        0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+the sky drained to nothing.torpedoes                     0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+the sky filled with point-defense rounds.colliders    2626.000 [2624.000-2642.000] p=0.403   2626.000 [2624.000-2640.000]   2395.000 [2384.000-2400.000] p=0.009
+the sky filled with point-defense rounds.floor         480.000 [480.000-480.000] p=1.000    480.000 [480.000-480.000]    480.000 [480.000-480.000] p=1.000
+the sky filled with point-defense rounds.mounts         12.000 [12.000-12.000] p=1.000      12.000 [12.000-12.000]     12.000 [12.000-12.000] p=1.000
+the sky filled with point-defense rounds.peak         2421.000 [2421.000-2438.000] p=0.210   2421.000 [2419.000-2437.000]   2192.000 [2182.000-2196.000] p=0.009
+the teardown left nothing behind.roots                   0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+the teardown left nothing behind.rounds                  0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+the teardown left nothing behind.sections                0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000
+the teardown left nothing behind.torpedoes               0.000 [0.000-0.000] p=1.000         0.000 [0.000-0.000]      0.000 [0.000-0.000] p=1.000

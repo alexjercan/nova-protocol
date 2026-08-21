@@ -1,0 +1,41 @@
+band 1800-2200 dynamic bodies
+
+=== arm base (6 runs) ===
+  r1  n= 614 bodies=2047.4 med=  3.08 p95= 10.51 p99= 14.33 max= 15.53 other=  2.25
+  r2  n= 665 bodies=2043.2 med=  3.34 p95=  8.81 p99= 12.42 max= 15.34 other=  2.41
+  r3  n= 643 bodies=2094.5 med=  3.55 p95=  8.74 p99= 11.73 max= 17.25 other=  2.54
+  r4  n= 635 bodies=2032.6 med=  3.13 p95=  7.46 p99= 11.14 max= 13.50 other=  2.28
+  r5  n= 634 bodies=2091.8 med=  3.21 p95=  6.84 p99= 12.06 max= 14.28 other=  2.37
+  r6  n= 585 bodies=2023.3 med=  3.08 p95=  4.56 p99=  6.70 max=  8.61 other=  2.25
+
+=== arm stfixed (6 runs) ===
+  r1  n= 675 bodies=2036.1 med=  2.80 p95=  7.00 p99= 10.48 max= 13.12 other=  1.98
+  r2  n= 616 bodies=2080.3 med=  2.91 p95=  5.95 p99=  8.14 max= 10.83 other=  2.04
+  r3  n= 635 bodies=1996.7 med=  2.94 p95=  5.65 p99=  7.92 max= 10.75 other=  2.04
+  r4  n= 684 bodies=2070.0 med=  2.87 p95=  6.01 p99=  7.90 max= 11.65 other=  2.01
+  r5  n= 574 bodies=2034.8 med=  2.82 p95=  4.19 p99=  4.60 max=  5.32 other=  2.01
+  r6  n= 586 bodies=2034.6 med=  2.76 p95=  4.65 p99=  6.01 max=  7.54 other=  1.95
+
+metric med: arm medians and U vs base
+  base: median   3.17 range   3.08-  3.55
+  stfixed: median   2.84 range   2.76-  2.94 U=0 p=0.004
+
+metric p95: arm medians and U vs base
+  base: median   8.10 range   4.56- 10.51
+  stfixed: median   5.80 range   4.19-  7.00 U=6 p=0.055
+
+metric p99: arm medians and U vs base
+  base: median  11.89 range   6.70- 14.33
+  stfixed: median   7.91 range   4.60- 10.48 U=4 p=0.025
+
+metric max: arm medians and U vs base
+  base: median  14.81 range   8.61- 17.25
+  stfixed: median  10.79 range   5.32- 13.12 U=4 p=0.025
+
+metric other: arm medians and U vs base
+  base: median   2.32 range   2.25-  2.54
+  stfixed: median   2.01 range   1.95-  2.04 U=0 p=0.004
+
+metric bodies: arm medians and U vs base
+  base: median 2045.33 range 2023.31-2094.53
+  stfixed: median 2035.43 range 1996.70-2080.28 U=14 p=0.522

@@ -1,0 +1,147 @@
+
+=== arm base (17 runs, fight bodies>=500) ===
+  arena-r1  fight_med=8.77  fight_p95=14.43  fight_max=15.00  casc_cut=50  casc_steps=32  casc_med=9.14  casc_p95=16.36  casc_max=17.03  step_p99=14.85  step_max=17.03  frame_mean=1.70  frame_p99=3.93  frame_max=4.67  low_fps=254.58  fight_steps=140  bodies_mean=672.85  starts_total=4980  starts_max=123  broad_ms=1.05  narrow_ms=0.70  solve_ms=0.93
+  arena-r2  fight_med=8.89  fight_p95=15.00  fight_max=17.26  casc_cut=50  casc_steps=30  casc_med=6.40  casc_p95=16.10  casc_max=16.37  step_p99=15.13  step_max=17.26  frame_mean=5.70  frame_p99=37.31  frame_max=45.30  low_fps=26.81  fight_steps=145  bodies_mean=679.23  starts_total=5540  starts_max=178  broad_ms=0.96  narrow_ms=0.63  solve_ms=0.97
+  arena-r3  fight_med=9.01  fight_p95=14.63  fight_max=16.89  casc_cut=50  casc_steps=15  casc_med=8.17  casc_p95=13.88  casc_max=13.88  step_p99=14.94  step_max=16.89  frame_mean=6.64  frame_p99=33.38  frame_max=36.85  low_fps=29.96  fight_steps=204  bodies_mean=655.21  starts_total=2836  starts_max=83  broad_ms=0.98  narrow_ms=0.70  solve_ms=1.01
+  arena-r4  fight_med=7.12  fight_p95=14.65  fight_max=17.43  casc_cut=50  casc_steps=10  casc_med=6.09  casc_p95=7.88  casc_max=7.88  step_p99=14.48  step_max=17.43  frame_mean=6.05  frame_p99=33.96  frame_max=41.56  low_fps=29.45  fight_steps=146  bodies_mean=628.24  starts_total=2449  starts_max=116  broad_ms=0.87  narrow_ms=0.63  solve_ms=0.88
+  arena-r5  fight_med=9.58  fight_p95=15.37  fight_max=17.05  casc_cut=50  casc_steps=32  casc_med=9.61  casc_p95=16.24  casc_max=16.62  step_p99=15.53  step_max=17.05  frame_mean=9.29  frame_p99=39.87  frame_max=51.52  low_fps=25.08  fight_steps=248  bodies_mean=670.13  starts_total=4698  starts_max=105  broad_ms=1.01  narrow_ms=0.78  solve_ms=1.09
+  arena-r6  fight_med=7.53  fight_p95=14.81  fight_max=18.49  casc_cut=50  casc_steps=41  casc_med=5.49  casc_p95=12.80  casc_max=16.72  step_p99=14.45  step_max=18.49  frame_mean=7.32  frame_p99=36.81  frame_max=42.29  low_fps=27.17  fight_steps=163  bodies_mean=698.72  starts_total=6187  starts_max=179  broad_ms=0.86  narrow_ms=0.63  solve_ms=0.88
+  arena-r7  fight_med=9.35  fight_p95=15.43  fight_max=18.94  casc_cut=50  casc_steps=23  casc_med=7.83  casc_p95=16.42  casc_max=16.52  step_p99=15.38  step_max=18.94  frame_mean=9.83  frame_p99=47.30  frame_max=71.27  low_fps=21.14  fight_steps=197  bodies_mean=693.81  starts_total=3555  starts_max=113  broad_ms=1.03  narrow_ms=0.66  solve_ms=1.19
+  arena-r8  fight_med=8.69  fight_p95=14.99  fight_max=18.15  casc_cut=50  casc_steps=24  casc_med=4.65  casc_p95=13.81  casc_max=14.32  step_p99=15.24  step_max=18.15  frame_mean=5.60  frame_p99=39.86  frame_max=49.17  low_fps=25.09  fight_steps=195  bodies_mean=651.32  starts_total=4039  starts_max=121  broad_ms=0.97  narrow_ms=0.68  solve_ms=1.00
+  arena-r9  fight_med=9.98  fight_p95=16.18  fight_max=17.98  casc_cut=50  casc_steps=26  casc_med=10.38  casc_p95=16.39  casc_max=17.26  step_p99=15.36  step_max=17.98  frame_mean=4.14  frame_p99=36.92  frame_max=54.73  low_fps=27.09  fight_steps=137  bodies_mean=665.04  starts_total=4410  starts_max=145  broad_ms=1.07  narrow_ms=0.78  solve_ms=1.05
+  arena2-r1  fight_med=7.53  fight_p95=14.38  fight_max=17.56  casc_cut=50  casc_steps=12  casc_med=11.68  casc_p95=17.56  casc_max=17.56  step_p99=13.86  step_max=17.56  frame_mean=2.97  frame_p99=23.77  frame_max=36.38  low_fps=42.07  fight_steps=116  bodies_mean=636.34  starts_total=2130  starts_max=100  broad_ms=0.89  narrow_ms=0.66  solve_ms=0.89
+  arena2-r2  fight_med=4.43  fight_p95=13.90  fight_max=16.05  casc_cut=50  casc_steps=9  casc_med=11.76  casc_p95=15.56  casc_max=15.56  step_p99=13.70  step_max=16.05  frame_mean=4.39  frame_p99=27.64  frame_max=32.72  low_fps=36.18  fight_steps=117  bodies_mean=606.23  starts_total=1660  starts_max=70  broad_ms=0.68  narrow_ms=0.50  solve_ms=0.65
+  arena2-r3  fight_med=9.23  fight_p95=15.59  fight_max=18.97  casc_cut=50  casc_steps=27  casc_med=5.21  casc_p95=16.76  casc_max=18.97  step_p99=15.59  step_max=18.97  frame_mean=8.75  frame_p99=40.29  frame_max=48.15  low_fps=24.82  fight_steps=197  bodies_mean=722.54  starts_total=4034  starts_max=91  broad_ms=1.00  narrow_ms=0.74  solve_ms=1.10
+  arena2-r4  fight_med=6.47  fight_p95=13.81  fight_max=15.14  casc_cut=50  casc_steps=12  casc_med=10.04  casc_p95=14.27  casc_max=14.27  step_p99=13.89  step_max=15.81  frame_mean=5.34  frame_p99=36.80  frame_max=49.76  low_fps=27.17  fight_steps=163  bodies_mean=650.90  starts_total=2457  starts_max=80  broad_ms=0.79  narrow_ms=0.58  solve_ms=0.84
+  arena2-r5  fight_med=8.53  fight_p95=14.47  fight_max=16.30  casc_cut=50  casc_steps=5  casc_med=7.27  casc_p95=13.91  casc_max=13.91  step_p99=14.37  step_max=16.30  frame_mean=7.40  frame_p99=39.39  frame_max=49.69  low_fps=25.39  fight_steps=165  bodies_mean=672.78  starts_total=1576  starts_max=62  broad_ms=0.99  narrow_ms=0.65  solve_ms=0.91
+  arena2-r6  fight_med=3.57  fight_p95=12.51  fight_max=12.63  casc_cut=50  casc_steps=12  casc_med=3.24  casc_p95=3.84  casc_max=3.84  step_p99=13.54  step_max=16.23  frame_mean=5.56  frame_p99=38.81  frame_max=52.25  low_fps=25.76  fight_steps=44  bodies_mean=584.48  starts_total=1676  starts_max=89  broad_ms=0.50  narrow_ms=0.39  solve_ms=0.44
+  arena2-r7  fight_med=9.05  fight_p95=15.78  fight_max=20.27  casc_cut=50  casc_steps=34  casc_med=6.47  casc_p95=20.27  casc_max=23.78  step_p99=16.26  step_max=23.78  frame_mean=7.69  frame_p99=39.16  frame_max=56.77  low_fps=25.53  fight_steps=159  bodies_mean=672.99  starts_total=6028  starts_max=700  broad_ms=0.99  narrow_ms=0.68  solve_ms=1.01
+  arena2-r8  fight_med=5.09  fight_p95=13.64  fight_max=15.12  casc_cut=50  casc_steps=20  casc_med=4.75  casc_p95=14.24  casc_max=14.24  step_p99=13.09  step_max=15.12  frame_mean=5.62  frame_p99=36.76  frame_max=50.35  low_fps=27.20  fight_steps=118  bodies_mean=589.35  starts_total=2760  starts_max=126  broad_ms=0.73  narrow_ms=0.55  solve_ms=0.75
+
+=== arm batch (9 runs, fight bodies>=500) ===
+  arena-r1  fight_med=9.96  fight_p95=15.46  fight_max=17.26  casc_cut=50  casc_steps=27  casc_med=10.20  casc_p95=15.13  casc_max=15.28  step_p99=15.61  step_max=17.26  frame_mean=9.66  frame_p99=52.04  frame_max=57.52  low_fps=19.21  fight_steps=239  bodies_mean=682.74  starts_total=3850  starts_max=106  broad_ms=1.06  narrow_ms=0.71  solve_ms=1.23
+  arena-r2  fight_med=6.69  fight_p95=15.34  fight_max=19.27  casc_cut=50  casc_steps=44  casc_med=8.00  casc_p95=17.54  casc_max=19.27  step_p99=15.34  step_max=19.27  frame_mean=6.62  frame_p99=37.47  frame_max=39.45  low_fps=26.69  fight_steps=193  bodies_mean=673.67  starts_total=4586  starts_max=145  broad_ms=0.89  narrow_ms=0.57  solve_ms=0.89
+  arena-r3  fight_med=8.39  fight_p95=15.90  fight_max=20.04  casc_cut=50  casc_steps=32  casc_med=9.12  casc_p95=19.09  casc_max=20.04  step_p99=16.00  step_max=20.04  frame_mean=7.79  frame_p99=37.10  frame_max=43.58  low_fps=26.95  fight_steps=229  bodies_mean=715.19  starts_total=4460  starts_max=106  broad_ms=0.94  narrow_ms=0.60  solve_ms=1.00
+  arena-r4  fight_med=8.94  fight_p95=13.29  fight_max=14.60  casc_cut=50  casc_steps=30  casc_med=5.26  casc_p95=13.29  casc_max=13.94  step_p99=14.13  step_max=15.80  frame_mean=3.12  frame_p99=16.50  frame_max=19.29  low_fps=60.60  fight_steps=103  bodies_mean=631.83  starts_total=4632  starts_max=129  broad_ms=1.04  narrow_ms=0.77  solve_ms=0.90
+  arena-r5  fight_med=6.40  fight_p95=12.54  fight_max=13.76  casc_cut=50  casc_steps=7  casc_med=6.12  casc_p95=9.96  casc_max=9.96  step_p99=12.47  step_max=13.76  frame_mean=5.37  frame_p99=22.31  frame_max=26.14  low_fps=44.82  fight_steps=121  bodies_mean=653.81  starts_total=2066  starts_max=94  broad_ms=0.80  narrow_ms=0.59  solve_ms=0.77
+  arena-r6  fight_med=10.54  fight_p95=17.08  fight_max=21.80  casc_cut=50  casc_steps=52  casc_med=9.05  casc_p95=18.08  casc_max=21.80  step_p99=17.34  step_max=21.80  frame_mean=7.69  frame_p99=38.74  frame_max=53.89  low_fps=25.81  fight_steps=191  bodies_mean=719.64  starts_total=6366  starts_max=132  broad_ms=1.09  narrow_ms=0.75  solve_ms=1.25
+  arena-r7  fight_med=7.71  fight_p95=16.00  fight_max=17.12  casc_cut=50  casc_steps=47  casc_med=7.12  casc_p95=16.85  casc_max=17.12  step_p99=16.16  step_max=17.12  frame_mean=8.70  frame_p99=51.92  frame_max=68.92  low_fps=19.26  fight_steps=182  bodies_mean=684.60  starts_total=5584  starts_max=111  broad_ms=0.95  narrow_ms=0.64  solve_ms=0.99
+  arena-r8  fight_med=7.65  fight_p95=16.27  fight_max=17.84  casc_cut=50  casc_steps=26  casc_med=6.04  casc_p95=16.09  casc_max=16.21  step_p99=16.21  step_max=17.84  frame_mean=6.06  frame_p99=40.35  frame_max=55.94  low_fps=24.78  fight_steps=148  bodies_mean=771  starts_total=4330  starts_max=157  broad_ms=0.93  narrow_ms=0.65  solve_ms=0.96
+  arena-r9  fight_med=7.47  fight_p95=14.87  fight_max=16.92  casc_cut=50  casc_steps=34  casc_med=8.36  casc_p95=15.93  casc_max=16.92  step_p99=14.54  step_max=16.92  frame_mean=5.82  frame_p99=35.25  frame_max=49.10  low_fps=28.37  fight_steps=115  bodies_mean=611.23  starts_total=5209  starts_max=134  broad_ms=0.82  narrow_ms=0.65  solve_ms=0.83
+
+=== arm stall (17 runs, fight bodies>=500) ===
+  arena-r1  fight_med=7.10  fight_p95=10.25  fight_max=11.37  casc_cut=50  casc_steps=9  casc_med=7.64  casc_p95=12.19  casc_max=12.19  step_p99=9.80  step_max=13.72  frame_mean=2.34  frame_p99=4.78  frame_max=5.08  low_fps=209.14  fight_steps=24  bodies_mean=547.71  starts_total=1333  starts_max=99  broad_ms=0.81  narrow_ms=0.56  solve_ms=0.67
+  arena-r2  fight_med=5.04  fight_p95=11.47  fight_max=15.21  casc_cut=50  casc_steps=9  casc_med=3.67  casc_p95=12.98  casc_max=12.98  step_p99=11.93  step_max=15.21  frame_mean=6.09  frame_p99=30.57  frame_max=37.55  low_fps=32.72  fight_steps=105  bodies_mean=564.97  starts_total=1742  starts_max=90  broad_ms=0.76  narrow_ms=0.53  solve_ms=0.74
+  arena-r3  fight_med=5.32  fight_p95=10.64  fight_max=13.00  casc_cut=50  casc_steps=10  casc_med=7.50  casc_p95=11.53  casc_max=11.53  step_p99=11.23  step_max=13.77  frame_mean=5.81  frame_p99=22.36  frame_max=23.01  low_fps=44.73  fight_steps=34  bodies_mean=625.97  starts_total=2715  starts_max=102  broad_ms=0.73  narrow_ms=0.50  solve_ms=0.73
+  arena-r4  fight_med=7.26  fight_p95=13.89  fight_max=17.07  casc_cut=50  casc_steps=19  casc_med=9.54  casc_p95=17.07  casc_max=17.07  step_p99=13.62  step_max=17.07  frame_mean=4.06  frame_p99=26.35  frame_max=32.62  low_fps=37.96  fight_steps=123  bodies_mean=670.88  starts_total=3577  starts_max=147  broad_ms=0.90  narrow_ms=0.73  solve_ms=0.85
+  arena-r5  fight_med=4.94  fight_p95=11.08  fight_max=11.08  casc_cut=50  casc_steps=12  casc_med=5.57  casc_p95=9.04  casc_max=9.04  step_p99=9.13  step_max=13.92  frame_mean=3.48  frame_p99=19.87  frame_max=24.20  low_fps=50.32  fight_steps=20  bodies_mean=517.55  starts_total=1419  starts_max=78  broad_ms=0.57  narrow_ms=0.62  solve_ms=0.51
+  arena-r6  fight_med=7.06  fight_p95=12.62  fight_max=14.69  casc_cut=50  casc_steps=15  casc_med=6.72  casc_p95=10.76  casc_max=10.76  step_p99=12.67  step_max=14.69  frame_mean=2.65  frame_p99=14.00  frame_max=18.83  low_fps=71.43  fight_steps=201  bodies_mean=615.28  starts_total=2977  starts_max=90  broad_ms=0.89  narrow_ms=0.68  solve_ms=0.78
+  arena-r7  fight_med=4.53  fight_p95=11.67  fight_max=14.31  casc_cut=50  casc_steps=10  casc_med=5.41  casc_p95=13.53  casc_max=13.53  step_p99=11.67  step_max=16.01  frame_mean=4.40  frame_p99=20.72  frame_max=26.15  low_fps=48.27  fight_steps=94  bodies_mean=576.84  starts_total=1798  starts_max=114  broad_ms=0.65  narrow_ms=0.47  solve_ms=0.63
+  arena-r8  fight_med=6.50  fight_p95=12.41  fight_max=14.10  casc_cut=50  casc_steps=5  casc_med=3.78  casc_p95=10.88  casc_max=10.88  step_p99=12.19  step_max=14.10  frame_mean=6.11  frame_p99=31.79  frame_max=37.93  low_fps=31.45  fight_steps=109  bodies_mean=595.44  starts_total=1304  starts_max=71  broad_ms=0.85  narrow_ms=0.61  solve_ms=0.91
+  arena-r9  fight_med=5.07  fight_p95=11.73  fight_max=15.11  casc_cut=50  casc_steps=11  casc_med=7.04  casc_p95=12.30  casc_max=12.30  step_p99=12.30  step_max=15.11  frame_mean=5.35  frame_p99=25.25  frame_max=31.72  low_fps=39.60  fight_steps=134  bodies_mean=629.71  starts_total=2114  starts_max=75  broad_ms=0.67  narrow_ms=0.48  solve_ms=0.66
+  arena2-r1  fight_med=3.74  fight_p95=6.80  fight_max=6.80  casc_cut=50  casc_steps=13  casc_med=5.11  casc_p95=10.38  casc_max=10.38  step_p99=9.76  step_max=14.86  frame_mean=5.19  frame_p99=20.49  frame_max=23.76  low_fps=48.80  fight_steps=12  bodies_mean=503.33  starts_total=2179  starts_max=83  broad_ms=0.42  narrow_ms=0.44  solve_ms=0.34
+  arena2-r2  fight_med=7.42  fight_p95=12.86  fight_max=15.76  casc_cut=50  casc_steps=29  casc_med=7.21  casc_p95=14.50  casc_max=15.76  step_p99=12.57  step_max=15.76  frame_mean=7.03  frame_p99=28.58  frame_max=33.53  low_fps=34.99  fight_steps=158  bodies_mean=616.20  starts_total=3721  starts_max=118  broad_ms=0.88  narrow_ms=0.65  solve_ms=0.88
+  arena2-r3  fight_med=4.41  fight_p95=11.15  fight_max=14.74  casc_cut=50  casc_steps=8  casc_med=5.43  casc_p95=17.99  casc_max=17.99  step_p99=10.89  step_max=17.99  frame_mean=2.26  frame_p99=7.79  frame_max=7.90  low_fps=128.32  fight_steps=135  bodies_mean=590.13  starts_total=2401  starts_max=679  broad_ms=0.63  narrow_ms=0.43  solve_ms=0.55
+  arena2-r4  fight_med=6.17  fight_p95=11.62  fight_max=14.18  casc_cut=50  casc_steps=18  casc_med=6.36  casc_p95=12.02  casc_max=12.02  step_p99=11.71  step_max=14.18  frame_mean=6.50  frame_p99=21.78  frame_max=30.59  low_fps=45.92  fight_steps=131  bodies_mean=598.82  starts_total=2649  starts_max=100  broad_ms=0.75  narrow_ms=0.56  solve_ms=0.74
+  arena2-r5  fight_med=5.35  fight_p95=12.77  fight_max=19.38  casc_cut=50  casc_steps=19  casc_med=7.68  casc_p95=15.17  casc_max=15.17  step_p99=12.30  step_max=19.38  frame_mean=4.51  frame_p99=23.07  frame_max=26.77  low_fps=43.35  fight_steps=138  bodies_mean=732.01  starts_total=3288  starts_max=145  broad_ms=0.71  narrow_ms=0.55  solve_ms=0.72
+  arena2-r6  fight_med=3.79  fight_p95=11.34  fight_max=13.57  casc_cut=50  casc_steps=1  casc_med=5.00  casc_p95=5.00  casc_max=5.00  step_p99=11.08  step_max=13.57  frame_mean=3.68  frame_p99=16.72  frame_max=19.35  low_fps=59.83  fight_steps=89  bodies_mean=614.37  starts_total=1521  starts_max=53  broad_ms=0.61  narrow_ms=0.49  solve_ms=0.55
+  arena2-r7  fight_med=3.03  fight_p95=8.69  fight_max=11.79  casc_cut=50  casc_steps=4  casc_med=2.64  casc_p95=3.37  casc_max=3.37  step_p99=10.38  step_max=14.43  frame_mean=1.86  frame_p99=4.45  frame_max=5.14  low_fps=224.63  fight_steps=138  bodies_mean=544.26  starts_total=1986  starts_max=63  broad_ms=0.49  narrow_ms=0.33  solve_ms=0.48
+  arena2-r8  fight_med=6.49  fight_p95=12.73  fight_max=15.97  casc_cut=50  casc_steps=11  casc_med=9.01  casc_p95=15.91  casc_max=15.91  step_p99=12.78  step_max=15.97  frame_mean=6.55  frame_p99=26.92  frame_max=31.93  low_fps=37.14  fight_steps=153  bodies_mean=660.88  starts_total=2353  starts_max=76  broad_ms=0.86  narrow_ms=0.52  solve_ms=0.81
+
+=== arm stfixed (8 runs, fight bodies>=500) ===
+  arena2-r1  fight_med=2.44  fight_p95=11.81  fight_max=13.68  casc_cut=50  casc_steps=4  casc_med=7.94  casc_p95=10.86  casc_max=10.86  step_p99=10.87  step_max=13.68  frame_mean=2.88  frame_p99=15.93  frame_max=34.17  low_fps=62.76  fight_steps=69  bodies_mean=580.52  starts_total=1291  starts_max=61  broad_ms=0.54  narrow_ms=0.48  solve_ms=0.48
+  arena2-r2  fight_med=5.61  fight_p95=11.49  fight_max=12.31  casc_cut=50  casc_steps=15  casc_med=4.72  casc_p95=10.91  casc_max=10.91  step_p99=11.25  step_max=13.00  frame_mean=5.97  frame_p99=22.43  frame_max=32.40  low_fps=44.59  fight_steps=94  bodies_mean=577.71  starts_total=2694  starts_max=87  broad_ms=0.76  narrow_ms=0.55  solve_ms=0.73
+  arena2-r3  fight_med=5.38  fight_p95=12.36  fight_max=17.45  casc_cut=50  casc_steps=14  casc_med=7.06  casc_p95=17.45  casc_max=17.45  step_p99=11.53  step_max=17.45  frame_mean=4.49  frame_p99=19.06  frame_max=20.52  low_fps=52.45  fight_steps=124  bodies_mean=677.88  starts_total=2508  starts_max=150  broad_ms=0.71  narrow_ms=0.50  solve_ms=0.70
+  arena2-r4  fight_med=4.62  fight_p95=11.82  fight_max=13.81  casc_cut=50  casc_steps=20  casc_med=2.75  casc_p95=3.28  casc_max=3.28  step_p99=11.71  step_max=13.81  frame_mean=5.15  frame_p99=22.42  frame_max=31.35  low_fps=44.61  fight_steps=103  bodies_mean=608.30  starts_total=2635  starts_max=94  broad_ms=0.71  narrow_ms=0.54  solve_ms=0.70
+  arena2-r5  fight_med=4.94  fight_p95=13.09  fight_max=15.54  casc_cut=50  casc_steps=11  casc_med=4.32  casc_p95=13.75  casc_max=13.75  step_p99=12.57  step_max=15.54  frame_mean=4.49  frame_p99=25.74  frame_max=36.30  low_fps=38.85  fight_steps=117  bodies_mean=653.32  starts_total=2245  starts_max=91  broad_ms=0.77  narrow_ms=0.48  solve_ms=0.70
+  arena2-r6  fight_med=5.17  fight_p95=11.95  fight_max=12.72  casc_cut=50  casc_steps=8  casc_med=3.11  casc_p95=4.92  casc_max=4.92  step_p99=10.93  step_max=12.72  frame_mean=5.48  frame_p99=20.96  frame_max=25.14  low_fps=47.70  fight_steps=99  bodies_mean=549.31  starts_total=1875  starts_max=81  broad_ms=0.72  narrow_ms=0.52  solve_ms=0.69
+  arena2-r7  fight_med=5.01  fight_p95=13.27  fight_max=18.75  casc_cut=50  casc_steps=19  casc_med=7.01  casc_p95=18.75  casc_max=18.75  step_p99=13.26  step_max=18.75  frame_mean=2.20  frame_p99=10.15  frame_max=12.47  low_fps=98.50  fight_steps=163  bodies_mean=606.10  starts_total=4489  starts_max=794  broad_ms=0.66  narrow_ms=0.49  solve_ms=0.71
+  arena2-r8  fight_med=5.58  fight_p95=11.39  fight_max=14.68  casc_cut=50  casc_steps=9  casc_med=5.34  casc_p95=12.10  casc_max=12.10  step_p99=11.49  step_max=14.68  frame_mean=4.55  frame_p99=21.11  frame_max=22.95  low_fps=47.36  fight_steps=129  bodies_mean=657.33  starts_total=1863  starts_max=69  broad_ms=0.76  narrow_ms=0.50  solve_ms=0.70
+
+=== arm stphys (9 runs, fight bodies>=500) ===
+  arena-r1  fight_med=7.11  fight_p95=15.17  fight_max=16.20  casc_cut=50  casc_steps=14  casc_med=5.63  casc_p95=14.62  casc_max=14.62  step_p99=15.17  step_max=17.71  frame_mean=6.13  frame_p99=40.85  frame_max=53.99  low_fps=24.48  fight_steps=170  bodies_mean=720.02  starts_total=3566  starts_max=860  broad_ms=0.91  narrow_ms=0.57  solve_ms=0.85
+  arena-r2  fight_med=2.35  fight_p95=6.59  fight_max=8.61  casc_cut=50  casc_steps=10  casc_med=4.02  casc_p95=4.62  casc_max=4.62  step_p99=12.25  step_max=13.91  frame_mean=5.54  frame_p99=35.82  frame_max=47.01  low_fps=27.92  fight_steps=25  bodies_mean=529.60  starts_total=1711  starts_max=110  broad_ms=0.31  narrow_ms=0.22  solve_ms=0.28
+  arena-r3  fight_med=7.68  fight_p95=16.06  fight_max=18.85  casc_cut=50  casc_steps=36  casc_med=7.81  casc_p95=17.33  casc_max=18.04  step_p99=15.98  step_max=18.85  frame_mean=8.46  frame_p99=40.11  frame_max=47.15  low_fps=24.93  fight_steps=173  bodies_mean=679.17  starts_total=5507  starts_max=164  broad_ms=0.89  narrow_ms=0.71  solve_ms=0.92
+  arena-r4  fight_med=8.00  fight_p95=16.37  fight_max=21.11  casc_cut=50  casc_steps=46  casc_med=7.07  casc_p95=16.86  casc_max=18.46  step_p99=16.37  step_max=21.11  frame_mean=8.67  frame_p99=40.59  frame_max=59.47  low_fps=24.64  fight_steps=164  bodies_mean=682.43  starts_total=4857  starts_max=121  broad_ms=0.95  narrow_ms=0.63  solve_ms=0.91
+  arena-r5  fight_med=8.26  fight_p95=16.04  fight_max=18.97  casc_cut=50  casc_steps=28  casc_med=10.56  casc_p95=15.83  casc_max=15.86  step_p99=16.04  step_max=18.97  frame_mean=7.99  frame_p99=43.14  frame_max=58.19  low_fps=23.18  fight_steps=201  bodies_mean=659.87  starts_total=4019  starts_max=119  broad_ms=0.97  narrow_ms=0.67  solve_ms=1.04
+  arena-r6  fight_med=7.87  fight_p95=15.43  fight_max=18.50  casc_cut=50  casc_steps=12  casc_med=8.93  casc_p95=12.96  casc_max=12.96  step_p99=15.43  step_max=18.50  frame_mean=6.57  frame_p99=36.64  frame_max=53.89  low_fps=27.29  fight_steps=194  bodies_mean=695.13  starts_total=2652  starts_max=92  broad_ms=0.92  narrow_ms=0.58  solve_ms=1.00
+  arena-r7  fight_med=9.56  fight_p95=15.34  fight_max=20.44  casc_cut=50  casc_steps=41  casc_med=4.18  casc_p95=15.41  casc_max=20.44  step_p99=15.16  step_max=20.44  frame_mean=5.86  frame_p99=38.68  frame_max=52.06  low_fps=25.85  fight_steps=153  bodies_mean=672.12  starts_total=5220  starts_max=120  broad_ms=1.04  narrow_ms=0.77  solve_ms=1.01
+  arena-r8  fight_med=9.35  fight_p95=15.40  fight_max=18.60  casc_cut=50  casc_steps=39  casc_med=3.54  casc_p95=17.57  casc_max=18.01  step_p99=15.46  step_max=18.60  frame_mean=6.20  frame_p99=41.05  frame_max=54.51  low_fps=24.36  fight_steps=150  bodies_mean=643.98  starts_total=5959  starts_max=705  broad_ms=0.99  narrow_ms=0.67  solve_ms=1.02
+  arena-r9  fight_med=8.91  fight_p95=14.84  fight_max=17.45  casc_cut=50  casc_steps=12  casc_med=5.55  casc_p95=10.78  casc_max=10.78  step_p99=14.78  step_max=17.45  frame_mean=8.81  frame_p99=44.78  frame_max=52.25  low_fps=22.33  fight_steps=154  bodies_mean=593.54  starts_total=2697  starts_max=91  broad_ms=0.98  narrow_ms=0.70  solve_ms=0.98
+
+metric fight_med: arm medians and U vs base
+  base: median 8.69 range 3.57-9.98
+  batch: median 7.71 range 6.40-10.54 U=77 p=0.979
+  stall: median 5.32 range 3.03-7.42 U=46 p=0.001
+  stfixed: median 5.09 range 2.44-5.61 U=18 p=0.004
+  stphys: median 8.00 range 2.35-9.56 U=72 p=0.829
+
+metric fight_p95: arm medians and U vs base
+  base: median 14.65 range 12.51-16.18
+  batch: median 15.46 range 12.54-17.08 U=104 p=0.138
+  stall: median 11.62 range 6.80-13.89 U=7 p=0.000
+  stfixed: median 11.88 range 11.39-13.27 U=2 p=0.000
+  stphys: median 15.40 range 6.59-16.37 U=109 p=0.080
+
+metric fight_max: arm medians and U vs base
+  base: median 17.26 range 12.63-20.27
+  batch: median 17.26 range 13.76-21.80 U=86 p=0.609
+  stall: median 14.31 range 6.80-19.38 U=45 p=0.001
+  stfixed: median 14.25 range 12.31-18.75 U=32 p=0.036
+  stphys: median 18.60 range 8.61-21.11 U=106 p=0.112
+
+metric casc_med: arm medians and U vs base
+  base: median 7.27 range 3.24-11.76
+  batch: median 8.00 range 5.26-10.20 U=80 p=0.850
+  stall: median 6.36 range 2.64-9.54 U=101 p=0.134
+  stfixed: median 5.03 range 2.75-7.94 U=33 p=0.041
+  stphys: median 5.63 range 3.54-10.56 U=56 p=0.269
+
+metric casc_p95: arm medians and U vs base
+  base: median 15.56 range 3.84-20.27
+  batch: median 16.09 range 9.96-19.09 U=93 p=0.374
+  stall: median 12.19 range 3.37-17.99 U=79 p=0.024
+  stfixed: median 11.51 range 3.28-18.75 U=41 p=0.116
+  stphys: median 15.41 range 4.62-17.57 U=77 p=0.979
+
+metric casc_max: arm medians and U vs base
+  base: median 16.37 range 3.84-23.78
+  batch: median 16.92 range 9.96-21.80 U=94 p=0.346
+  stall: median 12.19 range 3.37-17.99 U=72 p=0.013
+  stfixed: median 11.51 range 3.28-18.75 U=38 p=0.081
+  stphys: median 15.86 range 4.62-20.44 U=81 p=0.808
+
+metric step_p99: arm medians and U vs base
+  base: median 14.85 range 13.09-16.26
+  batch: median 15.61 range 12.47-17.34 U=106 p=0.112
+  stall: median 11.71 range 9.13-13.62 U=2 p=0.000
+  stfixed: median 11.51 range 10.87-13.26 U=1 p=0.000
+  stphys: median 15.43 range 12.25-16.37 U=107 p=0.100
+
+metric step_max: arm medians and U vs base
+  base: median 17.26 range 15.12-23.78
+  batch: median 17.26 range 13.76-21.80 U=83 p=0.726
+  stall: median 14.86 range 13.57-19.38 U=42 p=0.000
+  stfixed: median 14.25 range 12.72-18.75 U=25 p=0.012
+  stphys: median 18.60 range 13.91-21.11 U=110 p=0.071
+
+metric frame_p99: arm medians and U vs base
+  base: median 36.92 range 3.93-47.30
+  batch: median 37.47 range 16.50-52.04 U=86 p=0.609
+  stall: median 21.78 range 4.45-31.79 U=26 p=0.000
+  stfixed: median 21.04 range 10.15-25.74 U=9 p=0.001
+  stphys: median 40.59 range 35.82-44.78 U=115 p=0.038
+
+metric frame_max: arm medians and U vs base
+  base: median 49.17 range 4.67-71.27
+  batch: median 49.10 range 19.29-68.92 U=81 p=0.808
+  stall: median 26.15 range 5.08-37.93 U=24 p=0.000
+  stfixed: median 28.25 range 12.47-36.30 U=10 p=0.001
+  stphys: median 53.89 range 47.01-59.47 U=115 p=0.038
+
+metric low_fps: arm medians and U vs base
+  base: median 27.09 range 21.14-254.58
+  batch: median 26.69 range 19.21-60.60 U=67 p=0.609
+  stall: median 45.92 range 31.45-224.63 U=263 p=0.000
+  stfixed: median 47.53 range 38.85-98.50 U=127 p=0.001
+  stphys: median 24.64 range 22.33-27.92 U=38 p=0.038
