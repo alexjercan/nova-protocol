@@ -1173,3 +1173,74 @@ The honest performance story is no longer "flat". It is: the release is faster
 on the median, one presentation feature is eating the win, and the win is
 structural - **1,035 rigid bodies and 1,046 colliders for a thousand bullets
 became 35 and 46.**
+
+## D24 - the pristine skip lands, and the harness is biased against improvements
+
+`abde8723`. Measured stock (`6feaba8d`) against fixed, interleaved pairs, both
+subjects, `present=immediate`, the ablation protocol.
+
+### The fix keeps the feature and gives back the whole win
+
+| | mean | median | p95 | p99 | worst |
+|---|--:|--:|--:|--:|--:|
+| driven combat | **-8.6%** | -8.3% | **-8.7%** | **-12.2%** | -9.2% |
+| idle scene | -8.4% | -8.1% | -8.4% | -7.9% | -8.6% |
+
+**24/24 pairs, every metric, same sign.** Peak RSS unchanged. Census gate passed
+before any timing: 65 extended materials to **0**, meshes back on plain
+`StandardMaterial`, distinct handles up, `EffectAsset` 2 to 1.
+
+Against D23's ablation, which REMOVED the feature: on combat the fix matches or
+beats it on every metric and is decisively better at p99 (-12.2% against -4.9%).
+It keeps damage cracks and recovers the cost.
+
+The idle rows differ (-8.4% here against -12.7% ablated) and that is NOT the fix
+underperforming. **At idle the two are the SAME CONFIGURATION** - nothing is
+damaged, so both end at 0 extended materials and ~61 distinct handles, and no
+mechanism could separate them. The ablation's idle figures came from a different
+session and this campaign has documented session drift of that size. The
+within-session comparison is the sound one.
+
+### What this does NOT price, and it is the half the design is FOR
+
+**No section crosses bucket 1 in either subject.** The fixed arm shows 0 extended
+materials even under driven combat: the player shoots rocks and the hauler, the
+corvettes never spawn, nothing shoots back. So the measurement prices the
+UNDAMAGED case - the common one, and the one the fix targets - and says nothing
+about a battered fleet, where the shared-bucket handle is supposed to pay.
+
+There is no configuration where the fix can be worse than stock (fully damaged,
+it IS stock; pristine, it is v0.10.0), but "cannot regress" is an argument, not
+a measurement. A subject with real incoming fire would settle it.
+
+Item 3 of the audit is confirmed - two barrels minted two `EffectAsset`s and now
+share one. **Item 2 is untested**: `broadside` fires no torpedoes, so no blast
+burst is ever built. Neither confirmed nor refuted.
+
+### The harness is now rejecting the measurements worth having
+
+**Every window in this pass was refused** - `refresh_capped`, clustered
+0.64-0.65 against a 0.60 threshold - and the refusal is a FALSE POSITIVE with a
+direction.
+
+1. **It is not a display period.** Three refused windows on the same Xvfb
+   reported cluster medians of **20.727 / 21.130 / 22.713 ms**. A refresh period
+   is a property of the display and would be identical across all three. There is
+   no vsync on the headless path to pace against.
+2. **It is biased toward the null.** The check fires on STEADY frames, so it
+   preferentially refuses the faster, steadier arm. Probe certified **4/6 stock
+   and 0/6 fixed** on the combat subject, **3/6 and 0/6** on the idle one.
+   Building the comparison out of surviving windows would have discarded the
+   entire fixed arm and reported no change.
+
+The lane worked around it with an independent recorder on the same
+`Time<Real>` deltas and the same window, identical in both arms, which
+cross-validates to **+/-0.29%** against the windows probe did certify.
+
+This is the FOURTH instrument fault in this epic and the first that is
+directionally biased rather than merely noisy - the retracted 16.74 ms floor,
+the presentation cap that nearly manufactured a "no change" cross-release
+headline, framecost's `Render/submit+present` row under Xvfb, and now this.
+**As the engine gets faster and the box quieter, `refresh_capped` gets MORE
+likely to reject exactly the runs worth having.** Comparing the cluster median
+across arms is a cheap discriminator it does not currently use.
