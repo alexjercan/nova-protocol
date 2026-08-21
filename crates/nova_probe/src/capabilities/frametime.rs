@@ -14,10 +14,12 @@
 pub mod prelude {
     pub use super::{
         capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
-        nova_frametime, probe_armed, probe_param, resolve_git_sha, resolve_host, FrameTimePlugin,
-        PerfDriver, PerfLive, PerfReady, ReloadGate, ABORT_REFRESH_CAPPED, ABORT_SCENE_ENDED,
-        ABORT_SIMULATION_STOPPED, ABORT_UPDATE_THROTTLED, ABORT_WINDOW_SIZE, CAPTURE_COLLECTOR,
-        DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, NORENDER_ENV, PROBE_ENV,
+        nova_frametime, probe_armed, probe_env, probe_param, resolve_git_sha, resolve_host,
+        FrameTimePlugin, PerfDriver, PerfLive, PerfReady, ReloadGate, ABORT_REFRESH_CAPPED,
+        ABORT_SCENE_ENDED, ABORT_SIMULATION_STOPPED, ABORT_UPDATE_THROTTLED, ABORT_WINDOW_SIZE,
+        CAPTURE_COLLECTOR, DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES,
+        FRAMES_PARAM, LABEL_PARAM, NORENDER_ENV, OUT_PARAM, PROBE_ENV, QUALITY_PARAM,
+        SCENARIO_PARAM, WARMUP_PARAM,
     };
 }
 
@@ -93,6 +95,16 @@ pub type PerfReady = dyn Fn(&World) -> bool + Send + Sync;
 /// then measures the aftermath at 2-3 ms and calls it a 4v4 brawl.
 pub type PerfLive = dyn Fn(&World) -> bool + Send + Sync;
 
+/// The native environment name of the probe parameter `name`
+/// (`warmup` -> `NOVA_PROBE_WARMUP`).
+///
+/// The one place the prefix is spelled. The host harness pushes these into a
+/// child run and the child reads them back through [`probe_param`]; a literal
+/// on either side is a rename that compiles clean and arms nothing.
+pub fn probe_env(name: &str) -> String {
+    format!("{PROBE_ENV}_{}", name.to_ascii_uppercase())
+}
+
 /// Read a probe parameter by logical name. Native: env var `NOVA_PROBE_<UPPER>`
 /// (e.g. `warmup` -> `NOVA_PROBE_WARMUP`). Wasm: the URL query parameter `<name>`
 /// (e.g. `?warmup=300`). One source abstraction so the same harness runs from a
@@ -100,7 +112,7 @@ pub type PerfLive = dyn Fn(&World) -> bool + Send + Sync;
 pub fn probe_param(name: &str) -> Option<String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        std::env::var(format!("NOVA_PROBE_{}", name.to_ascii_uppercase()))
+        std::env::var(probe_env(name))
             .ok()
             .filter(|s| !s.is_empty())
     }
@@ -109,6 +121,24 @@ pub fn probe_param(name: &str) -> Option<String> {
         query_param(name)
     }
 }
+
+/// Logical name of the warm-up window, so the host and the child agree on it.
+pub const WARMUP_PARAM: &str = "warmup";
+
+/// Logical name of the capture window, so the host and the child agree on it.
+pub const FRAMES_PARAM: &str = "frames";
+
+/// Logical name of the run's output directory.
+pub const OUT_PARAM: &str = "out";
+
+/// Logical name of the row label a capture records itself under.
+pub const LABEL_PARAM: &str = "label";
+
+/// Logical name of the scenario a measured run boots into.
+pub const SCENARIO_PARAM: &str = "scenario";
+
+/// Logical name of the graphics preset a measured run uses.
+pub const QUALITY_PARAM: &str = "quality";
 
 /// Whether frame-time capture is requested. Native: `NOVA_PROBE` is set. Wasm:
 /// the `?perf` query flag is present.
@@ -430,10 +460,10 @@ impl PerfConfig {
         let (warmup, frames) =
             declared_window.unwrap_or((DEFAULT_WARMUP_FRAMES, DEFAULT_CAPTURE_FRAMES));
         Self {
-            warmup_frames: parse_u32("warmup", warmup),
-            capture_frames: parse_u32("frames", frames),
-            label: probe_param("label").unwrap_or_else(|| "scene".to_string()),
-            out_dir: probe_param("out").map(PathBuf::from),
+            warmup_frames: parse_u32(WARMUP_PARAM, warmup),
+            capture_frames: parse_u32(FRAMES_PARAM, frames),
+            label: probe_param(LABEL_PARAM).unwrap_or_else(|| "scene".to_string()),
+            out_dir: probe_param(OUT_PARAM).map(PathBuf::from),
             resolution: probe_param("res")
                 .and_then(|v| parse_resolution(&v))
                 .unwrap_or(DEFAULT_RESOLUTION),
@@ -464,7 +494,7 @@ impl RunMeta {
             backend,
             adapter: adapter_name,
             resolution: format!("{}x{}", config.resolution.0, config.resolution.1),
-            quality: probe_param("quality").unwrap_or_else(|| "default".to_string()),
+            quality: probe_param(QUALITY_PARAM).unwrap_or_else(|| "default".to_string()),
             git_sha: resolve_git_sha(),
             host: resolve_host(),
             // The CAPTURE binary's own build profile (schema v3): dev
@@ -1358,8 +1388,8 @@ mod tests {
     fn a_declared_window_beats_the_default_and_loses_to_the_operator() {
         // No `NOVA_PROBE_*` in this process (the suite runs without them), so
         // the declaration is what resolves.
-        if std::env::var_os("NOVA_PROBE_WARMUP").is_none()
-            && std::env::var_os("NOVA_PROBE_FRAMES").is_none()
+        if std::env::var_os(probe_env(WARMUP_PARAM)).is_none()
+            && std::env::var_os(probe_env(FRAMES_PARAM)).is_none()
         {
             let default = PerfConfig::resolve(None);
             assert_eq!(default.warmup_frames, DEFAULT_WARMUP_FRAMES);

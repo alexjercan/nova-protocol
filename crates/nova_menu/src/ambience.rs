@@ -12,6 +12,11 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 use rand::Rng as _;
 
+/// Environment variable that pins the menu backdrop to one scenario id, so a
+/// capture run (or a backdrop being authored) looks at a SPECIFIC scene
+/// instead of re-rolling the draw. An unknown id warns and falls back.
+pub const MENU_BACKDROP_ENV: &str = "NOVA_MENU_BACKDROP";
+
 /// Marks the menu's OWN interface camera.
 #[derive(Component, Clone, Debug)]
 pub(crate) struct MenuUiCameraMarker;
@@ -123,7 +128,7 @@ pub(crate) fn load_menu_ambience(
     // backdrop instead of re-rolling the menu until the draw cooperates. An
     // unknown id warns and falls back to the draw - a stale script must not
     // brick the menu.
-    let forced = std::env::var("NOVA_MENU_BACKDROP")
+    let forced = std::env::var(MENU_BACKDROP_ENV)
         .ok()
         .filter(|id| !id.is_empty());
     let pick = match &forced {

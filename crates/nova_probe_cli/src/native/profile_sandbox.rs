@@ -63,6 +63,11 @@ use std::path::{Path, PathBuf};
 
 /// The environment variables the sandbox redirects, in the order [`env()`]
 /// emits them.
+///
+/// The mod-cache name is `nova_assets`' - it owns the cache - spelled again
+/// here rather than reached by a dependency edge from the host harness to a
+/// shipping crate. The repo-wide `tests/env_contract.rs` pins the two
+/// spellings together, so the drift that invites fails a test.
 pub const SANDBOXED_VARS: [&str; 3] = [
     "NOVA_MODDING_CACHE_ROOT",
     "XDG_DATA_HOME",
@@ -79,7 +84,7 @@ pub fn root(run_dir: &Path) -> PathBuf {
 fn all_paths(run_dir: &Path) -> Vec<(&'static str, PathBuf)> {
     let root = root(run_dir);
     vec![
-        ("NOVA_MODDING_CACHE_ROOT", root.join("mods")),
+        (SANDBOXED_VARS[0], root.join("mods")),
         ("XDG_DATA_HOME", root.join("data")),
         ("XDG_CONFIG_HOME", root.join("config")),
     ]

@@ -249,9 +249,11 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         }
         if sweeping {
             // Sweep cells measure frames, not the recorder surfaces.
-            env.retain(|(k, _)| k != "NOVA_PROBE_TIMELINE" && k != "NOVA_PROBE_INVARIANTS");
+            let (timeline, invariants) = (probe_env(TIMELINE_PARAM), probe_env(INVARIANTS_PARAM));
+            env.retain(|(k, _)| *k != timeline && *k != invariants);
             // The per-example label yields to the sweep convention.
-            env.retain(|(k, _)| k != "NOVA_PROBE_LABEL");
+            let label_key = probe_env(LABEL_PARAM);
+            env.retain(|(k, _)| *k != label_key);
         }
         env.extend(sweep_cell_env(scenario.as_deref(), preset.as_deref()));
         env.extend(render_env(opts.render, opts.norender));
@@ -309,15 +311,16 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                     // example wired" half describe the wrong run the moment the two
                     // passes diverge.
                     let mut env = clean_pass_env(&root, &out, &display, true);
-                    env.retain(|(k, _)| {
-                        !matches!(
-                            k.as_str(),
-                            "NOVA_PROBE_TIMELINE" | "NOVA_PROBE_INVARIANTS" | "NOVA_PROBE_CONTRACT"
-                        )
-                    });
+                    let clean_only = [
+                        probe_env(TIMELINE_PARAM),
+                        probe_env(INVARIANTS_PARAM),
+                        probe_env(CONTRACT_PARAM),
+                    ];
+                    env.retain(|(k, _)| !clean_only.contains(k));
                     if let Some(label) = label {
-                        env.retain(|(k, _)| k != "NOVA_PROBE_LABEL");
-                        env.push(("NOVA_PROBE_LABEL".into(), label));
+                        let label_key = probe_env(LABEL_PARAM);
+                        env.retain(|(k, _)| *k != label_key);
+                        env.push((label_key, label));
                     }
                     // The baseline capture window + a completion deadline SIZED to
                     // it, so a slow-but-progressing capture (a heavy dev scene under

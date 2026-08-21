@@ -463,7 +463,7 @@ fn log_census(census: &Census) {
 }
 
 fn write_census(census: &Census) {
-    let Some(dir) = probe_param("out") else {
+    let Some(dir) = probe_param(OUT_PARAM) else {
         return;
     };
     let json = serde_json::json!({

@@ -244,7 +244,7 @@ fn a_setting_edited_just_before_quitting_is_still_saved() {
     let _ = std::fs::remove_dir_all(&store);
     // SAFETY-BY-CONVENTION: the only test in this binary that writes the
     // settings store, and it must not touch the developer's real one.
-    unsafe { std::env::set_var("NOVA_CONFIG_ROOT", &store) };
+    unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, &store) };
 
     let mut app = mods_app();
     app.world_mut().insert_resource(MasterVolume(0.42));
@@ -268,6 +268,6 @@ fn a_setting_edited_just_before_quitting_is_still_saved() {
         saved.master_volume
     );
 
-    unsafe { std::env::remove_var("NOVA_CONFIG_ROOT") };
+    unsafe { std::env::remove_var(nova_assets::storage::CONFIG_ROOT_ENV) };
     let _ = std::fs::remove_dir_all(&store);
 }

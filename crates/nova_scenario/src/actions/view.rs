@@ -63,12 +63,21 @@ impl EventAction<NovaEventWorld> for SetCameraActionConfig {
     }
 }
 
+/// Environment variable naming the directory relative capture paths resolve
+/// under.
+///
+/// The name is `nova_autopilot`'s - it owns the capture path - but this is a
+/// shipping crate and does not take a dev-tooling dependency for one string.
+/// The repo-wide `tests/env_contract.rs` pins the two spellings together, so
+/// the drift this duplication invites fails a test.
+pub const CAPTURE_DIR_ENV: &str = "NOVA_CAPTURE_DIR";
+
 /// Resolve a screenshot output path. Absolute paths are used as-is; a relative
-/// path is joined under the `NOVA_CAPTURE_DIR` env var when set (so an example or a
+/// path is joined under [`CAPTURE_DIR_ENV`] when set (so an example or a
 /// packaging script can redirect all captures to a staging folder), else it is
 /// relative to the process working directory.
 fn resolve_capture_path(path: &str) -> std::path::PathBuf {
-    let dir = std::env::var("NOVA_CAPTURE_DIR")
+    let dir = std::env::var(CAPTURE_DIR_ENV)
         .ok()
         .filter(|dir| !dir.is_empty());
     resolve_capture_path_in(path, dir.as_deref())

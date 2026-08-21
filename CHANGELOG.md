@@ -454,6 +454,7 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- Every environment variable the game reads is a declared constant with one home, and `tests/env_contract.rs` names the whole set - a new one off the roster fails a test instead of arming nothing.
 - `--mute` zeroes the audio output, the other half of the outputs-off pair with `--norender`. `NOVA_MUTE` is its environment twin, and a muted run now says so once at startup.
 - New probe capability: `NOVA_PROBE_STEPDIAG` writes a per-fixed-step CSV of avian's own phase timers and body counts; `NOVA_PROBE_STEPDIAG_BODIES` picks the body-count regime its summary covers.
 - **(breaking)** Every `NOVA_PERF_*` environment variable is now `NOVA_PROBE_*`, and `NOVA_PERF` is `NOVA_PROBE` - finishing the crate's rename to `nova_probe`. No aliases.

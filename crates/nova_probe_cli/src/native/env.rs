@@ -4,6 +4,10 @@
 use std::path::Path;
 
 use nova_autopilot::{autopilot::AUTOPILOT_ENV, completion::DEADLINE_ENV};
+use nova_probe::{
+    probe_env, CONTRACT_PARAM, FRAMES_PARAM, INVARIANTS_PARAM, LABEL_PARAM, OUT_PARAM,
+    QUALITY_PARAM, SCENARIO_PARAM, TIMELINE_PARAM, WARMUP_PARAM,
+};
 
 use super::cli::Render;
 use crate::native::profile_sandbox;
@@ -51,8 +55,8 @@ fn env_u32(key: &str) -> Option<u32> {
 /// the two env vars are only passed on when the operator actually set them.
 fn resolve_fps_window() -> (u32, u32) {
     (
-        env_u32("NOVA_PROBE_WARMUP").unwrap_or(nova_probe::DEFAULT_WARMUP_FRAMES),
-        env_u32("NOVA_PROBE_FRAMES").unwrap_or(nova_probe::DEFAULT_CAPTURE_FRAMES),
+        env_u32(&probe_env(WARMUP_PARAM)).unwrap_or(nova_probe::DEFAULT_WARMUP_FRAMES),
+        env_u32(&probe_env(FRAMES_PARAM)).unwrap_or(nova_probe::DEFAULT_CAPTURE_FRAMES),
     )
 }
 
@@ -79,9 +83,12 @@ pub(crate) fn fps_window_and_deadline_env() -> (Vec<(String, String)>, u64) {
     let (warmup, frames) = resolve_fps_window();
     let deadline = fps_deadline_secs(warmup, frames);
     let mut env = Vec::new();
-    for (key, value) in [("NOVA_PROBE_WARMUP", warmup), ("NOVA_PROBE_FRAMES", frames)] {
-        if std::env::var_os(key).is_some() {
-            env.push((key.into(), value.to_string()));
+    for (key, value) in [
+        (probe_env(WARMUP_PARAM), warmup),
+        (probe_env(FRAMES_PARAM), frames),
+    ] {
+        if std::env::var_os(&key).is_some() {
+            env.push((key, value.to_string()));
         }
     }
     if std::env::var_os(DEADLINE_ENV).is_none() {
@@ -111,22 +118,22 @@ pub(crate) fn clean_pass_env(
         (AUTOPILOT_ENV.into(), "1".into()),
         ("BEVY_ASSET_ROOT".into(), root.display().to_string()),
         (
-            "NOVA_PROBE_TIMELINE".into(),
+            probe_env(TIMELINE_PARAM),
             out.join("timeline.jsonl").display().to_string(),
         ),
-        ("NOVA_PROBE_INVARIANTS".into(), "1".into()),
+        (probe_env(INVARIANTS_PARAM), "1".into()),
         (
-            "NOVA_PROBE_CONTRACT".into(),
+            probe_env(CONTRACT_PARAM),
             out.join("probe-contract.json").display().to_string(),
         ),
     ]);
     if fps {
-        env.push(("NOVA_PROBE".into(), "1".into()));
-        env.push(("NOVA_PROBE_OUT".into(), out.display().to_string()));
+        env.push((nova_probe::PROBE_ENV.into(), "1".into()));
+        env.push((probe_env(OUT_PARAM), out.display().to_string()));
         // Label rows by the example so probe-vs-probe baselines match
         // (the capture's default label "scene" matches nothing).
         env.push((
-            "NOVA_PROBE_LABEL".into(),
+            probe_env(LABEL_PARAM),
             out.file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "scene".into()),
@@ -144,14 +151,14 @@ pub(crate) fn sweep_cell_env(
 ) -> Vec<(String, String)> {
     let mut env = Vec::new();
     if let Some(scenario) = scenario {
-        env.push(("NOVA_PROBE_SCENARIO".into(), scenario.into()));
+        env.push((probe_env(SCENARIO_PARAM), scenario.into()));
     }
     if let Some(preset) = preset {
-        env.push(("NOVA_PROBE_QUALITY".into(), preset.into()));
+        env.push((probe_env(QUALITY_PARAM), preset.into()));
     }
     match (scenario, preset) {
-        (Some(s), Some(p)) => env.push(("NOVA_PROBE_LABEL".into(), format!("{s}-{p}"))),
-        (Some(s), None) => env.push(("NOVA_PROBE_LABEL".into(), s.into())),
+        (Some(s), Some(p)) => env.push((probe_env(LABEL_PARAM), format!("{s}-{p}"))),
+        (Some(s), None) => env.push((probe_env(LABEL_PARAM), s.into())),
         _ => {}
     }
     env
@@ -225,11 +232,11 @@ pub(crate) fn render_env(render: Render, norender: bool) -> Vec<(String, String)
         env.push(("VK_ICD_FILENAMES".into(), icd.clone()));
         env.push(("VK_DRIVER_FILES".into(), icd));
         env.push(("WGPU_BACKEND".into(), "vulkan".into()));
-        if std::env::var("NOVA_PROBE_WARMUP").is_err() {
-            env.push(("NOVA_PROBE_WARMUP".into(), "20".into()));
+        if std::env::var(probe_env(WARMUP_PARAM)).is_err() {
+            env.push((probe_env(WARMUP_PARAM), "20".into()));
         }
-        if std::env::var("NOVA_PROBE_FRAMES").is_err() {
-            env.push(("NOVA_PROBE_FRAMES".into(), "120".into()));
+        if std::env::var(probe_env(FRAMES_PARAM)).is_err() {
+            env.push((probe_env(FRAMES_PARAM), "120".into()));
         }
     }
     env

@@ -26,7 +26,7 @@ use nova_ui::{prelude::UiSkin, widget::button_on_setting};
 /// Glob-import surface: `use nova_menu::prelude::*` brings [`NovaMenuPlugin`]
 /// and [`NewGameScenario`] into scope.
 pub mod prelude {
-    pub use super::{NewGameScenario, NovaMenuPlugin};
+    pub use super::{ambience::MENU_BACKDROP_ENV, NewGameScenario, NovaMenuPlugin};
 }
 
 mod ambience;
