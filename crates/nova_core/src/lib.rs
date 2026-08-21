@@ -446,6 +446,12 @@ fn report_unknown_startup_scenario(id: &str, scenarios: &GameScenarios) {
 ///
 /// `nova_probe` re-exports it so `probe run --render off` can push it into a
 /// child, the same route [`PROBE_ENV`] takes.
+///
+/// One half of the outputs-off pair: this drops the renderer, and
+/// [`MUTE_ENV`](nova_gameplay::prelude::MUTE_ENV) (`NOVA_MUTE`) silences the
+/// speakers. Each has a matching debug-only flag on the game binary -
+/// `--norender` and `--mute` - and each lives in the crate that owns the device
+/// it turns off.
 pub const NORENDER_ENV: &str = "NOVA_NORENDER";
 
 /// Environment variable that arms frame-time capture. Read here only to give an

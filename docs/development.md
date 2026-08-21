@@ -109,8 +109,11 @@ the overlays are shown. Native only: the module is compiled out under
 `target_arch = "wasm32"`, which has neither a Downloads directory nor a wall
 clock.
 
-Two debug-only CLI flags exist, both parsed in `src/main.rs` and both compiled
-in only under the `debug` feature:
+Three debug-only CLI flags exist, all parsed in `src/main.rs` and all compiled
+in only under the `debug` feature. Two of them are the OUTPUTS-OFF pair -
+`--norender` drops the renderer, `--mute` silences the speakers - and each has
+an environment twin an example can be armed with, since an example has no
+command line of its own:
 
 - `--norender` - build the app through `AppBuilder::headless()`: no wgpu device,
   no window, no winit event loop, and none of the visual game plugins. The main
@@ -139,6 +142,22 @@ in only under the `debug` feature:
   exists to prevent are all invisible headless, and `cargo check` does not see
   them either. Only a rendered run does. Run ranges headless for speed if you
   like; keep a rendered set as the canary.
+- `--mute` - zero the audio output. The other half of the outputs-off pair:
+  Xvfb hides the window but not the speakers, and nobody listens to a scripted
+  run. It inserts `HarnessMute(true)` after the builder, so it wins over
+  whatever the environment resolved. The volume SETTING is untouched, so
+  persistence and the settings menu never see it, and a muted run says
+  `nova audio: output muted for this run` once at startup.
+
+  The environment twin is `NOVA_MUTE`, which an example reads through
+  `HarnessMute::from_env`: set to anything but `0` it mutes, `NOVA_MUTE=0`
+  forces sound even under a harness, and unset it mutes iff a harness variable
+  (`NOVA_AUTOPILOT`, `NOVA_CAPTURE`) is set.
+
+  ```sh
+  cargo run --features debug -- --mute --scenario asteroid_field
+  NOVA_MUTE=1 cargo run --features debug --example stress_bullets
+  ```
 - `--debugdump` - print the system schedule graph (via `bevy_mod_debugdump`)
   and exit. It dumps the `Update` schedule (`debugdump` in
   `crates/nova_debug/src/lib.rs`).
@@ -359,7 +378,8 @@ Harness runs are SILENT: any harness env (`NOVA_AUTOPILOT`,
 window but not the speakers, and nobody listens to a scripted run. The
 volume SETTING is untouched (persistence and the settings menu never see
 the mute). `NOVA_MUTE=0` forces sound through a harness run;
-`NOVA_MUTE=1` mutes a normal one.
+`NOVA_MUTE=1` mutes a normal one, and the game binary's `--mute` flag does the
+same - see the outputs-off pair above.
 
 ### Examples as bug pins
 

@@ -33,6 +33,12 @@ struct Cli {
     #[cfg(feature = "debug")]
     #[arg(long)]
     norender: bool,
+    /// Zero the audio output. The other half of the outputs-off pair: this
+    /// silences the speakers as `--norender` drops the renderer. The volume
+    /// SETTING is untouched, so persistence and the settings menu never see it.
+    #[cfg(feature = "debug")]
+    #[arg(long)]
+    mute: bool,
 }
 
 /// The dev tools behind the game binary. Each variant forwards its raw
@@ -84,6 +90,15 @@ fn main() -> ExitCode {
     let startup_scenario = None;
 
     let mut app = editor_app(render, startup_scenario);
+
+    // AFTER the builder: `NovaSettingsPlugin` resolves `HarnessMute` from the
+    // environment at its own build, and the flag has to win over that. Only
+    // when asked - without it the env answer stands, so `NOVA_MUTE=0` still
+    // forces sound through a harness run.
+    #[cfg(feature = "debug")]
+    if cli.mute {
+        app.insert_resource(HarnessMute(true));
+    }
 
     // The probe collectors ride the SHIPPED app, so `probe scenario <id|path>`
     // measures the same binary a player runs instead of an example standing in
