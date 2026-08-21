@@ -107,7 +107,7 @@ const TORPEDO_BAYS: usize = 12;
 ///
 /// A MEASUREMENT knob, not content: the defaults above are what the range
 /// asserts against, and an override moves every floor with it. Named
-/// `NOVA_STRESS_PD_<KNOB>` beside the harness's own `NOVA_PERF_*` parameters.
+/// `NOVA_STRESS_PD_<KNOB>` beside the harness's own `NOVA_PROBE_*` parameters.
 fn scale_param(knob: &str, default: usize) -> usize {
     std::env::var(format!("NOVA_STRESS_PD_{knob}"))
         .ok()
@@ -269,7 +269,7 @@ const LOAD_STEP: &str = "spawn the range";
 /// unarmed run holds only long enough to sample the steady state.
 #[cfg(feature = "debug")]
 fn hold_frames() -> u32 {
-    if nova_probe::perf_armed() {
+    if nova_probe::probe_armed() {
         CAPTURE_HOLD_FRAMES
     } else {
         HOLD_FRAMES

@@ -121,7 +121,7 @@ fn main() -> bevy::app::AppExit {
             },
         );
         // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
+        // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
         app.add_plugins(nova_screenshot(torpedo_script()));

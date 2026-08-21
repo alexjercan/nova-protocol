@@ -226,7 +226,7 @@ pub fn overall_verdict(checks: &[Check]) -> &'static str {
 
 /// Why a timeline-fed check has no input. "Not captured" means different
 /// things depending on whether probe ARMED the surface: an armed-but-silent
-/// run is a WIRING gap in the example, and saying "arm NOVA_PERF_TIMELINE"
+/// run is a WIRING gap in the example, and saying "arm NOVA_PROBE_TIMELINE"
 /// there sends the reader after the wrong thing. A timeline that WAS captured
 /// and would not parse is a third thing again, and the loudest of the three.
 fn timeline_skip_detail(artifacts: &RunArtifacts) -> String {
@@ -241,7 +241,7 @@ fn timeline_skip_detail(artifacts: &RunArtifacts) -> String {
             "probe armed the recorder but {} is not wired with nova_probe::nova_timeline()",
             m.example
         ),
-        _ => "timeline.jsonl not captured (arm NOVA_PERF_TIMELINE)".into(),
+        _ => "timeline.jsonl not captured (arm NOVA_PROBE_TIMELINE)".into(),
     }
 }
 

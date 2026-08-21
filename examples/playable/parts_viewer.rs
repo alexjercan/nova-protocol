@@ -127,7 +127,7 @@ fn main() -> AppExit {
     #[cfg(feature = "debug")]
     {
         // Probe wiring, matching the rest of the fleet: run timeline
-        // + engine-bound invariants (each inert without its NOVA_PERF_* env).
+        // + engine-bound invariants (each inert without its NOVA_PROBE_* env).
         // No frame-time capture - a paged walk holds no steady-state window.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         if nova_protocol::prelude::capturing() {

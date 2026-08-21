@@ -115,7 +115,7 @@ fn main() -> AppExit {
     #[cfg(feature = "debug")]
     {
         // Probe wiring, matching every other harnessed example (each plugin is
-        // inert without its NOVA_PERF_* env). `nova_invariants` takes its world
+        // inert without its NOVA_PROBE_* env). `nova_invariants` takes its world
         // resource by `Option` and its component queries simply find nothing in
         // a bare app, so it needs no special-casing here.
         app.add_plugins(nova_probe::NovaProbePlugin::default());

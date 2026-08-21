@@ -96,7 +96,7 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        // Probe wiring (each plugin is inert without its NOVA_PERF_* env):
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
         // run timeline + engine-bound invariants, so `probe run` grades this
         // example instead of asserting nothing. No frame-time capture - a
         // posed lineup holds no steady-state load worth measuring.

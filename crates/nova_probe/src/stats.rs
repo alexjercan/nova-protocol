@@ -681,7 +681,7 @@ pub fn append_frametime_row(
     // Never mix schemas in one file: appending a v3 row under an older
     // header would give every consumer a column-count error at parse time
     // (or worse, silent misreads). Probe's fresh-dir discipline makes this
-    // unreachable in practice; a manual NOVA_PERF_OUT into an old results
+    // unreachable in practice; a manual NOVA_PROBE_OUT into an old results
     // dir is exactly when it matters.
     if !need_header {
         let existing = std::fs::read_to_string(path)

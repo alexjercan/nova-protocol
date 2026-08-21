@@ -2,7 +2,7 @@
 //! autopilot) run as an ordered, structured timeline - the correctness half of
 //! the run-harness.
 //!
-//! One env-gated plugin, [`nova_timeline`]: inert unless `NOVA_PERF_TIMELINE`
+//! One env-gated plugin, [`nova_timeline`]: inert unless `NOVA_PROBE_TIMELINE`
 //! names an output path (native only - the browser has no filesystem). When
 //! armed it appends one JSON object per line (JSONL) to that path, flushed
 //! per entry so a panicked or backstopped run keeps everything up to the
@@ -67,11 +67,11 @@ const SCENARIO_ELAPSED_WATCH: &str = "scenario_elapsed";
 
 use crate::capabilities::frametime::prelude::*;
 
-/// Env var (via [`perf_param`], so `NOVA_PERF_TIMELINE` on native) naming the
+/// Env var (via [`probe_param`], so `NOVA_PROBE_TIMELINE` on native) naming the
 /// JSONL output path that arms [`nova_timeline`].
 pub const TIMELINE_PARAM: &str = "timeline";
 
-/// Env-gated run-timeline recorder preset. Inert unless `NOVA_PERF_TIMELINE`
+/// Env-gated run-timeline recorder preset. Inert unless `NOVA_PROBE_TIMELINE`
 /// is set (or an explicit [`out`](RunRecorderPlugin::out) override is given,
 /// which tests use to avoid process-global env races). See the module docs.
 pub fn nova_timeline() -> RunRecorderPlugin {
@@ -126,7 +126,7 @@ impl Plugin for RunRecorderPlugin {
         let Some(path) = self
             .out
             .clone()
-            .or_else(|| perf_param(TIMELINE_PARAM).map(PathBuf::from))
+            .or_else(|| probe_param(TIMELINE_PARAM).map(PathBuf::from))
         else {
             return;
         };

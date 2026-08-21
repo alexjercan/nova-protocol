@@ -769,7 +769,7 @@ stops at the run and its verdict.
 ### Run timeline (correctness recording)
 
 `nova_probe` also records WHAT HAPPENED during a run: set
-`NOVA_PERF_TIMELINE=<out.jsonl>` on any example that adds
+`NOVA_PROBE_TIMELINE=<out.jsonl>` on any example that adds
 `nova_probe::nova_timeline()` - which `NovaProbePlugin` does unconditionally,
 so that is EVERY cataloged example - and the run appends one JSON object per
 line: every `GameStates`/pause transition, every fired scenario
@@ -780,7 +780,7 @@ keeps everything up to the panic. Compare runs by ORDER and VALUES, not
 timestamps (wall-clock and frame counts vary across hosts):
 
 ```sh
-NOVA_PERF_TIMELINE=/tmp/run.jsonl NOVA_AUTOPILOT=1 \
+NOVA_PROBE_TIMELINE=/tmp/run.jsonl NOVA_AUTOPILOT=1 \
   cargo run --example system_player_path --features debug
 ```
 
@@ -788,7 +788,7 @@ The timeline is native-only (no fs in the browser) and inert without the env
 var. It is the correctness half of the run-harness whose performance half is
 [Measuring performance](performance.md); the run report below renders both.
 
-Continuous INVARIANTS ride the same stream: set `NOVA_PERF_INVARIANTS=1` (or
+Continuous INVARIANTS ride the same stream: set `NOVA_PROBE_INVARIANTS=1` (or
 `=strict` to panic on the first violation) on a wired example and every frame
 asserts what the engine guarantees - health within `0..=max` and finite,
 velocities finite (plus an absurd-speed bound at 10x a ship's soft

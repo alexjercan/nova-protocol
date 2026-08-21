@@ -441,20 +441,17 @@ fn report_unknown_startup_scenario(id: &str, scenarios: &GameScenarios) {
 /// 48 `AppBuilder::new()` sites take no arguments, so the only channel that
 /// reaches them without editing each one - and without every future example
 /// having to remember - is the process environment. That matches how the rest
-/// of the harness arms itself ([`PERF_ENV`], `NOVA_AUTOPILOT`, `NOVA_CAPTURE`):
+/// of the harness arms itself ([`PROBE_ENV`], `NOVA_AUTOPILOT`, `NOVA_CAPTURE`):
 /// inert unless set.
 ///
 /// `nova_probe` re-exports it so `probe run --render off` can push it into a
-/// child, the same route [`PERF_ENV`] takes.
+/// child, the same route [`PROBE_ENV`] takes.
 pub const NORENDER_ENV: &str = "NOVA_NORENDER";
 
 /// Environment variable that arms frame-time capture. Read here only to give an
 /// armed run a distinct window class; `nova_probe` owns what it MEANS and
-/// re-exports this as `nova_probe::PERF_ENV`.
-///
-/// NOTE: the `NOVA_PERF_*` prefix predates that crate's rename to `nova_probe`
-/// and is kept as-is so scripts and docs do not churn.
-pub const PERF_ENV: &str = "NOVA_PERF";
+/// re-exports this as `nova_probe::PROBE_ENV`.
+pub const PROBE_ENV: &str = "NOVA_PROBE";
 
 /// `WM_CLASS` (X11) / app id (Wayland) worn by a run armed for measurement, and
 /// by no other run.
@@ -485,7 +482,7 @@ fn window_plugin(render: bool) -> WindowPlugin {
             title: format!("NovaProtocol - {}", env!("CARGO_PKG_VERSION")),
             // Set only when armed, so the class itself says "this window is
             // being measured" and a placement rule needs no other predicate.
-            name: std::env::var_os(PERF_ENV).map(|_| MEASURE_WINDOW_CLASS.to_owned()),
+            name: std::env::var_os(PROBE_ENV).map(|_| MEASURE_WINDOW_CLASS.to_owned()),
             resolution: (1024, 768).into(),
             present_mode: PresentMode::AutoVsync,
             // NOTE: selector of the canvas shipped in the repo-root `index.html`.
@@ -509,7 +506,7 @@ fn window_plugin(render: bool) -> WindowPlugin {
 ///
 /// Never a shipping default: the queries add a resolve pass and a buffer
 /// readback to every frame, which is part of the thing being measured.
-pub const RENDER_DIAG_ENV: &str = "NOVA_PERF_RENDER_DIAG";
+pub const RENDER_DIAG_ENV: &str = "NOVA_PROBE_RENDER_DIAG";
 
 fn render_plugin(render: bool) -> RenderPlugin {
     // Timestamp queries are Vulkan/DX12-only in wgpu, and asking for a feature

@@ -184,7 +184,7 @@ fn main() -> bevy::app::AppExit {
                 .on_loop(reload_the_run),
         ));
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
-        // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE names an
+        // Run-timeline recorder (inert unless NOVA_PROBE_TIMELINE names an
         // output path): the script below pushes its beats as markers, so an
         // armed run reads "raise -> sweep -> fire -> ... -> done" in the same
         // JSONL stream as the scenario's own events and variables.

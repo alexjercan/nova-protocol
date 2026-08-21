@@ -150,8 +150,8 @@
         "blind",
         "owner"
       ],
-      "expect": "crates/nova_probe_cli/src/native/supervise.rs:130 Command::new(bin) ... :136 .spawn(); the child is armed by environment variables assembled at crates/nova_probe_cli/src/native/env.rs:93-108 (NOVA_PERF_TIMELINE, NOVA_PERF_INVARIANTS, NOVA_PERF_CONTRACT, NOVA_PERF)",
-      "citation": "crates/nova_probe_cli/src/native/supervise.rs:117 run_supervised, :130 Command::new(bin), :136 .spawn(); crates/nova_probe_cli/src/native/env.rs:93 NOVA_PERF_TIMELINE, :96 NOVA_PERF_INVARIANTS",
+      "expect": "crates/nova_probe_cli/src/native/supervise.rs:130 Command::new(bin) ... :136 .spawn(); the child is armed by environment variables assembled at crates/nova_probe_cli/src/native/env.rs:93-108 (NOVA_PROBE_TIMELINE, NOVA_PROBE_INVARIANTS, NOVA_PROBE_CONTRACT, NOVA_PROBE)",
+      "citation": "crates/nova_probe_cli/src/native/supervise.rs:117 run_supervised, :130 Command::new(bin), :136 .spawn(); crates/nova_probe_cli/src/native/env.rs:93 NOVA_PROBE_TIMELINE, :96 NOVA_PROBE_INVARIANTS",
       "why_this_question": "The second half is the architecture: the IPC boundary is env vars out and files back. Nothing in the module names states it. A wrong answer proves that the crate reads as one program when it is two.",
       "notes": "Two halves, 0.50 each: the spawn site and the env-var arming mechanism. 'It calls the example' with no mechanism earns nothing on the second half. tree excluded (needs file contents); rustdoc excluded (src/bin/ produces no rustdoc, so the channel structurally cannot contain the answer); docs excluded (the probe SKILL.md is not in the docs sandbox)."
     },

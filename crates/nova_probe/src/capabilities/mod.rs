@@ -27,7 +27,7 @@ use bevy::prelude::*;
 use crate::prelude::*;
 
 // The census and the frame-cost breakdown are measurement-only and write
-// through the frame-time capture's `NOVA_PERF_OUT`: native with the rest of the
+// through the frame-time capture's `NOVA_PROBE_OUT`: native with the rest of the
 // capture host, because nothing profiles a browser this way.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod census;
@@ -235,7 +235,7 @@ impl Plugin for NovaProbePlugin {
             if let Some(plugin) = &self.frametime {
                 app.add_plugins(plugin.clone());
             }
-            // Both arm on NOVA_PERF rather than on the frame-time plugin, so an
+            // Both arm on NOVA_PROBE rather than on the frame-time plugin, so an
             // example that declares no frame-time claim still gets counted and
             // broken down when someone points a capture at it.
             #[cfg(not(target_arch = "wasm32"))]

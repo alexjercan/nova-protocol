@@ -249,9 +249,9 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         }
         if sweeping {
             // Sweep cells measure frames, not the recorder surfaces.
-            env.retain(|(k, _)| k != "NOVA_PERF_TIMELINE" && k != "NOVA_PERF_INVARIANTS");
+            env.retain(|(k, _)| k != "NOVA_PROBE_TIMELINE" && k != "NOVA_PROBE_INVARIANTS");
             // The per-example label yields to the sweep convention.
-            env.retain(|(k, _)| k != "NOVA_PERF_LABEL");
+            env.retain(|(k, _)| k != "NOVA_PROBE_LABEL");
         }
         env.extend(sweep_cell_env(scenario.as_deref(), preset.as_deref()));
         env.extend(render_env(opts.render, opts.norender));
@@ -304,7 +304,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                         },
                         out.join(&log_name).display()
                     );
-                    // NOVA_PERF_CONTRACT too: the CLEAN pass owns probe-contract.json,
+                    // NOVA_PROBE_CONTRACT too: the CLEAN pass owns probe-contract.json,
                     // and letting the fps pass rewrite it makes the report's "what the
                     // example wired" half describe the wrong run the moment the two
                     // passes diverge.
@@ -312,12 +312,12 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
                     env.retain(|(k, _)| {
                         !matches!(
                             k.as_str(),
-                            "NOVA_PERF_TIMELINE" | "NOVA_PERF_INVARIANTS" | "NOVA_PERF_CONTRACT"
+                            "NOVA_PROBE_TIMELINE" | "NOVA_PROBE_INVARIANTS" | "NOVA_PROBE_CONTRACT"
                         )
                     });
                     if let Some(label) = label {
-                        env.retain(|(k, _)| k != "NOVA_PERF_LABEL");
-                        env.push(("NOVA_PERF_LABEL".into(), label));
+                        env.retain(|(k, _)| k != "NOVA_PROBE_LABEL");
+                        env.push(("NOVA_PROBE_LABEL".into(), label));
                     }
                     // The baseline capture window + a completion deadline SIZED to
                     // it, so a slow-but-progressing capture (a heavy dev scene under

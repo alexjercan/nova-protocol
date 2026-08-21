@@ -185,7 +185,7 @@ fn main() -> bevy::app::AppExit {
                 .on_loop(reload_the_showcase),
         ));
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
-        // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE is set):
+        // Run-timeline recorder (inert unless NOVA_PROBE_TIMELINE is set):
         // this example exercises the whole scenario language, so its recorded
         // timeline doubles as the recorder's stability probe.
         // Every tally this scenario keeps is one-way by design. A reload

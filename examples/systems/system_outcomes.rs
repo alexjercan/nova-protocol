@@ -157,7 +157,7 @@ fn main() -> bevy::app::AppExit {
                 .on_loop(reload_the_probe),
         ));
         app.add_plugins(assert_scenario_loaded(SCENARIO_A));
-        // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE names an output
+        // Run-timeline recorder (inert unless NOVA_PROBE_TIMELINE names an output
         // path): the beats below push markers, so an armed run reads
         // "die -> retry -> kill -> continue" beside the scenario's own events.
         // `hostile_down` is one-way across the run. `player_down` is not: Retry

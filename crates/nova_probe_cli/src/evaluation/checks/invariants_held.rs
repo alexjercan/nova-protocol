@@ -91,7 +91,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
                         m.example
                     ),
                     _ if artifacts.timeline.is_none() => timeline_skip_detail(artifacts),
-                    _ => "invariants not armed (arm NOVA_PERF_INVARIANTS)".into(),
+                    _ => "invariants not armed (arm NOVA_PROBE_INVARIANTS)".into(),
                 },
             );
         }

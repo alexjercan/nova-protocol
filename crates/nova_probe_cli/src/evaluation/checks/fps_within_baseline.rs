@@ -65,7 +65,7 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
             return no_input(
                 CheckStatus::Skipped,
                 "no capture",
-                "frametime.csv not captured (arm NOVA_PERF)".into(),
+                "frametime.csv not captured (arm NOVA_PROBE)".into(),
             )
         }
     };

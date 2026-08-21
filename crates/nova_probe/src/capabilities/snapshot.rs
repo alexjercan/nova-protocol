@@ -64,13 +64,13 @@
 //!
 //! ## Arming and triggering
 //!
-//! Inert unless `NOVA_PERF_SNAPSHOT` names a `.jsonl` sink (native only - the
+//! Inert unless `NOVA_PROBE_SNAPSHOT` names a `.jsonl` sink (native only - the
 //! browser has no filesystem). One snapshot is one line, appended and flushed,
 //! so a run that panics keeps everything it took. Three triggers:
 //!
 //! | Trigger | Set | Fires |
 //! |---------|-----|-------|
-//! | `NOVA_PERF_SNAPSHOT_FRAMES` | comma-separated [`FrameCount`] values | once per LISTED value, so `600,600` takes two snapshots of one frozen frame |
+//! | `NOVA_PROBE_SNAPSHOT_FRAMES` | comma-separated [`FrameCount`] values | once per LISTED value, so `600,600` takes two snapshots of one frozen frame |
 //! | [`SNAPSHOT_KEY`] | (always, when a keyboard exists) | on key press, for a hand-run game |
 //! | [`probe_snapshot`] | (always) | wherever a script, an autopilot beat, or a driver calls it |
 //!
@@ -133,11 +133,11 @@ pub const SNAPSHOT_SCHEMA: u32 = 1;
 /// why the number is fixed rather than "whatever the float prints as".
 pub const SNAPSHOT_DECIMALS: i32 = 4;
 
-/// Param (via [`perf_param`], so `NOVA_PERF_SNAPSHOT` on native) naming the
+/// Param (via [`probe_param`], so `NOVA_PROBE_SNAPSHOT` on native) naming the
 /// JSONL sink that arms [`nova_snapshot`].
 pub const SNAPSHOT_PARAM: &str = "snapshot";
 
-/// Param (`NOVA_PERF_SNAPSHOT_FRAMES` on native) listing the [`FrameCount`]
+/// Param (`NOVA_PROBE_SNAPSHOT_FRAMES` on native) listing the [`FrameCount`]
 /// values to snapshot at, comma-separated. A repeated value snapshots that
 /// frame that many times, which is how a run proves its own determinism.
 pub const SNAPSHOT_FRAMES_PARAM: &str = "snapshot_frames";
@@ -145,7 +145,7 @@ pub const SNAPSHOT_FRAMES_PARAM: &str = "snapshot_frames";
 /// Key that takes a snapshot in a hand-run game (armed runs only).
 pub const SNAPSHOT_KEY: KeyCode = KeyCode::F9;
 
-/// Env-gated world-snapshot preset. Inert unless `NOVA_PERF_SNAPSHOT` names a
+/// Env-gated world-snapshot preset. Inert unless `NOVA_PROBE_SNAPSHOT` names a
 /// sink (or an explicit [`out`](SnapshotPlugin::out) override is given, which
 /// tests use to avoid process-global env races). See the module docs.
 pub fn nova_snapshot() -> SnapshotPlugin {
@@ -183,7 +183,7 @@ impl Plugin for SnapshotPlugin {
         let Some(path) = self
             .out
             .clone()
-            .or_else(|| perf_param(SNAPSHOT_PARAM).map(PathBuf::from))
+            .or_else(|| probe_param(SNAPSHOT_PARAM).map(PathBuf::from))
         else {
             return;
         };
@@ -219,11 +219,11 @@ impl Plugin for SnapshotPlugin {
 #[derive(Resource, Debug, Clone, Default)]
 pub struct SnapshotSchedule(pub Vec<u32>);
 
-/// Parse `NOVA_PERF_SNAPSHOT_FRAMES`. A malformed entry is dropped with a
+/// Parse `NOVA_PROBE_SNAPSHOT_FRAMES`. A malformed entry is dropped with a
 /// warning rather than failing the run: the sink is still armed and the key
 /// still works.
 fn parse_frame_schedule() -> Vec<u32> {
-    let Some(raw) = perf_param(SNAPSHOT_FRAMES_PARAM) else {
+    let Some(raw) = probe_param(SNAPSHOT_FRAMES_PARAM) else {
         return Vec::new();
     };
     raw.split(',')

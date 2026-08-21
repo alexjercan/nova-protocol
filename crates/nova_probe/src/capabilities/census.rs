@@ -58,7 +58,7 @@ const UNNAMED_ORIGIN: &str = "unnamed";
 
 /// The scene census, taken once per capture.
 ///
-/// Inert unless the run is armed for capture ([`perf_armed`]), so an example
+/// Inert unless the run is armed for capture ([`probe_armed`]), so an example
 /// adds it permanently and an ordinary run pays nothing.
 pub fn nova_census() -> CensusPlugin {
     CensusPlugin {
@@ -84,11 +84,11 @@ impl CensusPlugin {
 
 impl Plugin for CensusPlugin {
     fn build(&self, app: &mut App) {
-        if !perf_armed() {
+        if !probe_armed() {
             return;
         }
         app.insert_resource(CensusSchedule {
-            at_frame: perf_param("census_frame")
+            at_frame: probe_param("census_frame")
                 .and_then(|value| value.trim().parse().ok())
                 .unwrap_or(self.at_frame),
             frames: 0,
@@ -463,7 +463,7 @@ fn log_census(census: &Census) {
 }
 
 fn write_census(census: &Census) {
-    let Some(dir) = perf_param("out") else {
+    let Some(dir) = probe_param("out") else {
         return;
     };
     let json = serde_json::json!({

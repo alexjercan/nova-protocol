@@ -59,7 +59,7 @@ fn main() -> bevy::app::AppExit {
     // Headless smoke-test harness: inert in a normal run (gated on NOVA_AUTOPILOT).
     #[cfg(feature = "debug")]
     {
-        // Probe wiring (each plugin is inert without its NOVA_PERF_* env): run
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env): run
         // timeline + engine-bound invariants + frame-time capture.
         //
         // The capture is GATED on the flown range, and that gate is why

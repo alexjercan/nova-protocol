@@ -39,7 +39,7 @@ pub const DEFAULT_REPORT_FRAMES: u32 = 200;
 
 /// The frame-cost breakdown, reported every [`DEFAULT_REPORT_FRAMES`] frames.
 ///
-/// Inert unless the run is armed for capture ([`perf_armed`]).
+/// Inert unless the run is armed for capture ([`probe_armed`]).
 pub fn nova_framecost() -> FrameCostPlugin {
     FrameCostPlugin {
         report_frames: DEFAULT_REPORT_FRAMES,
@@ -70,7 +70,7 @@ struct PhaseMark(usize);
 
 impl Plugin for FrameCostPlugin {
     fn build(&self, app: &mut App) {
-        if !perf_armed() {
+        if !probe_armed() {
             return;
         }
         if std::env::var_os(nova_core::RENDER_DIAG_ENV).is_some() {
@@ -85,7 +85,7 @@ impl Plugin for FrameCostPlugin {
             elapsed: vec![Duration::ZERO; labels.len()],
             frame_total: Duration::ZERO,
             frames: 0,
-            report_frames: perf_param("framecost_frames")
+            report_frames: probe_param("framecost_frames")
                 .and_then(|value| value.trim().parse().ok())
                 .unwrap_or(self.report_frames),
             last_mark: None,
@@ -127,7 +127,7 @@ impl Plugin for FrameCostPlugin {
     }
 
     fn finish(&self, app: &mut App) {
-        if !perf_armed() {
+        if !probe_armed() {
             return;
         }
         // The render sub-app exists by `finish` even when `RenderPlugin` built

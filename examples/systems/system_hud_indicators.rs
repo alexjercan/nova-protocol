@@ -68,7 +68,7 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
+        // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
         // Not the stock nova_autopilot(): the script is its own beat list. The

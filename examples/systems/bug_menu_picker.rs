@@ -69,7 +69,7 @@ fn main() -> bevy::app::AppExit {
             ));
         }
         app.init_resource::<ScenariosAutopilot>();
-        // Probe wiring (inert without its NOVA_PERF_* env).
+        // Probe wiring (inert without its NOVA_PROBE_* env).
         app.add_plugins(nova_probe::NovaProbePlugin::default());
         // No `nova_screenshot` beat here: the walk shoots its own per-selection
         // pictures, and it OWNS its completion - a beat appended after the step
