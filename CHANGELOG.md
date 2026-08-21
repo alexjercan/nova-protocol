@@ -453,6 +453,7 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- New probe capability: `NOVA_PROBE_STEPDIAG` writes a per-fixed-step CSV of avian's own phase timers and body counts; `NOVA_PROBE_STEPDIAG_BODIES` picks the body-count regime its summary covers.
 - **(breaking)** Every `NOVA_PERF_*` environment variable is now `NOVA_PROBE_*`, and `NOVA_PERF` is `NOVA_PROBE` - finishing the crate's rename to `nova_probe`. No aliases.
 - **(breaking)** `NOVA_SHOT` and its screenshot driver are gone. A range's one settled picture is `nova_screenshot(script)`, a beat on its own autopilot, armed by `NOVA_CAPTURE` like every shot.
 - **(breaking)** `NOVA_SHOT_DIR` is now `NOVA_CAPTURE_DIR`: one name for the directory every still, loop and scenario `Screenshot` action stages under.

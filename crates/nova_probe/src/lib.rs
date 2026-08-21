@@ -123,6 +123,8 @@
 //! | `NOVA_PROBE_CENSUS_FRAME` / `census_frame` | `90` | Frames after `Playing` at which the scene census is taken. |
 //! | `NOVA_PROBE_FRAMECOST_FRAMES` / `framecost_frames` | `200` | Frames averaged into one frame-cost report. |
 //! | `NOVA_PROBE_RENDER_DIAG` | (unset) | Asks the renderer for GPU timestamp queries, so the frame-cost report can name each render pass. Costs a resolve pass and a readback per frame - a measurement knob, never a default. |
+//! | `NOVA_PROBE_STEPDIAG` / (n/a) | (unset) | Native only: CSV path for the per-FIXED-STEP physics diagnostics - avian's own broad/narrow/prepare/solve/finalize/spatial timers, contact and constraint counts, the step's wall time, and the live dynamic-body and collider counts. |
+//! | `NOVA_PROBE_STEPDIAG_BODIES` / (n/a) | `0` | Native only: the body-count REGIME floor. Only steps carrying at least this many live dynamic bodies enter the end-of-run summary, so two arms are compared over the same weight of world instead of over a whole run one of them ended early. |
 //! | `NOVA_PROBE_QUALITY` / `quality` | (app default) | Graphics preset for the run (read by the example/bin); recorded in the run metadata. |
 //! | `NOVA_PROBE_SHA` / `sha`       | `git rev-parse` | Overrides the recorded git SHA (the web build cannot shell out). |
 //! | `NOVA_PROBE_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |

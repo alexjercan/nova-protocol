@@ -17,6 +17,8 @@
 //! - [`snapshot`] - the whole world's state on demand (ships, sections,
 //!   fixtures, weapons, ordnance) -> `snapshot.jsonl`. The timeline says what
 //!   happened; this says what the world LOOKS like.
+//! - `stepdiag` - what one FIXED STEP costs, by avian phase, with the
+//!   body-count regime the summary is taken over.
 //!
 //! [`NovaProbePlugin`] bundles them all. It does not replace their
 //! per-example configuration: an example that needs a driver or a custom
@@ -43,6 +45,11 @@ pub mod invariants;
 // recorder and wasm gets the same shape of no-op stub.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod snapshot;
+// The per-step physics CSV: native with the rest of the file-writing
+// capabilities, and reading avian's own diagnostics resources, which the
+// browser build never wires.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod stepdiag;
 #[cfg(target_arch = "wasm32")]
 pub mod snapshot {
     //! Wasm stubs for the native-only world-state snapshot.
@@ -129,6 +136,8 @@ pub mod prelude {
     pub use super::framecost::prelude::*;
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::invariants::prelude::*;
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::stepdiag::prelude::*;
     pub use super::{
         frametime::prelude::*, snapshot::prelude::*, timeline::prelude::*, NovaProbePlugin,
         CORRECTNESS_MODE, PROBE_MODE_ENV,
@@ -235,11 +244,12 @@ impl Plugin for NovaProbePlugin {
             if let Some(plugin) = &self.frametime {
                 app.add_plugins(plugin.clone());
             }
-            // Both arm on NOVA_PROBE rather than on the frame-time plugin, so an
-            // example that declares no frame-time claim still gets counted and
-            // broken down when someone points a capture at it.
+            // These arm on their own parameters rather than on the frame-time
+            // plugin, so an example that declares no frame-time claim still
+            // gets counted, broken down and stepped when someone points a
+            // capture at it.
             #[cfg(not(target_arch = "wasm32"))]
-            app.add_plugins((nova_census(), nova_framecost()));
+            app.add_plugins((nova_census(), nova_framecost(), nova_stepdiag()));
         }
         app.add_plugins(nova_timeline());
         app.add_plugins(nova_snapshot());
