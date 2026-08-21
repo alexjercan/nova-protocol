@@ -1,8 +1,8 @@
 # A gun round is math, not a physics body
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
-- TAGS: v0.11.0,performance,physics
+- TAGS: v0.11.0, performance, physics
 
 # A gun round is math, not a physics body
 
