@@ -761,7 +761,7 @@ folders such as `before`, then each example compares against
 Probe runs are **profile-sandboxed**: a run measures a commit, so it must not
 depend on your desktop profile. Every native child run is pointed at an empty,
 probe-owned profile under its own run dir - `profile/mods`
-(`NOVA_MOD_CACHE_ROOT`, the downloaded-mod cache and its `installed.mods.ron`),
+(`NOVA_MODDING_CACHE_ROOT`, the downloaded-mod cache and its `installed.mods.ron`),
 `profile/data` (`XDG_DATA_HOME`) and `profile/config` (`XDG_CONFIG_HOME`, where
 `enabled_mods.ron` and `settings.ron` live) - and the tree is wiped at the start
 of each run. Without it, a mod cached in a structure an older commit cannot
@@ -773,7 +773,7 @@ yourself - probe preserves any of the three it finds already set, and prints
 which ones it left alone:
 
 ```sh
-NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run system_player_path
+NOVA_MODDING_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run system_player_path
 ```
 
 `XDG_CACHE_HOME` is deliberately NOT redirected (the shader cache lives there,

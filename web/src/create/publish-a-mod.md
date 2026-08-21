@@ -202,7 +202,7 @@ a native game:
 ```sh
 nix develop --command scripts/serve-mods.sh
 # Use the printed port in a second shell:
-NOVA_PORTAL_URL=http://localhost:<port>/mods \
+NOVA_MODDING_PORTAL_URL=http://localhost:<port>/mods \
     nix develop --command cargo run
 ```
 

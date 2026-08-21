@@ -3,7 +3,7 @@
 //! installed into a temp cache root with `install_local`, the `mods:/` source
 //! is registered through the PRODUCTION registration
 //! (`mod_cache::register_mods_source` - the same call `AppBuilder::new` makes,
-//! pointed at the temp root via the `NOVA_MOD_CACHE_ROOT` override both it and
+//! pointed at the temp root via the `NOVA_MODDING_CACHE_ROOT` override both it and
 //! the cache helpers read), the production startup system reads the index and
 //! kicks the bundle load, and the production merge wiring (register_bundles
 //! gated on EnabledMods-or-DownloadedMods changes, plus
@@ -34,7 +34,7 @@ use nova_scenario::prelude::GameScenarios;
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
-/// Serializes the tests in this binary and points `NOVA_MOD_CACHE_ROOT` at a
+/// Serializes the tests in this binary and points `NOVA_MODDING_CACHE_ROOT` at a
 /// fresh temp dir for the guard's lifetime (the cache helpers AND the source
 /// registration read the var at call time, so everything a test does while
 /// holding this sees the same isolated root).
@@ -47,7 +47,7 @@ fn cache_root_guard() -> CacheRootGuard {
     // A panicked test poisons the lock; the lock only serializes, so continue.
     let lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let root = tempfile::tempdir().expect("temp cache root");
-    std::env::set_var("NOVA_MOD_CACHE_ROOT", root.path());
+    std::env::set_var("NOVA_MODDING_CACHE_ROOT", root.path());
     CacheRootGuard { _lock: lock, root }
 }
 

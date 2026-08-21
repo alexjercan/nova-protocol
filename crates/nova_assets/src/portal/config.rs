@@ -9,12 +9,19 @@ use bevy::prelude::*;
 /// publishes next to the wasm build (web/src/create/publish-a-mod.md).
 pub const DEFAULT_PORTAL_URL: &str = "https://alexjercan.github.io/nova-protocol/mods";
 
+/// Environment variable that points a native build at another portal tree.
+///
+/// The `NOVA_MODDING_*` family is the mod portal and the local mod cache; the
+/// settings store's `NOVA_CONFIG_ROOT` is deliberately not one of them.
+#[cfg(not(target_arch = "wasm32"))]
+pub const PORTAL_URL_ENV: &str = "NOVA_MODDING_PORTAL_URL";
+
 /// Where the portal lives: `<base_url>/catalog.json` +
 /// `<base_url>/<id>/<version>/<files...>`.
 ///
 /// Defaults per platform, resolved once at plugin build by
 /// [`PortalConfig::from_environment`]:
-/// - native: [`DEFAULT_PORTAL_URL`], overridable via the `NOVA_PORTAL_URL`
+/// - native: [`DEFAULT_PORTAL_URL`], overridable via the `NOVA_MODDING_PORTAL_URL`
 ///   environment variable (dev/test builds point at localhost);
 /// - wasm: derived from `window.location` (the game is served at
 ///   `<root>/play/`, the portal is its SIBLING `<root>/mods` - so a fork's
@@ -30,7 +37,7 @@ impl PortalConfig {
     /// Resolve the platform default + override chain described on the type.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn from_environment() -> Self {
-        let base_url = std::env::var("NOVA_PORTAL_URL")
+        let base_url = std::env::var(PORTAL_URL_ENV)
             .ok()
             .filter(|url| !url.trim().is_empty())
             .unwrap_or_else(|| DEFAULT_PORTAL_URL.to_string());

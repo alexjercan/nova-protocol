@@ -129,7 +129,7 @@ pub(super) fn decode_last_good(bytes: Vec<u8>) -> Option<PortalCatalog> {
 ///
 /// The native file lives under the MOD CACHE's data root, not the config dir:
 /// the catalog is cached wire data, not a user preference, and the cache
-/// root's `NOVA_MOD_CACHE_ROOT` override is what keeps the integration rigs
+/// root's `NOVA_MODDING_CACHE_ROOT` override is what keeps the integration rigs
 /// (which fetch localhost catalogs through the real plugin) from writing into
 /// the developer's real store.
 pub(super) mod last_good_store {

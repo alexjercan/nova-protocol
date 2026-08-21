@@ -40,7 +40,7 @@ fn resolver_child() {
         return;
     }
     // The downloaded-mod index: `<data_root>/installed.mods.ron`, where
-    // data_root is $NOVA_MOD_CACHE_ROOT or dirs::data_dir()/nova-protocol.
+    // data_root is $NOVA_MODDING_CACHE_ROOT or dirs::data_dir()/nova-protocol.
     println!("INDEX={:?}", nova_assets::mod_cache::read_index());
     // The enabled-mod set: dirs::config_dir()/nova-protocol/enabled_mods.ron.
     println!("ENABLED={:?}", nova_assets::mod_prefs::load_enabled_ids());
@@ -165,13 +165,13 @@ fn child_run_resolves_mod_cache_inside_the_sandbox() {
         line(&fixed, "DATA_DIR=")
     );
 
-    // Isolated lever: NOVA_MOD_CACHE_ROOT alone already moves the index (the
+    // Isolated lever: NOVA_MODDING_CACHE_ROOT alone already moves the index (the
     // belt for commits older than the XDG isolation), while the config-side
     // store still reads the poison - so the two levers are proven separately,
     // not by one all-or-nothing env blob.
     let mut cache_only = home_env(home.path());
     cache_only.push((
-        "NOVA_MOD_CACHE_ROOT".into(),
+        "NOVA_MODDING_CACHE_ROOT".into(),
         run_dir.path().join("profile/mods").path_string(),
     ));
     let cache_only = run_child(&cache_only);

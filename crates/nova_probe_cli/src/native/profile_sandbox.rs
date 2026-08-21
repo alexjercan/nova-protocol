@@ -6,7 +6,7 @@
 //!
 //! - `dirs::data_dir()/nova-protocol` - the downloaded-mod cache and its
 //!   `installed.mods.ron` index (`nova_assets::mod_cache`), also reachable via
-//!   the crate's own `NOVA_MOD_CACHE_ROOT` override;
+//!   the crate's own `NOVA_MODDING_CACHE_ROOT` override;
 //! - `dirs::config_dir()/nova-protocol` - `enabled_mods.ron`
 //!   (`nova_assets::mod_prefs`) and `settings.ron`
 //!   (`nova_menu::settings_store`).
@@ -19,7 +19,7 @@
 //! under its own run directory:
 //!
 //! ```text
-//! probe-runs/<commit>/<example>/profile/mods     NOVA_MOD_CACHE_ROOT
+//! probe-runs/<commit>/<example>/profile/mods     NOVA_MODDING_CACHE_ROOT
 //! probe-runs/<commit>/<example>/profile/data     XDG_DATA_HOME
 //! probe-runs/<commit>/<example>/profile/config   XDG_CONFIG_HOME
 //! ```
@@ -37,7 +37,7 @@
 //! deliberate "probe my real installed mods" run possible:
 //!
 //! ```text
-//! NOVA_MOD_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run <example>
+//! NOVA_MODDING_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run <example>
 //! ```
 //!
 //! ## Deliberate non-goals
@@ -49,7 +49,7 @@
 //!   what `dirs` resolves on Linux.
 //! - Cross-platform reach: `XDG_DATA_HOME`/`XDG_CONFIG_HOME` are how `dirs`
 //!   resolves on LINUX. macOS `dirs` uses `~/Library/...` and ignores XDG, so
-//!   there the sandbox rests on `NOVA_MOD_CACHE_ROOT` alone. Probe already
+//!   there the sandbox rests on `NOVA_MODDING_CACHE_ROOT` alone. Probe already
 //!   requires Xvfb, so Linux is the supported host.
 //! - The web pass (`--platform web`) is out of scope: it runs in a browser
 //!   profile and reads no Nova profile state.
@@ -63,7 +63,11 @@ use std::path::{Path, PathBuf};
 
 /// The environment variables the sandbox redirects, in the order [`env()`]
 /// emits them.
-pub const SANDBOXED_VARS: [&str; 3] = ["NOVA_MOD_CACHE_ROOT", "XDG_DATA_HOME", "XDG_CONFIG_HOME"];
+pub const SANDBOXED_VARS: [&str; 3] = [
+    "NOVA_MODDING_CACHE_ROOT",
+    "XDG_DATA_HOME",
+    "XDG_CONFIG_HOME",
+];
 
 /// The sandbox root for a run directory: `<run_dir>/profile`.
 pub fn root(run_dir: &Path) -> PathBuf {
@@ -75,7 +79,7 @@ pub fn root(run_dir: &Path) -> PathBuf {
 fn all_paths(run_dir: &Path) -> Vec<(&'static str, PathBuf)> {
     let root = root(run_dir);
     vec![
-        ("NOVA_MOD_CACHE_ROOT", root.join("mods")),
+        ("NOVA_MODDING_CACHE_ROOT", root.join("mods")),
         ("XDG_DATA_HOME", root.join("data")),
         ("XDG_CONFIG_HOME", root.join("config")),
     ]
@@ -154,7 +158,7 @@ mod tests {
     fn profile_sandbox_points_every_store_under_the_run_dir() {
         let env = env_with(Path::new("/repo/probe-runs/abc/playable"), |_| false);
         assert_eq!(
-            get(&env, "NOVA_MOD_CACHE_ROOT").as_deref(),
+            get(&env, "NOVA_MODDING_CACHE_ROOT").as_deref(),
             Some("/repo/probe-runs/abc/playable/profile/mods")
         );
         assert_eq!(
@@ -175,8 +179,8 @@ mod tests {
         let a = env_with(Path::new("/repo/probe-runs/abc/playable"), |_| false);
         let b = env_with(Path::new("/repo/probe-runs/abc/scenario"), |_| false);
         assert_ne!(
-            get(&a, "NOVA_MOD_CACHE_ROOT"),
-            get(&b, "NOVA_MOD_CACHE_ROOT"),
+            get(&a, "NOVA_MODDING_CACHE_ROOT"),
+            get(&b, "NOVA_MODDING_CACHE_ROOT"),
             "two runs never share downloaded-mod state"
         );
     }
@@ -186,9 +190,9 @@ mod tests {
         let run_dir = Path::new("/repo/probe-runs/abc/playable");
         // One override: that variable is left to the operator, the rest of
         // the sandbox still applies.
-        let env = env_with(run_dir, |var| var == "NOVA_MOD_CACHE_ROOT");
+        let env = env_with(run_dir, |var| var == "NOVA_MODDING_CACHE_ROOT");
         assert_eq!(
-            get(&env, "NOVA_MOD_CACHE_ROOT"),
+            get(&env, "NOVA_MODDING_CACHE_ROOT"),
             None,
             "probe must not overwrite a deliberate mod-cache override"
         );

@@ -77,7 +77,7 @@ impl NativeStorage {
 
     /// The store at `$NOVA_CONFIG_ROOT`, else `dirs::config_dir()/nova-protocol`.
     ///
-    /// The override is the config-dir twin of `NOVA_MOD_CACHE_ROOT` and exists
+    /// The override is the config-dir twin of `NOVA_MODDING_CACHE_ROOT` and exists
     /// for the same reason: a test or tool that exercises the save path must
     /// not overwrite the developer's real settings.
     pub fn available() -> Option<Self> {

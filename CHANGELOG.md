@@ -249,6 +249,7 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Modding & Mod Portal
 
+- **(breaking)** The mod portal and cache take the `NOVA_MODDING_*` prefix: `NOVA_MOD_CACHE_ROOT` is `NOVA_MODDING_CACHE_ROOT` and `NOVA_PORTAL_URL` is `NOVA_MODDING_PORTAL_URL`.
 - **(breaking)** A mod declares its own balance acknowledgments in a
   `balance_acks.ron` beside its manifest; the linter reads them from the bundle
   it lints. No list in this repository names a mod.
