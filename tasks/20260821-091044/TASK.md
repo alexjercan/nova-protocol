@@ -1,6 +1,6 @@
 # Give the environment variables one shape, one home, and one page
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 
