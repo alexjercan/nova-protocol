@@ -351,8 +351,13 @@ fn insert_spaceship_sections(
     let Ok((hull_source, spawn_modifications, controller_config, transform)) =
         q_spaceship.get(entity)
     else {
-        error!(
-            "insert_spaceship_sections: entity {:?} not found in q_spaceship",
+        // NOT an error: a root with no [`SpaceshipHull`] is a hull somebody
+        // built by hand rather than one a scenario authored, and an example or
+        // a test is entitled to spawn one. This observer only owns the AUTHORED
+        // path. Logging it as an error made `system_section_severing` fail
+        // `log_clean` for behaving correctly.
+        debug!(
+            "insert_spaceship_sections: entity {:?} carries no authored hull, so it is not a scenario ship",
             entity
         );
         return;

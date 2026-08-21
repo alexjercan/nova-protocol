@@ -54,7 +54,11 @@ fn range_plugin(app: &mut App) {
     // `AppBuilder` exists to stop a range from having to know.
     app.init_resource::<SeverProbe>();
     app.add_systems(Startup, setup_range);
-    app.add_systems(Update, drive_range);
+    // Gated on `Playing`, because the range EXITS on a frame count once the
+    // sever invariants hold. Headless it verifies and shuts down inside 136
+    // frames, sooner than the loading screen finishes, so an ungated range
+    // failed `reached_playing` while every assertion passed.
+    app.add_systems(Update, drive_range.run_if(in_state(GameStates::Playing)));
 }
 
 fn spawn_part(

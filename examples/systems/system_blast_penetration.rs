@@ -65,7 +65,12 @@ fn range_plugin(app: &mut App) {
     app.init_resource::<DamageSeen>();
     app.add_observer(record_probe_damage);
     app.add_systems(Startup, setup_range);
-    app.add_systems(Update, verify_range);
+    // Gated on `Playing`, because the range EXITS on a frame count once its
+    // assertions hold. Headless the blasts resolve inside 32 frames, which is
+    // sooner than the loading screen finishes, so an ungated range shut the app
+    // down before it ever entered `Playing` and failed `reached_playing` while
+    // every pressure assertion passed.
+    app.add_systems(Update, verify_range.run_if(in_state(GameStates::Playing)));
 }
 
 fn spawn_part(
