@@ -37,6 +37,7 @@ pub mod objectives;
 pub mod plugin;
 pub mod projectile_hooks;
 pub mod relations;
+pub mod rounds;
 pub mod settings;
 pub mod shake;
 #[cfg(any(test, feature = "test-support"))]
@@ -95,8 +96,8 @@ pub mod prelude {
         damage::prelude::*, gravity::prelude::*, integrity::prelude::*, juice::prelude::*,
         lifetime::prelude::*, markers::prelude::*, math::prelude::*, mesh::prelude::*,
         objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
-        relations::prelude::*, settings::prelude::*, shake::prelude::*, transform::prelude::*,
-        EscapeOwner, GameMode, GameStates, PauseStates,
+        relations::prelude::*, rounds::prelude::*, settings::prelude::*, shake::prelude::*,
+        transform::prelude::*, EscapeOwner, GameMode, GameStates, PauseStates,
     };
 }
 

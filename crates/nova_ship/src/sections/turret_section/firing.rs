@@ -6,142 +6,45 @@ use std::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use bevy_rand::prelude::{GlobalRng, WyRand};
 use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
 use nova_gameplay::lifetime::TempEntity;
+use rand::RngExt;
 
 use super::*;
 use crate::{physics::prelude::rigid_body_point_velocity, sections::local_pose_in_root};
-
-/// A bullet deals its bite to the first TANGIBLE thing it meets, and its type
-/// decides whether it travels on.
-///
-/// Nova OWNS the damage here: the bullet is a near-zero-mass Sensor (see the
-/// spawn bundle), so the emergent kinetic term is negligible; instead this
-/// deals the bullet's authored [`ProjectileDamage`], scaled only by the CLOSING
-/// SPEED curve of its type, and triggers `HealthApplyDamage` itself.
-///
-/// The closing speed is the round's own arrival energy, so it is computed here
-/// rather than at the muzzle: the same relative-velocity term
-/// `on_impact_collision_deal_damage` uses for a ram, projected onto the round's
-/// line of flight. A charging shooter's rounds arrive faster; a fleeing
-/// target's slower.
-///
-/// [`spend_piercing_damage`] then decides the round's own fate. A Kinetic round
-/// that merely dents its target is expended on it, as it always was - that
-/// despawn is what stops a sensor round crossing the target and damaging every
-/// event-enabled collider along its line - and one that DESTROYS its target
-/// flies on with what its budget had left. A Pierce round is not stopped by
-/// being alive: it pays that layer's thickness out of its power and rakes on
-/// through. `amount` is zeroed when a round stops because the despawn is
-/// deferred: a second contact in the same flush must find nothing left.
-///
-/// The OTHER side must not itself be a pure volume: scenario trigger
-/// areas, beacon spheres and blast shells are Sensor colliders with
-/// collision events enabled, and expending rounds at a beacon's 70u
-/// trigger boundary made the pirate un-hittable while it patrolled near
-/// one. A sensor-vs-sensor pair is two intangibles crossing - nothing to
-/// expend on.
-pub(super) fn resolve_bullet_hit(
-    collision: On<CollisionStart>,
-    mut commands: Commands,
-    mut q_bullets: Query<Option<&mut ProjectileDamage>, With<TurretBulletProjectileMarker>>,
-    q_sensors: Query<(), With<Sensor>>,
-    q_health: Query<&Health>,
-    q_events: Query<(), With<CollisionEventsEnabled>>,
-    q_velocity: Query<&LinearVelocity>,
-    q_where: Query<&GlobalTransform>,
-) {
-    // Avian raises one CollisionStart per EVENT-ENABLED collider, so a contact
-    // with events on both sides - a production round, which carries its own,
-    // against any health-bearing collider, which the integrity hook enables -
-    // arrives TWICE with the orderings swapped. Only the ordering that names the
-    // round first may act, or one contact is charged twice. The mirrored event
-    // does not always exist (a round with no events of its own is reported only
-    // as the target's `collider2`), so the second ordering stays for that case.
-    let mirrored = q_events.contains(collision.collider1) && q_events.contains(collision.collider2);
-    let pairs: &[(Option<Entity>, Option<Entity>, Entity)] = if mirrored {
-        &[(collision.body1, collision.body2, collision.collider2)]
-    } else {
-        &[
-            (collision.body1, collision.body2, collision.collider2),
-            (collision.body2, collision.body1, collision.collider1),
-        ]
-    };
-    for &(body, other_body, other_collider) in pairs {
-        let Some(body) = body else {
-            continue;
-        };
-        // Membership gate: is this body a turret bullet? (`damage` is None only
-        // for bare test rigs; production bullets always carry it.)
-        let Ok(damage) = q_bullets.get_mut(body) else {
-            continue;
-        };
-        if q_sensors.contains(other_collider) {
-            // A trigger/blast volume: the round flies on through.
-            continue;
-        }
-        let Some(mut damage) = damage else {
-            trace!("resolve_bullet_hit: bullet {:?} expended", body);
-            commands.entity(body).try_despawn();
-            continue;
-        };
-        if damage.amount <= 0.0 {
-            // Already spent earlier in this flush; its despawn is still queued.
-            continue;
-        }
-        // Velocities live on the BODIES, not the colliders. A target with no
-        // body of its own (or no velocity: a Static planetoid) counts as at
-        // rest, which is what it is.
-        let velocity = |entity: Option<Entity>| {
-            entity
-                .and_then(|entity| q_velocity.get(entity).ok())
-                .map_or(Vec3::ZERO, |velocity| **velocity)
-        };
-        let closing = closing_speed(velocity(Some(body)), velocity(other_body));
-        // The bullet is the source, carrying ProjectileOwner for threat
-        // attribution. A collider with no Health is a wall to either type.
-        let health = q_health.get(other_collider).ok();
-        // The round's own position, which on the frame a contact is reported is
-        // the hit point: a bullet is small next to the cell the carve is
-        // quantized to, so refining it against the contact manifold would buy
-        // nothing anything downstream can draw.
-        let at = q_where
-            .get(body)
-            .ok()
-            .map(|transform| transform.translation());
-        match spend_piercing_damage(
-            &mut commands,
-            other_collider,
-            Some(body),
-            health,
-            *damage,
-            closing,
-            at,
-        ) {
-            Some(remaining) => {
-                trace!(
-                    "resolve_bullet_hit: bullet {:?} travels on ({:?}, {} power, {} layers)",
-                    body,
-                    remaining.kind,
-                    remaining.power,
-                    remaining.layers
-                );
-                *damage = remaining;
-            }
-            None => {
-                trace!("resolve_bullet_hit: bullet {:?} expended", body);
-                damage.amount = 0.0;
-                commands.entity(body).try_despawn();
-            }
-        }
-    }
-}
 
 /// A runaway-config backstop for the multi-shot loop: at 64 Hz ticks this
 /// caps the effective fire rate at 512 rounds/s per barrel, far above any
 /// authored turret; without it a zero-ish fire interval would spawn
 /// unboundedly inside one tick.
 const MAX_SHOTS_PER_TICK: u32 = 8;
+
+/// Half-angle of the cone a round leaves the muzzle in: 0.1 degrees.
+///
+/// A LOOK number, and it cannot be read as a balance lever in either
+/// direction. The fire gate already lets a barrel shoot from anywhere inside
+/// [`TURRET_ON_TARGET_RAD`] - 0.92 deg, 2.4 u of lateral miss at the 150 u
+/// point-defense envelope - so 0.26 u of extra scatter at that range makes
+/// each round marginally WORSE than the aim it was fired on, never better.
+/// Spread cannot raise a hit rate; it is here so a stream reads as a gun
+/// throwing rounds instead of one laser-straight line of them.
+///
+/// A FEEL number: tuned by eye, wide enough to see the stream fray at gunfight
+/// range and far too narrow to argue with the gate above it.
+const MUZZLE_SPREAD_RAD: f32 = 0.1 * std::f32::consts::PI / 180.0;
+
+/// A tilt of up to [`MUZZLE_SPREAD_RAD`] about a random axis square to the
+/// barrel, drawn off the SEEDED stream so a replayed run scatters identically.
+///
+/// The barrel points -Z in its own frame, so any axis in the local XY plane
+/// swings a round off it; `sqrt` on the tilt keeps the draw uniform over the
+/// cone's disc instead of piling rounds onto the axis.
+fn muzzle_spread(rng: &mut impl RngExt) -> Quat {
+    let azimuth: f32 = rng.random_range(0.0..std::f32::consts::TAU);
+    let tilt = MUZZLE_SPREAD_RAD * rng.random_range(0.0..1.0f32).sqrt();
+    Quat::from_axis_angle(Vec3::new(azimuth.cos(), azimuth.sin(), 0.0), tilt)
+}
 
 pub(super) fn shoot_spawn_projectile(
     mut commands: Commands,
@@ -175,6 +78,11 @@ pub(super) fn shoot_spawn_projectile(
     q_chain: Query<(&Transform, &ChildOf)>,
     q_hot: Query<&WeaponsHot>,
     q_defense: Query<(&PointDefenseMount, &TurretDefenseTarget)>,
+    // OPTIONAL on purpose. Spread is cosmetic, so it must never be able to
+    // gate the fire path: a rig with no `EntropyPlugin` (a bare unit-test app)
+    // fires perfectly straight rounds rather than silently firing none, which
+    // is what a plain `Single` would do.
+    mut rng: Option<Single<&mut WyRand, With<GlobalRng>>>,
 ) {
     let dt = time.delta_secs();
     for (
@@ -313,8 +221,6 @@ pub(super) fn shoot_spawn_projectile(
             let center_of_mass = position.0 + rotation.mul_vec3(**center);
             let inertia_vel =
                 rigid_body_point_velocity(**lin_vel, **ang_vel, center_of_mass, muzzle_position);
-            let muzzle_exit_velocity = muzzle_direction * config.muzzle_speed;
-            let linear_velocity = muzzle_exit_velocity + inertia_vel;
 
             let interval = fire_state.duration().as_secs_f32();
             // How far past due the shot came within this tick window. A timer
@@ -337,6 +243,17 @@ pub(super) fn shoot_spawn_projectile(
                     }
                 }
 
+                // Drawn PER ROUND, not per muzzle: a barrel firing several
+                // times inside one tick must not send that whole burst down the
+                // same perturbed line, which is exactly the laser this exists
+                // to break up. The NOMINAL bearing is what the fire gate above
+                // judged - spread is applied after it, so scatter can never
+                // talk a barrel into shooting.
+                let exit_rotation =
+                    projectile_rotation * rng.as_deref_mut().map_or(Quat::IDENTITY, muzzle_spread);
+                let muzzle_exit_velocity = (exit_rotation * Vec3::NEG_Z) * config.muzzle_speed;
+                let linear_velocity = muzzle_exit_velocity + inertia_vel;
+
                 // Sub-tick exactness: a shot due `lead` seconds into this tick
                 // starts one lead-time of muzzle-exit travel BEHIND the muzzle,
                 // so after this tick's integration it sits exactly where a
@@ -344,10 +261,21 @@ pub(super) fn shoot_spawn_projectile(
                 // uniformly spaced at any ship velocity. (The ship-motion terms
                 // cancel: spawn = muzzle + (v_muzzle - v_bullet) * lead, and
                 // v_bullet - v_muzzle is the muzzle exit velocity.)
+                //
+                // So the offset is backed off along the round's OWN exit
+                // velocity, spread included, and not along the nominal bearing:
+                // the identity it rests on is about the velocity this round
+                // actually carries. Back it off along the nominal line instead
+                // and the round no longer starts on its own ray through the
+                // muzzle - back-projecting it misses the barrel sideways, which
+                // is the one place the scatter would be visible as a defect
+                // rather than as a gun.
                 let lead = dt - excess;
                 let projectile_transform = Transform {
                     translation: muzzle_position - muzzle_exit_velocity * lead,
-                    rotation: projectile_rotation,
+                    // The round points where it FLIES, which also keeps the
+                    // rotation easing seeded below a no-op: start equals end.
+                    rotation: exit_rotation,
                     ..default()
                 };
 
@@ -356,50 +284,21 @@ pub(super) fn shoot_spawn_projectile(
                     TurretBulletProjectileMarker,
                     ProjectileOwner(*spaceship),
                     projectile_transform,
-                    RigidBody::Dynamic,
-                    LinearVelocity(linear_velocity),
-                    // Sensor: the impact-damage observer computes damage from
-                    // masses and velocities, never from the solver contact -
-                    // so a bullet needs NO physical contact response, and a
-                    // solid one was the knockback bug (mass 0.1 at 100 u/s
-                    // plus restitution shoved a ~4-mass ship ~3 u/s per hit;
-                    // playtest round 2 finding 2). resolve_bullet_hit
-                    // keeps a sensor round from crossing on through every
-                    // collider behind the first - it flies on only through
-                    // what it destroyed, and only while its damage budget
-                    // lasts. CollisionEventsEnabled is
-                    // carried by the BULLET because the other side may not
-                    // have it: an invulnerable planetoid's collider has no
-                    // Health, so collision events are never enabled on it, and an
-                    // event-less sensor pair raises nothing - rounds tunneled
-                    // straight through solid cover (review R1.2 MAJOR).
-                    // Nested tuple: bundle arity.
-                    (Collider::sphere(0.05), Sensor, CollisionEventsEnabled),
-                    ActiveCollisionHooks::FILTER_PAIRS,
-                    // Near-zero mass so the emergent kinetic term (mass x velocity)
-                    // vanishes; nova's authored ProjectileDamage is the only weapon
-                    // damage. Gravity is mass-independent, so flight is unaffected.
-                    // Nested tuple: bundle arity.
-                    (
-                        Mass(NEUTRALIZED_BULLET_MASS),
-                        // A Dynamic body needs finite, non-zero ANGULAR INERTIA too, or
-                        // avian warns "no mass or inertia" once per fired round and
-                        // risks NaN. The Sensor collider above
-                        // contributes no mass properties, and the neutralized `Mass`
-                        // carries no inertia of its own, so derive a matching sphere
-                        // inertia from the same shape + mass. The bullet never takes
-                        // torque (sensor, authored damage, no angular velocity), so the
-                        // value only has to be VALID, not tuned - flight is unaffected.
-                        AngularInertia::from_shape(
-                            &Collider::sphere(0.05),
-                            NEUTRALIZED_BULLET_MASS,
-                        ),
-                        // The fired round comes from the turret's loaded-ammo slot,
-                        // not a hardcoded type, so a future ammo switch changes
-                        // what this stamps. The closing-speed scaling is applied
-                        // at the HIT, not here - the target is not known yet.
-                        ProjectileDamage::new(bullet_damage, bullet_kind),
-                    ),
+                    // NOT a rigid body, and not a collider either. A round is
+                    // swept by `nova_gameplay::rounds`: it has no contact
+                    // response to configure, no mass to neutralize, no
+                    // speculative margin to generate phantom pairs against
+                    // every other round in the air, and it cannot tunnel. The
+                    // whole bundle a body needed - RigidBody, Collider, Sensor,
+                    // CollisionEventsEnabled, ActiveCollisionHooks, Mass,
+                    // AngularInertia - existed to make avian carry something it
+                    // was never allowed to influence.
+                    RoundVelocity(linear_velocity),
+                    // The fired round comes from the turret's loaded-ammo slot,
+                    // not a hardcoded type, so a future ammo switch changes
+                    // what this stamps. The closing-speed scaling is applied
+                    // at the HIT, not here - the target is not known yet.
+                    ProjectileDamage::new(bullet_damage, bullet_kind),
                     TurretSectionPartOf(turret),
                     TurretSectionMuzzleEntity(muzzle),
                     BulletProjectileRenderMesh(config.projectile_render_mesh.clone()),
@@ -425,7 +324,7 @@ pub(super) fn shoot_spawn_projectile(
                             end: None,
                         },
                         RotationEasingState {
-                            start: Some(projectile_rotation),
+                            start: Some(exit_rotation),
                             end: None,
                         },
                     ),
@@ -923,46 +822,6 @@ mod tests {
         );
     }
 
-    /// Every fired round is a Dynamic body, so avian needs it to have finite,
-    /// non-zero mass AND angular inertia - otherwise it logs "no mass or inertia"
-    /// once per shot and warns of NaN. The Sensor collider
-    /// contributes no mass properties and the neutralized `Mass` carries no
-    /// inertia of its own, so the spawn adds an explicit sphere `AngularInertia`.
-    /// Fire a real round through the production path under physics and read what
-    /// avian actually COMPUTED (not just that a component is present).
-    #[test]
-    fn a_fired_bullet_has_finite_nonzero_mass_and_inertia() {
-        use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app_with};
-
-        // A physics app so avian's mass-property systems actually run; the helper
-        // sets a 1/60 s manual step, and `settle` steps a few times (the first
-        // fires the round; the rest let avian finalize the new body's masses).
-        let mut app = unfinished_integrity_physics_app_with(PhysicsPlugins::default());
-        app.add_systems(Update, shoot_spawn_projectile);
-        app.finish();
-
-        spawn_firing_turret(&mut app, Some(1));
-        settle(&mut app);
-
-        let world = app.world_mut();
-        let (mass, inertia) = world
-            .query_filtered::<(&ComputedMass, &ComputedAngularInertia), With<TurretBulletProjectileMarker>>()
-            .single(world)
-            .expect("exactly one fired bullet exists");
-
-        let m = mass.value();
-        assert!(
-            m.is_finite() && m > 0.0,
-            "a fired bullet needs finite non-zero mass, got {m}"
-        );
-        let (principal, _frame) = inertia.principal_angular_inertia_with_local_frame();
-        assert!(
-            principal.is_finite() && principal.min_element() > 0.0,
-            "a fired bullet needs finite non-zero angular inertia on every axis \
-             (else avian logs 'no mass or inertia' per shot and risks NaN), got {principal:?}"
-        );
-    }
-
     #[test]
     fn a_turret_without_ammo_keeps_firing_past_a_magazine() {
         // A/B control for the gate: the identical rig with no `SectionAmmo`
@@ -1275,684 +1134,44 @@ mod tests {
             .0 = true;
     }
 
-    /// Bullets from a fast ship must form a uniformly spaced, collinear
-    /// stream. The old Update-schedule spawn sampled
-    /// the EASED muzzle pose at render-frame shot times with a static 0.01 s
-    /// nudge, so each shot picked up a different fraction of a tick of ship
-    /// motion - at 150 u/s the stream scattered by whole units ("bullets
-    /// spew out"). On the raw clock with sub-tick lead compensation the
-    /// inter-bullet spacing is exact: every consecutive delta equals
-    /// Sensor bullets deal damage without knockback and die on the first
-    /// hit (playtest round 2 finding 2). Before the Sensor change, a
-    /// solid 0.1-mass round at 100 u/s shoved a unit-cube target ~2.5+
-    /// u/s per hit (momentum 10 into the target mass, amplified by
-    /// restitution 0.5) - "1 bullet sends you off like crazy". The emergent
-    /// damage observer computes from masses and velocities, not the
-    /// solver contact, so removing the contact response leaves damage
-    /// intact. Delivery guards: the health drop proves the hit landed
-    /// (a missed bullet would also read zero knockback), and the despawn
-    /// proves a sensor round cannot sail on through everything behind
-    /// the target.
-    #[test]
-    fn sensor_bullets_damage_without_knockback() {
-        use nova_gameplay::{
-            projectile_hooks::ProjectileHooks,
-            test_support::{settle, unfinished_integrity_physics_app_with},
-        };
-        let mut app = unfinished_integrity_physics_app_with(
-            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
-        );
-        app.add_observer(resolve_bullet_hit);
-        app.finish();
-
-        // A free-floating target with health: one body, one collider.
-        let target = app
-            .world_mut()
-            .spawn((
-                Name::new("target"),
-                RigidBody::Dynamic,
-                Transform::default(),
-                Collider::cuboid(2.0, 2.0, 2.0),
-                ColliderDensity(1.0),
-                Health::new(100.0),
-            ))
-            .id();
-        settle(&mut app);
-
-        // A bullet with the OLD emergent-kinetic shape (Mass 0.1, no
-        // ProjectileDamage) on purpose: this test isolates the physics-contact
-        // behavior - knockback and no-tunnel-through - so it drives the
-        // emergent damage rather than the typed path. The production bullet now
-        // spawns near-zero mass + ProjectileDamage; its typed damage is covered
-        // by `typed_bullet_applies_resistance_scaled_damage`.
-        let bullet = app
-            .world_mut()
-            .spawn((
-                Name::new("bullet"),
-                TurretBulletProjectileMarker,
-                RigidBody::Dynamic,
-                Transform::from_translation(Vec3::Z * 5.0),
-                Sensor,
-                Collider::sphere(0.05),
-                Mass(0.1),
-                LinearVelocity(Vec3::NEG_Z * 100.0),
-            ))
-            .id();
-
-        // 5u at 100 u/s: contact within ~0.05s; run a quarter second.
-        for _ in 0..15 {
-            app.update();
-        }
-
-        let health = app
-            .world()
-            .get::<Health>(target)
-            .expect("target still exists")
-            .current;
-        assert!(
-            health < 100.0,
-            "delivery guard: the bullet must actually hit and damage, health {health}"
-        );
-        let speed = app
-            .world()
-            .get::<LinearVelocity>(target)
-            .expect("target body")
-            .length();
-        assert!(
-            speed < 0.05,
-            "a sensor bullet imparts no knockback (pre-fix: ~2.5+ u/s), got {speed}"
-        );
-        assert!(
-            app.world().get_entity(bullet).is_err(),
-            "the round is expended on its first hit"
-        );
-    }
-
-    /// Production-faithful typed damage: a bullet as the turret now spawns it -
-    /// near-zero mass (so the emergent kinetic is negligible) plus an authored
-    /// [`ProjectileDamage`] - hits a section and deals the number the weapon
-    /// authored. Damage is ONE number now: what a round deals does not depend on
-    /// which section it lands on, for either type. The drop is the nova-authored
-    /// amount, NOT the old mass x velocity emergent (which the neutralized mass
-    /// reduces to ~0), and it lands exactly once.
+    /// Bullets from a fast ship must keep an EXACT stride down the exit axis.
+    /// The old Update-schedule spawn sampled the EASED muzzle pose at
+    /// render-frame shot times with a static 0.01 s nudge, so each shot picked
+    /// up a different fraction of a tick of ship motion - at 150 u/s the
+    /// stream scattered by whole units ("bullets spew out"). On the raw clock
+    /// with sub-tick lead compensation the along-axis spacing is exact: every
+    /// consecutive delta projects onto the exit direction as
+    /// muzzle_speed * fire_interval, regardless of ship velocity. The 24
+    /// rounds/s rate beats against the 64 Hz tick so shots sample every phase
+    /// of the tick window - drop the lead compensation and the stride
+    /// quantizes to whole ticks (6.25 u and 9.375 u against the true 8.33 u),
+    /// which is what this pins.
     ///
-    /// The round flies at exactly [`REFERENCE_CLOSING_SPEED`] into a target at
-    /// rest, so the Kinetic curve reads 1.0 and the authored number is the
-    /// expected one.
+    /// Measured ALONG that axis rather than as a collinearity, because
+    /// `MUZZLE_SPREAD_RAD` is a LATERAL perturbation and consecutive rounds
+    /// are deliberately no longer on one line. The rig runs a seeded
+    /// `EntropyPlugin` so the spread is live here instead of quietly switched
+    /// off, and the cross-stream half of the old claim survives as the CONE:
+    /// a round that has flown `d` down the axis may sit at most
+    /// `d * tan(spread)` off it - a fifth of a unit across this whole stream,
+    /// where the scatter this test was written against ran to whole units.
     #[test]
-    fn a_bullet_deals_its_authored_damage_whatever_section_it_hits() {
+    fn bullet_stream_keeps_its_exact_stride_at_high_ship_velocity() {
+        use bevy_rand::prelude::EntropyPlugin;
         use nova_gameplay::{
-            projectile_hooks::ProjectileHooks,
+            rounds::NovaRoundPlugin,
             test_support::{settle, unfinished_integrity_physics_app_with},
         };
-        fn hit_drop(class: SectionClass, damage: ProjectileDamage) -> f32 {
-            let mut app = unfinished_integrity_physics_app_with(
-                PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
-            );
-            app.add_observer(resolve_bullet_hit);
-            app.finish();
-
-            let start_hp = 1000.0;
-            let target = app
-                .world_mut()
-                .spawn((
-                    Name::new("target"),
-                    RigidBody::Dynamic,
-                    Transform::default(),
-                    Collider::cuboid(2.0, 2.0, 2.0),
-                    ColliderDensity(1.0),
-                    Health::new(start_hp),
-                    class,
-                ))
-                .id();
-            settle(&mut app);
-
-            app.world_mut().spawn((
-                Name::new("bullet"),
-                TurretBulletProjectileMarker,
-                RigidBody::Dynamic,
-                Transform::from_translation(Vec3::Z * 5.0),
-                Sensor,
-                Collider::sphere(0.05),
-                Mass(NEUTRALIZED_BULLET_MASS),
-                damage,
-                LinearVelocity(Vec3::NEG_Z * REFERENCE_CLOSING_SPEED),
-            ));
-            for _ in 0..15 {
-                app.update();
-            }
-            start_hp
-                - app
-                    .world()
-                    .get::<Health>(target)
-                    .expect("target still exists")
-                    .current
-        }
-
-        let amount = 20.0;
-        // Every section class, both bullet types, one expected number. Tolerance
-        // covers the ~2e-4 emergent residual from the neutralized mass. This
-        // fails the moment anything reintroduces a per-section multiplier.
-        for class in [
-            SectionClass::Hull,
-            SectionClass::Thruster,
-            SectionClass::Controller,
-            SectionClass::Turret,
-            SectionClass::Torpedo,
-        ] {
-            for kind in [DamageType::Kinetic, DamageType::Pierce] {
-                let dealt = hit_drop(class, ProjectileDamage::new(amount, kind));
-                assert!(
-                    (dealt - amount).abs() < 0.05,
-                    "{kind:?} into {class:?} must deal its authored {amount}, dealt {dealt}"
-                );
-            }
-        }
-    }
-
-    /// The two collision-event blind spots review R1.1/R1.2 caught in the
-    /// sensor-bullet change: a round crossing a pure trigger volume (a
-    /// beacon sphere - Sensor + events, no solidity) must SURVIVE, or the
-    /// pirate goes un-hittable while patrolling near a beacon; and a round
-    /// into an event-less solid (an invulnerable planetoid's collider has
-    /// no Health, so collision events are never enabled on it) must still expend
-    /// instead of tunneling through cover - the bullet carries its own
-    /// CollisionEventsEnabled for exactly that pair.
-    #[test]
-    fn bullets_ignore_trigger_volumes_and_stop_at_event_less_solids() {
-        use nova_gameplay::{
-            projectile_hooks::ProjectileHooks,
-            test_support::{settle, unfinished_integrity_physics_app_with},
-        };
-        let mut app = unfinished_integrity_physics_app_with(
-            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
-        );
-        app.add_observer(resolve_bullet_hit);
-        app.finish();
-
-        // A beacon-style trigger volume in the flight path...
-        app.world_mut().spawn((
-            Name::new("trigger"),
-            RigidBody::Static,
-            Transform::from_translation(Vec3::Z * 6.0),
-            Collider::sphere(2.0),
-            Sensor,
-            CollisionEventsEnabled,
+        // Physics for the SHIP, `NovaRoundPlugin` for the rounds it fires: a
+        // round is not a body, so avian moves the rig and the sweep moves the
+        // stream. No collision hooks - a round never reaches the pair filter.
+        let mut app = unfinished_integrity_physics_app_with(PhysicsPlugins::default());
+        app.add_plugins(NovaRoundPlugin);
+        // Seeded, so the scatter this asserts a bound on is the same scatter
+        // every run.
+        app.add_plugins(EntropyPlugin::<WyRand>::with_seed(
+            20260821u64.to_ne_bytes(),
         ));
-        // ...and an invulnerable-planetoid stand-in behind it: solid,
-        // no Health, no CollisionEventsEnabled of its own.
-        app.world_mut().spawn((
-            Name::new("event-less solid"),
-            RigidBody::Static,
-            Transform::default(),
-            Collider::cuboid(3.0, 3.0, 1.0),
-        ));
-        settle(&mut app);
-
-        let bullet = app
-            .world_mut()
-            .spawn((
-                Name::new("bullet"),
-                TurretBulletProjectileMarker,
-                RigidBody::Dynamic,
-                Transform::from_translation(Vec3::Z * 10.0),
-                (Collider::sphere(0.05), Sensor, CollisionEventsEnabled),
-                Mass(0.1),
-                LinearVelocity(Vec3::NEG_Z * 100.0),
-            ))
-            .id();
-
-        // Run to just past the trigger (4u of travel = 0.04s) but short of
-        // the solid: the round must still be alive after crossing the
-        // volume.
-        for _ in 0..4 {
-            app.update();
-        }
-        assert!(
-            app.world().get_entity(bullet).is_ok(),
-            "a round crossing a trigger volume must fly on (review R1.1)"
-        );
-
-        // Run into the solid: the round expends even though the solid has
-        // no events of its own.
-        for _ in 0..12 {
-            app.update();
-        }
-        assert!(
-            app.world().get_entity(bullet).is_err(),
-            "a round must stop at an event-less solid instead of tunneling \
-             (review R1.2)"
-        );
-    }
-
-    /// The pierce harness flies at the anchor, where both speed curves read 1.0,
-    /// so every budget assertion is the pure pierce arithmetic. Tests that are
-    /// ABOUT speed pass their own.
-    const PIERCE_TEST_SPEED: f32 = REFERENCE_CLOSING_SPEED;
-
-    /// Plate thickness and spacing along the line of flight. A round at the
-    /// anchor speed covers 1.67 u per 1/60 s step, so a 4-unit plate is sampled
-    /// twice over and a 6-unit pitch leaves a real gap between plates: nothing
-    /// under test can tunnel, and nothing lands two plates in one step.
-    const PIERCE_PLATE_THICKNESS: f32 = 4.0;
-    const PIERCE_PLATE_PITCH: f32 = 6.0;
-
-    /// The pierce harness: a real avian world plus the hit observer, wired as
-    /// the neighbouring typed-damage tests wire it.
-    fn pierce_app() -> App {
-        use nova_gameplay::{
-            projectile_hooks::ProjectileHooks, test_support::unfinished_integrity_physics_app_with,
-        };
-        let mut app = unfinished_integrity_physics_app_with(
-            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
-        );
-        app.add_observer(resolve_bullet_hit);
-        app.finish();
-        app
-    }
-
-    /// A free-floating slab of `hp` centred at `z`, [`PIERCE_PLATE_THICKNESS`]
-    /// deep along the round's line of flight.
-    ///
-    /// Deliberately NO `ConnectedTo`: a slab that reaches zero health is
-    /// disabled rather than destroyed, which keeps the render-facing explode
-    /// observers (they cannot run headless) out of these tests. The pierce rule
-    /// keys on the health pool, not on the destroy marker, so what is under test
-    /// is unaffected.
-    fn spawn_plate(app: &mut App, z: f32, hp: f32) -> Entity {
-        app.world_mut()
-            .spawn((
-                Name::new("plate"),
-                RigidBody::Dynamic,
-                Transform::from_translation(Vec3::Z * z),
-                Collider::cuboid(8.0, 8.0, PIERCE_PLATE_THICKNESS),
-                ColliderDensity(1.0),
-                Health::new(hp),
-            ))
-            .id()
-    }
-
-    /// A production-shaped round flying -Z from `z` at `speed`: neutralized
-    /// mass, sensor collider carrying its own collision events, and `amount` of
-    /// authored budget. The plates carry no `SectionClass`, so resistance
-    /// is 1.0 everywhere and the arithmetic reads directly.
-    fn spawn_round_at(app: &mut App, z: f32, amount: f32, kind: DamageType, speed: f32) -> Entity {
-        app.world_mut()
-            .spawn((
-                Name::new("bullet"),
-                TurretBulletProjectileMarker,
-                RigidBody::Dynamic,
-                Transform::from_translation(Vec3::Z * z),
-                (Collider::sphere(0.05), Sensor, CollisionEventsEnabled),
-                Mass(NEUTRALIZED_BULLET_MASS),
-                ProjectileDamage::new(amount, kind),
-                LinearVelocity(Vec3::NEG_Z * speed),
-            ))
-            .id()
-    }
-
-    /// A Kinetic round at the anchor closing speed: the pre-speed round.
-    fn spawn_round(app: &mut App, z: f32, amount: f32) -> Entity {
-        spawn_round_at(app, z, amount, DamageType::Kinetic, PIERCE_TEST_SPEED)
-    }
-
-    fn plate_health(app: &App, plate: Entity) -> f32 {
-        app.world()
-            .get::<Health>(plate)
-            .expect("plate still exists")
-            .current
-    }
-
-    /// A Kinetic round that only dents its target is expended on it whatever
-    /// budget arithmetic says - the pre-pierce behaviour, and the reason armour
-    /// that HOLDS is still a wall. The Pierce contrast is
-    /// `a_fast_pierce_round_crosses_a_living_section_and_hits_what_is_behind`.
-    #[test]
-    fn a_kinetic_round_stops_on_a_target_it_fails_to_destroy() {
-        use nova_gameplay::test_support::settle;
-        let mut app = pierce_app();
-        let plate = spawn_plate(&mut app, 0.0, 100.0);
-        settle(&mut app);
-        let round = spawn_round(&mut app, 8.0, 20.0);
-
-        for _ in 0..20 {
-            app.update();
-        }
-
-        assert!(
-            (plate_health(&app, plate) - 80.0).abs() < 0.05,
-            "the whole 20-damage budget lands on the plate, got {}",
-            plate_health(&app, plate)
-        );
-        assert!(
-            app.world().get_entity(round).is_err(),
-            "a round that fails to destroy its target must be expended on it"
-        );
-    }
-
-    /// One contact is charged ONCE. Avian raises a `CollisionStart` per
-    /// event-enabled collider, and a production round (its own
-    /// `CollisionEventsEnabled`) hitting a health-bearing collider (events
-    /// enabled by the integrity hook) is event-enabled on both sides - so the
-    /// hit arrives twice with the orderings swapped and the round used to pay
-    /// its authored damage out twice (20 authored, 40 dealt). The budget makes
-    /// that fatal rather than merely wrong: a mirrored contact would also debit
-    /// the budget twice.
-    #[test]
-    fn a_round_deals_its_authored_damage_once_per_contact() {
-        use nova_gameplay::test_support::settle;
-        let mut app = pierce_app();
-        let plate = spawn_plate(&mut app, 0.0, 1000.0);
-        settle(&mut app);
-        spawn_round(&mut app, 8.0, 20.0);
-
-        for _ in 0..20 {
-            app.update();
-        }
-
-        let dealt = 1000.0 - plate_health(&app, plate);
-        assert!(
-            (dealt - 20.0).abs() < 0.05,
-            "a round authored at 20 must deal 20, not the mirrored 40: dealt {dealt}"
-        );
-    }
-
-    /// The point of the pierce rule: thin destructible cover costs a round part
-    /// of its budget instead of stopping it, so the round reaches what the cover
-    /// was protecting.
-    #[test]
-    fn a_round_that_destroys_a_thin_plate_damages_the_hull_behind_it() {
-        use nova_gameplay::test_support::settle;
-        let mut app = pierce_app();
-        let plate = spawn_plate(&mut app, PIERCE_PLATE_PITCH, 20.0);
-        let hull = spawn_plate(&mut app, 0.0, 500.0);
-        settle(&mut app);
-        let round = spawn_round(&mut app, 2.0 * PIERCE_PLATE_PITCH, 100.0);
-
-        for _ in 0..40 {
-            app.update();
-        }
-
-        assert_eq!(plate_health(&app, plate), 0.0, "the plate is destroyed");
-        assert!(
-            (plate_health(&app, hull) - 420.0).abs() < 0.05,
-            "the surviving 80 of the budget must land on the hull behind, got a \
-             drop of {}",
-            500.0 - plate_health(&app, hull)
-        );
-        assert!(
-            app.world().get_entity(round).is_err(),
-            "the round is expended on the hull it could not destroy"
-        );
-    }
-
-    /// The KINETIC budget is a hard cap: a slug crossing a stack of destructible
-    /// plates deals its authored damage in total and no more, then stops - it
-    /// does not re-deal its full amount to every plate on the line. That
-    /// conservation belongs to Kinetic alone now; the Pierce contrast is
-    /// `a_pierce_round_deals_more_in_total_than_it_was_fired_with`.
-    #[test]
-    fn a_kinetic_round_never_deals_more_than_the_budget_it_carries() {
-        use nova_gameplay::test_support::settle;
-        let mut app = pierce_app();
-        let budget = 20.0;
-        let plate_hp = 5.0;
-        // Six 5 hp plates in a row: the 20-point budget is worth exactly four of
-        // them.
-        let plates: Vec<Entity> = (0..6)
-            .map(|index| spawn_plate(&mut app, index as f32 * PIERCE_PLATE_PITCH, plate_hp))
-            .collect();
-        settle(&mut app);
-        let round = spawn_round(&mut app, 6.0 * PIERCE_PLATE_PITCH, budget);
-
-        for _ in 0..60 {
-            app.update();
-        }
-
-        let total_dealt: f32 = plates
-            .iter()
-            .map(|&plate| plate_hp - plate_health(&app, plate))
-            .sum();
-        assert!(
-            (total_dealt - budget).abs() < 0.05,
-            "a round may deal at most the {budget} it carries, dealt {total_dealt}"
-        );
-        // Direction guard: the damage really was spent nearest-first, on the
-        // four plates the round reached, and the last two never saw it.
-        for &plate in &plates[2..] {
-            assert_eq!(
-                plate_health(&app, plate),
-                0.0,
-                "the four plates nearest the muzzle are destroyed"
-            );
-        }
-        for &plate in &plates[..2] {
-            assert_eq!(
-                plate_health(&app, plate),
-                plate_hp,
-                "a spent round must not reach the plates behind it"
-            );
-        }
-        assert!(
-            app.world().get_entity(round).is_err(),
-            "the round dies when its budget runs out"
-        );
-    }
-
-    /// Kinetic's identity under real physics: closing speed is DAMAGE. The same
-    /// authored 20-point round hits for 30 on a charge, 20 at the anchor and 10
-    /// in a stern chase, and the stern chase is driven by the TARGET's velocity
-    /// This is the half of the relative-velocity term a muzzle-speed-only
-    /// reading would miss.
-    #[test]
-    fn a_kinetic_round_closing_faster_deals_more_damage_per_hit() {
-        use nova_gameplay::test_support::settle;
-        /// One hit on a plate far too tough to destroy, so the whole drop is the
-        /// round's bite. `plate_speed` runs the plate away down the same line.
-        fn hit_drop(round_speed: f32, plate_speed: f32) -> f32 {
-            let mut app = pierce_app();
-            let start_hp = 10_000.0;
-            let plate = spawn_plate(&mut app, 0.0, start_hp);
-            settle(&mut app);
-            app.world_mut()
-                .entity_mut(plate)
-                .insert(LinearVelocity(Vec3::NEG_Z * plate_speed));
-            spawn_round_at(&mut app, 40.0, 20.0, DamageType::Kinetic, round_speed);
-            for _ in 0..80 {
-                app.update();
-            }
-            start_hp - plate_health(&app, plate)
-        }
-
-        let anchored = hit_drop(REFERENCE_CLOSING_SPEED, 0.0);
-        let charging = hit_drop(1.5 * REFERENCE_CLOSING_SPEED, 0.0);
-        let fleeing = hit_drop(REFERENCE_CLOSING_SPEED, 0.5 * REFERENCE_CLOSING_SPEED);
-
-        assert!(
-            (anchored - 20.0).abs() < 0.05,
-            "at the reference closing speed the round deals exactly its authored \
-             20, got {anchored}"
-        );
-        assert!(
-            (charging - 30.0).abs() < 0.05,
-            "closing 1.5x faster must deal 1.5x, got {charging}"
-        );
-        assert!(
-            (fleeing - 10.0).abs() < 0.05,
-            "a target running away at half the round's speed halves the hit, got \
-             {fleeing}"
-        );
-    }
-
-    /// The rake, end to end: a Pierce round is not stopped by a section being
-    /// ALIVE. It pays that section's thickness out of its power and carries on
-    /// into what the section was shielding, dealing its full bite there too.
-    /// The A/B is a Kinetic round on the same rig, which stops dead on the front
-    /// plate - the difference is the TYPE, not the speed.
-    #[test]
-    fn a_pierce_round_rakes_through_a_living_section_and_hits_what_is_behind() {
-        use nova_gameplay::test_support::settle;
-        /// `(front drop, back drop)` for a round of `kind` into two 100 hp
-        /// plates, neither of which a 20-point bite can destroy.
-        fn run(kind: DamageType) -> (f32, f32) {
-            let mut app = pierce_app();
-            let armour = 100.0;
-            let front = spawn_plate(&mut app, 0.0, armour);
-            let back = spawn_plate(&mut app, -2.0 * PIERCE_PLATE_PITCH, armour);
-            settle(&mut app);
-            spawn_round_at(
-                &mut app,
-                2.0 * PIERCE_PLATE_PITCH,
-                20.0,
-                kind,
-                PIERCE_TEST_SPEED,
-            );
-            for _ in 0..40 {
-                app.update();
-            }
-            (
-                armour - plate_health(&app, front),
-                armour - plate_health(&app, back),
-            )
-        }
-
-        let (front, back) = run(DamageType::Pierce);
-        assert!(
-            (front - 20.0).abs() < 0.05,
-            "the front section takes the round's authored bite, got {front}"
-        );
-        assert!(
-            (back - 20.0).abs() < 0.05,
-            "and so does what was behind it, UNDIMINISHED - the rake does not \
-             decay with depth, got {back}"
-        );
-
-        let (front, back) = run(DamageType::Kinetic);
-        assert!(
-            (front - 20.0).abs() < 0.05,
-            "the slug bites the same 20 on arrival, got {front}"
-        );
-        assert_eq!(
-            back, 0.0,
-            "but it is spent there: a slug travels only through what it destroys"
-        );
-    }
-
-    /// The invariant the rake deliberately breaks: a Pierce round's TOTAL damage
-    /// exceeds what it was fired with, because it pays for travel out of power
-    /// and its damage never depletes. Six 30 hp plates take 20 each from a round
-    /// authored at 20 - 120 in total - and `MAX_PIERCE_LAYERS` is what ends it.
-    #[test]
-    fn a_pierce_round_deals_more_in_total_than_it_was_fired_with() {
-        use nova_gameplay::test_support::settle;
-        let mut app = pierce_app();
-        let amount = 20.0;
-        // 30 hp each: every plate SURVIVES its 20-point bite, so nothing here is
-        // the old kill-to-continue rule wearing a different hat.
-        let plate_hp = 30.0;
-        let count = 8;
-        let plates: Vec<Entity> = (0..count)
-            .map(|index| spawn_plate(&mut app, index as f32 * PIERCE_PLATE_PITCH, plate_hp))
-            .collect();
-        settle(&mut app);
-        spawn_round_at(
-            &mut app,
-            count as f32 * PIERCE_PLATE_PITCH,
-            amount,
-            DamageType::Pierce,
-            PIERCE_TEST_SPEED,
-        );
-
-        for _ in 0..80 {
-            app.update();
-        }
-
-        let raked = plates
-            .iter()
-            .filter(|&&plate| plate_health(&app, plate) < plate_hp)
-            .count();
-        let dealt: f32 = plates
-            .iter()
-            .map(|&plate| plate_hp - plate_health(&app, plate))
-            .sum();
-        assert_eq!(
-            raked, MAX_PIERCE_LAYERS as usize,
-            "the layer cap is what ends a rake through cheap plates"
-        );
-        assert!(
-            dealt > amount,
-            "a rake's total must EXCEED the amount it was fired with, got {dealt}"
-        );
-        assert!(
-            (dealt - amount * MAX_PIERCE_LAYERS as f32).abs() < 0.05,
-            "six layers x the authored 20, undiminished by depth, got {dealt}"
-        );
-    }
-
-    /// Speed is POWER for a penetrator: the same round closing at 2x pays half
-    /// as much per layer and rakes deeper, while its per-hit damage does not
-    /// move at all. 100 hp plates cost 100 power each at the anchor (three of a
-    /// 300 power budget) and 50 each at 2x (the layer cap binds first).
-    #[test]
-    fn a_fast_pierce_round_rakes_deeper_without_biting_harder() {
-        use nova_gameplay::test_support::settle;
-        /// `(layers raked, damage on the first layer)` for a Pierce round at
-        /// `speed` down a stack of 100 hp plates.
-        fn run(speed: f32) -> (usize, f32) {
-            let mut app = pierce_app();
-            let plate_hp = 100.0;
-            let count = 8;
-            let plates: Vec<Entity> = (0..count)
-                .map(|index| spawn_plate(&mut app, index as f32 * PIERCE_PLATE_PITCH, plate_hp))
-                .collect();
-            settle(&mut app);
-            spawn_round_at(
-                &mut app,
-                count as f32 * PIERCE_PLATE_PITCH,
-                20.0,
-                DamageType::Pierce,
-                speed,
-            );
-            for _ in 0..120 {
-                app.update();
-            }
-            let raked = plates
-                .iter()
-                .filter(|&&plate| plate_health(&app, plate) < plate_hp)
-                .count();
-            // The round enters from +Z, so the LAST plate is the first one hit.
-            let first_hit = plate_hp - plate_health(&app, plates[count - 1]);
-            (raked, first_hit)
-        }
-
-        let (anchored, anchored_bite) = run(PIERCE_TEST_SPEED);
-        let (fast, fast_bite) = run(2.0 * PIERCE_TEST_SPEED);
-        assert_eq!(
-            anchored, 3,
-            "300 power buys three 100 hp layers at the anchor"
-        );
-        assert!(
-            fast > anchored,
-            "closing at 2x must rake deeper: {fast} vs {anchored}"
-        );
-        assert!(
-            (fast_bite - anchored_bite).abs() < 0.05,
-            "and must NOT bite harder for it: {fast_bite} vs {anchored_bite}"
-        );
-    }
-
-    /// muzzle_speed * fire_interval along the exit direction, regardless of
-    /// ship velocity. The 24 rounds/s rate beats against the 64 Hz tick so
-    /// shots sample every phase of the tick window.
-    #[test]
-    fn bullet_stream_stays_linear_at_high_ship_velocity() {
-        use nova_gameplay::{
-            projectile_hooks::ProjectileHooks,
-            test_support::{settle, unfinished_integrity_physics_app_with},
-        };
-        let mut app = unfinished_integrity_physics_app_with(
-            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
-        );
         app.add_systems(FixedUpdate, shoot_spawn_projectile);
         app.finish();
 
@@ -1967,11 +1186,16 @@ mod tests {
             app.update();
         }
 
+        // The RAW stream, which is the whole point of this test: a round's
+        // `Transform` has been eased by the time `update` returns, and the
+        // easing `end` is exactly the pose the sweep integrated at the close of
+        // the last fixed tick. (It used to read avian's `Position`, which a
+        // round no longer has.)
         let mut positions: Vec<Vec3> = app
             .world_mut()
-            .query_filtered::<&Position, With<TurretBulletProjectileMarker>>()
+            .query_filtered::<&TranslationEasingState, With<TurretBulletProjectileMarker>>()
             .iter(app.world())
-            .map(|p| p.0)
+            .filter_map(|easing| easing.end)
             .collect();
         assert!(
             positions.len() >= 10,
@@ -1980,32 +1204,53 @@ mod tests {
         );
 
         // Sort along the exit direction (the muzzle's yaw-slewed -Z), then
-        // every consecutive delta must be the SAME vector: equal spacing and
-        // collinearity in one check.
+        // every consecutive delta must project onto it as the real
+        // muzzle_speed * interval stride - uniform spacing and true delivery
+        // in one check, since a stack of bullets on one point reads a stride
+        // of zero.
         let exit_direction = Quat::from_rotation_y(0.3) * Vec3::NEG_Z;
         positions.sort_by(|a, b| a.dot(exit_direction).total_cmp(&b.dot(exit_direction)));
         let expected_spacing = 200.0 / 24.0;
-        let first_delta = positions[1] - positions[0];
-        // Delivery guard: uniform spacing alone is also satisfied by every
-        // bullet sitting on one point; the spacing must be the real
-        // muzzle_speed * interval stride.
-        assert!(
-            (first_delta.length() - expected_spacing).abs() < 0.1,
-            "stream stride should be ~{expected_spacing}, got {}",
-            first_delta.length()
-        );
         for window in positions.windows(2) {
-            let delta = window[1] - window[0];
+            let stride = (window[1] - window[0]).dot(exit_direction);
             assert!(
-                (delta - first_delta).length() < 0.05,
-                "stream must stay uniform and collinear at speed: delta {delta} vs {first_delta}"
+                (stride - expected_spacing).abs() < 0.05,
+                "stride along the exit axis must stay exact at speed: \
+                 {stride} vs {expected_spacing}"
             );
         }
+
+        // Cross-stream, the other half: every round is still inside the cone
+        // the muzzle threw it in. The apex is the muzzle, which this test never
+        // samples - so measure from the NEWEST round instead (the smallest
+        // along-projection, fired less than one fire interval ago). It sits
+        // within a stride of the apex and carries a lateral offset of its own,
+        // both of which fold into the slack term.
+        let newest = positions[0];
+        let mut max_cross = 0.0f32;
+        for &position in &positions {
+            let offset = position - newest;
+            let along = offset.dot(exit_direction);
+            let cross = (offset - along * exit_direction).length();
+            let bound = (along + 4.0 * expected_spacing) * MUZZLE_SPREAD_RAD.tan();
+            assert!(
+                cross <= bound + 1e-3,
+                "a round {along} u down the stream may sit at most {bound} u off \
+                 the exit axis, got {cross}"
+            );
+            max_cross = max_cross.max(cross);
+        }
+        // Delivery guard: the spread is actually ON. With no entropy source the
+        // rounds fall on one line and the cone bound above passes vacuously.
+        assert!(
+            max_cross > 0.01,
+            "the rig must fire with live spread, got max cross-stream {max_cross}"
+        );
     }
 
     /// A bullet's FIRST rendered frame must sit on the world's render clock.
     /// The spawn writes the RAW physics pose
-    /// (tick-start muzzle minus the sub-tick lead), and a body spawned
+    /// (tick-start muzzle minus the sub-tick lead), and a round spawned
     /// mid-tick misses FixedFirst, so its easing `start` is None and the
     /// first frame used to render that raw pose while the ship rendered
     /// EASED - one frame of muzzle pop, cross-stream error up to a full
@@ -2014,22 +1259,28 @@ mod tests {
     /// zero cross-stream offset from the rendered barrel, and along-stream
     /// only ever FORWARD by at most one tick of muzzle-exit travel (a
     /// mid-tick shot has already flown; it must never render BEHIND the
-    /// barrel, inside the turret). The raw physics stream is pinned
-    /// separately by `bullet_stream_stays_linear_at_high_ship_velocity`;
+    /// barrel, inside the turret). The raw stream is pinned
+    /// separately by `bullet_stream_keeps_its_exact_stride_at_high_ship_velocity`;
     /// this test asserts the render clock, checking every bullet of a
     /// 24 rounds/s stream so the 64 Hz-vs-60 fps beat sweeps the easing
     /// alpha across its range.
+    ///
+    /// No `EntropyPlugin` on this rig, so `MUZZLE_SPREAD_RAD` is off and the
+    /// cross-stream bound below measures the render clock alone. That is the
+    /// question here; the spread's own bound is the stride test's.
     #[test]
     fn first_rendered_frame_attaches_the_bullet_to_the_eased_muzzle() {
         use std::collections::HashSet;
 
         use nova_gameplay::{
-            projectile_hooks::ProjectileHooks,
+            rounds::NovaRoundPlugin,
             test_support::{settle, unfinished_integrity_physics_app_with},
         };
-        let mut app = unfinished_integrity_physics_app_with(
-            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
-        );
+        // Physics for the SHIP, `NovaRoundPlugin` for the rounds it fires: a
+        // round is not a body, so avian moves the rig and the sweep moves the
+        // stream. No collision hooks - a round never reaches the pair filter.
+        let mut app = unfinished_integrity_physics_app_with(PhysicsPlugins::default());
+        app.add_plugins(NovaRoundPlugin);
         app.add_systems(FixedUpdate, shoot_spawn_projectile);
         app.finish();
 
@@ -2120,12 +1371,14 @@ mod tests {
     #[test]
     fn fire_rate_above_the_tick_rate_keeps_its_true_cadence() {
         use nova_gameplay::{
-            projectile_hooks::ProjectileHooks,
+            rounds::NovaRoundPlugin,
             test_support::{settle, unfinished_integrity_physics_app_with},
         };
-        let mut app = unfinished_integrity_physics_app_with(
-            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
-        );
+        // Physics for the SHIP, `NovaRoundPlugin` for the rounds it fires: a
+        // round is not a body, so avian moves the rig and the sweep moves the
+        // stream. No collision hooks - a round never reaches the pair filter.
+        let mut app = unfinished_integrity_physics_app_with(PhysicsPlugins::default());
+        app.add_plugins(NovaRoundPlugin);
         app.add_systems(FixedUpdate, shoot_spawn_projectile);
         app.finish();
 

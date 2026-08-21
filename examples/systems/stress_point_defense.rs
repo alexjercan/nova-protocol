@@ -1095,10 +1095,14 @@ fn assert_the_battery_connected(world: &mut World) {
     );
 }
 
-/// The scale claim on the ROUNDS, and the one the projectile broad phase is
-/// graded against: a round is a physics body, so this count IS the load. The
-/// collider census rides along as a reading - it is what the broad phase
-/// actually indexes, rounds included.
+/// The scale claim on the ROUNDS: how many were in the sky at once, which is
+/// what the sweep in `nova_gameplay::rounds` is graded against.
+///
+/// A round is NOT a physics body and no longer appears in the collider census
+/// beside it - the census now counts only what the broad phase indexes, which
+/// is ships, sections, torpedoes and rocks. Rounds cost one shape cast each
+/// instead, so this count and that one are two separate loads rather than one
+/// number counted twice.
 #[cfg(feature = "debug")]
 fn assert_the_sky_filled(world: &mut World) {
     let floor = ROUNDS_PER_MOUNT * mounts();

@@ -250,10 +250,11 @@ pub(super) fn update_point_defense_aim(
         &TurretDefenseTarget,
         &mut TurretSectionTargetInput,
         &mut TurretSectionTargetVelocity,
+        &mut TurretSectionTargetEntity,
     )>,
     q_torpedo: Query<(&Transform, Option<&LinearVelocity>)>,
 ) {
-    for (mount, assignment, mut target, mut velocity) in &mut q_turret {
+    for (mount, assignment, mut target, mut velocity, mut tracked) in &mut q_turret {
         if !flight_computer_works(Some(mount), Some(assignment)) {
             continue;
         }
@@ -268,6 +269,9 @@ pub(super) fn update_point_defense_aim(
         };
         **target = Some(transform.translation);
         **velocity = torpedo_velocity.map(|v| **v).unwrap_or(Vec3::ZERO);
+        // Names the body the velocity belongs to, so the mount's track starts
+        // over when the assignment moves to a different torpedo.
+        **tracked = Some(torpedo);
     }
 }
 
@@ -682,6 +686,12 @@ mod tests {
             **world.get::<TurretSectionTargetVelocity>(turret).unwrap(),
             velocity,
             "the lead solve needs the torpedo's velocity, like the AI feed"
+        );
+        assert_eq!(
+            **world.get::<TurretSectionTargetEntity>(turret).unwrap(),
+            Some(torpedo),
+            "and the body it belongs to, so the mount's track restarts when \
+             the assignment moves"
         );
     }
 

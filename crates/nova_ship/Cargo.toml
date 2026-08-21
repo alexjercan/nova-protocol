@@ -11,6 +11,10 @@ avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
 bevy_enhanced_input = { version = "0.26.0" }
 bevy_hanabi = { version = "0.19.0", default-features = false, features = ["2d", "3d"] }
+# The muzzle spread on a fired round draws from the shared GlobalRng entity
+# (EntropyPlugin is registered by nova_gameplay's plugin in production), so a
+# replayed run scatters its rounds identically.
+bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }
 rand = { version = "0.10.2" }
 serde = { version = "1", features = ["derive"], optional = true }
 # The interpolation crate behind avian's TransformInterpolation. Direct dep
@@ -22,13 +26,15 @@ bevy_transform_interpolation = { version = "0.5.0" }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
 
+[target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
+bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
+
 [dev-dependencies]
 # RON round-trip test for the section configs' serde impls (behind the
 # `serde` feature).
 ron = { version = "0.12" }
 # The headless avian app every section/flight/input/camera test builds on.
 nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
-bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }
 
 [lints]
 workspace = true

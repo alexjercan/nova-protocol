@@ -99,6 +99,7 @@ pub(super) fn update_turret_target_input(
         (
             &mut TurretSectionTargetInput,
             &mut TurretSectionTargetVelocity,
+            &mut TurretSectionTargetEntity,
             Option<&TurretDefenseTarget>,
             &ChildOf,
         ),
@@ -113,7 +114,14 @@ pub(super) fn update_turret_target_input(
 ) {
     // Iterated turret-first, not ship-first: every turret now resolves its own
     // gun target, so there is nothing left to hoist out of the inner loop.
-    for (mut turret_input, mut turret_velocity, turret_defense, ChildOf(ship)) in &mut q_turret {
+    for (
+        mut turret_input,
+        mut turret_velocity,
+        mut turret_tracked,
+        turret_defense,
+        ChildOf(ship),
+    ) in &mut q_turret
+    {
         let Ok((state, target, ship_defense)) = q_spaceship.get(*ship) else {
             continue;
         };
@@ -131,6 +139,10 @@ pub(super) fn update_turret_target_input(
             .unwrap_or(Vec3::ZERO);
         **turret_input = aim;
         **turret_velocity = velocity;
+        // The body the velocity belongs to, so the mount's velocity track
+        // restarts when the guns swing to a different target rather than
+        // leading the new one along the old one's course.
+        **turret_tracked = aim.and(gun_target);
     }
 }
 

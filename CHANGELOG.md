@@ -31,8 +31,14 @@ does NOT get an entry - and it is the only place they are written down.
 - Turrets fire only when the barrel is ON its aim point (0.92 deg, derived from
   what still hits a hull at 1 km), so a mount that cannot bear holds fire and
   the ones that can keep shooting.
+- Rounds leave the muzzle inside a 0.1 deg cone, so a stream reads as a gun
+  rather than a laser line. Nine times narrower than the fire gate, so it moves
+  no hit rate.
 - Point defense is assigned PER TURRET: each mount holds the most imminent
   torpedo it can bear on, so a battery no longer dogpiles one torpedo.
+- Turrets lead on a FILTERED track of the target's course instead of the
+  velocity of one step, and a mount handed a different target starts its track
+  over.
 - The Flight Computer works your IDLE PDCs against inbound torpedoes, drawing a
   thin line to each pick. Lock or raise and every mount is yours instantly.
 - Torpedo bays regrow one torpedo every 10 s, up from every 4 s, so a bay
@@ -334,6 +340,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Performance
 
+- A gun round is swept math, not a physics body. A saturated point-defence step
+  drops 2221 dynamic bodies to 340, and its worst step 17.4 ms to 11.8 - back
+  inside the fixed tick.
 - The fixed loop runs single-threaded: its schedules are too small to pay for
   the executor's fan-out. A 1v1 arena fight's per-step median drops 7.9 ms to
   6.1 and its 1% low rises 27 fps to 48.

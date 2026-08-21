@@ -126,6 +126,124 @@ pub(crate) fn lead_intercept_point(
     }
 }
 
+/// Time constant (seconds) of the target-velocity track: the exponential
+/// low-pass every mount runs over the sample its aim feed leaves in
+/// [`TurretSectionTargetVelocity`], before [`lead_intercept_point`]
+/// extrapolates it over a round's whole flight.
+///
+/// DERIVED, not chosen. A one-pole filter following a target under constant
+/// lateral acceleration `a` settles exactly `a * tau` short of the true
+/// velocity, so the intercept it feeds lands `a * tau * flight` short of the
+/// target. Holding that inside a hull - the same [`HULL_HIT_RADIUS`] the
+/// on-target cone is drawn against, over the same
+/// `CLOSE_ENGAGEMENT_RANGE / muzzle_speed` flight time the cone is graded at -
+/// is the bound, and
+/// [`the_track_constant_holds_a_serpents_lead_inside_a_hull`] re-derives it
+/// from the live numbers rather than from these words.
+///
+/// The acceleration it is drawn against is the shipped Serpent's, out of its
+/// own field docs: the terminal weave holds the nose `weave_angle` off the
+/// guidance solution and spins that tilt at `weave_rate`, so the lateral
+/// acceleration no straight-line lead can predict is
+/// `max_speed * sin(weave_angle) * weave_rate`. The bound is LINEAR in that
+/// number, so it is set by the hardest-turning thing point defence is ever
+/// pointed at - a small body under continuous thrust - and a ship, which turns
+/// its whole hull to change course, is inside it with room to spare.
+///
+/// The floor under it is the fixed step. At 64 Hz this is five ticks, so one
+/// tick's spike enters the track at 18% of its size and is gone within three
+/// more; shorter, and the barrel is handed back the per-tick jitter that stops
+/// it ever settling inside the 0.92 deg fire gate.
+const TARGET_TRACK_TAU: f32 = 0.08;
+
+/// One mount's filtered track of what it is shooting at: the mean course the
+/// intercept solve leads, and the entity that course belongs to.
+///
+/// **Why a track at all.** [`lead_intercept_point`] solves a CONSTANT-velocity
+/// intercept, so whatever velocity it is handed is believed for the whole
+/// flight. Handed the raw per-tick sample it chases a Serpent's corkscrew
+/// instead of predicting it: the aim point swings with the weave, and a barrel
+/// that is always slewing is never inside the fire gate. No fire-control
+/// solution has ever been laid off a single sensor return.
+///
+/// **Why per MOUNT.** A per-TARGET track is the better picture of a real
+/// battery - one filtered track per body, shared by every mount working it -
+/// but the turret aim contract is a position, a velocity and an entity written
+/// onto the section, not a handle into a shared track table, and the player's
+/// crosshair tier aims at a commanded POINT with no entity behind it at all. A
+/// shared table would owe that tier an answer forever. Every mount assigned the
+/// same torpedo folds the same samples with the same fixed `dt` anyway, so the
+/// per-mount copies agree; what the shared version would save is arithmetic,
+/// not divergence. What it would BUY - a mount inheriting a converged track the
+/// moment it is handed a torpedo another mount has been following - is real,
+/// and is the reason to revisit this if the aim feeds ever grow an entity-keyed
+/// picture.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+pub struct TurretSectionTargetTrack {
+    /// The entity the filter below belongs to. Any change to it throws the
+    /// filter away: see [`TurretSectionTargetTrack::observe`].
+    tracking: Option<Entity>,
+    /// The filtered velocity, or `None` before the track has taken a sample.
+    velocity: Option<Vec3>,
+}
+
+impl TurretSectionTargetTrack {
+    /// The filtered velocity to lead on, or `None` when the track holds no
+    /// sample yet.
+    pub fn velocity(&self) -> Option<Vec3> {
+        self.velocity
+    }
+
+    /// Fold one step's `sample` into the track, at the already-computed `gain`.
+    fn observe(&mut self, target: Option<Entity>, sample: Vec3, gain: f32) {
+        // TARGET SWITCH. A mount that swapped torpedoes and kept the filter
+        // would lead the new one along the dead one's course for a whole time
+        // constant - and the two are rarely even on the same bearing, so the
+        // barrel would spend that time aimed at nothing. Dropping the state is
+        // the only honest answer: the new body shares no history with the old.
+        if self.tracking != target {
+            self.tracking = target;
+            self.velocity = None;
+        }
+        self.velocity = Some(match self.velocity {
+            Some(filtered) => filtered + (sample - filtered) * gain,
+            // TRACK INITIATION, on the first return of a new track. Easing up
+            // from zero instead would aim at the target's CURRENT position for
+            // the first time constant, which on a 30 u/s torpedo is a bigger
+            // error than having no filter at all.
+            None => sample,
+        });
+    }
+}
+
+/// Fold each mount's raw target-velocity sample into its
+/// [`TurretSectionTargetTrack`], so the intercept solve leads the target's mean
+/// course instead of the tick it happened to catch.
+///
+/// Runs on the FIXED clock at the head of the aim chain, with everything else
+/// that decides where a barrel points: a filter on the render clock would
+/// average a number of samples per simulated second that follows the frame
+/// rate, which is a frame-rate-dependent point defence by another route.
+pub(super) fn update_turret_target_track(
+    time: Res<Time>,
+    mut q_turret: Query<
+        (
+            &TurretSectionTargetEntity,
+            &TurretSectionTargetVelocity,
+            &mut TurretSectionTargetTrack,
+        ),
+        With<TurretSectionMarker>,
+    >,
+) {
+    // The same exponential form as `AIM_CORRECTION_RATE` below, for the same
+    // reason: it folds the same fraction of the error per unit TIME at any step
+    // length, so a track means the same thing on any host.
+    let gain = 1.0 - (-time.delta_secs() / TARGET_TRACK_TAU).exp();
+    for (target, sample, mut track) in &mut q_turret {
+        track.observe(**target, **sample, gain);
+    }
+}
+
 /// Resolve each turret's lead intercept point into [`TurretSectionAimPoint`] from
 /// its target position, target velocity, and the bullet `muzzle_speed`. Runs
 /// before the yaw/pitch systems, which steer toward this point.
@@ -148,6 +266,7 @@ pub fn update_turret_aim_point(
         (
             &TurretSectionTargetInput,
             &TurretSectionTargetVelocity,
+            &TurretSectionTargetTrack,
             &TurretSectionConfigHelper,
             &TurretSectionMuzzleEntity,
             &ChildOf,
@@ -166,10 +285,25 @@ pub fn update_turret_aim_point(
         (&LinearVelocity, &AngularVelocity, &ComputedCenterOfMass),
         With<SpaceshipRootMarker>,
     >,
+    time: Res<Time>,
 ) {
+    // A ROUND DOES NOT LEAVE WHEN THIS SOLVE RUNS. `shoot_spawn_projectile`
+    // fires it `lead` seconds into the tick - uniform over (0, dt] for any fire
+    // interval longer than a tick - and compensates its POSITION for that so
+    // the stream stays evenly spaced. The aim it flies along is not
+    // compensated, so the round crosses the intercept `lead` late and a
+    // CROSSING target has moved on: always behind, never ahead, 0 to 0.47 u at
+    // a 30 u/s torpedo. Half a step is the expected delay, and correcting for
+    // it leaves only the +/- half-step jitter.
+    //
+    // Invisible until rounds stopped being physics bodies: avian accepted a
+    // contact at positive separation up to `dt * |v_relative|`, about 1.63 u at
+    // point-defence closing speeds, which swallowed the trail whole.
+    let launch_delay = 0.5 * time.delta_secs();
     for (
         target_input,
-        target_velocity,
+        target_sample,
+        track,
         config,
         TurretSectionMuzzleEntity(muzzle),
         ChildOf(spaceship),
@@ -180,6 +314,11 @@ pub fn update_turret_aim_point(
             **aim_point = None;
             continue;
         };
+        // The FILTERED course, never this step's sample: see
+        // [`TurretSectionTargetTrack`]. A rig that runs this solve without the
+        // track pass holds no track and falls back to the sample, which is the
+        // right answer for one - it has no history to average.
+        let target_velocity = track.velocity().unwrap_or(**target_sample);
         let Ok(muzzle_transform) = transform_helper.compute_global_transform(*muzzle) else {
             continue;
         };
@@ -202,10 +341,13 @@ pub fn update_turret_aim_point(
             })
             .unwrap_or(Vec3::ZERO);
 
+        // Solved in the shooter's frame, so the target drifts at the RELATIVE
+        // velocity over the launch delay too.
+        let target_velocity = target_velocity - shooter_velocity;
         **aim_point = Some(lead_intercept_point(
             muzzle_pos,
-            target_pos,
-            **target_velocity - shooter_velocity,
+            target_pos + target_velocity * launch_delay,
+            target_velocity,
             config.muzzle_speed,
         ));
     }
@@ -529,6 +671,194 @@ mod tests {
         );
     }
 
+    /// The track constant is arithmetic, not a taste call, and both of its
+    /// inputs are live: the Serpent's own authored numbers and the turret's own
+    /// muzzle speed. Retune either and this test says the constant needs
+    /// re-deriving rather than letting the lead quietly slip off a hull.
+    #[test]
+    fn the_track_constant_holds_a_serpents_lead_inside_a_hull() {
+        // The lateral acceleration a straight-line lead cannot predict, from
+        // TorpedoTypeConfig::weave_rate's own field doc: the weave holds the
+        // nose `weave_angle` off the guidance solution and spins that tilt at
+        // `weave_rate`.
+        let serpent = TorpedoTypeConfig::default();
+        let lateral = serpent.max_speed * serpent.weave_angle.sin() * serpent.weave_rate;
+        // The flight time the on-target cone is graded at: a round's time to
+        // the CLOSE edge of a gunfight.
+        let flight = CLOSE_ENGAGEMENT_RANGE / TurretSectionConfig::default().muzzle_speed;
+        // A one-pole filter following a ramp settles exactly `tau` behind it.
+        let shortfall = lateral * TARGET_TRACK_TAU * flight;
+        assert!(
+            shortfall <= HULL_HIT_RADIUS,
+            "a track constant of {TARGET_TRACK_TAU} s leads a Serpent \
+             ({lateral} u/s^2 of weave) {shortfall} u short over a {flight} s \
+             flight, outside the {HULL_HIT_RADIUS} u it has to land inside"
+        );
+    }
+
+    /// One mount whose track the filter pass can be stepped by hand, on a clock
+    /// with a fixed `dt` (the production step, unless a test says otherwise).
+    fn track_world(dt: f32) -> (World, Entity) {
+        let mut world = World::new();
+        let mut time = Time::<()>::default();
+        time.advance_by(Duration::from_secs_f32(dt));
+        world.insert_resource(time);
+        let turret = world
+            .spawn((TurretSectionMarker, TurretSectionTargetVelocity(Vec3::ZERO)))
+            .id();
+        (world, turret)
+    }
+
+    /// Hand the mount one sample of `target`'s velocity and return the track.
+    fn step_track(world: &mut World, turret: Entity, target: Option<Entity>, sample: Vec3) -> Vec3 {
+        use bevy::ecs::system::RunSystemOnce;
+        {
+            let mut entity = world.entity_mut(turret);
+            **entity.get_mut::<TurretSectionTargetEntity>().unwrap() = target;
+            **entity.get_mut::<TurretSectionTargetVelocity>().unwrap() = sample;
+        }
+        world.run_system_once(update_turret_target_track).unwrap();
+        world
+            .entity(turret)
+            .get::<TurretSectionTargetTrack>()
+            .expect("the velocity component requires a track")
+            .velocity()
+            .expect("a stepped track holds a sample")
+    }
+
+    /// The production fixed step: 64 Hz, which nothing configures away.
+    const FIXED_STEP: f32 = 1.0 / 64.0;
+
+    /// Steps of `dt` in `seconds`, for a test that wants a duration.
+    fn steps(seconds: f32, dt: f32) -> usize {
+        (seconds / dt).ceil() as usize
+    }
+
+    #[test]
+    fn a_track_converges_on_a_steady_course() {
+        // The filter must LAG a course change, not refuse it: a target that
+        // settles on a new heading has to be led along the new one.
+        let (mut world, turret) = track_world(FIXED_STEP);
+        let torpedo = world.spawn_empty().id();
+        let old = Vec3::new(0.0, 0.0, 30.0);
+        let new = Vec3::new(20.0, 0.0, 30.0);
+
+        step_track(&mut world, turret, Some(torpedo), old);
+        let first = step_track(&mut world, turret, Some(torpedo), new);
+        assert!(
+            (first - old).length() < (first - new).length(),
+            "one step must move a fraction of the way, not jump: {first:?}"
+        );
+
+        let mut track = first;
+        for _ in 0..steps(5.0 * TARGET_TRACK_TAU, FIXED_STEP) {
+            track = step_track(&mut world, turret, Some(torpedo), new);
+        }
+        assert!(
+            (track - new).length() < 0.2,
+            "five time constants on a steady course must converge onto it: \
+             {track:?} against {new:?}"
+        );
+    }
+
+    #[test]
+    fn a_track_rejects_a_single_tick_spike() {
+        // THE POINT of the track. One step's velocity - a body shoved by a
+        // contact, or a weave sample caught at its extreme - is extrapolated
+        // over a whole second of bullet flight by the intercept solve, so a
+        // spike the filter passes through is a spike the barrel chases.
+        let (mut world, turret) = track_world(FIXED_STEP);
+        let torpedo = world.spawn_empty().id();
+        let course = Vec3::new(0.0, 0.0, 30.0);
+        let spike = Vec3::new(60.0, 0.0, 0.0);
+
+        for _ in 0..steps(3.0 * TARGET_TRACK_TAU, FIXED_STEP) {
+            step_track(&mut world, turret, Some(torpedo), course);
+        }
+        let spiked = step_track(&mut world, turret, Some(torpedo), course + spike);
+        assert!(
+            (spiked - course).length() < 0.25 * spike.length(),
+            "one step's spike must enter the track as a fraction of itself, \
+             not whole: {spiked:?} against a course of {course:?}"
+        );
+
+        for _ in 0..steps(3.0 * TARGET_TRACK_TAU, FIXED_STEP) {
+            step_track(&mut world, turret, Some(torpedo), course);
+        }
+        let settled = step_track(&mut world, turret, Some(torpedo), course);
+        assert!(
+            (settled - course).length() < 0.05 * spike.length(),
+            "and it must leave again: {settled:?} against a course of \
+             {course:?}"
+        );
+    }
+
+    #[test]
+    fn switching_targets_resets_the_track() {
+        // THE BUG this component exists to prevent: a mount handed a second
+        // torpedo while its filter still holds the first one's course leads the
+        // new one along the dead one's heading, and the two are rarely on the
+        // same bearing at all. The track has to start over.
+        let (mut world, turret) = track_world(FIXED_STEP);
+        let first = world.spawn_empty().id();
+        let second = world.spawn_empty().id();
+        let inbound = Vec3::new(0.0, 0.0, 30.0);
+        let crossing = Vec3::new(30.0, 0.0, 0.0);
+
+        for _ in 0..steps(5.0 * TARGET_TRACK_TAU, FIXED_STEP) {
+            step_track(&mut world, turret, Some(first), inbound);
+        }
+
+        // The control: the SAME target changing course only eases over.
+        let eased = step_track(&mut world, turret, Some(first), crossing);
+        assert!(
+            (eased - inbound).length() < 0.5 * (crossing - inbound).length(),
+            "a course change on one target must be filtered: {eased:?}"
+        );
+
+        // The switch: a different entity, and the track is the new body's own
+        // velocity outright.
+        let switched = step_track(&mut world, turret, Some(second), crossing);
+        assert!(
+            (switched - crossing).length() < 1e-4,
+            "a mount handed a different torpedo must drop the old track and \
+             take the new one's velocity: {switched:?} against {crossing:?}"
+        );
+    }
+
+    #[test]
+    fn a_track_means_the_same_thing_at_any_step_length() {
+        // Framerate invariance, the defect this project already fixed once on
+        // the aim chain: the same SIM time of the same samples must land the
+        // same track whatever the step is, or point defence leads differently
+        // on a fast host.
+        //
+        // A whole number of BOTH steps, so the two arms cover the same simulated
+        // window rather than the same rounded-up count of different ones.
+        const WINDOW_SECS: f32 = 0.25;
+        let converged = |dt: f32| {
+            let (mut world, turret) = track_world(dt);
+            let torpedo = world.spawn_empty().id();
+            let old = Vec3::new(0.0, 0.0, 30.0);
+            let new = Vec3::new(20.0, 0.0, 30.0);
+            step_track(&mut world, turret, Some(torpedo), old);
+            let mut track = Vec3::ZERO;
+            for _ in 0..(WINDOW_SECS / dt).round() as usize {
+                track = step_track(&mut world, turret, Some(torpedo), new);
+            }
+            track
+        };
+
+        let fast = converged(FIXED_STEP);
+        let slow = converged(4.0 * FIXED_STEP);
+        assert!(
+            (fast - slow).length() < 0.05,
+            "{WINDOW_SECS} s of the same samples must converge the same amount \
+             at any step: {fast:?} at {FIXED_STEP} s, {slow:?} at {} s",
+            4.0 * FIXED_STEP
+        );
+    }
+
     /// World for aim-point tests: a ship with physics state, one turret with
     /// its muzzle 100 m ahead of a target-bearing setup. Returns (turret,
     /// muzzle position).
@@ -565,6 +895,10 @@ mod tests {
 
     fn aim_point(world: &mut World, turret: Entity) -> Option<Vec3> {
         use bevy::ecs::system::RunSystemOnce;
+        // The solve reads the fixed clock for the launch delay. A default
+        // `Time` has a zero delta, so these rigs measure the intercept with no
+        // delay correction - which is what they are about.
+        world.init_resource::<Time>();
         world.run_system_once(update_turret_aim_point).unwrap();
         **world.entity(turret).get::<TurretSectionAimPoint>().unwrap()
     }
@@ -669,7 +1003,11 @@ mod tests {
         app.add_systems(
             FixedUpdate,
             (
-                (update_turret_aim_point, update_turret_target_joints_system)
+                (
+                    update_turret_target_track,
+                    update_turret_aim_point,
+                    update_turret_target_joints_system,
+                )
                     .chain()
                     .before(SmoothLookRotationSystems::Sync),
                 sync_turret_joint_rotation.after(SmoothLookRotationSystems::Sync),

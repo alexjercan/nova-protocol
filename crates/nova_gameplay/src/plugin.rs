@@ -102,6 +102,7 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(crate::damage::NovaDamagePlugin);
         app.add_plugins(crate::gravity::NovaGravityPlugin);
         app.add_plugins(crate::relations::NovaRelationsPlugin);
+        app.add_plugins(crate::rounds::NovaRoundPlugin);
         app.add_plugins(crate::audio::NovaAudioPlugin);
         app.add_plugins(crate::juice::NovaJuicePlugin);
         app.add_plugins(crate::settings::NovaSettingsPlugin);

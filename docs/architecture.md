@@ -282,7 +282,9 @@ the game carries two pose representations on two clocks:
 Which schedule:
 
 - Put a system in **FixedUpdate** when it feeds the physics sim -- forces and
-  impulses, spawns whose motion physics integrates (projectiles), guidance. It
+  impulses, spawns whose motion the fixed clock advances (torpedoes, which
+  physics integrates; gun rounds, which `nova_gameplay::rounds` sweeps by hand
+  after the physics step), guidance. It
   MUST read the raw `Position`/`Rotation` (or compose the root's raw pose with a
   local mount offset). During `FixedUpdate` of frame N, `GlobalTransform` still
   holds the eased pose propagated in frame N-1's `PostUpdate`, so it is stale

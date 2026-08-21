@@ -14,14 +14,16 @@ mod test_support;
 pub(crate) use aim::lead_intercept_point;
 pub use aim::{
     muzzle_aim_error, muzzle_on_target, update_turret_aim_point, TurretSectionAimSystems,
-    CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
+    TurretSectionTargetTrack, CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
 };
-use aim::{sync_turret_joint_rotation, update_turret_target_joints_system};
+use aim::{
+    sync_turret_joint_rotation, update_turret_target_joints_system, update_turret_target_track,
+};
 pub use arc::TurretSectionArc;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::EffectAsset;
 pub use config::{MuzzleConfig, TurretJoint, TurretSectionConfig};
-use firing::{resolve_bullet_hit, shoot_spawn_projectile};
+use firing::shoot_spawn_projectile;
 use nova_gameplay::prelude::*;
 use render::{
     insert_projectile_render, insert_turret_barrel_muzzle_effect, insert_turret_joint_render,
@@ -39,8 +41,8 @@ pub mod prelude {
         TurretJoint, TurretSectionAimPoint, TurretSectionAimSystems, TurretSectionArc,
         TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
         TurretSectionInput, TurretSectionMuzzleEntity, TurretSectionPlugin,
-        TurretSectionTargetInput, TurretSectionTargetVelocity, CLOSE_ENGAGEMENT_RANGE,
-        HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
+        TurretSectionTargetEntity, TurretSectionTargetInput, TurretSectionTargetTrack,
+        TurretSectionTargetVelocity, CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
     };
 }
 
@@ -98,8 +100,26 @@ pub struct TurretSectionTargetInput(pub Option<Vec3>);
 /// (aim where it will be when a bullet arrives). Defaults to zero - a stationary
 /// aim point (e.g. the player crosshair) needs no lead. Whoever aims the turret at
 /// a moving object (auto-targeting, AI) sets this to the object's velocity.
+///
+/// This is the RAW sample for one step, not what the intercept is solved on:
+/// [`update_turret_target_track`] filters it into [`TurretSectionTargetTrack`]
+/// first. The two required components travel with it because a velocity is
+/// always SOME target's velocity over SOME history, and an aim feed that writes
+/// one without the other leaves the track keyed to the wrong body.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
+#[require(TurretSectionTargetEntity, TurretSectionTargetTrack)]
 pub struct TurretSectionTargetVelocity(pub Vec3);
+
+/// The entity whose motion [`TurretSectionTargetVelocity`] describes, or `None`
+/// when the mount is aimed at a commanded POINT rather than at a body (the
+/// player's crosshair tier).
+///
+/// Written by every aim feed beside the position and the velocity, and read for
+/// exactly one purpose: [`TurretSectionTargetTrack`] throws its filter away when
+/// this changes. A mount that swapped torpedoes and kept the old track would
+/// lead the new one along the dead one's course.
+#[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
+pub struct TurretSectionTargetEntity(pub Option<Entity>);
 
 /// The world-space point the turret is actually aiming its barrel at: the lead
 /// intercept of `TurretSectionTargetInput` given `TurretSectionTargetVelocity`,
@@ -222,7 +242,6 @@ impl Plugin for TurretSectionPlugin {
 
         app.register_type::<TurretSectionArc>();
         app.add_observer(insert_turret_section);
-        app.add_observer(resolve_bullet_hit);
 
         if self.render {
             app.init_resource::<PlaceholderArt>();
@@ -241,9 +260,10 @@ impl Plugin for TurretSectionPlugin {
             apply_turret_config_to_children.in_set(super::SpaceshipSectionSystems),
         );
 
-        // NOTE: the WHOLE gun runs on the physics clock - the intercept solve,
-        // the hinge demand, the controller that eases onto it, the joint pose
-        // it writes, and the round that leaves along that pose. The fire timer
+        // NOTE: the WHOLE gun runs on the physics clock - the target track, the
+        // intercept solve, the hinge demand, the controller that eases onto it,
+        // the joint pose it writes, and the round that leaves along that pose.
+        // The fire timer
         // accumulates fixed ticks and bullets spawn from the RAW root pose, so
         // shot spacing is exact at any ship velocity; in Update the timer
         // quantized shots to render frames and the muzzle pose was the eased
@@ -270,7 +290,11 @@ impl Plugin for TurretSectionPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                (update_turret_aim_point, update_turret_target_joints_system)
+                (
+                    update_turret_target_track,
+                    update_turret_aim_point,
+                    update_turret_target_joints_system,
+                )
                     .chain()
                     .in_set(TurretSectionAimSystems),
                 sync_turret_joint_rotation.after(SmoothLookRotationSystems::Sync),
@@ -317,5 +341,74 @@ mod tests {
         });
 
         app.update();
+    }
+
+    /// The track pass is only worth anything if it is WIRED. `update_turret_aim_point`
+    /// falls back to the raw sample when a mount holds no track, so a chain
+    /// that lost the pass would keep solving - on the velocity of one step -
+    /// and nothing would say so. This drives the real plugin on a manual clock
+    /// and reads the track back off the mount.
+    #[test]
+    fn the_plugin_filters_the_target_velocity_on_the_fixed_clock() {
+        use std::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            SmoothLookRotationPlugin,
+            TurretSectionPlugin::default(),
+        ));
+        // A frame long enough to carry at least one 64 Hz step, so a single
+        // update is guaranteed to fold a sample in.
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            1.0 / 30.0,
+        )));
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, Transform::IDENTITY))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn(turret_section(TurretSectionConfig::default()))
+            .id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert((ChildOf(ship), Transform::IDENTITY));
+        app.world_mut().flush();
+        let torpedo = app.world_mut().spawn_empty().id();
+
+        // Settle a track on a body at rest...
+        {
+            let mut entity = app.world_mut().entity_mut(turret);
+            **entity.get_mut::<TurretSectionTargetEntity>().unwrap() = Some(torpedo);
+        }
+        for _ in 0..8 {
+            app.update();
+        }
+
+        // ...then ONE frame of a sideways sample. A chain running on the raw
+        // sample would carry all 60 u/s of it into the solve.
+        let spike = Vec3::X * 60.0;
+        {
+            let mut entity = app.world_mut().entity_mut(turret);
+            **entity.get_mut::<TurretSectionTargetVelocity>().unwrap() = spike;
+        }
+        app.update();
+
+        let track = app
+            .world()
+            .entity(turret)
+            .get::<TurretSectionTargetTrack>()
+            .expect("the velocity component requires a track")
+            .velocity()
+            .expect("the fixed-clock pass ran");
+        assert!(
+            track.x > 0.0 && track.x < 0.5 * spike.x,
+            "the plugin must fold the sample into the track rather than take \
+             it whole: {track:?} against a {spike:?} sample"
+        );
     }
 }

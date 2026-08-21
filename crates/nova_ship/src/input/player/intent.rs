@@ -97,6 +97,7 @@ pub(super) fn update_turret_target_input(
         (
             &mut TurretSectionTargetInput,
             &mut TurretSectionTargetVelocity,
+            &mut TurretSectionTargetEntity,
             &ChildOf,
             Option<&PointDefenseMount>,
             Option<&TurretDefenseTarget>,
@@ -136,6 +137,11 @@ pub(super) fn update_turret_target_input(
     // velocity is zero. A dead section or lock falls through to the next tier
     // the same frame (the targeting systems clear the stale state on their
     // next run).
+    //
+    // Each tier also names the BODY its velocity came from, which is what tells
+    // a mount's velocity track it has changed target. The component tier names
+    // the lock ROOT, not the section: the velocity is the root's, so a fine
+    // lock moving between sections of one ship is the same track, not a switch.
     let lock_tier = lock.and_then(|target| {
         q_lock_target
             .get(target)
@@ -146,17 +152,18 @@ pub(super) fn update_turret_target_input(
                     target_velocity
                         .map(|velocity| **velocity)
                         .unwrap_or(Vec3::ZERO),
+                    Some(target),
                 )
             })
     });
     let component_tier = component_section.and_then(|section| {
         let section_position = q_section_position.get(section).ok()?;
-        let (_, lock_velocity) = lock_tier?;
-        Some((section_position.translation(), lock_velocity))
+        let (_, lock_velocity, lock_entity) = lock_tier?;
+        Some((section_position.translation(), lock_velocity, lock_entity))
     });
     let ray_tier = {
         let forward = **point_rotation * Vec3::NEG_Z;
-        (position + forward * 100.0, Vec3::ZERO)
+        (position + forward * 100.0, Vec3::ZERO, None)
     };
     // LOCK-WINS routing (flipping the manual-wins knob): a
     // combat lock holds the turrets even while RAISED - moving the cursor
@@ -164,17 +171,19 @@ pub(super) fn update_turret_target_input(
     // explicit road back to manual. With NO lock, the ray tier IS the raised
     // manual aim, so no stance special-case remains - the pure three-tier
     // feed.
-    let (target_point, target_velocity) = component_tier.or(lock_tier).unwrap_or(ray_tier);
+    let (target_point, target_velocity, target_entity) =
+        component_tier.or(lock_tier).unwrap_or(ray_tier);
 
-    for (mut turret, mut velocity, _, mount, assignment) in q_turret
+    for (mut turret, mut velocity, mut tracked, _, mount, assignment) in q_turret
         .iter_mut()
-        .filter(|(_, _, ChildOf(t_parent), _, _)| *t_parent == spaceship)
+        .filter(|(_, _, _, ChildOf(t_parent), _, _)| *t_parent == spaceship)
     {
         if flight_computer_works(mount, assignment) {
             continue;
         }
         **turret = Some(target_point);
         **velocity = target_velocity;
+        **tracked = target_entity;
     }
 }
 

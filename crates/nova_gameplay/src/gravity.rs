@@ -102,13 +102,14 @@ impl GravityWell {
 }
 
 /// Opt-in marker: only entities carrying this feel gravity wells. Inserted
-/// automatically on ship roots (player and AI - one arena, one physics),
-/// torpedo projectiles, and turret rounds. Turret rounds opt in too: the curve
-/// is only perceptible on close grazing passes, but since the target ship
-/// already feels gravity, letting rounds fall too is a free common-mode
-/// correction to the lead solver's aim-behind-a-falling-target miss. Section
-/// debris still skips (perf; a later flourish). Never insert this on a well
-/// source.
+/// automatically on ship roots (player and AI - one arena, one physics) and on
+/// torpedo projectiles. Section debris still skips (perf; a later flourish).
+/// Never insert this on a well source.
+///
+/// Gun rounds are NOT here, and are not an omission: a round is not a rigid
+/// body, so it has no `Forces` for [`gravity_well_system`] to write through.
+/// It still curves - `advance_rounds` recomputes the pull from
+/// [`well_accel`].
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct GravityAffected;
@@ -231,7 +232,6 @@ impl Plugin for NovaGravityPlugin {
 
         app.add_observer(insert_gravity_affected_on_player_ship);
         app.add_observer(insert_gravity_affected_on_torpedo);
-        app.add_observer(insert_gravity_affected_on_turret_round);
         app.add_observer(remove_dominant_well_on_well_removed);
 
         // The edge against the ship's section systems is declared by
@@ -264,18 +264,6 @@ fn insert_gravity_affected_on_player_ship(
 /// so it self-corrects through wells.
 fn insert_gravity_affected_on_torpedo(
     add: On<Add, TorpedoProjectileMarker>,
-    mut commands: Commands,
-) {
-    commands.entity(add.entity).try_insert(GravityAffected);
-}
-
-/// Turret rounds opt in too. They ride the same `gravity_well_system` as
-/// ships and torpedoes - it only touches `DominantWell` on an SOI crossing
-/// (~twice over a round's life, not per tick), so ~500 live rounds/turret is
-/// affordable; a lighter no-`DominantWell` path was left unbuilt because the
-/// measurement did not call for it.
-fn insert_gravity_affected_on_turret_round(
-    add: On<Add, TurretBulletProjectileMarker>,
     mut commands: Commands,
 ) {
     commands.entity(add.entity).try_insert(GravityAffected);
@@ -650,23 +638,20 @@ mod tests {
     /// The AI arm of this opt-in is tested beside its observer in `input::ai`,
     /// which is where it now lives.
     #[test]
-    fn the_player_ship_torpedoes_and_turret_rounds_opt_into_gravity() {
+    fn the_player_ship_and_torpedoes_opt_into_gravity() {
         let mut app = App::new();
         app.add_observer(insert_gravity_affected_on_player_ship);
         app.add_observer(insert_gravity_affected_on_torpedo);
-        app.add_observer(insert_gravity_affected_on_turret_round);
 
         let player = app
             .world_mut()
             .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
             .id();
         let torpedo = app.world_mut().spawn(TorpedoProjectileMarker).id();
-        let round = app.world_mut().spawn(TurretBulletProjectileMarker).id();
         app.update();
 
         assert!(app.world().get::<GravityAffected>(player).is_some());
         assert!(app.world().get::<GravityAffected>(torpedo).is_some());
-        assert!(app.world().get::<GravityAffected>(round).is_some());
     }
 
     /// The Ceres Queen case: a `controller: None` ship carries NO pilot marker,
@@ -777,7 +762,7 @@ mod tests {
     }
 
     /// A dynamic body without `GravityAffected`, so an A/B control against a
-    /// gravity-affected round on the same tangential pass can prove the marker
+    /// gravity-affected body on the same tangential pass can prove the marker
     /// is what curves the trajectory. Mirrors `spawn_probe` minus the marker.
     fn spawn_straight_body(app: &mut App, position: Vec3, velocity: Vec3) -> Entity {
         app.world_mut()
@@ -792,12 +777,18 @@ mod tests {
     }
 
     #[test]
-    fn a_turret_round_curves_under_a_well_and_a_gravity_free_body_does_not() {
-        // The bullet-gravity regression: a round on a tangential pass past a
-        // well must bend toward the center, and an identical body WITHOUT
-        // GravityAffected must fly dead straight. This A/Bs the opt-in - delete
-        // the marker (or its observer) and the two trajectories coincide,
-        // failing the test.
+    fn a_gravity_affected_body_curves_under_a_well_and_a_gravity_free_one_does_not() {
+        // A body on a tangential pass past a well must bend toward the center,
+        // and an identical body WITHOUT GravityAffected must fly dead straight.
+        // This A/Bs the opt-in - delete the marker (or its observer) and the
+        // two trajectories coincide, failing the test.
+        //
+        // This covers SHIPS AND TORPEDOES ONLY. It used to be named for turret
+        // rounds and never tested one: the fixture builds its own
+        // `RigidBody::Dynamic`, so it would keep passing unchanged after rounds
+        // stopped being bodies and stopped curving at all. The round's own
+        // curve is proved on a PRODUCTION round by the
+        // `system_round_gravity_curve` range.
         //
         // Geometry: well at origin (mu 1200, SOI 160, unfaded core out to
         // 0.85*160 = 136u), body starts at x = b = 40u (deep in the core) on
