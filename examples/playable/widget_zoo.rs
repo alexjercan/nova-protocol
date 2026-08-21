@@ -11,7 +11,7 @@
 //!
 //! Interactive run:  `cargo run --example widget_zoo`  (drag the slider, click
 //! the Skin control / checks / toggles; `S` also flips the skin).
-//! Capture both skins: `NOVA_CAPTURE=1 NOVA_SHOT_DIR=target/zoo cargo run
+//! Capture both skins: `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/zoo cargo run
 //! --example widget_zoo --features debug` -> widget_zoo-{phosphor,hardware}.png
 //! then exit. (`--features debug` because the shot goes through the fleet's
 //! shared `capture_window`.)
@@ -106,7 +106,7 @@ fn main() -> AppExit {
         ),
     );
     // The two-skin capture pass. Behind `debug` because it shoots through the
-    // shared `capture_window`, which is where `NOVA_SHOT_DIR` is resolved for
+    // shared `capture_window`, which is where `NOVA_CAPTURE_DIR` is resolved for
     // the whole fleet - the zoo used to resolve it a second time itself.
     #[cfg(feature = "debug")]
     app.add_systems(Update, drive_capture);
@@ -632,11 +632,11 @@ fn drive_capture(
     }
 }
 
-/// Capture the window to `name` (relative paths stage under `NOVA_SHOT_DIR`).
+/// Capture the window to `name` (relative paths stage under `NOVA_CAPTURE_DIR`).
 ///
 /// Queued as a command rather than spawned here: `capture_window` is the
 /// fleet's one capture primitive and takes `&mut World`, which is also what
-/// resolves `NOVA_SHOT_DIR` in exactly one place.
+/// resolves `NOVA_CAPTURE_DIR` in exactly one place.
 #[cfg(feature = "debug")]
 fn shoot(name: &str, commands: &mut Commands) {
     let name = name.to_string();

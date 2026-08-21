@@ -354,7 +354,7 @@ the `nova_autopilot` crate and are documented on
 [The automation harness](automation-harness.md). This page only shows the run
 recipes; that page is the contract.
 
-Harness runs are SILENT: any harness env (`NOVA_AUTOPILOT`, `NOVA_SHOT`,
+Harness runs are SILENT: any harness env (`NOVA_AUTOPILOT`,
 `NOVA_CAPTURE`) zeroes the audio output via `HarnessMute` - Xvfb hides the
 window but not the speakers, and nobody listens to a scripted run. The
 volume SETTING is untouched (persistence and the settings menu never see
@@ -541,7 +541,7 @@ Capture (needs a display + GPU; headless CI-style is Xvfb + lavapipe) into a
 staging dir, then package into `web/src/assets/`:
 
 ```sh
-export NOVA_SHOT_DIR=target/shots
+export NOVA_CAPTURE_DIR=target/shots
 for shot in $(python3 scripts/gen-web-screenshots.py --producers); do
     NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example "$shot" --features debug
 done

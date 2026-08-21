@@ -9,11 +9,11 @@
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - walk the framing, exit clean,
 //!   capturing nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also capture the shot (staged under
-//!   `NOVA_SHOT_DIR`).
+//!   `NOVA_CAPTURE_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
+//! NOVA_CAPTURE_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_hero_ship --features debug
 //! ```
 //!

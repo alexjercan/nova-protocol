@@ -86,8 +86,8 @@ impl MasterVolume {
 /// ONCE at [`NovaSettingsPlugin`] build (a run's mute state cannot change
 /// mid-session): `NOVA_MUTE` set and not `"0"` mutes any run, `NOVA_MUTE=0`
 /// forces sound even under a harness, and with `NOVA_MUTE` unset a run is
-/// muted iff a harness env (`NOVA_AUTOPILOT`/`NOVA_SHOT`/`NOVA_CAPTURE`) is
-/// active - which covers every probe and capture run with no changes there.
+/// muted iff a harness env (`NOVA_AUTOPILOT`/`NOVA_CAPTURE`) is active - which
+/// covers every probe and capture run with no changes there.
 /// Tests inject the resource directly (insert after the plugin) instead of
 /// touching process env, so parallel tests cannot race on it.
 #[derive(Resource, Clone, Copy, Default, Debug, PartialEq)]
@@ -98,8 +98,8 @@ impl HarnessMute {
         let nova_mute = std::env::var("NOVA_MUTE").ok();
         // NOTE: string literals, not `nova_autopilot`'s consts. `nova_gameplay`
         // is a shipping crate and does not take a dev-tooling dependency for
-        // three strings; the migration task's absence grep guards the drift.
-        let harness_env_active = ["NOVA_AUTOPILOT", "NOVA_SHOT", "NOVA_CAPTURE"]
+        // two strings; the migration task's absence grep guards the drift.
+        let harness_env_active = ["NOVA_AUTOPILOT", "NOVA_CAPTURE"]
             .iter()
             .any(|key| std::env::var_os(key).is_some());
         Self(harness_muted_from(nova_mute.as_deref(), harness_env_active))

@@ -88,7 +88,7 @@ fn main() -> bevy::app::AppExit {
     // torpedo pass): a torpedo fired, armed, detonated and damaged a gate, the
     // scene switch took every transient the first scene left in the air, the
     // guidance LED a fast crosser, and the whole launch chain repeated in the
-    // second scene. Under NOVA_SHOT it captures a PNG. The scene is built on
+    // second scene. Under NOVA_CAPTURE it captures a PNG. The scene is built on
     // `GameAssetsStates::Loaded` (below) so the screenshot's forced Playing
     // does not re-run setup.
     #[cfg(feature = "debug")]
@@ -124,8 +124,7 @@ fn main() -> bevy::app::AppExit {
         // its NOVA_PERF_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(torpedo_script());
-        app.add_plugins(nova_screenshot());
+        app.add_plugins(nova_screenshot(torpedo_script()));
     }
 
     app.run()

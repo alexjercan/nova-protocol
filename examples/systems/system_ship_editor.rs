@@ -56,7 +56,7 @@ fn main() -> bevy::app::AppExit {
     // The same editor app the game/binary runs - not a bespoke copy.
     let mut app = editor_app(true, None);
 
-    // Headless smoke-test harness: inert in a normal run (gated on NOVA_AUTOPILOT / NOVA_SHOT).
+    // Headless smoke-test harness: inert in a normal run (gated on NOVA_AUTOPILOT).
     #[cfg(feature = "debug")]
     {
         // Probe wiring (each plugin is inert without its NOVA_PERF_* env): run
@@ -80,8 +80,7 @@ fn main() -> bevy::app::AppExit {
             }),
         );
         app.init_resource::<EditorProbe>();
-        app.add_plugins(editor_script());
-        app.add_plugins(nova_screenshot());
+        app.add_plugins(nova_screenshot(editor_script()));
         framelog(&mut app);
     }
 

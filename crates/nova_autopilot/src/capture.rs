@@ -1,22 +1,18 @@
 //! The capture primitive: write the primary window to a PNG, and the
 //! environment contract that arms a capturing run.
 //!
-//! There is ONE capture idiom in the fleet. A capturing example is an ordinary
-//! autopilot script whose steps call [`capture_window`] from an `on_enter`
-//! hook, so the act, the framing and the shot read top-to-bottom in the step
-//! list. (A multi-shot reel driver used to own that cadence itself, with the
-//! beat list built away from the script that produced the state each beat
-//! framed; it was deleted for this.)
-//!
-//! [`ScreenshotPlugin`](crate::screenshot::ScreenshotPlugin) is the one
-//! remaining capture DRIVER, and it stays: it is a single settled-frame shot
-//! with no script at all, for an example that just wants a picture of itself.
+//! There is ONE capture idiom in the fleet, and ONE driver behind it. A
+//! capturing example is an ordinary autopilot script whose steps call
+//! [`capture_window`] from an `on_enter` hook, so the act, the framing and the
+//! shot read top-to-bottom in the step list. A still and a loop are the same
+//! script with different beats; a lone settled-frame snapshot is that script
+//! with one beat.
 //!
 //! Nothing here is armed on its own. [`capturing`] reports whether
 //! [`CAPTURE_ENV`] is set, and a script uses it to decide whether it is on the
 //! capture path or the smoke path - the same file drives both.
 //!
-//! Relative paths resolve under [`SHOT_DIR_ENV`], so a whole run stages into
+//! Relative paths resolve under [`CAPTURE_DIR_ENV`], so a whole run stages into
 //! one folder; an absolute path is used as-is.
 //!
 //! Every shot ACKS: [`capture_window`] records the path in [`CaptureLog`] once
@@ -35,14 +31,13 @@ use bevy::{
 /// their shots and settle long enough for the PNGs to land. Unset, the same
 /// script is the smoke path - it walks the whole thing and captures nothing.
 ///
-/// Distinct from [`SCREENSHOT_ENV`](crate::screenshot::SCREENSHOT_ENV) (the
-/// single settled-frame driver) so a scripted capture run and a one-off
-/// snapshot never fight over the window.
+/// It arms the shots, not the driver: the script itself is the autopilot's, so
+/// a capturing run sets [`AUTOPILOT_ENV`](crate::autopilot::AUTOPILOT_ENV) too.
 pub const CAPTURE_ENV: &str = "NOVA_CAPTURE";
 
 /// Environment variable naming the directory relative capture paths resolve
 /// under. Unset (or empty), a relative path stays relative to the CWD.
-pub const SHOT_DIR_ENV: &str = "NOVA_SHOT_DIR";
+pub const CAPTURE_DIR_ENV: &str = "NOVA_CAPTURE_DIR";
 
 /// Default capture resolution: 1920x1080, the 16:9 the web figures and
 /// thumbnails use (thumbnails share this capture and are sized down in CSS).
@@ -84,7 +79,7 @@ impl CaptureLog {
 }
 
 /// Capture the primary window to `path` (relative paths resolve under
-/// [`SHOT_DIR_ENV`]), creating the parent directory if needed.
+/// [`CAPTURE_DIR_ENV`]), creating the parent directory if needed.
 ///
 /// ASYNCHRONOUS: it spawns a bare `Screenshot` request, and the PNG lands at
 /// the end of a later frame. The caller does NOT guess how long that takes -
@@ -122,21 +117,21 @@ fn create_capture_dir(resolved: &std::path::Path) {
     }
 }
 
-/// Resolve an output path under [`SHOT_DIR_ENV`]. Shared with the loop
+/// Resolve an output path under [`CAPTURE_DIR_ENV`]. Shared with the loop
 /// recorder ([`crate::loops`]), whose staging frames and webm resolve under
-/// the same shot dir as every still.
+/// the same capture dir as every still.
 pub(crate) fn capture_path(path: &str) -> PathBuf {
-    resolve_capture_path(std::env::var(SHOT_DIR_ENV).ok().as_deref(), path)
+    resolve_capture_path(std::env::var(CAPTURE_DIR_ENV).ok().as_deref(), path)
 }
 
-/// The path resolution itself, with the shot dir passed in rather than read:
+/// The path resolution itself, with the capture dir passed in rather than read:
 /// only RELATIVE paths are joined - an absolute path passes through unchanged,
 /// so a caller naming an exact file still gets it. Split from [`capture_path`]
 /// so every branch is testable without mutating the process environment, which
 /// would race the other tests sharing this binary.
-fn resolve_capture_path(shot_dir: Option<&str>, path: &str) -> PathBuf {
+fn resolve_capture_path(capture_dir: Option<&str>, path: &str) -> PathBuf {
     let path = std::path::Path::new(path);
-    match shot_dir {
+    match capture_dir {
         Some(dir) if !dir.is_empty() && !path.is_absolute() => std::path::Path::new(dir).join(path),
         _ => path.to_path_buf(),
     }
@@ -146,34 +141,34 @@ fn resolve_capture_path(shot_dir: Option<&str>, path: &str) -> PathBuf {
 mod tests {
     use super::*;
 
-    /// Every branch of the resolution, asserted against an explicit shot dir
-    /// instead of whatever the ambient env happens to hold.
+    /// Every branch of the resolution, asserted against an explicit capture
+    /// dir instead of whatever the ambient env happens to hold.
     #[test]
-    fn capture_path_joins_only_relative_paths_under_the_shot_dir() {
+    fn capture_path_joins_only_relative_paths_under_the_capture_dir() {
         assert_eq!(
             resolve_capture_path(None, "feature-gravity.png"),
             PathBuf::from("feature-gravity.png"),
-            "with no shot dir a relative path stays relative"
+            "with no capture dir a relative path stays relative"
         );
         assert_eq!(
             resolve_capture_path(Some(""), "feature-gravity.png"),
             PathBuf::from("feature-gravity.png"),
-            "an empty shot dir is the same as none, not a join onto nothing"
+            "an empty capture dir is the same as none, not a join onto nothing"
         );
         assert_eq!(
             resolve_capture_path(Some("/shots"), "feature-gravity.png"),
             PathBuf::from("/shots/feature-gravity.png"),
-            "a relative path resolves under the shot dir"
+            "a relative path resolves under the capture dir"
         );
         assert_eq!(
             resolve_capture_path(Some("/shots"), "/elsewhere/a.png"),
             PathBuf::from("/elsewhere/a.png"),
-            "an absolute path passes through whatever the shot dir says"
+            "an absolute path passes through whatever the capture dir says"
         );
         assert_eq!(
             resolve_capture_path(None, "/elsewhere/a.png"),
             PathBuf::from("/elsewhere/a.png"),
-            "an absolute path is untouched with no shot dir either"
+            "an absolute path is untouched with no capture dir either"
         );
     }
 }
@@ -182,6 +177,6 @@ mod tests {
 /// capture environment variables.
 pub mod prelude {
     pub use super::{
-        capture_window, capturing, CaptureLog, CAPTURE_ENV, CAPTURE_RESOLUTION, SHOT_DIR_ENV,
+        capture_window, capturing, CaptureLog, CAPTURE_DIR_ENV, CAPTURE_ENV, CAPTURE_RESOLUTION,
     };
 }

@@ -630,7 +630,7 @@ Screenshot((path: "shots/my_scene.png")),
 |---|---|---|---|
 | `path` | string | required | output PNG path |
 
-Relative paths land under the `NOVA_SHOT_DIR` env var when set; parent
+Relative paths land under the `NOVA_CAPTURE_DIR` env var when set; parent
 directories are created.
 
 </details>

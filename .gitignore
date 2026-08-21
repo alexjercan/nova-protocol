@@ -14,7 +14,7 @@ dump.svg
 # mdbook output (book.toml build-dir); the source is docs/
 /book/
 
-# Default output of the nova_debug screenshot harness (NOVA_SHOT)
+# Default output of the nova_debug screenshot beat (nova_screenshot)
 screenshot.png
 
 # Generated at build time by cargo-about (scripts/gen-licenses.sh); ships in

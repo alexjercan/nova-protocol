@@ -101,7 +101,7 @@
 //! - `NOVA_AUTOPILOT=1`: smoke path - collapse the row, frame it, strip the
 //!   cladding, exit clean. This is the path `probe run` takes.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the row clad and then bare
-//!   (staged under `NOVA_SHOT_DIR`). Same ships in both frames, so the pair is
+//!   (staged under `NOVA_CAPTURE_DIR`). Same ships in both frames, so the pair is
 //!   a before and after rather than two rolls.
 
 use bevy::prelude::*;

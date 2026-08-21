@@ -327,9 +327,9 @@ impl AppBuilder {
         }
         let boot_to_menu = has_menu && startup_scenario.is_none();
 
-        // NOTE: only advance when still in Loading - the screenshot harness
-        // (NOVA_SHOT) force-sets Playing on the first frame, and this hook firing
-        // seconds later must not yank the app backwards into the menu.
+        // NOTE: only advance when still in Loading - a scripted run may already
+        // have set Playing, and this hook firing seconds later must not yank the
+        // app backwards into the menu.
         //
         // AFTER the editor's sandbox registration: the sandbox is the one
         // scenario with no content file behind it, and a membership check that

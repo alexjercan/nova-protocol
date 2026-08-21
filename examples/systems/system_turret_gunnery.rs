@@ -150,8 +150,7 @@ fn main() -> bevy::app::AppExit {
         // its NOVA_PERF_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(turret_script());
-        app.add_plugins(nova_screenshot());
+        app.add_plugins(nova_screenshot(turret_script()));
     }
 
     app.run()

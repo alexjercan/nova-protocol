@@ -56,6 +56,11 @@ struct Cli;
 #[cfg(feature = "debug")]
 const CENTER_TOLERANCE_PX: f32 = 10.0;
 
+/// The RTT-inset frame this range shoots. Named once: the beat that waits for
+/// the write and the call that makes it must agree on the string.
+#[cfg(feature = "debug")]
+const INSET_SHOT: &str = "inset_shot.png";
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
@@ -75,7 +80,7 @@ fn main() -> bevy::app::AppExit {
         // error exit naming it. Keep the deadlines' sum well under
         // DEFAULT_DEADLINE_SECS (120s) so a named stall wins the race against
         // the generic collector deadline.
-        app.add_plugins(
+        app.add_plugins(nova_screenshot(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 .step("load the range")
                 .enter(GameStates::Loading)
@@ -110,7 +115,8 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("capture the inset frame")
                 .on_enter(request_inset_shot)
-                .until(elapsed(0.2))
+                .until(shot_written(INSET_SHOT))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 .step("assert the acquisition ring")
                 .on_enter(assert_dwell_ring)
@@ -136,13 +142,14 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(kill_target)
                 .until(elapsed(0.4))
                 .add()
-                // Last beat: the driver reports done after it, so the run ends
-                // on the assertion rather than idling out a runway.
+                // The script's last beat: `nova_screenshot` appends the
+                // capture beat behind it, and the driver reports done after
+                // that - so the run ends on the assertion rather than idling
+                // out a runway.
                 .step("assert the indicators hid with their anchors")
                 .on_enter(assert_indicators_hid)
                 .add(),
-        );
-        app.add_plugins(nova_screenshot());
+        ));
     }
 
     app.run()
@@ -586,21 +593,17 @@ fn inject_dwell(world: &mut World) {
 
 /// Capture a real loaded frame (scene up, lock focused, inset rendering) to a
 /// PNG, so the RTT inset can be eyeballed headlessly. Inert unless
-/// `NOVA_CAPTURE` is set - the documented capture gate every other example
-/// uses. `NOVA_SHOT` would NOT work here: it force-advances to Playing and
-/// shoots before async asset loading has a scene, so the frame is black.
-/// Injecting the screenshot mid-run from the settled script avoids that (task
+/// `NOVA_CAPTURE` is set, like every other shot in the fleet. Injected MID-RUN
+/// from the settled script: this frame is the one worth having, and a shot
+/// taken before async asset loading has a scene would be black (task
 /// 20260710-104421 verify note).
 #[cfg(feature = "debug")]
 fn request_inset_shot(world: &mut World) {
-    use bevy::render::view::screenshot::{save_to_disk, Screenshot};
-    if !capturing() {
-        return;
-    }
-    world
-        .spawn(Screenshot::primary_window())
-        .observe(save_to_disk("inset_shot.png"));
-    info!("hud range: inset screenshot requested (inset_shot.png)");
+    // `shoot`, not a bare `Screenshot` + `save_to_disk`: the shared idiom is
+    // what resolves the path under `NOVA_CAPTURE_DIR` and acks the write. The
+    // hand-rolled pair wrote `inset_shot.png` into the process CWD - the repo
+    // root, for a `cargo run`.
+    shoot(world, INSET_SHOT);
 }
 
 /// The ring driver + widget have run: the acquisition ring now rides the

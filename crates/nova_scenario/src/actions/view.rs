@@ -64,11 +64,11 @@ impl EventAction<NovaEventWorld> for SetCameraActionConfig {
 }
 
 /// Resolve a screenshot output path. Absolute paths are used as-is; a relative
-/// path is joined under the `NOVA_SHOT_DIR` env var when set (so an example or a
+/// path is joined under the `NOVA_CAPTURE_DIR` env var when set (so an example or a
 /// packaging script can redirect all captures to a staging folder), else it is
 /// relative to the process working directory.
 fn resolve_capture_path(path: &str) -> std::path::PathBuf {
-    let dir = std::env::var("NOVA_SHOT_DIR")
+    let dir = std::env::var("NOVA_CAPTURE_DIR")
         .ok()
         .filter(|dir| !dir.is_empty());
     resolve_capture_path_in(path, dir.as_deref())
@@ -85,7 +85,7 @@ fn resolve_capture_path_in(path: &str, capture_dir: Option<&str>) -> std::path::
 }
 
 /// Capture the primary window to a PNG at `path` (photo mode). Relative paths
-/// resolve under `NOVA_SHOT_DIR` (see `resolve_capture_path`). Built on Bevy's
+/// resolve under `NOVA_CAPTURE_DIR` (see `resolve_capture_path`). Built on Bevy's
 /// built-in `Screenshot::primary_window()` + `save_to_disk` observer - the same
 /// primitive the screenshot harness uses - so no capture dependency is added.
 /// The parent directory is created if missing; a capture on a build without a
@@ -94,7 +94,7 @@ fn resolve_capture_path_in(path: &str, capture_dir: Option<&str>) -> std::path::
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScreenshotActionConfig {
-    /// Output PNG path (relative paths resolve under `NOVA_SHOT_DIR`).
+    /// Output PNG path (relative paths resolve under `NOVA_CAPTURE_DIR`).
     pub path: String,
 }
 

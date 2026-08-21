@@ -29,12 +29,12 @@
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the full walk, recording
 //!   nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: record and encode the loop into
-//!   `NOVA_SHOT_DIR/torpedo-blast.webm` (the armed run is frame-clocked to
+//!   `NOVA_CAPTURE_DIR/torpedo-blast.webm` (the armed run is frame-clocked to
 //!   the loop cadence).
 //!
 //! Capture:
 //! ```text
-//! NOVA_SHOT_DIR=target/loop-shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
+//! NOVA_CAPTURE_DIR=target/loop-shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example loop_torpedo_blast --features debug
 //! ```
 

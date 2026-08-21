@@ -1,6 +1,6 @@
-//! Nova adapter layer over the [`mod@nova_autopilot`] drivers.
+//! Nova adapter layer over the [`mod@nova_autopilot`] driver.
 //!
-//! The drivers themselves (scripted autopilot, settled-frame screenshot) live
+//! The driver itself (the scripted autopilot) lives
 //! in `nova_autopilot`, which depends on `bevy` alone and knows nothing about
 //! Nova. Everything Nova-shaped they need is a caller hook, and this module is
 //! what fills those hooks: the [`GameStates`] presets, the [`ScenarioLoaded`]
@@ -17,9 +17,9 @@
 //! [`hide_hud`] and [`freeze_bodies`] are the scene dressing every capturing
 //! example needs; none of them is a driver.
 //!
-//! Both presets are inert unless their env var is set (`NOVA_AUTOPILOT` /
-//! `NOVA_SHOT`), so an example adds them permanently and pays nothing in a
-//! normal run.
+//! Every preset here is inert unless `NOVA_AUTOPILOT` is set, and every shot
+//! is inert unless `NOVA_CAPTURE` is, so an example wires them permanently and
+//! pays nothing in a normal run.
 //!
 //! ## Why the autopilot does not force `Playing`
 //!
@@ -75,11 +75,11 @@ use std::sync::Arc;
 
 use avian3d::prelude::RigidBody;
 use bevy::{prelude::*, window::PrimaryWindow};
-use nova_autopilot::predicate::{any_entity, resource_where};
+use nova_autopilot::predicate::{any_entity, frames, resource_where, shot_written};
 pub use nova_autopilot::{
     autopilot::{AutopilotLoop, AutopilotPlugin},
     capture::{
-        capture_window, capturing, CaptureLog, CAPTURE_ENV, CAPTURE_RESOLUTION, SHOT_DIR_ENV,
+        capture_window, capturing, CaptureLog, CAPTURE_DIR_ENV, CAPTURE_ENV, CAPTURE_RESOLUTION,
     },
     // The self-ending examples (menu_scenarios) report the autopilot collector
     // done early rather than idling out the runway. They must reach the SAME
@@ -97,7 +97,6 @@ pub use nova_autopilot::{
     // `nova_autopilot` directly (only on `nova_debug` and `nova_probe`), which
     // is why re-exporting it is the route rather than a third path dependency.
     predicate::{not, Predicate},
-    screenshot::ScreenshotPlugin,
 };
 use nova_events::prelude::EntityId;
 use nova_gameplay::{
@@ -229,20 +228,42 @@ pub fn player_ship_present() -> Arc<Predicate> {
     any_entity::<(With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>()
 }
 
-/// Env-gated screenshot preset for nova examples: advance to `Playing`, settle
-/// [`SETTLE_FRAMES`] frames, hide the dev overlays, capture the
-/// primary window to a PNG, and report done. Inert unless `NOVA_SHOT` is set (a
-/// `WxH` value also overrides the window resolution). See [`ScreenshotPlugin`].
+/// The PNG a [`nova_screenshot`] beat writes. Relative, so it stages under
+/// `NOVA_CAPTURE_DIR` like every other shot.
+pub const NOVA_SCREENSHOT_PATH: &str = "screenshot.png";
+
+/// Append the ONE capture beat to `script`: drop the dev overlays, settle
+/// [`SETTLE_FRAMES`] frames, shoot [`NOVA_SCREENSHOT_PATH`], and hold until the
+/// PNG is on disk.
 ///
-/// Unlike [`nova_autopilot()`], this force-advances to `Playing` on the first
-/// frame, so it is best used with examples that set their scene up in
-/// `OnEnter(GameAssetsStates::Loaded)` (the nova scenario convention, e.g.
-/// `scenario`) rather than `OnEnter(GameStates::Playing)`, which the early
-/// forced transition would run before `GameAssets` is ready.
-pub fn nova_screenshot() -> ScreenshotPlugin<GameStates> {
-    ScreenshotPlugin::new(GameStates::Playing)
-        .settle_frames(SETTLE_FRAMES)
-        .hide_overlay(hide_dev_overlays)
+/// The picture idiom for a range that already drives itself. A range takes its
+/// own script, wraps it here, and adds ONE plugin:
+///
+/// ```no_run
+/// # use bevy::prelude::*;
+/// # use nova_debug::harness::{nova_autopilot, nova_screenshot};
+/// # fn add(app: &mut App) {
+/// app.add_plugins(nova_screenshot(nova_autopilot()));
+/// # }
+/// ```
+///
+/// It EXTENDS the run's one driver rather than adding a second: two
+/// [`AutopilotPlugin`]s in an app is a duplicate-plugin panic, and two drivers
+/// writing `NextState` was what the old stand-down rule existed to referee.
+/// The shot itself is armed by `NOVA_CAPTURE` like every other shot in the
+/// fleet - [`shoot`] is a logged no-op otherwise and [`shot_written`] already
+/// holds, so an unarmed run walks the identical beats and writes nothing.
+pub fn nova_screenshot(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+    script
+        .step("nova: settle for the screenshot")
+        .on_enter(hide_dev_overlays)
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("nova: shoot the screenshot")
+        .on_enter(|world: &mut World| shoot(world, NOVA_SCREENSHOT_PATH))
+        .until(shot_written(NOVA_SCREENSHOT_PATH))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
 }
 
 /// Smoke-test assertion preset: fail a headless run if scenario init is broken.
@@ -577,14 +598,15 @@ mod tests {
     }
 }
 
-/// The `nova_autopilot` and `nova_screenshot` presets, the `shoot` capture idiom
-/// and its scene dressing, and the Nova-typed predicates the beats compose from.
+/// The `nova_autopilot` script preset and the `nova_screenshot` capture beat,
+/// the `shoot` idiom and its scene dressing, and the Nova-typed predicates the
+/// beats compose from.
 pub mod prelude {
     pub use super::{
         assert_scenario_loaded, force_capture_resolution, freeze_bodies, hide_dev_overlays,
         hide_hud, nova_autopilot, nova_screenshot, player_ship_present, pose_camera,
         scenario_camera_present, scenario_variable_is, script_reports_done, section_gone, shoot,
-        ScenarioLoadedAssertPlugin, NOVA_AUTOPILOT_SECS, NOVA_AUTOPILOT_STEP, REACHED_PLAYING,
-        SETTLE_FRAMES, SHOT_DEADLINE_SECS,
+        ScenarioLoadedAssertPlugin, NOVA_AUTOPILOT_SECS, NOVA_AUTOPILOT_STEP, NOVA_SCREENSHOT_PATH,
+        REACHED_PLAYING, SETTLE_FRAMES, SHOT_DEADLINE_SECS,
     };
 }

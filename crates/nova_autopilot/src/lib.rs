@@ -4,9 +4,9 @@
 //!
 //! ## Ownership boundary
 //!
-//! This crate owns the drivers (scripted autopilot, settled-frame screenshot),
-//! the [`capture`] primitive their scripts shoot with, and the completion
-//! protocol that reports when a run has finished. It does not own anything
+//! This crate owns the driver (the scripted autopilot), the [`capture`]
+//! primitive its scripts shoot with, and the completion protocol that reports
+//! when a run has finished. It does not own anything
 //! Nova-specific: the adapters - scenario
 //! presets, camera posing, rigid-body freezing, overlay hiding - stay in
 //! `nova_debug` and reach in through caller hooks. The same line runs through
@@ -40,13 +40,13 @@
 //! | Variable | Arms | Read by | Value |
 //! | --- | --- | --- | --- |
 //! | `NOVA_AUTOPILOT` ([`AUTOPILOT_ENV`](autopilot::AUTOPILOT_ENV)) | the scripted state driver | [`AutopilotPlugin`](autopilot::AutopilotPlugin) | any (presence only) |
-//! | `NOVA_SHOT` ([`SCREENSHOT_ENV`](screenshot::SCREENSHOT_ENV)) | the single settled-frame capture, UNLESS `NOVA_AUTOPILOT` is also set - both drivers write `NextState`, so the autopilot wins and [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) stands down with a warning | [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) | `WxH` overrides the window size; anything else is a plain toggle |
 //! | `NOVA_CAPTURE` ([`CAPTURE_ENV`](capture::CAPTURE_ENV)) | the CAPTURE path of a script that has one - it takes its shots (and records its [`loops`], which also pins the armed run's frame clock to the loop cadence) instead of driving straight through | [`capturing`](capture::capturing), which the script reads while building its steps | any (presence only) |
-//! | `NOVA_SHOT_DIR` ([`SHOT_DIR_ENV`](capture::SHOT_DIR_ENV)) | nothing on its own | [`capture_window`](capture::capture_window) | directory RELATIVE capture paths resolve under; absolute paths ignore it |
+//! | `NOVA_CAPTURE_DIR` ([`CAPTURE_DIR_ENV`](capture::CAPTURE_DIR_ENV)) | nothing on its own | [`capture_window`](capture::capture_window) | directory RELATIVE capture paths resolve under; absolute paths ignore it |
 //! | `NOVA_AUTOPILOT_DEADLINE` ([`DEADLINE_ENV`](completion::DEADLINE_ENV)) | nothing on its own | the [`completion`] watcher | seconds before the run error-exits naming the laggards (default [`DEFAULT_DEADLINE_SECS`](completion::DEFAULT_DEADLINE_SECS)); the RUN-level backstop under a script's own per-step [`deadline`](autopilot::StepBuilder::deadline)s |
 //!
-//! `NOVA_SHOT` and `NOVA_CAPTURE` are deliberately distinct: a scripted
-//! capture run and a one-off snapshot must never fight over the same window.
+//! `NOVA_CAPTURE` arms the SHOTS, never the driver. A capturing run therefore
+//! sets `NOVA_AUTOPILOT` too, and one script owns the window: there is no
+//! second driver to fight it over `NextState`.
 //!
 //! ## The completion protocol
 //!
@@ -79,7 +79,7 @@
 
 // No outer docs here: every module below carries its own `//!` docs, and an
 // outer `///` would concatenate ahead of them and re-resolve their intra-doc
-// links (`AppExit`, `AUTOPILOT_ENV`, `SCREENSHOT_ENV`) in THIS module's scope,
+// links (`AppExit`, `AUTOPILOT_ENV`, `CAPTURE_ENV`) in THIS module's scope,
 // where they do not exist. See 20260802-183340 REVIEW.md R1.3.
 pub mod autopilot;
 pub mod capture;
@@ -90,22 +90,18 @@ pub mod input;
 mod log_capture;
 pub mod loops;
 pub mod predicate;
-pub mod screenshot;
 
 /// Glob-import surface: `use nova_autopilot::prelude::*`.
 ///
-/// Every public item of the six modules is re-exported here verbatim, so a
+/// Every public item of the modules below is re-exported here verbatim, so a
 /// caller never needs a module path.
 ///
 /// [`capture_window`](capture::capture_window) is deliberately in here next to
 /// the step vocabulary: shooting is a step's business, not a driver's.
 ///
-/// Names are re-exported unaliased. Two share a name with something outside
-/// `bevy::prelude` or inside it:
+/// Names are re-exported unaliased. One shares a name with something in
+/// `bevy::prelude`:
 ///
-/// - [`ScreenshotPlugin`](screenshot::ScreenshotPlugin) shares its name with
-///   Bevy's render-side plugin; neither is in `bevy::prelude`, so a glob import
-///   of both preludes does not collide.
 /// - [`not`](predicate::not) shares its name with Bevy's run-condition
 ///   combinator, which IS in `bevy::prelude`. A file globbing both must name
 ///   whichever it wants explicitly. (The predicate that would have been
@@ -115,11 +111,9 @@ pub mod prelude {
     pub use crate::{
         autopilot::{AutopilotLoop, AutopilotPlugin, StepBuilder, AUTOPILOT_ENV},
         capture::{
-            capture_window, capturing, CaptureLog, CAPTURE_ENV, CAPTURE_RESOLUTION, SHOT_DIR_ENV,
+            capture_window, capturing, CaptureLog, CAPTURE_DIR_ENV, CAPTURE_ENV, CAPTURE_RESOLUTION,
         },
-        completion::{
-            register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS, SCREENSHOT,
-        },
+        completion::{register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS},
         input::{
             assert_named_visible, click_at, click_named, hover_named, move_cursor, press_key,
             press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels, type_text,
@@ -133,6 +127,5 @@ pub mod prelude {
             and, any_entity, elapsed, frames, loop_written, not, resource_where, shot_written,
             state_is, Predicate,
         },
-        screenshot::{ScreenshotPlugin, MAX_WAIT_FRAMES, SCREENSHOT_ENV},
     };
 }

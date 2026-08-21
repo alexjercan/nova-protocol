@@ -100,7 +100,7 @@ fn main() -> bevy::app::AppExit {
     {
         app.init_resource::<LiveIntercept>();
         app.add_systems(Update, latch_the_live_intercept);
-        app.add_plugins(
+        app.add_plugins(nova_screenshot(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // Both hulls up AND the neutralize latch re-seeded: on a looped
                 // cycle the old run's variables outlive the load replacing them
@@ -160,10 +160,9 @@ fn main() -> bevy::app::AppExit {
                 // measures ACTIVITY rather than an idle tail.
                 .loop_from(LOAD_STEP)
                 .on_loop(respawn_the_range),
-        );
+        ));
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(nova_screenshot());
     }
 
     app.run()

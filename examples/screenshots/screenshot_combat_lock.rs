@@ -12,11 +12,11 @@
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - reach Playing, drive the whole
 //!   script, exit clean, capturing nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also capture the shots (staged under
-//!   `NOVA_SHOT_DIR`).
+//!   `NOVA_CAPTURE_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
+//! NOVA_CAPTURE_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_combat_lock --features debug
 //! ```
 //!

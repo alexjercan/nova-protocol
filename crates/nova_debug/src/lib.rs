@@ -1,12 +1,13 @@
 //! `nova_debug` is the debug-only tooling plugin, compiled only under the
 //! `debug` feature so it costs nothing in a shipped build. `DebugPlugin` adds
 //! the world inspector and dev overlays (gravity, section wireframes); the
-//! `harness` module is the Nova adapter over the `nova_autopilot` drivers,
+//! `harness` module is the Nova adapter over the `nova_autopilot` driver,
 //! providing the headless-run presets the examples and the `nova_probe`
 //! run-harness drive - `nova_autopilot` (scripted play) and `nova_screenshot`
-//! (settled-frame capture) - plus the one capture idiom the screenshot examples
-//! script their shots with (`shoot`). Import the presets from the prelude; the
-//! raw driver types stay reachable under `nova_debug::harness::`.
+//! (the settled-frame capture beat it appends) - plus the one capture idiom the
+//! screenshot examples script their shots with (`shoot`). Import the presets
+//! from the prelude; the raw driver type stays reachable under
+//! `nova_debug::harness::`.
 
 #![warn(missing_docs)]
 
@@ -39,13 +40,11 @@ pub mod wireframe;
 /// ([`nova_autopilot`](harness::nova_autopilot),
 /// [`nova_screenshot`](harness::nova_screenshot)), the capture idiom
 /// ([`shoot`](harness::shoot) and its scene dressing) and [`DebugPlugin`] into
-/// scope; the raw driver types stay under `nova_debug::harness::` to avoid
-/// clashing with Bevy's own `ScreenshotPlugin`.
+/// scope; the raw driver type stays under `nova_debug::harness::`.
 pub mod prelude {
-    // Only the presets are the intended entry point. The raw `AutopilotPlugin` /
-    // `ScreenshotPlugin` types stay reachable via `nova_debug::harness::` for the
-    // rare bespoke-timeline case, so glob-importing this prelude does not clash
-    // with Bevy's own `bevy::render::view::screenshot::ScreenshotPlugin`.
+    // Only the presets are the intended entry point. The raw `AutopilotPlugin`
+    // type stays reachable via `nova_debug::harness::` for the rare
+    // bespoke-timeline case.
     // The generic half of the script vocabulary, so an example writes its beats
     // from ONE import instead of reaching into `nova_autopilot` alongside the
     // Nova-typed predicates it is composing them with. `not` is deliberately

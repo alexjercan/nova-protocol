@@ -25,7 +25,6 @@ directly.
 | Driver | Does | What Nova uses it for |
 | --- | --- | --- |
 | `AutopilotPlugin` | Walks a list of named steps, each advancing when its predicate over the world holds | Headless smoke runs, driving a scenario while something else measures |
-| `ScreenshotPlugin` | Advances to a target state, settles N frames, captures the primary window to a PNG | One-off visual checks (a phone-width layout regression) |
 | `capture_window` | Writes the primary window to a PNG and acks it into `CaptureLog`. Not a driver - the primitive a script's shot step calls | The web figures and thumbnails, captured at 1920x1080 |
 | `completion` | The registration and exit protocol every driver reports to | Ending a run once, when everyone is finished |
 
@@ -60,17 +59,17 @@ so.
 | Variable | Arms | Read by | Value |
 | --- | --- | --- | --- |
 | `NOVA_AUTOPILOT` | the scripted state driver | `AutopilotPlugin` | any (presence only) |
-| `NOVA_SHOT` | the single settled-frame capture - but it is ignored when `NOVA_AUTOPILOT` is also set: both drivers write `NextState`, so the autopilot wins and `ScreenshotPlugin` stands down with a warning | `ScreenshotPlugin` | `WxH` (for example `390x844`) overrides the window size; anything else is a plain toggle |
 | `NOVA_CAPTURE` | the CAPTURE path of a script that has one: its shot steps write PNGs instead of driving straight through | `capturing()`, which a script reads while building its steps | any (presence only) |
-| `NOVA_SHOT_DIR` | nothing on its own | `capture_window`, and the scenario `Screenshot` action (`nova_scenario/src/actions/view.rs`) reads it independently | directory that relative capture paths resolve under; absolute paths ignore it |
+| `NOVA_CAPTURE_DIR` | nothing on its own | `capture_window`, and the scenario `Screenshot` action (`nova_scenario/src/actions/view.rs`) reads it independently | directory that relative capture paths resolve under; absolute paths ignore it |
 | `NOVA_PERF_CONTRACT` | the contract writer | `ProbeContract` | file path the run writes its declared capabilities to (probe passes `probe-contract.json`), so the grader can tell an unwired capability from a failed one. Unset - a hand-run example - writes nothing |
 | `NOVA_PERF_SNAPSHOT` | the world-state snapshot sink | `SnapshotPlugin` | JSONL file path. One snapshot per line: ships, their sections, each section's fixtures and weapon state, and every round in flight. Read it with `jq` |
 | `NOVA_PERF_SNAPSHOT_FRAMES` | nothing on its own | `SnapshotPlugin` | comma-separated frame numbers to snapshot at. A repeated value snapshots that frame twice, which is the determinism check: the two lines must be byte-identical. Unset - only `F9` and script calls take one |
 | `NOVA_AUTOPILOT_DEADLINE` | nothing on its own | the completion watcher | seconds before the run gives up and error-exits naming the laggards (default 120); the RUN-level backstop under a script's own per-step deadlines |
 | `NOVA_MENU_BACKDROP` | pins the menu's backdrop draw to one scenario, so a capture run (or a backdrop being authored) looks at a SPECIFIC scene instead of re-rolling the menu | `load_menu_ambience` (`nova_menu/src/ambience.rs`) | a `menu_backdrop`-flagged scenario id (for example `menu_duel`); an unknown or error-flagged id warns and falls back to the random draw |
 
-`NOVA_SHOT` and `NOVA_CAPTURE` are deliberately separate: a scripted capture
-run and a one-off snapshot must never fight over the same window.
+`NOVA_CAPTURE` arms the SHOTS, never a driver. A capturing run therefore sets
+`NOVA_AUTOPILOT` too, and one script owns the window: there is no second driver
+to fight it over `NextState`.
 
 That is the DRIVER contract in full. It is not every `NOVA_*` variable the
 workspace reads: the frame-time capture takes a dozen `NOVA_PERF_*` knobs of
@@ -332,9 +331,10 @@ not drift between framings.
 
 Do not add a second capture idiom beside it. A driver that walks its own list
 of shots builds that list away from the script producing the state each shot
-frames, which puts timing and framing in different files - and they drift.
-`ScreenshotPlugin` is the only capture DRIVER, and it is for the one-shot case
-with no script at all.
+frames, which puts timing and framing in different files - and they drift. A
+range that only wants ONE settled picture of itself does not get a driver
+either: `nova_screenshot(script)` appends the settle-and-shoot beat to the
+script it already has.
 
 ### Deadlines
 
@@ -363,8 +363,9 @@ Then arm it from the shell - `driven_app` is the crate's own example, the
 
 ```sh
 NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app
-NOVA_SHOT=390x844 cargo run --example system_scenario_grammar
-NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_SHOT_DIR=target/shots \
+NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/shots \
+  cargo run --example system_scenario_grammar --features debug
+NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/shots \
   cargo run --example screenshot_gravity --features debug
 ```
 
@@ -382,15 +383,14 @@ The full API reference is the crate's rustdoc
 
 ## Find it in the code
 
-- Drivers: `AutopilotPlugin` - `crates/nova_autopilot/src/autopilot.rs`;
-  `ScreenshotPlugin` - `crates/nova_autopilot/src/screenshot.rs`;
+- Driver: `AutopilotPlugin` - `crates/nova_autopilot/src/autopilot.rs`;
   `capture_window` - `crates/nova_autopilot/src/capture.rs`.
 - Protocol and vocabulary: completion -
   `crates/nova_autopilot/src/completion.rs`; predicates -
   `crates/nova_autopilot/src/predicate.rs`; gestures -
   `crates/nova_autopilot/src/input.rs`.
-- Nova adapter: `nova_autopilot()` preset, `shoot`, scene dressing -
-  `crates/nova_debug/src/harness.rs`.
+- Nova adapter: the `nova_autopilot()` and `nova_screenshot()` presets,
+  `shoot`, scene dressing - `crates/nova_debug/src/harness.rs`.
 - Host layer: the `probe` subcommand - `crates/nova_probe_cli/src/native.rs`;
   in-game half: `NovaProbePlugin` -
   `crates/nova_probe/src/capabilities/mod.rs`. What the capture measures and

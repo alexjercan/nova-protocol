@@ -23,11 +23,11 @@
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the full walk, recording
 //!   nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: record and encode the loop into
-//!   `NOVA_SHOT_DIR/spine-cut.webm`.
+//!   `NOVA_CAPTURE_DIR/spine-cut.webm`.
 //!
 //! Capture:
 //! ```text
-//! NOVA_SHOT_DIR=target/loop-shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
+//! NOVA_CAPTURE_DIR=target/loop-shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example loop_spine_cut --features debug
 //! ```
 

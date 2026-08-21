@@ -10,11 +10,11 @@
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - turn the ship through both
 //!   closeups, exit clean, capturing nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also write each PNG (staged under
-//!   `NOVA_SHOT_DIR`).
+//!   `NOVA_CAPTURE_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
+//! NOVA_CAPTURE_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_section_weapons --features debug
 //! ```
 //!

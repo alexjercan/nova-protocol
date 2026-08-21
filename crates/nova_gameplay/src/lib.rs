@@ -85,8 +85,8 @@ pub mod test_log {
 pub mod prelude {
     // Re-export BY NAME, never by glob. A glob over a vendored engine prelude
     // used to stand here, and it dragged in the retired harness twins -
-    // `AutopilotPlugin`, `AutopilotLoop`, `ScreenshotPlugin`,
-    // `ScreenshotReelPlugin`, `HarnessCompletion` - which shadow nova's harness
+    // `AutopilotPlugin`, `AutopilotLoop`, `HarnessCompletion` - which shadow
+    // nova's harness
     // at every example's `use nova_protocol::prelude::*` and boot the example
     // INERT (task 20260802-183403). The glob is gone with the dependency, but
     // the lesson outlives it: adding a name below is a decision.

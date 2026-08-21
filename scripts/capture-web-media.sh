@@ -5,7 +5,7 @@
 #
 # The loops are authored as capture examples in the one capture idiom
 # (`nova_autopilot::loops`): each example records its own frames between its
-# `loop_start`/`loop_end` steps and encodes `<loop>.webm` into NOVA_SHOT_DIR
+# `loop_start`/`loop_end` steps and encodes `<loop>.webm` into NOVA_CAPTURE_DIR
 # itself, so this script only stages, runs, validates and copies - the same
 # division of labour as the stills (examples shoot, gen-web-screenshots.py
 # packages).
@@ -81,7 +81,7 @@ for pair in "${LOOPS[@]}"; do
         # webm(s) and exits through the completion protocol - a nonzero exit
         # here IS a failed capture (open loop, frame cap, ffmpeg failure,
         # stalled step).
-        NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_SHOT_DIR="$STAGE" \
+        NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR="$STAGE" \
             xvfb-run -a -s "-screen 0 1920x1080x24" \
             cargo run --features debug --example "$example"
         ran+=("$example")

@@ -40,7 +40,7 @@ Capturing the screenshots (needs a display + a GPU; use Xvfb + lavapipe headless
 into the staging dir, then packaging them:
 
     for shot in $(python3 scripts/gen-web-screenshots.py --producers); do
-        NOVA_SHOT_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
+        NOVA_CAPTURE_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \\
             cargo run --example "$shot" --features debug
     done
     python3 scripts/gen-web-screenshots.py            # stage -> web/src/assets

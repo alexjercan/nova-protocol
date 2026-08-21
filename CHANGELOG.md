@@ -453,6 +453,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- **(breaking)** `NOVA_SHOT` and its screenshot driver are gone. A range's one settled picture is `nova_screenshot(script)`, a beat on its own autopilot, armed by `NOVA_CAPTURE` like every shot.
+- **(breaking)** `NOVA_SHOT_DIR` is now `NOVA_CAPTURE_DIR`: one name for the directory every still, loop and scenario `Screenshot` action stages under.
 - A `--features debug` boot prints 62 lines instead of 360: per-item spawn and setup lines are `trace!`, batch lines carry counts, and one `nova=` prefix directive covers all 22 crates, not nine.
 - A headless run no longer opens with a bevy ERROR and three WARNs it provokes by construction; the clamp is headless-only, so a rendering run keeps those targets at their normal level.
 - A capture breaks its frame down by name: main-world schedules, render phases with `PrepareAssets`, `Prepare`'s sub-sets and submit/present split out, and GPU passes under `NOVA_PERF_RENDER_DIAG`.

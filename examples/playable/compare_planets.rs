@@ -17,7 +17,7 @@
 //! - `NOVA_AUTOPILOT=1`: smoke path - load, frame, walk the swap steps, exit
 //!   clean. This is the path `probe run` takes.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the grid and two focus
-//!   swaps (staged under `NOVA_SHOT_DIR`).
+//!   swaps (staged under `NOVA_CAPTURE_DIR`).
 
 #[path = "shared/compare.rs"]
 mod compare;

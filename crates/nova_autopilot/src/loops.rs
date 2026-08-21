@@ -12,7 +12,7 @@
 //! While a loop is open, [`LoopCapturePlugin`]'s driver requests one
 //! primary-window readback per rendered frame (the same GPU path a screenshot
 //! takes) into a staging folder of numbered PNGs under
-//! [`SHOT_DIR_ENV`](crate::capture::SHOT_DIR_ENV). [`loop_end`] stops the
+//! [`CAPTURE_DIR_ENV`](crate::capture::CAPTURE_DIR_ENV). [`loop_end`] stops the
 //! recording, waits for every in-flight readback to land, encodes the frames
 //! with ffmpeg and acks `<name>.webm` into
 //! [`CaptureLog`](crate::capture::CaptureLog) only once the file is on disk.

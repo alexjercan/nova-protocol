@@ -131,8 +131,7 @@ fn main() -> bevy::app::AppExit {
         // its NOVA_PERF_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(hull_script());
-        app.add_plugins(nova_screenshot());
+        app.add_plugins(nova_screenshot(hull_script()));
     }
 
     app.run()
@@ -178,8 +177,9 @@ fn hull_script() -> Script {
         )))
         .deadline(10.0)
         .add();
-    // Last beats: the driver reports done after the round's closing assertion,
-    // so the run ends on an assertion rather than idling out a runway.
+    // The script's last beats: `nova_screenshot` appends the capture beat
+    // behind the round's closing assertion, and the driver reports done after
+    // that - so the run ends on an assertion rather than idling out a runway.
     damage_and_mass_rounds(script, RELOADED_ROUND)
 }
 
