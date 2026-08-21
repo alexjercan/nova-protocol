@@ -48,9 +48,10 @@ fn main() -> bevy::app::AppExit {
 }
 
 fn range_plugin(app: &mut App) {
-    // `NovaShipPlugin` does not own integrity; the range drives severing
-    // directly, so it adds the plugin under test itself.
-    app.add_plugins(ShipIntegrityPlugin);
+    // NOTE: `ShipIntegrityPlugin` is NOT added here. `NovaShipPlugin` brings it
+    // (`sections/mod.rs`), and bevy panics on a duplicate. The hand-assembled
+    // app this range used to build did not, which is exactly the class of thing
+    // `AppBuilder` exists to stop a range from having to know.
     app.init_resource::<SeverProbe>();
     app.add_systems(Startup, setup_range);
     app.add_systems(Update, drive_range);
