@@ -113,6 +113,26 @@ pub struct SpaceshipInputSystems;
    the game assembles itself; a lint would police the symptom and teach nobody
    the reason.
 
+   **Converting a range TO the builder is the same hazard pointing the other
+   way, and it caught the person who wrote this rule.** Hand-assembly silently
+   opts OUT of what the builder later learns; conversion silently opts IN to
+   everything the builder already does, which a hand-built range was written not
+   to expect. Both conversions regressed:
+
+   - `system_section_severing` added `ShipIntegrityPlugin` itself, correctly,
+     because its hand-built app had no `NovaShipPlugin`. After conversion the
+     ship plugin brings it and bevy panics on the duplicate.
+   - Both ranges EXIT on a frame count once their assertions hold. A hand-built
+     app had no state machine to reach, so nothing was racing. The builder has a
+     loading screen, and headless both ranges verified and shut down BEFORE
+     `Playing` - passing every assertion they make while failing
+     `reached_playing`.
+
+   So a conversion is not a mechanical edit. RUN the range through
+   `probe run <name> --norender --correctness-only` afterwards and read every
+   check, because the ones that break are the ones the range never had to think
+   about.
+
 ## Comments and rustdoc
 
 1. Start each module with a `//!` document of at most three sentences:

@@ -941,3 +941,85 @@ phase - "both teams standing" holds while intensity varies by an order of
 magnitude. The per-step CSV with body-count regime selection is what made this
 investigation resolvable, and the next lane should take it rather than measure
 whole-run averages over a scene whose load moves.
+
+## D21 - the executor is a big win, batching collision events is not, and I broke two ranges
+
+### The fixed loop goes single-threaded, and it is the largest win of the epic
+
+Landed. `FixedFirst`..`FixedLast` run on `SingleThreadedExecutor`
+(`AppBuilder::assemble`). Arena duel, two sweeps pooled, steps matched at
+650-750 dynamic bodies so the arms compare like with like:
+
+| | base | fixed-only |
+|---|--:|--:|
+| step median | 7.89 ms | **6.08** (p=.032) |
+| step p95 | 15.16 | **13.26** (p=.040) |
+| bookkeeping ("other") | 5.37 | **4.01** (p=.013) |
+| frame p99 | 36.92 | **21.04** (p=.001) |
+| worst frame | 49.17 | **28.25** (p=.001) |
+| **1% low** | **27.09 fps** | **47.53 fps** (p=.001) |
+
+**The 1% low nearly doubles.** Cross-checked on `stress_point_defense` at ~2,040
+bodies: step median 3.17 -> 2.84 (p=.004), worst frame 14.81 -> 10.79.
+
+Avian's `PhysicsSchedule` and `SubstepSchedule` are deliberately LEFT
+multithreaded: single-threading those measured nothing on the step and made the
+frame tail WORSE (p99 36.9 -> 40.6, p=.038), because the solver's `par_for_each`
+passes are the one part of the fixed loop that saturates threads.
+
+Ordering semantics unchanged - range outcome markers byte-identical.
+
+**Why it works**: the fixed schedules are SMALL and run 64 times a second, and
+the multithreaded executor charges a task fan-out per schedule per run that they
+cannot amortise. Most of a fixed step is bookkeeping across many tiny systems,
+not one wide parallel pass.
+
+### Batching the collision consumers is REJECTED, twice over
+
+**It does not pay**: step median 7.89 -> 7.70 (p=.49), 1% low 27.09 -> 26.69
+(p=.61), cascade steps 7.27 -> 8.00 (p=.85).
+
+The estimate that justified it was a misread of my own: **12,673 events was a
+WHOLE-RUN total**, and a fight step actually raises 100-180 messages. A per-run
+figure quoted as a per-step one is how an item gets ranked first.
+
+**And it changes what the game does.** The delivered stream is provably
+identical and the health snapshot is unchanged, but `stress_point_defense` moved
+a saturation invariant: peak live rounds 2,420 -> 2,190 (p=0.001) where 16 base
+runs span 2,419-2,421. Ablation localises it to the INTERACTION, not either
+conversion - bullet resolver alone 2,421, impact plus blast alone 2,421, all
+three 2,192. The game leans on the impact and bullet consumers interleaving per
+contact, and two systems in two crates cannot interleave.
+
+Since it buys nothing there is no trade to hand the owner. Not landed.
+
+### Three ranges were failing, and TWO were my regression
+
+From `a145fdab`, where I converted two ranges to `AppBuilder`. The conversion
+compiled, ran green by hand, and broke both under the probe:
+
+- `system_section_severing` added `ShipIntegrityPlugin` itself - correct before,
+  a duplicate-plugin panic after, because `NovaShipPlugin` brings it.
+- BOTH ranges exit on a frame count once their assertions hold, and headless
+  they verified and shut down before `Playing`. Every assertion passed;
+  `reached_playing` failed.
+
+Fixed in `43647c52`: the redundant plugin removed, both ranges gated on
+`Playing`. Also fixed a third thing that surfaced with them -
+`insert_spaceship_sections` logged an ERROR for any `SpaceshipRootMarker`
+carrying no authored hull, which is a legitimate hand-built root, so a correct
+range failed `log_clean`. Now `debug!`.
+
+**The lesson is in `CONVENTIONS.md` now**, beside the rule that caused it:
+hand-assembly silently opts OUT of what the builder learns, and conversion
+silently opts IN to what the builder already does. A conversion is not a
+mechanical edit and owes a `--correctness-only` run.
+
+### Still failing, NOT mine, not fixed
+
+`system_hull_damage` panics at `system_hull_damage.rs:860` - `SpawnLocalCom` is
+never frozen, so `assert_com_follows_sections` unwraps a `None`.
+`freeze_spawn_com` needs two consecutive fixed steps with five sections attached
+and the COM stable to 1e-4, and something now reaches the damage beat first.
+This is the wall-clock assumption already reported earlier in the epic and never
+filed. It is on the probe roster, so CI has been red on it.
