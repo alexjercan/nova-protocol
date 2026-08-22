@@ -1,6 +1,6 @@
 # Bake scenario work into the loading screen, stop computing on first hit
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.11.0, performance, scenario
 
@@ -339,3 +339,19 @@ drained), because the queue was still empty when `Update` ran. The warm-up is
 pending on that frame, so that tick is gone and the clock starts at 0.
 
 Items 1, 3 and 4 are untouched.
+
+## CLOSED 2026-08-22: remaining costs accepted
+
+The owner accepts the remaining items as current behavior:
+
+- NOVA OS scene rebuilding has no observed impact that justifies work now.
+- The velocity HUD sphere is a one-time load cost.
+- Asteroid construction runs behind the loading panel.
+- Most short-lived objects carry `TempEntity`; long-match accumulation does not
+  justify investigation now.
+- Remaining platform and subsystem coverage belongs in the final pre-release
+  probe.
+
+The original objective is complete: deferred work was audited, cold hull art was
+moved into scenario loading, and the suspected mid-fight costs were either fixed
+elsewhere or measured out.
