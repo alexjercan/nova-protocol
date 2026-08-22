@@ -23,18 +23,18 @@ Because health is per-section, a hull soaks damage locally: a hit on one side ch
 A hull cell keeps the shape it was built in. What it does instead is **crack**: dark fractures spreading as its own health falls, glowing through when it is about to fail, burnt out cold when it dies - and then the whole cell leaves at once. It throws no sparks, because a hull has nothing in it to short out.
 
 <figure class="figure">
-    <!-- Capture: assets/loop-section-hull.webm (short gameplay loop) -->
+    <!-- Capture: assets/loops/loop-section-hull.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
             >Loop capture needed</span
         >
         <span class="figure__placeholder-name"
-            >assets/loop-section-hull.webm</span
+            >assets/loops/loop-section-hull.webm</span
         >
         <span class="figure__placeholder-note"
-            >A short loop: turret fire chewing through hull
-            sections on one side while the far side stays
-            intact.</span
+            >A short loop: identical hull cells step from
+            clean plating through dark cracks, hot fractures,
+            and final failure.</span
         >
     </div>
 </figure>

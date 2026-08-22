@@ -1,4 +1,4 @@
-//! screenshot_damage_levels: the same ship at five damage levels, side by side.
+//! screenshot_damage_levels: the same ship at all eight crack levels, side by side.
 //!
 //! THE GATE for the erosion epic (task 20260813-224826, phase 2). Damage is now
 //! one number - the share of a body's own health that is gone - and every
@@ -6,7 +6,7 @@
 //! those looks are any good is not a question a test can answer, so this stands
 //! them in a row and lets somebody decide.
 //!
-//! Five identical clad ships, left to right, taking progressively worse
+//! Eight identical clad ships, left to right, taking progressively worse
 //! punishment. Damage is TWO readings and this drives both, because the effects
 //! read different ones:
 //!
@@ -61,12 +61,13 @@
 use avian3d::prelude::RigidBody;
 use bevy::prelude::*;
 use clap::Parser;
+use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
 #[command(name = "screenshot_damage_levels")]
 #[command(version = "1.0.0")]
-#[command(about = "One ship at five damage levels, side by side. Autopilot-only: a posed row with no controls of its own", long_about = None)]
+#[command(about = "One ship at all eight crack levels, side by side. Autopilot-only: a posed row with no controls of its own", long_about = None)]
 struct Cli;
 
 /// The levels the row stands at, left to right.
@@ -76,17 +77,27 @@ struct Cli;
 /// together on purpose - if two neighbouring columns are indistinguishable, the
 /// effect has fewer usable steps than the number suggests, and that is exactly
 /// what this row is for finding out.
-const LEVELS: [f32; 6] = [0.0, 0.25, 0.5, 0.75, 0.9, 0.0];
+const LEVELS: [f32; 9] = [
+    0.0,
+    1.0 / 7.0,
+    2.0 / 7.0,
+    3.0 / 7.0,
+    4.0 / 7.0,
+    5.0 / 7.0,
+    6.0 / 7.0,
+    0.99,
+    0.0,
+];
 
 /// The hit each column takes, in health, on the same place on its hull.
 ///
 /// Authored as damage rather than as a radius because damage is what a weapon
-/// deals: `mark_radius` prices it into a sphere, and these five buy roughly
+/// deals: `mark_radius` prices it into a sphere, and these levels buy roughly
 /// nothing, then enough to take the plate it lands on, then enough to carry
 /// through it into the hull. The spread is the point - a scrape, a plate gone,
 /// a hole with the hull cracked open behind it.
 #[cfg(feature = "debug")]
-const HITS: [f32; 6] = [0.0, 21.0, 86.0, 290.0, 977.0, 150.0];
+const HITS: [f32; 9] = [0.0, 21.0, 40.0, 86.0, 150.0, 290.0, 500.0, 977.0, 150.0];
 
 /// Whether each column's ship wears cladding.
 ///
@@ -100,7 +111,7 @@ const HITS: [f32; 6] = [0.0, 21.0, 86.0, 290.0, 977.0, 150.0];
 /// what the HIT alone does to a section nothing else has touched. The hit is
 /// 150 because a hull section holds 200 - one that spends more than its health
 /// bar is destroyed outright and there is nothing left to photograph.
-const CLAD: [bool; 6] = [true, true, true, true, true, false];
+const CLAD: [bool; 9] = [true, true, true, true, true, true, true, true, false];
 
 /// How far apart the ships stand, in units. Wide enough that debris and sparks
 /// from one column do not read as belonging to the next.
@@ -118,7 +129,9 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default());
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
         app.add_plugins(gallery_script());
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
     }
 
     app.run()
@@ -142,7 +155,7 @@ struct RowIsPinned;
 ///
 /// Gated on the row being PINNED, and that gate is not paranoia: thrust is
 /// real. The first cut of this held the throttle open from the moment the ships
-/// spawned and every one of them accelerated clean out of frame, so all five
+/// spawned and every one of them accelerated clean out of frame, so the whole row
 /// captures came back black.
 fn hold_the_throttle_open(
     pinned: Option<Res<RowIsPinned>>,
@@ -164,6 +177,12 @@ fn hold_the_throttle_open(
 /// A gallery is a row of specimens, not a scenario: nothing here should move at
 /// all. Static rather than locked axes because it also settles the shards a hit
 /// throws off, which would otherwise nudge the row apart.
+#[cfg(feature = "debug")]
+fn prepare_row(world: &mut World) {
+    hide_hud(world);
+    pin_the_row(world);
+}
+
 #[cfg(feature = "debug")]
 fn pin_the_row(world: &mut World) {
     let roots: Vec<Entity> = world
@@ -351,8 +370,11 @@ fn collect_descendants(world: &World, root: Entity, out: &mut Vec<Entity>) {
 type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
 
 #[cfg(feature = "debug")]
+const DAMAGE_LOOP: &str = "news-0110-damage-levels";
+
+#[cfg(feature = "debug")]
 fn gallery_script() -> Script {
-    let script = Script::new()
+    let mut script = Script::new()
         .step("load the row")
         .enter(GameStates::Loading)
         .until(scenario_camera_present())
@@ -364,7 +386,7 @@ fn gallery_script() -> Script {
         .until(elapsed(1.5))
         .add()
         .step("bolt the row down")
-        .on_enter(pin_the_row)
+        .on_enter(prepare_row)
         .add()
         .step("grade the row by health")
         .on_enter(set_column_levels)
@@ -376,14 +398,39 @@ fn gallery_script() -> Script {
         // throw a few sparks, so the shot catches them mid-flight.
         .step("let the damage show")
         .until(elapsed(2.0))
-        .add()
+        .add();
+
+    if capturing() {
+        script = (0..8).fold(
+            script
+                .step("open the damage-level loop")
+                .on_enter(|world| loop_start(world, DAMAGE_LOOP))
+                .until(frames(1))
+                .add(),
+            |script, index| {
+                script
+                    .step("frame the next crack bucket")
+                    .on_enter(move |world: &mut World| frame_column(world, index))
+                    .until(elapsed(0.65))
+                    .add()
+            },
+        );
+        script = script
+            .step("close the damage-level loop")
+            .on_enter(|world| loop_end(world, DAMAGE_LOOP))
+            .until(loop_written(DAMAGE_LOOP))
+            .deadline(60.0)
+            .add();
+    }
+
+    let script = script
         .step("frame the whole row")
         .on_enter(|world: &mut World| {
             let centre = row_centre();
             // High and looking down, for the same reason each column is: the
             // craters are in the hulls' top faces and a broadside shot of the
-            // row shows six silhouettes and no damage. Back far enough to hold
-            // the whole row - it is six columns wide now, not five.
+            // row shows nine silhouettes and no damage. Back far enough to hold
+            // the whole row - it is nine columns wide now, not five.
             nova_protocol::nova_debug::harness::pose_camera(
                 world,
                 centre + Vec3::new(0.0, 21.0, 28.0),
@@ -399,7 +446,7 @@ fn gallery_script() -> Script {
         .add();
 
     // One shot per column, so a level can be looked at on its own rather than
-    // squinting at a sixth of a wide frame.
+    // squinting at a ninth of a wide frame.
     LEVELS
         .iter()
         .enumerate()
@@ -539,7 +586,7 @@ fn gallery(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig 
         .collect();
 
     ScenarioConfig {
-        description: "One ship at five damage levels, side by side.".to_string(),
+        description: "One ship at all eight crack levels, side by side.".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],

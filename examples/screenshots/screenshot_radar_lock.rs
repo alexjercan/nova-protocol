@@ -31,6 +31,7 @@ mod kit;
 
 use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
+use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -38,6 +39,9 @@ use nova_protocol::prelude::*;
 #[command(version = "1.0.0")]
 #[command(about = "Capture the nav radar latching a beacon downrange. Autopilot-only: the script holds the radar gesture and poses the instrument shot", long_about = None)]
 struct Cli;
+
+#[cfg(feature = "debug")]
+const LOCK_LOOP: &str = "lock-dwell";
 
 /// Scenario id of the player's ship.
 const PLAYER_ID: &str = "nav_player";
@@ -68,6 +72,7 @@ fn main() -> bevy::app::AppExit {
         // walk is a sequence of posed framings with no steady-state window,
         // so a captured fps would measure the script, not the engine.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
         app.add_plugins(radar_script());
     }
@@ -194,7 +199,7 @@ fn ship(
 /// than a guard inside a shared step.
 #[cfg(feature = "debug")]
 fn radar_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+    let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("load the approach")
         .enter(GameStates::Loading)
         .until(player_ship_present())
@@ -203,16 +208,40 @@ fn radar_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("settle at the start")
         .on_enter(hud_instrument)
         .until(elapsed(1.0))
-        .add()
-        // Weapons lowered, hold CTRL: the nav-slot radar opens and the white NAV
-        // crosshair sweeps onto the beacon downrange. Waiting on the LOCK rather
-        // than on a guessed second - and naming the beacon - so a run that
-        // latches a rock instead aborts here and says so.
+        .add();
+
+    if capturing() {
+        script = script
+            .step("open the lock loop")
+            .on_enter(|world| loop_start(world, LOCK_LOOP))
+            .until(frames(1))
+            .add();
+    }
+
+    // Weapons lowered, hold CTRL: the nav-slot radar opens and the white NAV
+    // crosshair sweeps onto the beacon downrange. Waiting on the LOCK rather
+    // than on a guessed second - and naming the beacon - so a run that latches
+    // a rock instead aborts here and says so.
+    script = script
         .step("sweep the nav radar")
         .on_enter(hold_radar)
         .until(travel_locked_on_beacon())
         .deadline(12.0)
-        .add()
+        .add();
+
+    if capturing() {
+        script = script
+            .step("hold the completed lock")
+            .until(elapsed(0.8))
+            .add()
+            .step("close the lock loop")
+            .on_enter(|world| loop_end(world, LOCK_LOOP))
+            .until(loop_written(LOCK_LOOP))
+            .deadline(60.0)
+            .add();
+    }
+
+    script
         .step("capture the radar lock")
         .on_enter(move |world| shoot(world, "tutorial-radar-lock.png"))
         .until(shot_written("tutorial-radar-lock.png"))

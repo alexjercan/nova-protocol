@@ -1,5 +1,5 @@
 //! screenshot_nova_os_terminal: the Tab NOVA OS terminal with command output and
-//! an inline-completion ghost on it (`news-090-nova-os-terminal.png`).
+//! an inline-completion ghost on it (`wiki-nova-os-terminal.png`).
 //!
 //! It boots the one-ship range from `shared/computer.rs`, opens the computer with
 //! Tab and types through the real keyboard path, so a terminal that stopped
@@ -86,8 +86,8 @@ fn main() -> bevy::app::AppExit {
                 // The last step holds until the PNG is on disk, so the driver
                 // cannot report done out from under a pending write.
                 .step("capture the terminal")
-                .on_enter(move |world| shoot(world, "news-090-nova-os-terminal.png"))
-                .until(shot_written("news-090-nova-os-terminal.png"))
+                .on_enter(move |world| shoot(world, "wiki-nova-os-terminal.png"))
+                .until(shot_written("wiki-nova-os-terminal.png"))
                 .deadline(SHOT_DEADLINE_SECS)
                 .add(),
         );

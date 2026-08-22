@@ -29,18 +29,19 @@ for tool in node npm python3 chromium; do
     }
 done
 
-# The six page kinds. Every distinct piece of furniture on the site appears in at
-# least one: nav+hero+cards (landing), post cards (news index), long prose +
-# TOC (a news post), controls tables + keycaps (tutorial), the card grid (wiki
-# index), and code + tables + mermaid + sidebar (a wiki dev page).
+# The eight page kinds. Every distinct piece of furniture on the site appears in
+# at least one: nav+hero+cards, post cards, long release prose, controls tables,
+# the wiki grid, visual section docs, creator guidance, and code + mermaid.
 #   name|path
 PAGES=(
     "landing|/"
     "news-index|/news/"
-    "news-post|/news/0.9.0/"
-    "tutorial|/tutorial/"
+    "news-post|/news/0.11.0/"
+    "tutorial|/wiki/getting-started/"
     "wiki-index|/wiki/"
-    "wiki-dev-page|/wiki/dev/architecture/"
+    "wiki-sections|/wiki/sections/"
+    "creator-scenario|/create/author-a-scenario/"
+    "creator-sections|/create/sections/"
 )
 
 # Tall viewports so one shot carries most of a page; mermaid + webfonts settle

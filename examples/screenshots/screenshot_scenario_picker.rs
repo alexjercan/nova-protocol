@@ -51,6 +51,8 @@ struct Cli;
 /// it; campaigns render expanded unless collapsed, so nothing has to open it.
 #[cfg(feature = "debug")]
 const CAMPAIGN_CHAPTER_ROW: &str = "Scenario Row: broadside";
+#[cfg(feature = "debug")]
+const EXAMPLE_SCENARIO_ROW: &str = "Scenario Row: example_arena";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -101,6 +103,15 @@ fn picker_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(state_is(GameStates::MainMenu))
         .deadline(STEP_DEADLINE_SECS)
         .add()
+        .step("enable the bundled example mod")
+        .on_enter(|world: &mut World| {
+            world
+                .resource_mut::<EnabledMods>()
+                .0
+                .insert("example".to_string());
+        })
+        .until(frames(SETTLE_FRAMES * 2))
+        .add()
         .step("settle the menu and its ambience backdrop")
         .until(frames(SETTLE_FRAMES))
         .add()
@@ -139,5 +150,19 @@ fn picker_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .on_enter(shot("news-090-scenario-campaigns.png"))
         .until(shot_written("news-090-scenario-campaigns.png"))
         .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .click("select the example scenario", EXAMPLE_SCENARIO_ROW)
+        .step("settle the example scenario details")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("capture the example scenario")
+        .on_enter(shot("wiki-first-scenario-picker.png"))
+        .until(shot_written("wiki-first-scenario-picker.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .click("play the example scenario", "Scenario Play Button")
+        .step("reach the example arena")
+        .until(state_is(GameStates::Playing))
+        .deadline(STEP_DEADLINE_SECS)
         .add()
 }

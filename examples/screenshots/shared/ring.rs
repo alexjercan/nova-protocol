@@ -116,6 +116,15 @@ pub const STEADY_SECS: f32 = 2.0;
 /// The set: a gravity planetoid at the origin, a rock ring outside the flight
 /// path, and the player's racer parked on the ring radius.
 pub fn the_ring(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
+    the_ring_with_hull(game_assets, ships, "racer")
+}
+
+/// The ring with a selected recipe hull for visual capture variants.
+pub fn the_ring_with_hull(
+    game_assets: &GameAssets,
+    ships: &GameShips,
+    hull: &str,
+) -> ScenarioConfig {
     let player = ship(
         PLAYER_ID,
         "Player Ship",
@@ -127,7 +136,7 @@ pub fn the_ring(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             infinite_ammo: true,
         }),
         None,
-        kit::kenney_hull(ships, "racer"),
+        kit::kenney_hull(ships, hull),
     );
 
     // The ring debris: OUTSIDE the flight path, and small. Two rules, both
@@ -347,22 +356,45 @@ pub struct LegCamera {
     pub look_ahead: f32,
 }
 
+/// The filtered world-space pose of a moving leg camera.
+#[cfg(feature = "debug")]
+#[derive(Resource, Clone, Copy)]
+struct LegCameraTrack {
+    position: Vec3,
+    look_at: Vec3,
+}
+
 /// Re-solve the leg camera against the ship's live position and track.
 #[cfg(feature = "debug")]
 pub fn drive_leg_camera(world: &mut World) {
     let Some(rig) = world.get_resource::<LegCamera>().copied() else {
+        world.remove_resource::<LegCameraTrack>();
         return;
     };
     let ship = ship_position(world);
-    let track = ship_heading(world);
-    let offset = lit_side(track) * rig.side + track * rig.along + Vec3::Y * rig.up;
-    pose(world, ship + offset, ship + track * rig.look_ahead);
+    let heading = ship_heading(world);
+    let offset = lit_side(heading) * rig.side + heading * rig.along + Vec3::Y * rig.up;
+    let desired_position = ship + offset;
+    let desired_look_at = ship + heading * rig.look_ahead;
+    let delta = world.resource::<Time>().delta_secs().min(0.1);
+    let alpha = 1.0 - (-10.0 * delta).exp();
+    let mut track = world
+        .remove_resource::<LegCameraTrack>()
+        .unwrap_or(LegCameraTrack {
+            position: desired_position,
+            look_at: desired_look_at,
+        });
+    track.position = track.position.lerp(desired_position, alpha);
+    track.look_at = track.look_at.lerp(desired_look_at, alpha);
+    pose(world, track.position, track.look_at);
+    world.insert_resource(track);
 }
 
 /// Fly the camera behind the ship on the key side. The framing for a ship under
 /// power, since the drive is at the back and so is the lens.
 #[cfg(feature = "debug")]
 pub fn chase(world: &mut World, side: f32, back: f32, up: f32, look_ahead: f32) {
+    world.remove_resource::<LegCameraTrack>();
     world.insert_resource(LegCamera {
         side,
         along: -back,
@@ -376,6 +408,7 @@ pub fn chase(world: &mut World, side: f32, back: f32, up: f32, look_ahead: f32) 
 /// to be down the track with it.
 #[cfg(feature = "debug")]
 pub fn lead(world: &mut World, side: f32, ahead: f32, up: f32) {
+    world.remove_resource::<LegCameraTrack>();
     world.insert_resource(LegCamera {
         side,
         along: ahead,

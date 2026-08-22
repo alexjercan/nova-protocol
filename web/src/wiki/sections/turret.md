@@ -35,13 +35,13 @@ That blind cone is the whole reason [point defense](../../combat-weapons/#point-
 A beaten mount cracks and, past about a third of its health gone, throws sparks - but it loses nothing of itself and it shoots exactly as well as it did new. A turret that had been eaten away would be answering "how is that still firing?" with "it is not, really", and it is. It stops when it dies, and not before.
 
 <figure class="figure">
-    <!-- Capture: assets/loop-section-turret.webm (short gameplay loop) -->
+    <!-- Capture: assets/loops/loop-section-turret.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
             >Loop capture needed</span
         >
         <span class="figure__placeholder-name"
-            >assets/loop-section-turret.webm</span
+            >assets/loops/loop-section-turret.webm</span
         >
         <span class="figure__placeholder-note"
             >A short loop: a turret slewing onto a crossing

@@ -103,9 +103,13 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("open the loop")
                 .on_enter(|world| loop_start(world, LOOP_NAME))
-                // A beat of the intact hull, so the cut lands mid-loop rather
+                // A beat of the intact hull, so damage lands mid-loop rather
                 // than on frame one.
-                .until(elapsed(0.8))
+                .until(elapsed(0.5))
+                .add()
+                .step("scar the spine")
+                .on_enter(scar_spine)
+                .until(elapsed(1.0))
                 .add()
                 // The cut: production damage kills the pod, and the step
                 // waits for the production sever - a wreck fragment with its
@@ -168,11 +172,11 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     });
     let field = kit::NearField {
         id_prefix: "loop_rock_",
-        count: 30,
+        count: 12,
         seed: 20260818,
-        distance: (30.0, 95.0),
-        radius: (1.2, 4.0),
-        y_spread: 22.0,
+        distance: (55.0, 120.0),
+        radius: (1.0, 2.5),
+        y_spread: 30.0,
     };
 
     ScenarioConfig {
@@ -217,6 +221,24 @@ fn spin_subject(world: &mut World) {
     {
         angular.0 = SUBJECT_SPIN;
     }
+}
+
+/// Leave the cut section visibly cracked before the final severing hit.
+#[cfg(feature = "debug")]
+fn scar_spine(world: &mut World) {
+    let Some(node) = subject_section_health(world, CUT_SECTION) else {
+        warn!("spine loop: no health node under section '{CUT_SECTION}'");
+        return;
+    };
+    let amount = world
+        .get::<Health>(node)
+        .map_or(0.0, |health| health.max * 0.72);
+    world.trigger(HealthApplyDamage {
+        entity: node,
+        source: None,
+        amount,
+    });
+    info!("spine loop: scarred '{CUT_SECTION}' for {amount:.1}");
 }
 
 /// Kill the cut section through the production damage path.

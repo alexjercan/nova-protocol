@@ -39,18 +39,18 @@ A bay is loaded with a **torpedo type**, and the editor offers two: **Torpedo Ba
 So the Serpent is what you fire at something that shoots back, and the Lance at something that cannot - against a target running at the player's speed cap the Lance closes half again as fast. See [Combat & weapons](../../combat-weapons/#torpedoes) for how the two types read in flight.
 
 <figure class="figure">
-    <!-- Capture: assets/loop-section-torpedo-bay.webm (short gameplay loop) -->
+    <!-- Capture: assets/loops/loop-section-torpedo-bay.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
             >Loop capture needed</span
         >
         <span class="figure__placeholder-name"
-            >assets/loop-section-torpedo-bay.webm</span
+            >assets/loops/loop-section-torpedo-bay.webm</span
         >
         <span class="figure__placeholder-note"
-            >A short loop: a salvo leaving the bay, one
-            torpedo weaving through point-defense fire onto
-            the lock.</span
+            >A short loop: the straight Lance and weaving
+            Serpent draw their distinct paths across the same
+            firing lane.</span
         >
     </div>
 </figure>

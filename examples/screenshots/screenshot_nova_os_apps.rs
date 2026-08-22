@@ -1,5 +1,5 @@
 //! screenshot_nova_os_apps: the NOVA OS ship app filling the tube
-//! (`news-090-nova-os-apps.png`).
+//! (`wiki-nova-os-map.png` and `wiki-nova-os-ship.png`).
 //!
 //! It boots the one-ship range from `shared/computer.rs`, opens the computer with
 //! Tab and launches the map app and then the ship app through the real keyboard
@@ -70,12 +70,14 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(|world| type_word(world, "map"))
                 .until(frames(6))
                 .add()
-                // The map app writes no file of its own, and the beat stays
-                // anyway: it exercises the map app and the RTT/wgsl schematic
-                // path, so a render panic in either fails this run.
                 .step("launch the map app")
                 .on_enter(press_enter)
                 .until(frames(SETTLE_FRAMES))
+                .add()
+                .step("capture the map app")
+                .on_enter(|world| shoot(world, "wiki-nova-os-map.png"))
+                .until(shot_written("wiki-nova-os-map.png"))
+                .deadline(SHOT_DEADLINE_SECS)
                 .add()
                 // Leave the map app back to the prompt, then type `ship`.
                 .step("type the ship command")
@@ -95,8 +97,8 @@ fn main() -> bevy::app::AppExit {
                 // The last step holds until the PNG is on disk, so the driver
                 // cannot report done out from under a pending write.
                 .step("capture the ship app")
-                .on_enter(move |world| shoot(world, "news-090-nova-os-apps.png"))
-                .until(shot_written("news-090-nova-os-apps.png"))
+                .on_enter(move |world| shoot(world, "wiki-nova-os-ship.png"))
+                .until(shot_written("wiki-nova-os-ship.png"))
                 .deadline(SHOT_DEADLINE_SECS)
                 .add(),
         );

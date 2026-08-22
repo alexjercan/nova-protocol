@@ -68,6 +68,9 @@ const CROSSER_ID: &str = "crosser";
 const RANGE_ID: &str = "torpedo_range";
 
 #[cfg(feature = "debug")]
+const TYPES_LOOP: &str = "news-0110-torpedo-types";
+
+#[cfg(feature = "debug")]
 /// The scenario id the crossing scene loads under. DISTINCT from [`RANGE_ID`]
 /// so the script's scene-change gate can observe WHICH scene is live rather
 /// than guessing from world contents.
@@ -107,6 +110,7 @@ fn main() -> bevy::app::AppExit {
     {
         app.init_resource::<RangeOutcome>();
         app.init_resource::<HeldInput>();
+        app.init_resource::<TrailOnly>();
         app.init_resource::<TransientsAtSwitch>();
         app.add_observer(
             |_: On<Add, TorpedoProjectileMarker>, mut outcome: ResMut<RangeOutcome>| {
@@ -151,6 +155,7 @@ fn main() -> bevy::app::AppExit {
         // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
         app.add_plugins(nova_screenshot(torpedo_script()));
     }
 
@@ -228,6 +233,12 @@ struct RangeArmLogged;
 /// Smallest torpedo-to-target distance seen so far, the readable PN readout.
 #[derive(Resource)]
 struct BestApproach(f32);
+
+/// Suppress steering diagnostics while the release figure records only the two
+/// type-coloured flight paths.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct TrailOnly(bool);
 
 /// The midcourse lead readout. See [`track_lead_angle`].
 #[derive(Resource, Default)]
@@ -663,31 +674,58 @@ fn record_flight_paths(
 /// and the flown path behind it.
 fn draw_guidance_gizmos(
     mut gizmos: Gizmos,
+    trail_only: Option<Res<TrailOnly>>,
     q_torpedo: Query<
         (
+            Entity,
             &GlobalTransform,
             &TorpedoTargetPosition,
             &TorpedoArming,
             Option<&RangeFlightPath>,
             Option<&TorpedoType>,
+            Option<&TorpedoWeave>,
         ),
         With<TorpedoProjectileMarker>,
     >,
 ) {
-    for (torpedo_transform, target, arming, path, torpedo_type) in &q_torpedo {
+    if trail_only.as_deref().is_some_and(|mode| mode.0) {
+        let mut straight: Option<(&RangeFlightPath, Color)> = None;
+        let mut weaving: Option<(&RangeFlightPath, Color)> = None;
+        for (_, _, _, _, path, torpedo_type, weave) in &q_torpedo {
+            let (Some(path), Some(torpedo_type)) = (path, torpedo_type) else {
+                continue;
+            };
+            let slot = if weave.is_some_and(|weave| weave.angle > 0.0) {
+                &mut weaving
+            } else {
+                &mut straight
+            };
+            if slot.is_none_or(|(longest, _)| trail_extent(path) > trail_extent(longest)) {
+                *slot = Some((path, torpedo_type.tint));
+            }
+        }
+        for (path, tint) in straight.into_iter().chain(weaving) {
+            gizmos.linestrip(path.0.iter().copied(), tint);
+        }
+        return;
+    }
+
+    for (_, torpedo_transform, target, arming, path, torpedo_type, _) in &q_torpedo {
         let pos = torpedo_transform.translation();
-        let status = if arming.is_armed() {
-            tailwind::GREEN_400
-        } else {
-            tailwind::YELLOW_400
-        };
-        gizmos.sphere(Isometry3d::from_translation(pos), 0.6, status);
-        gizmos.line(pos, **target, tailwind::RED_400);
-        gizmos.sphere(
-            Isometry3d::from_translation(**target),
-            1.0,
-            tailwind::RED_400,
-        );
+        if !trail_only.as_deref().is_some_and(|mode| mode.0) {
+            let status = if arming.is_armed() {
+                tailwind::GREEN_400
+            } else {
+                tailwind::YELLOW_400
+            };
+            gizmos.sphere(Isometry3d::from_translation(pos), 0.6, status);
+            gizmos.line(pos, **target, tailwind::RED_400);
+            gizmos.sphere(
+                Isometry3d::from_translation(**target),
+                1.0,
+                tailwind::RED_400,
+            );
+        }
         if let Some(path) = path {
             // In the TYPE's own colour, so two trails in one frame say which
             // ordnance flew which path without a legend. A torpedo with no
@@ -931,6 +969,22 @@ fn torpedo_script() -> Script {
         .step("assert the guidance led the crosser")
         .on_enter(assert_leads_the_crosser)
         .add()
+        // Drain the correctness salvo, then launch exactly one pair for the
+        // comparison loop. Otherwise the held trigger leaves several old paths
+        // over the two paths the figure is meant to compare.
+        .step("clear the correctness salvo")
+        .on_enter(clear_torpedoes)
+        .until(frames(2))
+        .add()
+        .step("launch one comparison pair")
+        .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().fire = true)
+        .until(torpedo_pair_present())
+        .deadline(6.0)
+        .add()
+        .step("release the comparison pair")
+        .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().fire = false)
+        .until(frames(2))
+        .add()
         // The weave frame, taken LAST and on the CROSSING range: the crosser
         // walks the corridor sideways, so by now a torpedo's leg is several
         // times the gate range's and long enough to draw a turn of the helix.
@@ -944,11 +998,45 @@ fn torpedo_script() -> Script {
         .on_enter(frame_the_weave)
         .until(frames(SETTLE_FRAMES))
         .add()
+        .step("open the torpedo type loop")
+        .on_enter(|world| loop_start(world, TYPES_LOOP))
+        .until(frames(1))
+        .add()
+        .step("hold the straight and weaving trails")
+        .until(elapsed(4.0))
+        .add()
+        .step("close the torpedo type loop")
+        .on_enter(|world| loop_end(world, TYPES_LOOP))
+        .until(loop_written(TYPES_LOOP))
+        .deadline(60.0)
+        .add()
         .step("capture the terminal weave")
         .on_enter(|world: &mut World| shoot(world, "variant-torpedo-weave.png"))
         .until(shot_written("variant-torpedo-weave.png"))
         .deadline(5.0)
         .add()
+}
+
+#[cfg(feature = "debug")]
+fn clear_torpedoes(world: &mut World) {
+    world.resource_mut::<HeldInput>().fire = false;
+    world.resource_mut::<TrailOnly>().0 = true;
+    let torpedoes: Vec<Entity> = world
+        .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+        .iter(world)
+        .collect();
+    for torpedo in torpedoes {
+        world.despawn(torpedo);
+    }
+}
+
+#[cfg(feature = "debug")]
+fn torpedo_pair_present() -> Arc<nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+            .is_some_and(|mut query| query.iter(world).take(2).count() == 2)
+    })
 }
 
 /// Put the camera over ONE torpedo's flown trail for the weave frame: a

@@ -837,6 +837,66 @@ fn viewer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .deadline(SHOT_DEADLINE_SECS)
         .add();
 
+    // Product-card close-ups for the website catalog. Mirrored recipe parts
+    // share one card because their model is identical apart from handedness.
+    for (label, shot) in [
+        ("cargoa/engine_port", "catalog-cargoa-engine.png"),
+        ("cargoa/fuselage", "catalog-cargoa-fuselage.png"),
+        ("cargoa/nose", "catalog-cargoa-nose.png"),
+        ("cargoa/pod_port", "catalog-cargoa-pod.png"),
+        ("cargoa/tail", "catalog-cargoa-tail.png"),
+        ("cargob/engine_port", "catalog-cargob-engine.png"),
+        ("cargob/fuselage", "catalog-cargob-fuselage.png"),
+        ("cargob/nose", "catalog-cargob-nose.png"),
+        ("cargob/pod_port", "catalog-cargob-pod.png"),
+        ("cargob/pod_starboard", "catalog-cargob-pod-lance.png"),
+        ("cargob/tail", "catalog-cargob-tail.png"),
+        ("racer/engine_port", "catalog-racer-engine.png"),
+        ("racer/fuselage", "catalog-racer-fuselage.png"),
+        ("racer/nose", "catalog-racer-nose.png"),
+        ("racer/tail", "catalog-racer-tail.png"),
+        ("racer/wing_port", "catalog-racer-wing.png"),
+    ] {
+        script = script
+            .step(format!("viewer: focus catalog card {label}"))
+            .on_enter(move |world: &mut World| {
+                let index = {
+                    let catalog = world.resource::<PartCatalog>();
+                    catalog
+                        .entries
+                        .iter()
+                        .position(|entry| entry.label == label)
+                        .unwrap_or(0)
+                };
+                *world.resource_mut::<ViewerState>() = ViewerState::Focused { index };
+            })
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step(format!("viewer: pose catalog card {label}"))
+            .on_enter(|world: &mut World| {
+                let mut text_query = world.query_filtered::<&mut Visibility, With<Text>>();
+                for mut visibility in text_query.iter_mut(world) {
+                    *visibility = Visibility::Hidden;
+                }
+                let mut spinners = world.query_filtered::<Entity, With<Spin>>();
+                let entities: Vec<Entity> = spinners.iter(world).collect();
+                for entity in entities {
+                    let mut item = world.entity_mut(entity);
+                    item.remove::<Spin>();
+                    if let Some(mut transform) = item.get_mut::<Transform>() {
+                        transform.rotation = Quat::from_rotation_y(0.55);
+                    }
+                }
+            })
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step(format!("viewer: shoot {shot}"))
+            .on_enter(move |world: &mut World| shoot(world, shot))
+            .until(shot_written(shot))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add();
+    }
+
     // Cut-face close-ups: pose recipe parts so the camera looks INTO the
     // former cut openings - the shots that prove the caps read solid and the
     // recipe planes clip no feature geometry. The turntable is stopped (Spin

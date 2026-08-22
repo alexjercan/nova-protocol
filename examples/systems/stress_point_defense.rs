@@ -261,6 +261,9 @@ const SCENARIO_ID: &str = "stress_point_defense";
 #[cfg(feature = "debug")]
 const LOAD_STEP: &str = "spawn the range";
 
+#[cfg(feature = "debug")]
+const POINT_DEFENSE_LOOP: &str = "news-0110-point-defense";
+
 /// How many frames the saturated scene is held for.
 ///
 /// A FRAME count, not a duration, because the frame-time window is one too: the
@@ -377,6 +380,7 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<Peaks>();
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
         app.add_systems(Update, (track_peaks, trace_the_census).chain());
         app.add_systems(FixedUpdate, track_trigger_duty);
         app.add_observer(count_intercepts);
@@ -411,8 +415,21 @@ fn main() -> bevy::app::AppExit {
                     .until(the_envelope_is_full())
                     .deadline(FILL_DEADLINE_SECS)
                     .add()
-                    .step("hold the saturation")
+                    .step("open the point-defense loop")
                     .on_enter(mark_the_envelope_full)
+                    .on_enter(hide_hud)
+                    .on_enter(|world| loop_start(world, POINT_DEFENSE_LOOP))
+                    .until(frames(1))
+                    .add()
+                    .step("record the battery dividing the salvo")
+                    .until(elapsed(4.0))
+                    .add()
+                    .step("close the point-defense loop")
+                    .on_enter(|world| loop_end(world, POINT_DEFENSE_LOOP))
+                    .until(loop_written(POINT_DEFENSE_LOOP))
+                    .deadline(60.0)
+                    .add()
+                    .step("hold the saturation")
                     .until(frames(hold_frames()))
                     .add()
                     .step("assert the range reached its scale")
@@ -439,7 +456,7 @@ fn main() -> bevy::app::AppExit {
             .on_enter(assert_back_to_baseline)
             .add()
             .loop_from(LOAD_STEP)
-            .on_loop(respawn_the_range),
+            .on_loop(respawn_or_finish_capture),
         );
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         // The window opens on the SATURATED scene, not on `Playing`: the fill is
@@ -449,6 +466,15 @@ fn main() -> bevy::app::AppExit {
     }
 
     app.run()
+}
+
+#[cfg(feature = "debug")]
+fn respawn_or_finish_capture(world: &mut World) {
+    if capturing() {
+        world.write_message(AppExit::Success);
+    } else {
+        respawn_the_range(world);
+    }
 }
 
 fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {

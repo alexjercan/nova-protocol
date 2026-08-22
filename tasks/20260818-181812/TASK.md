@@ -1,8 +1,8 @@
 # Release visuals: make v0.11.0 move across landing, news, and docs
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 65
-- TAGS: v0.11.0,docs,web,capture
+- TAGS: v0.11.0, docs, web, capture
 
 Epic: `20260818-220812`.
 
@@ -168,6 +168,21 @@ point to resist ordinary feature scrolling. Every site page shares one near-blac
 green terminal field with restrained phosphor and amber light. Historical news
 figure slots are gone, and the News index uses captured or deterministic archive
 art.
+
+## Final media pass - 2026-08-22
+
+All current landing, v0.11.0, wiki, and creator references now resolve to
+reviewed media. The capture pipeline packages 23 deterministic WebM files,
+records every alias in its manifest, and enforces the 3 MB budget. The still
+pipeline reports zero outstanding current references. Desktop and mobile
+captures cover the landing, current release, player wiki, section docs, and
+creator guides.
+
+The final correction pass made editor style choices re-dress a live skin
+without toggling it and recut the Kinetic/Pierce comparison as five volleys over
+15 seconds. The screenshot probe passed 25 entries on its category run, and all
+three reported failures passed on rerun after correction. Web CI, the editor
+tests, the ship tests, Rustfmt, and capture packaging pass.
 
 ## Done when
 

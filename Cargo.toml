@@ -384,6 +384,26 @@ path = "examples/screenshots/loop_torpedo_blast.rs"
 name = "loop_spine_cut"
 path = "examples/screenshots/loop_spine_cut.rs"
 
+[[example]]
+name = "loop_goto_arrival"
+path = "examples/screenshots/loop_goto_arrival.rs"
+
+[[example]]
+name = "loop_player_flight"
+path = "examples/screenshots/loop_player_flight.rs"
+
+[[example]]
+name = "loop_derived_skin"
+path = "examples/screenshots/loop_derived_skin.rs"
+
+[[example]]
+name = "loop_round_types"
+path = "examples/screenshots/loop_round_types.rs"
+
+[[example]]
+name = "loop_cockpit"
+path = "examples/screenshots/loop_cockpit.rs"
+
 # Inherit the workspace clippy allows (type_complexity, too_many_arguments) for
 # the root package too, so the lib, binary and examples match the crates' policy.
 [lints]

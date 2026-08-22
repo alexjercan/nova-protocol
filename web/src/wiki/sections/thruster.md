@@ -31,13 +31,13 @@ The flight computer balances thrust through the ship's live center of mass, recr
 A hurt drive **looks** hurt. Past about a third of its health gone it cracks and throws sparks, and its exhaust runs short and guttering instead of steady. It never guts all the way out, because a dead plume means a shut-down drive and this one is not shut down: a damaged thruster delivers exactly the push a fresh one does. The plume tells you what a chaser has already taken off it, not what it can still do.
 
 <figure class="figure">
-    <!-- Capture: assets/loop-section-thruster.webm (short gameplay loop) -->
+    <!-- Capture: assets/loops/loop-section-thruster.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
             >Loop capture needed</span
         >
         <span class="figure__placeholder-name"
-            >assets/loop-section-thruster.webm</span
+            >assets/loops/loop-section-thruster.webm</span
         >
         <span class="figure__placeholder-note"
             >A short loop: throttle rolling up, plumes

@@ -38,6 +38,9 @@ use nova_protocol::prelude::*;
 #[command(about = "The flip-and-burn at the far end of a GOTO leg. Autopilot-only: the camera flies the leg with the ship", long_about = None)]
 struct Cli;
 
+#[cfg(feature = "debug")]
+const CONTROLLER_LOOP: &str = "loop-section-controller";
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
@@ -50,6 +53,7 @@ fn main() -> bevy::app::AppExit {
         // walk is a sequence of posed framings with no steady-state window,
         // so a captured fps would measure the script, not the engine.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // Wait for the ship to EXIST rather than for a guessed load
@@ -86,9 +90,22 @@ fn main() -> bevy::app::AppExit {
                 // hull is round, the drive is lit back down the path and the plume
                 // points where the ship is going. Waiting for the phase, not for a
                 // fraction of a rotation nobody can time.
+                .step("open the controller loop")
+                .on_enter(hide_hud)
+                .on_enter(|world| loop_start(world, CONTROLLER_LOOP))
+                .until(frames(1))
+                .add()
                 .step("flip and burn")
                 .until(ring::player_retro_burning())
                 .deadline(25.0)
+                .add()
+                .step("hold the settled heading")
+                .until(elapsed(1.2))
+                .add()
+                .step("close the controller loop")
+                .on_enter(|world| loop_end(world, CONTROLLER_LOOP))
+                .until(loop_written(CONTROLLER_LOOP))
+                .deadline(60.0)
                 .add()
                 // So the camera is AHEAD of the ship for this one, not behind it:
                 // braking, the drive fires down the track, and the plume that was

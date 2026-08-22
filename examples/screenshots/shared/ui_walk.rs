@@ -78,6 +78,36 @@ pub fn pose_editor_camera(world: &mut World) {
     });
 }
 
+/// Let the gallery park the editor camera on its isolated preview stage.
+///
+/// The scripted build pose must not survive while the gallery is open. It
+/// otherwise overwrites the gallery's parked transform every frame and draws
+/// the real ship behind the preview tiles, unlike the ordinary game editor.
+pub fn release_editor_camera_pose(world: &mut World) {
+    let cameras: Vec<Entity> = world
+        .query_filtered::<Entity, With<Camera3d>>()
+        .iter(world)
+        .collect();
+    for camera in cameras {
+        world.entity_mut(camera).remove::<ScriptedCameraPose>();
+    }
+}
+
+/// Fail the capture walk if the gallery did not move the editor camera away
+/// from the build area.
+pub fn assert_gallery_camera_is_parked(world: &mut World) {
+    let camera = world
+        .query_filtered::<&Transform, With<Camera3d>>()
+        .iter(world)
+        .next()
+        .expect("the open gallery retains the editor camera");
+    assert!(
+        camera.translation.y > 1_000.0,
+        "the open gallery must park its camera away from the preview ship; got {:?}",
+        camera.translation
+    );
+}
+
 /// Count the preview ship's sections.
 pub fn count_sections(world: &mut World) -> usize {
     let mut q = world.query_filtered::<(), With<SectionMarker>>();
@@ -175,10 +205,18 @@ impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
     fn arm(self, label: &str, prototype: &str) -> Self {
         let filter = prototype.to_string();
         let mut script = self
+            .step(format!("{label}: release the scripted build camera"))
+            .on_enter(release_editor_camera_pose)
+            .until(frames(1))
+            .add()
             .click(
                 &format!("{label}: open the gallery"),
                 "Parts Gallery Category",
             )
+            .step(format!("{label}: verify the gallery camera"))
+            .on_enter(assert_gallery_camera_is_parked)
+            .until(frames(1))
+            .add()
             // The filter takes the keyboard only once it has the caret.
             .step(format!("{label}: put the caret in the filter"))
             .on_enter(press_key(KeyCode::Slash))
@@ -211,6 +249,7 @@ impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
                     "placing from the gallery must close it - a shot taken with \
                      the overlay still up would be of the overlay"
                 );
+                pose_editor_camera(world);
             })
             .until(frames(SETTLE_FRAMES))
             .add()

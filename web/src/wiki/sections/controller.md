@@ -68,13 +68,13 @@ What stacking always buys is _precision_. A stacked hull starts arresting its tu
 The other half of stacking is **redundancy**. Lose one of two and the ship does not go brain-dead - it drops to single-controller handling and keeps fighting. Only the last one is the ship's brain.
 
 <figure class="figure">
-    <!-- Capture: assets/loop-section-controller.webm (short gameplay loop) -->
+    <!-- Capture: assets/loops/loop-section-controller.webm (short gameplay loop) -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
             >Loop capture needed</span
         >
         <span class="figure__placeholder-name"
-            >assets/loop-section-controller.webm</span
+            >assets/loops/loop-section-controller.webm</span
         >
         <span class="figure__placeholder-note"
             >A short loop: a ship flipping to a new heading

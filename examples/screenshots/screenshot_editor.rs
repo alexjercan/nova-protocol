@@ -24,8 +24,11 @@
 //! ```
 
 #[cfg(feature = "debug")]
+use avian3d::prelude::PhysicsGizmos;
+#[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
+use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 
 // The pointer gestures, shared with the other menu walks. Script-only, so the
@@ -42,6 +45,11 @@ use ui_walk::{count_sections, pose_editor_camera, Gestures, STEP_DEADLINE_SECS};
 #[command(about = "Capture the sandbox editor with a ship built in it. Autopilot-only: a scripted pointer build over the real editor", long_about = None)]
 struct Cli;
 
+#[cfg(feature = "debug")]
+const EDITOR_LOOP: &str = "landing-editor-build";
+#[cfg(feature = "debug")]
+const EDITOR_SKIN_LOOP: &str = "news-0110-editor-skin";
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
 
@@ -56,6 +64,7 @@ fn main() -> bevy::app::AppExit {
         // walk is a sequence of posed framings with no steady-state window,
         // so a captured fps would measure the script, not the engine.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             // Turn command errors (despawned-entity targets on the menu/editor
             // teardown) into panics so the run fails loudly on them.
@@ -73,6 +82,15 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
+#[cfg(feature = "debug")]
+fn set_colliders(world: &mut World, enabled: bool) {
+    world
+        .resource_mut::<GizmoConfigStore>()
+        .config_mut::<PhysicsGizmos>()
+        .0
+        .enabled = enabled;
+}
+
 /// The driven walk: menu -> editor -> build a ship -> shoot it.
 #[cfg(feature = "debug")]
 fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
@@ -86,7 +104,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         }
     };
 
-    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+    let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("reach the main menu")
         .enter(GameStates::Loading)
         .until(state_is(GameStates::MainMenu))
@@ -117,7 +135,21 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .place("hull ahead of the controller", Vec3::ZERO, Vec3::X)
         .place("hull ahead of that", Vec3::new(1.0, 0.0, 0.0), Vec3::X)
         .arm("arm the thruster", "basic_thruster_section")
-        .place("thruster on the tail", Vec3::new(2.0, 0.0, 0.0), Vec3::X)
+        .place("thruster on the tail", Vec3::new(2.0, 0.0, 0.0), Vec3::X);
+
+    if capturing() {
+        script = script
+            .step("open the editor build loop")
+            .on_enter(|world| loop_start(world, EDITOR_LOOP))
+            .until(frames(1))
+            .add();
+    }
+
+    script = script
+        .click("derive the ship skin", "Ship Skin Toggle")
+        .step("let the skin close around the structure")
+        .until(frames(SETTLE_FRAMES))
+        .add()
         .arm("arm the turret", "pdc_kinetic_turret_section")
         .place("turret on the spine", Vec3::new(1.0, 0.0, 0.0), Vec3::Y)
         .step("the ship was built")
@@ -145,12 +177,98 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("park the pointer clear of the ship")
         .on_enter(|world: &mut World| move_cursor(Vec2::new(1720.0, 960.0))(world))
         .until(frames(SETTLE_FRAMES))
-        .add()
-        // The last step holds until the PNG is on disk, so the driver cannot
-        // report done out from under a pending write.
+        .add();
+
+    if capturing() {
+        script = script
+            .step("hold the completed build")
+            .until(elapsed(0.8))
+            .add()
+            .step("close the editor build loop")
+            .on_enter(|world| loop_end(world, EDITOR_LOOP))
+            .until(loop_written(EDITOR_LOOP))
+            .deadline(60.0)
+            .add();
+    }
+
+    if capturing() {
+        script = script
+            .step("open the editor skin loop")
+            .on_enter(|world| loop_start(world, EDITOR_SKIN_LOOP))
+            .until(frames(1))
+            .add()
+            .click("remove the derived skin", "Ship Skin Toggle")
+            .step("hold the bare structure")
+            .until(elapsed(0.8))
+            .add()
+            .click("restore the derived skin", "Ship Skin Toggle")
+            .step("let the skin close")
+            .until(elapsed(0.8))
+            .add()
+            .click("select the civilian look", "Look: Civilian")
+            .step("hold the civilian look")
+            .until(elapsed(0.8))
+            .add()
+            .click("select the armoured look", "Look: Armoured")
+            .step("hold the armoured look")
+            .until(elapsed(0.8))
+            .add()
+            .click("select the salvage look", "Look: Salvage")
+            .step("hold the salvage look")
+            .until(elapsed(0.8))
+            .add()
+            .click("restore the industrial look", "Look: Industrial")
+            .step("hold the industrial look")
+            .until(elapsed(0.8))
+            .add()
+            .step("close the editor skin loop")
+            .on_enter(|world| loop_end(world, EDITOR_SKIN_LOOP))
+            .until(loop_written(EDITOR_SKIN_LOOP))
+            .deadline(60.0)
+            .add();
+    }
+
+    // The last steps prove the finished build can leave the editor and capture
+    // the ordinary free-flight range that players receive from Play.
+    script
         .step("capture the editor with the built ship")
         .on_enter(shot("feature-editor.png"))
         .until(shot_written("feature-editor.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("capture the clean collider comparison half")
+        .on_enter(shot("news-0110-collider-before.png"))
+        .until(shot_written("news-0110-collider-before.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("show the authored colliders")
+        .on_enter(|world| set_colliders(world, true))
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("capture the diagnostic collider half")
+        .on_enter(shot("news-0110-collider-after.png"))
+        .until(shot_written("news-0110-collider-after.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("hide the collider diagnostic")
+        .on_enter(|world| set_colliders(world, false))
+        .until(frames(1))
+        .add()
+        .click("launch the built ship", "Play Button")
+        .step("reach the sandbox range")
+        .until(and(player_ship_present(), frames(SETTLE_FRAMES * 3)))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        // Scenario entry synchronizes the debug layer once more. Disable the
+        // diagnostic after that synchronization so this player-facing shot is
+        // the ordinary sandbox view.
+        .step("hide sandbox collider diagnostics")
+        .on_enter(|world| set_colliders(world, false))
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("capture the sandbox range")
+        .on_enter(|world| shoot(world, "wiki-sandbox-range.png"))
+        .until(shot_written("wiki-sandbox-range.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
 }

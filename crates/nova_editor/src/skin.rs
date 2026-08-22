@@ -48,6 +48,9 @@ pub(crate) struct EditorSkinPlate;
 pub(crate) struct ShownSkin {
     /// Hash of the derived-from structure, or `None` when nothing is clad.
     signature: Option<u64>,
+    /// The resolved style on the shown plates. Style changes must re-dress an
+    /// otherwise unchanged structure.
+    style: Option<String>,
     /// How many plates the last derivation laid, to catch a skin that went away
     /// with the ship it was on.
     plates: usize,
@@ -116,7 +119,12 @@ pub(crate) fn sync_editor_skin(
     }
 
     let signature = signature(root, &placed);
-    if shown.signature == Some(signature) && q_plates.iter().count() == shown.plates {
+    let style = editor_style(&player_config, &styles);
+    let style_id = style.map(|style| style.id.as_str());
+    if shown.signature == Some(signature)
+        && shown.style.as_deref() == style_id
+        && q_plates.iter().count() == shown.plates
+    {
         return;
     }
 
@@ -125,7 +133,6 @@ pub(crate) fn sync_editor_skin(
     // The style goes on the preview ROOT, which is where `dress_skin_plate`'s
     // ancestor walk looks for it - the same walk that finds a flown ship's on
     // its own root two levels up.
-    let style = editor_style(&player_config, &styles);
     commands
         .entity(root)
         .insert(ShipStyle(style.map(|style| style.id.clone())));
@@ -176,6 +183,7 @@ pub(crate) fn sync_editor_skin(
 
     *shown = ShownSkin {
         signature: Some(signature),
+        style: style_id.map(str::to_string),
         plates: plates.len(),
     };
     // The same histogram and the same per-rule tally the spawner logs, because
@@ -541,6 +549,38 @@ mod tests {
             plates(&mut app),
             "the decoration did not reflow with the skin",
         );
+    }
+
+    /// Choosing another look must re-dress a skin even when its structure did
+    /// not change. Otherwise the row highlight changes but the old greebles
+    /// remain until the builder toggles the skin off and on.
+    #[test]
+    fn choosing_a_style_redresses_the_skin_immediately() {
+        let first = test_style();
+        let mut second = test_style();
+        second.id = "second".to_string();
+        second.name = "Second".to_string();
+        let mut app = styled_app(true, GameStyles(vec![first, second]));
+        build(&mut app, Vec3::ZERO);
+        app.update();
+        let before = decor(&mut app);
+
+        app.world_mut()
+            .resource_mut::<PlayerSpaceshipConfig>()
+            .style = Some("second".to_string());
+        app.update();
+
+        assert_ne!(
+            before,
+            decor(&mut app),
+            "a style change must replace the old decoration"
+        );
+        let style = app
+            .world_mut()
+            .query_filtered::<&ShipStyle, With<SpaceshipPreviewMarker>>()
+            .single(app.world())
+            .expect("one preview root");
+        assert_eq!(style.0.as_deref(), Some("second"));
     }
 
     /// No style authored anywhere is a bare skin, not a panic and not a

@@ -11,6 +11,7 @@ pub(super) fn on_projectile_marker_effect(
     add: On<Add, TurretBulletProjectileMarker>,
     budget: Option<Res<GraphicsBudget>>,
     q_projectile: Query<&TurretSectionMuzzleEntity, With<TurretBulletProjectileMarker>>,
+    q_direct_mesh: Query<(), With<Mesh3d>>,
     mut q_effect: Query<
         (&mut EffectProperties, &mut EffectSpawner, &ChildOf),
         (
@@ -24,6 +25,12 @@ pub(super) fn on_projectile_marker_effect(
 ) {
     let projectile = add.entity;
     trace!("on_projectile_marker: entity {:?}", projectile);
+
+    // Diagnostic rounds can carry their complete art directly. They have no
+    // authored turret or muzzle effect to reset.
+    if q_direct_mesh.contains(projectile) {
+        return;
+    }
 
     // On the Low tier `insert_turret_barrel_muzzle_effect` never spawned the muzzle
     // effect, so there is nothing to reset - skip before the lookup, otherwise the
@@ -212,9 +219,16 @@ pub(super) fn insert_projectile_render(
     default_render: Res<DefaultProjectileRender>,
     asset_server: Res<AssetServer>,
     q_render_mesh: Query<(&BulletProjectileRenderMesh, Option<&ProjectileDamage>)>,
+    q_direct_mesh: Query<(), With<Mesh3d>>,
 ) {
     let entity = add.entity;
     trace!("insert_projectile_render: entity {:?}", entity);
+
+    // A diagnostic or authored one-off can supply its render components on the
+    // projectile itself instead of asking this observer for turret-owned art.
+    if q_direct_mesh.contains(entity) {
+        return;
+    }
 
     let Ok((render_mesh, damage)) = q_render_mesh.get(entity) else {
         error!(

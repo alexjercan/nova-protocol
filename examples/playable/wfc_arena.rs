@@ -386,6 +386,17 @@ fn main() -> bevy::app::AppExit {
         "wfc_arena: a `:player` slot cannot run under NOVA_AUTOPILOT - drop the \
          flag or the env"
     );
+    // The ordinary duel owns the hero media. An explicit 2v2 roster uses the
+    // same arena and driven walk for the landing combat row without adding a
+    // second capture harness.
+    #[cfg(feature = "debug")]
+    let capture_loop = if ships.len() == 4 {
+        LANDING_2V2_LOOP
+    } else {
+        HERO_LOOP
+    };
+    #[cfg(feature = "debug")]
+    let capture_thumbnail = ships.len() == 2;
     let roster = Roster {
         seed: cli.seed,
         ships,
@@ -459,7 +470,7 @@ fn main() -> bevy::app::AppExit {
         app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
         // NO freeze_bodies here, unlike wfc_ships: the whole point is that
         // these bodies fly.
-        app.add_plugins(arena_script());
+        app.add_plugins(arena_script(capture_loop, capture_thumbnail));
     }
 
     app.run()
@@ -2255,9 +2266,11 @@ const STEP_DEADLINE_SECS: f32 = 30.0;
 #[cfg(feature = "debug")]
 const FIGHT_DEADLINE_SECS: f32 = 100.0;
 
-/// Web loop and thumbnail emitted by the arena's one capture walk.
+/// Web media emitted by the arena's one capture walk.
 #[cfg(feature = "debug")]
 const HERO_LOOP: &str = "hero-wfc-duel";
+#[cfg(feature = "debug")]
+const LANDING_2V2_LOOP: &str = "landing-wfc-2v2";
 #[cfg(feature = "debug")]
 const HERO_THUMBNAIL: &str = "thumb-news-0.11.0.png";
 
@@ -2266,8 +2279,11 @@ const HERO_THUMBNAIL: &str = "thumb-news-0.11.0.png";
 /// fly both ships; this one harness driver only observes and records them. The
 /// auto-frame camera is already the capture framing, so no step poses one.
 #[cfg(feature = "debug")]
-fn arena_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    let script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+fn arena_script(
+    loop_name: &'static str,
+    capture_thumbnail: bool,
+) -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("wait for the arena")
         .enter(GameStates::Loading)
         .until(and(
@@ -2279,12 +2295,16 @@ fn arena_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("both teams fire and connect")
         .until(resource_where::<Scoreboard>(Scoreboard::fight_happened))
         .deadline(FIGHT_DEADLINE_SECS)
-        .add()
-        .step("shoot the fight")
-        .on_enter(|world: &mut World| shoot(world, HERO_THUMBNAIL))
-        .until(shot_written(HERO_THUMBNAIL))
-        .deadline(SHOT_DEADLINE_SECS)
         .add();
+
+    if capture_thumbnail {
+        script = script
+            .step("shoot the fight")
+            .on_enter(|world: &mut World| shoot(world, HERO_THUMBNAIL))
+            .until(shot_written(HERO_THUMBNAIL))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add();
+    }
 
     // Keep the ordinary smoke/probe walk short. NOVA_CAPTURE selects this tail
     // at construction time, but it remains part of the SAME AutopilotPlugin.
@@ -2293,16 +2313,16 @@ fn arena_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
     }
 
     script
-        .step("open the hero duel")
-        .on_enter(|world: &mut World| loop_start(world, HERO_LOOP))
+        .step("open the arena loop")
+        .on_enter(move |world: &mut World| loop_start(world, loop_name))
         .until(frames(1))
         .add()
         .step("record the live duel")
         .until(elapsed(6.0))
         .add()
-        .step("close the hero duel")
-        .on_enter(|world: &mut World| loop_end(world, HERO_LOOP))
-        .until(loop_written(HERO_LOOP))
+        .step("close the arena loop")
+        .on_enter(move |world: &mut World| loop_end(world, loop_name))
+        .until(loop_written(loop_name))
         .deadline(60.0)
         .add()
 }

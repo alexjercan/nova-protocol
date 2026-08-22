@@ -85,6 +85,7 @@ FIGURES = [
     # Scenarios picker with a campaign's chapters indented under its header.
     ("wiki-settings.png",               "screenshot_menu"),
     ("news-090-scenario-campaigns.png", "screenshot_scenario_picker"),
+    ("wiki-first-scenario-picker.png",  "screenshot_scenario_picker"),
     # The Rock hollow combat set, one producer per beat.
     ("tutorial-radar-lock.png",         "screenshot_radar_lock"),
     ("wiki-radar.png",                  "screenshot_radar_lock"),
@@ -109,10 +110,34 @@ FIGURES = [
     ("wiki-section-thruster.png",       "screenshot_section_frame"),
     ("wiki-section-turret.png",         "screenshot_section_weapons"),
     ("wiki-section-torpedo-bay.png",    "screenshot_section_weapons"),
-    # The ship computer: the terminal with output and an inline-completion
-    # ghost, then the ship app's schematic filling the same tube.
-    ("news-090-nova-os-terminal.png",   "screenshot_nova_os_terminal"),
-    ("news-090-nova-os-apps.png",       "screenshot_nova_os_apps"),
+    # The ship computer: terminal output, map and live ship schematic.
+    ("wiki-nova-os-terminal.png",       "screenshot_nova_os_terminal"),
+    ("wiki-nova-os-map.png",            "screenshot_nova_os_apps"),
+    ("wiki-nova-os-ship.png",           "screenshot_nova_os_apps"),
+    # Current editor, sandbox and release diagnostics.
+    ("feature-editor.png",               "screenshot_editor"),
+    ("wiki-sandbox-range.png",           "screenshot_editor"),
+    ("news-0110-collider-before.png",    "screenshot_editor"),
+    ("news-0110-collider-after.png",     "screenshot_editor"),
+    ("news-0110-damage-levels.png",      "screenshot_damage_levels"),
+    ("greeble-catalog.png",              "greeble_catalog"),
+    # Isolated recipe-part cards from the deterministic parts viewer.
+    ("catalog-cargoa-engine.png",         "parts_viewer"),
+    ("catalog-cargoa-fuselage.png",       "parts_viewer"),
+    ("catalog-cargoa-nose.png",           "parts_viewer"),
+    ("catalog-cargoa-pod.png",            "parts_viewer"),
+    ("catalog-cargoa-tail.png",           "parts_viewer"),
+    ("catalog-cargob-engine.png",         "parts_viewer"),
+    ("catalog-cargob-fuselage.png",       "parts_viewer"),
+    ("catalog-cargob-nose.png",           "parts_viewer"),
+    ("catalog-cargob-pod.png",            "parts_viewer"),
+    ("catalog-cargob-pod-lance.png",      "parts_viewer"),
+    ("catalog-cargob-tail.png",           "parts_viewer"),
+    ("catalog-racer-engine.png",          "parts_viewer"),
+    ("catalog-racer-fuselage.png",        "parts_viewer"),
+    ("catalog-racer-nose.png",            "parts_viewer"),
+    ("catalog-racer-tail.png",            "parts_viewer"),
+    ("catalog-racer-wing.png",            "parts_viewer"),
 ]
 
 # Thumbnails are 16:9 too (the post cards size them at 300px wide).
@@ -130,7 +155,24 @@ THUMBNAILS = [
 # Empty: the devlog-5 stance comparison was built here from two shots, and both
 # it and `devlog5-target-viewfinder` were deleted without a replacement - the
 # site references neither (task 20260805-105154).
-COMPOSITES = []
+COMPOSITES = [
+    (
+        "news-0110-collider-before-after.png",
+        "news-0110-collider-before.png",
+        "news-0110-collider-after.png",
+    ),
+]
+
+# Three tall crops in one 16:9 release figure. Each source carries a horizontal
+# focus in source-width fractions so the crop keeps its subject.
+TRIPTYCHS = [
+    (
+        "news-0110-scenarios.png",
+        ("wiki-combat-aftermath.png", 0.52),
+        ("tutorial-menu.png", 0.45),
+        ("wiki-sandbox-range.png", 0.50),
+    ),
+]
 
 # Composite output frame (16:9, the figure resolution the capture examples use).
 COMPOSITE_SIZE = (1920, 1080)
@@ -139,9 +181,20 @@ COMPOSITE_SIZE = (1920, 1080)
 # capture): {web name -> source web name}. The source must be copied first. Swap
 # any of these for a distinct capture later by dropping the file in the stage dir
 # (it takes precedence - see process_group).
-# Empty: `wiki-flight` was the last one, and it is now its own framed beat (the
-# flip-and-burn) rather than a copy of `feature-autopilot`.
-ALIASES = {}
+ALIASES = {
+    "wiki-scenarios-picker.png": "news-090-scenario-campaigns.png",
+    "news-0110-greeble-atlas.png": "greeble-catalog.png",
+    # Section variants that share geometry intentionally share a product card.
+    "catalog-basic-controller-section.png": "wiki-section-controller.png",
+    "catalog-basic-thruster-section.png": "wiki-section-thruster.png",
+    "catalog-light-hull-section.png": "wiki-section-hull.png",
+    "catalog-reinforced-hull-section.png": "wiki-section-hull.png",
+    "catalog-torpedo-section.png": "wiki-section-torpedo-bay.png",
+    "catalog-heavy-torpedo-section.png": "wiki-section-torpedo-bay.png",
+    "catalog-lance-torpedo-section.png": "wiki-section-torpedo-bay.png",
+    "catalog-pdc-kinetic-turret-section.png": "wiki-section-turret.png",
+    "catalog-pdc-pierce-turret-section.png": "wiki-section-turret.png",
+}
 
 # 44x44 authored section icons: (web name, section letter, RGB accent). Colours
 # echo the editor's component cards.
@@ -349,6 +402,39 @@ def resize_box(pixels, sw, sh, channels, dw, dh):
     return out
 
 
+def compose_triptych(sources, out_w, out_h):
+    """Build three edge-to-edge vertical crops on an opaque RGBA canvas."""
+    panel_w = out_w // 3
+    out = bytearray(b"\x00\x00\x00\xff" * (out_w * out_h))
+    for panel, (path, focus) in enumerate(sources):
+        sw, sh, channels, pixels = decode_png(path)
+        scale = max(panel_w / sw, out_h / sh)
+        draw_w = max(1, round(sw * scale))
+        draw_h = max(1, round(sh * scale))
+        tile = (
+            pixels
+            if (draw_w, draw_h) == (sw, sh)
+            else resize_box(pixels, sw, sh, channels, draw_w, draw_h)
+        )
+        crop_x = round(focus * draw_w - panel_w / 2)
+        crop_x = max(0, min(crop_x, draw_w - panel_w))
+        crop_y = max(0, (draw_h - out_h) // 2)
+        for y in range(out_h):
+            src_row = ((crop_y + y) * draw_w + crop_x) * channels
+            dst_row = (y * out_w + panel * panel_w) * 4
+            for x in range(panel_w):
+                s = src_row + x * channels
+                d = dst_row + x * 4
+                out[d:d + 3] = tile[s:s + 3]
+                out[d + 3] = 255
+    for boundary in (panel_w, panel_w * 2):
+        for x in (boundary - 1, boundary):
+            for y in range(out_h):
+                d = (y * out_w + x) * 4
+                out[d:d + 4] = bytes((0, 112, 58, 255))
+    return out
+
+
 def compose_side_by_side(left_path, right_path, out_w, out_h):
     """Build an opaque-black RGBA `out_w`x`out_h` buffer with `left_path` in the
     left half and `right_path` in the right half. Each source is scaled to
@@ -528,6 +614,39 @@ def build_composites(stage_dir):
     return built, pending, failed
 
 
+def build_triptychs(stage_dir):
+    """Generate deterministic three-panel scenario strips."""
+    print("\nTriptychs (built from three figures):")
+    built, pending, failed = [], [], []
+    out_w, out_h = COMPOSITE_SIZE
+    for name, *panels in TRIPTYCHS:
+        staged = os.path.join(stage_dir, name)
+        if os.path.exists(staged):
+            shutil.copyfile(staged, os.path.join(WEB_ASSETS, name))
+            built.append(name)
+            continue
+        sources = [(os.path.join(WEB_ASSETS, source), focus) for source, focus in panels]
+        missing = [
+            source
+            for source, _ in panels
+            if not os.path.exists(os.path.join(WEB_ASSETS, source))
+        ]
+        if missing:
+            print(f"  pending {name} (sources not available: {', '.join(missing)})")
+            pending.append((name, None))
+            continue
+        try:
+            pixels = compose_triptych(sources, out_w, out_h)
+        except ValueError as error:
+            failed.append((name, str(error)))
+            continue
+        write_png(os.path.join(WEB_ASSETS, name), out_w, out_h, pixels)
+        labels = " | ".join(source for source, _ in panels)
+        print(f"  built   {name}  ({out_w}x{out_h}) <- {labels}")
+        built.append(name)
+    return built, pending, failed
+
+
 def self_test():
     """Round-trip synthetic images through decode/resize/compose so the codec is
     checkable without any GPU-captured asset. Exercises all five PNG row filters
@@ -621,8 +740,13 @@ def self_test():
     row1_right = comp2[(1 * 4 + 2) * 4:(1 * 4 + 2) * 4 + 4]
     assert row1_left == bytes([220, 0, 0, 255]) and row1_right == bytes([0, 0, 220, 255]), "compose letterbox row"
 
+    triptych = compose_triptych([(red, 0.5), (blue, 0.5), (red, 0.5)], 12, 2)
+    assert triptych[0:4] == bytes([220, 0, 0, 255]), "triptych left panel"
+    assert triptych[20:24] == bytes([0, 0, 220, 255]), "triptych centre panel"
+    assert triptych[40:44] == bytes([220, 0, 0, 255]), "triptych right panel"
+
     shutil.rmtree(tmp, ignore_errors=True)
-    print("self-test OK: decode filters 0-4 (RGB+RGBA), resize_box, compose_side_by_side")
+    print("self-test OK: decode filters 0-4, resize, side-by-side, triptych")
     report_self_test()
 
 
@@ -636,6 +760,9 @@ def manifest_owners():
         declared[name] = ("manual", example or "(hand-made art)", True)
     for name, left, right in COMPOSITES:
         declared[name] = ("capturable", f"composite of {left} + {right}", True)
+    for name, *panels in TRIPTYCHS:
+        sources = " + ".join(source for source, _ in panels)
+        declared[name] = ("capturable", f"triptych of {sources}", True)
     for name, source in ALIASES.items():
         declared[name] = ("capturable", f"alias of {source}", True)
     for name, _section, _accent in ICONS:
@@ -887,6 +1014,8 @@ def main():
     # be in web/src/assets), so this runs after the figure pass.
     comp = build_composites(args.stage_dir)
     all_failed += comp[2]
+    triptych = build_triptychs(args.stage_dir)
+    all_failed += triptych[2]
 
     if not args.no_icons:
         print("\nIcons (generated 44x44):")
@@ -895,8 +1024,10 @@ def main():
             write_png(os.path.join(WEB_ASSETS, name), ICON_SIZE, ICON_SIZE, pixels)
             print(f"  wrote   {name}")
 
-    copied_count = len(fig[0]) + len(thumb[0]) + aliased + len(comp[0])
-    pending_count = len(fig[1]) + len(thumb[1]) + len(comp[1])
+    copied_count = (
+        len(fig[0]) + len(thumb[0]) + aliased + len(comp[0]) + len(triptych[0])
+    )
+    pending_count = len(fig[1]) + len(thumb[1]) + len(comp[1]) + len(triptych[1])
     print(f"\nDone: {copied_count} screenshot(s) copied/built, "
           f"{0 if args.no_icons else len(ICONS)} icon(s) generated, "
           f"{pending_count} screenshot(s) still pending.")

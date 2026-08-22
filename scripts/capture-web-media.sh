@@ -17,7 +17,8 @@
 # shipped asset location, web/src/assets/loops.
 #
 # Requires: cargo, ffprobe, xvfb-run (all in the flake devshell). The capture
-# needs a software Vulkan (lavapipe/llvmpipe) behind the Xvfb display.
+# needs a software Vulkan (lavapipe/llvmpipe) behind the Xvfb display. Set
+# NOVA_REUSE_STAGE=1 to repackage a completed target/loop-shots capture set.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -38,14 +39,40 @@ for tool in cargo ffprobe xvfb-run; do
     }
 done
 
-# The loop producers and the loop each writes. One example can in principle
-# stage several loops; list one line per loop so the manifest and the size
-# gate see each file.
-#   example|loop
+# The loop producers and the loop each writes. The optional third field is the
+# producer's argument string; the optional fourth is a space-separated list of
+# environment assignments for that composition.
+#   example|loop|args|environment
 LOOPS=(
-    "wfc_arena|hero-wfc-duel"
-    "loop_torpedo_blast|torpedo-blast"
-    "loop_spine_cut|spine-cut"
+    "wfc_arena|hero-wfc-duel||"
+    "wfc_arena|landing-wfc-2v2|--ship amber --ship amber --ship onyx --ship onyx|"
+    "loop_torpedo_blast|torpedo-blast||"
+    "loop_spine_cut|spine-cut||"
+    "loop_goto_arrival|goto-arrival||"
+    "loop_player_flight|landing-player-flight||"
+    "loop_derived_skin|news-0110-derived-skin||"
+    "loop_round_types|news-0110-round-types||"
+    "system_torpedo_launch|news-0110-torpedo-types||"
+    "stress_point_defense|news-0110-point-defense||NOVA_STRESS_PD_MOUNTS=4 NOVA_STRESS_PD_BAYS=4 NOVA_STRESS_PD_VIEW=lanes"
+    "loop_cockpit|landing-cockpit||"
+    "screenshot_flip_burn|loop-section-controller||"
+    "screenshot_radar_lock|lock-dwell||"
+    "screenshot_editor|landing-editor-build||"
+    "screenshot_editor|news-0110-editor-skin||"
+    "screenshot_damage_levels|news-0110-damage-levels||"
+)
+
+# Section pages reuse an ordinary outcome already captured above when a second
+# producer would only duplicate the same footage.
+#   destination|source|producer
+ALIASES=(
+    "news-0110-release-lead|spine-cut|loop_spine_cut"
+    "news-0110-parts-gallery|landing-editor-build|screenshot_editor"
+    "nova-os-open|landing-cockpit|loop_cockpit"
+    "loop-section-hull|news-0110-damage-levels|screenshot_damage_levels"
+    "loop-section-thruster|landing-player-flight|loop_player_flight"
+    "loop-section-turret|news-0110-point-defense|stress_point_defense"
+    "loop-section-torpedo-bay|news-0110-torpedo-types|system_torpedo_launch"
 )
 
 # Per-file budget, bytes. The encode targets 2-3 MB (LOOP_CRF in
@@ -55,37 +82,37 @@ MAX_BYTES=$((3 * 1024 * 1024))
 
 examples=()
 for pair in "${LOOPS[@]}"; do
-    examples+=(--example "${pair%%|*}")
+    IFS='|' read -r example _ _ <<<"$pair"
+    examples+=(--example "$example")
 done
 
 echo ">> building the loop producers..."
 cargo build --features debug "${examples[@]}"
 
-ran=()
 for pair in "${LOOPS[@]}"; do
-    example="${pair%%|*}"
-    loop="${pair#*|}"
+    IFS='|' read -r example loop arg_string env_string <<<"$pair"
     file="$STAGE/${loop}.webm"
+    if [[ "${NOVA_REUSE_STAGE:-0}" == "1" && -s "$file" ]]; then
+        echo ">> ${example}: reusing staged ${loop}"
+        continue
+    fi
     rm -f "$file"
+    read -r -a run_args <<<"$arg_string"
+    read -r -a run_env <<<"$env_string"
 
-    # Each example runs at most once even when it stages several loops.
-    already=0
-    for done_example in "${ran[@]:-}"; do
-        [[ "$done_example" == "$example" ]] && already=1
-    done
-    if [[ "$already" -eq 0 ]]; then
-        echo ">> ${example}: capturing under Xvfb..."
-        # A fresh server per run (-a picks a free display). `cargo run` rather
-        # than the built binary so the asset root resolves at the repo, the
-        # way every capture flow runs (the build above makes this a pure run).
-        # The armed run is frame-clocked, records its frames, encodes its
-        # webm(s) and exits through the completion protocol - a nonzero exit
-        # here IS a failed capture (open loop, frame cap, ffmpeg failure,
-        # stalled step).
-        NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR="$STAGE" \
+    echo ">> ${example}: capturing ${loop} under Xvfb..."
+    # A fresh server per run (-a picks a free display). `cargo run` rather
+    # than the built binary so the asset root resolves at the repo, the way
+    # every capture flow runs. Each tuple runs independently because one
+    # producer can select a different composition through its arguments.
+    if [[ "${#run_args[@]}" -gt 0 ]]; then
+        env "${run_env[@]}" NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR="$STAGE" \
+            xvfb-run -a -s "-screen 0 1920x1080x24" \
+            cargo run --features debug --example "$example" -- "${run_args[@]}"
+    else
+        env "${run_env[@]}" NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR="$STAGE" \
             xvfb-run -a -s "-screen 0 1920x1080x24" \
             cargo run --features debug --example "$example"
-        ran+=("$example")
     fi
 
     [[ -s "$file" ]] || {
@@ -94,17 +121,20 @@ for pair in "${LOOPS[@]}"; do
     }
 done
 
+for alias in "${ALIASES[@]}"; do
+    IFS='|' read -r destination source _ <<<"$alias"
+    cp "$STAGE/${source}.webm" "$STAGE/${destination}.webm"
+done
+
 MANIFEST="$OUT/manifest.txt"
 {
     echo "# captured at commit $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-ref HEAD)"
     echo "# file<TAB>example<TAB>duration_s<TAB>bytes"
 } >"$MANIFEST"
 
-for pair in "${LOOPS[@]}"; do
-    example="${pair%%|*}"
-    loop="${pair#*|}"
+package_loop() {
+    local loop="$1" example="$2" file duration width height bytes
     file="$STAGE/${loop}.webm"
-
     duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$file")"
     width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$file")"
     height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=nw=1:nk=1 "$file")"
@@ -122,6 +152,16 @@ for pair in "${LOOPS[@]}"; do
     cp "$file" "$OUT/${loop}.webm"
     printf '%s\t%s\t%.1f\t%s\n' "${loop}.webm" "$example" "$duration" "$bytes" >>"$MANIFEST"
     echo ">> ${loop}.webm: ${duration%.*}s, ${bytes} bytes (${example})"
+}
+
+for pair in "${LOOPS[@]}"; do
+    IFS='|' read -r example loop _ <<<"$pair"
+    package_loop "$loop" "$example"
+done
+for alias in "${ALIASES[@]}"; do
+    IFS='|' read -r loop _ example <<<"$alias"
+    package_loop "$loop" "$example"
 done
 
-echo ">> $((${#LOOPS[@]})) loop(s) in ${OUT} (manifest.txt lists them)"
+count=$((${#LOOPS[@]} + ${#ALIASES[@]}))
+echo ">> ${count} loop(s) in ${OUT} (manifest.txt lists them)"

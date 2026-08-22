@@ -59,6 +59,15 @@ Opening has side effects on the HUD: the flight instruments hide behind the moni
 
 ## The terminal
 
+<figure class="figure">
+    <!-- Capture: assets/wiki-nova-os-terminal.png -->
+    <img
+        src="../assets/wiki-nova-os-terminal.png"
+        alt="NOVA OS terminal showing command help, a live ship status table, and inline completion."
+        loading="lazy"
+    />
+</figure>
+
 <!-- Footer hint set: crates/nova_os/src/app.rs:15-25. History cap 200:
      crates/nova_os/src/terminal/edit.rs:23. Scrollback cap 500:
      crates/nova_os/src/terminal/state.rs:16,253-262. Wheel scroll:
@@ -180,9 +189,9 @@ An app swallows the whole monitor: the header breadcrumb switches to `APPS / MAP
             >assets/wiki-nova-os-map.png</span
         >
         <span class="figure__placeholder-note"
-            >The MAP app mid-fight: rings, a selected hostile
-            blip with its amber ring, the readout line showing
-            range and bearing.</span
+            >The MAP app at the start of a quiet flight: range
+            rings and the ship's SELF contact, ready for local
+            contacts to appear.</span
         >
     </div>
 </figure>
