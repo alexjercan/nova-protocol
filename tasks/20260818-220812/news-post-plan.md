@@ -1,5 +1,10 @@
 # The v0.11.0 news post: plan, and the media it needs
 
+> **Superseded 2026-08-22.** This is historical input, not the active capture
+> manifest. `../20260818-181812/TASK.md` now owns the release story, placeholders,
+> widgets, landing-page media, documentation visuals, and the manifest derived
+> from the rendered post.
+
 Owner asked for a Factorio-style release post: things moving, mechanisms
 explained, numbers on the table. This is the plan and the capture manifest.
 It is not the post - `web/src/news/0.11.0.md` is, and it already holds 759

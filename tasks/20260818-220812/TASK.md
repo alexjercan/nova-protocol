@@ -52,20 +52,19 @@ Examples and docs:
 
 - `EX-PLAYABLE` - every example is playable by hand, or says why it is not.
 - `DOC-DESTRUCTION` - the landed destruction model reaches all three surfaces.
-- `DOC-VISUALS` - the wiki stops being walls of text (`20260818-181812`).
+- `DOC-VISUALS` - the release moves across landing, news, wiki, and creator docs (`20260818-181812`).
 
 ## What "done" means for the release
 
-- **A 1v1 holds 60 FPS.** Owner, 2026-08-20, replacing the 4v4 target
-  (`DECISIONS.md` D11). Measured on a REAL display: 1v1 is **34.82 ms, 29 FPS**,
-  against a 16.67 ms budget. An empty scene is **3.02 ms**, so essentially all
-  of the gap is per-ship and none of it is scene overhead.
-  The largest named term is **`Prepare` + `PrepareMeshes`, 16.1 ms of a 26 ms
-  one-hull frame** - CPU in the render world, per-instance buffers and bind
-  groups over 986 mesh instances. That is presentation, so it is takeable.
-  **Do not measure this through `xvfb-run`**: a software X server has no
-  scanout, so presenting is a CPU copy of every window pixel and adds ~13.7 ms
-  at 720p. That constant is what the retracted "16.74 ms floor" was
+- **Performance work is measured and accepted for this release.** The 60 FPS
+  target exposed the renderer and simulation costs, but it is no longer a ship
+  gate. The epic removed the projectile physics-body load, made the fixed loop
+  stable, returned the full pristine-cracks cost, bounded its measurements, and
+  measured the suspected pipeline and spawn spikes out. No broad "the game is
+  N% faster" claim is allowed; the final release probe certifies the finished
+  tree and the post reports only the structural and paired results it can prove.
+  **Do not compare rendered numbers through `xvfb-run`**: a software X server
+  adds a per-pixel present cost that does not exist on a real display
   (`DECISIONS.md` D12).
 - **A `wfc_arena` 4v4 has its MEASURED number: mean 20.13 ms, worst frame
   59.47 ms**, median of eight captures on the bounded 60 + 360 window, real
@@ -84,8 +83,12 @@ Examples and docs:
 - No system in a profiled fight owns a frame on its own.
 - A human can load every shipped example and do something in it, or read one
   line in its description saying it is a capture rig.
-- `/wiki`, `/create` and the dev book describe the game that actually shipped,
-  and the wiki leads with visuals.
+- `/wiki`, `/create` and the dev book describe the game that actually shipped.
+- The v0.11.0 post presents the release as a player-facing story with moving
+  proof and sourced interactives; the landing page and key documentation pages
+  reuse that visual language (`20260818-181812`).
+- The final release probe runs after the capture examples and media surfaces
+  stop changing.
 
 ## What may be traded for frame rate, and what may NOT
 
