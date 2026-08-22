@@ -51,12 +51,19 @@
     --shadow: rgba(0, 0, 0, 0.78);
 
     /* -- light-3D control vocabulary, hardware skin (verbatim from the PoC) -- */
-    --face: linear-gradient(180deg, var(--case-3) 0%, var(--case-1) 55%, var(--case-0) 100%);
+    --face: linear-gradient(
+        180deg,
+        var(--case-3) 0%,
+        var(--case-1) 55%,
+        var(--case-0) 100%
+    );
     --face-hot: linear-gradient(180deg, #3a444c 0%, #222a31 55%, #12171b 100%);
     --rim: inset 0 1px 0 rgba(255, 255, 255, 0.14);
     --undercut: inset 0 -2px 5px rgba(0, 0, 0, 0.7);
     --drop: 0 2px 4px rgba(0, 0, 0, 0.55), 0 6px 16px -6px rgba(0, 0, 0, 0.7);
-    --well: inset 0 2px 5px rgba(0, 0, 0, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+    --well:
+        inset 0 2px 5px rgba(0, 0, 0, 0.85),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 
     --panel-radius: 10px;
 
@@ -127,9 +134,12 @@
     /* The phosphor screen surface, as a fill. */
     --screen: linear-gradient(180deg, var(--screen-1) 0%, var(--screen-0) 100%);
 
-    --font-display: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
-    --font-body: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
-    --font-mono: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+    --font-display:
+        "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+    --font-body:
+        "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+    --font-mono:
+        "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
 }
 
 * {
@@ -409,54 +419,93 @@ main {
         animation: none;
     }
 }
-.hero::after {
-    /* Horizon wash. The banner's sunrise arc survives the port as the new
-       --orange; it reads as a horizon line under the casing, not a floaty haze. */
-    content: "";
+.hero__media,
+.hero__veil {
     position: absolute;
-    left: 50%;
-    bottom: -60%;
-    width: 130%;
-    height: 100%;
-    transform: translateX(-50%);
-    background: radial-gradient(
-        ellipse at center,
-        rgba(255, 123, 45, 0.18) 0%,
-        rgba(255, 123, 45, 0.04) 38%,
-        transparent 66%
-    );
-    pointer-events: none;
+    inset: 0;
+}
+.hero__media {
     z-index: 0;
+    background: var(--void);
 }
-.hero > * {
-    position: relative;
+.hero__media-placeholder,
+.hero__media > .figure__img,
+.hero__fallback {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    object-fit: cover;
+}
+.hero__media-placeholder {
+    padding: 0;
+    background: var(--void);
+}
+.hero__media-placeholder > span {
+    opacity: 0;
+}
+.hero__fallback {
+    position: absolute;
+    inset: 0;
+}
+.hero__veil {
     z-index: 1;
+    pointer-events: none;
+    background:
+        linear-gradient(
+            90deg,
+            rgba(2, 6, 12, 0.94) 0%,
+            rgba(2, 6, 12, 0.76) 42%,
+            rgba(2, 6, 12, 0.28) 72%,
+            rgba(2, 6, 12, 0.58) 100%
+        ),
+        linear-gradient(
+            0deg,
+            rgba(2, 6, 12, 0.9) 0%,
+            transparent 42%,
+            rgba(2, 6, 12, 0.38) 100%
+        );
 }
-/* The banner art sits behind a phosphor hairline, like a framed screen region. */
-.hero__art {
+.hero__content {
+    position: relative;
+    z-index: 2;
+    width: min(1120px, 100%);
+    text-align: left;
+}
+.hero__kicker {
+    margin: 0 0 14px;
+    color: var(--amber);
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+.hero__title {
+    margin: 0 0 18px;
+    color: var(--amber);
+    font-size: clamp(2.8rem, 8vw, 6.8rem);
+    line-height: 0.86;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 28px rgba(255, 123, 45, 0.3);
+}
+.hero__title span {
     display: block;
-    width: min(560px, 90%);
-    /* Keep the banner's native 3:2 ratio. Tailwind v4's Preflight (which would
-       set `img { height: auto }`) is not emitted under the legacy `@tailwind
-       base` directive, so without this the `height` HTML attribute pins the
-       image height and squishes it as the width shrinks. */
-    height: auto;
-    aspect-ratio: 3 / 2;
-    margin: 0 auto 28px;
-    border-radius: var(--panel-radius);
-    border: 1px solid var(--edge-faint);
-    box-shadow: var(--drop);
+    color: var(--phosphor);
+    text-shadow: var(--glow-text);
 }
 .hero__tagline {
     font-size: 1.05rem;
-    color: var(--phosphor-dim);
-    max-width: 60ch;
-    margin: 0 auto 32px;
+    color: var(--text);
+    max-width: 52ch;
+    margin: 0 0 32px;
+    text-shadow: 0 2px 12px var(--void);
 }
 .hero__cta {
     display: flex;
     gap: 14px;
-    justify-content: center;
+    justify-content: flex-start;
     flex-wrap: wrap;
 }
 /* Injected by warnIfNoWebGpu() under the Play CTA when the browser lacks the
@@ -472,7 +521,7 @@ main {
     margin-top: 22px;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
 }
 .hero__downloads-label {
@@ -484,8 +533,41 @@ main {
 .hero__downloads-btns {
     display: flex;
     gap: 12px;
-    justify-content: center;
+    justify-content: flex-start;
     flex-wrap: wrap;
+}
+@media (max-width: 680px) {
+    .hero__veil {
+        background: linear-gradient(
+            0deg,
+            rgba(2, 6, 12, 0.96) 0%,
+            rgba(2, 6, 12, 0.8) 54%,
+            rgba(2, 6, 12, 0.3) 100%
+        );
+    }
+    .hero__media > .figure__img,
+    .hero__fallback {
+        object-position: 68% center;
+    }
+    .hero__content {
+        align-self: flex-end;
+        text-align: center;
+    }
+    .hero__kicker,
+    .hero__tagline {
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .hero__title {
+        font-size: clamp(2.7rem, 17vw, 4.5rem);
+    }
+    .hero__cta,
+    .hero__downloads-btns {
+        justify-content: center;
+    }
+    .hero__downloads {
+        align-items: center;
+    }
 }
 
 /* ---- buttons ------------------------------------------------------------- */

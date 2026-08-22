@@ -75,7 +75,6 @@ WEB_ASSETS = os.path.join(REPO_ROOT, "web", "src", "assets")
 # reports them as pending and skips them, so it stays useful as coverage grows.
 FIGURES = [
     # name                              example
-    ("feature-gravity.png",             "screenshot_gravity"),
     ("wiki-gravity.png",                "screenshot_gravity"),
     ("wiki-sections.png",               "screenshot_hero_ship"),
     # The part-candidate viewer shows the seven body meshes before functional
@@ -86,18 +85,15 @@ FIGURES = [
     # Scenarios picker with a campaign's chapters indented under its header.
     ("wiki-settings.png",               "screenshot_menu"),
     ("news-090-scenario-campaigns.png", "screenshot_scenario_picker"),
-    ("feature-editor.png",              "screenshot_editor"),
     # The Rock hollow combat set, one producer per beat.
     ("tutorial-radar-lock.png",         "screenshot_radar_lock"),
     ("wiki-radar.png",                  "screenshot_radar_lock"),
     ("news-090-contextual-hud.png",     "screenshot_contextual_hud"),
     ("feature-combat.png",              "screenshot_combat_lock"),
     ("tutorial-combat-lock.png",        "screenshot_combat_lock"),
-    ("feature-hud.png",                 "screenshot_combat_hud"),
     ("wiki-hud.png",                    "screenshot_combat_hud"),
     ("wiki-combat.png",                 "screenshot_combat_wide"),
     ("news-090-combat-readability.png", "screenshot_combat_wide"),
-    ("feature-juice.png",               "screenshot_hull_juice"),
     # The ordnance pair the combat wiki page carries under Torpedoes and
     # Damage types: the salvo in flight, and what the blast left.
     ("wiki-combat-torpedo.png",         "screenshot_torpedo_run"),
@@ -121,6 +117,7 @@ FIGURES = [
 
 # Thumbnails are 16:9 too (the post cards size them at 300px wide).
 THUMBNAILS = [
+    ("thumb-news-0.11.0.png", "wfc_arena"),
     ("thumb-devlog-3.png", None),
     ("thumb-devlog-4.png", None),
     ("thumb-devlog-5.png", None),
@@ -182,6 +179,8 @@ UNDECLARED_OWNERS = (
     ("tutorial-", "capturable"),
     ("devlog", "capturable"),
     ("news-090-", "capturable"),
+    ("news-0110-", "capturable"),
+    ("catalog-", "capturable"),
     ("news-", "historical"),
     ("thumb-", "manual"),
     ("icon-", "manual"),

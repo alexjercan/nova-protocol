@@ -124,8 +124,10 @@ diagnostic scenes for creator contracts. Visual-first player prose may put its
 mechanism behind an existing `details.explain` fold, but required actions stay
 visible.
 
-The full inventory, findings, proposed capture families, and implementation
-forks are in `visual-review.md`.
+The full inventory, findings, capture families, and accepted implementation
+decisions are in `visual-review.md`. The landing uses a close 1v1 WFC duel as
+its hero and a 2v2 WFC fight in the combat row. Historical unresolved figure
+slots are removed; missing archive-card thumbnails receive generated art.
 
 ## Sequence
 

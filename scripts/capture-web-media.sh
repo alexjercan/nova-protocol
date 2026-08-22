@@ -43,6 +43,7 @@ done
 # gate see each file.
 #   example|loop
 LOOPS=(
+    "wfc_arena|hero-wfc-duel"
     "loop_torpedo_blast|torpedo-blast"
     "loop_spine_cut|spine-cut"
 )

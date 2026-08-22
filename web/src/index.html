@@ -19,63 +19,76 @@
         <div id="header"></div>
         <main>
             <section class="hero">
-                <img
-                    class="hero__art"
-                    src="<%= htmlWebpackPlugin.options.basePath %>assets/banner.png"
-                    alt="Nova Protocol"
-                    width="768"
-                    height="512"
-                />
-                <p class="hero__tagline">
-                    A 3D space shooter built with
-                    <a
-                        href="https://bevyengine.org"
-                        target="_blank"
-                        rel="noopener"
-                        >Bevy</a
-                    >. Build ships out of modular sections, then fly them
-                    through asteroid fields and gravity wells with a diegetic
-                    autopilot that flies on real thrusters.
-                </p>
-                <div class="hero__cta">
-                    <a
-                        href="<%= htmlWebpackPlugin.options.basePath %>play/"
-                        class="btn btn--primary"
-                        >Play in browser</a
+                <div class="hero__media" aria-hidden="true">
+                    <div
+                        class="figure__placeholder hero__media-placeholder"
+                        data-eager="true"
                     >
-                    <a
-                        href="<%= htmlWebpackPlugin.options.basePath %>wiki/getting-started/"
-                        class="btn btn--ghost"
-                        >How to play</a
-                    >
+                        <img
+                            class="hero__fallback"
+                            src="<%= htmlWebpackPlugin.options.basePath %>assets/banner.png"
+                            alt=""
+                            width="1536"
+                            height="1024"
+                        />
+                        <span class="figure__placeholder-name"
+                            >assets/loops/hero-wfc-duel.webm</span
+                        >
+                        <span class="figure__placeholder-note"
+                            >A close WFC Arena duel: two clad ships exchange
+                            turret fire and torpedoes as damage spreads across
+                            their hulls.</span
+                        >
+                    </div>
                 </div>
-                <!-- Native download buttons. Every href defaults to the GitHub
-                     releases/latest PAGE so the buttons work with JS disabled;
-                     downloads.ts progressively rewrites each to the exact
-                     per-OS asset of the newest release. -->
-                <div class="hero__downloads">
-                    <span class="hero__downloads-label"
-                        >Or download the native build:</span
-                    >
-                    <div class="hero__downloads-btns">
+                <div class="hero__veil" aria-hidden="true"></div>
+                <div class="hero__content">
+                    <p class="hero__kicker">Build // fly // break apart</p>
+                    <h1 class="hero__title"><span>NOVA</span> PROTOCOL</h1>
+                    <p class="hero__tagline">
+                        Build a modular ship you can see, fly it through real
+                        gravity and thrusters, then watch every hit crack,
+                        disable, and tear the hull apart.
+                    </p>
+                    <div class="hero__cta">
                         <a
-                            class="btn btn--download"
-                            data-os="windows"
-                            href="https://github.com/alexjercan/nova-protocol/releases/latest"
-                            >Windows</a
+                            href="<%= htmlWebpackPlugin.options.basePath %>play/"
+                            class="btn btn--primary"
+                            >Play in browser</a
                         >
                         <a
-                            class="btn btn--download"
-                            data-os="macos"
-                            href="https://github.com/alexjercan/nova-protocol/releases/latest"
-                            >macOS</a
+                            href="<%= htmlWebpackPlugin.options.basePath %>wiki/getting-started/"
+                            class="btn btn--ghost"
+                            >How to play</a
                         >
-                        <a
-                            class="btn btn--download"
-                            data-os="linux"
-                            href="https://github.com/alexjercan/nova-protocol/releases/latest"
-                            >Linux</a
+                    </div>
+                    <!-- Native download buttons. Every href defaults to the
+                         GitHub releases/latest page so the buttons work with JS
+                         disabled; downloads.ts rewrites each to the exact asset. -->
+                    <div class="hero__downloads">
+                        <span class="hero__downloads-label"
+                            >Or download the native build:</span
                         >
+                        <div class="hero__downloads-btns">
+                            <a
+                                class="btn btn--download"
+                                data-os="windows"
+                                href="https://github.com/alexjercan/nova-protocol/releases/latest"
+                                >Windows</a
+                            >
+                            <a
+                                class="btn btn--download"
+                                data-os="macos"
+                                href="https://github.com/alexjercan/nova-protocol/releases/latest"
+                                >macOS</a
+                            >
+                            <a
+                                class="btn btn--download"
+                                data-os="linux"
+                                href="https://github.com/alexjercan/nova-protocol/releases/latest"
+                                >Linux</a
+                            >
+                        </div>
                     </div>
                 </div>
                 <a
@@ -99,185 +112,179 @@
                         <span class="glow-phosphor">Nova Protocol</span>
                     </h2>
                     <p class="section__lead">
-                        Assemble a ship, take it into a scenario, and fly it for
-                        real - every autopilot maneuver moves the hull and burns
-                        the thrusters you bolted on.
+                        Build it, fly it, and break it. Every visual below comes
+                        from the same sections, physics, weapons, and damage
+                        simulation you play.
                     </p>
                     <div class="feature-list">
                         <div class="feature-row">
                             <div class="feature-row__text">
                                 <span class="feature-row__num">01</span>
                                 <h3 class="feature-row__title">
-                                    Modular ship editor
+                                    Build the ship you can see
                                 </h3>
                                 <p class="feature-row__body">
-                                    Bolt together hull, controller, thruster,
-                                    turret and torpedo-bay sections. Each
-                                    section carries its own mass and health and
-                                    contributes its behavior to the whole ship.
+                                    Choose parts from a visual gallery, mate
+                                    real sockets, and preview derived cladding
+                                    around the build before it leaves the
+                                    editor.
                                 </p>
                             </div>
                             <figure class="feature-row__media">
                                 <div class="figure__placeholder">
                                     <span class="figure__placeholder-tag"
-                                        >Screenshot needed</span
+                                        >Loop planned</span
                                     >
                                     <span class="figure__placeholder-name"
-                                        >assets/feature-editor.png</span
+                                        >assets/loops/landing-editor-build.webm</span
                                     >
                                     <span class="figure__placeholder-note"
-                                        >The ship editor: hull, controller,
-                                        thruster, turret and torpedo-bay
-                                        sections being bolted onto a
-                                        build.</span
+                                        >The parts gallery closes into the build
+                                        view; a section snaps onto a highlighted
+                                        socket and the selected skin closes
+                                        around the finished hull.</span
                                     >
                                 </div>
+                                <figcaption class="figure__caption">
+                                    The editor shows the same structure and skin
+                                    the flight scene will spawn.
+                                </figcaption>
                             </figure>
                         </div>
                         <div class="feature-row">
                             <div class="feature-row__text">
                                 <span class="feature-row__num">02</span>
                                 <h3 class="feature-row__title">
-                                    Diegetic autopilot
+                                    Fly the hull you built
                                 </h3>
                                 <p class="feature-row__body">
-                                    GOTO, ORBIT and STOP verbs fly the ship
-                                    through its real actuators - you watch the
-                                    hull swing and the plume light up. Any
-                                    manual input takes back control instantly.
+                                    Manual flight and GOTO use the same mass,
+                                    controller, and thrusters. Watch the ship
+                                    swing, burn, flip, and settle instead of
+                                    sliding along an invisible path.
                                 </p>
                             </div>
                             <figure class="feature-row__media">
                                 <div class="figure__placeholder">
                                     <span class="figure__placeholder-tag"
-                                        >Screenshot needed</span
+                                        >Loop planned</span
                                     >
                                     <span class="figure__placeholder-name"
-                                        >assets/feature-autopilot.png</span
+                                        >assets/loops/goto-arrival.webm</span
                                     >
                                     <span class="figure__placeholder-note"
-                                        >A ship mid-GOTO/ORBIT maneuver: the
-                                        hull swung onto its new heading with the
-                                        thruster plume lit.</span
+                                        >A ship performs a complete GOTO
+                                        arrival: main-drive burn, retrograde
+                                        flip, braking plume, and the final RCS
+                                        settle.</span
                                     >
                                 </div>
+                                <figcaption class="figure__caption">
+                                    The autopilot flies the actuators bolted to
+                                    the hull.
+                                </figcaption>
                             </figure>
                         </div>
                         <div class="feature-row">
                             <div class="feature-row__text">
                                 <span class="feature-row__num">03</span>
                                 <h3 class="feature-row__title">
-                                    Gravity wells
+                                    Fight through geometry
                                 </h3>
                                 <p class="feature-row__body">
-                                    Large asteroids pull ships and torpedoes
-                                    with real inverse-square gravity. Park into
-                                    a stable circular orbit around the dominant
-                                    well with a single key.
+                                    Kinetic rounds punch, Pierce rounds rake
+                                    through layers, Serpents weave, and each
+                                    point-defence mount chooses a threat it can
+                                    actually reach.
                                 </p>
                             </div>
                             <figure class="feature-row__media">
                                 <div class="figure__placeholder">
                                     <span class="figure__placeholder-tag"
-                                        >Screenshot needed</span
+                                        >Loop planned</span
                                     >
                                     <span class="figure__placeholder-name"
-                                        >assets/feature-gravity.png</span
+                                        >assets/loops/landing-wfc-2v2.webm</span
                                     >
                                     <span class="figure__placeholder-note"
-                                        >A ship parked in a stable orbit around
-                                        a planetoid, the ORBIT radius spoke
-                                        drawn on the HUD.</span
+                                        >A two-versus-two WFC Arena fight with
+                                        distinct tracer types, weaving
+                                        torpedoes, and point-defence lanes
+                                        divided across the salvo.</span
                                     >
                                 </div>
+                                <figcaption class="figure__caption">
+                                    Four generated warships make every weapon
+                                    role visible in one battle.
+                                </figcaption>
                             </figure>
                         </div>
                         <div class="feature-row">
                             <div class="feature-row__text">
                                 <span class="feature-row__num">04</span>
                                 <h3 class="feature-row__title">
-                                    Locks &amp; turrets
+                                    Ships wear every hit
                                 </h3>
                                 <p class="feature-row__body">
-                                    Hold CTRL to sweep the radar and lock what
-                                    you are looking at; turrets compute
-                                    intercept lead and paint aim pips, while
-                                    torpedo bays fire guided, blast-damage
-                                    warheads.
+                                    Cracks deepen over wounded plating.
+                                    Machinery sparks. Outer sections sever into
+                                    wreckage, and a beaten hull peels apart
+                                    while its surviving guns keep firing.
                                 </p>
                             </div>
                             <figure class="feature-row__media">
                                 <div class="figure__placeholder">
                                     <span class="figure__placeholder-tag"
-                                        >Screenshot needed</span
+                                        >Loop planned</span
                                     >
                                     <span class="figure__placeholder-name"
-                                        >assets/feature-combat.png</span
+                                        >assets/loops/news-0110-release-lead.webm</span
                                     >
                                     <span class="figure__placeholder-note"
-                                        >A red combat lock bracketing a hostile
-                                        with turret lead pips on the intercept
-                                        point.</span
+                                        >A close broadside spreads cracks across
+                                        a clad target, disables a turret, severs
+                                        an outer section, and leaves the hull
+                                        drifting through wreckage.</span
                                     >
                                 </div>
+                                <figcaption class="figure__caption">
+                                    Damage is a sequence you can read, not a
+                                    swap from intact to gone.
+                                </figcaption>
                             </figure>
                         </div>
                         <div class="feature-row">
                             <div class="feature-row__text">
                                 <span class="feature-row__num">05</span>
                                 <h3 class="feature-row__title">
-                                    Combat you can feel
+                                    Read the cockpit
                                 </h3>
                                 <p class="feature-row__body">
-                                    Trauma camera shake, expanding hit rings and
-                                    distance-attenuated audio sell every impact
-                                    and section that gets blown off a hull.
+                                    The contextual HUD surfaces only what the
+                                    current maneuver needs. NOVA OS opens the
+                                    same live ship as a map, status schematic,
+                                    and command terminal.
                                 </p>
                             </div>
                             <figure class="feature-row__media">
                                 <div class="figure__placeholder">
                                     <span class="figure__placeholder-tag"
-                                        >Screenshot needed</span
+                                        >Loop planned</span
                                     >
                                     <span class="figure__placeholder-name"
-                                        >assets/feature-juice.png</span
+                                        >assets/loops/landing-cockpit.webm</span
                                     >
                                     <span class="figure__placeholder-note"
-                                        >A section blown off a hull mid-fight,
-                                        framed by expanding hit rings and camera
-                                        shake.</span
+                                        >A quiet cockpit gains a travel lock,
+                                        autopilot instruments, and combat
+                                        readouts, then opens NOVA OS on the same
+                                        ship and target.</span
                                     >
                                 </div>
-                            </figure>
-                        </div>
-                        <div class="feature-row">
-                            <div class="feature-row__text">
-                                <span class="feature-row__num">06</span>
-                                <h3 class="feature-row__title">
-                                    Contextual HUD
-                                </h3>
-                                <p class="feature-row__body">
-                                    Idle cruise is a near-empty screen; each
-                                    instrument surfaces while its situation is
-                                    live and the one you are using grows. One
-                                    key toggles the whole display between On and
-                                    Cinematic.
-                                </p>
-                            </div>
-                            <figure class="feature-row__media">
-                                <div class="figure__placeholder">
-                                    <span class="figure__placeholder-tag"
-                                        >Screenshot needed</span
-                                    >
-                                    <span class="figure__placeholder-name"
-                                        >assets/feature-hud.png</span
-                                    >
-                                    <span class="figure__placeholder-note"
-                                        >The contextual HUD in a live combat
-                                        lock beside the clean Cinematic
-                                        screen.</span
-                                    >
-                                </div>
+                                <figcaption class="figure__caption">
+                                    Flight view and computer view report one
+                                    live simulation.
+                                </figcaption>
                             </figure>
                         </div>
                     </div>

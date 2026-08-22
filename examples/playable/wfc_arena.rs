@@ -453,6 +453,10 @@ fn main() -> bevy::app::AppExit {
         if capturing() {
             app.add_systems(Startup, hide_hud);
         }
+        // The media recorder extends the same driven walk below. It is inert on
+        // probe and hand runs; adding a second autopilot would be a duplicate
+        // driver rather than another camera.
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
         // NO freeze_bodies here, unlike wfc_ships: the whole point is that
         // these bodies fly.
         app.add_plugins(arena_script());
@@ -2251,12 +2255,19 @@ const STEP_DEADLINE_SECS: f32 = 30.0;
 #[cfg(feature = "debug")]
 const FIGHT_DEADLINE_SECS: f32 = 100.0;
 
+/// Web loop and thumbnail emitted by the arena's one capture walk.
+#[cfg(feature = "debug")]
+const HERO_LOOP: &str = "hero-wfc-duel";
+#[cfg(feature = "debug")]
+const HERO_THUMBNAIL: &str = "thumb-news-0.11.0.png";
+
 /// The driven walk: load the arena, hold until the scoreboard proves both
-/// teams fired and both dealt damage, then shoot the brawl. The auto-frame
-/// camera is the capture framing, so no step poses one.
+/// teams fired and both dealt damage, then capture the brawl. The AI controllers
+/// fly both ships; this one harness driver only observes and records them. The
+/// auto-frame camera is already the capture framing, so no step poses one.
 #[cfg(feature = "debug")]
 fn arena_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+    let script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("wait for the arena")
         .enter(GameStates::Loading)
         .until(and(
@@ -2270,8 +2281,28 @@ fn arena_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .deadline(FIGHT_DEADLINE_SECS)
         .add()
         .step("shoot the fight")
-        .on_enter(|world: &mut World| shoot(world, "wfc-arena-fight.png"))
-        .until(shot_written("wfc-arena-fight.png"))
+        .on_enter(|world: &mut World| shoot(world, HERO_THUMBNAIL))
+        .until(shot_written(HERO_THUMBNAIL))
         .deadline(SHOT_DEADLINE_SECS)
+        .add();
+
+    // Keep the ordinary smoke/probe walk short. NOVA_CAPTURE selects this tail
+    // at construction time, but it remains part of the SAME AutopilotPlugin.
+    if !capturing() {
+        return script;
+    }
+
+    script
+        .step("open the hero duel")
+        .on_enter(|world: &mut World| loop_start(world, HERO_LOOP))
+        .until(frames(1))
+        .add()
+        .step("record the live duel")
+        .until(elapsed(6.0))
+        .add()
+        .step("close the hero duel")
+        .on_enter(|world: &mut World| loop_end(world, HERO_LOOP))
+        .until(loop_written(HERO_LOOP))
+        .deadline(60.0)
         .add()
 }

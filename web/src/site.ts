@@ -14,7 +14,22 @@ function upgradeFigures(base: string): void {
     const reducedMotion = window.matchMedia(
         "(prefers-reduced-motion: reduce)"
     ).matches;
-    placeholders.forEach((placeholder) => {
+    const playbackObserver =
+        !reducedMotion && "IntersectionObserver" in window
+            ? new IntersectionObserver(
+                  (entries) => {
+                      for (const entry of entries) {
+                          const video = entry.target as HTMLVideoElement;
+                          if (entry.isIntersecting)
+                              void video.play().catch(() => {});
+                          else video.pause();
+                      }
+                  },
+                  { threshold: 0.05 }
+              )
+            : null;
+
+    const load = (placeholder: HTMLElement): void => {
         const name = placeholder
             .querySelector(".figure__placeholder-name")
             ?.textContent?.trim();
@@ -22,6 +37,7 @@ function upgradeFigures(base: string): void {
         const note = placeholder
             .querySelector(".figure__placeholder-note")
             ?.textContent?.trim();
+        const eager = placeholder.dataset.eager === "true";
 
         if (name.endsWith(".webm")) {
             const video = document.createElement("video");
@@ -30,16 +46,17 @@ function upgradeFigures(base: string): void {
             video.loop = true;
             video.playsInline = true;
             video.setAttribute("aria-label", note ?? "");
-            // Reduced motion: no autoplay - the loop sits on its first frame
-            // behind the browser's own controls instead of animating.
+            // Reduced motion never autoplays. The representative first frame
+            // remains visible behind an explicit browser play control.
             if (reducedMotion) video.controls = true;
             else video.autoplay = true;
-            video.preload = "auto";
+            video.preload = eager ? "auto" : "metadata";
             // Swap only once a frame is decodable, so a missing capture never
-            // blanks the placeholder (the video element is detached until then).
+            // blanks the useful fallback carried by the placeholder.
             video.addEventListener("loadeddata", (): void => {
                 placeholder.replaceWith(video);
-                if (!reducedMotion) void video.play().catch(() => {});
+                if (playbackObserver) playbackObserver.observe(video);
+                else if (!reducedMotion) void video.play().catch(() => {});
             });
             video.src = base + name;
             return;
@@ -49,13 +66,28 @@ function upgradeFigures(base: string): void {
         img.className = "figure__img";
         img.alt = note ?? "";
         img.decoding = "async";
-        // NB: no `loading="lazy"` - the image is detached (not in the DOM) until
-        // it loads, and a lazy detached image never starts loading, so `onload`
-        // would never fire and the swap would never happen.
-        // Only replace once the real image has decoded, so a missing asset never
-        // blanks the placeholder.
         img.onload = (): void => placeholder.replaceWith(img);
         img.src = base + name;
+    };
+
+    if (!("IntersectionObserver" in window)) {
+        placeholders.forEach(load);
+        return;
+    }
+
+    const loadObserver = new IntersectionObserver(
+        (entries, observer) => {
+            for (const entry of entries) {
+                if (!entry.isIntersecting) continue;
+                observer.unobserve(entry.target);
+                load(entry.target as HTMLElement);
+            }
+        },
+        { rootMargin: "500px 0px" }
+    );
+    placeholders.forEach((placeholder) => {
+        if (placeholder.dataset.eager === "true") load(placeholder);
+        else loadObserver.observe(placeholder);
     });
 }
 

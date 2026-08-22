@@ -24,9 +24,13 @@ v0.11.0 presentation and graphics work. The active landing/wiki/create/v0.11.0
 surfaces reference 32 existing assets: the banner, five icons, 24 screenshots,
 and two loops.
 
-The screenshot coverage report sees 103 image references and 67 gaps, but 28 of
-those gaps belong to historical news and must stay untouched. The active wiki's
-38 gaps are:
+The screenshot coverage report originally saw 103 image references and 67 gaps.
+Twenty-five were unresolved figure slots in v0.1.0-v0.8.0 news; three more were
+current v0.11.0 stills misclassified as historical. The 25 archive slots are
+removed because those captures will never be made; historical prose remains
+unchanged. Missing old News-index thumbnails receive deterministic branded art
+instead of remaining developer-facing placeholders. The active wiki's 38 gaps
+are:
 
 - 25 section-catalog thumbnails;
 - five section behavior loops;
@@ -43,13 +47,16 @@ not declare visuals, even on the long sections, ships, and styles references.
 
 The landing hero spends its full viewport on a 3:2 logo card, tagline, and
 buttons. The brand art is good and should remain available, but the page asks a
-new player to scroll before seeing one ship. The strongest current behavior - a
-ship taking visible damage and coming apart - belongs above the fold.
+new player to scroll before seeing one ship.
 
-Recommendation: make a close gameplay loop the hero background or main frame,
-with the Nova Protocol mark and calls to action over a protected dark region.
-Use the logo art as a reduced fallback/poster or brand lockup rather than as the
-whole visual proposition.
+The accepted replacement is a close 1v1 from `wfc_arena`. Its default
+photographic roster is already one ship per side; every combatant is clad and
+styled, all four ordnance flavours are present, and the arena camera tracks the
+live midpoint. The Nova Protocol mark and calls to action sit over a protected
+dark region. The logo art remains the static fallback/brand lockup.
+
+A 2v2 WFC fight belongs in the combat feature row, where the full media frame can
+carry the extra actors without hero text or a mobile crop competing with them.
 
 ### 2. The landing page tells the pre-v0.11.0 story
 
@@ -257,37 +264,18 @@ The landing should use five feature rows rather than preserving six obsolete
 slots. Existing filenames may break; this is preferable to aliases that keep an
 old information architecture alive.
 
-## Decisions before implementation
+## Accepted implementation decisions
 
-### Landing structure
+- Replace the six landing stories with the five current promises above.
+- Use a close 1v1 WFC duel for the hero and a 2v2 WFC fight for the combat row.
+- Add all six creator visuals through shared Styles, Editor build, and Scenario
+  surface families after the landing/player batch.
+- Build one deterministic turntable that emits all 25 catalog thumbnails plus
+  the five kind closeups.
+- Remove unresolved figure placeholders from v0.1.0-v0.8.0 news without changing
+  their prose. Generate branded archive art for missing News-index thumbnails.
 
-- Preserve six current feature headings and only replace media: smaller prose
-  change, but the page still underplays destruction, skins, and the editor.
-- Replace them with the five current promises above: one fewer row, stronger
-  v0.11.0 identity, and better reuse with player docs. Recommended.
-
-### Hero treatment
-
-- Keep the logo card as the hero and place motion immediately below it: safest
-  text contrast and smallest CSS change, but the first viewport still does not
-  prove gameplay.
-- Put the destruction loop in the hero with the logo/CTA over a protected
-  region: stronger front door and recommended, but requires eager-versus-lazy,
-  fallback, and mobile crop work.
-
-### Creator scope
-
-- Add only style and socket visuals in this release: fastest creator improvement,
-  but leaves ships and scenario onboarding text-only.
-- Implement all six creator visuals as three shared families (Styles, Editor
-  build, Scenario surfaces): more example work, but no one-off decorative shots
-  and a coherent authored-contract story. Recommended after the landing/player
-  batch.
-
-### Catalog scope
-
-- Continue showing placeholder thumbnails until each part has a hand-framed
-  capture: highest individual quality, but 25 persistent holes and duplicated
-  setup.
-- Build one deterministic turntable that emits all 25 thumbnails plus the five
-  kind closeups: consistent framing and full coverage. Recommended.
+The WFC media extends `wfc_arena`'s existing `arena_script`. The AI controllers
+continue to fly the combatants; the one harness autopilot only waits, frames,
+and opens/closes capture. Adding another `AutopilotPlugin` would be both
+unnecessary and a duplicate-plugin panic.
