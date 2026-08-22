@@ -618,10 +618,11 @@ kind: Torpedo((
 ### The fuze is not a bay field
 
 Where a torpedo goes off is engine behaviour, not an authored number. An armed
-torpedo that locked an ENTITY fuzes on that body's own skin: one world unit
-from the nearest point of any collider linked to it, or the distance the torpedo
-covers in one frame, whichever is larger. So the pressure and the crater land
-where the target actually is. Two other cases:
+torpedo that locked an ENTITY fuzes three world units from the nearest point of
+any collider linked to that body, or at the distance the torpedo covers in one
+frame, whichever is larger. The margin clears the torpedo's own body and the
+next physics step while keeping the pressure and crater on the target. Two other
+cases:
 
 - a torpedo holding a target POSITION but no entity - a scripted launch, or one
   whose target died in flight - fuzes at `blast_radius * 0.5`, which is the only

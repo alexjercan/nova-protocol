@@ -29,7 +29,7 @@ A gun is a **short-range** weapon. A round is not tracked forever: it expires af
 
 A torpedo homes on the combat lock with **proportional-navigation** guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It deals **blast (area) damage** that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.
 
-A torpedo aimed at a locked ship or rock **touches it before it bursts**: the fuze fires about ten metres off the nearest part of that body's skin, so the warhead delivers the pressure it is rated for and the crater lands on the hull. Fire one at a bare point in space instead - a scripted volley, or a torpedo whose target dies mid-flight - and it still bursts a half-radius short, because there is no surface left to reach.
+A torpedo aimed at a locked ship or rock bursts about thirty metres from the nearest part of that body's skin. That near-contact margin keeps the physical torpedo from becoming a dud on the hull, while the warhead still delivers almost all its rated pressure and puts the crater on the target. Fire one at a bare point in space instead - a scripted volley, or a torpedo whose target dies mid-flight - and it bursts a half-radius short, because there is no surface left to reach.
 
 A bay does not just launch "a torpedo" - it launches a **torpedo type**, and a ship's tubes are loaded with one before the fight starts. Two types fly in the base game, and they carry the same warhead, the same rack and the same blast. What differs is how they run in, and each has its own colour in flight so you can see which one is coming.
 

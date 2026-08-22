@@ -720,13 +720,14 @@ charged per COLLIDER; the crater is cut once per BODY (see
 
 ### The torpedo fuze
 
-`CONTACT_FUZE` is 1.0 unit to the target's SKIN, not to its centre of mass. A
-torpedo holding a locked ENTITY asks the physics broad phase for the nearest
-point on that body via `SpatialQuery::project_point_predicate`, filtered to the
-colliders avian links to that body - solid, so a nose already inside the hull
-reads zero, and a torpedo threading a formation cannot fuze on the wrong ship.
-`contact_reach(speed, dt) = CONTACT_FUZE.max(speed * dt)` widens the window to
-the step about to be taken, so a fast closer cannot pass straight through it.
+`CONTACT_FUZE` is 3.0 units to the target's SKIN, not to its centre of mass. A
+torpedo holding a locked ENTITY projects its position onto the colliders in that
+body's own `RigidBodyColliders` list. The projection is solid, so a nose already
+inside the hull reads zero, and reading only the locked body's list means a
+torpedo threading a formation cannot fuze on the wrong ship. The three-unit
+margin clears the torpedo's own body and both bodies' motion through the next
+fixed step. `contact_reach(speed, dt) = CONTACT_FUZE.max(speed * dt)` widens it
+further for a fast torpedo.
 
 The old fuze was half the blast radius measured to the centre of mass. It had
 three consequences and no upside: a torpedo always stood off exactly half a
