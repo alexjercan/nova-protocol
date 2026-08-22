@@ -51,12 +51,8 @@
     --shadow: rgba(0, 0, 0, 0.78);
 
     /* -- light-3D control vocabulary, hardware skin (verbatim from the PoC) -- */
-    --face: linear-gradient(
-        180deg,
-        var(--case-3) 0%,
-        var(--case-1) 55%,
-        var(--case-0) 100%
-    );
+    /* prettier-ignore */
+    --face: linear-gradient(180deg, var(--case-3) 0%, var(--case-1) 55%, var(--case-0) 100%);
     --face-hot: linear-gradient(180deg, #3a444c 0%, #222a31 55%, #12171b 100%);
     --rim: inset 0 1px 0 rgba(255, 255, 255, 0.14);
     --undercut: inset 0 -2px 5px rgba(0, 0, 0, 0.7);
@@ -133,6 +129,13 @@
     --radius: 2px;
     /* The phosphor screen surface, as a fill. */
     --screen: linear-gradient(180deg, var(--screen-1) 0%, var(--screen-0) 100%);
+    /* One site field behind landing, news, wiki and creator documentation. It
+       is greener than the shared deep-space token without turning prose pages
+       into a fully lit CRT. */
+    --site-field: #010805;
+    /* The desktop header's authored line box plus vertical padding and edge.
+       Landing snap geometry uses the same fixed rail the header draws. */
+    --site-header-height: 65px;
 
     --font-display:
         "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
@@ -148,16 +151,22 @@
 
 html {
     scroll-behavior: smooth;
-    /* Apple-style scroll handoff: the full-screen hero and the first content
-       section are snap points, so a scroll from the hero settles cleanly onto
-       "What you do". Proximity (not mandatory) so the tall sections below never
-       trap the scroll. */
+}
+/* Only `/` has a cinematic handoff. Each snap area extends upward by the
+   in-flow header height, so the hero's start resolves to document zero instead
+   of producing a 65 px false stop. The tall feature section remains normal
+   scrolling after its entrance. */
+html.landing {
     scroll-snap-type: y proximity;
+}
+@media (max-width: 900px), (prefers-reduced-motion: reduce) {
+    html.landing {
+        scroll-snap-type: none;
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     html {
         scroll-behavior: auto;
-        scroll-snap-type: none;
     }
 }
 
@@ -173,32 +182,43 @@ body {
        This (with the measures on .prose/.news__body) is the whole mitigation
        for the denser mono reading accepted in DECISION.md. */
     line-height: 1.7;
-    background-color: var(--space);
-    /* Starfield: two layers of faint phosphor dots over the deep-space field. */
+    background-color: var(--site-field);
+    /* One restrained terminal field on every site page: a low phosphor bloom,
+       one amber echo and sparse lit pixels. Panels remain the bright surfaces. */
     background-image:
         radial-gradient(
+            ellipse 70% 42% at 50% -8%,
+            rgba(54, 255, 121, 0.055),
+            transparent 72%
+        ),
+        radial-gradient(
+            ellipse 44% 34% at 94% 68%,
+            rgba(255, 184, 74, 0.022),
+            transparent 76%
+        ),
+        radial-gradient(
             1px 1px at 20% 30%,
-            rgba(185, 255, 201, 0.42),
+            rgba(185, 255, 201, 0.36),
             transparent
         ),
         radial-gradient(
             1px 1px at 75% 20%,
-            rgba(185, 255, 201, 0.3),
+            rgba(185, 255, 201, 0.24),
             transparent
         ),
         radial-gradient(
             1px 1px at 45% 65%,
-            rgba(185, 255, 201, 0.34),
+            rgba(185, 255, 201, 0.28),
             transparent
         ),
         radial-gradient(
-            1.5px 1.5px at 85% 75%,
-            rgba(185, 255, 201, 0.26),
+            1px 1px at 85% 75%,
+            rgba(255, 184, 74, 0.2),
             transparent
         ),
         radial-gradient(
             1px 1px at 10% 85%,
-            rgba(185, 255, 201, 0.3),
+            rgba(185, 255, 201, 0.24),
             transparent
         );
     background-attachment: fixed;
@@ -360,22 +380,28 @@ main {
     position: relative;
     overflow: hidden;
     text-align: center;
-    /* Full viewport, content centered, snaps to the top of the page. */
-    min-height: 100vh;
+    /* Full viewport, content centered. Desktop subtracts the fixed header so
+       the first fold is exactly one viewport rather than header + 100vh. */
+    min-height: 100svh;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 88px 24px 96px;
     border-bottom: 1px solid var(--edge-faint);
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
 }
-/* The next section is the second snap point; its own top padding keeps the
-   heading clear of the sticky header once snapped. */
-#features {
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
+@media (min-width: 901px) {
+    .landing .hero {
+        min-height: calc(100svh - var(--site-header-height));
+        scroll-snap-align: start;
+        scroll-margin-top: var(--site-header-height);
+    }
+    /* The only forward snap point. Its margin leaves the same rail-sized inset
+       as the hero; everything inside the tall section then scrolls normally. */
+    .landing #features {
+        scroll-snap-align: start;
+        scroll-margin-top: var(--site-header-height);
+    }
 }
 /* Scroll affordance: a bobbing chevron + label pinned to the hero's bottom. */
 .hero__scroll {
@@ -426,7 +452,7 @@ main {
 }
 .hero__media {
     z-index: 0;
-    background: var(--void);
+    background: var(--site-field);
 }
 .hero__media-placeholder,
 .hero__media > .figure__img,
@@ -441,7 +467,7 @@ main {
 }
 .hero__media-placeholder {
     padding: 0;
-    background: var(--void);
+    background: var(--site-field);
 }
 .hero__media-placeholder > span {
     opacity: 0;
@@ -456,16 +482,16 @@ main {
     background:
         linear-gradient(
             90deg,
-            rgba(2, 6, 12, 0.94) 0%,
-            rgba(2, 6, 12, 0.76) 42%,
-            rgba(2, 6, 12, 0.28) 72%,
-            rgba(2, 6, 12, 0.58) 100%
+            rgba(1, 8, 5, 0.94) 0%,
+            rgba(1, 8, 5, 0.76) 42%,
+            rgba(1, 8, 5, 0.28) 72%,
+            rgba(1, 8, 5, 0.58) 100%
         ),
         linear-gradient(
             0deg,
-            rgba(2, 6, 12, 0.9) 0%,
+            rgba(1, 8, 5, 0.9) 0%,
             transparent 42%,
-            rgba(2, 6, 12, 0.38) 100%
+            rgba(1, 8, 5, 0.38) 100%
         );
 }
 .hero__content {
@@ -500,7 +526,7 @@ main {
     color: var(--text);
     max-width: 52ch;
     margin: 0 0 32px;
-    text-shadow: 0 2px 12px var(--void);
+    text-shadow: 0 2px 12px var(--site-field);
 }
 .hero__cta {
     display: flex;
@@ -540,9 +566,9 @@ main {
     .hero__veil {
         background: linear-gradient(
             0deg,
-            rgba(2, 6, 12, 0.96) 0%,
-            rgba(2, 6, 12, 0.8) 54%,
-            rgba(2, 6, 12, 0.3) 100%
+            rgba(1, 8, 5, 0.96) 0%,
+            rgba(1, 8, 5, 0.8) 54%,
+            rgba(1, 8, 5, 0.3) 100%
         );
     }
     .hero__media > .figure__img,

@@ -161,8 +161,12 @@ in the first review was fixed and range-tested before the final media was
 captured; the loop now includes a hull-side detonation and breakup.
 
 The landing is structured around the five accepted promises and loads the hero
-eagerly while deferring and pausing off-screen media. Historical news figure
-slots are gone, and the News index uses captured or deterministic archive art.
+eagerly while deferring and pausing off-screen media. Its hero-to-features snap
+is scoped to `/`, subtracts the desktop header from the first fold, and stands
+down on narrow or reduced-motion clients. Every site page shares one near-black
+green terminal field with restrained phosphor and amber light. Historical news
+figure slots are gone, and the News index uses captured or deterministic archive
+art.
 
 ## Done when
 
