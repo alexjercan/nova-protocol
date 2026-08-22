@@ -118,6 +118,76 @@ const EGG_ROUTE = "nova-menu";
 const EGG_THRESHOLD = 5;
 const EGG_WINDOW_MS = 1500;
 
+/**
+ * The landing's two-page wheel handoff. Returns the absolute scroll target for
+ * this wheel event, or `null` when native scrolling should own it.
+ *
+ * Down at document zero enters the feature page in one gesture. Up anywhere in
+ * the hero, or on an event that would cross from content into it, returns to
+ * zero. Down from the feature boundary and ordinary movement inside the long
+ * feature section remain native, so there is no snap point to drag against.
+ */
+export function landingHandoffTarget(
+    scrollY: number,
+    deltaY: number,
+    featureY: number,
+    tolerance = 2
+): number | null {
+    if (deltaY > 0 && scrollY <= tolerance) return featureY;
+    if (deltaY >= 0 || scrollY <= tolerance) return null;
+    if (scrollY <= featureY + tolerance) return 0;
+    if (scrollY + deltaY <= featureY + tolerance) return 0;
+    return null;
+}
+
+/** Convert WheelEvent delta modes to the pixel geometry used by scrollY. */
+function wheelPixels(event: WheelEvent): number {
+    if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16;
+    if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE)
+        return event.deltaY * window.innerHeight;
+    return event.deltaY;
+}
+
+/**
+ * Give `/` one explicit hero-to-features wheel handoff without persistent CSS
+ * snap points. Narrow and reduced-motion clients retain ordinary scrolling.
+ */
+export function initLandingHandoff(): void {
+    if (!document.documentElement.classList.contains("landing")) return;
+    if (!window.matchMedia("(min-width: 901px)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const features = document.getElementById("features");
+    const header = document.querySelector<HTMLElement>(".site-header");
+    if (!features || !header) return;
+
+    window.addEventListener(
+        "wheel",
+        (event) => {
+            const featureY =
+                features.getBoundingClientRect().top +
+                window.scrollY -
+                header.getBoundingClientRect().height;
+            const target = landingHandoffTarget(
+                window.scrollY,
+                wheelPixels(event),
+                featureY
+            );
+            if (target === null || !event.cancelable) return;
+            event.preventDefault();
+            // `behavior: auto` still inherits the root's smooth-scroll rule.
+            // Override it for this synchronous page handoff, then restore the
+            // authored style before the next frame so anchor links stay smooth.
+            const root = document.documentElement;
+            const previous = root.style.scrollBehavior;
+            root.style.scrollBehavior = "auto";
+            window.scrollTo({ top: target });
+            root.style.scrollBehavior = previous;
+        },
+        { passive: false }
+    );
+}
+
 // Wire the brand-click gesture. The brand is a link to the site root (`root`),
 // so this only ARMS when that root IS the current page - i.e. you are on the
 // landing page, where re-clicking "home" is an otherwise-useless self-reload.

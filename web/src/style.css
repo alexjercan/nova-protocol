@@ -134,7 +134,7 @@
        into a fully lit CRT. */
     --site-field: #010805;
     /* The desktop header's authored line box plus vertical padding and edge.
-       Landing snap geometry uses the same fixed rail the header draws. */
+       Landing handoff geometry uses the same fixed rail the header draws. */
     --site-header-height: 65px;
 
     --font-display:
@@ -151,18 +151,6 @@
 
 html {
     scroll-behavior: smooth;
-}
-/* Only `/` has a cinematic handoff. Each snap area extends upward by the
-   in-flow header height, so the hero's start resolves to document zero instead
-   of producing a 65 px false stop. The tall feature section remains normal
-   scrolling after its entrance. */
-html.landing {
-    scroll-snap-type: y proximity;
-}
-@media (max-width: 900px), (prefers-reduced-motion: reduce) {
-    html.landing {
-        scroll-snap-type: none;
-    }
 }
 @media (prefers-reduced-motion: reduce) {
     html {
@@ -393,14 +381,6 @@ main {
 @media (min-width: 901px) {
     .landing .hero {
         min-height: calc(100svh - var(--site-header-height));
-        scroll-snap-align: start;
-        scroll-margin-top: var(--site-header-height);
-    }
-    /* The only forward snap point. Its margin leaves the same rail-sized inset
-       as the hero; everything inside the tall section then scrolls normally. */
-    .landing #features {
-        scroll-snap-align: start;
-        scroll-margin-top: var(--site-header-height);
     }
 }
 /* Scroll affordance: a bobbing chevron + label pinned to the hero's bottom. */

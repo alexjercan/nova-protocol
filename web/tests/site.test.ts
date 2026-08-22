@@ -3,10 +3,57 @@
 // build-only - see the `ci-skips-client-render` lesson; the DOM wiring in
 // initEasterEgg is verified separately against the served build.
 import { strict as assert } from "node:assert";
-import { registerHit, initEasterEgg } from "../src/site";
+import { landingHandoffTarget, registerHit, initEasterEgg } from "../src/site";
 
 const WINDOW = 1500;
 const THRESHOLD = 5;
+
+// The landing handoff acts only at its two page boundaries. It reacts to the
+// first downward wheel at zero, returns on an upward crossing, and leaves all
+// movement deeper in the feature section native.
+{
+    const feature = 700;
+    assert.equal(
+        landingHandoffTarget(0, 1, feature),
+        feature,
+        "top enters features"
+    );
+    assert.equal(
+        landingHandoffTarget(0, -1, feature),
+        null,
+        "top cannot go higher"
+    );
+    assert.equal(
+        landingHandoffTarget(feature, -1, feature),
+        0,
+        "feature boundary returns"
+    );
+    assert.equal(
+        landingHandoffTarget(feature, 1, feature),
+        null,
+        "features scroll down natively"
+    );
+    assert.equal(
+        landingHandoffTarget(1200, -200, feature),
+        null,
+        "deep content stays native"
+    );
+    assert.equal(
+        landingHandoffTarget(750, -100, feature),
+        0,
+        "crossing upward returns at once"
+    );
+    assert.equal(
+        landingHandoffTarget(300, -1, feature),
+        0,
+        "an exposed hero returns to top"
+    );
+    assert.equal(
+        landingHandoffTarget(300, 1, feature),
+        null,
+        "a partial hero can scroll down"
+    );
+}
 
 // Five clicks inside the window trigger on the fifth and reset the buffer.
 {
