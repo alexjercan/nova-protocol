@@ -3,5 +3,5 @@
 # torpedo blast captured at commit 88d7322a on master
 torpedo-blast.webm	loop_torpedo_blast	5.3	206341
 spine-cut.webm	loop_spine_cut	4.5	319793
-# hero captured at commit 56f5288f on master
-hero-wfc-duel.webm	wfc_arena	6.1	1309867
+# hero captured at commit 88d7322a on master
+hero-wfc-duel.webm	wfc_arena	6.1	1377833
