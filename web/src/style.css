@@ -511,7 +511,7 @@ main {
 /* Injected by warnIfNoWebGpu() under the Play CTA when the browser lacks the
    WebGPU support the in-browser game needs. */
 .hero__cta-note {
-    margin: 14px auto 0;
+    margin: 14px 0 0;
     max-width: 52ch;
     font-size: 0.88rem;
     color: var(--amber);
@@ -554,7 +554,8 @@ main {
         text-align: center;
     }
     .hero__kicker,
-    .hero__tagline {
+    .hero__tagline,
+    .hero__cta-note {
         margin-left: auto;
         margin-right: auto;
     }
