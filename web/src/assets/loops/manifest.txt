@@ -1,7 +1,7 @@
 # captured at commit 8815dfcb on loop-capture
 # file<TAB>example<TAB>duration_s<TAB>bytes
-# torpedo blast captured at commit 88d7322a on master
-torpedo-blast.webm	loop_torpedo_blast	5.3	206341
+# torpedo blast captured at commit b374c172 on master
+torpedo-blast.webm	loop_torpedo_blast	5.3	243837
 spine-cut.webm	loop_spine_cut	4.5	319793
-# hero captured at commit 88d7322a on master
-hero-wfc-duel.webm	wfc_arena	6.1	1377833
+# hero captured at commit b374c172 on master
+hero-wfc-duel.webm	wfc_arena	6.1	1250593
