@@ -1368,3 +1368,21 @@ convicted.
 Kept deliberately: the verdict reads shapes from captures the statistics gate
 DISCARDED. That looks wrong and is not - in the first run the discarded capture
 was the only thing standing between a good set and a false conviction.
+
+## Where the epic stands, 2026-08-22
+
+`state-2026-08-22.html` beside this file: everything from `ddaf1997..dae23d00`
+in one page - what landed, the two beliefs that turned out wrong, what is open
+versus merely unverified, and four ranked suggestions for next.
+
+The short version, because it is easy to lose in the detail:
+
+- **The frame-time work in this epic is finished.** The pristine-cracks skip was
+  the last real win (-8.6% mean, -12.2% p99, 24/24 pairs). The spawn item was
+  void, the pipeline item measured out, and the apply is already inside budget.
+- **Two of this epic's own beliefs were wrong**, and both were load-bearing:
+  the cracks module doc asserted an undamaged fleet batched as if the effect
+  were not there, and the refresh-cap discriminator was sold on "a workload is
+  not a constant" when a steady one agrees to 0.72%.
+- **What is left is a release to ship**, not more milliseconds. The post has no
+  Performance heading and five of seven lead loops are unshot.

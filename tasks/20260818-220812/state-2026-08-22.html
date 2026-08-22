@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nova Protocol - where the epic stands, 2026-08-22</title>
+<style>
+:root {
+  --ink: #0a1014;
+  --surface: #101a20;
+  --surface-2: #16232a;
+  --rule: #1f3038;
+  --text: #c6d5dc;
+  --dim: #7b929c;
+  --dimmer: #566b75;
+
+  /* State, not decoration. Same four as perf-map.html, deliberately. */
+  --won: #4ec9a8;
+  --wrong: #e5734f;
+  --closed: #647d88;
+  --open: #f2c14e;
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 60rem; margin: 0 auto; padding: 0 1.5rem 6rem; }
+
+header.top {
+  border-bottom: 1px solid var(--rule);
+  padding: 4rem 0 2.5rem;
+  margin-bottom: 3rem;
+}
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  margin: 0 0 1.25rem;
+}
+h1 {
+  font-size: clamp(2rem, 5.5vw, 3.1rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  font-weight: 720;
+  margin: 0 0 1.25rem;
+  text-wrap: balance;
+}
+.standfirst {
+  font-size: 1.12rem;
+  color: var(--dim);
+  max-width: 44rem;
+  margin: 0;
+}
+.standfirst strong { color: var(--text); font-weight: 600; }
+
+.arc {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 2.5rem 0 0;
+}
+.arc div { background: var(--surface); padding: 1rem 1.1rem; }
+.arc dt {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  margin: 0 0 0.4rem;
+}
+.arc dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 1.28rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  white-space: nowrap;
+}
+.arc dd small { font-size: 0.8rem; color: var(--dim); letter-spacing: 0; }
+
+section { margin: 4rem 0 0; }
+h2 {
+  font-size: 1.6rem;
+  letter-spacing: -0.015em;
+  font-weight: 680;
+  margin: 0 0 0.5rem;
+  text-wrap: balance;
+}
+h2 .num {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--dimmer);
+  letter-spacing: 0.1em;
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 400;
+}
+h3 { font-size: 1.05rem; font-weight: 640; margin: 2rem 0 0.6rem; letter-spacing: -0.01em; }
+.lede { color: var(--dim); max-width: 46rem; margin: 0 0 1.75rem; }
+p { max-width: 46rem; }
+
+.scroll { overflow-x: auto; margin: 1.5rem 0; }
+table { border-collapse: collapse; width: 100%; min-width: 38rem; font-size: 0.92rem; }
+th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  font-weight: 400;
+  padding: 0 0.9rem 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: bottom;
+}
+td {
+  padding: 0.7rem 0.9rem 0.7rem 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tbody tr:hover td { background: rgba(255,255,255,0.018); }
+tr.total td { border-top: 1px solid var(--dimmer); font-weight: 600; }
+
+.chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.won { color: var(--won); }
+.wrong { color: var(--wrong); }
+.closed { color: var(--closed); }
+.open { color: var(--open); }
+
+code, .m { font-family: var(--mono); font-size: 0.88em; }
+code { color: var(--text); background: var(--surface-2); padding: 0.1em 0.35em; border-radius: 2px; }
+
+.callout {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--open);
+  padding: 1.4rem 1.6rem;
+  margin: 2rem 0;
+}
+.callout.good { border-left-color: var(--won); }
+.callout.good strong { color: var(--won); }
+.callout.bad { border-left-color: var(--wrong); }
+.callout.bad strong { color: var(--wrong); }
+.callout p { margin: 0 0 0.8rem; max-width: none; }
+.callout p:last-child { margin-bottom: 0; }
+.callout strong { color: var(--open); }
+
+.cards { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 1.75rem 0; }
+.card { background: var(--surface); padding: 1.5rem; }
+.card h3 { margin: 0.7rem 0 0.6rem; font-size: 1.12rem; letter-spacing: -0.01em; font-weight: 640; }
+.card p { margin: 0 0 0.85rem; font-size: 0.95rem; }
+.card p:last-child { margin-bottom: 0; }
+.rank { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--dimmer); }
+
+.split { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 1.75rem 0; }
+@media (min-width: 44rem) { .split { grid-template-columns: 1fr 1fr; } }
+.split > div { background: var(--surface); padding: 1.4rem 1.5rem; }
+.split h4 { margin: 0 0 0.7rem; font-size: 0.72rem; font-family: var(--mono); letter-spacing: 0.13em; text-transform: uppercase; color: var(--dimmer); }
+.split ul { margin: 0; padding-left: 1.1rem; font-size: 0.92rem; color: var(--dim); }
+.split li { margin-bottom: 0.5rem; }
+
+footer {
+  margin-top: 5rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--rule);
+  color: var(--dimmer);
+  font-size: 0.85rem;
+  font-family: var(--mono);
+}
+footer p { max-width: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Epic 20260818-220812 / state of play / 2026-08-22 / ddaf1997..dae23d00</p>
+  <h1>Four fixes landed, and two of the epic's own beliefs turned out to be wrong</h1>
+  <p class="standfirst">
+    The session's biggest win was real and measured: an undamaged fleet was paying
+    <strong>8 to 12% of its frame</strong> for damage cracks it did not have, and it no longer
+    does. Its biggest lesson was not: the refusal that had been discarding good measurements
+    was replaced by a discriminator built on a premise - <em>a period is a constant, a workload
+    is not</em> - that the first live run <strong>disproved</strong>. And the epic's largest
+    outstanding item, a 20.77 ms mid-mission ship spawn, turned out never to have existed in
+    shipped content at all.
+  </p>
+
+  <dl class="arc">
+    <div><dt>Cracks, driven combat</dt><dd>-8.6 <small>% mean</small></dd></div>
+    <div><dt>Cracks, p99</dt><dd>-12.2 <small>%</small></dd></div>
+    <div><dt>Pairs, same sign</dt><dd>24 / 24</dd></div>
+    <div><dt>Ship spawn, re-derived</dt><dd>0.56-1.75 <small>ms</small></dd></div>
+    <div><dt>Particle buffers</dt><dd>32768 -&gt; 512 <small>+</small></dd></div>
+    <div><dt>Instrument faults</dt><dd>5</dd></div>
+  </dl>
+</header>
+
+<section>
+  <h2><span class="num">01</span>What landed</h2>
+  <p class="lede">
+    Every commit from <code>ddaf1997</code> to <code>dae23d00</code>. Records in
+    <code>DECISIONS.md</code> D24 and D25 and in <code>20260818-221040/TASK.md</code>.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>commit</th><th>what</th><th>result</th><th>state</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="m">abde8723</td>
+        <td>A pristine section keeps its own material; blast and muzzle effects built once</td>
+        <td class="num">-8.6% mean</td>
+        <td><span class="chip won">measured</span></td>
+      </tr>
+      <tr>
+        <td class="m">f09bf9a7</td>
+        <td>A display cap becomes the repeat set's call, not one window's</td>
+        <td>0 refusals</td>
+        <td><span class="chip won">measured</span></td>
+      </tr>
+      <tr>
+        <td class="m">f269905a</td>
+        <td>Refresh-cap suspect bar raised 0.60 -&gt; 0.72</td>
+        <td>above every workload</td>
+        <td><span class="chip won">measured</span></td>
+      </tr>
+      <tr>
+        <td class="m">7fedcf82<br>88cd968a</td>
+        <td>All three particle buffers sized to the bursts they fire</td>
+        <td class="num">16-64x smaller</td>
+        <td><span class="chip open">arithmetic</span></td>
+      </tr>
+      <tr>
+        <td class="m">dae23d00</td>
+        <td>A scenario warms its hull art at load</td>
+        <td>pop-in removed</td>
+        <td><span class="chip won">measured</span></td>
+      </tr>
+      <tr>
+        <td class="m">59a127ca</td>
+        <td>The mid-mission spawn cost, re-derived</td>
+        <td>never existed</td>
+        <td><span class="chip closed">void</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">02</span>The one big win: a pristine fleet stopped paying for cracks</h2>
+  <p class="lede">
+    A cross-release comparison found <code>broadside</code>'s p95 <strong>8.8% worse</strong>
+    than v0.10.0, reproducing across five passes. The cause was structural, and the module
+    doc asserted the opposite.
+  </p>
+
+  <p>
+    Damage cracks render through an <code>ExtendedMaterial&lt;StandardMaterial, Ext&gt;</code>,
+    which is a <strong>separate render pipeline</strong> and cannot batch with plain
+    <code>StandardMaterial</code> draws. Every section was swapped onto a cracks material the
+    moment it existed - including bucket 0, the undamaged bucket. So an identically-sized scene
+    drew through two pipelines where v0.10.0 drew through one, and it paid that whether or not
+    a single shot had landed.
+  </p>
+
+  <div class="callout bad">
+    <p>
+      <strong>The module doc claimed the opposite.</strong> It said an undamaged fleet
+      "batches as if the effect were not there". It did not. A doc that asserts a
+      performance property is a claim like any other, and nothing was checking it.
+    </p>
+  </div>
+
+  <p>
+    The fix: at bucket 0 the mesh keeps its own source material and no cracked material is
+    created at all. <code>SectionCracks.material</code> widened to <code>Option&lt;_&gt;</code>
+    so <code>None</code> and <code>bucket == 0</code> always agree, with a heal-back path when
+    a damaged section returns to pristine.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>subject</th><th class="num">mean</th><th class="num">p95</th><th class="num">p99</th><th class="num">worst</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>driven combat</td><td class="num">-8.6%</td><td class="num">-8.7%</td><td class="num">-12.2%</td><td class="num">-9.2%</td></tr>
+      <tr><td>idle scene</td><td class="num">-8.4%</td><td class="num">-8.4%</td><td class="num">-7.9%</td><td class="num">-8.6%</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    Census gate passed before any timing: <strong>65 extended materials to 0</strong>, meshes
+    back on <code>MeshMaterial3d&lt;StandardMaterial&gt;</code>, <code>EffectAsset</code> 2 to 1.
+    24 of 24 metric pairs the same sign. Against the ablation that <em>removed</em> cracks
+    entirely, the fix matches or beats it on every combat metric and is decisively better at
+    p99 (-12.2% against -4.9%) - it keeps the feature and gives back the whole cost.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">03</span>The instrument was refusing the runs worth having</h2>
+  <p class="lede">
+    Every window of that A/B was refused by <code>refresh_capped</code>. The refusal was a
+    false positive, and it had a direction.
+  </p>
+
+  <p>
+    The check refuses a window whose frame deltas collapse onto one value while the run had
+    promised not to block on refresh - reasoning that what you measured is the display's
+    period, reported as a completely plausible millisecond figure. Sound in principle. But it
+    fires on <strong>steadiness</strong>, and an optimisation makes frames steadier.
+  </p>
+
+  <div class="callout bad">
+    <p>
+      <strong>It preferentially refused the faster arm.</strong> Probe certified 4/6 stock and
+      <strong>0/6 fixed</strong> on combat, 3/6 and 0/6 on idle. A comparison built from
+      surviving windows would have had zero windows of the improved arm and reported
+      <em>no change</em> - for a fix worth -8.6% mean.
+    </p>
+    <p>
+      Worse, it was structural rather than statistical: the refusal ran inside the capture and
+      <code>abort_capture</code> returns five lines above <code>emit_stats</code>. A refused
+      window wrote no JSON, no CSV row, no <code>PerfRun</code>. The arm did not get marked
+      suspect - it <strong>vanished</strong>.
+    </p>
+  </div>
+
+  <p>
+    So the verdict moved to the repeat set, which is the only half holding enough captures to
+    tell a period from a workload. The capture now records its cluster shape beside its stats
+    and logs a suspicion; the set rules. <code>checks.json</code> carries the call under
+    <code>repeats.sets[].refresh_cap</code> with the per-capture shapes beneath it.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">04</span>...and the premise that replaced it was also wrong</h2>
+  <p class="lede">
+    The discriminator was sold on "a refresh period is a CONSTANT, a workload is not". The
+    first live run disproved the second half.
+  </p>
+
+  <p>
+    A 12-bay point-defence stress set produced suspect periods of
+    <strong>25.663 / 20.824 / 20.972 / 20.975 / 21.006 ms</strong>. Drop the first - the cold
+    run, which the statistics gate discarded anyway - and the remaining four agree to
+    <strong>0.72%</strong>, inside the 1% that reads as one display. The set would have been
+    convicted and emptied. It was acquitted by an outlier, not by the rule.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>what it was</th><th class="num">cluster share</th><th class="num">period agreement</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>165 Hz <code>Fifo</code> capture, a real cap</td><td class="num">0.76-0.81</td><td class="num">0.08%</td></tr>
+      <tr><td>point-defence stress, a workload</td><td class="num">0.60-0.68</td><td class="num">0.72%</td></tr>
+      <tr><td>damage-cracks A/B, a workload</td><td class="num">0.64-0.65</td><td class="num">9.6%</td></tr>
+      <tr><td>34 gallery captures, workloads</td><td class="num">0.03-0.44</td><td>-</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    <strong>Share separates; agreement does not.</strong> So the bar moved 0.60 to 0.72 - above
+    every workload measured, below every cap measured - and both bars are now required: clear
+    the share to be a suspect, agree on a period to be convicted. The original 0.60 was chosen
+    when only the top and bottom rows existed and the gap between them was empty; the middle
+    two landed in that gap afterwards.
+  </p>
+
+  <div class="callout">
+    <p>
+      <strong>Expect to move it again.</strong> This threshold measures steadiness, not
+      anything about a display, and the engine keeps getting steadier. Share is also noisy
+      run to run: a second six-window set of the same subject on the same box spread
+      <strong>0.19-0.86</strong> where the first spread 0.60-0.85.
+    </p>
+    <p>
+      The principled fix is to test the period against rates a display actually runs at -
+      20.97 ms is 47.7 Hz and is no display, 6.06 ms is 165 Hz and is. Deferred deliberately,
+      not rejected.
+    </p>
+  </div>
+
+  <p>
+    One incidental behaviour kept on purpose: the verdict reads shapes from captures the
+    statistics gate <em>discarded</em>. It looks wrong. In the run above, that discarded capture
+    was the only thing standing between a good set and a false conviction.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">05</span>The 20.77 ms spawn was never a shipped cost</h2>
+  <p class="lede">
+    The epic's largest outstanding item, ranked at 20.77 ms across five shipped scenarios. It
+    does not exist.
+  </p>
+
+  <p>
+    <code>spawn_ship_skin</code> is a <strong>no-op for every shipped ship</strong>.
+    <code>ShipHull::skin</code> is <code>false</code> by default, both the config docs and the
+    authoring builder say so outright ("Every shipped ship ... goes unclad"), and
+    <code>grep -r "skin: true" assets/</code> returns nothing. Measured directly:
+    <strong>267 calls, 1.711 ms total, mean 6.4 microseconds.</strong>
+  </p>
+
+  <p>
+    The 20.77 ms came from <code>wfc_arena</code>, the only clad subject in the tree. That is
+    the sixth time this epic ranked against a cost that was not where it was believed to be,
+    and the first where the cost was never there at all.
+  </p>
+
+  <h3>What a mid-mission spawn actually costs</h3>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>phase</th><th class="num">ms / ship</th><th>where it could go</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>atomic ECS apply</td><td class="num">0.56-1.75</td><td><span class="chip closed">neither</span></td></tr>
+      <tr><td>glTF scene instantiation</td><td class="num">0.57-0.92</td><td><span class="chip closed">neither</span></td></tr>
+      <tr><td>hanabi <code>allocate_effects</code></td><td class="num">1.15-1.93</td><td>render thread</td></tr>
+      <tr><td>avian collider / mass / broad-phase</td><td class="num">&lt;= 1</td><td><span class="chip closed">neither</span></td></tr>
+      <tr><td><code>spawn_ship_skin</code></td><td class="num">0.0064</td><td>no-op</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    The apply is <strong>already inside <code>SPAWN_DRAIN_BUDGET</code></strong> and has no hot
+    spot: roughly 2,500 sub-40-microsecond observer calls plus 41 child archetype moves. Both
+    candidate fixes - bake at load, derive off-thread - have nothing to move, because the
+    apply's <em>output</em> is entities in the live world. <strong>The atomicity invariant stays
+    untouched.</strong>
+  </p>
+
+  <p>
+    A footnote on the subject itself: <code>lifeline</code>'s "7 ships" never land together.
+    They arrive 2+3+2 across three waves, each gated on the previous wave being destroyed -
+    at most 3 at once, minutes apart in real play. Measuring it at all required stripping
+    those gates.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">06</span>Two cheap fixes the audit found instead</h2>
+
+  <div class="cards">
+    <div class="card">
+      <p class="rank">Landed / 7fedcf82 + 88cd968a</p>
+      <h3>Every particle buffer was 16 to 1000 times too big</h3>
+      <p>
+        All three hanabi effects in the tree allocated a <strong>32,768-particle per-instance
+        GPU buffer</strong>. The ceiling is derivable from the burst and the lifetime, and
+        nobody had derived it.
+      </p>
+      <div class="scroll">
+      <table>
+        <thead><tr><th>effect</th><th class="num">peak needed</th><th class="num">was</th><th class="num">now</th></tr></thead>
+        <tbody>
+          <tr><td>muzzle flash</td><td class="num">1000</td><td class="num">32768</td><td class="num">2048</td></tr>
+          <tr><td>torpedo blast</td><td class="num">400</td><td class="num">32768</td><td class="num">512</td></tr>
+          <tr><td>launch puff</td><td class="num">28</td><td class="num">32768</td><td class="num">512</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>
+        Verified by correctness passes on four firing ranges, all green with no truncation
+        warnings. <strong>Not verified: any frame-time or memory win.</strong> The harness has
+        no RSS or VRAM instrument, and the PD stress A/B came back flat - correctly, since this
+        is a spawn-time allocation and the capture window opens long after. The reduction is
+        arithmetic, not measurement.
+      </p>
+    </div>
+
+    <div class="card">
+      <p class="rank">Landed / dae23d00</p>
+      <h3>A scenario now warms its hull art at load</h3>
+      <p>
+        Section glTFs were demand-loaded by the first ship that used them. Traced,
+        <code>menu_duel</code>'s parts loaded <strong>2.7 s after the load</strong>, interleaved
+        with the sections that needed them; <code>final_tally</code>'s <code>cargob</code>
+        <strong>never loaded at all</strong> inside the run window. Both now load beside the
+        scenario load.
+      </p>
+      <p>
+        <code>ScenarioPreload</code> walks the config's spawn actions and holds the handles.
+        The spawn path is untouched - <code>AssetRef::resolve</code> is idempotent, so the spawn
+        asks for the same path and gets the warm handle. Ships are the only object kind naming a
+        glTF, so the walk stops there.
+      </p>
+      <p>
+        Costs 11 meshes / 0.111 s on <code>menu_duel</code>, 17 / 0.117 s on
+        <code>final_tally</code>, both settling on the same frame index as before. This buys
+        <strong>pop-in latency, not frame time</strong>, and should never be written up as a
+        frame-rate result.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">07</span>What is open, and what is merely unverified</h2>
+  <p class="lede">
+    The distinction matters. Unmeasured is a legitimate state; a claimed measurement that was
+    not run is not.
+  </p>
+
+  <div class="split">
+    <div>
+      <h4>Open work</h4>
+      <ul>
+        <li><strong>Cracks in a mixed fleet.</strong> No section crosses bucket 1 in any current
+          subject, so the shared-bucket handle is still argued rather than measured. Fully
+          damaged <em>is</em> stock, so the only new case is mixed.</li>
+        <li><strong>Velocity HUD builds twice at player spawn</strong>, 4.60 + 3.44 = 8.0 ms. An
+          <code>On&lt;Add&gt;</code> observer building a 32,768-triangle octahedron and a fresh
+          material per invocation, no cache. Under the panel, so latency.</li>
+        <li><strong>Asteroid spawns cost 10-19 ms each in the build closure</strong>, which the
+          spawn budget never sees - it measures the apply only. 257 ms over 28 commands.</li>
+        <li><strong>NOVA OS scenes re-mint on every tab open</strong>, torn down on close.
+          Mid-flight. The last untouched Tier 1 item.</li>
+        <li><strong>Refresh-cap discriminator, second pass.</strong> Test the period against
+          real display rates instead of using share as a proxy.</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Landed but unproven</h4>
+      <ul>
+        <li><strong>Particle capacities.</strong> No RSS or VRAM instrument exists. The size
+          reduction is arithmetic; no win has been measured.</li>
+        <li><strong>The glTF failure branch.</strong> The 10 s deadline is unit-tested against a
+          handle the <code>AssetServer</code> never reports on. The "asset failed, warn and carry
+          on" path is code-reviewed only - proving it needs a deliberately corrupt fixture.</li>
+        <li><strong>The scenario clock now starts at 0.</strong> It used to take one tick on the
+          load frame - 0.25 s of a long boot frame - because the queue was still empty when
+          <code>Update</code> ran. Probably a fix, but it shifts every timer-gated beat.</li>
+        <li><strong>Blast effect caching.</strong> <code>broadside</code> fires no torpedoes, so
+          it has never been exercised. The muzzle share is confirmed; the blast share is not.</li>
+        <li><strong>Release-profile numbers.</strong> Everything here is dev profile. Dev ranks,
+          release certifies.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p>
+      <strong>One stale doc found and not yet fixed.</strong>
+      <code>nova_probe_cli/src/evaluation/profile.rs</code>'s module doc states that an observer
+      never gets a span of its own. In Bevy 0.19 observers <em>do</em> get <code>system:</code>
+      spans - that is how the spawn apply was attributed. Anyone trusting that doc would
+      conclude the observer cascade is unmeasurable.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">08</span>Suggested next</h2>
+  <p class="lede">
+    Ranked by what they buy against what they cost. The GPU is one lane; nothing here may
+    overlap another measurement.
+  </p>
+
+  <div class="cards">
+    <div class="card">
+      <p class="rank">01 / cheap, unblocks the release</p>
+      <h3>Write the Performance section and shoot the media</h3>
+      <p>
+        The v0.11.0 post has <strong>no Performance heading at all</strong>, and it is the group
+        with the best material. The plan in <code>news-post-plan.md</code> is complete: five
+        lead loops, 7 stills, and a collider-gizmo side-by-side that makes the headline number
+        self-evident. Two loops of seven exist; one still is one line in
+        <code>gen-web-screenshots.py</code> away.
+      </p>
+      <p>
+        This is the only remaining item that gates shipping. Everything below is optional.
+      </p>
+    </div>
+
+    <div class="card">
+      <p class="rank">02 / cheap, closes a real defect</p>
+      <h3>Cache the velocity HUD sphere</h3>
+      <p>
+        8.0 ms of the player spawn, building the same 32,768-triangle octahedron twice with no
+        cache. It is exactly the "built once, not per entity" pattern this release already
+        applied to placeholder art and exhaust plumes, and the fix is the same shape.
+      </p>
+      <p>
+        Under the loading panel, so it buys latency rather than frame rate - say so when
+        writing it up.
+      </p>
+    </div>
+
+    <div class="card">
+      <p class="rank">03 / medium, protects every future number</p>
+      <h3>Give the refresh-cap check a real discriminator</h3>
+      <p>
+        The share bar works today because 0.72 sits above every workload yet measured. It is a
+        proxy for the thing actually being claimed, it is noisy (0.19-0.86 on one subject), and
+        it will drift as the engine gets steadier.
+      </p>
+      <p>
+        Testing the cluster median against rates a display actually runs at tests the claim
+        directly. Worth doing before the next cross-release comparison, not after.
+      </p>
+    </div>
+
+    <div class="card">
+      <p class="rank">04 / medium, may resolve to nothing</p>
+      <h3>Price cracks in a mixed fleet</h3>
+      <p>
+        D24's open caveat. Needs a subject where sections actually cross bucket 1 -
+        <code>screenshot_damage_levels</code> stands five ships at progressively worse damage
+        through the real <code>apply_damage</code> path and already wires the probe.
+      </p>
+      <p>
+        Be honest about the odds: fully damaged <em>is</em> stock and pristine <em>is</em>
+        v0.10.0, so the only genuinely new case is mixed, and it may price out at nothing.
+        Census-gate it before spending the lane on timing.
+      </p>
+    </div>
+  </div>
+
+  <div class="callout good">
+    <p>
+      <strong>What not to do next:</strong> chase the remaining spawn-time milliseconds. The
+      apply is 0.56-1.75 ms and already inside its budget, the asteroid cost sits under a panel
+      the player is braced for, and the epic has now ranked six times against costs that had
+      moved. The frame-time work in this epic is finished; what is left is a release to ship.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <p>
+    Epic 20260818-220812 - <code>ddaf1997..dae23d00</code>, 2026-08-22. Workings in
+    <code>DECISIONS.md</code> D24 and D25, <code>20260818-221040/TASK.md</code>, and
+    <code>measurements/refresh-cap-pd-stress-repeat6*.csv</code>. All numbers dev profile,
+    rendered under Xvfb on a single serialised GPU lane.
+  </p>
+</footer>
+
+</div>
+</body>
+</html>
