@@ -6331,6 +6331,264 @@ function initHullArmour(host: HTMLElement): void {
     update();
 }
 
+// The release post uses four small comparisons that do not need a scope or a
+// simulation clock. They still hydrate through the same fallback-first contract
+// as the reference widgets above.
+
+function initDamageLevels(host: HTMLElement): void {
+    // damage_cracks.rs:102-127 - eight nearest-value buckets, pristine included.
+    const buckets = 8;
+    header(
+        host,
+        "A section wears eight damage levels",
+        "Move missing health. The surface snaps to a shared level; pristine keeps the ordinary material."
+    );
+
+    const cells = el("div", "widget__stack");
+    const levelCells: HTMLElement[] = [];
+    for (let i = 0; i < buckets; i++) {
+        const cell = sectionCell(
+            String(i),
+            i === 0
+                ? "pristine"
+                : i === buckets - 1
+                  ? "burnt"
+                  : `${Math.round((i / (buckets - 1)) * 100)}%`,
+            ""
+        );
+        levelCells.push(cell);
+        cells.appendChild(cell);
+    }
+    const stats = el("div", "widget__stats");
+    const bucketStat = stat(stats, "visible level");
+    const materialStat = stat(stats, "render material");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const damage = Number(damageControl.input.value) / 100;
+        const bucket = Math.round(damage * (buckets - 1));
+        for (const [index, cell] of levelCells.entries()) {
+            cell.classList.remove("is-hit", "is-dead", "is-clear");
+            if (index === bucket)
+                cell.classList.add(
+                    bucket === buckets - 1 ? "is-dead" : "is-hit"
+                );
+            else cell.classList.add("is-clear");
+        }
+        bucketStat.textContent = `${bucket} / ${buckets - 1}`;
+        materialStat.textContent =
+            bucket === 0 ? "source / no cracks" : "shared crack bucket";
+        readout.textContent =
+            bucket === 0
+                ? "Pristine means no effect pipeline at all. The section draws with the material it already owned."
+                : `This section shares level ${bucket} with every section using the same source material. Fleet size does not mint another copy.`;
+    };
+    const damageControl = control(
+        "Health missing",
+        0,
+        100,
+        1,
+        0,
+        (v) => `${v.toFixed(0)}%`,
+        update
+    );
+    const controls = el("div", "widget__controls");
+    controls.appendChild(damageControl.row);
+    host.appendChild(controls);
+    host.appendChild(cells);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    update();
+}
+
+function initPointDefense(host: HTMLElement): void {
+    // assignment.rs:245-303 - idle mounts prefer an unclaimed reachable threat.
+    header(
+        host,
+        "One battery, four independent answers",
+        "Switch between the old ship-wide pick and v0.11.0's per-mount assignment."
+    );
+    const mounts = el("div");
+    const readout = el("p", "widget__readout");
+    const buttons: HTMLButtonElement[] = [];
+    let perMount = true;
+
+    const update = (): void => {
+        mounts.replaceChildren();
+        mounts.appendChild(
+            el(
+                "p",
+                "widget__rowlabel",
+                perMount ? "v0.11.0 - per mount" : "v0.10.0 - ship pick"
+            )
+        );
+        const row = el("div", "widget__stack");
+        for (let i = 0; i < 4; i++) {
+            const target = perMount ? i + 1 : 1;
+            row.appendChild(
+                sectionCell(
+                    `MOUNT ${i + 1}`,
+                    `THREAT ${target}`,
+                    perMount ? "is-hit" : i === 0 ? "is-dead" : "is-clear"
+                )
+            );
+        }
+        mounts.appendChild(row);
+        readout.textContent = perMount
+            ? "Four mounts cover four threats. Reachability is still local: a gun with nothing in its arc returns to the primary target."
+            : "Every mount inherits THREAT 1. The first torpedo is over-served while three equally reachable threats fly on.";
+        readout.classList.toggle("is-fault", !perMount);
+    };
+
+    for (const [label, wanted] of [
+        ["SHIP-WIDE", false],
+        ["PER MOUNT", true],
+    ] as [string, boolean][]) {
+        const button = el("button", "widget__btn", label);
+        button.type = "button";
+        button.setAttribute("aria-pressed", String(wanted === perMount));
+        button.classList.toggle("is-on", wanted === perMount);
+        button.addEventListener("click", () => {
+            perMount = wanted;
+            for (const other of buttons) {
+                const on = other === button;
+                other.classList.toggle("is-on", on);
+                other.setAttribute("aria-pressed", String(on));
+            }
+            update();
+        });
+        buttons.push(button);
+    }
+    const keys = el("div", "widget__keys");
+    for (const button of buttons) keys.appendChild(button);
+    host.appendChild(keys);
+    host.appendChild(mounts);
+    host.appendChild(readout);
+    update();
+}
+
+function initStyleExplorer(host: HTMLElement): void {
+    // styles.rs:1-83 - four authored styles and their stable ids.
+    const styles = [
+        ["INDUSTRIAL", "services outside", "ducts / radiators / hazard bands"],
+        ["ARMOURED", "an unbroken belt", "applique / hatches / sensors"],
+        ["CIVILIAN", "a finished vehicle", "windows / fairings / livery"],
+        ["SALVAGE", "repair is the finish", "patches / welds / drums"],
+    ] as const;
+    header(
+        host,
+        "Four styles, four ideas about a hull",
+        "Choose a kit. A style changes materials, fixtures, and where those fixtures may stand."
+    );
+    const keys = el("div", "widget__keys");
+    const cards = el("div", "widget__stack");
+    const readout = el("p", "widget__readout");
+    const buttons: HTMLButtonElement[] = [];
+    let selected = 0;
+    const update = (): void => {
+        cards.replaceChildren();
+        const [name, thesis, fixtures] = styles[selected];
+        cards.appendChild(sectionCell(name, thesis, "is-hit"));
+        for (const fixture of fixtures.split(" / "))
+            cards.appendChild(
+                sectionCell(fixture.toUpperCase(), "fixture", "")
+            );
+        readout.textContent = `${name}: ${thesis}. Its ${fixtures.split(" / ").join(", ")} are deterministic parts of the ship, not a texture pass.`;
+    };
+    styles.forEach(([name], index) => {
+        const button = el("button", "widget__btn", name);
+        button.type = "button";
+        button.classList.toggle("is-on", index === selected);
+        button.setAttribute("aria-pressed", String(index === selected));
+        button.addEventListener("click", () => {
+            selected = index;
+            for (const [i, other] of buttons.entries()) {
+                other.classList.toggle("is-on", i === selected);
+                other.setAttribute("aria-pressed", String(i === selected));
+            }
+            update();
+        });
+        buttons.push(button);
+        keys.appendChild(button);
+    });
+    host.appendChild(keys);
+    host.appendChild(cards);
+    host.appendChild(readout);
+    update();
+}
+
+function initBattlefieldLoad(host: HTMLElement): void {
+    // Paired census: tasks/20260818-220812/DECISIONS.md:1172-1175.
+    const oldScene = { rounds: 1000, bodies: 1035, colliders: 1046 };
+    const newScene = { rounds: 400, bodies: 35, colliders: 46 };
+    header(
+        host,
+        "A round left the physics world",
+        "Compare scene totals, then isolate what one gun round adds. The fight sizes differ; the per-round invariant does not."
+    );
+    const rows = el("div");
+    const readout = el("p", "widget__readout");
+    const keys = el("div", "widget__keys");
+    const buttons: HTMLButtonElement[] = [];
+    let perRound = false;
+
+    const meter = (label: string, value: number, max: number): HTMLElement => {
+        const wrap = el("div");
+        wrap.appendChild(el("p", "widget__rowlabel", `${label}: ${value}`));
+        const bar = el("div", "widget__bar");
+        const fill = el("div", "widget__bar-fill");
+        fill.style.width = `${max === 0 ? 0 : (value / max) * 100}%`;
+        bar.appendChild(fill);
+        wrap.appendChild(bar);
+        return wrap;
+    };
+    const update = (): void => {
+        rows.replaceChildren();
+        if (perRound) {
+            rows.appendChild(meter("v0.10 body / round", 1, 1));
+            rows.appendChild(meter("v0.11 body / round", 0, 1));
+            rows.appendChild(meter("v0.10 collider / round", 1, 1));
+            rows.appendChild(meter("v0.11 collider / round", 0, 1));
+            readout.textContent =
+                "The swept round keeps gameplay state and a render entity, but contributes zero rigid bodies and zero colliders.";
+        } else {
+            const max = oldScene.colliders;
+            rows.appendChild(meter("v0.10 rounds", oldScene.rounds, max));
+            rows.appendChild(meter("v0.10 rigid bodies", oldScene.bodies, max));
+            rows.appendChild(meter("v0.10 colliders", oldScene.colliders, max));
+            rows.appendChild(meter("v0.11 rounds", newScene.rounds, max));
+            rows.appendChild(meter("v0.11 rigid bodies", newScene.bodies, max));
+            rows.appendChild(meter("v0.11 colliders", newScene.colliders, max));
+            readout.textContent =
+                "Scene totals include ships and torpedoes. Shorter reach also leaves fewer rounds alive, so these totals are evidence of shape, not a universal speed ratio.";
+        }
+    };
+    for (const [label, wanted] of [
+        ["SCENE TOTALS", false],
+        ["PER ROUND", true],
+    ] as [string, boolean][]) {
+        const button = el("button", "widget__btn", label);
+        button.type = "button";
+        button.classList.toggle("is-on", wanted === perRound);
+        button.setAttribute("aria-pressed", String(wanted === perRound));
+        button.addEventListener("click", () => {
+            perRound = wanted;
+            for (const other of buttons) {
+                const on = other === button;
+                other.classList.toggle("is-on", on);
+                other.setAttribute("aria-pressed", String(on));
+            }
+            update();
+        });
+        buttons.push(button);
+        keys.appendChild(button);
+    }
+    host.appendChild(keys);
+    host.appendChild(rows);
+    host.appendChild(readout);
+    update();
+}
+
 // ---- activation -----------------------------------------------------------
 
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
@@ -6344,6 +6602,10 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "controller-margin": initControllerMargin,
     "thruster-mass": initThrusterMass,
     "hull-armour": initHullArmour,
+    "damage-levels": initDamageLevels,
+    "point-defense": initPointDefense,
+    "style-explorer": initStyleExplorer,
+    "battlefield-load": initBattlefieldLoad,
     "gravity-well": initGravityWell,
     "dominant-well": initDominantWell,
     "goto-verb": initGotoVerb,

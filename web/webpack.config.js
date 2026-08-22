@@ -105,6 +105,13 @@ const sectionDocPages = (section) => {
 // fill the meta line; description is the head meta; the title comes from the H1.
 const NEWS_POSTS = [
     {
+        slug: "0.11.0",
+        version: "v0.11.0",
+        date: "2026-08-22",
+        description:
+            "Nova Protocol v0.11.0: ships wear damage and tear into drifting wrecks, Kinetic and Pierce rounds travel differently, point defence answers weaving torpedoes per mount, derived skins give hulls four authored identities, the editor becomes visual, and gun rounds leave the rigid-body simulation.",
+    },
+    {
         slug: "0.10.0",
         version: "v0.10.0",
         date: "2026-08-13",

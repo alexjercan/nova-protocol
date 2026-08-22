@@ -48,7 +48,7 @@ Candidate stories, to confirm in the text-first pass:
 - the editor's parts gallery, mating feedback, and live skin preview;
 - close-range combat and the contextual HUD;
 - structural performance wins, including rounds no longer being rigid bodies
-  or colliders, plus the bugs and false measurements found on the way.
+  or colliders, plus the paired measurements that prove each claimed result.
 
 Candidate interactives:
 
@@ -97,6 +97,24 @@ Existing machinery:
 Two loops already exist: `spine-cut.webm` and `torpedo-blast.webm`. Existing
 screenshot examples should be reused before creating near-duplicates.
 
+## Accepted news spine - 2026-08-22
+
+The post follows the player-visible result, not subsystem ownership:
+
+1. Ships come apart.
+2. Every shot has a purpose.
+3. Torpedoes attack; point defence answers.
+4. Ships have a visual identity.
+5. Build the ship you can see.
+6. Flight and scenarios feel intentional.
+7. A lighter battlefield.
+8. More in v0.11.0, then the release call to action.
+
+Only defects visible in v0.10.0 belong in the release story. A defect introduced
+and fixed during this cycle never reached a player and is omitted. Instrument
+failures and rejected optimisation premises remain in the epic record, not the
+player post.
+
 ## Sequence
 
 1. Rewrite the news post with final text structure, media placeholders, and
@@ -107,6 +125,19 @@ screenshot examples should be reused before creating near-duplicates.
 4. Add moving media to the landing page with visibility-aware loading.
 5. Fill or explicitly reject the remaining wiki/create slots.
 6. Run the final release probe after capture examples stop changing.
+
+## Phase 1 landed - 2026-08-22
+
+The text-first release post is live at `/news/0.11.0/` and on the News index. It
+follows the accepted eight-part spine and carries 12 figures: eight new loop
+placeholders, three new still/comparison placeholders, and the existing
+`spine-cut` loop. Eight interactive blocks support the story; four are new
+(`damage-levels`, `point-defense`, `style-explorer`, and `battlefield-load`) and
+four reuse sourced reference widgets.
+
+No media was created. The placeholder descriptions now define the shots, so the
+next step is to derive and review the capture manifest instead of inheriting the
+superseded list.
 
 ## Done when
 
