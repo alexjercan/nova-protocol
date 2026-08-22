@@ -1244,3 +1244,72 @@ headline, framecost's `Render/submit+present` row under Xvfb, and now this.
 **As the engine gets faster and the box quieter, `refresh_capped` gets MORE
 likely to reject exactly the runs worth having.** Comparing the cluster median
 across arms is a cheap discriminator it does not currently use.
+
+## D25 - the refusal that fired on steadiness now needs a second window to convict
+
+Landed `f09bf9a7`. D24 found `refresh_capped` refusing every window of both arms
+and named the discriminator; this is that fix.
+
+### The fault was structural, not a threshold being slightly off
+
+`refresh_capped` ran INSIDE the capture, and `abort_capture` returns five lines
+above `emit_stats`. So a refused window wrote no JSON, no CSV row and produced no
+`PerfRun` - the CLI never saw it. That is why the fixed arm did not merely get
+marked as suspect, it VANISHED, and why a comparison built from survivors would
+have reported no change rather than reporting nothing.
+
+One window cannot settle the question it was being asked. Only the capture knows
+the run promised not to block on refresh; only the repeat set holds enough
+captures to tell a period from a workload that is merely steady. The check was
+sitting on the half that had the wrong evidence.
+
+### What replaced it
+
+The capture computes its CLUSTER SHAPE - the value the window collapsed onto and
+the share of frames within 5% of it - writes both beside its stats, and logs a
+`SUSPECT reason=refresh_capped` line. It no longer refuses. The repeat gate rules,
+because **a refresh period is a constant**: two or more suspects agreeing on one
+period empty the set; suspects that disagree are a steady workload and are gated
+on their statistics like anything else.
+
+`checks.json` carries the call under `repeats.sets[].refresh_cap` as one of
+`refresh_capped` / `workload` / `unverifiable` / `not_suspected` / `unmeasured`,
+with the per-capture shapes beneath it, so a reader can re-derive the verdict
+instead of trusting the token.
+
+Under `fifo` or `autovsync` the shape columns stay EMPTY. Clustering there is the
+mode working, so it is not evidence, and the honest record is that nothing was
+measured.
+
+### Two calls inside the fix that are worth knowing
+
+**A lone suspect reads `unverifiable`.** With no sibling there is no
+discriminator, so the set is neither refused nor waved through. Refusing on
+insufficient evidence is the exact bias being removed; passing silently hides
+that the question went unanswered.
+
+**Agreement is 1%, not the 5% cluster band.** The lane reused one constant for
+both, which is where this would have failed quietly again. The two measure
+different things: the band spans SCATTER inside one window, which is wide - a
+capped window is not a flat line, one held a minimum 23% under its period - while
+agreement spans drift of a period ACROSS windows, which for a crystal-derived
+clock is none. The 165 Hz captures the mechanism was built from agree to 0.08%.
+Held at 5%, the discriminator came within 2.5 points of convicting the very
+workload it exists to acquit: 20.727 / 21.130 / 22.713 has only one member
+outside a 5% band, and two outside a 1% one.
+
+The asymmetry is deliberate throughout - one disagreeing member is enough to
+acquit. The failure being replaced was biased toward refusing, so the residual
+error is pointed at admitting.
+
+### Still owed
+
+The fix is verified by unit tests, `cargo check` and `cargo fmt` only. **No probe
+run, no Xvfb, no GPU** - the live behaviour of the suspicion line, the v4 CSV on
+disk and a real `checks.json` are UNMEASURED. The proof needs a fresh run, because
+the windows that motivated this wrote nothing to disk to re-judge. Clippy was not
+run either; CI owns it.
+
+CSV schema v4 adds `cluster_ms` and `cluster_share`. v1 to v3 still parse, which
+is not back-compat for its own sake - committed baselines under `tasks/` are v1
+and v3 and the report reads them.
