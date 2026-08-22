@@ -54,28 +54,38 @@ pub const REFRESH_CAP_BAND: f64 = 0.05;
 /// crystal-derived constant and does not drift at all - the 165 Hz captures
 /// this mechanism was built from agree to under a tenth of a percent.
 ///
-/// Sized against the false positive that motivated the discriminator rather
-/// than against the phenomenon alone: three windows of one steady workload read
-/// 20.727 / 21.130 / 22.713 ms, which a 5% band came within 2.5 points of
-/// convicting. Every value between a real display's agreement and that spread
-/// works; this one sits an order of magnitude clear of both ends.
+/// Tight because the measured margin is tight, and this is the bar that has
+/// come closest to convicting a real measurement. A point-defence stress set
+/// held 20.824 / 20.972 / 20.975 / 21.006 ms across four windows - agreement to
+/// 0.72%, against a phenomenon that agrees to 0.08%. A steady workload CAN
+/// reproduce its period, so this bar is necessary and nowhere near sufficient;
+/// [`REFRESH_CAP_SHARE`] is what actually separated that set.
 pub const REFRESH_CAP_AGREEMENT: f64 = 0.01;
 
 /// Clustering at or above this share of the window makes a capture a
 /// refresh-cap suspect.
 ///
-/// MEASURED, not chosen: on a 165 Hz output, `Fifo` captures of the empty
-/// gallery read 0.76 and 0.79 (and mean_fps 165.0 to three figures), while 34
-/// `Immediate` captures across ship counts 0 and 1 spread 0.03-0.44. The
-/// threshold sits in the gap with roughly equal headroom on both sides. A
-/// capped window is NOT a flat line - its own minimum ran 23% under the period
-/// - so a stricter share would miss the real thing while still passing every
-/// synthetic one.
+/// MEASURED, and RE-measured once the first value proved to be sitting in the
+/// wrong place. Every window this project has classified:
 ///
-/// The gap is not permanent, which is why crossing it is a SUSPICION and never
-/// a verdict: an optimisation makes frames steadier, so a threshold on
-/// steadiness alone preferentially accuses the faster arm of an A/B.
-pub const REFRESH_CAP_SHARE: f64 = 0.60;
+/// | what it was | share |
+/// |---|---|
+/// | 165 Hz `Fifo` capture, a real cap | 0.76-0.81 |
+/// | 12-bay point-defence stress, a workload | 0.60-0.68 |
+/// | damage-cracks A/B, a workload | 0.64-0.65 |
+/// | 34 `Immediate` gallery captures, workloads | 0.03-0.44 |
+///
+/// The first value was 0.60, chosen when only the top and bottom rows existed
+/// and the gap between them was empty. The middle two rows landed in that gap
+/// afterwards, which is the whole hazard: this threshold measures STEADINESS,
+/// and the engine gets steadier. It does not measure anything about a display.
+///
+/// So the bar sits above every workload yet measured and below every cap yet
+/// measured, and it is deliberately the FIRST of two - clearing it makes a
+/// capture a suspect, and only a repeat set whose suspects agree on one period
+/// convicts. Neither bar is sound alone: a steady workload cleared 0.68 here,
+/// and four windows of that same stress agreed on their period to 0.72%.
+pub const REFRESH_CAP_SHARE: f64 = 0.72;
 
 /// Below this cluster median nothing can be a refresh period: no display
 /// refreshes above 250 Hz, so a window this tight and this fast is a scene that

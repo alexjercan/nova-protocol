@@ -1,0 +1,85 @@
+{
+  "cluster_agreement": 0.01,
+  "cluster_band": 0.05,
+  "cluster_share_threshold": 0.6,
+  "graded": false,
+  "note": "the mean and median gate which captures COUNT; the tail is read only across the admitted ones. Make a claim on p99_ms and check it against p99_spread; worst_ms is a diagnostic beside it. refresh_cap is the set's call on whether it measured the DISPLAY rather than the game: a period is a constant, so it takes agreeing cluster medians across captures, never one clustered window. Nothing here passes or fails.",
+  "sets": [
+    {
+      "admitted": 5,
+      "captures": 6,
+      "discarded": 1,
+      "label": "stress_point_defense",
+      "p99_ms": 28.6328,
+      "p99_spread": 0.049331535860970686,
+      "reference_mean_ms": 21.3455,
+      "reference_median_ms": 20.9739,
+      "refresh_cap": "workload",
+      "repeats": [
+        {
+          "admitted": false,
+          "cluster_median_ms": 25.6631,
+          "cluster_share": 0.8544,
+          "index": 1,
+          "mean_ms": 26.01,
+          "median_ms": 25.6629,
+          "p99_ms": 31.3607,
+          "worst_ms": 35.3179
+        },
+        {
+          "admitted": true,
+          "cluster_median_ms": 21.0185,
+          "cluster_share": 0.5967,
+          "index": 2,
+          "mean_ms": 21.4235,
+          "median_ms": 21.0175,
+          "p99_ms": 28.6524,
+          "worst_ms": 36.9775
+        },
+        {
+          "admitted": true,
+          "cluster_median_ms": 20.824,
+          "cluster_share": 0.6411,
+          "index": 3,
+          "mean_ms": 21.112,
+          "median_ms": 20.8237,
+          "p99_ms": 28.6328,
+          "worst_ms": 36.0098
+        },
+        {
+          "admitted": true,
+          "cluster_median_ms": 20.972,
+          "cluster_share": 0.6756,
+          "index": 4,
+          "mean_ms": 21.2851,
+          "median_ms": 20.969,
+          "p99_ms": 27.6526,
+          "worst_ms": 33.2629
+        },
+        {
+          "admitted": true,
+          "cluster_median_ms": 20.9746,
+          "cluster_share": 0.6678,
+          "index": 5,
+          "mean_ms": 21.3455,
+          "median_ms": 20.9739,
+          "p99_ms": 28.3263,
+          "worst_ms": 42.0003
+        },
+        {
+          "admitted": true,
+          "cluster_median_ms": 21.0056,
+          "cluster_share": 0.6422,
+          "index": 6,
+          "mean_ms": 21.3762,
+          "median_ms": 21.0051,
+          "p99_ms": 29.0651,
+          "worst_ms": 34.7135
+        }
+      ],
+      "worst_ms": 36.0098,
+      "worst_spread": 0.24263950369066203
+    }
+  ],
+  "tolerance": 0.2
+}

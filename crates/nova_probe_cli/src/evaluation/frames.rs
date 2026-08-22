@@ -805,17 +805,58 @@ mod tests {
     /// display, and a 9.6% drift, which no refresh period does. The in-app
     /// check refused all six windows of BOTH arms and would have reported "no
     /// change" for a fix worth -8.6% mean.
+    ///
+    /// It is acquitted twice over now: the raised share bar keeps it out of the
+    /// suspect pool entirely, so the discriminator is never even asked.
     #[test]
-    fn captures_whose_cluster_medians_disagree_are_a_steady_workload_and_are_admitted() {
+    fn the_windows_that_broke_the_old_check_are_not_even_suspects_now() {
         let runs = vec![
             clustered("s", 1, 20.7, 20.727, 0.64),
             clustered("s", 2, 21.1, 21.130, 0.65),
             clustered("s", 3, 22.7, 22.713, 0.64),
         ];
         let read = &read_repeats(&runs)[0];
+        assert_eq!(read.refresh_cap, RefreshCap::NotSuspected);
+        assert_eq!(read.admitted(), 3, "a steady scene is still a measurement");
+        assert!(read.p99_ms.is_some());
+    }
+
+    /// Suspects that clear the share bar and then DISAGREE on the period - the
+    /// discriminator doing its own job, on the same drift the cracks A/B showed
+    /// but clustering hard enough to be accused of a display.
+    #[test]
+    fn captures_whose_cluster_medians_disagree_are_a_steady_workload_and_are_admitted() {
+        let runs = vec![
+            clustered("s", 1, 20.7, 20.727, 0.80),
+            clustered("s", 2, 21.1, 21.130, 0.78),
+            clustered("s", 3, 22.7, 22.713, 0.79),
+        ];
+        let read = &read_repeats(&runs)[0];
         assert_eq!(read.refresh_cap, RefreshCap::Workload);
         assert_eq!(read.admitted(), 3, "a steady scene is still a measurement");
         assert!(read.p99_ms.is_some());
+    }
+
+    /// The closest a real measurement has come to being convicted, and the
+    /// reason BOTH bars exist. A 12-bay point-defence stress set held
+    /// 20.824 / 20.972 / 20.975 / 21.006 ms - agreement to 0.72%, well inside
+    /// the 1% the discriminator calls one period. Only the share bar separates
+    /// it: that set clustered 0.60-0.68, under [`REFRESH_CAP_SHARE`].
+    #[test]
+    fn a_steady_workload_can_reproduce_its_period_and_the_share_bar_is_what_saves_it() {
+        let runs = vec![
+            clustered("s", 1, 21.11, 20.824, 0.6411),
+            clustered("s", 2, 21.28, 20.972, 0.6756),
+            clustered("s", 3, 21.34, 20.975, 0.6678),
+            clustered("s", 4, 21.38, 21.006, 0.6422),
+        ];
+        let read = &read_repeats(&runs)[0];
+        assert!(
+            (20.824_f64 - 21.006).abs() / 21.006 < REFRESH_CAP_AGREEMENT,
+            "these periods agree closely enough to read as one display",
+        );
+        assert_eq!(read.refresh_cap, RefreshCap::NotSuspected);
+        assert_eq!(read.admitted(), 4);
     }
 
     /// The two bands are not interchangeable, and reusing the cluster band for
@@ -825,9 +866,9 @@ mod tests {
     #[test]
     fn a_period_drifting_more_than_a_clock_can_is_a_workload_however_tight_it_looks() {
         let runs = vec![
-            clustered("s", 1, 20.0, 20.000, 0.72),
-            clustered("s", 2, 20.5, 20.500, 0.70),
-            clustered("s", 3, 20.7, 20.700, 0.71),
+            clustered("s", 1, 20.0, 20.000, 0.80),
+            clustered("s", 2, 20.5, 20.500, 0.78),
+            clustered("s", 3, 20.7, 20.700, 0.79),
         ];
         let read = &read_repeats(&runs)[0];
         assert!(
@@ -844,7 +885,7 @@ mod tests {
     #[test]
     fn a_lone_suspect_has_no_sibling_to_check_its_period_against() {
         let runs = vec![
-            clustered("s", 1, 20.7, 20.727, 0.64),
+            clustered("s", 1, 20.7, 20.727, 0.80),
             clustered("s", 2, 20.9, 20.900, 0.31),
         ];
         let read = &read_repeats(&runs)[0];

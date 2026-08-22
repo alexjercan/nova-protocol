@@ -87,10 +87,18 @@ number.
 Each capture measures its own CLUSTER SHAPE - the frame time the window
 collapsed onto, and the share of frames within 5% of it - and writes both
 beside its stats (`cluster_ms` / `cluster_share` in `frametime.csv`, on the
-summary line, and in the per-run JSON). A window that clusters at 0.60 or more
+summary line, and in the per-run JSON). A window that clusters at 0.72 or more
 on a period of at least 4 ms logs a `SUSPECT reason=refresh_capped` line and
 keeps its stats. The 4 ms floor is a display fact - nothing refreshes above
 250 Hz - so a scene faster than that is cheap and steady, not capped.
+
+The 0.72 bar sits above every workload this project has measured (point-defence
+stress 0.60-0.68, the damage-cracks A/B 0.64-0.65, 34 gallery captures
+0.03-0.44) and below every real cap (a 165 Hz `Fifo` capture, 0.76-0.81). It
+started at 0.60 when only the outer two groups existed; the middle two landed in
+the gap afterwards. Expect to move it again, because it measures STEADINESS and
+the engine keeps getting steadier - that is precisely why clearing it is a
+suspicion and not a verdict.
 
 Under a mode that MAY block on refresh (`fifo`, `autovsync`) the columns stay
 empty: clustering there is the mode working, so it is not evidence of anything
@@ -114,9 +122,14 @@ Agreement is a far tighter test than cluster membership, and the two numbers are
 not interchangeable. The 5% band spans the SCATTER inside one window, which is
 wide - a capped window is not a flat line. The 1% agreement spans the drift of a
 period ACROSS windows, which for a crystal-derived clock is none: the 165 Hz
-captures this was built from agree to under a tenth of a percent. Held at 5% the
-discriminator would have come within 2.5 points of convicting the steady
-workload it exists to acquit.
+captures this was built from agree to under a tenth of a percent.
+
+**Neither bar is sound on its own, and the point-defence stress set is why.**
+Four of its windows held 20.824 / 20.972 / 20.975 / 21.006 ms - agreement to
+0.72%, inside the 1% that reads as one display. A steady workload really can
+reproduce its period, so agreement is necessary and nowhere near sufficient; the
+share bar is what separated that set. Expect any set that is both very steady
+and very reproducible to need both bars to survive.
 
 One lone suspect in a set reads `unverifiable`: there is no sibling to check
 its period against, so whether it measured the display is UNMEASURED, and the
