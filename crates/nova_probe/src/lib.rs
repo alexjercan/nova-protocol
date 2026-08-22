@@ -48,10 +48,12 @@
 //!   per-frame cost and the headroom, not "60 fps, capped". It is a REQUEST:
 //!   wgpu falls back Immediate -> Mailbox -> Fifo on what the surface offers and
 //!   bevy logs the fallback only for an explicitly named mode, so
-//!   `NOVA_PROBE_PRESENT=immediate` names the mode, and the capture then REFUSES
-//!   a window whose deltas collapsed onto one period anyway - a compositor or a
-//!   silent fallback pacing the swap chain reads as a plausible number and is
-//!   the display's, not the game's.
+//!   `NOVA_PROBE_PRESENT=immediate` names the mode. A compositor or a silent
+//!   fallback pacing the swap chain reads as a plausible number and is the
+//!   display's, not the game's, so a capture under a no-vsync mode measures how
+//!   tightly its window collapsed ([`stats::cluster_shape`]) and publishes that
+//!   beside the stats. The VERDICT belongs to the repeat SET: a refresh period
+//!   is a constant, and one steady window cannot be told from a steady scene.
 //! - **Continuous updates.** `WinitSettings::continuous` keeps the loop running
 //!   flat out even when the window is unfocused, and the capture REFUSES any
 //!   other setting. Bevy's default `WinitSettings::game` holds an unfocused
@@ -119,7 +121,7 @@
 //! | `NOVA_PROBE_RES` / `res`       | `1280x720` | Forced primary-window resolution `WxH`. |
 //! | `NOVA_PROBE_RENDER_SCALE` / `render_scale` | (tier default) | Forces `GraphicsBudget::render_scale`, holding the rest of the preset fixed - isolates the render-scale lever (measure a tier at `1.0` vs a fraction). |
 //! | `NOVA_PROBE_MAX_DELTA` / `max_delta` | (bevy's 0.25 s) | Forces `Time<Virtual>::max_delta`, in seconds - the ceiling on how many fixed steps one frame may run. Isolates fixed-step amplification; it trades a bounded tail for simulation time the world never runs, so it is a measurement knob, never a default. |
-//! | `NOVA_PROBE_PRESENT` / `present`   | `autonovsync` | Presentation mode forced on the primary window (`immediate`, `mailbox`, `fifo`, `fiforelaxed`, `autovsync`, `autonovsync`). The default is only a REQUEST - name a mode explicitly and bevy logs the fallback when the surface cannot serve it. |
+//! | `NOVA_PROBE_PRESENT` / `present`   | `autonovsync` | Presentation mode forced on the primary window (`immediate`, `mailbox`, `fifo`, `fiforelaxed`, `autovsync`, `autonovsync`). The default is only a REQUEST - name a mode explicitly and bevy logs the fallback when the surface cannot serve it. A no-vsync mode also makes the window's cluster shape evidence, so it is recorded; under `fifo`/`autovsync` clustering is the mode working and nothing is written. |
 //! | `NOVA_PROBE_CENSUS_FRAME` / `census_frame` | `90` | Frames after `Playing` at which the scene census is taken. |
 //! | `NOVA_PROBE_FRAMECOST_FRAMES` / `framecost_frames` | `200` | Frames averaged into one frame-cost report. |
 //! | `NOVA_PROBE_RENDER_DIAG` | (unset) | Asks the renderer for GPU timestamp queries, so the frame-cost report can name each render pass. Costs a resolve pass and a readback per frame - a measurement knob, never a default. |

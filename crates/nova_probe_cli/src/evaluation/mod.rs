@@ -6,7 +6,7 @@
 //!
 //! - `timeline.jsonl` - the run-timeline recorder's stream (states, scenario
 //!   events, variables, markers, invariant entries, run bracket);
-//! - `frametime.csv` - the clean pass's FPS stats (schema v1/v2);
+//! - `frametime.csv` - the clean pass's FPS stats (schema v1 to v4);
 //! - `trace.json` - the profiled pass's chrome trace;
 //! - `run.log` - the run's captured stdout/stderr.
 //!

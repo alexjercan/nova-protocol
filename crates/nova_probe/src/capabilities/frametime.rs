@@ -15,11 +15,11 @@ pub mod prelude {
     pub use super::{
         capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
         nova_frametime, probe_armed, probe_env, probe_param, resolve_git_sha, resolve_host,
-        FrameTimePlugin, PerfDriver, PerfLive, PerfReady, ReloadGate, ABORT_REFRESH_CAPPED,
-        ABORT_SCENE_ENDED, ABORT_SIMULATION_STOPPED, ABORT_UPDATE_THROTTLED, ABORT_WINDOW_SIZE,
-        CAPTURE_COLLECTOR, DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES,
-        FRAMES_PARAM, LABEL_PARAM, NORENDER_ENV, OUT_PARAM, PROBE_ENV, QUALITY_PARAM,
-        SCENARIO_PARAM, WARMUP_PARAM,
+        FrameTimePlugin, PerfDriver, PerfLive, PerfReady, ReloadGate, ABORT_SCENE_ENDED,
+        ABORT_SIMULATION_STOPPED, ABORT_UPDATE_THROTTLED, ABORT_WINDOW_SIZE, CAPTURE_COLLECTOR,
+        DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, FRAMES_PARAM,
+        LABEL_PARAM, NORENDER_ENV, OUT_PARAM, PROBE_ENV, QUALITY_PARAM, SCENARIO_PARAM,
+        WARMUP_PARAM,
     };
 }
 
@@ -191,15 +191,6 @@ pub const ABORT_WINDOW_SIZE: &str = "window_size";
 /// loop. A capture may not be the thing that decides its own rate.
 pub const ABORT_UPDATE_THROTTLED: &str = "update_throttled";
 
-/// Token the abort line carries when the frame deltas collapsed onto a single
-/// period although the run named a presentation mode that must not block on
-/// refresh.
-///
-/// A refresh-capped capture reports the display's period, not the game's cost,
-/// and it reports it as a perfectly plausible number - which is the same
-/// failure shape as [`ABORT_SIMULATION_STOPPED`] and needs the same refusal.
-pub const ABORT_REFRESH_CAPPED: &str = "refresh_capped";
-
 /// Token the abort line carries when the scene the window promised was ALREADY
 /// OVER, by the example's own reckoning - see [`PerfLive`].
 ///
@@ -211,27 +202,6 @@ pub const ABORT_REFRESH_CAPPED: &str = "refresh_capped";
 /// cost the window was opened for - and it files that as an ordinary, plausible
 /// row, which is the same failure shape as every other reason here.
 pub const ABORT_SCENE_ENDED: &str = "scene_ended";
-
-/// Half-width of the band around the median that
-/// [`clustered_share`] counts samples in.
-const REFRESH_CAP_BAND: f64 = 0.05;
-
-/// Clustering at or above this share of the window is a period rather than a
-/// workload.
-///
-/// MEASURED, not chosen: on a 165 Hz output, `Fifo` captures of the empty
-/// gallery read 0.76 and 0.79 (and mean_fps 165.0 to three figures), while 34
-/// `Immediate` captures across ship counts 0 and 1 spread 0.03-0.44. The
-/// threshold sits in the gap with roughly equal headroom on both sides. A
-/// capped window is NOT a flat line - its own minimum ran 23% under the period
-/// - so a stricter share would miss the real thing while still passing every
-/// synthetic one.
-const REFRESH_CAP_SHARE: f64 = 0.60;
-
-/// Below this median the cluster cannot be a refresh period: no display
-/// refreshes above 250 Hz, so a window this tight and this fast is a scene
-/// that is genuinely cheap and genuinely steady, not a capped one.
-const REFRESH_CAP_MIN_MS: f64 = 4.0;
 
 /// Default forced primary-window resolution.
 pub const DEFAULT_RESOLUTION: (f32, f32) = (1280.0, 720.0);
@@ -629,34 +599,16 @@ fn expects_no_vsync(mode: PresentMode) -> bool {
     )
 }
 
-/// The median delta and the share of deltas inside `+/- REFRESH_CAP_BAND` of
-/// it - how tightly the window collapsed onto one value.
+/// Whether this window is a refresh-cap SUSPECT: it promised not to block on
+/// refresh and still collapsed onto one value slow enough to be a display
+/// period.
 ///
-/// A workload produces a distribution: the empty gallery's own p99 is 1.6x its
-/// median. A period produces a spike, because every frame waits for the same
-/// clock edge. Share rather than a percentile ratio because a capped run can
-/// still contain a handful of honest fast frames (one measured window held a
-/// 5.0 ms minimum under a 16.7 ms cap) and a ratio built on min or max reads
-/// those as spread.
-fn clustered_share(samples: &[f64]) -> (f64, f64) {
-    if samples.is_empty() {
-        return (0.0, 0.0);
-    }
-    let mut sorted = samples.to_vec();
-    sorted.sort_by(|a, b| a.total_cmp(b));
-    let median = sorted[sorted.len() / 2];
-    if median <= 0.0 {
-        return (median, 0.0);
-    }
-    let inside = sorted
-        .iter()
-        .filter(|ms| (*ms - median).abs() / median <= REFRESH_CAP_BAND)
-        .count();
-    (median, inside as f64 / sorted.len() as f64)
-}
-
-/// Whether this window reads as a refresh cap rather than a measurement.
-fn refresh_capped(mode: PresentMode, median: f64, share: f64) -> bool {
+/// Suspicion, never verdict. The predicate fires on STEADINESS, and an
+/// optimisation makes frames steadier - so refusing here would refuse the
+/// faster arm of an A/B preferentially. A period is a CONSTANT, and one window
+/// cannot show that; the repeat gate in `nova_probe_cli` holds the siblings
+/// that can.
+fn refresh_cap_suspected(mode: PresentMode, median: f64, share: f64) -> bool {
     expects_no_vsync(mode) && median >= REFRESH_CAP_MIN_MS && share >= REFRESH_CAP_SHARE
 }
 
@@ -1030,7 +982,7 @@ fn perf_capture(
             state.samples.push(time.delta_secs_f64() * 1000.0);
             state.fixed_steps.push(fixed_steps);
             if state.samples.len() as u32 >= config.capture_frames {
-                let (median, share) = clustered_share(&state.samples);
+                let (median, share) = cluster_shape(&state.samples);
                 let window = windows.single().ok();
                 info!(
                     "nova perf: label={} validity present={} clustered={:.3} window={}",
@@ -1048,27 +1000,25 @@ fn perf_capture(
                         )
                     ),
                 );
-                if refresh_capped(config.present_mode, median, share) {
-                    let detail = format!(
-                        "{:.1}% of the window sits within {:.0}% of a {median:.3} ms median, \
-                         which is a display period and not a workload. `{}` promises not to \
-                         block on refresh, so the surface fell back or a compositor is pacing \
-                         the swap chain. Measure on a path that can present freely.",
+                if refresh_cap_suspected(config.present_mode, median, share) {
+                    warn!(
+                        "nova perf: label={} SUSPECT reason={REFRESH_CAPPED} - {:.1}% of the \
+                         window sits within {:.0}% of a {median:.3} ms median, and `{}` promised \
+                         not to block on refresh. That is either the surface falling back (or a \
+                         compositor pacing the swap chain) or a workload that is simply steady, \
+                         and one window cannot tell them apart: a period is a CONSTANT, so it \
+                         takes a repeat set. The stats are written with the shape attached and \
+                         the repeat gate decides.",
+                        config.label,
                         share * 100.0,
                         REFRESH_CAP_BAND * 100.0,
                         present_name(config.present_mode),
                     );
-                    abort_capture(
-                        &config,
-                        &mut state,
-                        &mut completion,
-                        Phase::Capture,
-                        ABORT_REFRESH_CAPPED,
-                        &detail,
-                    );
-                    return;
                 }
-                let stats = FrameStats::from_samples(&state.samples);
+                let mut stats = FrameStats::from_samples(&state.samples);
+                if expects_no_vsync(config.present_mode) {
+                    stats = stats.with_cluster(median, share);
+                }
                 let steps = FixedStepStats::from_frames(&state.samples, &state.fixed_steps);
                 let meta = RunMeta::resolve(&config, adapter.as_deref());
                 emit_stats(&config, &stats, steps.as_ref(), &meta, &gate.reload_ms);
@@ -1176,9 +1126,13 @@ fn window_size_fault(config: &PerfConfig, window: Option<&Window>) -> Option<Str
 /// It writes NO stats. A contaminated capture that emitted a row would be
 /// averaged into a repeat set by a gate built for outliers, and none of these
 /// faults is an outlier: a stopped simulation draws the same scene at a steady
-/// cost, a refresh cap holds a steady period, and a mis-sized window is
-/// steadily the wrong scene. Each produces a mean that looks exactly like an
-/// honest one. Discarding the capture is the only reading that is true.
+/// cost, and a mis-sized window is steadily the wrong scene. Each produces a
+/// mean that looks exactly like an honest one. Discarding the capture is the
+/// only reading that is true.
+///
+/// Only for faults ONE window can prove. A fault that takes siblings to
+/// establish is recorded as data and ruled on by the host - see
+/// [`FrameStats::cluster_share`].
 fn abort_capture(
     config: &PerfConfig,
     state: &mut PerfState,
@@ -1204,9 +1158,9 @@ fn abort_capture(
 }
 
 /// Log the summary line and, when `NOVA_PROBE_OUT` is set, write a per-run JSON
-/// file and append a row to the aggregated CSV (schema v3, run metadata
-/// included). The log line is always emitted - on wasm there is no filesystem,
-/// so a headless-browser driver scrapes it from the console.
+/// file and append a row to the aggregated CSV (schema v4, run metadata and
+/// cluster shape included). The log line is always emitted - on wasm there is
+/// no filesystem, so a headless-browser driver scrapes it from the console.
 fn emit_stats(
     config: &PerfConfig,
     stats: &FrameStats,
@@ -1588,8 +1542,8 @@ mod tests {
     }
 
     #[test]
-    fn a_window_that_collapsed_onto_one_period_is_a_refresh_cap_not_a_measurement() {
-        let (median, share) = clustered_share(&capped_window(6.06, 200));
+    fn a_window_that_collapsed_onto_one_period_is_a_refresh_cap_suspect() {
+        let (median, share) = cluster_shape(&capped_window(6.06, 200));
         assert!(
             (median - 6.06).abs() < 0.05,
             "median is the period: {median}"
@@ -1598,30 +1552,46 @@ mod tests {
             (0.75..0.85).contains(&share),
             "the synthetic cap keeps the measured shape: {share}"
         );
-        assert!(refresh_capped(PresentMode::Immediate, median, share));
-        assert!(refresh_capped(PresentMode::AutoNoVsync, median, share));
+        assert!(refresh_cap_suspected(PresentMode::Immediate, median, share));
+        assert!(refresh_cap_suspected(
+            PresentMode::AutoNoVsync,
+            median,
+            share
+        ));
     }
 
     #[test]
     fn a_capped_window_under_fifo_is_the_mode_the_operator_asked_for() {
-        let (median, share) = clustered_share(&capped_window(16.67, 200));
+        let (median, share) = cluster_shape(&capped_window(16.67, 200));
         assert!(share > REFRESH_CAP_SHARE);
-        assert!(!refresh_capped(PresentMode::Fifo, median, share));
-        assert!(!refresh_capped(PresentMode::AutoVsync, median, share));
+        assert!(!refresh_cap_suspected(PresentMode::Fifo, median, share));
+        assert!(!refresh_cap_suspected(
+            PresentMode::AutoVsync,
+            median,
+            share
+        ));
     }
 
     #[test]
-    fn a_window_with_an_ordinary_workload_spread_is_never_refused() {
-        let (median, share) = clustered_share(&free_window(200));
+    fn a_window_with_an_ordinary_workload_spread_is_never_suspected() {
+        let (median, share) = cluster_shape(&free_window(200));
         assert!(share < REFRESH_CAP_SHARE, "a workload spreads: {share}");
-        assert!(!refresh_capped(PresentMode::Immediate, median, share));
+        assert!(!refresh_cap_suspected(
+            PresentMode::Immediate,
+            median,
+            share
+        ));
 
-        // Same spread scaled up past the fast-frame guard, so the refusal is
-        // not passing only because the scene is cheap.
+        // Same spread scaled up past the fast-frame guard, so the suspicion is
+        // not staying quiet only because the scene is cheap.
         let heavy: Vec<f64> = free_window(200).iter().map(|ms| ms * 10.0).collect();
-        let (median, share) = clustered_share(&heavy);
+        let (median, share) = cluster_shape(&heavy);
         assert!(median > REFRESH_CAP_MIN_MS);
-        assert!(!refresh_capped(PresentMode::Immediate, median, share));
+        assert!(!refresh_cap_suspected(
+            PresentMode::Immediate,
+            median,
+            share
+        ));
     }
 
     #[test]

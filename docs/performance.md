@@ -76,6 +76,52 @@ down as the box recovers, the reference lands in the middle of the slide, and
 the gate throws out both ends. Let the machine settle before a repeat set, and
 treat a set the gate empties as "measure it again", never as a result.
 
+### A refresh cap is a set's finding, not a window's
+
+A run that named a presentation mode promising NOT to block on refresh can
+still be paced by the display: the surface falls back, or a compositor holds
+the swap chain, and every frame then waits for the same clock edge. What the
+capture reports is the display's period, at a perfectly plausible-looking
+number.
+
+Each capture measures its own CLUSTER SHAPE - the frame time the window
+collapsed onto, and the share of frames within 5% of it - and writes both
+beside its stats (`cluster_ms` / `cluster_share` in `frametime.csv`, on the
+summary line, and in the per-run JSON). A window that clusters at 0.60 or more
+on a period of at least 4 ms logs a `SUSPECT reason=refresh_capped` line and
+keeps its stats. The 4 ms floor is a display fact - nothing refreshes above
+250 Hz - so a scene faster than that is cheap and steady, not capped.
+
+Under a mode that MAY block on refresh (`fifo`, `autovsync`) the columns stay
+empty: clustering there is the mode working, so it is not evidence of anything
+and the honest record is that nothing was measured.
+
+**A suspicion, because one window cannot settle it.** The check fires on
+STEADINESS, and an optimisation makes frames steadier - so a threshold applied
+per window preferentially accuses the FASTER arm of an A/B, which is a bias
+pointed at the null and the worst direction for an instrument to be wrong in.
+
+The repeat set is where the evidence exists, because a refresh period is a
+CONSTANT. When two or more captures of a set are suspects and their cluster
+medians agree to within 1%, the set measured the display: every capture is
+discarded and the set reports no tail, the same shape as any other set the gate
+empties. When the medians DISAGREE, no display did that, and the captures are
+gated on their statistics like any others. `checks.json` carries the call under
+`repeats.sets[].refresh_cap` (`refresh_capped`, `workload`, `unverifiable`,
+`not_suspected` or `unmeasured`) with the per-capture shapes under it.
+
+Agreement is a far tighter test than cluster membership, and the two numbers are
+not interchangeable. The 5% band spans the SCATTER inside one window, which is
+wide - a capped window is not a flat line. The 1% agreement spans the drift of a
+period ACROSS windows, which for a crystal-derived clock is none: the 165 Hz
+captures this was built from agree to under a tenth of a percent. Held at 5% the
+discriminator would have come within 2.5 points of convicting the steady
+workload it exists to acquit.
+
+One lone suspect in a set reads `unverifiable`: there is no sibling to check
+its period against, so whether it measured the display is UNMEASURED, and the
+set is neither refused nor waved through. Repeat it to settle it.
+
 ## Was the window one scene?
 
 A capture also records how many FIXED STEPS ran inside each frame, bucketed by
@@ -324,8 +370,10 @@ artifact: keep it while you are profiling, delete the run dir when you are not.
   builder needs it.
 - What the scene contained: `CensusPlugin` -
   `crates/nova_probe/src/capabilities/census.rs`.
-- The repeat set and its validity band, the presets, the web platform, the
-  traced and samply passes: `crates/nova_probe_cli/src/native/`; the stats and
-  CSV/JSON schema both halves speak - `crates/nova_probe/src/stats.rs`.
+- Driving a repeat set, the presets, the web platform, the traced and samply
+  passes: `crates/nova_probe_cli/src/native/`. Reading one back - the validity
+  band and the refresh-cap discriminator - `read_repeats` and `RefreshCap` in
+  `crates/nova_probe_cli/src/evaluation/frames.rs`; the stats and CSV/JSON
+  schema both halves speak - `crates/nova_probe/src/stats.rs`.
 - The bundle an example wires: `NovaProbePlugin` -
   `crates/nova_probe/src/capabilities/mod.rs`.

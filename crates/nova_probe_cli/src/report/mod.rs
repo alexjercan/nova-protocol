@@ -134,14 +134,31 @@ pub(crate) fn render_repeat_gate(runs: &[PerfRun]) -> String {
                  captures under it were.</p>\n",
                 spread * 100.0
             )),
-            // Two very different causes, and the report may not guess which:
-            // a busy machine, or a scene whose own load is not repeatable.
+            // Several very different causes, and the report may not guess
+            // which: a busy machine, a scene whose own load is not
+            // repeatable, or a display that paced every capture.
+            _ if read.refresh_cap == RefreshCap::Capped => html.push_str(
+                "The gate admitted nothing, so this set reports no tail. Its \
+                 captures agree on ONE frame time to within the cluster band, \
+                 which a workload does not do and a refresh period does: the \
+                 display paced the swap chain and none of these windows \
+                 measured the game. Measure on a path that can present \
+                 freely.</p>\n",
+            ),
             _ => html.push_str(
                 "The gate admitted nothing, so this set reports no tail. The \
                  captures did not measure the same thing - either the machine \
                  moved under them, or this scene's own load is not repeatable \
                  and no number of repeats will fix it.</p>\n",
             ),
+        }
+        if read.refresh_cap == RefreshCap::Unverifiable {
+            html.push_str(
+                "<p class=\"note\">One capture of this set clustered tightly enough to be a \
+                 refresh cap, and it is the only one that did - so there is no sibling to \
+                 check its period against, and whether it measured the display or a steady \
+                 scene is UNMEASURED. Repeat the set to settle it.</p>\n",
+            );
         }
         html.push_str("<table>\n<thead>\n<tr>");
         for head in ["Repeat", "Mean", "Median", "p99", "Worst", "Gate"] {
@@ -164,10 +181,10 @@ pub(crate) fn render_repeat_gate(runs: &[PerfRun]) -> String {
                 } else {
                     "status-skipped"
                 },
-                if capture.admitted {
-                    "admitted"
-                } else {
-                    "discarded - contaminated"
+                match (capture.admitted, read.refresh_cap) {
+                    (true, _) => "admitted",
+                    (false, RefreshCap::Capped) => "discarded - display period",
+                    (false, _) => "discarded - contaminated",
                 },
             ));
         }
@@ -567,6 +584,8 @@ mod tests {
                 p999_ms: max_ms,
                 mean_fps: 1000.0 / mean_ms,
                 one_pct_low_fps: 500.0 / mean_ms,
+                cluster_median_ms: None,
+                cluster_share: None,
             },
             meta: RunMeta::unknown(),
         }
@@ -629,6 +648,23 @@ mod tests {
         assert!(html.contains("never graded"), "{html}");
         // A lone capture is not a set and renders nothing at all.
         assert!(render_repeat_gate(&[run("s", 26.0, 44.0)]).is_empty());
+    }
+
+    /// A set the DISPLAY paced empties like any other, but the reader must not
+    /// be sent looking for a busy machine that was never the cause.
+    #[test]
+    fn a_set_the_display_paced_says_so_instead_of_blaming_the_machine() {
+        let mut runs = vec![run("s#1", 6.06, 9.0), run("s#2", 6.06, 9.1)];
+        for (r, period) in runs.iter_mut().zip([6.061, 6.058]) {
+            r.stats.p50_ms = r.stats.mean_ms;
+            r.stats.cluster_median_ms = Some(period);
+            r.stats.cluster_share = Some(0.78);
+        }
+        let html = render_repeat_gate(&runs);
+        assert!(html.contains("0 of 2 captures admitted"), "{html}");
+        assert!(html.contains("the display paced the swap chain"), "{html}");
+        assert!(html.contains("discarded - display period"), "{html}");
+        assert!(!html.contains("discarded - contaminated"), "{html}");
     }
 
     /// The reading that caught a capture window measuring a paused result

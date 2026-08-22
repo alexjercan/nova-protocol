@@ -473,7 +473,8 @@ does NOT get an entry - and it is the only place they are written down.
 - A `--features debug` boot prints 62 lines instead of 360: per-item spawn and setup lines are `trace!`, batch lines carry counts, and one `nova=` prefix directive covers all 22 crates, not nine.
 - A headless run no longer opens with a bevy ERROR and three WARNs it provokes by construction; the clamp is headless-only, so a rendering run keeps those targets at their normal level.
 - A capture breaks its frame down by name: main-world schedules, render phases with `PrepareAssets`, `Prepare`'s sub-sets and submit/present split out, and GPU passes under `NOVA_PROBE_RENDER_DIAG`.
-- A capture is measured, not paced: it sizes its window before winit creates it, runs continuously, and REFUSES a run the WM re-sized, the update mode throttled, or the display capped at refresh.
+- A capture is measured, not paced: it sizes its window before winit creates it, runs continuously, and REFUSES a run the WM re-sized or the update mode throttled.
+- A display cap is the repeat SET's call, never one window's: a period is a constant, so captures that agree on one are refused and a lone steady window is recorded as a suspicion.
 - A measured run wears `WM_CLASS` `nova-measure`, so `for_window [class="nova-measure"] move container to workspace 3` keeps captures off the desk. A hidden workspace measures the same as a visible one.
 - A capture counts the world it measured - entities per component, archetypes, and mesh instances against DISTINCT mesh handles - beside the frame-time stats.
 - `NOVA_PROBE_PRESENT` names the presentation mode instead of requesting it; `wfc_ships --ships 0` stands the empty row, and a measured row holds its capture until the ships have finished spawning.

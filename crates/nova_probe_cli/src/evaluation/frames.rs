@@ -16,8 +16,8 @@ use nova_probe::prelude::*;
 pub mod prelude {
     pub use super::{
         fixed_steps_json, frames_json, read_frames, read_repeats, repeat_label, repeats_json,
-        split_repeat_label, FrameRead, RepeatCapture, RepeatRead, REPEAT_GATE_TOLERANCE,
-        SMOOTH_FPS, SMOOTH_FRAME_MS,
+        split_repeat_label, FrameRead, RefreshCap, RepeatCapture, RepeatRead,
+        REPEAT_GATE_TOLERANCE, SMOOTH_FPS, SMOOTH_FRAME_MS,
     };
 }
 
@@ -219,8 +219,62 @@ pub struct RepeatCapture {
     pub p99_ms: f64,
     /// The single slowest frame of the capture (ms).
     pub worst_ms: f64,
-    /// Whether both stable statistics sat inside the band.
+    /// The frame time this window clustered on, as the capture measured it.
+    /// `None` when the run made no no-vsync promise to measure it against, or
+    /// when the row predates the schema that carries it.
+    pub cluster_median_ms: Option<f64>,
+    /// Share of the window inside [`REFRESH_CAP_BAND`] of
+    /// [`Self::cluster_median_ms`], under the same condition.
+    pub cluster_share: Option<f64>,
+    /// Whether both stable statistics sat inside the band. Also false for
+    /// every capture of a set the discriminator called [`RefreshCap::Capped`]:
+    /// those windows measured the display, so none of them counts.
     pub admitted: bool,
+}
+
+/// What a repeat set's cluster shapes say about whether the DISPLAY, rather
+/// than the game, decided the frame time.
+///
+/// The discriminator is that a refresh period is a CONSTANT. One clustered
+/// window is ambiguous - an optimisation makes frames steadier, so steadiness
+/// alone accuses the faster arm of an A/B - but a SET of them is not: captures
+/// of one display agree on the period to a fraction of a percent, and a steady
+/// workload does not. Three windows refused as capped on one Xvfb reported
+/// cluster medians of 20.727 / 21.130 / 22.713 ms, which no single display
+/// produces.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefreshCap {
+    /// No capture carried a cluster shape: pre-schema-v4 rows, or a run that
+    /// asked for a mode allowed to block on refresh. Unmeasured, not clean.
+    Unmeasured,
+    /// Shapes were measured and none cleared both bars ([`REFRESH_CAP_SHARE`]
+    /// and [`REFRESH_CAP_MIN_MS`]).
+    NotSuspected,
+    /// Exactly one capture is a suspect, so there is no sibling to compare its
+    /// period against. Suspected and UNVERIFIABLE - the evidence to decide is
+    /// missing, and inventing a call either way is worse than saying so.
+    Unverifiable,
+    /// Two or more suspects whose cluster medians DISAGREE. A period does not
+    /// drift, so this is a workload that is merely steady, and the captures
+    /// are gated on their statistics like any others.
+    Workload,
+    /// Two or more suspects agreeing on one period within
+    /// [`REFRESH_CAP_AGREEMENT`]. The set measured the display.
+    Capped,
+}
+
+impl RefreshCap {
+    /// The token `checks.json` carries, sharing [`REFRESH_CAPPED`] with the
+    /// capture's suspicion line so both halves name the finding once.
+    pub fn token(self) -> &'static str {
+        match self {
+            Self::Unmeasured => "unmeasured",
+            Self::NotSuspected => "not_suspected",
+            Self::Unverifiable => "unverifiable",
+            Self::Workload => "workload",
+            Self::Capped => REFRESH_CAPPED,
+        }
+    }
 }
 
 /// A repeat set read through the gate.
@@ -235,6 +289,10 @@ pub struct RepeatCapture {
 /// window - the mean is not stable either, the band discards honest captures,
 /// and the set correctly reports that it measured nothing. That reading is the
 /// point: a subject the gate empties is a subject that cannot be a baseline.
+///
+/// The set is also the only place a refresh cap can be RULED ON - see
+/// [`RefreshCap`] - and a set that measured the display empties for that
+/// reason instead.
 ///
 /// Nothing here grades. A discarded capture is a statement about the
 /// measurement, never about the code under it.
@@ -268,6 +326,9 @@ pub struct RepeatRead {
     /// Spread of the admitted worst frames, as a fraction of
     /// [`Self::worst_ms`].
     pub worst_spread: Option<f64>,
+    /// Whether the set measured the display's refresh period instead of the
+    /// game - the call the capture cannot make on its own.
+    pub refresh_cap: RefreshCap,
 }
 
 impl RepeatRead {
@@ -276,9 +337,55 @@ impl RepeatRead {
         self.captures.iter().filter(|c| c.admitted).count()
     }
 
-    /// Captures the gate discarded as contaminated.
+    /// Captures the gate did not admit.
     pub fn discarded(&self) -> usize {
         self.captures.len() - self.admitted()
+    }
+}
+
+/// Rule on whether the set measured a display period. See [`RefreshCap`] for
+/// why only a SET can.
+///
+/// A suspect is a capture that clustered at [`REFRESH_CAP_SHARE`] or above on
+/// a period at least [`REFRESH_CAP_MIN_MS`] long - the same two bars the
+/// capture's own suspicion line applies, so the two halves cannot convict on
+/// evidence the other discarded.
+///
+/// Agreement is "every suspect within [`REFRESH_CAP_AGREEMENT`] of the
+/// suspects' median", the same reference-and-band shape the repeat gate itself
+/// uses. One disagreeing member is enough to make the verdict
+/// [`RefreshCap::Workload`], and that asymmetry is deliberate: the failure this
+/// replaced was biased toward refusing, so the residual error is pointed at
+/// admitting.
+fn refresh_cap(captures: &[RepeatCapture]) -> RefreshCap {
+    let measured: Vec<(f64, f64)> = captures
+        .iter()
+        .filter_map(|c| c.cluster_median_ms.zip(c.cluster_share))
+        .collect();
+    if measured.is_empty() {
+        return RefreshCap::Unmeasured;
+    }
+    let suspects: Vec<f64> = measured
+        .iter()
+        .filter(|(period, share)| *share >= REFRESH_CAP_SHARE && *period >= REFRESH_CAP_MIN_MS)
+        .map(|(period, _)| *period)
+        .collect();
+    match suspects.len() {
+        0 => RefreshCap::NotSuspected,
+        1 => RefreshCap::Unverifiable,
+        _ => {
+            let Some(reference) = median(&suspects) else {
+                return RefreshCap::Unverifiable;
+            };
+            if suspects
+                .iter()
+                .all(|period| within(*period, reference, REFRESH_CAP_AGREEMENT))
+            {
+                RefreshCap::Capped
+            } else {
+                RefreshCap::Workload
+            }
+        }
     }
 }
 
@@ -347,7 +454,7 @@ pub fn read_repeats(runs: &[PerfRun]) -> Vec<RepeatRead> {
             let medians: Vec<f64> = group.iter().map(|(_, run)| run.stats.p50_ms).collect();
             let reference_mean_ms = median(&means)?;
             let reference_median_ms = median(&medians)?;
-            let captures: Vec<RepeatCapture> = group
+            let mut captures: Vec<RepeatCapture> = group
                 .iter()
                 .map(|(index, run)| RepeatCapture {
                     index: *index,
@@ -355,10 +462,21 @@ pub fn read_repeats(runs: &[PerfRun]) -> Vec<RepeatRead> {
                     median_ms: run.stats.p50_ms,
                     p99_ms: run.stats.p99_ms,
                     worst_ms: run.stats.max_ms,
+                    cluster_median_ms: run.stats.cluster_median_ms,
+                    cluster_share: run.stats.cluster_share,
                     admitted: within(run.stats.mean_ms, reference_mean_ms, REPEAT_GATE_TOLERANCE)
                         && within(run.stats.p50_ms, reference_median_ms, REPEAT_GATE_TOLERANCE),
                 })
                 .collect();
+            // The whole set, not the suspects alone: once the display is
+            // pacing the swap chain, no window of the set measured the game,
+            // including the ones that happened to spread.
+            let refresh_cap = refresh_cap(&captures);
+            if refresh_cap == RefreshCap::Capped {
+                for capture in &mut captures {
+                    capture.admitted = false;
+                }
+            }
             let (p99_ms, p99_spread) = summarize(&captures, |c| c.p99_ms);
             let (worst_ms, worst_spread) = summarize(&captures, |c| c.worst_ms);
             Some(RepeatRead {
@@ -370,6 +488,7 @@ pub fn read_repeats(runs: &[PerfRun]) -> Vec<RepeatRead> {
                 p99_spread,
                 worst_ms,
                 worst_spread,
+                refresh_cap,
             })
         })
         .collect()
@@ -383,10 +502,16 @@ pub fn repeats_json(runs: Option<&Vec<PerfRun>>) -> serde_json::Value {
     serde_json::json!({
         "graded": false,
         "tolerance": REPEAT_GATE_TOLERANCE,
+        "cluster_share_threshold": REFRESH_CAP_SHARE,
+        "cluster_band": REFRESH_CAP_BAND,
+        "cluster_agreement": REFRESH_CAP_AGREEMENT,
         "note": "the mean and median gate which captures COUNT; the tail is read \
                  only across the admitted ones. Make a claim on p99_ms and check it \
-                 against p99_spread; worst_ms is a diagnostic beside it. Nothing \
-                 here passes or fails.",
+                 against p99_spread; worst_ms is a diagnostic beside it. \
+                 refresh_cap is the set's call on whether it measured the DISPLAY \
+                 rather than the game: a period is a constant, so it takes agreeing \
+                 cluster medians across captures, never one clustered window. \
+                 Nothing here passes or fails.",
         "sets": reads.iter().map(|read| serde_json::json!({
             "label": read.label,
             "captures": read.captures.len(),
@@ -398,12 +523,15 @@ pub fn repeats_json(runs: Option<&Vec<PerfRun>>) -> serde_json::Value {
             "p99_spread": read.p99_spread,
             "worst_ms": read.worst_ms,
             "worst_spread": read.worst_spread,
+            "refresh_cap": read.refresh_cap.token(),
             "repeats": read.captures.iter().map(|capture| serde_json::json!({
                 "index": capture.index,
                 "mean_ms": capture.mean_ms,
                 "median_ms": capture.median_ms,
                 "p99_ms": capture.p99_ms,
                 "worst_ms": capture.worst_ms,
+                "cluster_median_ms": capture.cluster_median_ms,
+                "cluster_share": capture.cluster_share,
                 "admitted": capture.admitted,
             })).collect::<Vec<_>>(),
         })).collect::<Vec<_>>(),
@@ -431,6 +559,8 @@ mod tests {
                 p999_ms: max_ms,
                 mean_fps: fps_of(mean_ms),
                 one_pct_low_fps: fps_of(mean_ms * 2.0),
+                cluster_median_ms: None,
+                cluster_share: None,
             },
             meta: RunMeta::unknown(),
         }
@@ -640,5 +770,147 @@ mod tests {
         run.stats.p99_ms = p99_ms;
         run.stats.p50_ms = median_ms;
         run
+    }
+
+    /// A capture of a repeat set that also carries the cluster shape the
+    /// capture measured, which is the only input the discriminator reads.
+    fn clustered(base: &str, index: u32, mean_ms: f64, period_ms: f64, share: f64) -> PerfRun {
+        let mut run = repeat(base, index, mean_ms, mean_ms, mean_ms * 1.2, mean_ms * 1.5);
+        run.stats.cluster_median_ms = Some(period_ms);
+        run.stats.cluster_share = Some(share);
+        run
+    }
+
+    /// The real thing: every capture agrees on one period, which is what a
+    /// display does and a workload does not. The set measured the monitor, so
+    /// nothing in it counts and no tail survives to be compared.
+    #[test]
+    fn captures_agreeing_on_one_period_are_a_refresh_cap_and_the_set_reports_no_tail() {
+        // 165 Hz: 6.06 ms, reproduced to the precision a real cap holds.
+        let runs = vec![
+            clustered("s", 1, 6.06, 6.061, 0.79),
+            clustered("s", 2, 6.06, 6.058, 0.76),
+            clustered("s", 3, 6.06, 6.063, 0.81),
+        ];
+        let read = &read_repeats(&runs)[0];
+        assert_eq!(read.refresh_cap, RefreshCap::Capped);
+        assert_eq!(read.admitted(), 0);
+        assert_eq!(read.discarded(), 3);
+        assert_eq!(read.p99_ms, None);
+    }
+
+    /// The regression this whole mechanism exists for. The damage-cracks A/B
+    /// produced windows at 0.64-0.65 clustering whose cluster medians read
+    /// 20.727 / 21.130 / 22.713 ms - 48.3 / 47.3 / 44.0 Hz, which is no
+    /// display, and a 9.6% drift, which no refresh period does. The in-app
+    /// check refused all six windows of BOTH arms and would have reported "no
+    /// change" for a fix worth -8.6% mean.
+    #[test]
+    fn captures_whose_cluster_medians_disagree_are_a_steady_workload_and_are_admitted() {
+        let runs = vec![
+            clustered("s", 1, 20.7, 20.727, 0.64),
+            clustered("s", 2, 21.1, 21.130, 0.65),
+            clustered("s", 3, 22.7, 22.713, 0.64),
+        ];
+        let read = &read_repeats(&runs)[0];
+        assert_eq!(read.refresh_cap, RefreshCap::Workload);
+        assert_eq!(read.admitted(), 3, "a steady scene is still a measurement");
+        assert!(read.p99_ms.is_some());
+    }
+
+    /// The two bands are not interchangeable, and reusing the cluster band for
+    /// agreement is the way this discriminator would fail quietly. These three
+    /// medians all sit inside 5% of theirs - a cluster band would convict - and
+    /// spread 2.4%, which is 30x the drift a real 165 Hz display shows.
+    #[test]
+    fn a_period_drifting_more_than_a_clock_can_is_a_workload_however_tight_it_looks() {
+        let runs = vec![
+            clustered("s", 1, 20.0, 20.000, 0.72),
+            clustered("s", 2, 20.5, 20.500, 0.70),
+            clustered("s", 3, 20.7, 20.700, 0.71),
+        ];
+        let read = &read_repeats(&runs)[0];
+        assert!(
+            (20.000_f64 - 20.500).abs() / 20.500 < REFRESH_CAP_BAND,
+            "the cluster band alone would have called this one display",
+        );
+        assert_eq!(read.refresh_cap, RefreshCap::Workload);
+        assert_eq!(read.admitted(), 3);
+    }
+
+    /// One suspect and no sibling to check its period against. There is no
+    /// discriminator, so the honest reading is UNMEASURED: the set is not
+    /// refused (that is the bias this replaced) and not waved through either.
+    #[test]
+    fn a_lone_suspect_has_no_sibling_to_check_its_period_against() {
+        let runs = vec![
+            clustered("s", 1, 20.7, 20.727, 0.64),
+            clustered("s", 2, 20.9, 20.900, 0.31),
+        ];
+        let read = &read_repeats(&runs)[0];
+        assert_eq!(read.refresh_cap, RefreshCap::Unverifiable);
+        assert_eq!(read.admitted(), 2, "insufficient evidence refuses nothing");
+        assert_eq!(
+            repeats_json(Some(&runs))["sets"][0]["refresh_cap"],
+            "unverifiable"
+        );
+    }
+
+    /// Shapes measured, none clustered: an ordinary workload spread, and the
+    /// discriminator has nothing to say about it.
+    #[test]
+    fn a_set_that_never_clustered_is_not_even_a_suspect() {
+        let runs = vec![
+            clustered("s", 1, 20.7, 20.7, 0.11),
+            clustered("s", 2, 20.9, 20.9, 0.09),
+        ];
+        assert_eq!(read_repeats(&runs)[0].refresh_cap, RefreshCap::NotSuspected);
+    }
+
+    /// A cheap scene runs steady and agrees with itself run to run, which is
+    /// every condition a cap meets except the one that matters: no display
+    /// refreshes at 500 Hz. The floor is the whole reason this is not a cap.
+    #[test]
+    fn a_scene_too_fast_for_any_display_is_not_a_suspect_however_steady_it_is() {
+        let runs = vec![
+            clustered("s", 1, 2.0, 2.001, 0.88),
+            clustered("s", 2, 2.0, 2.003, 0.91),
+            clustered("s", 3, 2.0, 1.998, 0.87),
+        ];
+        let read = &read_repeats(&runs)[0];
+        assert_eq!(read.refresh_cap, RefreshCap::NotSuspected);
+        assert_eq!(read.admitted(), 3);
+    }
+
+    /// A pre-v4 row, or a run that asked for a mode allowed to block on
+    /// refresh, carries no shape. That is UNMEASURED and must not read as
+    /// "not clustered" - the same distinction SKIPPED draws in the checks.
+    #[test]
+    fn a_set_carrying_no_cluster_shape_reads_unmeasured_not_clean() {
+        let runs = vec![
+            repeat("s", 1, 26.0, 26.0, 40.0, 44.0),
+            repeat("s", 2, 26.2, 26.1, 42.0, 46.0),
+        ];
+        let read = &read_repeats(&runs)[0];
+        assert_eq!(read.refresh_cap, RefreshCap::Unmeasured);
+        assert_eq!(read.admitted(), 2);
+    }
+
+    /// `checks.json` carries the verdict and the evidence under it, so a
+    /// reader can re-derive the call instead of trusting the token.
+    #[test]
+    fn the_json_mirror_carries_the_verdict_and_the_shapes_it_was_made_from() {
+        let runs = vec![
+            clustered("s", 1, 6.06, 6.061, 0.79),
+            clustered("s", 2, 6.06, 6.058, 0.76),
+        ];
+        let json = repeats_json(Some(&runs));
+        assert_eq!(json["graded"], false);
+        assert_eq!(json["cluster_share_threshold"], REFRESH_CAP_SHARE);
+        assert_eq!(json["cluster_band"], REFRESH_CAP_BAND);
+        assert_eq!(json["sets"][0]["refresh_cap"], "refresh_capped");
+        assert_eq!(json["sets"][0]["admitted"], 0);
+        assert_eq!(json["sets"][0]["repeats"][0]["cluster_share"], 0.79);
+        assert_eq!(json["sets"][0]["repeats"][0]["cluster_median_ms"], 6.061);
     }
 }

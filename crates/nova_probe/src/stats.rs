@@ -2,7 +2,7 @@
 //! metadata ([`RunMeta`]), and the CSV/JSON writers + parsers both the capture
 //! harness and the report/probe consumers share, so the schema is defined once.
 //!
-//! Three CSV schema versions exist:
+//! Four CSV schema versions exist:
 //!
 //! - **v1** ([`CSV_HEADER_V1`]): the numeric columns only. The v0.7.0 baseline
 //!   sweeps are v1 and must keep parsing - the reader accepts it and fills
@@ -11,17 +11,105 @@
 //!   (backend, adapter, resolution, quality, git_sha, host), so a results
 //!   file is self-describing instead of leaning on its directory name.
 //!   Rows parse with `profile = "unknown"`.
-//! - **v3** ([`CSV_HEADER`]): v2 plus the build `profile` column (`dev` or
+//! - **v3** ([`CSV_HEADER_V3`]): v2 plus the build `profile` column (`dev` or
 //!   `release`) - dev-profile numbers are not baselines, and the report
 //!   labels them.
+//! - **v4** ([`CSV_HEADER`]): v3 plus the window's CLUSTER SHAPE
+//!   ([`cluster_shape`]) - the evidence a host-side reader needs to tell a
+//!   display period from a steady workload. Rows parse with no shape.
 
 /// Glob-import surface for the frame-time wire format.
 pub mod prelude {
     pub use super::{
-        append_frametime_row, parse_capture_abort_line, parse_fixed_steps_line,
+        append_frametime_row, cluster_shape, parse_capture_abort_line, parse_fixed_steps_line,
         parse_frametime_csv, parse_summary_line, CaptureAbort, FixedStepBucket, FixedStepStats,
-        FrameStats, PerfRun, RunMeta, CSV_HEADER, CSV_HEADER_V1, CSV_HEADER_V2,
+        FrameStats, PerfRun, RunMeta, CSV_HEADER, CSV_HEADER_V1, CSV_HEADER_V2, CSV_HEADER_V3,
+        REFRESH_CAPPED, REFRESH_CAP_AGREEMENT, REFRESH_CAP_BAND, REFRESH_CAP_MIN_MS,
+        REFRESH_CAP_SHARE,
     };
+}
+
+/// Token naming the finding that a capture window collapsed onto the DISPLAY's
+/// refresh period instead of measuring the game: on the capture's suspicion
+/// line, and as the repeat gate's verdict when the siblings confirm it.
+///
+/// The two halves have to speak one word for it, because neither can reach the
+/// finding alone - the capture is the only side that knows the run promised not
+/// to block on refresh, and the repeat set is the only side holding enough
+/// captures to tell a period (a CONSTANT) from a workload that happens to be
+/// steady.
+pub const REFRESH_CAPPED: &str = "refresh_capped";
+
+/// Half-width of the band around the median that [`cluster_shape`] counts
+/// samples in.
+pub const REFRESH_CAP_BAND: f64 = 0.05;
+
+/// Half-width within which two captures' cluster medians count as the SAME
+/// period, and so as evidence that a display produced both.
+///
+/// Deliberately far tighter than [`REFRESH_CAP_BAND`], because the two measure
+/// different things. That band spans the SCATTER inside one window, which is
+/// wide: a capped window is not a flat line, and one held a minimum 23% under
+/// its period. This one spans the drift of a period ACROSS windows, which is a
+/// crystal-derived constant and does not drift at all - the 165 Hz captures
+/// this mechanism was built from agree to under a tenth of a percent.
+///
+/// Sized against the false positive that motivated the discriminator rather
+/// than against the phenomenon alone: three windows of one steady workload read
+/// 20.727 / 21.130 / 22.713 ms, which a 5% band came within 2.5 points of
+/// convicting. Every value between a real display's agreement and that spread
+/// works; this one sits an order of magnitude clear of both ends.
+pub const REFRESH_CAP_AGREEMENT: f64 = 0.01;
+
+/// Clustering at or above this share of the window makes a capture a
+/// refresh-cap suspect.
+///
+/// MEASURED, not chosen: on a 165 Hz output, `Fifo` captures of the empty
+/// gallery read 0.76 and 0.79 (and mean_fps 165.0 to three figures), while 34
+/// `Immediate` captures across ship counts 0 and 1 spread 0.03-0.44. The
+/// threshold sits in the gap with roughly equal headroom on both sides. A
+/// capped window is NOT a flat line - its own minimum ran 23% under the period
+/// - so a stricter share would miss the real thing while still passing every
+/// synthetic one.
+///
+/// The gap is not permanent, which is why crossing it is a SUSPICION and never
+/// a verdict: an optimisation makes frames steadier, so a threshold on
+/// steadiness alone preferentially accuses the faster arm of an A/B.
+pub const REFRESH_CAP_SHARE: f64 = 0.60;
+
+/// Below this cluster median nothing can be a refresh period: no display
+/// refreshes above 250 Hz, so a window this tight and this fast is a scene that
+/// is genuinely cheap and genuinely steady.
+///
+/// Both halves apply it. The capture uses it to stay quiet, the repeat gate to
+/// keep a fast steady set out of the suspect pool - a floor only one side
+/// honoured would let the other convict on evidence the first threw away.
+pub const REFRESH_CAP_MIN_MS: f64 = 4.0;
+
+/// The frame time a capture window CLUSTERED on, and the share of its frames
+/// inside `+/- REFRESH_CAP_BAND` of that value.
+///
+/// A workload produces a distribution: the empty gallery's own p99 is 1.6x its
+/// median. A period produces a spike, because every frame waits for the same
+/// clock edge. Share rather than a percentile ratio because a capped run can
+/// still contain a handful of honest fast frames (one measured window held a
+/// 5.0 ms minimum under a 16.7 ms cap) and a ratio built on min or max reads
+/// those as spread.
+pub fn cluster_shape(samples: &[f64]) -> (f64, f64) {
+    if samples.is_empty() {
+        return (0.0, 0.0);
+    }
+    let mut sorted = samples.to_vec();
+    sorted.sort_by(|a, b| a.total_cmp(b));
+    let median = sorted[sorted.len() / 2];
+    if median <= 0.0 {
+        return (median, 0.0);
+    }
+    let inside = sorted
+        .iter()
+        .filter(|ms| (*ms - median).abs() / median <= REFRESH_CAP_BAND)
+        .count();
+    (median, inside as f64 / sorted.len() as f64)
 }
 
 /// A capture that REFUSED its window, scraped back out of the run log.
@@ -107,6 +195,19 @@ pub struct FrameStats {
     /// "1% low" frame rate: the rate of the 99th-percentile-slowest frame
     /// (`1000 / p99_ms`), the standard stutter-floor figure.
     pub one_pct_low_fps: f64,
+    /// The frame time the window clustered on ([`cluster_shape`]), recorded
+    /// only when the run asked for a presentation mode that promised NOT to
+    /// block on refresh. Clustering under vsync is the mode working, so it is
+    /// not evidence and is not written.
+    pub cluster_median_ms: Option<f64>,
+    /// Share of the window inside [`REFRESH_CAP_BAND`] of
+    /// [`Self::cluster_median_ms`], recorded under the same condition.
+    ///
+    /// DATA, not a verdict. Whether a clustered window is the display's period
+    /// or a workload that is merely steady cannot be answered from one capture:
+    /// a period is a CONSTANT, so it takes siblings to tell them apart, and the
+    /// host half that holds the repeat set is where that call is made.
+    pub cluster_share: Option<f64>,
 }
 
 /// How many fixed steps ran inside each captured frame, and what a frame
@@ -386,11 +487,19 @@ pub struct PerfRun {
     pub meta: RunMeta,
 }
 
-/// Header row for the aggregated CSV, schema v3 (numeric columns + run
-/// metadata + build profile), written when a new file is created. Public so
-/// a reader can validate a file against the exact column contract the
-/// writer emits.
+/// Header row for the aggregated CSV, schema v4 (numeric columns + run
+/// metadata + build profile + cluster shape), written when a new file is
+/// created. Public so a reader can validate a file against the exact column
+/// contract the writer emits. The two cluster cells are EMPTY when the run
+/// asked for a mode that may block on refresh.
 pub const CSV_HEADER: &str = "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,\
+     mean_fps,one_pct_low_fps,backend,adapter,resolution,quality,git_sha,host,profile,\
+     cluster_ms,cluster_share\n";
+
+/// The schema v3 header (no cluster shape). Still accepted by the parser; its
+/// rows parse with no shape, which reads as unmeasured rather than as absent
+/// clustering.
+pub const CSV_HEADER_V3: &str = "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,\
      mean_fps,one_pct_low_fps,backend,adapter,resolution,quality,git_sha,host,profile\n";
 
 /// The schema v2 header (metadata without the build profile). Still
@@ -404,11 +513,12 @@ pub const CSV_HEADER_V2: &str = "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_m
 pub const CSV_HEADER_V1: &str =
     "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps\n";
 
-/// Column counts for the three schema versions (label + numerics [+ meta
-/// [+ profile]]).
+/// Column counts for the four schema versions (label + numerics [+ meta
+/// [+ profile [+ cluster shape]]]).
 const V1_COLS: usize = 11;
 const V2_COLS: usize = 17;
 const V3_COLS: usize = 18;
+const V4_COLS: usize = 20;
 
 impl FrameStats {
     /// Compute stats from a slice of per-frame times in milliseconds. Pure and
@@ -442,14 +552,27 @@ impl FrameStats {
             p999_ms: percentile(99.9),
             mean_fps: 1000.0 / mean_ms,
             one_pct_low_fps: 1000.0 / percentile(99.0),
+            cluster_median_ms: None,
+            cluster_share: None,
         }
+    }
+
+    /// Attach the window's [`cluster_shape`]. Separate from
+    /// [`Self::from_samples`] because whether the shape is evidence at all
+    /// depends on the presentation mode the run asked for, which the samples
+    /// do not carry.
+    #[must_use]
+    pub fn with_cluster(mut self, median_ms: f64, share: f64) -> Self {
+        self.cluster_median_ms = Some(median_ms);
+        self.cluster_share = Some(share);
+        self
     }
 
     /// A compact, greppable one-line summary. The `nova perf:` prefix is a
     /// scrape contract (`probe run --platform web` greps it out of the browser
     /// console log) - do not rename it without updating the scrapers.
     pub(crate) fn summary_line(&self, label: &str) -> String {
-        format!(
+        let mut line = format!(
             "nova perf: label={} frames={} mean={:.3}ms p50={:.3}ms p95={:.3}ms \
              p99={:.3}ms p999={:.3}ms min={:.3}ms max={:.3}ms mean_fps={:.1} 1%low_fps={:.1}",
             label,
@@ -463,12 +586,17 @@ impl FrameStats {
             self.max_ms,
             self.mean_fps,
             self.one_pct_low_fps,
-        )
+        );
+        if let (Some(median), Some(share)) = (self.cluster_median_ms, self.cluster_share) {
+            line.push_str(&format!(" cluster={median:.3}ms cluster_share={share:.3}"));
+        }
+        line
     }
 
     /// Render as a pretty JSON object (hand-formatted to avoid a serde dep in
-    /// this dev-only crate). Schema v2: the metadata fields follow the
-    /// numeric ones.
+    /// this dev-only crate). The metadata fields follow the numeric ones, and
+    /// the cluster shape follows those - absent, never `null`, when the run
+    /// made no no-vsync promise to measure it against.
     pub(crate) fn to_json(
         &self,
         label: &str,
@@ -491,6 +619,12 @@ impl FrameStats {
                     .join(", ")
             )
         };
+        let cluster_field = match (self.cluster_median_ms, self.cluster_share) {
+            (Some(median), Some(share)) => {
+                format!(",\n  \"cluster_median_ms\": {median:.4},\n  \"cluster_share\": {share:.4}")
+            }
+            _ => String::new(),
+        };
         format!(
             "{{\n  \"label\": \"{}\",\n  \"frames\": {},\n  \"total_ms\": {:.3},\n  \
              \"mean_ms\": {:.4},\n  \"min_ms\": {:.4},\n  \"max_ms\": {:.4},\n  \
@@ -498,7 +632,7 @@ impl FrameStats {
              \"p999_ms\": {:.4},\n  \"mean_fps\": {:.2},\n  \"one_pct_low_fps\": {:.2},\n  \
              \"backend\": \"{}\",\n  \"adapter\": \"{}\",\n  \"resolution\": \"{}\",\n  \
              \"quality\": \"{}\",\n  \"git_sha\": \"{}\",\n  \"host\": \"{}\",\n  \
-             \"profile\": \"{}\"{}{}\n}}\n",
+             \"profile\": \"{}\"{}{}{}\n}}\n",
             json_safe(label),
             self.frames,
             self.total_ms,
@@ -518,16 +652,20 @@ impl FrameStats {
             json_safe(&meta.git_sha),
             json_safe(&meta.host),
             json_safe(&meta.profile),
+            cluster_field,
             steps_field,
             reload_field,
         )
     }
 
-    /// One CSV data row (no header), schema v3: matches [`CSV_HEADER`].
+    /// One CSV data row (no header), schema v4: matches [`CSV_HEADER`]. The
+    /// two cluster cells are empty when there is no shape to report.
     pub(crate) fn to_csv_row(&self, label: &str, meta: &RunMeta) -> String {
         let cells = meta.csv_cells();
+        let cell = |value: Option<f64>| value.map_or_else(String::new, |v| format!("{v:.4}"));
         format!(
-            "{},{},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.2},{:.2},{},{},{},{},{},{},{}\n",
+            "{},{},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.2},{:.2},{},{},{},{},{},{},{},\
+             {},{}\n",
             csv_safe(label),
             self.frames,
             self.mean_ms,
@@ -546,6 +684,8 @@ impl FrameStats {
             cells[4],
             cells[5],
             cells[6],
+            cell(self.cluster_median_ms),
+            cell(self.cluster_share),
         )
     }
 }
@@ -560,14 +700,15 @@ impl PerfRun {
     /// Parse one aggregated-CSV data row (no header) - the inverse of
     /// `FrameStats::to_csv_row`. Accepts a v1 row (11 columns; metadata
     /// becomes [`RunMeta::unknown`]), a v2 row (17 columns; profile
-    /// `unknown`) or a v3 row (18 columns). The CSV omits `total_ms`
-    /// (JSON-only), so it is reconstructed exactly as `mean_ms * frames`
-    /// (mean is defined as `total / frames`). Returns `None` on any other
-    /// column count or a numeric field that does not parse, so a truncated
-    /// or foreign file is rejected rather than silently mis-read.
+    /// `unknown`), a v3 row (18 columns; no cluster shape) or a v4 row (20
+    /// columns). The CSV omits `total_ms` (JSON-only), so it is reconstructed
+    /// exactly as `mean_ms * frames` (mean is defined as `total / frames`).
+    /// Returns `None` on any other column count or a numeric field that does
+    /// not parse, so a truncated or foreign file is rejected rather than
+    /// silently mis-read.
     pub fn from_csv_row(row: &str) -> Option<Self> {
         let cols: Vec<&str> = row.split(',').collect();
-        if cols.len() != V1_COLS && cols.len() != V2_COLS && cols.len() != V3_COLS {
+        if !matches!(cols.len(), V1_COLS | V2_COLS | V3_COLS | V4_COLS) {
             return None;
         }
         // "NaN"/"inf" parse as f64 but poison every downstream stat; a row
@@ -600,6 +741,15 @@ impl PerfRun {
         } else {
             RunMeta::unknown()
         };
+        // An EMPTY cell is the writer saying there was nothing to measure the
+        // clustering against, so it reads as absent rather than failing the
+        // row; a cell that is present and unparseable still fails it.
+        let shape = |index: usize| -> Option<Option<f64>> {
+            match cols.get(index).map(|cell| cell.trim()) {
+                None | Some("") => Some(None),
+                Some(cell) => finite(cell).map(Some),
+            }
+        };
         Some(Self {
             label,
             stats: FrameStats {
@@ -614,6 +764,8 @@ impl PerfRun {
                 p999_ms,
                 mean_fps,
                 one_pct_low_fps,
+                cluster_median_ms: shape(18)?,
+                cluster_share: shape(19)?,
             },
             meta,
         })
@@ -663,6 +815,8 @@ pub fn parse_summary_line(line: &str) -> Option<(String, FrameStats)> {
             p999_ms: get("p999")?,
             mean_fps: get("mean_fps")?,
             one_pct_low_fps: get("1%low_fps")?,
+            cluster_median_ms: get("cluster"),
+            cluster_share: get("cluster_share"),
         },
     ))
 }
@@ -678,7 +832,7 @@ pub fn append_frametime_row(
 ) -> Result<(), String> {
     use std::io::Write;
     let need_header = !path.exists();
-    // Never mix schemas in one file: appending a v3 row under an older
+    // Never mix schemas in one file: appending a v4 row under an older
     // header would give every consumer a column-count error at parse time
     // (or worse, silent misreads). Probe's fresh-dir discipline makes this
     // unreachable in practice; a manual NOVA_PROBE_OUT into an old results
@@ -689,7 +843,7 @@ pub fn append_frametime_row(
         let header = existing.lines().next().unwrap_or("");
         if header.trim() != CSV_HEADER.trim() {
             return Err(format!(
-                "{} has a pre-v3 header - appending would mix schemas; \
+                "{} has a pre-v4 header - appending would mix schemas; \
                  move the old file aside (its rows still parse read-only)",
                 path.display()
             ));
@@ -711,16 +865,18 @@ pub fn append_frametime_row(
 
 /// Parse a whole aggregated `frametime.csv` (header + one row per run) into a
 /// list of runs, preserving file order. The first line must match
-/// [`CSV_HEADER`] (v3), [`CSV_HEADER_V2`] or [`CSV_HEADER_V1`] (trimmed) or
-/// the file is rejected as not-a-frametime-CSV; every data row must then
-/// carry that version's column count. Blank lines are skipped and any row
-/// that fails to parse is an error naming its line, so a corrupt sweep is
-/// caught instead of silently dropping runs. Shared by every frametime
-/// consumer so the schema lives in one place.
+/// [`CSV_HEADER`] (v4), [`CSV_HEADER_V3`], [`CSV_HEADER_V2`] or
+/// [`CSV_HEADER_V1`] (trimmed) or the file is rejected as
+/// not-a-frametime-CSV; every data row must then carry that version's column
+/// count. Blank lines are skipped and any row that fails to parse is an error
+/// naming its line, so a corrupt sweep is caught instead of silently dropping
+/// runs. Shared by every frametime consumer so the schema lives in one place.
 pub fn parse_frametime_csv(contents: &str) -> Result<Vec<PerfRun>, String> {
     let mut lines = contents.lines();
     let header = lines.next().ok_or("empty CSV (no header)")?;
     let expected_cols = if header.trim() == CSV_HEADER.trim() {
+        V4_COLS
+    } else if header.trim() == CSV_HEADER_V3.trim() {
         V3_COLS
     } else if header.trim() == CSV_HEADER_V2.trim() {
         V2_COLS
@@ -728,8 +884,10 @@ pub fn parse_frametime_csv(contents: &str) -> Result<Vec<PerfRun>, String> {
         V1_COLS
     } else {
         return Err(format!(
-            "unexpected CSV header\n  expected: {}\n  or (v2):  {}\n  or (v1):  {}\n  found:    {}",
+            "unexpected CSV header\n  expected: {}\n  or (v3):  {}\n  or (v2):  {}\n  \
+             or (v1):  {}\n  found:    {}",
             CSV_HEADER.trim(),
+            CSV_HEADER_V3.trim(),
             CSV_HEADER_V2.trim(),
             CSV_HEADER_V1.trim(),
             header.trim()
@@ -786,21 +944,47 @@ mod tests {
     }
 
     #[test]
-    fn v3_roundtrips_the_profile() {
-        let stats = FrameStats::from_samples(&[10.0; 10]);
+    fn v3_rows_parse_with_no_cluster_shape() {
+        // A v3 file (pre-cluster header + 18-column rows) must keep loading;
+        // its rows carry NO shape, which is unmeasured and not "unclustered".
+        let csv = format!(
+            "{}scene-high,100,10.0,9.0,12.0,10.0,11.0,11.5,12.0,100.0,87.0,\
+             vulkan,RTX,1280x720,high,abc123,devbox,release\n",
+            CSV_HEADER_V3
+        );
+        let runs = parse_frametime_csv(&csv).expect("v3 parses");
+        assert_eq!(runs[0].meta.profile, "release");
+        assert_eq!(runs[0].stats.cluster_median_ms, None);
+        assert_eq!(runs[0].stats.cluster_share, None);
+    }
+
+    #[test]
+    fn a_window_that_measured_its_cluster_shape_round_trips_through_the_csv() {
+        let stats = FrameStats::from_samples(&[10.0; 10]).with_cluster(20.727, 0.64);
         let row = stats.to_csv_row("scene-high", &some_meta());
         assert_eq!(
             row.trim().split(',').count(),
-            18,
-            "v3 writes the profile column"
+            20,
+            "v4 writes the two cluster columns"
         );
-        let run = PerfRun::from_csv_row(row.trim()).expect("v3 row parses");
+        let run = PerfRun::from_csv_row(row.trim()).expect("v4 row parses");
         assert_eq!(run.meta.profile, "release");
+        assert!((run.stats.cluster_median_ms.expect("median") - 20.727).abs() < 5e-4);
+        assert!((run.stats.cluster_share.expect("share") - 0.64).abs() < 5e-4);
+    }
+
+    /// A capture that made no no-vsync promise writes the columns EMPTY, and
+    /// an empty cell must read back as unmeasured instead of as zero.
+    #[test]
+    fn a_window_with_no_cluster_shape_writes_empty_cells_that_read_back_as_absent() {
+        let stats = FrameStats::from_samples(&[10.0; 10]);
+        let row = stats.to_csv_row("scene-high", &some_meta());
+        assert!(row.trim().ends_with("release,,"), "row: {row}");
         let csv = format!("{}{}", CSV_HEADER, row);
-        assert_eq!(
-            parse_frametime_csv(&csv).expect("v3 file parses")[0].meta,
-            some_meta()
-        );
+        let runs = parse_frametime_csv(&csv).expect("v4 file parses");
+        assert_eq!(runs[0].meta, some_meta());
+        assert_eq!(runs[0].stats.cluster_median_ms, None);
+        assert_eq!(runs[0].stats.cluster_share, None);
     }
 
     #[test]
@@ -865,14 +1049,14 @@ mod tests {
     }
 
     #[test]
-    fn v2_row_write_then_read_round_trips_stats_and_meta() {
+    fn a_written_row_reads_back_with_its_stats_and_meta() {
         // Forward (to_csv_row) then back (from_csv_row) preserves every field
         // the CSV carries, metadata included. total_ms is CSV-omitted, so
         // compare the rest.
         let original = FrameStats::from_samples(&[8.0, 12.0, 10.0, 40.0, 9.5, 11.0, 10.5]);
         let meta = some_meta();
         let row = original.to_csv_row("shakedown_run-low", &meta);
-        let run = PerfRun::from_csv_row(row.trim()).expect("v2 round-trips");
+        let run = PerfRun::from_csv_row(row.trim()).expect("the row round-trips");
         assert_eq!(run.label, "shakedown_run-low");
         // The written row has 4-decimal precision, so compare at that scale.
         assert!((run.stats.mean_ms - original.mean_ms).abs() < 5e-4);
@@ -889,7 +1073,7 @@ mod tests {
         meta.adapter = "Intel, Inc. UHD Graphics,  770".to_string();
         let stats = FrameStats::from_samples(&[10.0; 5]);
         let row = stats.to_csv_row("scene", &meta);
-        assert_eq!(row.trim().split(',').count(), 18, "row: {row}");
+        assert_eq!(row.trim().split(',').count(), 20, "row: {row}");
         let run = PerfRun::from_csv_row(row.trim()).expect("sanitized row parses");
         assert_eq!(run.meta.adapter, "Intel  Inc. UHD Graphics   770");
     }
@@ -925,21 +1109,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_frametime_csv_reads_a_v2_file_with_meta() {
-        let stats = FrameStats::from_samples(&[10.0, 12.0, 11.0]);
-        let csv = format!(
-            "{}{}",
-            CSV_HEADER,
-            stats.to_csv_row("scene-high", &some_meta())
-        );
-        let runs = parse_frametime_csv(&csv).expect("v2 file parses");
-        assert_eq!(runs.len(), 1);
-        assert_eq!(runs[0].meta, some_meta());
-    }
-
-    #[test]
     fn parse_frametime_csv_rejects_a_row_width_mismatch() {
-        // A v2 header promises 17 columns; an 11-column (v1-shaped) row under
+        // A v4 header promises 20 columns; an 11-column (v1-shaped) row under
         // it is a corrupt file, not a silent meta-default.
         let csv = format!(
             "{}broadside-high,120,115.0519,82.7471,168.3229,111.4533,140.7148,166.7084,168.3229,8.69,6.00\n",
@@ -982,6 +1153,25 @@ mod tests {
         assert_eq!(stats.frames, 600);
         assert!((stats.mean_ms - 31.607).abs() < 1e-9);
         assert!((stats.one_pct_low_fps - 20.4).abs() < 1e-9);
+    }
+
+    /// The web capture has no filesystem, so the summary line is the only
+    /// channel the cluster shape can reach the host on. A line without one
+    /// must not invent a zero.
+    #[test]
+    fn the_summary_line_carries_the_cluster_shape_only_when_there_is_one() {
+        let bare = FrameStats::from_samples(&[30.0, 35.0, 40.0]);
+        let line = bare.summary_line("scene-web");
+        assert!(!line.contains("cluster"), "{line}");
+        let (_, parsed) = parse_summary_line(&line).expect("summary parses");
+        assert_eq!(parsed.cluster_median_ms, None);
+        assert_eq!(parsed.cluster_share, None);
+
+        let shaped = bare.with_cluster(20.727, 0.643);
+        let line = shaped.summary_line("scene-web");
+        let (_, parsed) = parse_summary_line(&line).expect("summary parses");
+        assert!((parsed.cluster_median_ms.expect("median") - 20.727).abs() < 5e-3);
+        assert!((parsed.cluster_share.expect("share") - 0.643).abs() < 5e-3);
     }
 
     #[test]
