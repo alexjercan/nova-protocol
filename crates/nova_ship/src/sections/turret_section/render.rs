@@ -319,6 +319,17 @@ pub(super) fn insert_turret_joint_render(
     }
 }
 
+/// Particle capacity of the built-in muzzle flash, which is a per-INSTANCE GPU
+/// buffer: the [`EffectAsset`] is shared, one allocation per barrel is not.
+///
+/// DERIVED, not picked. The flash bursts 100 particles a shot and a particle
+/// lives at most 0.1 s, so a barrel holds `100 x fire_rate x 0.1` at once. The
+/// fastest muzzle the game ships is `pdc_kinetic_turret_section` at 100 rounds
+/// a second, which peaks at 1000. This is that, doubled and rounded up.
+///
+/// An authored `muzzle_effect` brings its own capacity and ignores this.
+const MUZZLE_FLASH_CAPACITY: u32 = 2048;
+
 /// The generated muzzle flash, built once and shared by every barrel.
 ///
 /// Every barrel used to mint its own, and they were byte-identical: the
@@ -369,7 +380,7 @@ fn build_default_muzzle_effect() -> EffectAsset {
     let velocity = velocity + base_velocity;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
-    EffectAsset::new(32768, spawner, writer.finish())
+    EffectAsset::new(MUZZLE_FLASH_CAPACITY, spawner, writer.finish())
         .with_name("spawn_on_command")
         .init(init_pos)
         .init(init_vel)
