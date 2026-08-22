@@ -115,6 +115,18 @@ and fixed during this cycle never reached a player and is omitted. Instrument
 failures and rejected optimisation premises remain in the epic record, not the
 player post.
 
+## Site-wide review direction - 2026-08-22
+
+The visual pass now covers the landing page, current player wiki, creator docs,
+and v0.11.0 news. Historical news is immutable. Use staged gameplay-authentic
+media for landing/news, ordinary player actions for the wiki, and controlled
+diagnostic scenes for creator contracts. Visual-first player prose may put its
+mechanism behind an existing `details.explain` fold, but required actions stay
+visible.
+
+The full inventory, findings, proposed capture families, and implementation
+forks are in `visual-review.md`.
+
 ## Sequence
 
 1. Rewrite the news post with final text structure, media placeholders, and
