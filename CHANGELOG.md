@@ -355,9 +355,8 @@ does NOT get an entry - and it is the only place they are written down.
 - A launched torpedo shares its warhead material by ordnance TYPE instead of
   minting one per shot: the same range draws 17 distinct materials instead of
   105, and 16 crack buckets instead of 149.
-- Damage cracks draw from eight SHARED materials per source instead of one per
-  section mesh: a 4v4 arena runs 2,046 section meshes through 288 materials
-  instead of 2,046, and the frame rate doubles.
+- Damage cracks draw from eight SHARED materials per source, and an undamaged section keeps its own so a pristine fleet draws through one pipeline: a 4v4 arena doubles, driven combat gains 8.6%.
+- Every particle effect sizes its buffer to the burst it fires: 2048, 512 and 512 instead of 32768 each, so a barrel, a warhead and a launch tube allocate 16 to 64 times less GPU memory.
 - A piece of debris takes its collider from at most 64 strided points instead
   of every vertex of an unwelded triangle soup: the same shape for a fifth of
   the price, and slightly more of them come back usable.
