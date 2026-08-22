@@ -46,7 +46,7 @@ choice is not a kind of check.
 
 ## Every claim is named
 
-`CONVENTIONS.md` Nova 1. An assert with no name can be deleted into a green run
+`AGENTS.md` Nova behavior. An assert with no name can be deleted into a green run
 that proves less. So each one carries a `nova_probe::probe_marker` reading
 `outcome: <slug>` beside it, and the slug goes on that range's roster in
 `crates/nova_probe_cli/tests/catalog_drift.rs`. That test matches both ways: a

@@ -20,7 +20,7 @@ looks fine while measuring nothing. So there is one rule, and
   cannot arrive undeclared.
 - **`examples/` keeps its literals** on purpose. A range that drifts turns a
   probe run red, which is detection shipped code does not have
-  (`CONVENTIONS.md` Nova rule 5).
+  (`AGENTS.md` Nova behavior).
 
 Three names are spelled twice, deliberately: `nova_gameplay`'s mute policy,
 `nova_scenario`'s `Screenshot` action and the probe sandbox each need a name

@@ -55,8 +55,7 @@ for builds, tests, tools, examples, and platform setup.
 
 | Path | Purpose |
 | --- | --- |
-| [`AGENTS.md`](AGENTS.md) | Repository rules, architecture entry points, workflow, and required checks. |
-| [`CONVENTIONS.md`](CONVENTIONS.md) | Rust module, API, Bevy scheduling, comment, and test conventions. |
+| [`AGENTS.md`](AGENTS.md) | Repository workflow, architecture, conventions, and required checks. |
 | [`RELEASE.md`](RELEASE.md) | Short checklist for versioning, changelog updates, tagging, and publishing. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Unreleased and shipped user-visible changes. |
 | [`Cargo.toml`](Cargo.toml) | Workspace members, examples, features, and the shared package version. |

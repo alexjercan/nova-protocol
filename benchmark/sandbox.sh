@@ -69,7 +69,7 @@ stage_blind() {
 
 stage_docs() {
     local p="$1"
-    for f in AGENTS.md README.md CONVENTIONS.md; do
+    for f in AGENTS.md README.md; do
         if [ -f "$REPO/$f" ]; then
             cp "$REPO/$f" "$p/"
             say "$f"

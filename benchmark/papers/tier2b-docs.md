@@ -1,8 +1,8 @@
 # Tier 2b - add a NOVA OS app
 
 Your working directory `/work` holds the project's prose only: `AGENTS.md`,
-`README.md`, `CONVENTIONS.md`, and the full player and developer wiki under
-`wiki/`. **There is no source code.** If the documentation does not say it, you
+`README.md`, and the full player and developer wiki under `wiki/`. **There is no
+source code.** If the documentation does not say it, you
 cannot look it up.
 
 Write your output to `/out`. Nothing else you write is kept.

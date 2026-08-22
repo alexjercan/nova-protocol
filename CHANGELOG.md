@@ -9,7 +9,7 @@ Web & Platform, Audio & Visuals, Performance, Fixes, Internals & Tooling) rather
 than by Added/Changed/Fixed. This project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-**Before editing this file, read the Changelog section of `CONVENTIONS.md`.**
+**Before editing this file, read the Changelog section of `AGENTS.md`.**
 It owns the rules - the release baseline, the 200-character limit, and what
 does NOT get an entry - and it is the only place they are written down.
 
@@ -498,7 +498,7 @@ does NOT get an entry - and it is the only place they are written down.
 - `--norender` boots with no GPU device, no window and no event loop, so a run measures the simulation alone. `NOVA_NORENDER=1` does the same to any example. Both need a driver to ever end.
 - `probe run --norender` takes every pass headless and starts no Xvfb. A speed option: with no device it cannot see a render-side panic, so it runs beside a rendered pass, never instead of one.
 - Probe parses with clap: `--help` is generated per verb instead of one hand-kept usage block, and `--render`/`--norender` refuse each other. Same flags, same defaults, same exit codes.
-- The bug-to-range doctrine is written down (`CONVENTIONS.md`): reproduce a bug
+- The bug-to-range doctrine is written down (`AGENTS.md`): reproduce a bug
   as a `systems/` range before the fix, and name every claim on the invariant
   roster.
 - Every `systems/` range is named for the KIND of check it is: `system_`

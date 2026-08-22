@@ -344,7 +344,7 @@ What is on disk today, in reading order:
 
 When adding a substantial feature, add or extend the range that drives it. When
 fixing a bug, WRITE the range that reproduces it first: that is the doctrine in
-`CONVENTIONS.md`, and the invariant roster is what keeps it honest.
+`AGENTS.md`, and the invariant roster is what keeps it honest.
 
 Every example is HARNESSED: it drives itself under
 `NOVA_AUTOPILOT=1`, and probe is the regression suite over all of them -
@@ -383,7 +383,7 @@ same - see the outputs-off pair above.
 
 ### Examples as bug pins
 
-A bug becomes a RANGE (`CONVENTIONS.md`): reproduce it in `examples/systems/`
+A bug becomes a RANGE (`AGENTS.md`): reproduce it in `examples/systems/`
 before the fix, and the fix is what turns the range green. A unit/App test
 still pins a system-level mechanism, but anything that only manifests in a
 composed scene belongs in a range (for example, `system_menu_boot` runs the
@@ -960,7 +960,7 @@ The everyday loop for landing a change:
    correct code in the main job. That is why the config lives outside the
    repository root, and why there is no root `clippy.toml`.
 
-House style is [`CONVENTIONS.md`](https://github.com/alexjercan/nova-protocol/blob/master/CONVENTIONS.md)
+House style is in [`AGENTS.md`](https://github.com/alexjercan/nova-protocol/blob/master/AGENTS.md)
 at the repo root - Rust, Bevy, Nova, comments, documentation, changelog and web,
 each a section. Commit messages are plain and use ASCII punctuation only.
 Releases are a separate, tagged flow (see [Cutting a release](#cutting-a-release)).

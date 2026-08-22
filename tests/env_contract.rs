@@ -98,7 +98,7 @@ fn the_menu_backdrop_pin_is_the_documented_one() {
 ///
 /// `examples/` is deliberately absent - a range keeps its literals, because a
 /// probe run goes red when one drifts, which is detection shipped code does
-/// not have (`CONVENTIONS.md` Nova rule 5).
+/// not have (`AGENTS.md` Nova behavior).
 const ROSTER: &[&str] = &[
     // Harness - nova_autopilot.
     "NOVA_AUTOPILOT",

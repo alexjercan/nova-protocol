@@ -15,7 +15,7 @@ more than any single score.
 | Persona | Gets | Isolates |
 | --- | --- | --- |
 | `blind` | the full source tree with **every `.md` deleted** | code + tree alone. The number the epic must move. |
-| `docs` | `AGENTS.md`, `README.md`, `CONVENTIONS.md`, the wiki. No source. | how much prose is carrying |
+| `docs` | `AGENTS.md`, `README.md`, the wiki. No source. | how much prose is carrying |
 | `tree` | one `TREE.txt`, names only | can the folder structure alone answer it |
 | `rustdoc` | `cargo doc --workspace --no-deps`, `[source]` pages stripped | is the public API self-documenting |
 | `modder` | 4 wiki modding pages, `webmods/`, `assets/base/` | external contract regression guard |

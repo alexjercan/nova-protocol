@@ -61,7 +61,7 @@
       "expect": "crates/nova_os_ui/src/terminal/",
       "citation": "crates/nova_os_ui/src/terminal/ - casing.rs, components.rs, content.rs, crt.rs, input.rs, lists.rs, mod.rs, shell.rs, sound.rs, spawn.rs, style.rs, tests/",
       "why_this_question": "The name says hud. It is a 14,274-line windowing runtime across nova_os/, nova_os_map/, nova_os_ship/ and nova_os_pointer_rig.rs. Directly tests a folder name that lies. A wrong answer at baseline proves the tree does not disclose where the biggest single feature in the crate lives.",
-      "notes": "0.50 for naming crates/nova_gameplay/src/hud/ without the nova_os subtree. Naming the crate nova_os is 0.00 however close it looks - that crate holds no drawing code (see t1-009). DOCS CUE (L0): CONVENTIONS.md rule 4 uses `use crate::hud::nova_os::shell::*;` as its bad-import example, which discloses the hud/nova_os/ path. A docs 1.00 here is doc-cued; weigh blind and tree as the structure signal."
+      "notes": "0.50 for naming crates/nova_gameplay/src/hud/ without the nova_os subtree. Naming the crate nova_os is 0.00 however close it looks - that crate holds no drawing code (see t1-009). DOCS CUE (L0): the pre-L0 docs used `use crate::hud::nova_os::shell::*;` as a bad-import example, which disclosed the hud/nova_os/ path. A docs 1.00 here is doc-cued; weigh blind and tree as the structure signal."
     },
     {
       "id": "t1-002",
@@ -236,7 +236,7 @@
       "expect": "crates/nova_assets/src/portal/ (1,976 lines: mod.rs, catalog.rs, config.rs, install.rs, transport.rs). The menu UI for it is crates/nova_menu/src/portal.rs",
       "citation": "crates/nova_assets/src/portal/ - catalog.rs, config.rs, install.rs, mod.rs, transport.rs, 1,976 lines total; crates/nova_menu/src/portal.rs is the UI",
       "why_this_question": "The third of the three items AGENTS.md's nova_modding row USED to get wrong; L0 moved 'portal client' onto the nova_assets row. Together with t1-002 and t1-017 it tests whether one corrected table row saves three separate lookups.",
-      "notes": "Answering crates/nova_modding/ is 0.00. 0.50 for naming crates/nova_assets/ without portal/. 0.50 for naming only nova_menu/src/portal.rs - that is the UI, not the client. DOCS CUE (L0): CONVENTIONS.md rule 8 names `nova_assets/src/portal/mod.rs` verbatim as the one `#[allow(missing_docs)]` exception, so a docs 1.00 here is doc-cued, not structure-derived. Flag it in the report rather than reading it as navigability."
+      "notes": "Answering crates/nova_modding/ is 0.00. 0.50 for naming crates/nova_assets/ without portal/. 0.50 for naming only nova_menu/src/portal.rs - that is the UI, not the client. DOCS CUE (L0): AGENTS.md names `nova_assets/src/portal/mod.rs` verbatim as the one `#[allow(missing_docs)]` exception, so a docs 1.00 here is doc-cued, not structure-derived. Flag it in the report rather than reading it as navigability."
     },
     {
       "id": "t1-020",
