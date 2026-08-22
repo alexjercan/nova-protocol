@@ -57,7 +57,8 @@ use nova_events::prelude::*;
 /// A plugin that handles Game Events.
 pub struct NovaScenarioPlugin {
     /// Whether a window/GPU is present; gates the render-scale lever, which is
-    /// skipped on a headless rig with no scenario view to downscale.
+    /// skipped on a headless rig with no scenario view to downscale, and the
+    /// glTF warm-up, which would load art a headless rig never draws.
     pub render: bool,
 }
 
@@ -66,7 +67,9 @@ impl Plugin for NovaScenarioPlugin {
         trace!("NovaEventsPlugin: build");
 
         app.add_plugins(GameEventsPlugin::<world::NovaEventWorld>::default());
-        app.add_plugins(loader::ScenarioLoaderPlugin);
+        app.add_plugins(loader::ScenarioLoaderPlugin {
+            render: self.render,
+        });
         app.add_plugins(objects::ScenarioObjectsPlugin {
             render: self.render,
         });

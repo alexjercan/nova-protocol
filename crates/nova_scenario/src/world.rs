@@ -45,15 +45,24 @@ use crate::prelude::*;
 /// frames.
 const SPAWN_DRAIN_BUDGET: Duration = Duration::from_millis(3);
 
-/// Run condition: the live scenario has finished spawning.
+/// Run condition: the live scenario has finished spawning AND its art is in
+/// memory.
 ///
 /// The scenario SCRIPT is gated on this - the clock, the `OnUpdate` pulse, the
 /// keyed timers and the event dispatch all stand down while queued spawns are
 /// still landing. An `OnUpdate` predicate that counts objects therefore never
 /// reads a half-built world: the world is not yet LIVE, rather than briefly
 /// inconsistent.
-pub fn scenario_has_settled(world: Res<NovaEventWorld>) -> bool {
-    !world.is_settling()
+///
+/// [`ScenarioPreload`] extends that to the scenario's glTF, so no mission time
+/// passes behind a loading panel that is still up. Optional, because a rig can
+/// register the clock without the loader plugin that owns the resource; a rig
+/// with no warm-up settles on the spawn queue alone.
+pub fn scenario_has_settled(
+    world: Res<NovaEventWorld>,
+    preload: Option<Res<ScenarioPreload>>,
+) -> bool {
+    !world.is_settling() && !preload.is_some_and(|preload| preload.is_pending())
 }
 
 /// The event world for the live scenario: the game-specific [`EventWorld`]

@@ -365,6 +365,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A scenario swap never blocks the main thread: queued spawns drain under a
   3 ms per-frame budget and the scenario is held until they land, so the
   LOADING panel animates across the whole transition.
+- A load warms every hull the scenario can spawn, so a ship that first appears
+  mid-mission arrives dressed instead of flying in placeholder art while its
+  glTF loads.
 - Held fire on a big rock runs at 47 fps instead of 25: its carve field caps at
   40 cells a side, the seed and remesh run off the main thread, and nothing
   rescans the grid to learn it has not changed.

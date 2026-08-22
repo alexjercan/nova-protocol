@@ -12,14 +12,15 @@
 //! screen's dismissal rule is the interesting part: it is up for exactly as
 //! long as the scenario is SETTLING (the engine's own spawn gate,
 //! `EventWorld::is_settling`, which holds every handler while queued objects
-//! land), with [`SCENARIO_MIN_DWELL`] as a floor and
+//! land, plus `ScenarioPreload`, which holds while the scenario's glTF is still
+//! arriving), with [`SCENARIO_MIN_DWELL`] as a floor and
 //! [`SCENARIO_SETTLED_DELTA`] as the "the machine is smooth again" test.
 
 use bevy::prelude::*;
 use nova_assets::prelude::GameAssetsStates;
 use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::GameStates;
-use nova_scenario::prelude::{LoadScenario, NovaEventWorld};
+use nova_scenario::prelude::{LoadScenario, NovaEventWorld, ScenarioPreload};
 use nova_ui::font::UiFont;
 
 /// Near-black CRT screen (PoC `--screen`). The panel background.
@@ -263,17 +264,21 @@ fn spawn_scenario_load_screen(
 }
 
 /// Take the scenario screen down once the swap is done: never while the
-/// scenario is still spawning, and then after the minimum dwell on the first
-/// frame back under [`SCENARIO_SETTLED_DELTA`], or at the hard cap.
+/// scenario is still spawning or its art is still loading, and then after the
+/// minimum dwell on the first frame back under [`SCENARIO_SETTLED_DELTA`], or at
+/// the hard cap.
 ///
 /// The spawn gate ([`EventWorld::is_settling`]) makes the panel and the script
 /// gate ONE fact: the scenario engine holds every handler while its queued
 /// objects are still landing, and the panel says so on screen for exactly that
-/// long. It is checked BEFORE the cap on purpose - the cap exists for a machine
-/// that never gets smooth again, not for a scene that is legitimately big, and
-/// the spawn queue is finite and always makes progress (at least one object per
-/// frame), so this cannot hold forever. Optional, so a rig without the scenario
-/// engine (the boot screen's own tests) dismisses on the frame rule alone.
+/// long. [`ScenarioPreload`] is the same bargain for the scenario's glTF, which
+/// is resolved at load so a hull that first appears mid-mission is not still
+/// wearing placeholder art when it does. Both are checked BEFORE the cap on
+/// purpose - the cap exists for a machine that never gets smooth again, not for
+/// a scene that is legitimately big - and both are finite: the spawn queue
+/// always makes progress, and the warm-up carries its own deadline. Optional, so
+/// a rig without the scenario engine (the boot screen's own tests) dismisses on
+/// the frame rule alone.
 ///
 /// Reads `Time<Real>` for both the dwell and the settle test - a load can be
 /// requested from a paused outcome frame, where the virtual clock is stopped and
@@ -282,9 +287,12 @@ fn dismiss_scenario_load_screen(
     mut commands: Commands,
     time: Res<Time<Real>>,
     event_world: Option<Res<NovaEventWorld>>,
+    preload: Option<Res<ScenarioPreload>>,
     q_screen: Query<(Entity, &ScenarioLoadScreenMarker)>,
 ) {
-    if event_world.is_some_and(|world| world.is_settling()) {
+    if event_world.is_some_and(|world| world.is_settling())
+        || preload.is_some_and(|preload| preload.is_pending())
+    {
         return;
     }
     let now = time.elapsed_secs();

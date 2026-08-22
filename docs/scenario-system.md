@@ -60,6 +60,39 @@ Defeat overlay and survives Retry, arriving in the reloaded scenario with its
 damage intact. Scoping ON the lifetime component, rather than trusting the
 lifetime to run out, is what closes that.
 
+### The load warms every hull the scenario can spawn
+
+A section's glTF is resolved by the render observer that builds its mesh child,
+so the FIRST ship wearing a hull paid for that hull's art. A hull no `OnStart`
+event spawns is therefore cold when its beat arrives: `final_tally`'s flagship
+and both of `menu_duel`'s corvettes appeared in placeholder art and dressed
+themselves a moment later.
+
+`preload::scenario_render_meshes` walks the loaded config for `SpawnScenarioObject`
+and `ScatterObjects` actions, resolves each ship's `ShipSource` and every
+section's `SectionSource` against the two catalogs, and collects the render
+meshes. That walk is possible at all because a spawn action carries its object's
+WHOLE config inline rather than an id looked up at spawn time, so what a
+scenario can spawn is readable before it spawns anything.
+
+Three parts make it work:
+
+- `AssetRef::resolve` is idempotent, so the spawn site is unchanged - it asks
+  the `AssetServer` for the same path and gets back a handle that is already
+  warm.
+- `ScenarioPreload` HOLDS the handles for the scenario's lifetime. Without a
+  strong handle bevy frees the mesh again long before the mid-mission spawn.
+- The load WAITS: `scenario_has_settled` and the LOADING panel both hold while
+  the warm-up is pending, bounded by its own deadline so a missing or broken
+  mesh cannot hang the load. A failed mesh counts as settled and is named in a
+  warning; the section spawns in placeholder art, exactly as it would have.
+
+Ships are the only object kind involved. A beacon and a salvage crate build
+primitives, an asteroid meshes itself on a worker, and a light and an anchor
+have no mesh at all. The warm-up is also registered only when
+`NovaScenarioPlugin::render` is set: a headless rig builds no mesh children, so
+there is nothing to warm and nothing to wait for.
+
 ## The vocabulary, and who documents it
 
 Three closed enums are the whole authored language, one dispatch match each:
@@ -159,6 +192,12 @@ incomplete. The scenario clock stops, keyed timers do not expire, watches are
 not sampled, the `OnUpdate` pulse does not fire, and the LOADING panel stays up.
 The world is not yet LIVE, rather than briefly inconsistent. Held events are not
 dropped: they dispatch in order on the frame the world goes live.
+
+`scenario_has_settled` - the run condition the clock and the pulse read - holds
+for one more reason: the glTF warm-up above. Dispatch is not, so `OnStart`
+still fires and the scene still builds while the art arrives; what waits is the
+scenario CLOCK, so no mission time passes behind a panel the player cannot see
+past.
 
 Variables are typed literals (`String`, `Number`, `Boolean`) with a small
 expression tree: `VariableExpressionNode` (add/subtract), `VariableTermNode`
@@ -541,7 +580,9 @@ them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
 - The state seam: `NovaEventWorld` - `crates/nova_scenario/src/world.rs`;
   variables and expressions - `crates/nova_scenario/src/variables.rs`.
 - Loading and scoping: `ScenarioLoaderPlugin`, `ScenarioScopedMarker`,
-  `scenario_is_live` - `crates/nova_scenario/src/loader/mod.rs`.
+  `scenario_is_live` - `crates/nova_scenario/src/loader/mod.rs`; the glTF
+  warm-up: `ScenarioPreload`, `scenario_render_meshes` -
+  `crates/nova_scenario/src/loader/preload.rs`.
 - Objects: `ScenarioObjectsPlugin` - `crates/nova_scenario/src/objects/mod.rs`;
   kind dispatch: `ScenarioObjectKind` -
   `crates/nova_scenario/src/actions/spawn.rs`.

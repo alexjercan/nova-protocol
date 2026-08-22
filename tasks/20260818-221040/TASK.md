@@ -273,11 +273,11 @@ Both blast and muzzle `EffectAsset`s now come from shared `DefaultBlastEffect` /
    stutter this task hunts - but the capacity is absurd for the effect and the
    per-ship cost RISES with fleet size (1.15 -> 1.79 -> 1.89), which suggests it
    re-walks existing effects. The capacity is the lever, not a hanabi API change.
-2. **Section glTFs are demand-loaded by the first ship that uses them**, not at
-   boot. `final_tally` spawns a `cargob` mid-mission with no cargob at OnStart,
-   and `menu_duel` spawns both hulls on `OnTimerEnd` - both hit a cold glb. All
-   90 glb loads together are 20.22 ms on IO threads, so this is POP-IN LATENCY,
-   not frame time. Preloading every hull a scenario's spawn actions name is cheap
+2. ~~**Section glTFs are demand-loaded by the first ship that uses them**, not at
+   boot.~~ FIXED, below. `final_tally` spawns a `cargob` mid-mission with no
+   cargob at OnStart, and `menu_duel` spawns both hulls on `OnTimerEnd` - both
+   hit a cold glb. The repo ships 80 `.glb` (54 of them greebles) and a run
+   loads 54-55 of them, so this is POP-IN LATENCY, not frame time. Preloading every hull a scenario's spawn actions name is cheap
    and is the one true bake-at-load item this task set out to find.
 3. **`insert_velocity_hud_sphere_system` runs TWICE at player spawn, 4.60 + 3.44
    = 8.0 ms.** It is an `On<Add, VelocityHudMarker>` observer that builds a
@@ -302,3 +302,40 @@ The doc is stale.
 content inspection. Per-ship avian and render-extract costs are not separable -
 `Render/submit+present` carries 21 ms of Xvfb `present_frames` and swamps them.
 All numbers are dev profile.
+
+## LANDED 2026-08-22: item 2, the glTF warm-up
+
+The cold-hull claim above is now MEASURED, not inspected. Traced
+`probe scenario` runs, timestamps anchored on the `on_load_scenario` observer
+span:
+
+| | `on_load_scenario` | part glb loads | hull sections built |
+| --- | --- | --- | --- |
+| `menu_duel` before | 3789.1 ms | 6524.0-6524.8 ms | 6524.3-6526.5 ms |
+| `menu_duel` after | 3888.7 ms | 3890.0-3890.6 ms | 6599.6-6601.6 ms |
+| `final_tally` before | 3729.1 ms | cargoa only, no cargob at all | 3753.0 / 6731.9 ms |
+| `final_tally` after | 3754.8 ms | cargoa + cargob, 3756.5-3759.0 ms | 3781.3 / 6838.2 ms |
+
+So the duel's art loaded INSIDE the spawn that needed it, 2.7 s after the load,
+and the flagship's hull never loaded at all inside a run window that never
+reaches its beat. Both now load beside the scenario load, ~1.5 ms after the
+loader observer.
+
+`ScenarioPreload` walks the loaded config's spawn actions, resolves each hull
+and section against the two catalogs, and HOLDS the handles;
+`scenario_has_settled` and the LOADING panel wait on it under a bounded
+deadline. Ships are the only object kind that names a glTF, so the walk stops
+there. Mechanism in [Scenario engine](../../docs/scenario-system.md).
+
+Cost, clean (untraced) pass: 11 meshes / 0.111 s for `menu_duel`, 17 meshes /
+0.117 s for `final_tally`. Both settle on the SAME frame index as before (27
+and 36), so the wait overlaps the spawn drain rather than adding a stall; wall
+clock to the first post-load `OnUpdate` moves +140 ms and +308 ms, inside
+run-to-run noise on a load already 2-5 s long under Xvfb.
+
+One behaviour change worth naming: the scenario clock used to take one tick on
+the LOAD frame itself (0.25 s of a long boot frame, before the spawn queue had
+drained), because the queue was still empty when `Update` ran. The warm-up is
+pending on that frame, so that tick is gone and the clock starts at 0.
+
+Items 1, 3 and 4 are untouched.

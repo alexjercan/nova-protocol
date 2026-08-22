@@ -20,6 +20,8 @@ mod clock;
 #[cfg(test)]
 mod fixtures;
 mod lifecycle;
+/// The scenario's glTF warm-up: resolved at load, held for the run.
+pub mod preload;
 mod trackers;
 
 use clock::register_clock_and_pulse;
@@ -28,17 +30,18 @@ use lifecycle::{
     configure_scenario_gating, on_load_scenario, on_next_input, on_player_spaceship_destroyed,
     on_player_spaceship_spawned, register_scenario_scoping, unload_scenario, ScenarioInputMarker,
 };
+use preload::register_scenario_preload;
 use trackers::{track_orbit_transitions, track_player_locks, LockEcho, OrbitEcho};
 
 /// Glob-import surface: `use nova_scenario::loader::prelude::*` brings the
 /// scenario registry resources, load/unload triggers, and markers into scope.
 pub mod prelude {
     pub use super::{
-        scenario_is_live, CampaignConfig, CampaignId, ContentIssues, CurrentScenario,
-        GameCampaigns, GameScenarios, LoadScenario, NewGameStart, ScenarioCameraMarker,
-        ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
-        ScenarioScopedMarker, ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraPose,
-        UnloadScenario,
+        preload::prelude::*, scenario_is_live, CampaignConfig, CampaignId, ContentIssues,
+        CurrentScenario, GameCampaigns, GameScenarios, LoadScenario, NewGameStart,
+        ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded,
+        ScenarioLoaderPlugin, ScenarioScopedMarker, ScenarioStartFailure,
+        ScenarioStartFailureReport, ScriptedCameraPose, UnloadScenario,
     };
 }
 
@@ -387,13 +390,18 @@ pub fn scenario_is_live(current: Res<CurrentScenario>) -> bool {
 /// [`scenario_is_live`], and adds the clock tick + OnUpdate pulse plus the
 /// orbit/lock/skybox/scripted-camera trackers (mostly `Update`, with the
 /// scripted-camera enforce in `PostUpdate`).
-pub struct ScenarioLoaderPlugin;
+pub struct ScenarioLoaderPlugin {
+    /// Whether section render meshes are built at all; gates the
+    /// [`preload`] warm-up. Mirrors `NovaScenarioPlugin::render`.
+    pub render: bool,
+}
 
 impl Plugin for ScenarioLoaderPlugin {
     fn build(&self, app: &mut App) {
         trace!("ScenarioLoaderPlugin: build");
 
         configure_scenario_gating(app);
+        register_scenario_preload(app, self.render);
 
         app.add_observer(on_player_spaceship_spawned);
         app.add_observer(on_player_spaceship_destroyed);
