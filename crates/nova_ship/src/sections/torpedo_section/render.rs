@@ -259,12 +259,12 @@ fn build_default_blast_effect() -> EffectAsset {
     let lifetime = writer.lit(0.18).uniform(writer.lit(0.8)).expr();
     let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
 
-    // The overlapping particles make a white-hot core, then separate into
-    // pale-gold and dim red ejecta. There is no smoke phase in vacuum.
+    // HDR white-gold gives the compact core enough bloom to read at combat
+    // distance. It cools through amber to dim red without a smoke phase.
     let mut color_gradient = bevy_hanabi::Gradient::new();
-    color_gradient.add_key(0.0, Vec4::new(1.0, 1.0, 0.92, 1.0));
-    color_gradient.add_key(0.08, Vec4::new(1.0, 0.82, 0.42, 0.95));
-    color_gradient.add_key(0.45, Vec4::new(0.9, 0.28, 0.06, 0.55));
+    color_gradient.add_key(0.0, Vec4::new(6.0, 5.6, 4.2, 1.0));
+    color_gradient.add_key(0.08, Vec4::new(4.0, 2.1, 0.55, 0.95));
+    color_gradient.add_key(0.45, Vec4::new(1.4, 0.35, 0.06, 0.55));
     color_gradient.add_key(1.0, Vec4::new(0.18, 0.02, 0.01, 0.0));
 
     let color_over_lifetime = ColorOverLifetimeModifier {
@@ -275,13 +275,13 @@ fn build_default_blast_effect() -> EffectAsset {
 
     let init_color = SetAttributeModifier::new(Attribute::COLOR, writer.lit(0xFFFFFFFFu32).expr());
 
-    // A compact initial flash separates into small fragments instead of
-    // inflating every particle into a soft fireball.
+    // Long, narrow quads become radial incandescent streaks when oriented to
+    // velocity. They contract into fragments instead of swelling into a ball.
     let mut size_gradient = bevy_hanabi::Gradient::new();
-    size_gradient.add_key(0.0, Vec3::splat(0.16));
-    size_gradient.add_key(0.06, Vec3::splat(0.22));
-    size_gradient.add_key(0.25, Vec3::splat(0.1));
-    size_gradient.add_key(1.0, Vec3::splat(0.0));
+    size_gradient.add_key(0.0, Vec3::new(0.55, 0.12, 0.12));
+    size_gradient.add_key(0.06, Vec3::new(0.8, 0.14, 0.14));
+    size_gradient.add_key(0.25, Vec3::new(0.34, 0.07, 0.07));
+    size_gradient.add_key(1.0, Vec3::ZERO);
 
     let size_over_lifetime = SizeOverLifetimeModifier {
         gradient: size_gradient,
@@ -299,9 +299,9 @@ fn build_default_blast_effect() -> EffectAsset {
     let dir =
         writer.lit(Vec3::X) * rand_x + writer.lit(Vec3::Y) * rand_y + writer.lit(Vec3::Z) * rand_z;
 
-    // Normalize before applying an intentionally broad speed range. The burst
-    // has a coherent radial front without returning to a perfect sphere.
-    let speed = writer.lit(8.0).uniform(writer.lit(45.0));
+    // Normalize before applying an intentionally broad speed range. The faster
+    // front gives the brief burst reach without adding particles or lifetime.
+    let speed = writer.lit(12.0).uniform(writer.lit(60.0));
     let velocity = dir.normalized() * speed;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
@@ -313,6 +313,7 @@ fn build_default_blast_effect() -> EffectAsset {
         .init(init_lifetime)
         .init(init_color)
         .render(size_over_lifetime)
+        .render(OrientModifier::new(OrientMode::AlongVelocity))
         .render(color_over_lifetime)
 }
 
