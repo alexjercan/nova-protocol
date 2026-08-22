@@ -38,10 +38,8 @@
                     </p>
 
                     <!-- One card per FEATURE release, newest first. Releases
-                         with a YouTube devlog use the video's thumbnail
-                         (img.youtube.com/vi/<id>/hqdefault.jpg); the rest carry a
-                         placeholder naming the screenshot to capture
-                         (assets/thumb-news-<version>.png). -->
+                         with a YouTube devlog use the video's thumbnail; the
+                         rest carry a captured or generated release image. -->
                     <ul class="post-grid">
                         <li class="post-card">
                             <a
@@ -49,14 +47,11 @@
                                 href="<%= htmlWebpackPlugin.options.basePath %>news/0.11.0/"
                             >
                                 <div class="post-card__media">
-                                    <div class="post-card__ph">
-                                        <span class="post-card__ph-tag"
-                                            >Thumbnail planned</span
-                                        >
-                                        <span class="post-card__ph-name"
-                                            >assets/thumb-news-0.11.0.png</span
-                                        >
-                                    </div>
+                                    <img
+                                        class="post-card__thumb"
+                                        src="<%= htmlWebpackPlugin.options.basePath %>assets/thumb-news-0.11.0.png"
+                                        alt="Two generated warships exchange fire in the WFC Arena."
+                                    />
                                 </div>
                                 <div class="post-card__body">
                                     <span class="post-card__meta"

@@ -153,6 +153,17 @@ No media was created. The placeholder descriptions now define the shots, so the
 next step is to derive and review the capture manifest instead of inheriting the
 superseded list.
 
+## Phase 2 started - 2026-08-22
+
+The reviewed landing hero is a deterministic six-second WFC 1v1. The same arena
+walk emits its v0.11.0 News thumbnail. A torpedo contact-fuze regression found
+in the first review was fixed and range-tested before the final media was
+captured; the loop now includes a hull-side detonation and breakup.
+
+The landing is structured around the five accepted promises and loads the hero
+eagerly while deferring and pausing off-screen media. Historical news figure
+slots are gone, and the News index uses captured or deterministic archive art.
+
 ## Done when
 
 - The news post reads as a release feature, has a visual lead and Performance

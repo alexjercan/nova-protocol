@@ -2,3 +2,5 @@
 # file<TAB>example<TAB>duration_s<TAB>bytes
 torpedo-blast.webm	loop_torpedo_blast	4.9	273116
 spine-cut.webm	loop_spine_cut	4.5	319793
+# hero captured at commit 56f5288f on master
+hero-wfc-duel.webm	wfc_arena	6.1	1309867
