@@ -1313,3 +1313,58 @@ run either; CI owns it.
 CSV schema v4 adds `cluster_ms` and `cluster_share`. v1 to v3 still parse, which
 is not back-compat for its own sake - committed baselines under `tasks/` are v1
 and v3 and the report reads them.
+
+### REVISED 2026-08-22 by the first live run - the discriminator was nearly a coin flip
+
+`probe run stress_point_defense --repeat 6`, real GPU, `immediate`. Landed
+`f269905a`. Measurements in `measurements/refresh-cap-pd-stress-repeat6*.csv`.
+
+**The plumbing is proven.** v4 CSV on disk with both columns, `checks.json`
+carrying the verdict, thresholds and per-capture shapes, suspicion lines at WARN,
+`capture_simulated PASS - 6 capture(s) refused: 0`. **Five of the six windows
+tripped the old refusal**, so under the previous harness this ordinary stress
+measurement would have lost 5/6 windows.
+
+**And the discriminator was one cold capture away from being wrong.** The
+suspects' periods were 25.663 / 20.824 / 20.972 / 20.975 / 21.006 ms. Drop the
+first - the cold run, which the statistics gate discarded anyway - and the
+remaining four agree to **0.72%**, inside the 1% that reads as one display. The
+set would have been convicted and emptied. It was acquitted by an outlier, not by
+the rule.
+
+So the premise the design was sold on is WRONG as stated. "A period is a constant
+and a workload is not" is false: a steady workload reproduces its period to under
+1% on this box. Agreement is necessary and nowhere near sufficient.
+
+**Share is what actually separates**, across everything measured:
+
+| what it was | share |
+|---|---|
+| 165 Hz `Fifo`, a real cap | 0.76-0.81 |
+| PD stress, a workload | 0.60-0.68 |
+| damage-cracks A/B, a workload | 0.64-0.65 |
+| 34 gallery captures, workloads | 0.03-0.44 |
+
+The bar moved 0.60 -> **0.72**, above every workload and below every cap. Both
+bars are now required: clear the share to be a suspect, agree on a period to be
+convicted.
+
+**Two things this leaves open, recorded rather than fixed.**
+
+1. **Share is noisy run to run.** A second six-window set of the same subject on
+   the same box spread **0.19-0.86** where the first spread 0.60-0.85. A
+   threshold on a statistic that moves that much is blunt, and it will need
+   moving again as the engine gets steadier. The principled fix is to test the
+   period against rates a display actually runs at - 20.97 ms is 47.7 Hz and is
+   no display, 6.06 ms is 165 Hz and is - which tests the claim directly instead
+   of by proxy. Deferred deliberately, not rejected.
+2. **Capture #1 is systematically the accused one.** It read 0.854 and 0.857 in
+   the two runs, both times the highest share in its set, both times discarded by
+   the statistics gate as a cold outlier. A set will often read `unverifiable`
+   for that reason alone. Nothing is lost when it does - the second run admitted
+   5/6 and reported a tail - but the discriminator rarely gets to return a clean
+   `not_suspected`.
+
+Kept deliberately: the verdict reads shapes from captures the statistics gate
+DISCARDED. That looks wrong and is not - in the first run the discarded capture
+was the only thing standing between a good set and a false conviction.

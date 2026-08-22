@@ -1,0 +1,7 @@
+label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps,backend,adapter,resolution,quality,git_sha,host,profile,cluster_ms,cluster_share
+stress_point_defense#1,900,26.3978,24.1194,75.8662,25.9085,29.9901,37.2472,75.8662,37.88,26.85,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,f269905a,nixos,dev,25.9088,0.8567
+stress_point_defense#2,900,24.2998,18.6729,54.9632,24.8346,29.0566,37.2982,54.9632,41.15,26.81,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,f269905a,nixos,dev,24.8383,0.4244
+stress_point_defense#3,900,21.3006,18.3022,31.2436,21.0488,24.4623,28.8110,31.2436,46.95,34.71,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,f269905a,nixos,dev,21.0512,0.6344
+stress_point_defense#4,900,20.1107,15.4551,33.2727,19.1229,26.2539,29.3605,33.2727,49.72,34.06,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,f269905a,nixos,dev,19.1292,0.1867
+stress_point_defense#5,900,21.9606,16.3472,36.8494,21.1670,26.9293,30.6995,36.8494,45.54,32.57,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,f269905a,nixos,dev,21.1686,0.5100
+stress_point_defense#6,900,22.0155,18.8367,34.8025,21.2921,26.6561,30.3946,34.8025,45.42,32.90,vulkan,NVIDIA GeForce RTX 3060 Ti,1280x720,default,f269905a,nixos,dev,21.2944,0.4989
