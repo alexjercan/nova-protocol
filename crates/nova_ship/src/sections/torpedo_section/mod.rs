@@ -659,12 +659,6 @@ impl Plugin for TorpedoSectionPlugin {
             app.init_resource::<DefaultTorpedoRender>();
             app.add_observer(insert_torpedo_controller_render);
 
-            // Expanding-sphere blast-radius visual: a plain mesh + material, so unlike
-            // the hanabi particle burst below it also renders on wasm.
-            app.add_observer(insert_blast_radius_visual);
-            app.add_observer(free_blast_radius_visual_material);
-            app.add_systems(Update, animate_blast_radius_visual);
-
             // Hanabi detonation burst: runs on wasm too now that the web build
             // uses the WebGPU backend. The fallback burst lives in a resource so
             // a salvo shares one effect asset instead of minting one per

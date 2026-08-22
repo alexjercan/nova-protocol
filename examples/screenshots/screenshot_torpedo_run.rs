@@ -132,13 +132,10 @@ fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         .until(hollow::no_torpedo_in_flight())
         .deadline(8.0)
         .add()
-        // The AFTERMATH, not the flash. The detonation itself is not worth a
-        // beat: its blast visual is a solid 60-unit sphere on a 0.1 s temp
-        // entity (`insert_blast_radius_visual`), which at 30 fps is a frame or
-        // two of flat orange filling any camera close enough to see the ship it
-        // hit. Half a second later the sphere is gone and what it did is not -
-        // the particle burst, the tumbling debris and a hull short some
-        // sections.
+        // The AFTERMATH, not the flash. The vacuum burst is intentionally too
+        // brief to make a reliable still target. Half a second later its hot
+        // ejecta is gone and what it did is not: tumbling debris and a hull
+        // short some sections.
         .step("let the blast clear")
         .on_enter(|world| {
             hollow::blow_raider_section(world, hollow::RAIDER_BLAST_SECTION);

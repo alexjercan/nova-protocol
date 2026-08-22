@@ -312,6 +312,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Audio & Visuals
 
+- Torpedo detonations are brief white-hot ejecta in vacuum, without the orange
+  sphere that drew their damage radius.
 - The civilian kit grows to twelve pieces: faired vent, flush door, tank
   blister, comms radome, skylight strip, advert panel and a registry mark
   that lies on any facet a thin hull offers.
