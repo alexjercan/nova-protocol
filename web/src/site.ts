@@ -161,9 +161,36 @@ export function initLandingHandoff(): void {
     const header = document.querySelector<HTMLElement>(".site-header");
     if (!features || !header) return;
 
+    let handoffTarget: number | null = null;
+    let releaseTimer: number | null = null;
+    const release = (): void => {
+        handoffTarget = null;
+        if (releaseTimer !== null) window.clearTimeout(releaseTimer);
+        releaseTimer = null;
+    };
+    window.addEventListener(
+        "scroll",
+        () => {
+            if (
+                handoffTarget !== null &&
+                Math.abs(window.scrollY - handoffTarget) <= 2
+            ) {
+                release();
+            }
+        },
+        { passive: true }
+    );
+
     window.addEventListener(
         "wheel",
         (event) => {
+            // Keep trackpad momentum from interrupting the short page change.
+            // Ordinary wheel input resumes as soon as the target settles.
+            if (handoffTarget !== null) {
+                if (event.cancelable) event.preventDefault();
+                return;
+            }
+
             const featureY =
                 features.getBoundingClientRect().top +
                 window.scrollY -
@@ -175,14 +202,11 @@ export function initLandingHandoff(): void {
             );
             if (target === null || !event.cancelable) return;
             event.preventDefault();
-            // `behavior: auto` still inherits the root's smooth-scroll rule.
-            // Override it for this synchronous page handoff, then restore the
-            // authored style before the next frame so anchor links stay smooth.
-            const root = document.documentElement;
-            const previous = root.style.scrollBehavior;
-            root.style.scrollBehavior = "auto";
-            window.scrollTo({ top: target });
-            root.style.scrollBehavior = previous;
+            handoffTarget = target;
+            window.scrollTo({ top: target, behavior: "smooth" });
+            // Fallback for a browser that cancels smooth scrolling without
+            // delivering the target scroll event.
+            releaseTimer = window.setTimeout(release, 1200);
         },
         { passive: false }
     );
