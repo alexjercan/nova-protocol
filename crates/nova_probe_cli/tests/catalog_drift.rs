@@ -184,6 +184,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "torpedo fired",
             "torpedo armed",
             "torpedo detonated",
+            "torpedoes detonate before contact",
             "gate damaged",
             "launch chain holds in the crossing scene",
             "torpedo leads the crosser",
@@ -384,7 +385,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 144;
+const SYSTEMS_INVARIANTS: usize = 145;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

@@ -105,9 +105,8 @@ pub struct TorpedoSectionConfig {
     /// thrust direction and relaxes the velocity toward wherever the nose points,
     /// so the flight path follows the guidance command.
     pub linear_damping: f32,
-    /// Blast radius on detonation, in units. The proximity fuze fires when the
-    /// torpedo is within half this radius of the target, and blast damage falls off
-    /// linearly to zero at this radius.
+    /// Blast radius on detonation, in units. The proximity fuze fires near the
+    /// target's skin, and blast damage falls off linearly to zero at this radius.
     pub blast_radius: f32,
     /// Peak blast damage at the detonation centre, falling off to zero at
     /// `blast_radius`.

@@ -4,9 +4,10 @@
 //! GATE scene it sits at the origin facing a spread of asteroid "gates" - near,
 //! mid and far straight ahead, one off to the side, and one that drifts slowly
 //! across the range - and you watch torpedoes arm, home and detonate. In the
-//! CROSSING scene a single target crosses laterally and fast, which is the case
-//! proportional navigation has to solve by LEADING it; the range measures how
-//! far ahead of the line of sight the torpedo steers, and the script asserts it.
+//! CROSSING scene a single target crosses laterally while closing fast, which
+//! is the case proportional navigation has to solve by LEADING it and the
+//! proximity fuze must beat to contact; the range measures how far ahead of the
+//! line of sight the torpedo steers and asserts that the warhead detonates.
 //! This is the interactive harness for the torpedo work (arming
 //! `20260707-100003`, target loss `20260707-100004`, PN guidance
 //! `20260525-133021`, blast tuning `20260706-162913`).
@@ -78,6 +79,17 @@ const CROSSING_ID: &str = "torpedo_crossing";
 /// sight, so only a lead solution intercepts.
 const TARGET_CROSS_SPEED: f32 = 15.0;
 
+/// Closing speed toward an approaching torpedo. Together with the torpedo's
+/// own cruise, this moves more than the old 1 u contact-fuze standoff in one
+/// fixed step. The physical torpedo then touches first and dies as a dud unless
+/// the proximity fuze leaves enough margin for both bodies' motion.
+const TARGET_CLOSE_SPEED: f32 = 60.0;
+
+/// Start the head-on closing beat only on the terminal leg. The target otherwise
+/// stays in its corridor, so repeated shots and the diagnostic trail remain
+/// useful after the first intercept.
+const TARGET_CLOSE_TRIGGER: f32 = 8.0;
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
@@ -104,6 +116,21 @@ fn main() -> bevy::app::AppExit {
         app.add_observer(|_: On<Add, NovaBlast>, mut outcome: ResMut<RangeOutcome>| {
             outcome.detonated = true;
         });
+        app.add_observer(
+            |collision: On<CollisionStart>,
+             q_torpedo: Query<(), With<TorpedoProjectileMarker>>,
+             q_crosser: Query<(), With<RangeCrosser>>,
+             mut outcome: ResMut<RangeOutcome>| {
+                let bodies = collision.body1.zip(collision.body2);
+                let torpedo_hit_crosser = bodies.is_some_and(|(a, b)| {
+                    (q_torpedo.contains(a) && q_crosser.contains(b))
+                        || (q_torpedo.contains(b) && q_crosser.contains(a))
+                });
+                if torpedo_hit_crosser {
+                    outcome.contact_duds += 1;
+                }
+            },
+        );
         app.add_observer(
             |damage: On<HealthApplyDamage>,
              q_gate: Query<(), With<RangeGateMarker>>,
@@ -140,6 +167,7 @@ struct RangeOutcome {
     armed: bool,
     detonated: bool,
     gate_damaged: bool,
+    contact_duds: usize,
 }
 
 /// Every transient alive at the instant the range switch was ordered - torpedoes
@@ -430,12 +458,20 @@ fn drive_moving_gate(
     }
 }
 
-/// Drive the crossing target across at a CONSTANT lateral velocity - the case PN
-/// should solve exactly by leading it, which is why this scene does not reuse
-/// the gate scene's sinusoidal drift.
-fn drive_crosser(mut q_target: Query<&mut LinearVelocity, With<RangeCrosser>>) {
-    for mut velocity in &mut q_target {
-        velocity.0 = Vec3::new(TARGET_CROSS_SPEED, 0.0, 0.0);
+/// Drive the target laterally, then make it close head-on during each torpedo's
+/// terminal leg. The lateral component requires a lead; the closing component
+/// reproduces the live-fight case where physics contact beats an almost-contact
+/// proximity fuze.
+fn drive_crosser(
+    mut q_target: Query<(&Transform, &mut LinearVelocity), With<RangeCrosser>>,
+    q_torpedoes: Query<&Transform, With<TorpedoProjectileMarker>>,
+) {
+    for (target, mut velocity) in &mut q_target {
+        let terminal = q_torpedoes
+            .iter()
+            .any(|torpedo| torpedo.translation.distance(target.translation) < TARGET_CLOSE_TRIGGER);
+        let closing = if terminal { TARGET_CLOSE_SPEED } else { 0.0 };
+        velocity.0 = Vec3::new(TARGET_CROSS_SPEED, 0.0, closing);
     }
 }
 
@@ -1193,6 +1229,13 @@ fn assert_launch_chain(world: &mut World, round: &str) {
         outcome.gate_damaged,
         "range ({round}): no gate took blast damage in the window"
     );
+    if round == CROSSING_ROUND {
+        assert_eq!(
+            outcome.contact_duds, 0,
+            "range ({round}): {} torpedo(s) hit the sole target and died before detonating",
+            outcome.contact_duds
+        );
+    }
     info!("range: {round} - fired -> armed -> detonated -> gate damaged, all observed");
     let elapsed = world.resource::<Time>().elapsed_secs();
     let beat = serde_json::json!({ "t": elapsed, "round": round });
@@ -1201,10 +1244,16 @@ fn assert_launch_chain(world: &mut World, round: &str) {
     nova_probe::probe_marker(world, "outcome: torpedo detonated", beat.clone());
     nova_probe::probe_marker(world, "outcome: gate damaged", beat);
     if round == CROSSING_ROUND {
+        let crossing = serde_json::json!({ "t": elapsed });
+        nova_probe::probe_marker(
+            world,
+            "outcome: torpedoes detonate before contact",
+            crossing.clone(),
+        );
         nova_probe::probe_marker(
             world,
             "outcome: launch chain holds in the crossing scene",
-            serde_json::json!({ "t": elapsed }),
+            crossing,
         );
     }
 }

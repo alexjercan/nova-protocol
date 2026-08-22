@@ -17,9 +17,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Combat & Weapons
 
-- **(breaking)** Torpedoes fuze on CONTACT, against the closest point of the
-  body they lock, not half a blast radius from its centre of mass: full rated
-  pressure, and the crater lands on the hull.
+- **(breaking)** Torpedoes fuze 3 u from the locked body's nearest skin, not half
+  a blast radius from its centre: near-full pressure, hull-side craters, and no
+  contact duds.
 - Rock is its own material, ten times softer than cladding: a radius-3 asteroid
   takes 2.4 minutes of held PDC fire instead of 24, and a torpedo bowls out every
   shipped rock size instead of nothing.

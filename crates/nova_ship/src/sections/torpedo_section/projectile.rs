@@ -62,18 +62,18 @@ pub(super) fn update_torpedo_arming(
     }
 }
 
-/// How close to a target's SKIN a torpedo has to be before the warhead fires.
+/// How close the torpedo root gets to its target's SKIN before the warhead fires.
 ///
-/// Almost touching, and that is the whole point. The fuze used to be half the
-/// blast radius measured to the target's CENTRE OF MASS, which had three
-/// consequences and no upside: a torpedo always stood off exactly half a blast
-/// radius, so it always delivered exactly half its rated pressure; against a
-/// rock the crater was cut in vacuum beside the surface, because a rock's centre
-/// is buried under twelve units of solid; and nothing in the game had a contact
-/// fuze at all. Fired against the nearest point of the body instead, a warhead
-/// delivers close to what it is rated for and its crater lands where the hull or
-/// the rock actually is.
-const CONTACT_FUZE: f32 = 1.0;
+/// Three units is still a near-contact burst and delivers 90% of a standard
+/// 30-unit warhead's rated pressure at the skin. It also leaves room for the
+/// torpedo's own two-unit body and for both bodies to close during the fixed
+/// physics step before this render-clock fuze runs again. At one unit, physical
+/// contact sometimes destroyed the torpedo first, producing a dud on the hull.
+///
+/// This is measured to the nearest point on the target, not its centre. The old
+/// centre-based half-blast-radius fuze delivered only half pressure and cut rock
+/// craters in vacuum beside large targets.
+const CONTACT_FUZE: f32 = 3.0;
 
 /// How near a torpedo has to get before it fires, given how far it moves in
 /// `dt`.
