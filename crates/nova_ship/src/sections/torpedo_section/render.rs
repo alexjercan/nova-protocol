@@ -342,10 +342,10 @@ pub(super) fn animate_blast_radius_visual(
 
 /// The generated blast burst, held so it is built ONCE.
 ///
-/// It used to be built per detonation: an `EffectAsset::new(32768, ..)` plus a
-/// whole `ExprWriter` graph, every time a warhead went off. hanabi keys its
-/// shader cache on the generated WGSL so nothing recompiled, but a salvo still
-/// minted a 32k-particle buffer per blast and held several at once.
+/// A detonation must not author its own: the graph is identical every time -
+/// hanabi keys its shader cache on the generated WGSL, so a per-blast asset
+/// recompiles nothing and buys nothing, while a salvo pays a whole `ExprWriter`
+/// build and a fresh [`BLAST_CAPACITY`] buffer per warhead.
 ///
 /// Lazy rather than [`FromWorld`], so an app that never detonates anything -
 /// and one running at a graphics tier with particles off - builds nothing.
@@ -366,6 +366,16 @@ impl DefaultBlastEffect {
         self.0.is_some()
     }
 }
+
+/// Particle capacity of the built-in blast, which is a per-INSTANCE GPU buffer:
+/// the [`EffectAsset`] is shared, one allocation per detonation is not.
+///
+/// DERIVED, not picked. The burst emits once on start and is never `reset`, so
+/// an instance holds exactly the 400 particles it was spawned with. This is the
+/// next power of two above that.
+///
+/// An authored `blast_effect` brings its own capacity and ignores this.
+const BLAST_CAPACITY: u32 = 512;
 
 /// The generated blast burst, built once and shared by every detonation.
 ///
@@ -428,7 +438,7 @@ fn build_default_blast_effect() -> EffectAsset {
     let velocity = dir * speed;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
-    EffectAsset::new(32768, spawner, writer.finish())
+    EffectAsset::new(BLAST_CAPACITY, spawner, writer.finish())
         .with_name("spawn_on_blast_explosion")
         .init(init_pos)
         .init(init_vel)
@@ -495,6 +505,18 @@ pub(super) fn insert_particle_effect(
         TempEntity(2.0),
     ),));
 }
+
+/// Particle capacity of the built-in launch puff, a per-INSTANCE GPU buffer
+/// held by every bay spawner in the scene.
+///
+/// DERIVED, not picked. The puff bursts 80 particles per launch and a particle
+/// lives at most 0.35 s, so a bay holds `80 x fire_rate x 0.35` at once - 28 at
+/// the 1 round a second every shipped bay fires at. Sized well above that
+/// because the burst is `reset`-driven and a mod may author a faster bay: this
+/// covers 18 launches a second before a particle is dropped.
+///
+/// An authored `launch_effect` brings its own capacity and ignores this.
+const LAUNCH_PUFF_CAPACITY: u32 = 512;
 
 /// Build the launch particle burst on the bay spawner when the spawner entity is
 /// added. Mirrors the turret's `insert_turret_barrel_muzzle_effect`: a
@@ -592,7 +614,7 @@ pub(super) fn insert_torpedo_spawner_effect(
             let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
             effects.add(
-                EffectAsset::new(32768, spawner, writer.finish())
+                EffectAsset::new(LAUNCH_PUFF_CAPACITY, spawner, writer.finish())
                     .with_name("torpedo_launch_burst")
                     .init(init_pos)
                     .init(init_vel)
