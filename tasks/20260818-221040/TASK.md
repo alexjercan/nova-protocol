@@ -217,3 +217,88 @@ hull construction (load-only in shipped content).
   `20260819-173219/NOTES.md`.
 - `sample_scenario_queries` is NOT ungated: it carries
   `run_if(scenario_reads_an_entity_query)` and no shipped scenario reads one.
+
+## MEASURED 2026-08-22: item 1 does not exist in shipped content
+
+`probe scenario`, real GPU, two traced runs, 14 per-ship samples, cross-checked
+against inter-frame gaps in an untraced fps pass.
+
+### The 20.77 ms was never a shipped cost
+
+**`spawn_ship_skin` is a no-op for every shipped ship.** `ShipHull::skin` is
+`false` by default and no shipped ship sets it: `objects/ship.rs` documents it
+("off for every shipped ship"), `base_content/ships/mod.rs` does it ("Every
+shipped ship takes the engine's collapse threshold and goes unclad"), and
+`grep -r "skin: true" assets/` returns NOTHING. Verified independently.
+
+Measured: **267 calls, 1.711 ms TOTAL, mean 6.4 microseconds.**
+
+The 20.77 ms came from `wfc_arena`, the ONLY clad subject in the tree
+(`examples/playable/wfc_arena.rs:25`). Ranking a shipped-content fix against it
+would have been the sixth time this epic ranked against a cost that was not
+where it was believed to be - and the first time the cost was never there at all.
+
+### What a mid-mission ship spawn actually costs
+
+| | measured |
+|---|---|
+| atomic apply per ship | 0.56-1.75 ms (mean 0.81 / 1.11 across two runs) |
+| worst gameplay main-app frame | 13.38 / 16.81 ms |
+| unmodified `lifeline` after wave 1 | 25.3 and 27.2 ms against p50 20.7 |
+
+**The apply is already inside `SPAWN_DRAIN_BUDGET`** and has no hot spot: it is
+~2,500 sub-40-microsecond observer calls per ship (avian collider-tree inserts,
+parent validation, Nova section observers) plus ~41 child archetype moves.
+**Nothing here justifies touching the atomicity invariant**, and the two fixes
+considered - bake at load, derive off-thread - both have nothing to move. The
+apply's output IS entities in the live world.
+
+`lifeline`'s "7 ships" also never land together: 2+3+2 across three waves, each
+gated on the previous wave being destroyed. At most 3 at once, minutes apart in
+a real playthrough. The measurement needed those kill gates stripped.
+
+### Item 1 is CLOSED - not fixed, void
+
+### Items 2 and 3 are CLOSED, confirmed in this tree
+
+Both blast and muzzle `EffectAsset`s now come from shared `DefaultBlastEffect` /
+`DefaultMuzzleEffect` resources. Landed by `abde8723`.
+
+### What the audit found instead
+
+1. **hanabi `allocate_effects`, 1.15-1.93 ms per spawn wave.** Each raider adds
+   two muzzle `ParticleEffect` instances and each allocates a **32,768-particle
+   GPU buffer** for a muzzle flash. The `EffectAsset` is shared; the per-instance
+   buffer is not. On the RENDER thread, not the main one, so it is not the
+   stutter this task hunts - but the capacity is absurd for the effect and the
+   per-ship cost RISES with fleet size (1.15 -> 1.79 -> 1.89), which suggests it
+   re-walks existing effects. The capacity is the lever, not a hanabi API change.
+2. **Section glTFs are demand-loaded by the first ship that uses them**, not at
+   boot. `final_tally` spawns a `cargob` mid-mission with no cargob at OnStart,
+   and `menu_duel` spawns both hulls on `OnTimerEnd` - both hit a cold glb. All
+   90 glb loads together are 20.22 ms on IO threads, so this is POP-IN LATENCY,
+   not frame time. Preloading every hull a scenario's spawn actions name is cheap
+   and is the one true bake-at-load item this task set out to find.
+3. **`insert_velocity_hud_sphere_system` runs TWICE at player spawn, 4.60 + 3.44
+   = 8.0 ms.** It is an `On<Add, VelocityHudMarker>` observer that builds a
+   subdivision-6 octahedron (32,768 triangles) and a fresh material per
+   invocation, with no cache. Under the loading panel, so latency not stutter.
+   The "built once, not per entity" pattern this release already applied
+   elsewhere.
+4. **Asteroid spawns cost 10-19 ms each in the BUILD CLOSURE, not the apply**
+   (`pristine_rock_mesh` + convex hull, `asteroid.rs:151`), 257 ms over 28
+   commands. The budget check does not see build-closure time. Under the panel,
+   which holds on `scenario_has_settled`.
+
+### Instrument note
+
+`profile.rs`'s module doc claims an observer never gets a span of its own. In
+Bevy 0.19 observers DO get `system:` spans - that is how the apply was attributed.
+The doc is stale.
+
+### Not verified
+
+`final_tally`'s cold-`cargob` spawn was never run; the cold-hull claim is from
+content inspection. Per-ship avian and render-extract costs are not separable -
+`Render/submit+present` carries 21 ms of Xvfb `present_frames` and swamps them.
+All numbers are dev profile.
