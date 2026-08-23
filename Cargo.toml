@@ -549,6 +549,22 @@ split-debuginfo = "off"
 opt-level = 3
 
 # Profile for distribution
+#
+# SETTLED - do not re-litigate. This is Bevy's recommended release profile, kept
+# deliberately. `lto = true` is FAT LTO: the whole dependency graph is merged
+# into one module at link time, so the optimizer can inline across crate
+# boundaries, devirtualize, and drop code it can finally prove dead.
+# `codegen-units = 1` serves the same end by handing it fewer, larger units.
+# Bevy is where that pays: the engine is deeply generic and layered, so the hot
+# paths - ECS iteration, system params, math - cross crate boundaries constantly,
+# and inlining those is the whole point.
+#
+# It is bought with build time, and the price is real: about 65 minutes per
+# macOS arch, which is most of the release workflow. That is the trade, made
+# knowingly - a release runs every couple of weeks, and the binary it produces
+# runs on every player's machine. `lto = "thin"` is the lever if that ever stops
+# being worth it, but it would need frame-time evidence against THIS game rather
+# than the general advice, and no such measurement has been made.
 [profile.dist]
 inherits = "release"
 opt-level = 3
