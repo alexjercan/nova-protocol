@@ -100,10 +100,11 @@ jobs:
       # That feature match is the whole point: `debug` flips bevy/track_location,
       # so testing with default features and then running examples with
       # `--features debug` rebuilds Bevy and everything downstream a second
-      # time - the other half of what blew the job timeout. This step also
-      # builds the example binaries (cargo test builds examples), so the probe
-      # step below reuses them as-is. No DISPLAY is set here, and the tests in
-      # this step launch nothing; this is the pure unit/integration gate.
+      # time - the other half of what blew the job timeout. The probe shards no
+      # longer inherit this step's example binaries (they are their own jobs
+      # now) and build their own behind a shared cache. No DISPLAY is set here,
+      # and the tests in this step launch nothing; this is the pure
+      # unit/integration gate.
       - name: Tests
         run: cargo test --workspace --features debug
 
@@ -122,7 +123,13 @@ jobs:
   probe:
     name: probe / ${{ matrix.category }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Sized for a COLD cache, which is the case that bites: the first sharded
+    # run had no `probe-debug` cache to restore, so every shard paid a full
+    # ~20-minute build before running anything, and screenshots (the longest at
+    # 17.7 min of runs) hit 45.7 and was killed by a 45-minute cap. A warm shard
+    # is closer to 20 minutes end to end; this has to cover the cold one, which
+    # recurs whenever Cargo.lock moves or the cache is evicted.
+    timeout-minutes: 75
     strategy:
       # One red shard must not cancel the others - the whole point is to learn
       # about every category from one run.
