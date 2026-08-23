@@ -1,0 +1,6 @@
+interface:
+  display_name: "Content"
+  short_description: "Edit and validate Nova content"
+  default_prompt: "Use $content to change and validate Nova's authored content."
+policy:
+  allow_implicit_invocation: true

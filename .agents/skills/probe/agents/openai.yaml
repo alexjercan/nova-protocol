@@ -1,0 +1,6 @@
+interface:
+  display_name: "Probe"
+  short_description: "Run Nova behavior and performance checks"
+  default_prompt: "Use $probe to add or run a Nova probe and inspect its evidence."
+policy:
+  allow_implicit_invocation: true

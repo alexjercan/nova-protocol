@@ -1,0 +1,6 @@
+interface:
+  display_name: "Docs"
+  short_description: "Keep Nova documentation in sync"
+  default_prompt: "Use $docs to route and update Nova's documentation and changelog."
+policy:
+  allow_implicit_invocation: true

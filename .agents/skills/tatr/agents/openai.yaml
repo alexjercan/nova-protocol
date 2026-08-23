@@ -1,0 +1,6 @@
+interface:
+  display_name: "Tatr"
+  short_description: "Track Nova work in Markdown"
+  default_prompt: "Use $tatr to inspect and update Nova's tracked tasks."
+policy:
+  allow_implicit_invocation: true
