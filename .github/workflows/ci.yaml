@@ -111,10 +111,15 @@ jobs:
       - name: Probe correctness sweep
         env:
           RUST_BACKTRACE: full
-          # Software rendering stretches the longest screenshot walk beyond
-          # the harness's interactive 120s default, but it still fits under
-          # probe's 180s process timeout.
-          NOVA_AUTOPILOT_DEADLINE: 170
+          # Software rendering stretches the longest screenshot walk far past
+          # the harness's interactive 120s default. `screenshot_editor` is that
+          # walk - 76 scripted steps, each paying its own settle - and the
+          # v0.11.0 collider-comparison captures grew it beyond the 170s this
+          # used to hold: it reached its final step at 161s and died nine
+          # seconds short. Both bounds here are HANG detectors, not performance
+          # gates (the job carries its own 60-minute cap), so they are sized to
+          # let the longest healthy walk finish rather than to police it.
+          NOVA_AUTOPILOT_DEADLINE: 280
         # probe is the game binary's `probe` subcommand, which only exists
         # under --features debug. That flag is also what keeps this step on ONE
         # Bevy variant: probe builds each example itself with --features debug,
@@ -122,11 +127,15 @@ jobs:
         # down to bevy/track_location) matches it - default features would flip
         # track_location back off and pay for a second variant inside this
         # step, the cost the Tests step's comment is about. --out keeps run
-        # directories off the checkout.
+        # directories off the checkout. --timeout must stay ABOVE the deadline
+        # above (it defaults to 180): probe kills the child on its own clock, so
+        # a lower one ends the run before the harness can name what it was still
+        # waiting on, turning a diagnosable stall into a bare process kill.
         run: >-
           xvfb-run --auto-servernum
           cargo run --features debug --
-          probe run --all --correctness-only --out "$RUNNER_TEMP/probe-runs"
+          probe run --all --correctness-only --timeout 300
+          --out "$RUNNER_TEMP/probe-runs"
 
       # The reports and logs for whatever the sweep graded, green or not: a
       # failing check is diagnosed from its run.log, which the step output only

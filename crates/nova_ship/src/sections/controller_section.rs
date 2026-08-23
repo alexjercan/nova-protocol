@@ -694,15 +694,38 @@ fn insert_controller_section_render(
         ),
         With<ControllerSectionMarker>,
     >,
+    q_authored: Query<
+        (),
+        (
+            With<ControllerSectionMarker>,
+            With<ControllerSectionRenderMesh>,
+        ),
+    >,
 ) {
     let entity = add.entity;
     trace!("insert_controller_section_render: entity {:?}", entity);
 
     let Ok((render_mesh, render_mesh_transform, has_render)) = q_controller.get(entity) else {
-        error!(
-            "insert_controller_section_render: entity {:?} not found in q_controller",
-            entity
-        );
+        // Carrying the render mesh but not its transform IS the bug this guard
+        // is for: the section renders, silently at identity, losing whatever
+        // the author posed. See `preview_controller_section`.
+        if q_authored.contains(entity) {
+            error!(
+                "insert_controller_section_render: entity {:?} has a render mesh but no \
+                 SectionRenderMeshTransform, so its authored pose would be dropped",
+                entity
+            );
+        } else {
+            // No authored render data at all. `ControllerSectionRenderMesh` is
+            // crate-private, so an outside caller - an example marking a part
+            // it already gave its own art - can only add the marker. Nothing to
+            // build, and nothing wrong.
+            trace!(
+                "insert_controller_section_render: entity {:?} has no authored render data, \
+                 leaving its art alone",
+                entity
+            );
+        }
         return;
     };
 

@@ -41,6 +41,29 @@ in sequence rather than together:
    `base_content::scenarios::catalog` - four carousel backdrops plus the five
    nova_protocol chapters.
 
+4. **Two probe-sweep failures**, reachable only once the tests passed - the last
+   layer of the same onion:
+
+   - `system_section_severing` tripped `log_clean` on one ERROR line:
+     `insert_controller_section_render: entity .. not found in q_controller`.
+     The example marks a part it already gave its own cube art with a bare
+     `ControllerSectionMarker`, and the render observer treated a marker with no
+     authored render data as a bug. It is not one, and it is not even avoidable
+     from outside: `ControllerSectionRenderMesh` is crate-private, so an external
+     caller can ONLY add the bare marker. The guard now fires on the case it was
+     really written for - a render mesh present with its
+     `SectionRenderMeshTransform` missing, which renders silently at identity and
+     drops the authored pose - and stays quiet for a marker-only controller.
+
+   - `screenshot_editor` blew the 170s autopilot deadline, reaching its last of
+     76 steps at 161s and dying nine seconds short. Structural, not a perf
+     regression: the walk grew this cycle with the collider-comparison captures,
+     and every step pays its own settle under lavapipe. Both CI bounds are hang
+     detectors rather than performance gates, so the deadline moves to 280s and
+     probe's supervisor `--timeout` to 300s (it defaults to 180 and must stay
+     above the deadline, or the child dies before the harness can say what it
+     was waiting on).
+
 ## Direction
 
 - Pin the nightly explicitly, in `rust-toolchain.toml` and `flake.nix` together,
