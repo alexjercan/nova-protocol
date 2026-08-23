@@ -75,16 +75,23 @@ pub(super) fn update_torpedo_arming(
 /// craters in vacuum beside large targets.
 const CONTACT_FUZE: f32 = 3.0;
 
-/// How near a torpedo has to get before it fires, given how far it moves in
-/// `dt`.
+/// How near a torpedo has to get before it fires, given how much the gap closes
+/// in `dt`.
 ///
 /// [`CONTACT_FUZE`] on its own is a window a fast closer can step straight over:
 /// a torpedo closing at cruise on a ship running the other way covers several
 /// units in one frame, and one that skipped its own window would fly on with the
 /// warhead still in it. Never smaller than the step about to be taken, so a
 /// torpedo that would pass through the skin fires instead of through it.
-pub(super) fn contact_reach(speed: f32, dt: f32) -> f32 {
-    CONTACT_FUZE.max(speed * dt)
+///
+/// The speed here is the CLOSING speed, not the torpedo's own. They are the same
+/// against a station and nothing alike against a crosser, which is the case this
+/// window exists for - a target driving into the torpedo shuts the gap with its
+/// own velocity, and a window sized on the torpedo alone is the gap it does not
+/// cover. That miss is what a contact dud is: the fuze samples once outside the
+/// window and once already inside the hull.
+pub(super) fn contact_reach(closing_speed: f32, dt: f32) -> f32 {
+    CONTACT_FUZE.max(closing_speed * dt)
 }
 
 /// Distance from `at` to the nearest point on `target`'s own skin, saturating at
@@ -182,6 +189,9 @@ pub(super) fn torpedo_detonate_system(
     >,
     q_body_colliders: Query<&RigidBodyColliders>,
     q_collider: Query<(&Position, &Rotation, &Collider, &ColliderAabb)>,
+    // The target's own motion, for the closing speed the fuze window is sized
+    // on. Read-only and separate from `q_torpedo`, which reads the torpedo's.
+    q_target_motion: Query<&LinearVelocity>,
 ) {
     let dt = time.delta_secs();
     for (
@@ -203,8 +213,16 @@ pub(super) fn torpedo_detonate_system(
         }
 
         let at = torpedo_transform.translation;
-        let speed = velocity.map_or(0.0, |velocity| velocity.length());
-        let contact = contact_reach(speed, dt);
+        // Closing speed, not the torpedo's: a crosser driving into the torpedo
+        // shuts the gap with its own velocity too, and a window sized on the
+        // torpedo alone leaves exactly that much of the step uncovered. Falls
+        // back to the torpedo's own speed when the target has no body to read.
+        let torpedo_velocity = velocity.map_or(Vec3::ZERO, |velocity| velocity.0);
+        let target_velocity = target_entity
+            .and_then(|target| q_target_motion.get(**target).ok())
+            .map_or(Vec3::ZERO, |velocity| velocity.0);
+        let closing_speed = (torpedo_velocity - target_velocity).length();
+        let contact = contact_reach(closing_speed, dt);
         let (distance, reach) = match target_entity.and_then(|target| {
             distance_to_skin(&q_body_colliders, &q_collider, **target, at, contact)
         }) {
@@ -494,6 +512,53 @@ mod tests {
     use avian3d::collider_tree::ColliderTrees;
 
     use super::*;
+
+    /// The window has to cover the step the GAP takes, not the step the torpedo
+    /// takes. A crosser driving into the torpedo shuts the distance with its own
+    /// velocity, and sizing the window on the torpedo alone leaves that share
+    /// uncovered - the fuze then samples once outside the window and once
+    /// already inside the hull, which is what the range counts as a contact dud.
+    #[test]
+    fn the_fuze_window_covers_a_crossing_target_closing_faster_than_the_torpedo() {
+        let dt = 1.0 / 60.0;
+        // Both readings have to clear the CONTACT_FUZE floor, or the floor is
+        // what the comparison measures instead of the travel.
+        let torpedo_speed = 300.0;
+        // Head-on: the target adds its own 120 u/s to the closing rate.
+        let closing = torpedo_speed + 120.0;
+
+        let torpedo_only = contact_reach(torpedo_speed, dt);
+        let with_crosser = contact_reach(closing, dt);
+
+        assert!(
+            with_crosser > torpedo_only,
+            "the closing window must be wider than the torpedo-only one \
+             ({with_crosser} vs {torpedo_only})"
+        );
+        assert!(
+            with_crosser >= closing * dt,
+            "the window must cover the whole distance the gap closes in one step \
+             ({with_crosser} < {})",
+            closing * dt
+        );
+        // The gap the old torpedo-only window left open is exactly the target's
+        // share of the step - the distance a crosser could cross unsampled.
+        assert!(
+            (with_crosser - torpedo_only - 120.0 * dt).abs() < 1e-4,
+            "the miss is the target's own travel over the step"
+        );
+    }
+
+    /// Against something that is not moving the two readings agree, so the
+    /// closing form is a strict widening rather than a different fuze.
+    #[test]
+    fn the_fuze_window_is_unchanged_against_a_stationary_target() {
+        let dt = 1.0 / 60.0;
+        assert_eq!(contact_reach(90.0, dt), contact_reach(90.0 - 0.0, dt));
+        // Slow enough that the floor governs, which is the standoff the fuze is
+        // authored for.
+        assert_eq!(contact_reach(10.0, dt), CONTACT_FUZE);
+    }
 
     #[test]
     fn unarmed_torpedo_does_not_detonate_on_target() {
