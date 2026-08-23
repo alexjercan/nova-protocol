@@ -1292,8 +1292,23 @@ mod tests {
         );
         // And it still arrives: inside the proximity fuze of a target that
         // never moved, which is the trap the terminal fade exists to avoid.
+        //
+        // The rig's target carries no section colliders, so the fuze takes its
+        // fallback arm - centre distance against half the blast radius, 15 u -
+        // and `closest` is the last position SAMPLED before the fuze despawns
+        // the torpedo. Landing just outside 15 is therefore the arrival, not a
+        // miss: the sample either side of the threshold is one step apart. The
+        // straight arm has always read 15.17 here for that reason, and only the
+        // weaving arm was ever asserted. It read 14.92 while the fuze ran on the
+        // render clock and fired a frame late, deeper in than it should have;
+        // now that it is sampled on the clock that moves the torpedo, both arms
+        // fuze at the threshold and read just over it.
+        //
+        // A torpedo that genuinely fails to arrive - the trap - orbits at its
+        // turn radius and reads far wider than one step, so this still catches
+        // it.
         assert!(
-            weaving.closest < 15.0,
+            weaving.closest < 16.0,
             "a weaving torpedo must still reach the fuze of a stationary target, \
              closest was {:.1} u",
             weaving.closest

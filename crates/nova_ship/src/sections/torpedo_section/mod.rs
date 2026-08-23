@@ -682,15 +682,34 @@ impl Plugin for TorpedoSectionPlugin {
 
         // NOTE: the launch chain runs on the FIXED clock - the spawn writes
         // physics state (a new body with position + velocity), so its pose
-        // sampling and its fire timing must tick with physics. Everything below
-        // it stays on the render clock deliberately - guidance, steering
-        // sync and thrust levels are control INPUTS (consumed by the
-        // FixedUpdate PD/impulse systems on their own clock), and the
-        // fuze/arming reads are gameplay thresholds, not force writers.
+        // sampling and its fire timing must tick with physics. Guidance,
+        // steering sync and thrust levels stay on the render clock deliberately:
+        // they are control INPUTS, consumed by the FixedUpdate PD/impulse
+        // systems on their own clock.
         app.add_systems(
             FixedUpdate,
             (update_spawner_fire_state, shoot_spawn_projectile)
                 .chain()
+                .in_set(super::SpaceshipSectionSystems),
+        );
+        // The FUZE is not a control input, and that is why it is not up there
+        // with them. It is a spatial test against a body physics is moving, so
+        // it has to be SAMPLED on the clock that moves it: FixedUpdate runs
+        // before Update in a frame, so a render-clock fuze looks once per
+        // rendered frame at a torpedo that took several physics steps since the
+        // last look. It can cross the whole standoff inside that gap - contact
+        // first, fuze afterwards, which is a contact dud and is what the
+        // crossing range caught on a software rasterizer. Widening the window
+        // cannot fix a window nothing samples.
+        //
+        // AFTER `PhysicsSystems::Last`, like `advance_rounds`, so the test
+        // resolves against a world that has finished moving. Reading the fixed
+        // clock also makes the swept term in `contact_reach` a constant instead
+        // of whatever the frame rate happened to be.
+        app.add_systems(
+            FixedPostUpdate,
+            torpedo_detonate_system
+                .after(PhysicsSystems::Last)
                 .in_set(super::SpaceshipSectionSystems),
         );
         // Scripted launches: the trigger hold feeds the FixedUpdate spawn
@@ -705,7 +724,6 @@ impl Plugin for TorpedoSectionPlugin {
                 despawn_shot_down_torpedoes,
                 update_target_position,
                 update_torpedo_arming,
-                torpedo_detonate_system,
                 torpedo_pn_guidance,
                 // Strictly AFTER guidance and BEFORE the sync: the weave is a
                 // perturbation of the guidance solution, so it needs the
