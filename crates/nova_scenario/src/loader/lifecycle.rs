@@ -28,6 +28,14 @@ pub(crate) fn configure_scenario_gating(app: &mut App) {
         FixedUpdate,
         (SpaceshipInputSystems, SpaceshipSectionSystems).run_if(scenario_is_live),
     );
+    // FixedPostUpdate carries the torpedo fuze, which sits after avian's step
+    // because it is a spatial test against a body physics has just moved. It
+    // needs the same gate as the rest: without this the fuze would be the one
+    // section system that keeps running with no scenario live.
+    app.configure_sets(
+        FixedPostUpdate,
+        SpaceshipSectionSystems.run_if(scenario_is_live),
+    );
     // NOTE: deliberately NOT gated: the PostUpdate instance of
     // SpaceshipSectionSystems (the turret aim chain). It was never gated by
     // the old editor-state gate either (parity), and it is read-only pose
@@ -675,7 +683,12 @@ mod tests {
         settle(&mut app);
 
         // An armed torpedo sitting on its target: the production fuze detonates
-        // it this frame and spawns the blast.
+        // it and spawns the blast.
+        //
+        // `settle` rather than one update, because the fuze is sampled on the
+        // FIXED clock - it is a spatial test against a body physics moves, so it
+        // has to tick with physics - and one `app.update()` need not carry the
+        // manual clock as far as a fixed step.
         let firing_ship = app.world_mut().spawn_empty().id();
         app.world_mut().spawn((
             TorpedoProjectileMarker,
@@ -689,7 +702,7 @@ mod tests {
             TorpedoSectionPartOf(firing_ship),
             TempEntity(6.0),
         ));
-        app.update();
+        settle(&mut app);
 
         let mut q_blast = app.world_mut().query_filtered::<Entity, With<NovaBlast>>();
         let blast = q_blast
