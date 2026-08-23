@@ -1,0 +1,66 @@
+[preferences.tracking]
+name = "tatr"
+guidance = """
+Use Tatr only when the user requests tracked work. Keep one task for one request
+and its follow-up work. Keep proof-bearing decisions, notes, review, and
+verification evidence with the task under tasks/.
+"""
+
+[preferences.workspace]
+name = "sprout"
+guidance = """
+Use a Sprout workspace for project implementation. Keep the main checkout on
+master, preserve unrelated user changes, and land the completed Sprout
+explicitly after review and approval.
+"""
+
+[preferences.implementation]
+name = "claude"
+options = { model = "opus-5", thinking = "xhigh" }
+guidance = """
+Use Claude Opus 5 with xhigh thinking for coding work. Follow AGENTS.md and the
+project's existing architecture and conventions. Keep scope focused, inspect
+local sources first, and prefer the cheapest proof that establishes the change.
+"""
+
+[preferences.review]
+name = "independent-then-quick-review"
+options = { model = "opus-5", thinking = "xhigh" }
+guidance = """
+Run an independent read-only Claude Opus 5 reviewer with xhigh thinking against
+the implementation workspace. Review correctness, requirement coverage,
+regressions, maintainability, documentation, and proof quality. Return findings
+to the coding agent and verify corrections, then open Quick Review for user
+approval before delivery.
+"""
+
+[preferences.research]
+name = "claude"
+options = { model = "fable-5", thinking = "xhigh" }
+guidance = """
+Prefer Claude Fable 5 with xhigh thinking for research and creative exploration:
+searching for assets, comparing references, building reports, designing HTML
+artifacts, making visual studies, and creating disposable proofs of concept.
+Inspect project sources before external research. Keep factual claims sourced,
+label taste and speculation, preserve useful artifacts with the owning task or
+at the user-requested destination, and hand settled implementation requirements
+to the Opus coding agent.
+"""
+
+[preferences.verification]
+name = "focused"
+guidance = """
+Run only affected checks unless the user requests broader verification. Run
+Rust and Cargo through nix develop. Use probe ranges for behavior, inspect their
+rendered reports and checks, and open generated or rendered output rather than
+trusting exit status alone.
+"""
+
+[preferences.landing]
+name = "sprout"
+guidance = """
+Land the approved Sprout with the guarded Sprout landing operation. Commit
+self-contained changes with explicit paths and no AI attribution. Never infer
+landing from worker completion or review alone, and never push, tag, publish,
+or cut a release without an explicit user request.
+"""
