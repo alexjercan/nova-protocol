@@ -109,6 +109,10 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
+        // Latched every frame, so the whole-fleet beats can ask what assembled
+        // rather than what has survived being shot at since.
+        app.init_resource::<FleetPeak>();
+        app.add_systems(Update, record_fleet_peak);
         // The picture is taken at the range's PEAK. `nova_screenshot`
         // appends its beat to whatever it is handed, and the beats after
         // this call drain and tear the range down - a shot behind them
@@ -267,6 +271,34 @@ fn fleet_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
     }
 }
 
+/// The most of each the sky has held since the last teardown.
+///
+/// The whole-fleet claim is about what ASSEMBLED, and a live count cannot say
+/// that here: these hulls are mutually hostile and armed, they acquire across
+/// the shell the moment they are up (which is what
+/// [`assert_the_fleet_acquired`] goes on to require), and they start taking each
+/// other apart. Reading the count a frame after the fleet completes races the
+/// first kill - a race this range lost on CI, one section down out of a
+/// thousand, while passing on a faster machine that got its look in first.
+///
+/// Latching the high-water mark separates the two claims: this one is that every
+/// authored hull and section arrived, and attrition afterwards is the range
+/// working as intended rather than a spawn that came up short.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default, Clone, Copy)]
+struct FleetPeak(usize, usize, usize);
+
+/// Latch the high-water counts. Exclusive because [`fleet_counts`] walks every
+/// entity; it is the same walk the predicates already do each frame.
+#[cfg(feature = "debug")]
+fn record_fleet_peak(world: &mut World) {
+    let (sections, ships, turrets) = fleet_counts(world);
+    let mut peak = world.resource_mut::<FleetPeak>();
+    peak.0 = peak.0.max(sections);
+    peak.1 = peak.1.max(ships);
+    peak.2 = peak.2.max(turrets);
+}
+
 /// Live sections, ship roots and turrets - the shape of the sky, counted the
 /// same way before and after the churn.
 #[cfg(feature = "debug")]
@@ -300,10 +332,13 @@ fn the_sky_is_empty() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pred
     std::sync::Arc::new(|world: &World| fleet_counts(world) == (0, 0, 0))
 }
 
-/// The fleet is EXACTLY what it was authored as.
+/// The fleet ASSEMBLED to exactly what it was authored as. Read off
+/// [`FleetPeak`], not the live count, so the fleet shooting at itself cannot
+/// turn a whole assembly into a failure.
 #[cfg(feature = "debug")]
 fn assert_the_fleet_is_whole(world: &mut World) {
-    let counts = fleet_counts(world);
+    let FleetPeak(sections, ships, turrets) = *world.resource::<FleetPeak>();
+    let counts = (sections, ships, turrets);
     assert_eq!(
         counts,
         (SECTIONS_IN_THE_SKY, SHIPS_IN_THE_SKY, SHIPS_IN_THE_SKY),
@@ -356,7 +391,11 @@ fn assert_the_fleet_acquired(world: &mut World) {
 /// The churn claim: the sky came back to exactly the shape it had before.
 #[cfg(feature = "debug")]
 fn assert_the_fleet_came_back(world: &mut World) {
-    let counts = fleet_counts(world);
+    // The peak was zeroed by the teardown, so this reads the SECOND assembly
+    // rather than the memory of the first - and, like the first, it survives the
+    // fleet reopening fire while the count is being taken.
+    let FleetPeak(sections, ships, turrets) = *world.resource::<FleetPeak>();
+    let counts = (sections, ships, turrets);
     assert_eq!(
         counts,
         (SECTIONS_IN_THE_SKY, SHIPS_IN_THE_SKY, SHIPS_IN_THE_SKY),
@@ -377,6 +416,9 @@ fn assert_the_fleet_came_back(world: &mut World) {
 fn tear_the_fleet_down(world: &mut World) {
     nova_probe::probe_marker(world, "stress: teardown", serde_json::json!({}));
     world.trigger(UnloadScenario);
+    // Zero the high-water mark with the fleet it measured, or the churn's own
+    // assembly would be judged on the first one's numbers and could not fail.
+    *world.resource_mut::<FleetPeak>() = FleetPeak::default();
 }
 
 /// Build the fleet again, mid-script.

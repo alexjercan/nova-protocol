@@ -1110,6 +1110,29 @@ fn count_plates(world: &mut World) -> usize {
     q.iter(world).count()
 }
 
+/// How long a placement gesture gets to show up before the run gives up on it.
+///
+/// Generous on purpose: this is the difference between a slow machine and a
+/// broken editor, and only the second one should fail. A healthy run satisfies
+/// it on the frame it is entered.
+#[cfg(feature = "debug")]
+const PLACE_DEADLINE_SECS: f32 = 15.0;
+
+/// The gesture put exactly one new section on the ship, measured against the
+/// count [`stamp_sections`] took before it.
+///
+/// `&World` rather than the `&mut World` [`count_sections`] wants, because a
+/// predicate only ever reads.
+#[cfg(feature = "debug")]
+fn the_socket_filled() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let want = world.resource::<EditorProbe>().sections + 1;
+        world
+            .try_query_filtered::<(), With<SectionMarker>>()
+            .is_some_and(|mut sections| sections.iter(world).count() == want)
+    })
+}
+
 /// Record the live section count, so the beat after the next gesture can say
 /// what that gesture changed.
 #[cfg(feature = "debug")]
@@ -1206,18 +1229,17 @@ impl PlaceOnTheFace for nova_protocol::nova_debug::harness::AutopilotPlugin<Game
             .on_enter(release_mouse(MouseButton::Left))
             .until(frames(SETTLE))
             .add()
+            // WAIT for the section rather than reading the count a fixed number
+            // of frames after the release. The gesture is delivered through the
+            // real picking pipeline, and how many frames that takes to land is a
+            // property of the MACHINE: on a software rasterizer this beat read
+            // the count before the placement had happened and failed with the
+            // socket still empty. An unmet `until` aborts the run naming this
+            // step, so a gesture that genuinely builds nothing still fails, and
+            // fails saying which beat did it.
             .step(format!("{label}: it built"))
-            .on_enter(move |world: &mut World| {
-                let before = world.resource::<EditorProbe>().sections;
-                let now = count_sections(world);
-                assert_eq!(
-                    now,
-                    before + 1,
-                    "the beat aimed at {socket:?} built nothing, so the shape \
-                     the next beat needs is not there"
-                );
-            })
-            .until(frames(1))
+            .until(the_socket_filled())
+            .deadline(PLACE_DEADLINE_SECS)
             .add()
     }
 }
