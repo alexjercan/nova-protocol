@@ -32,43 +32,79 @@ jobs:
     outputs:
       version: ${{ inputs.version || steps.tag.outputs.tag }}
 
-  build-macOS:
+  # The two halves of the universal binary, built CONCURRENTLY. They used to be
+  # two steps of one job, which made macOS the whole release's critical path:
+  # 65.2 min for Apple Silicon plus 51.5 min for x86 was a 120.4-minute job
+  # (v0.10.0, run 31733347497) while Linux finished in 21.6. Nothing links the
+  # two builds - `lipo` just needs both files - so they are a matrix now and the
+  # job below joins them. Costs one extra runner and no extra build time; this
+  # repository is public, so its GitHub-hosted minutes are free.
+  #
+  # Note the cost is the `dist` profile, not the platform: fat `lto = true` with
+  # `codegen-units = 1`. Cheapening it would cut every platform at once, but it
+  # changes the SHIPPED binary, so that is a separate call from this one.
+  build-macOS-binary:
+    name: build-macOS (${{ matrix.target }})
     runs-on: macos-latest
     needs: get-version
+    strategy:
+      # One failed arch should still let the other finish, so a re-run only
+      # needs the half that broke.
+      fail-fast: false
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
     env:
       # macOS 11.0 Big Sur is the first version to support universal binaries
       MACOSX_DEPLOYMENT_TARGET: 11.0
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      # build.rs only embeds the Windows icon; dropping it here skips building
+      # embed-resource for a target that never uses it.
+      - name: Remove build script
+        run: |
+          rm build.rs
+      # rust-toolchain.toml pins a dated nightly and OVERRIDES whatever else is
+      # installed, so the release binaries have always been built with it - the
+      # old `dtolnay/rust-toolchain@master with: toolchain: stable` steps
+      # installed a compiler this build then ignored, and the target they
+      # registered went to that unused stable (the x86 cross died with E0463
+      # until a second `rustup target add` fixed it). Resolve the pin, then add
+      # the target to the toolchain that actually compiles.
+      - name: Resolve the pinned toolchain and add the target
+        run: |
+          rustup show active-toolchain
+          rustup target add ${{ matrix.target }}
+      - name: Build release
+        run: |
+          SDKROOT=$(xcrun -sdk macosx --show-sdk-path) cargo build --profile dist --target=${{ matrix.target }}
+      - name: Upload arch binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.target }}
+          path: target/${{ matrix.target }}/dist/${{ env.GAME_EXECUTABLE_NAME }}
+          retention-days: 1
+          if-no-files-found: error
+
+  build-macOS:
+    runs-on: macos-latest
+    needs: [get-version, build-macOS-binary]
+    env:
       VERSION: ${{needs.get-version.outputs.version}}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Remove build script
-        run: |
-          rm build.rs
-      - name: Install rust toolchain for Apple Silicon
-        uses: dtolnay/rust-toolchain@master
+      - name: Download arch binaries
+        uses: actions/download-artifact@v4
         with:
-          toolchain: stable
-          targets: aarch64-apple-darwin
-      - name: Build release for Apple Silicon
-        run: |
-          SDKROOT=$(xcrun -sdk macosx --show-sdk-path) cargo build --profile dist --target=aarch64-apple-darwin
-      - name: Install rust toolchain for Apple x86
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          targets: x86_64-apple-darwin
-      - name: Build release for x86 Apple
-        # The dtolnay step above installs the x86 target for STABLE, but
-        # rust-toolchain.toml pins nightly, which rustup auto-installs with
-        # host (arm64) std only - so the cross build died with E0463 (can't
-        # find crate for core/std). Add the target to the active toolchain.
-        run: |
-          rustup target add x86_64-apple-darwin
-          SDKROOT=$(xcrun -sdk macosx --show-sdk-path) cargo build --profile dist --target=x86_64-apple-darwin
+          pattern: macos-*
+          path: arch
       - name: Create Universal Binary
         run: |
-          lipo -create -output target/dist/${{ env.GAME_EXECUTABLE_NAME }} target/aarch64-apple-darwin/dist/${{ env.GAME_EXECUTABLE_NAME }} target/x86_64-apple-darwin/dist/${{ env.GAME_EXECUTABLE_NAME }}
+          mkdir -p target/dist
+          lipo -create -output target/dist/${{ env.GAME_EXECUTABLE_NAME }} arch/macos-aarch64-apple-darwin/${{ env.GAME_EXECUTABLE_NAME }} arch/macos-x86_64-apple-darwin/${{ env.GAME_EXECUTABLE_NAME }}
+          chmod +x target/dist/${{ env.GAME_EXECUTABLE_NAME }}
+          lipo -info target/dist/${{ env.GAME_EXECUTABLE_NAME }}
       # Generate the third-party dependency-license manifest into credits/ so the
       # copy below bundles it. Not committed (cargo-about output is not stable);
       # regenerated fresh here so it always matches the shipped dependency graph.
@@ -105,10 +141,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
+      # rust-toolchain.toml pins a dated nightly and overrides whatever else is
+      # installed, so this build has always used it - installing stable here
+      # only ever cost a download the build then ignored. Resolve the pin.
+      - name: Resolve the pinned toolchain
+        run: rustup show active-toolchain
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install pkg-config libx11-dev libasound2-dev libudev-dev libwayland-dev
       - name: Build release
@@ -146,10 +183,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
+      # rust-toolchain.toml pins a dated nightly and overrides whatever else is
+      # installed, so this build has always used it - installing stable here
+      # only ever cost a download the build then ignored. Resolve the pin.
+      - name: Resolve the pinned toolchain
+        run: rustup show active-toolchain
       - name: Install dotnet
         if: ${{ env.BUILD_INSTALLER }}
         uses: actions/setup-dotnet@v3
@@ -190,10 +228,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
+      # rust-toolchain.toml pins a dated nightly and overrides whatever else is
+      # installed, so this build has always used it - installing stable here
+      # only ever cost a download the build then ignored. Resolve the pin.
+      - name: Resolve the pinned toolchain
+        run: rustup show active-toolchain
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install pkg-config libx11-dev libasound2-dev libudev-dev libwayland-dev
       - name: Install trunk
