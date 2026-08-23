@@ -40,3 +40,18 @@ Global `~/AGENTS.md` applies. This file defines project-specific instructions.
   history.
 - Run only affected checks. Do not run full workspace tests or Clippy unless
   requested. Inspect rendered and generated output when applicable.
+
+## Changelog
+
+`CHANGELOG.md` points here for these rules; they live nowhere else.
+
+- Use the last RELEASE, not the last commit, as the changelog and documentation
+  baseline.
+- Keep one entry per released change, at most 200 characters once wrapped lines
+  are joined.
+- Collapse several pre-release revisions of one change into a single final
+  entry. Omit bugs introduced and fixed inside the same release cycle.
+- Group entries by subsystem. Mark format breaks with `**(breaking)**`.
+- Re-read the whole `[Unreleased]` block after editing it more than once.
+- Migration notes apply only to formats that shipped. Remove documentation for
+  behavior that was removed before it ever shipped.

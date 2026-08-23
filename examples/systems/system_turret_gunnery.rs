@@ -296,8 +296,9 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 SpaceshipSectionConfig {
                     id: "turret".to_string(),
                     position: Vec3::new(0.0, 0.0, -0.75),
-                    // Matches the turret placement in the asteroid_field ship so the
-                    // base sits upright.
+                    // The shipped ships mount their turrets unrotated on a face
+                    // that already points up; this one sits on the -Z end, so it
+                    // needs the quarter turn to stand its base upright.
                     rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
                     source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
                     modifications: vec![],
