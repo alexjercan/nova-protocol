@@ -64,6 +64,39 @@ in sequence rather than together:
      above the deadline, or the child dies before the harness can say what it
      was waiting on).
 
+## The job was also out of budget
+
+Found while confirming the fixes, and worse than it looked. The last GREEN run
+(2026-08-13) took 57.6 min against a 60-minute cap - 2.4 minutes of headroom -
+and the probe sweep then DOUBLED over the cycle, 21 -> 42 min, as examples were
+added and got heavier. The 54.9-min run on 2026-08-23 only fit because
+`screenshot_editor` died early and the test cache was warm; the serial worst
+case was 23.5 + 42 + 11 = ~76 min, a guaranteed timeout. It had been surviving
+on luck for ten days, and raising the editor deadline makes the sweep longer
+still.
+
+fmt/clippy/tests, the probe sweep and the autopilot example are independent, so
+they are three jobs now. The sweep shards on `probe run <category>`, which reads
+the example's directory under `examples/` - no hand-kept list, and a new example
+joins its shard by existing. Measured 2026-08-23, 63 examples over 38.3 min of
+run time: screenshots 28/17.7min, systems 25/12.6min, playable 10/8.0min.
+Worst case falls from ~76 min to ~24 min, and `check` becomes the long pole -
+which is why sharding finer than the three real categories buys nothing yet.
+
+Two things worth keeping straight:
+
+- The shard axis is across RUNNERS, never within one. Under lavapipe the render
+  is CPU work, so co-running examples on a single runner would starve each other
+  and can trip the fixed-step clamp spiral - a failure with nothing to do with
+  the code.
+- The matrix names its categories, so a new `examples/<dir>` would silently
+  never run while the sweep still reported green. `check` now compares the
+  directories against the matrix line in the workflow and fails if they diverge.
+
+The pin also broke the toolchain step: it ran `rustup toolchain install nightly`,
+which installs the floating channel that the dated pin then ignores. It resolves
+`rustup show active-toolchain` instead.
+
 ## Direction
 
 - Pin the nightly explicitly, in `rust-toolchain.toml` and `flake.nix` together,
