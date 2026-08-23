@@ -286,17 +286,33 @@ fn fleet_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
 /// working as intended rather than a spawn that came up short.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default, Clone, Copy)]
-struct FleetPeak(usize, usize, usize);
+struct FleetPeak {
+    sections: usize,
+    ships: usize,
+    turrets: usize,
+    /// Hulls holding a hostile at once. Latched for the same reason as the rest:
+    /// a hull whose target was just destroyed reads empty until the next pass
+    /// re-acquires, and with this fleet shooting itself apart that is happening
+    /// constantly. The claim is that the acquisition pass REACHED every hull,
+    /// which the high-water mark is the honest measure of.
+    acquired: usize,
+}
 
 /// Latch the high-water counts. Exclusive because [`fleet_counts`] walks every
 /// entity; it is the same walk the predicates already do each frame.
 #[cfg(feature = "debug")]
 fn record_fleet_peak(world: &mut World) {
     let (sections, ships, turrets) = fleet_counts(world);
+    let acquired = world
+        .try_query_filtered::<&AITarget, With<SpaceshipRootMarker>>()
+        .map_or(0, |mut hulls| {
+            hulls.iter(world).filter(|target| target.is_some()).count()
+        });
     let mut peak = world.resource_mut::<FleetPeak>();
-    peak.0 = peak.0.max(sections);
-    peak.1 = peak.1.max(ships);
-    peak.2 = peak.2.max(turrets);
+    peak.sections = peak.sections.max(sections);
+    peak.ships = peak.ships.max(ships);
+    peak.turrets = peak.turrets.max(turrets);
+    peak.acquired = peak.acquired.max(acquired);
 }
 
 /// Live sections, ship roots and turrets - the shape of the sky, counted the
@@ -337,8 +353,8 @@ fn the_sky_is_empty() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pred
 /// turn a whole assembly into a failure.
 #[cfg(feature = "debug")]
 fn assert_the_fleet_is_whole(world: &mut World) {
-    let FleetPeak(sections, ships, turrets) = *world.resource::<FleetPeak>();
-    let counts = (sections, ships, turrets);
+    let peak = *world.resource::<FleetPeak>();
+    let counts = (peak.sections, peak.ships, peak.turrets);
     assert_eq!(
         counts,
         (SECTIONS_IN_THE_SKY, SHIPS_IN_THE_SKY, SHIPS_IN_THE_SKY),
@@ -365,15 +381,14 @@ fn assert_the_fleet_is_whole(world: &mut World) {
 /// and an honest-looking frame time.
 #[cfg(feature = "debug")]
 fn assert_the_fleet_acquired(world: &mut World) {
-    let mut ships = 0;
-    let mut acquired = 0;
-    let mut query = world.query_filtered::<&AITarget, With<SpaceshipRootMarker>>();
-    for target in query.iter(world) {
-        ships += 1;
-        if target.is_some() {
-            acquired += 1;
-        }
-    }
+    // Off the high-water mark, for the same reason the fleet's own shape is:
+    // this range's sections do come apart as the sky settles - a hundred and
+    // more of them over a run, on a fast backend as well as a slow one - and a
+    // hull whose hostile was one of them reads empty until the next pass finds
+    // it another. A snapshot then scores the churn rather than the scan, and it
+    // is the SCAN this claim is about.
+    let peak = *world.resource::<FleetPeak>();
+    let (ships, acquired) = (peak.ships, peak.acquired);
     assert_eq!(
         (ships, acquired),
         (SHIPS_IN_THE_SKY, SHIPS_IN_THE_SKY),
@@ -394,8 +409,8 @@ fn assert_the_fleet_came_back(world: &mut World) {
     // The peak was zeroed by the teardown, so this reads the SECOND assembly
     // rather than the memory of the first - and, like the first, it survives the
     // fleet reopening fire while the count is being taken.
-    let FleetPeak(sections, ships, turrets) = *world.resource::<FleetPeak>();
-    let counts = (sections, ships, turrets);
+    let peak = *world.resource::<FleetPeak>();
+    let counts = (peak.sections, peak.ships, peak.turrets);
     assert_eq!(
         counts,
         (SECTIONS_IN_THE_SKY, SHIPS_IN_THE_SKY, SHIPS_IN_THE_SKY),
