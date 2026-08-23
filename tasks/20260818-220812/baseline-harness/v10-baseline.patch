@@ -1,0 +1,38 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 7457069a..1281743e 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -124,6 +124,10 @@ path = "examples/ui/menu_scenarios.rs"
+ name = "scene_baseline"
+ path = "examples/stress/scene_baseline.rs"
+ 
++[[example]]
++name = "broadside_baseline"
++path = "examples/stress/broadside_baseline.rs"
++
+ [[example]]
+ name = "many_bodies"
+ path = "examples/stress/many_bodies.rs"
+diff --git a/crates/nova_probe/src/capabilities/frametime.rs b/crates/nova_probe/src/capabilities/frametime.rs
+index a6fcfcd0..34a9306f 100644
+--- a/crates/nova_probe/src/capabilities/frametime.rs
++++ b/crates/nova_probe/src/capabilities/frametime.rs
+@@ -420,7 +420,17 @@ fn perf_force_window(
+     window
+         .resolution
+         .set(config.resolution.0, config.resolution.1);
+-    window.present_mode = PresentMode::AutoNoVsync;
++    // MEASUREMENT-LANE PATCH, never lands: v0.10.0 hardcodes AutoNoVsync while
++    // a later tree reads NOVA_PROBE_PRESENT. On this Xvfb path AutoNoVsync is
++    // presentation-capped, so pinning both trees to `immediate` is what makes
++    // the two sides comparable at all. Mirrors the newer tree's parse exactly.
++    window.present_mode = match perf_param("present").as_deref().map(str::trim) {
++        Some("immediate") => PresentMode::Immediate,
++        Some("mailbox") => PresentMode::Mailbox,
++        Some("fifo") => PresentMode::Fifo,
++        Some("autovsync") => PresentMode::AutoVsync,
++        _ => PresentMode::AutoNoVsync,
++    };
+     window.resizable = false;
+ }
+ 

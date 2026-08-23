@@ -1,0 +1,37 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 09533679..c24d1fe0 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -4507,6 +4507,7 @@ dependencies = [
+  "avian3d",
+  "bevy",
+  "bevy_enhanced_input",
++ "bevy_hanabi",
+  "clap",
+  "embed-resource",
+  "nova_assets",
+diff --git a/Cargo.toml b/Cargo.toml
+index ba5c045a..45843628 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -68,6 +68,10 @@ path = "src/lib.rs"
+ #
+ # Blocks are listed in reading order within each category.
+ # playable/ - the hulls first: a rig you fly and shoot with.
++[[example]]
++name = "broadside_baseline"
++path = "examples/systems/broadside_baseline.rs"
++
+ [[example]]
+ name = "carve_asteroids"
+ path = "examples/playable/carve_asteroids.rs"
+@@ -410,6 +414,9 @@ nova_probe_cli = { path = "crates/nova_probe_cli", optional = true }
+ nova_probe = { path = "crates/nova_probe", optional = true }
+ 
+ [dev-dependencies]
++# MEASUREMENT LANE, never lands: lets the throwaway census count EffectAsset
++# assets. Same version nova_ship already pins, so the lock file does not move.
++bevy_hanabi = { version = "0.19.0", default-features = false, features = ["2d", "3d"] }
+ avian3d = { version = "0.7" }
+ bevy = { version = "0.19.0" }
+ # The stress ranges and the baseline use the frame-time capture harness, and the
