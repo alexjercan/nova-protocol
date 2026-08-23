@@ -1,7 +1,11 @@
 //! loop_round_types: synchronized Kinetic and Pierce rounds cross identical
 //! layered section targets under the production round-travel rules.
 
-use bevy::{color::palettes::tailwind, prelude::*};
+// Only `spawn_comparison_rounds` tints the comparison rounds, and it is
+// script-only.
+#[cfg(feature = "debug")]
+use bevy::color::palettes::tailwind;
+use bevy::prelude::*;
 use clap::Parser;
 use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;

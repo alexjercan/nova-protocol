@@ -18,11 +18,11 @@ pub(super) fn tick_scenario_clock(time: Res<Time>, mut world: ResMut<NovaEventWo
 
 /// Run condition: something in the loaded scenario can READ an entity query.
 ///
-/// [`sample_scenario_queries`] scales with the WORLD and not with the scenario
-/// - it walks every `EntityId` carrying a velocity and allocates two `String`s
-/// per match, every frame, and severing turns each hull section into another
-/// free body. No shipped scenario reads an entity query at all, so ungated it
-/// is dead work in every one of them.
+/// [`sample_scenario_queries`] scales with the WORLD and not with the
+/// scenario - it walks every `EntityId` carrying a velocity and allocates two
+/// `String`s per match, every frame, and severing turns each hull section into
+/// another free body. No shipped scenario reads an entity query at all, so
+/// ungated it is dead work in every one of them.
 fn scenario_reads_an_entity_query(world: Res<NovaEventWorld>) -> bool {
     world.reads_entity_queries()
 }

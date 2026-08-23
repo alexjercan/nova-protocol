@@ -31,6 +31,7 @@ mod kit;
 
 use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
+#[cfg(feature = "debug")]
 use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 

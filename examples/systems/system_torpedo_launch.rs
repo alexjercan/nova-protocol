@@ -236,7 +236,10 @@ struct BestApproach(f32);
 
 /// Suppress steering diagnostics while the release figure records only the two
 /// type-coloured flight paths.
-#[cfg(feature = "debug")]
+///
+/// Ungated: only the capture script ever sets it, but `draw_guidance_gizmos`
+/// reads it and that system is registered unconditionally. It takes the
+/// resource as `Option<Res<_>>`, so a build that never inserts it is fine.
 #[derive(Resource, Default)]
 struct TrailOnly(bool);
 
@@ -1258,7 +1261,9 @@ fn weave_trail_flown() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 /// How much ground a trail covers, end to end. Both types run essentially
 /// straight over this distance, so the end-to-end span is a fair stand-in for
 /// the flown length and costs nothing to take.
-#[cfg(feature = "debug")]
+///
+/// Ungated: `draw_guidance_gizmos` picks the longest trail with it, and that
+/// system is registered unconditionally.
 fn trail_extent(path: &RangeFlightPath) -> f32 {
     match (path.0.first(), path.0.last()) {
         (Some(first), Some(last)) => first.distance(*last),

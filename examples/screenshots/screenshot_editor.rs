@@ -28,6 +28,7 @@ use avian3d::prelude::PhysicsGizmos;
 #[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
+#[cfg(feature = "debug")]
 use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 

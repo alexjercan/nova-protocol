@@ -15,7 +15,10 @@ pub mod prelude {
     pub use super::{nova_census, CensusPlugin, DEFAULT_CENSUS_FRAME};
 }
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cmp::Reverse,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use bevy::{
     asset::UntypedAssetId,
@@ -215,7 +218,7 @@ fn take_census(world: &mut World) -> Census {
         });
     }
     let archetype_count = archetypes.len();
-    archetypes.sort_by(|a, b| b.entities.cmp(&a.entities));
+    archetypes.sort_by_key(|a| Reverse(a.entities));
     archetypes.truncate(ARCHETYPE_ROWS);
 
     let mut components: Vec<ComponentRow> = per_component

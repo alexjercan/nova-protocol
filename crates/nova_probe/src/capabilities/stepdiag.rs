@@ -193,10 +193,6 @@ fn stamp_step(mut stamp: ResMut<StepStamp>) {
 /// The diagnostics resources are `Option`: avian registers them in its
 /// `Plugin::finish`, so an app that wires this plugin without `PhysicsPlugins`
 /// has none of them and must not panic for it.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one system param per CSV column group"
-)]
 fn record_step(
     mut diag: ResMut<StepDiag>,
     mut stamp: ResMut<StepStamp>,

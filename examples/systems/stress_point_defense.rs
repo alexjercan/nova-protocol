@@ -851,10 +851,6 @@ fn trace_the_census(time: Res<Time<Virtual>>, peaks: Res<Peaks>, mut next: Local
 
 /// Census the battery's trigger on the FIXED clock, which is the clock the
 /// rounds are actually spent on.
-#[expect(
-    clippy::type_complexity,
-    reason = "one query term per gate the census reads"
-)]
 #[cfg(feature = "debug")]
 fn track_trigger_duty(
     q_mounts: Query<

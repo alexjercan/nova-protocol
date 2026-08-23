@@ -423,12 +423,6 @@ impl DefaultMuzzleEffect {
             .get_or_insert_with(|| effects.add(build_default_muzzle_effect()))
             .clone()
     }
-
-    /// Whether the effect has been built. Test surface.
-    #[cfg(test)]
-    pub(crate) fn is_built(&self) -> bool {
-        self.0.is_some()
-    }
 }
 
 pub(super) fn insert_turret_barrel_muzzle_effect(

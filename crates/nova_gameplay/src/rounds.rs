@@ -119,8 +119,8 @@ impl Plugin for NovaRoundPlugin {
 /// it, advance its position by that velocity, and resolve what the segment
 /// travelled crossed.
 ///
-/// The two halves are kept separate on purpose. A cast hardcoded from `a` to `a
-/// + v * dt` reads the same today and is a rewrite the day a round feels
+/// The two halves are kept separate on purpose. A cast hardcoded from `a` to
+/// `a + v * dt` reads the same today and is a rewrite the day a round feels
 /// anything but the wells; as written, a new force is a new term above the
 /// sweep.
 ///
@@ -872,9 +872,9 @@ mod tests {
 
     /// Kinetic's identity under real physics: closing speed is DAMAGE. The same
     /// authored 20-point round hits for 30 on a charge, 20 at the anchor and 10
-    /// in a stern chase, and the stern chase is driven by the TARGET's velocity
-    /// - the half of the relative-velocity term a muzzle-speed-only reading
-    /// would miss.
+    /// in a stern chase, and the stern chase is driven by the TARGET's
+    /// velocity - the half of the relative-velocity term a muzzle-speed-only
+    /// reading would miss.
     #[test]
     fn a_kinetic_round_closing_faster_deals_more_damage_per_hit() {
         /// One hit on a plate far too tough to destroy, so the whole drop is the

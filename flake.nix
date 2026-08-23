@@ -24,7 +24,11 @@
         pkgs,
         ...
       }: let
-        rustNightly = pkgs.rust-bin.nightly.latest.default.override {
+        # Pinned to the same nightly as rust-toolchain.toml. `nightly.latest`
+        # floated with the rust-overlay input, so `nix flake update` could move
+        # the devshell off the toolchain CI uses without touching a single
+        # tracked file. Edit both pins together.
+        rustNightly = pkgs.rust-bin.nightly."2026-07-03".default.override {
           extensions = ["rust-src" "clippy" "rustfmt"];
           targets = ["wasm32-unknown-unknown"];
         };

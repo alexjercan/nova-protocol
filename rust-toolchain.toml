@@ -1,4 +1,14 @@
+# Pinned, not floating. `channel = "nightly"` let CI drift onto whatever nightly
+# was current that morning; on 2026-08-22 that broke the build outright, because
+# nightly 1.100.0 changed method resolution and bevy_render 0.19.0 (and 0.19.1)
+# call `.run_if(..)` unqualified where both `IntoScheduleConfigs::run_if` and the
+# preludeed `ObserverSystemExt::run_if` are now applicable candidates (E0034).
+# There is no bevy release that fixes it, so the toolchain is the thing to pin.
+#
+# This date must stay in sync with flake.nix's `rust-bin.nightly."<date>"`. The
+# nix devshell has no rustup, so this file is inert there - the two pins are the
+# same toolchain only because they are edited together.
 [toolchain]
-channel = "nightly"
+channel = "nightly-2026-07-03"
 components = ["rustfmt", "clippy"]
 profile = "default"
