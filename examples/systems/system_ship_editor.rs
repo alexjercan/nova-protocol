@@ -155,14 +155,14 @@ const FLOWN_RANGE: &str = "editor_sandbox";
 /// to raycast the new pointer position and the editor's observers a frame to
 /// react. Generous rather than tight - this runs on a software-rendered CI GPU.
 ///
-/// A FRAME COUNT IS THE WRONG UNIT here, and raising it is NOT the fix - that
-/// was tried. Under `probe run --render sw` the `raise a tower` beat clicks and
-/// builds nothing; at 24 it reached the same beat and built nothing there too,
-/// only slower. So the click is not arriving early, it is arriving somewhere
-/// that does not place, and no number mends that. Left at the value that works
-/// everywhere else rather than inflated to no purpose.
+/// A FRAME COUNT IS STILL THE WRONG UNIT, and raising it fixes nothing - that
+/// was tried, at 24, and the run failed at the same beat only slower. The
+/// `raise a tower` failure it was blamed for was never about time: the run
+/// mounted its turret on a different FACE from one run to the next, so the
+/// coordinates the tower beats name held nothing to build on. That is fixed at
+/// the source in [`placed_sections`], not here.
 ///
-/// The shape that would settle it is waiting on the EDITOR's state - a
+/// The shape that would retire this number is waiting on the EDITOR's state - a
 /// placement solved, a section landed - which needs `nova_editor` to expose one
 /// (`SectionGhost`, `Placement` and `PlacementStatus` are all `pub(crate)`).
 /// Task 20260824-011329.
@@ -954,14 +954,37 @@ const GALLERY_TILE: &str = "Gallery Tile ";
 /// the sandbox spawns target hulks and pickets whose sections carry the same
 /// marker - and the derivation demands ONE connected structure, so a
 /// world-wide sweep out there hands it several ships at once and is rejected.
+///
+/// Sorted by POSE, not left in query order. A ship is a set of sections and
+/// nothing about it says which comes first, so the ECS answers in whatever order
+/// its archetypes happen to hold - an order that changes between runs of the
+/// same binary. Every caller that then picks ONE section out of this list would
+/// inherit that coin flip, and [`aim_at_a_visible_face`] did: the run mounted its
+/// turret on a different face from one run to the next, and the beats downstream
+/// that name a face by its coordinates found nothing there. Sorting here is what
+/// makes the ship the run builds the SAME ship every time.
 #[cfg(feature = "debug")]
 fn placed_sections(world: &mut World, root: Option<Entity>) -> Vec<(Transform, SectionLinkPoints)> {
-    world
+    let mut sections: Vec<_> = world
         .query_filtered::<(&Transform, &SectionLinkPoints, &ChildOf), With<SectionMarker>>()
         .iter(world)
         .filter(|(_, _, ChildOf(parent))| root.is_none_or(|root| *parent == root))
         .map(|(transform, points, _)| (*transform, points.clone()))
-        .collect()
+        .collect();
+    sections.sort_by(|(a, _), (b, _)| by_pose(a.translation, b.translation));
+    sections
+}
+
+/// A total order on positions, for sorts and for breaking ties that would
+/// otherwise fall back to query order.
+///
+/// `total_cmp` rather than `partial_cmp`: a NaN coordinate must still order
+/// somewhere rather than silently collapse two sections into "equal".
+#[cfg(feature = "debug")]
+fn by_pose(a: Vec3, b: Vec3) -> std::cmp::Ordering {
+    a.x.total_cmp(&b.x)
+        .then_with(|| a.y.total_cmp(&b.y))
+        .then_with(|| a.z.total_cmp(&b.z))
 }
 
 /// The flown player ship's root.
@@ -1046,6 +1069,10 @@ fn aim_at_a_visible_face(world: &mut World) -> Option<(Vec2, Vec2)> {
                 .distance_squared(eye)
                 .partial_cmp(&b.translation.distance_squared(eye))
                 .unwrap_or(std::cmp::Ordering::Equal)
+                // Two sections the same distance from the eye must resolve the
+                // same way every run; without this the nearer-of-equals is
+                // whichever the list happened to hold first.
+                .then_with(|| by_pose(a.translation, b.translation))
         })?;
 
     let (position, normal) = points
@@ -1185,7 +1212,14 @@ fn subtree_text(world: &mut World, name: &str) -> Vec<String> {
 #[cfg(feature = "debug")]
 fn aim_at_a_section(world: &mut World) -> Option<Vec2> {
     let mut q_sections = world.query_filtered::<&GlobalTransform, With<SectionMarker>>();
-    let section_pos = q_sections.iter(world).next()?.translation();
+    // The LOWEST-posed section rather than the first one the query yields:
+    // query order is an archetype detail that changes between runs, and a beat
+    // that clicks a different section each time proves nothing (see
+    // `placed_sections`).
+    let section_pos = q_sections
+        .iter(world)
+        .map(GlobalTransform::translation)
+        .min_by(|a, b| by_pose(*a, *b))?;
 
     let camera_entity = world
         .query_filtered::<Entity, With<Camera3d>>()
