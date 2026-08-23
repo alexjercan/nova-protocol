@@ -15,6 +15,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-23
+
 ### Combat & Weapons
 
 - **(breaking)** Torpedoes fuze 3 u from the locked body's nearest skin, not half
@@ -105,9 +107,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Asteroids CARVE: a hit takes a real crater out of the rock, mesh and collider
   both, so a shot rock is physically the shape it looks. Craters persist and a
   rock's published radius only ever shrinks.
-- **(breaking)** Rocks are shaped by a ROCK generator, not the planet one: the
-  displacement is signed and per-seed stretched, so a rock is an irregular chunk
-  instead of a sphere with growths on it. Same size, new silhouette.
+- **(breaking)** Rocks use a ROCK generator, not the planet one: signed, per-seed
+  stretched displacement makes a rock an irregular chunk instead of a sphere with
+  growths. Same size, new silhouette.
 - Rocks are textured by POSITION, not by mesh UVs. No more per-triangle quilting,
   and a carved rock wears exactly the surface an uncarved one does.
 - Fixed: a rock whose seed landed near `u32::MAX` overflowed the noise generator.
@@ -168,7 +170,7 @@ does NOT get an entry - and it is the only place they are written down.
   it was hit (the chips a round knocks off it). Nothing on a ship loses geometry.
 - Sections AUTHOR the damage looks they wear (`base.damage_effects`): `Cracks`,
   `Sparks`, `Plume`. Omitted means `[Cracks]`, so a section shows damage without
-  saying anything; author `[]` for one that never shows it.
+  saying anything; author `[]` to opt out.
 - New PLUME effect: a damaged drive's exhaust guts and flickers without ever
   reading as shut down, and delivers exactly the thrust it authored.
 - Bullets CHIP what they hit: a kinetic or pierce round throws chips off ships
@@ -361,7 +363,7 @@ does NOT get an entry - and it is the only place they are written down.
 - Every particle effect sizes its buffer to the burst it fires: 2048, 512 and 512 instead of 32768 each, so a barrel, a warhead and a launch tube allocate 16 to 64 times less GPU memory.
 - A piece of debris takes its collider from at most 64 strided points instead
   of every vertex of an unwelded triangle soup: the same shape for a fifth of
-  the price, and slightly more of them come back usable.
+  the price, and slightly more come back usable.
 - One blast cuts ONE crater per body however many colliders it overlaps, so
   peak live debris in the WFC arena drops from ~3700 bodies to ~1450.
 - A scenario swap never blocks the main thread: queued spawns drain under a
@@ -538,10 +540,9 @@ does NOT get an entry - and it is the only place they are written down.
 - New `screenshot_thruster_gallery` example: the shipped drive, the proposed
   thruster shell size family and the CC0 candidate models in one named row, in
   the fleet capture idiom.
-- Seven recipe-generated thruster shell candidates - five 1x1 plus 3x3x1 and
-  5x5x3 display formats - in one mechanical voice
-  (`scripts/gen-thruster-shells.py`, deterministic `--check`), judged in two
-  new `screenshot_thruster_gallery` rows.
+- Seven recipe-generated thruster shells - five 1x1 plus 3x3x1 and 5x5x3 - in
+  one mechanical voice (`scripts/gen-thruster-shells.py`, deterministic
+  `--check`), judged in `screenshot_thruster_gallery`.
 - New `wfc_arena` example: two collapsed hulls drafted from the seed stream
   fight under the campaign AI, clad, over a dressed arena; a scoreboard logs
   shots and damage both ways. `R` re-rolls.
@@ -1238,7 +1239,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.9.1...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/alexjercan/nova-protocol/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/alexjercan/nova-protocol/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/alexjercan/nova-protocol/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/alexjercan/nova-protocol/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/alexjercan/nova-protocol/compare/v0.8.0...v0.8.1
