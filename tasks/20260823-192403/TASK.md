@@ -11,8 +11,9 @@ Get `master` green again, then release v0.11.0. The release checklist opens with
 
 ## Why CI broke
 
-Two independent causes, both landing right after the v0.10.0 tag (2026-08-13,
-the last green run):
+Three independent causes, all landing right after the v0.10.0 tag (2026-08-13,
+the last green run). Each one was masked by the one above it, so they surfaced
+in sequence rather than together:
 
 1. **Toolchain drift.** `rust-toolchain.toml` said `channel = "nightly"`, so CI
    installed whatever nightly was current that morning. Nightly 1.100.0 changed
@@ -27,9 +28,18 @@ the last green run):
    sites. The toolchain is the thing to pin.
 
 2. **Real lints of ours**, which only became visible once the dependency built:
-   `doc_lazy_continuation` in `nova_gameplay`, dead code in `nova_ship`, and two
-   `--features debug` leaks in examples that the default-features job exists to
-   catch.
+   `doc_lazy_continuation` in `nova_gameplay` and `nova_scenario`, dead code in
+   `nova_ship`, four `--features debug` leaks in examples that the
+   default-features job exists to catch, and two `#[expect(..)]` that had gone
+   unfulfilled.
+
+3. **A stale test**, reachable only once clippy passed. `d20a37c4` (2026-08-19)
+   dropped the Asteroid Field sandbox and its relay, and updated every reference
+   except `nova_assets/tests/example_scenario.rs`, which still asserted
+   `asteroid_field` and `asteroid_next` were registered built-ins. CI had been
+   dark for six days by then, so nothing caught it. The list now mirrors
+   `base_content::scenarios::catalog` - four carousel backdrops plus the five
+   nova_protocol chapters.
 
 ## Direction
 

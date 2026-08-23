@@ -403,12 +403,15 @@ fn catalog_loads_and_base_only_merges_by_default() {
         "with example disabled, the base section is un-overridden"
     );
 
-    // The four carousel backdrops, not the retired menu_ambience /
-    // menu_scrapyard pair the pre-carousel cut shipped.
+    // The four carousel backdrops - not the retired menu_ambience /
+    // menu_scrapyard pair the pre-carousel cut shipped - plus the five
+    // nova_protocol chapters. Mirrors `base_content::scenarios::catalog`; the
+    // Asteroid Field sandbox and its relay were dropped.
     for built_in in [
-        "asteroid_field",
-        "asteroid_next",
         "broadside",
+        "broadside_gunship",
+        "final_tally",
+        "lifeline",
         "menu_duel",
         "menu_gauntlet",
         "menu_waystation",
