@@ -109,10 +109,10 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        // Latched every frame, so the whole-fleet beats can ask what assembled
-        // rather than what has survived being shot at since.
-        app.init_resource::<FleetPeak>();
-        app.add_systems(Update, record_fleet_peak);
+        // Accumulated every frame, so the whole-fleet beats can ask what
+        // assembled rather than what has survived the shell since.
+        app.init_resource::<FleetTally>();
+        app.add_systems(Update, record_fleet_tally);
         // The picture is taken at the range's PEAK. `nova_screenshot`
         // appends its beat to whatever it is handed, and the beats after
         // this call drain and tear the range down - a shot behind them
@@ -271,48 +271,59 @@ fn fleet_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
     }
 }
 
-/// The most of each the sky has held since the last teardown.
+/// What has ARRIVED since the last teardown, accumulated as it arrives rather
+/// than sampled off the live world.
 ///
-/// The whole-fleet claim is about what ASSEMBLED, and a live count cannot say
-/// that here: these hulls are mutually hostile and armed, they acquire across
-/// the shell the moment they are up (which is what
-/// [`assert_the_fleet_acquired`] goes on to require), and they start taking each
-/// other apart. Reading the count a frame after the fleet completes races the
-/// first kill - a race this range lost on CI, one section down out of a
-/// thousand, while passing on a faster machine that got its look in first.
+/// The whole-fleet claim is about what ASSEMBLED, and no reading of the live
+/// count can say that here: these hulls spawn inside each other's colliders,
+/// come apart as the shell resolves, and are mutually hostile besides. The
+/// spawn and the attrition OVERLAP, and once they do there is no instant at
+/// which a thousand sections are all alive at once - so even the high-water
+/// mark of the live count (which this used to be) is a number the fleet may
+/// never reach. CI proved it: a two-core llvmpipe runner spread the assembly
+/// over long enough that the first sections were already breaking up before the
+/// last ones existed, and `spawn the fleet` waited out its whole deadline for a
+/// count that was never coming. A faster box assembles the fleet with fifty
+/// milliseconds to spare and sees the thousand.
 ///
-/// Latching the high-water mark separates the two claims: this one is that every
-/// authored hull and section arrived, and attrition afterwards is the range
-/// working as intended rather than a spawn that came up short.
+/// Counting ARRIVALS has no such instant to miss. Nothing here is spawned
+/// twice: wreckage carries `DetachedPieceMarker` and a severed hull
+/// `ShipWreckFragmentMarker`, neither of which is a section or a ship root, so
+/// the tally still reads exactly what the range authored. Attrition afterwards
+/// is the range working as intended rather than a spawn that came up short.
 #[cfg(feature = "debug")]
-#[derive(Resource, Default, Clone, Copy)]
-struct FleetPeak {
+#[derive(Resource, Default)]
+struct FleetTally {
     sections: usize,
     ships: usize,
     turrets: usize,
-    /// Hulls holding a hostile at once. Latched for the same reason as the rest:
-    /// a hull whose target was just destroyed reads empty until the next pass
-    /// re-acquires, and with this fleet shooting itself apart that is happening
-    /// constantly. The claim is that the acquisition pass REACHED every hull,
-    /// which the high-water mark is the honest measure of.
-    acquired: usize,
+    /// Every hull that has held a hostile at any point, by identity rather than
+    /// by count. Same reasoning: a hull whose target was just destroyed reads
+    /// empty until the next pass finds it another, so no single frame need ever
+    /// show all hundred engaged at once. The claim is that the acquisition pass
+    /// REACHED every hull, and the set of hulls it reached is what says so.
+    acquired: std::collections::HashSet<Entity>,
 }
 
-/// Latch the high-water counts. Exclusive because [`fleet_counts`] walks every
-/// entity; it is the same walk the predicates already do each frame.
+/// Accumulate the tally. A normal system, so `Added` filters do the arrival
+/// detection for it - a component added between two runs of this system is seen
+/// exactly once.
 #[cfg(feature = "debug")]
-fn record_fleet_peak(world: &mut World) {
-    let (sections, ships, turrets) = fleet_counts(world);
-    let acquired = world
-        .try_query_filtered::<&AITarget, With<SpaceshipRootMarker>>()
-        .map_or(0, |mut hulls| {
-            hulls.iter(world).filter(|target| target.is_some()).count()
-        });
-    let mut peak = world.resource_mut::<FleetPeak>();
-    peak.sections = peak.sections.max(sections);
-    peak.ships = peak.ships.max(ships);
-    peak.turrets = peak.turrets.max(turrets);
-    peak.acquired = peak.acquired.max(acquired);
+fn record_fleet_tally(
+    mut tally: ResMut<FleetTally>,
+    q_sections: Query<(), Added<SectionMarker>>,
+    q_ships: Query<(), Added<SpaceshipRootMarker>>,
+    q_turrets: Query<(), Added<TurretSectionMarker>>,
+    q_hulls: Query<(Entity, &AITarget), With<SpaceshipRootMarker>>,
+) {
+    tally.sections += q_sections.iter().count();
+    tally.ships += q_ships.iter().count();
+    tally.turrets += q_turrets.iter().count();
+    for (hull, target) in &q_hulls {
+        if target.is_some() {
+            tally.acquired.insert(hull);
+        }
+    }
 }
 
 /// Live sections, ship roots and turrets - the shape of the sky, counted the
@@ -336,10 +347,14 @@ fn fleet_counts(world: &World) -> (usize, usize, usize) {
     (sections, roots, turrets)
 }
 
-/// Advance once the whole fleet is in the world.
+/// Advance once every authored section has ARRIVED - not once a thousand of
+/// them are alive at the same moment, which on a slow enough machine never
+/// happens at all (see [`FleetTally`]).
 #[cfg(feature = "debug")]
 fn the_fleet_is_up() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| fleet_counts(world).0 >= SECTIONS_IN_THE_SKY)
+    std::sync::Arc::new(|world: &World| {
+        world.resource::<FleetTally>().sections >= SECTIONS_IN_THE_SKY
+    })
 }
 
 /// Advance once the unload has taken every hull.
@@ -349,12 +364,12 @@ fn the_sky_is_empty() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pred
 }
 
 /// The fleet ASSEMBLED to exactly what it was authored as. Read off
-/// [`FleetPeak`], not the live count, so the fleet shooting at itself cannot
-/// turn a whole assembly into a failure.
+/// [`FleetTally`], not the live count, so the fleet coming apart cannot turn a
+/// whole assembly into a failure.
 #[cfg(feature = "debug")]
 fn assert_the_fleet_is_whole(world: &mut World) {
-    let peak = *world.resource::<FleetPeak>();
-    let counts = (peak.sections, peak.ships, peak.turrets);
+    let tally = world.resource::<FleetTally>();
+    let counts = (tally.sections, tally.ships, tally.turrets);
     assert_eq!(
         counts,
         (SECTIONS_IN_THE_SKY, SHIPS_IN_THE_SKY, SHIPS_IN_THE_SKY),
@@ -381,14 +396,14 @@ fn assert_the_fleet_is_whole(world: &mut World) {
 /// and an honest-looking frame time.
 #[cfg(feature = "debug")]
 fn assert_the_fleet_acquired(world: &mut World) {
-    // Off the high-water mark, for the same reason the fleet's own shape is:
-    // this range's sections do come apart as the sky settles - a hundred and
-    // more of them over a run, on a fast backend as well as a slow one - and a
-    // hull whose hostile was one of them reads empty until the next pass finds
-    // it another. A snapshot then scores the churn rather than the scan, and it
-    // is the SCAN this claim is about.
-    let peak = *world.resource::<FleetPeak>();
-    let (ships, acquired) = (peak.ships, peak.acquired);
+    // Off the tally, for the same reason the fleet's own shape is: this range's
+    // sections do come apart as the sky settles - a hundred and more of them
+    // over a run, on a fast backend as well as a slow one - and a hull whose
+    // hostile was one of them reads empty until the next pass finds it another.
+    // A snapshot then scores the churn rather than the scan, and it is the SCAN
+    // this claim is about.
+    let tally = world.resource::<FleetTally>();
+    let (ships, acquired) = (tally.ships, tally.acquired.len());
     assert_eq!(
         (ships, acquired),
         (SHIPS_IN_THE_SKY, SHIPS_IN_THE_SKY),
@@ -406,11 +421,11 @@ fn assert_the_fleet_acquired(world: &mut World) {
 /// The churn claim: the sky came back to exactly the shape it had before.
 #[cfg(feature = "debug")]
 fn assert_the_fleet_came_back(world: &mut World) {
-    // The peak was zeroed by the teardown, so this reads the SECOND assembly
+    // The tally was zeroed by the teardown, so this reads the SECOND assembly
     // rather than the memory of the first - and, like the first, it survives the
-    // fleet reopening fire while the count is being taken.
-    let peak = *world.resource::<FleetPeak>();
-    let counts = (peak.sections, peak.ships, peak.turrets);
+    // fleet coming apart while the count is being taken.
+    let tally = world.resource::<FleetTally>();
+    let counts = (tally.sections, tally.ships, tally.turrets);
     assert_eq!(
         counts,
         (SECTIONS_IN_THE_SKY, SHIPS_IN_THE_SKY, SHIPS_IN_THE_SKY),
@@ -431,9 +446,9 @@ fn assert_the_fleet_came_back(world: &mut World) {
 fn tear_the_fleet_down(world: &mut World) {
     nova_probe::probe_marker(world, "stress: teardown", serde_json::json!({}));
     world.trigger(UnloadScenario);
-    // Zero the high-water mark with the fleet it measured, or the churn's own
-    // assembly would be judged on the first one's numbers and could not fail.
-    *world.resource_mut::<FleetPeak>() = FleetPeak::default();
+    // Zero the tally with the fleet it counted, or the churn's own assembly
+    // would be judged on the first one's numbers and could not fail.
+    *world.resource_mut::<FleetTally>() = FleetTally::default();
 }
 
 /// Build the fleet again, mid-script.
