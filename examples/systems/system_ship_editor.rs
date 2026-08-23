@@ -154,6 +154,18 @@ const FLOWN_RANGE: &str = "editor_sandbox";
 /// Frames a beat waits for a gesture to land: the picking backend needs a frame
 /// to raycast the new pointer position and the editor's observers a frame to
 /// react. Generous rather than tight - this runs on a software-rendered CI GPU.
+///
+/// A FRAME COUNT IS THE WRONG UNIT here, and raising it is NOT the fix - that
+/// was tried. Under `probe run --render sw` the `raise a tower` beat clicks and
+/// builds nothing; at 24 it reached the same beat and built nothing there too,
+/// only slower. So the click is not arriving early, it is arriving somewhere
+/// that does not place, and no number mends that. Left at the value that works
+/// everywhere else rather than inflated to no purpose.
+///
+/// The shape that would settle it is waiting on the EDITOR's state - a
+/// placement solved, a section landed - which needs `nova_editor` to expose one
+/// (`SectionGhost`, `Placement` and `PlacementStatus` are all `pub(crate)`).
+/// Task 20260824-011329.
 #[cfg(feature = "debug")]
 const SETTLE: u32 = 10;
 
