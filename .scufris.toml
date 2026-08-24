@@ -22,13 +22,20 @@ scope focused, inspect local sources first, and prefer the cheapest proof that
 establishes the change.
 """
 
-[preferences.review]
-keywords = { review = "independent-then-quick-review", harness = "claude", model = "Opus", thinking = "xhigh" }
+[preferences.independent-review]
+keywords = { review = "independent-review", order = "first", harness = "claude", model = "Opus", thinking = "xhigh" }
 guidance = """
-Run an independent read-only reviewer against the implementation workspace.
-Review correctness, requirement coverage, regressions, maintainability,
-documentation, and proof quality. Return findings to the coding agent and
-verify corrections, then open Quick Review for user approval before delivery.
+Repeat the implementation -> independent read-only review cycle, resolving
+correctness, coverage, regression, maintainability, documentation, and proof
+findings each round, until the reviewer approves.
+"""
+
+[preferences.quick-review]
+keywords = { review = "quick-review", order = "second", harness = "pi", mode = "rpc", model = "openai-codex/gpt-5.6-sol", thinking = "medium", extension = "npm:@alexjercan/quick-review@0.1.1" }
+guidance = """
+After independent review approves, start the standalone Quick Review extension
+in its separate Pi RPC agent once as the final user approval gate. Do not use
+these Pi RPC settings for independent review.
 """
 
 [preferences.research]
@@ -52,7 +59,7 @@ generated or rendered output rather than trusting exit status alone.
 """
 
 [preferences.landing]
-keywords = { landing = "sprout", gate = "user-approval", attribution = "none" }
+keywords = { landing = "sprout", gate = "quick-review-approval", attribution = "none" }
 guidance = """
 Land the approved Sprout with the guarded Sprout landing operation. Commit
 self-contained changes with explicit paths and no AI attribution. Never infer
