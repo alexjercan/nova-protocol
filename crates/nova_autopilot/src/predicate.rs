@@ -434,8 +434,8 @@ mod tests {
     /// must not point at a panel nobody can see.
     ///
     /// Having the components is not having a box. A node that has not been
-    /// through `ui_layout_system` carries `ComputedNode::default()` - zero size
-    /// - and a beat that advanced on that would hand `click_named` a degenerate
+    /// through `ui_layout_system` carries a zero-size `ComputedNode::default()`,
+    /// and a beat that advanced on that would hand `click_named` a degenerate
     /// rect at the window corner and lose the gesture silently, which is the
     /// race the settles this replaced existed for (review a4a6 R2).
     #[test]
