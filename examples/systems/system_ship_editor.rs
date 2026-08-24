@@ -210,6 +210,10 @@ struct EditorWalk {
     /// Skin plates on the build, stamped before the beat that drags a part
     /// through them.
     plates: usize,
+    /// The edited ship's section ids, stamped before the run leaves it. Ids are
+    /// the document's own key, so coming back to the same ones is what says the
+    /// tree survived the trip.
+    ids: Vec<String>,
 }
 
 /// The whole driven run.
@@ -899,6 +903,123 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             stamp_sections(world);
         })
         .add()
+        // Two ships in one session, which is the whole reason the editor keeps
+        // a document rather than a build state. The run leaves the ship it
+        // built, adds a second one beside it, walks back into the first, and
+        // finds the ids it left - entity-independent, as a saved file needs.
+        .step("editor: stamp the ids before leaving the ship")
+        .on_enter(|world: &mut World| {
+            let ids = edited_section_ids(world);
+            assert!(
+                ids.len() > 1,
+                "the run must have a built ship to leave, not a bare seed"
+            );
+            info!("editor: leaving a ship of {} sections: {ids:?}", ids.len());
+            world.resource_mut::<EditorWalk>().ids = ids;
+        })
+        .add()
+        .click_a_widget(
+            "editor: click New Hull Ship",
+            "Create New Spaceship Button V1",
+        )
+        .step("editor: the second ship is up and entered")
+        .until(inside_a_ship_of(1))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: a second ship did not replace the first")
+        .on_enter(|world: &mut World| {
+            let probe = world.resource::<EditorProbe>();
+            let second = probe.inside.clone().expect("the new ship was entered");
+            let first = world.resource::<EditorWalk>().ids.clone();
+            assert_eq!(
+                probe.ship.len(),
+                1,
+                "a new ship carries its seed section and nothing else"
+            );
+            assert!(
+                !probe.can_play,
+                "Play is refused inside a ship - it compiles the whole document"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: a second ship stands beside the first",
+                serde_json::json!({}),
+            );
+            info!(
+                "editor: inside '{second}', and the first ship's {} sections are elsewhere",
+                first.len()
+            );
+        })
+        .add()
+        // Out through the Scene list's ".." row - the WIP furniture that makes
+        // the context reachable by hand at all.
+        .click_a_widget("editor: leave the ship", "Scene Row scenario")
+        .step("editor: the scenario node holds both ships")
+        .until(at_the_scenario_node())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: both ships are listed and Play is live again")
+        .on_enter(|world: &mut World| {
+            let probe = world.resource::<EditorProbe>();
+            assert_eq!(
+                probe.context_nodes.len(),
+                2,
+                "the document holds the ship that was built and the one beside it"
+            );
+            assert!(
+                probe.ship.is_empty(),
+                "outside a ship there is no edited ship to report"
+            );
+            assert!(probe.can_play, "Play is the scenario node's gesture");
+            let listed = probe.context_nodes.clone();
+            nova_probe::probe_marker(
+                world,
+                "outcome: the scenario node lists both ships",
+                serde_json::json!({}),
+            );
+            info!("editor: back at the scenario node, listing {listed:?}");
+        })
+        .add()
+        // And back in, by clicking the ship's body: a click on a ship you are
+        // not inside is an enter, which is the only way in before the real
+        // hierarchy panel lands.
+        .step("editor: aim at the first ship")
+        .on_enter(|world: &mut World| {
+            let at = aim_at_the_first_ship(world)
+                .expect("the first ship is on screen at the scenario node");
+            move_cursor(at)(world);
+        })
+        .until(the_pointer_is_on_the_ship())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .press_and_release(
+            "editor: click into the first ship",
+            back_inside_the_stamped_ship(),
+        )
+        .step("editor: the ids survived the trip out and back")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorWalk>().ids.clone();
+            let now = edited_section_ids(world);
+            assert_eq!(
+                now, before,
+                "a section's id is the document's key and owes nothing to the \
+                 entity it landed on, so re-entry finds the ids it left"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: section ids survive exit and re-entry",
+                serde_json::json!({}),
+            );
+            info!("editor: re-entered the first ship on the same ids: {now:?}");
+        })
+        .add()
+        // Play only from the scenario node, so the run steps back out to press
+        // it. The button is greyed inside a ship and the observer refuses too.
+        .click_a_widget("editor: leave for the hand-off", "Scene Row scenario")
+        .step("editor: Play is reachable")
+        .until(at_the_scenario_node())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         // Play: the ship the editor assembled becomes the ship that flies, and
         // the runtime derives the SAME graph from the flat saved poses.
         .click_a_widget("editor: press Play", "Play Button")
@@ -1238,6 +1359,71 @@ fn sections_shrank_by(delta: usize) -> Wait {
     std::sync::Arc::new(move |world: &World| {
         count_sections(world) + delta == world.resource::<EditorWalk>().sections
     })
+}
+
+/// The ids of the ship being edited, in the order the document keeps them.
+#[cfg(feature = "debug")]
+fn edited_section_ids(world: &World) -> Vec<String> {
+    world
+        .resource::<EditorProbe>()
+        .ship
+        .iter()
+        .map(|section| section.id.clone())
+        .collect()
+}
+
+/// Advance once the editor is inside SOME ship carrying `sections` of them.
+///
+/// The count is what tells one ship from another without knowing the minted
+/// ids: a freshly seeded ship carries exactly one section, and the ship this
+/// run built carries several.
+#[cfg(feature = "debug")]
+fn inside_a_ship_of(sections: usize) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        let probe = world.resource::<EditorProbe>();
+        probe.inside.is_some() && probe.ship.len() == sections
+    })
+}
+
+/// Advance once the editor is back inside a ship carrying as many sections as
+/// the last [`EditorWalk::ids`] stamp took.
+#[cfg(feature = "debug")]
+fn back_inside_the_stamped_ship() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let probe = world.resource::<EditorProbe>();
+        probe.inside.is_some() && probe.ship.len() == world.resource::<EditorWalk>().ids.len()
+    })
+}
+
+/// Advance once the editor is out at the scenario node, where Play lives.
+#[cfg(feature = "debug")]
+fn at_the_scenario_node() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let probe = world.resource::<EditorProbe>();
+        probe.inside.is_none() && probe.can_play
+    })
+}
+
+/// A viewport aim at the FIRST ship on the stage.
+///
+/// Reads the scene rather than the probe, because outside a ship the probe
+/// reports no ship at all - that is the point of the scoping. Ships are spaced
+/// along +X from the origin, so the section view nearest x=0 is on the first
+/// one; every ship's sections are on screen out here, and any other rule would
+/// pick whichever the archetype walk yielded.
+#[cfg(feature = "debug")]
+fn aim_at_the_first_ship(world: &mut World) -> Option<Vec2> {
+    let nearest = world
+        .query_filtered::<&GlobalTransform, With<SectionMarker>>()
+        .iter(world)
+        .map(GlobalTransform::translation)
+        .min_by(|a, b| {
+            a.x.abs()
+                .partial_cmp(&b.x.abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| by_pose(*a, *b))
+        })?;
+    aim_at_world(world, nearest)
 }
 
 /// Advance once the flown ship carries every section the editor built.

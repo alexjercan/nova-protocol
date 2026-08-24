@@ -39,7 +39,7 @@ mod snap;
 mod ui;
 
 use attitude::sync_attitude_readout;
-use config::{PlacementPose, PlacementPreview, SectionChoice};
+use config::{PlacementPose, PlacementPreview, SceneRowPress, SectionChoice, SelectedNode};
 use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
     sync_section_keybind_labels, EditorRebind,
@@ -55,7 +55,10 @@ use probe::sync_editor_probe;
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
-use ui::{setup_editor_scene, sync_key_legend, sync_skin_toggle, sync_style_list};
+use ui::{
+    setup_editor_scene, sync_key_legend, sync_play_button, sync_scene_list, sync_skin_toggle,
+    sync_style_list,
+};
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`],
 /// the sandbox registration ordering handle and the read-only [`EditorProbe`]
@@ -99,6 +102,8 @@ fn editor_plugin(app: &mut App) {
     app.init_state::<ExampleStates>();
     app.insert_resource(SectionChoice::None);
     app.init_resource::<EditContext>();
+    app.init_resource::<SelectedNode>();
+    app.init_resource::<SceneRowPress>();
     app.init_resource::<EditorRebind>();
     // Normally the gameplay plugin's; init'd here too so a menu-less rig (and
     // the tests below) still has one to write.
@@ -254,6 +259,10 @@ fn editor_plugin(app: &mut App) {
             sync_attitude_readout,
             sync_skin_toggle,
             sync_style_list,
+            // The Scene list and the Play gate both report the edit context, so
+            // they sit with the rest of the rail's readouts.
+            sync_scene_list,
+            sync_play_button,
             pick_section_under_pointer,
             cycle_placement_pose,
             update_placement_preview,

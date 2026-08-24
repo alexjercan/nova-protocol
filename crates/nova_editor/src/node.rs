@@ -241,6 +241,76 @@ pub(crate) type SectionNodes<'w, 's> = Query<
     ),
 >;
 
+/// Read-only access to every ship node.
+pub(crate) type ShipNodes<'w, 's> =
+    Query<'w, 's, (Entity, &'static ChildOf, &'static NodeId, &'static ShipNode)>;
+
+/// What a node listed by [`context_nodes`] IS, for callers that have to say so
+/// without knowing the component types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NodeKind {
+    /// The ship Play hands to the player.
+    PlayerShip,
+    /// A ship built beside it: a design, not something that flies yet.
+    AiShip,
+    /// A section of the ship being edited.
+    Section,
+}
+
+/// One node the current edit context contains.
+pub(crate) struct ContextNode<'a> {
+    pub(crate) entity: Entity,
+    pub(crate) id: &'a NodeId,
+    pub(crate) kind: NodeKind,
+}
+
+/// Everything the edit context CONTAINS, in id order.
+///
+/// At the scenario node that is its ships; inside a ship it is that ship's
+/// sections. This lives here rather than in the rail that draws it because it
+/// is a question about the document, and the probe has to answer it too - a
+/// driven run that read the answer off the UI tree would be testing the rail
+/// rather than the tree.
+pub(crate) fn context_nodes<'a>(
+    context: &EditContext,
+    q_ships: &'a ShipNodes,
+    nodes: &'a SectionNodes,
+) -> Vec<ContextNode<'a>> {
+    let Some(scenario) = context.scenario() else {
+        return Vec::new();
+    };
+    let Some(ship) = context.ship() else {
+        let mut ships: Vec<_> = q_ships
+            .iter()
+            .filter(|(_, owner, ..)| owner.parent() == scenario)
+            .map(|(entity, _, id, ship)| ContextNode {
+                entity,
+                id,
+                kind: match ship.driver {
+                    ShipDriver::Player => NodeKind::PlayerShip,
+                    ShipDriver::Ai => NodeKind::AiShip,
+                },
+            })
+            .collect();
+        ships.sort_unstable_by(|a, b| a.id.cmp(b.id));
+        return ships;
+    };
+    sections_of(ship, nodes)
+        .into_iter()
+        .map(|(entity, id, ..)| ContextNode {
+            entity,
+            id,
+            kind: NodeKind::Section,
+        })
+        .collect()
+}
+
+/// The id of the node the editor is inside, or `None` at the scenario node.
+pub(crate) fn inside_id<'a>(context: &EditContext, q_ships: &'a ShipNodes) -> Option<&'a NodeId> {
+    let ship = context.ship()?;
+    q_ships.get(ship).ok().map(|(_, _, id, _)| id)
+}
+
 /// The node a picking hit belongs to: hits land on views, and the document is
 /// the parent.
 pub(crate) fn node_of_view(

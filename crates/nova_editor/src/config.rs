@@ -20,6 +20,44 @@ pub(crate) enum SectionChoice {
     Delete,
 }
 
+/// The node the Scene list has selected, or `None`.
+///
+/// SELECTION IS NOT CONTEXT. Selecting a node marks it in the list; entering it
+/// is a second gesture (double-click, or the Up row on the way back). Godot
+/// draws the same line, and it is what lets a click on a node you are inside
+/// mean "look at this" rather than "descend".
+#[derive(Resource, Default, Debug)]
+pub(crate) struct SelectedNode(pub(crate) Option<Entity>);
+
+/// The last Scene row pressed and when, so a second press on the same row
+/// inside [`DOUBLE_CLICK_WINDOW`](crate::ui::DOUBLE_CLICK_WINDOW) reads as a
+/// double-click. Bevy's button widget reports presses, not gestures.
+#[derive(Resource, Default, Debug)]
+pub(crate) struct SceneRowPress {
+    pub(crate) row: Option<Entity>,
+    /// `Time::elapsed_secs` at that press.
+    pub(crate) at: f32,
+}
+
+/// The Scene block's row container, emptied and refilled by
+/// `crate::ui::sync_scene_list`.
+#[derive(Component)]
+pub(crate) struct SceneList;
+
+/// One Scene row, carrying the node it points at.
+#[derive(Component)]
+pub(crate) struct SceneRow(pub(crate) Entity);
+
+/// The Scene list's ".." row: leaves the node you are inside. Only present
+/// while there is somewhere to go back to.
+#[derive(Component)]
+pub(crate) struct SceneUpRow;
+
+/// The Play button, so `crate::ui::sync_play_button` can disable it outside the
+/// scenario node.
+#[derive(Component)]
+pub(crate) struct PlayButton;
+
 /// The ghost part that previews where a placed section will land.
 #[derive(Component)]
 pub(crate) struct SectionPreviewMarker;
@@ -89,7 +127,7 @@ pub(crate) struct AttitudeReadout;
 pub(crate) struct EditorKeyLegend;
 
 /// The box of the cladding toggle in the Tools block, repainted in place when
-/// [`PlayerSpaceshipConfig::skin`] changes.
+/// the edited ship's [`ShipNode::skin`](crate::node::ShipNode::skin) changes.
 #[derive(Component)]
 pub(crate) struct SkinToggleCheckbox;
 

@@ -124,6 +124,53 @@ pub(crate) fn style_row(id: &str, name: &str, selected: bool, skin: UiSkin) -> i
     )
 }
 
+/// One row of the Scene list: a node in the current edit context, or the ".."
+/// that leaves it.
+///
+/// The same `ListRow` shape the look rows use, so the shared reconciler paints
+/// the selection and the hover and this module owns no colour. `kind` is a
+/// leading glyph rather than an icon - WIP furniture, and a glyph is one text
+/// node instead of a mesh and an asset handle.
+pub(crate) fn scene_row(kind: &str, label: &str, selected: bool, skin: UiSkin) -> impl Bundle {
+    let (background, border) = list_row_colors(selected, false, skin);
+    (
+        ListRow,
+        Button,
+        Hovered::default(),
+        Node {
+            width: percent(100),
+            min_height: px(22),
+            margin: UiRect::bottom(px(2)),
+            padding: UiRect::axes(px(8), px(2)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            align_items: AlignItems::Center,
+            column_gap: px(6),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        BorderColor::all(border),
+        BackgroundColor(background),
+        children![
+            (
+                Text::new(kind.to_string()),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR_MUTED),
+            ),
+            (
+                Text::new(label.to_string()),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR),
+            )
+        ],
+    )
+}
+
 /// A greyed, non-interactive coming-soon category row with an amber "soon"
 /// badge - the categories "the rest" will make real.
 pub(crate) fn coming_soon_category(label: &str, skin: UiSkin) -> impl Bundle {

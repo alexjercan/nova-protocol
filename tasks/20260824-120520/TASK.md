@@ -1,6 +1,6 @@
 # Node editor foundations: the scenario node tree
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.12.0,editor
 
@@ -141,6 +141,43 @@ work.
   (scenario.rs:34-196), supplied at lowering exactly as today. It is the
   fixed backdrop until templates land, at which point "start from the
   sandbox range" is the template that supplies it.
+
+## Proof
+
+Landed as `af046782` (the nova_ship split), `1cf5c826` (the node tree),
+`3e5b7abc` (two review defects) and the WIP UI commit that closes this.
+Quick Review approved the first two ranges.
+
+The driven editor range proves the Done-when, in its own words:
+
+- `editor: leaving a ship of 8 sections: ["basic_controller_section_1",
+  "pdc_kinetic_turret_section_7", "reinforced_hull_section_2", ...]`
+- `editor: inside 'ship_2', and the first ship's 8 sections are elsewhere`
+- `editor: back at the scenario node, listing ["ship_1", "ship_2"]`
+- `editor: re-entered the first ship on the same ids: [...]` - byte-identical
+  to the stamp above, which is the entity-independence claim
+- `editor: the finished ship derives 7 mates over 8 sections` then
+  `editor: the flown ship carries the same 7 mates`, in 26 plates
+- `autopilot: cycle complete, no panic (t=5.1s)`, EXIT=0
+
+The ids are non-contiguous (`_1,_2,_4..._9`) because the run deletes a section
+part-way through and the ordinal counter never reuses. That is the design, and
+the log is where it shows.
+
+96 unit tests in `nova_editor`; `cargo check --workspace --all-targets` clean.
+
+## Follow-ups this did not do
+
+- Double-click-to-enter is covered by unit tests, not by the live range: the
+  gesture is a wall-clock threshold, and asserting one against lavapipe frame
+  times would be flaky for no coverage. The range enters by clicking the ship
+  instead, which is the path a builder actually uses.
+- A preview section carries no behaviour, but a generated child tree (a torpedo
+  bay's spawner) is still inert by GATING rather than by construction. Left to
+  whichever task next touches those entities.
+- New Ship no longer carries the cladding toggle onto the new ship; skin is a
+  property of a ship now, and a new one starts bare. Flagged in review, not
+  answered.
 
 ## Owner notes, not scoped anywhere yet
 

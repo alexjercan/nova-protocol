@@ -233,10 +233,21 @@ pub(crate) fn sync_tool_selection(
     }
 }
 
+/// Compile the document and fly it.
+///
+/// Only from the scenario node. `crate::ui::sync_play_button` greys the button
+/// out inside a ship, and this is the same rule stated where the transition
+/// actually happens - a disabled button is a paint job, and the keyboard, the
+/// autopilot and any future shortcut all arrive here instead.
 pub(crate) fn continue_to_simulation(
     _activate: On<Activate>,
+    context: Res<EditContext>,
     mut game_state: ResMut<NextState<ExampleStates>>,
 ) {
+    if context.ship().is_some() {
+        warn!("editor: Play compiles the whole scenario - leave the ship first");
+        return;
+    }
     game_state.set(ExampleStates::Scenario);
 }
 

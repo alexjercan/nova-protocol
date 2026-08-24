@@ -15,11 +15,25 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Interface & HUD
+
+- The editor holds a scenario of ships rather than one ship: build several,
+  click one to work on it, and a Scene list on the rail says which you are
+  inside. Play hands off the whole scenario, from its root.
+
+### Ships & Sections
+
+- Sections keep a stable name for as long as they exist, so a ship read back
+  after a trip out to flight is the ship that was built.
+
 ### Internals & Tooling
 
 - The editor publishes its build state - armed tool, solved or refused
-  placement, parts gallery - as read-only data, and the driven editor ranges
-  wait on it instead of counting frames.
+  placement, parts gallery, the edited ship and the node you are inside - as
+  read-only data, and the driven editor ranges wait on it instead of counting
+  frames.
+- Editor previews carry mesh and collider only: the behaviour half of a ship
+  section is no longer inserted on something that will never fly.
 - Autopilot scripts can wait on a UI node laying out, on the picking pointer
   registering a press or a release, and on either of two conditions (`or`).
 

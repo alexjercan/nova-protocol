@@ -11,9 +11,9 @@ use bevy::prelude::*;
 use nova_ship::prelude::GameSections;
 
 use crate::{
-    config::{PlacementPreview, SectionChoice},
+    config::{PlacementPreview, SectionChoice, SelectedNode},
     gallery::GalleryState,
-    node::{sections_of, EditContext, SectionNodes},
+    node::{context_nodes, inside_id, sections_of, EditContext, SectionNodes, ShipNodes},
     ExampleStates,
 };
 
@@ -94,6 +94,21 @@ pub struct EditorProbe {
     /// stage, a sweep of every section in the world is several ships at once,
     /// and the runtime's own structure derivation rejects that.
     pub ship: Vec<EditorSection>,
+    /// The id of the node the editor is INSIDE, or `None` at the scenario node.
+    ///
+    /// The one fact that says which ship every other editor system is scoped
+    /// to, and the only way a driven run can tell "entered ship_2" from "still
+    /// looking at ship_1 from outside".
+    pub inside: Option<String>,
+    /// The node ids the Scene list is showing, in the order it shows them.
+    /// Ships at the scenario node, sections inside a ship. The ".." row is a
+    /// gesture rather than a node and is not listed.
+    pub context_nodes: Vec<String>,
+    /// The id of the node the Scene list has marked, or `None`.
+    pub selected_node: Option<String>,
+    /// Whether Play would hand off right now. False inside a ship, where the
+    /// button is disabled.
+    pub can_play: bool,
 }
 
 /// Refresh [`EditorProbe`] from the build state.
@@ -107,12 +122,27 @@ pub(crate) fn sync_editor_probe(
     gallery: Res<GalleryState>,
     sections: Option<Res<GameSections>>,
     context: Res<EditContext>,
+    selected: Res<SelectedNode>,
     nodes: SectionNodes,
+    q_ships: ShipNodes,
     mut probe: ResMut<EditorProbe>,
 ) {
     let wanted = if *editor.get() == ExampleStates::Editor {
         let mut snapshot = snapshot(&choice, &preview, &gallery, sections.as_deref());
+        let listed = context_nodes(&context, &q_ships, &nodes);
         snapshot.ship = edited_ship(&context, &nodes);
+        snapshot.inside = inside_id(&context, &q_ships).map(|id| id.0.clone());
+        snapshot.selected_node = selected.0.and_then(|node| {
+            listed
+                .iter()
+                .find(|listed| listed.entity == node)
+                .map(|listed| listed.id.0.clone())
+        });
+        snapshot.context_nodes = listed.into_iter().map(|node| node.id.0.clone()).collect();
+        // The same rule `continue_to_simulation` enforces, reported rather than
+        // re-derived from the button's paint - a driven run asserts what Play
+        // WOULD do, not what it looks like.
+        snapshot.can_play = context.scenario().is_some() && context.ship().is_none();
         snapshot
     } else {
         EditorProbe::default()
@@ -185,6 +215,10 @@ fn snapshot(
         // Filled in by the caller, which has the document; this half of the
         // snapshot is a pure function of the tool and the gallery.
         ship: Vec::new(),
+        inside: None,
+        context_nodes: Vec::new(),
+        selected_node: None,
+        can_play: false,
     }
 }
 
@@ -239,6 +273,7 @@ mod tests {
         world.init_resource::<PlacementPreview>();
         world.init_resource::<GalleryState>();
         world.init_resource::<EditContext>();
+        world.init_resource::<SelectedNode>();
         world.init_resource::<EditorProbe>();
         world
     }
@@ -298,6 +333,102 @@ mod tests {
         );
         assert_eq!(reported[0].prototype, "hull");
         assert_eq!(reported[1].position, Vec3::new(0.0, 0.0, 1.0));
+    }
+
+    /// The context, as data. A driven run has to be able to tell "entered
+    /// ship_2" from "looking at ship_2 from outside", and to know whether Play
+    /// would hand off before it presses it.
+    #[test]
+    fn the_probe_reports_the_context_its_contents_and_the_play_gate() {
+        use crate::node::{NodeId, ScenarioNode, SectionNode, ShipDriver, ShipNode};
+
+        let mut world = world(ExampleStates::Editor);
+        let scenario = world
+            .spawn((ScenarioNode, NodeId("scenario".to_string())))
+            .id();
+        world.resource_mut::<EditContext>().path = vec![scenario];
+        // Spawned out of order, so id order and spawn order disagree.
+        for (id, driver) in [("ship_2", ShipDriver::Ai), ("ship_1", ShipDriver::Player)] {
+            world.spawn((
+                ShipNode {
+                    driver,
+                    ..default()
+                },
+                NodeId(id.to_string()),
+                ChildOf(scenario),
+            ));
+        }
+
+        let outside = sync(&mut world);
+        assert_eq!(outside.inside, None, "the document opens at the scenario");
+        assert_eq!(outside.context_nodes, ["ship_1", "ship_2"]);
+        assert!(outside.can_play, "Play is the scenario node's gesture");
+        assert!(outside.ship.is_empty(), "no ship entered, none reported");
+
+        let first = world
+            .query_filtered::<Entity, With<ShipNode>>()
+            .iter(&world)
+            .find(|entity| world.get::<NodeId>(*entity) == Some(&NodeId("ship_1".to_string())))
+            .expect("ship_1");
+        world.resource_mut::<EditContext>().enter(first);
+        // A section so the list inside the ship is not empty either way.
+        world.spawn((
+            SectionNode {
+                source: SectionSource::Inline(SectionConfig {
+                    base: BaseSectionConfig {
+                        id: "hull".to_string(),
+                        name: "hull".to_string(),
+                        ..default()
+                    },
+                    kind: SectionKind::Hull(HullSectionConfig::default()),
+                }),
+                modifications: vec![],
+                binds: vec![],
+            },
+            NodeId("hull_1".to_string()),
+            Transform::default(),
+            ChildOf(first),
+        ));
+
+        let inside = sync(&mut world);
+        assert_eq!(inside.inside, Some("ship_1".to_string()));
+        assert_eq!(
+            inside.context_nodes,
+            ["hull_1"],
+            "inside a ship the list is that ship's sections"
+        );
+        assert!(
+            !inside.can_play,
+            "Play compiles the document, which is not what a ship context asked for"
+        );
+    }
+
+    /// A selection is reported by ID, and only while its node is one the
+    /// current context lists.
+    #[test]
+    fn the_probe_reports_the_selected_node_by_id() {
+        use crate::node::{NodeId, ScenarioNode, ShipNode};
+
+        let mut world = world(ExampleStates::Editor);
+        let scenario = world
+            .spawn((ScenarioNode, NodeId("scenario".to_string())))
+            .id();
+        world.resource_mut::<EditContext>().path = vec![scenario];
+        let ship = world
+            .spawn((
+                ShipNode::default(),
+                NodeId("ship_1".to_string()),
+                ChildOf(scenario),
+            ))
+            .id();
+
+        world.resource_mut::<SelectedNode>().0 = Some(ship);
+        assert_eq!(sync(&mut world).selected_node, Some("ship_1".to_string()));
+
+        // Inside the ship, the ship itself is not a row - so there is nothing
+        // to report even though the resource still names it.
+        world.resource_mut::<EditContext>().enter(ship);
+        assert_eq!(sync(&mut world).selected_node, None);
     }
 
     /// The armed tool and the solved mate are the two facts a placement beat
@@ -437,6 +568,7 @@ mod tests {
         app.init_resource::<PlacementPreview>();
         app.init_resource::<GalleryState>();
         app.init_resource::<EditContext>();
+        app.init_resource::<SelectedNode>();
         app.init_resource::<EditorProbe>();
         app.add_systems(
             Update,
