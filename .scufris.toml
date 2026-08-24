@@ -15,7 +15,7 @@ explicitly after review and approval.
 """
 
 [preferences.implementation]
-keywords = { harness = "claude", model = "opus-5", thinking = "xhigh" }
+keywords = { harness = "claude", model = "Opus", thinking = "xhigh" }
 guidance = """
 Follow AGENTS.md and the project's existing architecture and conventions. Keep
 scope focused, inspect local sources first, and prefer the cheapest proof that
@@ -23,7 +23,7 @@ establishes the change.
 """
 
 [preferences.review]
-keywords = { review = "independent-then-quick-review", harness = "claude", model = "opus-5", thinking = "xhigh" }
+keywords = { review = "independent-then-quick-review", harness = "claude", model = "Opus", thinking = "xhigh" }
 guidance = """
 Run an independent read-only reviewer against the implementation workspace.
 Review correctness, requirement coverage, regressions, maintainability,
@@ -32,7 +32,7 @@ verify corrections, then open Quick Review for user approval before delivery.
 """
 
 [preferences.research]
-keywords = { harness = "claude", model = "fable-5", thinking = "xhigh", sources = "local-first" }
+keywords = { harness = "claude", model = "Fable", thinking = "xhigh", sources = "local-first" }
 guidance = """
 Prefer this harness for research and creative exploration: searching for assets,
 comparing references, building reports, designing HTML artifacts, making visual
