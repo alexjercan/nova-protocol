@@ -1,6 +1,6 @@
 # Get master green and ship v0.11.0
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.11.0,ci,release
 

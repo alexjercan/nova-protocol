@@ -1,6 +1,6 @@
 # Epic: hold the frame rate, then say what the game does
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.11.0,epic,performance,example,docs
 
