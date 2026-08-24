@@ -12,8 +12,26 @@ registry from `20260820-174148` phase 1. Research:
 ## Goal
 
 Turn Settings into a real settings menu: a tabbed layout (Audio / Graphics /
-Controls / Interface), and rebinding for keyboard AND gamepad, reading and
-writing the bindings registry instead of the hand-authored display mirror.
+Controls / Interface), rebinding for keyboard AND gamepad reading and
+writing the bindings registry instead of the hand-authored display mirror,
+and a window-mode option - the game does not ship fullscreen today.
+
+## Window mode (owner add, 2026-08-24)
+
+The window is created once at a fixed 1024x768 windowed
+(nova_core/src/lib.rs:486-500 `window_plugin`); `WindowMode` is never set
+and nothing in the tree touches fullscreen. Add to the Graphics tab:
+
+- Windowed / Borderless fullscreen as a segmented row (same
+  `ButtonValue<T>` pattern as the graphics preset). Borderless =
+  `WindowMode::BorderlessFullscreen` on the current monitor; skip exclusive
+  fullscreen unless it turns out free.
+- Apply live by mutating the primary `Window` on change, and at startup from
+  persistence - same `PersistedSettings` field flow as the rest of this
+  task.
+- Native only. The web build already fits the canvas
+  (`fit_canvas_to_parent`, lib.rs:496); browser fullscreen needs a user
+  gesture and is out of scope here - hide or fix the row on wasm.
 
 ## Reuse - all three flows are tested code already in tree
 
@@ -60,3 +78,5 @@ INPUT-AND-PROCESS.md section 5.)
 - The mirror rows and parity test are deleted; reserved-source conflict
   checks are registry-derived.
 - Works from both entry points (main menu overlay and pause overlay).
+- Borderless fullscreen toggles live from the Graphics tab, survives a
+  restart, and the wasm build shows no broken row.
