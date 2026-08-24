@@ -42,12 +42,12 @@ use scripted::*;
 /// components, the blast, and `TorpedoSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        scripted::ScriptedTorpedoOrder, torpedo_section, TorpedoArming, TorpedoBlast,
-        TorpedoControllerMarker, TorpedoGuidance, TorpedoSectionConfig, TorpedoSectionConfigHelper,
-        TorpedoSectionInput, TorpedoSectionPartOf, TorpedoSectionPlugin,
-        TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker, TorpedoShotDownMarker,
-        TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
-        TorpedoType, TorpedoTypeConfig, TorpedoWeave,
+        preview_torpedo_section, scripted::ScriptedTorpedoOrder, torpedo_section, TorpedoArming,
+        TorpedoBlast, TorpedoControllerMarker, TorpedoGuidance, TorpedoSectionConfig,
+        TorpedoSectionConfigHelper, TorpedoSectionInput, TorpedoSectionPartOf,
+        TorpedoSectionPlugin, TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker,
+        TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
+        TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
     };
 }
 
@@ -380,11 +380,23 @@ fn is_default_projectile_health(health: &f32) -> bool {
 pub fn torpedo_section(config: TorpedoSectionConfig) -> impl Bundle {
     trace!("torpedo_section: config {:?}", config);
 
+    (preview_torpedo_section(config), TorpedoSectionInput(false))
+}
+
+/// The render-only half of a torpedo bay: the launcher body a bay LOOKS like,
+/// with no fire input.
+///
+/// [`TorpedoSectionConfigHelper`] stays because `insert_torpedo_section` builds
+/// the body and spawner children from it. The launch path demands
+/// [`TorpedoSectionInput`], which this bundle omits, so an editor view is a bay
+/// that can never fire.
+pub fn preview_torpedo_section(config: TorpedoSectionConfig) -> impl Bundle {
+    trace!("preview_torpedo_section: config {:?}", config);
+
     (
         TorpedoSectionMarker,
         SectionClass::Torpedo,
         TorpedoSectionConfigHelper(config),
-        TorpedoSectionInput(false),
     )
 }
 

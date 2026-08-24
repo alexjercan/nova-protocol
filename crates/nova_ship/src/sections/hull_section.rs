@@ -7,9 +7,11 @@ use crate::prelude::{
     PlaceholderArt, RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf,
 };
 
-/// The `hull_section` spawner, its config, marker and `HullSectionPlugin`.
+/// The `hull_section` spawners, its config, marker and `HullSectionPlugin`.
 pub mod prelude {
-    pub use super::{hull_section, HullSectionConfig, HullSectionMarker, HullSectionPlugin};
+    pub use super::{
+        hull_section, preview_hull_section, HullSectionConfig, HullSectionMarker, HullSectionPlugin,
+    };
 }
 
 /// Configuration for a hull section.
@@ -35,6 +37,19 @@ pub struct HullSectionConfig {
 /// Helper function to create a hull section entity bundle.
 pub fn hull_section(config: HullSectionConfig) -> impl Bundle {
     trace!("hull_section: config {:?}", config);
+
+    preview_hull_section(config)
+}
+
+/// The render-only half of a hull section: what an editor view needs to LOOK
+/// like a hull, and nothing that simulates.
+///
+/// A hull has no live state to leave out, so today this IS the whole bundle.
+/// It exists anyway so the editor's view spawner names one function per kind,
+/// and so a hull that grows live state later cannot leak it into the editor
+/// just by being added to [`hull_section`].
+pub fn preview_hull_section(config: HullSectionConfig) -> impl Bundle {
+    trace!("preview_hull_section: config {:?}", config);
 
     (
         HullSectionMarker,

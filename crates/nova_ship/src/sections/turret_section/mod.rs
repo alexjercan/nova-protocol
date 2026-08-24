@@ -37,12 +37,13 @@ use crate::prelude::*;
 /// inputs, the loaded bullet and `TurretSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        muzzle_aim_error, muzzle_on_target, turret_section, LoadedBullet, MuzzleConfig,
-        TurretJoint, TurretSectionAimPoint, TurretSectionAimSystems, TurretSectionArc,
-        TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
-        TurretSectionInput, TurretSectionMuzzleEntity, TurretSectionPlugin,
-        TurretSectionTargetEntity, TurretSectionTargetInput, TurretSectionTargetTrack,
-        TurretSectionTargetVelocity, CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
+        muzzle_aim_error, muzzle_on_target, preview_turret_section, turret_section, LoadedBullet,
+        MuzzleConfig, TurretJoint, TurretSectionAimPoint, TurretSectionAimSystems,
+        TurretSectionArc, TurretSectionBarrelMuzzleMarker, TurretSectionConfig,
+        TurretSectionConfigHelper, TurretSectionInput, TurretSectionMuzzleEntity,
+        TurretSectionPlugin, TurretSectionTargetEntity, TurretSectionTargetInput,
+        TurretSectionTargetTrack, TurretSectionTargetVelocity, CLOSE_ENGAGEMENT_RANGE,
+        HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
     };
 }
 
@@ -51,21 +52,37 @@ pub fn turret_section(config: TurretSectionConfig) -> impl Bundle {
     trace!("turret_section: config {:?}", config);
 
     // The loaded-ammo slot, seeded from the authored config. Read before `config`
-    // moves into the helper (both fields are `Copy`).
+    // moves into the view half (both fields are `Copy`).
     let loaded = LoadedBullet {
         kind: config.bullet_kind,
         damage: config.bullet_damage,
     };
 
     (
-        TurretSectionMarker,
-        SectionClass::Turret,
+        preview_turret_section(config),
         loaded,
         TurretSectionTargetInput(None),
         TurretSectionTargetVelocity::default(),
         TurretSectionAimPoint::default(),
-        TurretSectionConfigHelper(config),
         TurretSectionInput(false),
+    )
+}
+
+/// The render-only half of a turret section: the mount, joints and barrels a
+/// turret LOOKS like, with none of the live aim or trigger state.
+///
+/// [`TurretSectionConfigHelper`] stays because `insert_turret_section` builds
+/// the whole joint tree from it, and a turret without it renders nothing. The
+/// firing and point-defence paths all demand [`TurretSectionInput`] and
+/// [`TurretSectionAimPoint`], which this bundle omits, so they match an editor
+/// view against no query.
+pub fn preview_turret_section(config: TurretSectionConfig) -> impl Bundle {
+    trace!("preview_turret_section: config {:?}", config);
+
+    (
+        TurretSectionMarker,
+        SectionClass::Turret,
+        TurretSectionConfigHelper(config),
     )
 }
 

@@ -22,8 +22,8 @@ use crate::{
 /// configuration and `ThrusterSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        plume_bucket, thruster_section, ExhaustMaterials, ExhaustMeshes, ThrusterExhaust,
-        ThrusterExhaustConfig, ThrusterExhaustMaterial, ThrusterExhaustShape,
+        plume_bucket, preview_thruster_section, thruster_section, ExhaustMaterials, ExhaustMeshes,
+        ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustMaterial, ThrusterExhaustShape,
         ThrusterPlumeMaterial, ThrusterSectionConfig, ThrusterSectionInput,
         ThrusterSectionMagnitude, ThrusterSectionPlugin, ThrusterSectionRenderMarker,
         EXHAUST_PLUME_BUCKETS,
@@ -104,12 +104,30 @@ struct ThrusterSectionExhaust(Option<ThrusterExhaust>);
 pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
     trace!("thruster_section: config {:?}", config);
 
+    let magnitude = config.magnitude;
+    let loop_sound = config.loop_sound.clone();
+    (
+        preview_thruster_section(config),
+        ThrusterSectionMagnitude(magnitude),
+        ThrusterSectionInput(0.0),
+        ThrusterSectionLoopSound(loop_sound),
+    )
+}
+
+/// The render-only half of a thruster section: it shows the nozzle and carries
+/// the exhaust's SHAPE, but nothing that thrusts.
+///
+/// No [`ThrusterSectionInput`] and no [`ThrusterSectionMagnitude`], so the
+/// thrust path matches an editor view against no query at all - the view is
+/// inert because of what it IS, not because of where it is parented.
+/// [`ThrusterSectionExhaust`] stays because `insert_thruster_section_render`
+/// demands it to build the nozzle, and an exhaust with no input never lights.
+pub fn preview_thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
+    trace!("preview_thruster_section: config {:?}", config);
+
     (
         ThrusterSectionMarker,
         SectionClass::Thruster,
-        ThrusterSectionMagnitude(config.magnitude),
-        ThrusterSectionInput(0.0),
-        ThrusterSectionLoopSound(config.loop_sound.clone()),
         ThrusterSectionRenderMesh(config.render_mesh),
         SectionRenderMeshTransform(config.render_mesh_transform),
         ThrusterSectionExhaust(config.exhaust),

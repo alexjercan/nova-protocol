@@ -178,13 +178,14 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
     trace!("controller_section: config {:?}", config);
 
     let frequency = frequency_from_steering_lag(config.steering_lag);
+    let tuning = ControllerSectionTuning {
+        steering_lag: config.steering_lag,
+        max_torque: config.max_torque,
+    };
+    let sounds = ControllerSectionSounds::from_config(&config);
     (
-        ControllerSectionMarker,
-        SectionClass::Controller,
-        ControllerSectionTuning {
-            steering_lag: config.steering_lag,
-            max_torque: config.max_torque,
-        },
+        preview_controller_section(config),
+        tuning,
         PDController {
             frequency,
             damping_ratio: INTERNAL_DAMPING_RATIO,
@@ -194,9 +195,7 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
             max_angular_acceleration: 0.0,
         },
         ControllerSectionRotationInput::default(),
-        ControllerSectionSounds::from_config(&config),
-        ControllerSectionRenderMesh(config.render_mesh),
-        SectionRenderMeshTransform(config.render_mesh_transform),
+        sounds,
     )
 }
 
@@ -431,23 +430,27 @@ pub(crate) fn update_controller_stack_tuning(
     }
 }
 
-/// A render-only controller section for the editor preview: it shows the controller mesh (and is
-/// pickable) but carries no [`PDController`], so it never tries to torque a root. The editor
-/// preview ship is a visual config preview with no `RigidBody`; a live controller there just
-/// floods the log with "root not found" every frame. Because it has no
-/// `PDController`, the bcs PD systems and `insert_controller_section_target` both skip it, so the
-/// preview controller is inert.
+/// The render-only half of a controller section: it shows the controller mesh
+/// (and is pickable) but carries no [`PDController`], so it never tries to
+/// torque a root.
+///
+/// The editor's view ship is a visual preview with no `RigidBody`; a live
+/// controller there just floods the log with "root not found" every frame.
+/// Without a `PDController` the bcs PD systems and
+/// `insert_controller_section_target` both skip it, so the view is inert.
+///
+/// [`controller_section`] builds on this rather than repeating it, so the live
+/// and view halves cannot drift: the shared render observer
+/// (`insert_controller_section_render`) demands
+/// [`SectionRenderMeshTransform`], and a view that dropped it would render
+/// nothing where the live section shows the default cuboid.
 pub fn preview_controller_section(config: ControllerSectionConfig) -> impl Bundle {
     trace!("preview_controller_section: config {:?}", config);
 
     (
         ControllerSectionMarker,
+        SectionClass::Controller,
         ControllerSectionRenderMesh(config.render_mesh),
-        // The shared render observer (`insert_controller_section_render`) queries
-        // for this too, so without it the preview controller matches no query and
-        // renders nothing - a meshless controller in the editor even though the
-        // live one shows the default cuboid. Preview carries it like the live
-        // `controller_section` bundle does.
         SectionRenderMeshTransform(config.render_mesh_transform),
     )
 }
