@@ -4,16 +4,18 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Hull - Nova Protocol Wiki</title>
+        <meta name="description" content="Passive structure and armor - the backbone the other sections mount to." />
         <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <script defer src="/nova-protocol/docs.js"></script></head>
     <body>
         <header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -57,6 +59,52 @@
 </figure>
 <p>The hull is the ship's <strong>passive structure and armor</strong>. It provides hitpoints and the connective backbone every other section mounts to. A hull has no active behavior of its own - it is what the rest of the ship is built around, and what keeps taking hits while the working sections keep doing their jobs.</p>
 <p>Because health is per-section, a hull soaks damage locally: a hit on one side chews through the sections there while the far side stays intact, so where a shot lands matters, not just whether it landed.</p>
+<p>A hull cell keeps the shape it was built in. What it does instead is <strong>crack</strong>: dark fractures spreading as its own health falls, glowing through when it is about to fail, burnt out cold when it dies - and then the whole cell leaves at once. It throws no sparks, because a hull has nothing in it to short out.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/loop-section-hull.webm (short gameplay loop) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/loop-section-hull.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >A short loop: identical hull cells step from
+            clean plating through dark cracks, hot fractures,
+            and final failure.</span
+        >
+    </div>
+</figure>
+<h2 id="variants" tabindex="-1">Variants</h2>
+<p>Two unit-cell hulls ship, and the semantic craft parts - noses, tails, wings and pods - are hulls too: passive structure with a health rating and nothing else. A hull weighs the space it fills, exactly: a section's mass is the volume of the box it is hit on, and no part is denser than another. Health is authored; the mass carrying it is not.</p>
+<p>That is why the health column below is not the order you want when you are choosing what to bolt on.</p>
+<!-- Stats verified against crates/nova_ship/src/sections/base_section.rs (density 1 and not authorable, so mass IS the authored box :376; the unit-cube collider a part with no authored collider falls back to :79-85) and the authored boxes themselves: crates/nova_authoring/src/base_content/sections/standard.rs (reinforced_hull_section health 200 :308 with no collider :311; light_hull_section health 60 :408 with no collider :411) and crates/nova_authoring/src/base_content/ships/ (racer.rs:34-73, cargo_a.rs:37-76, cargo_b.rs:50-69, built through shared.rs:44-50,:235). -->
+<div class="widget" data-widget="hull-armour">
+<p>Ranked by health, the CargoA nose (180) looks like better armour than the Racer tail (120). It is 2.50 of mass against the tail's 0.88, so per unit of mass it is 72 against 136 - barely half as good. Across the ten shipped hull parts the spread runs from the CargoA pod at 216 per mass down to the scavenger-grade light cell at 60, a factor of 3.6 that the health column alone never shows.</p>
+</div>
+<div class="catalog">
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (reinforced_hull_section health :308; light_hull_section health :408) and crates/nova_authoring/src/base_content/ships/ (racer.rs:41,:51 wings 180, :61 nose 120, :71 tail 120; cargo_a.rs:44,:54 pods 350, :64 nose 180, :74 tail 150; cargo_b.rs:57 nose 180, :67 tail 150). -->
+<div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-hull.png</span></span></span><span class="catalog__title">Hull - shipped prototypes</span></div>
+<table>
+<thead>
+<tr><th></th><th>Variant</th><th>Health</th></tr>
+</thead>
+<tbody>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-reinforced-hull-section.png</span></span></span></td><td><span class="catalog__name">Reinforced Hull Section</span><span class="catalog__id">reinforced_hull_section</span></td><td class="catalog__num">200</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-light-hull-section.png</span></span></span></td><td><span class="catalog__name">Light Hull Section</span><span class="catalog__id">light_hull_section</span></td><td class="catalog__num">60</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-racer-wing.png</span></span></span></td><td><span class="catalog__name">Racer // Wing</span><span class="catalog__id">racer_wing_port + racer_wing_starboard</span></td><td class="catalog__num">180</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-racer-nose.png</span></span></span></td><td><span class="catalog__name">Racer // Nose</span><span class="catalog__id">racer_nose</span></td><td class="catalog__num">120</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-racer-tail.png</span></span></span></td><td><span class="catalog__name">Racer // Tail</span><span class="catalog__id">racer_tail</span></td><td class="catalog__num">120</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargoa-pod.png</span></span></span></td><td><span class="catalog__name">CargoA // Pod</span><span class="catalog__id">cargoa_pod_port + cargoa_pod_starboard</span></td><td class="catalog__num">350</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargoa-nose.png</span></span></span></td><td><span class="catalog__name">CargoA // Nose</span><span class="catalog__id">cargoa_nose</span></td><td class="catalog__num">180</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargoa-tail.png</span></span></span></td><td><span class="catalog__name">CargoA // Tail</span><span class="catalog__id">cargoa_tail</span></td><td class="catalog__num">150</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargob-nose.png</span></span></span></td><td><span class="catalog__name">CargoB // Nose</span><span class="catalog__id">cargob_nose</span></td><td class="catalog__num">180</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargob-tail.png</span></span></span></td><td><span class="catalog__name">CargoB // Tail</span><span class="catalog__id">cargob_tail</span></td><td class="catalog__num">150</td></tr>
+</tbody>
+</table>
+</div>
+<p>Enemy-grade ships thin these same parts down with per-ship health modifications rather than separate prototypes.</p>
 
                     <div id="wiki-seealso"></div>
                 </article>
@@ -65,8 +113,8 @@
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

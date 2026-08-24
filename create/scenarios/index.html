@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Scenario files - Nova Protocol Creator Docs</title>
+        <meta name="description" content="Define a playable mission or backdrop, its picker metadata and handlers, then script it with events, filters, actions, objects, and expressions." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/docs.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Create navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/create/">Create</a>
+                        / <a href="/nova-protocol/create/mod-files/">Mod files</a>
+                        / Scenario files
+                    </p>
+                    <h1>Scenario files</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <nav class="wiki-toc" aria-label="Contents">
+                        <p class="wiki-toc__title">Contents</p>
+                        <ol><li><a href="#file-shape">File shape</a><ol></ol></li><li><a href="#fields">Fields</a><ol></ol></li><li><a href="#handler-shape">Handler shape</a><ol></ol></li><li><a href="#scenario-scripting-chapters">Scenario scripting chapters</a><ol></ol></li><li><a href="#lifecycle">Lifecycle</a><ol></ol></li><li><a href="#add-or-replace-a-scenario">Add or replace a scenario</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li><li><a href="#common-mistakes">Common mistakes</a><ol></ol></li></ol>
+                    </nav>
+                    <p>A scenario defines one playable mission, continuation, or menu backdrop. Its
+<code>events</code> list is the script: events decide when a handler runs, filters decide
+whether it applies, and actions change the world.</p>
+<p>For a guided first mission, start with
+<a href="../author-a-scenario/">Create your first scenario</a>. This page is the scenario
+file reference.</p>
+<h2 id="file-shape" tabindex="-1">File shape</h2>
+<p>A scenario can have its own content file:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-type">Scenario</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;freight_wars_arrival&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Freight Wars: Arrival&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">description</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Clear the shipping lane.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">cubemap</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/cubemap.png&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">events</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+            <span class="ron-punct">(</span>
+                <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnStart</span><span class="ron-punct">,</span>
+                <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+                    <span class="ron-type">Objective</span><span class="ron-punct">((</span>
+                        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;clear_lane&quot;</span><span class="ron-punct">,</span>
+                        <span class="ron-key">message</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Clear the shipping lane.&quot;</span><span class="ron-punct">,</span>
+                    <span class="ron-punct">)),</span>
+                <span class="ron-punct">],</span>
+            <span class="ron-punct">),</span>
+        <span class="ron-punct">],</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<p>List the file in the bundle manifest. See <a href="../mod-files/">Mod files</a> for the
+folder and bundle shape.</p>
+<h2 id="fields" tabindex="-1">Fields</h2>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>Stable scenario key used by campaigns and <code>NextScenario</code>. Prefix new ids with your mod id.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>required</td>
+<td>Name shown in the Scenarios menu.</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>string</td>
+<td>required</td>
+<td>Details shown for the selected scenario.</td>
+</tr>
+<tr>
+<td><code>cubemap</code></td>
+<td>asset ref</td>
+<td>required</td>
+<td>Skybox image, such as <code>dep://base/textures/cubemap.png</code> or <code>self://textures/sky.png</code>.</td>
+</tr>
+<tr>
+<td><code>thumbnail</code></td>
+<td><code>Option</code> asset ref</td>
+<td><code>None</code></td>
+<td>Plain 2D menu image, written as <code>Some(&quot;self://thumbnails/x.png&quot;)</code>. Do not use a cubemap.</td>
+</tr>
+<tr>
+<td><code>hidden</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td><code>true</code> removes the scenario from the flat list. Campaign members remain available under their campaign.</td>
+</tr>
+<tr>
+<td><code>menu_backdrop</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td><code>true</code> adds the scenario to the random main-menu backdrop rotation. Backdrops normally also use <code>hidden: true</code>.</td>
+</tr>
+<tr>
+<td><code>watches</code></td>
+<td>list</td>
+<td><code>[]</code></td>
+<td>Read-only queries sampled into auto-updating variables, entries of <code>(variable: &quot;...&quot;, query: ...)</code>. See <a href="../expressions/#queries-and-watched-variables">Queries and watched variables</a>.</td>
+</tr>
+<tr>
+<td><code>events</code></td>
+<td>list of handlers</td>
+<td><code>[]</code></td>
+<td>Scenario script. Empty is valid but does nothing.</td>
+</tr>
+</tbody>
+</table>
+<p>A menu backdrop POSES ITS OWN CAMERA: author a
+<a href="../actions/#setcamera"><code>SetCamera</code></a> in its <code>OnStart</code> (the reference shot is
+<code>position: (0, 100, 335)</code> looking at the origin). A backdrop without one is
+a content Error and never enters the menu rotation - the menu derives no
+pose of its own.</p>
+<h2 id="handler-shape" tabindex="-1">Handler shape</h2>
+<p>Each event entry is one handler:</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>event kind</td>
+<td>required</td>
+<td>Trigger such as <code>OnStart</code>, <code>OnUpdate</code>, or <code>OnDestroyed</code>.</td>
+</tr>
+<tr>
+<td><code>filters</code></td>
+<td>list</td>
+<td><code>[]</code></td>
+<td>Every filter must pass. An empty list always passes.</td>
+</tr>
+<tr>
+<td><code>actions</code></td>
+<td>list</td>
+<td><code>[]</code></td>
+<td>Commands run in listed order after the filters pass.</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnDestroyed</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">Entity</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;lane_blocker&quot;</span><span class="ron-punct">))),</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">ObjectiveComplete</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;clear_lane&quot;</span><span class="ron-punct">)),</span>
+        <span class="ron-type">Outcome</span><span class="ron-punct">((</span>
+            <span class="ron-key">outcome</span><span class="ron-punct">:</span> <span class="ron-type">Victory</span><span class="ron-punct">,</span>
+            <span class="ron-key">message</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;The shipping lane is open.&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-punct">)),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<h2 id="scenario-scripting-chapters" tabindex="-1">Scenario scripting chapters</h2>
+<ul>
+<li><a href="../events/">Events</a> - when handlers run and what entity data they carry.</li>
+<li><a href="../filters/">Filters</a> - entity matching, expression conditions, and logic.</li>
+<li><a href="../actions/">Actions</a> - objectives, spawning, story, flow, and state changes.</li>
+<li><a href="../objects/">Scenario objects</a> - asteroids, ships, beacons, salvage, and
+lights.</li>
+<li><a href="../expressions/">Variables and expressions</a> - counters, conditions, clocks,
+and state machines.</li>
+</ul>
+<p>These constructs apply only inside a scenario's <code>events</code> list. Campaign and
+section items do not use them.</p>
+<h2 id="lifecycle" tabindex="-1">Lifecycle</h2>
+<ol>
+<li>The game tears down the previous scenario and loads the selected scenario.</li>
+<li>All handlers are registered, then <code>OnStart</code> fires.</li>
+<li>Events fire while the scenario is active. Filters gate actions.</li>
+<li>A switch or retry removes all scenario-scoped objects and clears variables,
+objectives, story messages, HUD readouts, and pending transitions.</li>
+</ol>
+<p>Nothing persists automatically between scenarios. Put shared progression in
+separate content or design each scenario to start from a complete state.</p>
+<h2 id="add-or-replace-a-scenario" tabindex="-1">Add or replace a scenario</h2>
+<p>A new id adds a scenario. Reusing an existing id replaces the whole scenario;
+it is not a field-level patch. Names and filenames do not affect matching.</p>
+<p>Leave <code>hidden</code> unset for a scenario players should launch directly. Use a
+campaign or <code>NextScenario</code> for hidden continuation chapters.</p>
+<h2 id="check-it" tabindex="-1">Check it</h2>
+<pre><code class="hljs language-sh">nix develop --<span class="hljs-built_in">command</span> cargo run content lint --target path/to/your-mod
+nix develop --<span class="hljs-built_in">command</span> cargo run --features dev
+</code></pre>
+<p>The lint checks target ids, duplicate object ids, prototype references, ship
+geometry, reserved variables, and other errors that valid RON alone cannot
+find. In the game, enable the mod, open Scenarios, and play the visible entry.</p>
+<h2 id="common-mistakes" tabindex="-1">Common mistakes</h2>
+<ul>
+<li>A scenario with no <code>Light</code> object renders black.</li>
+<li>Unknown fields and misspelled enum variants are parse errors.</li>
+<li>Optional values require <code>Some(...)</code>.</li>
+<li>Initialize variables before filters read them.</li>
+<li>Spawn an object before an action targets its id.</li>
+<li><code>hidden</code> and <code>menu_backdrop</code> are separate flags.</li>
+<li>A mod cannot replace the base New Game selection. Use the Scenarios menu,
+campaigns, or <code>NextScenario</code>.</li>
+</ul>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

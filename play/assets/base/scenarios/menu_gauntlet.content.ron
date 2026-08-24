@@ -1,0 +1,606 @@
+[
+    Scenario((
+        id: "menu_gauntlet",
+        name: "Torpedo Gauntlet",
+        description: "A corvette\'s doomed point-defense stand against batteries on both flanks.",
+        cubemap: "self://textures/cubemap.png",
+        hidden: true,
+        menu_backdrop: true,
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_key",
+                            name: "Key Light",
+                            position: (
+                                -120.0,
+                                100.0,
+                                120.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_rim",
+                            name: "Rim Light",
+                            position: (
+                                60.0,
+                                80.0,
+                                -160.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_fill",
+                            name: "Fill Light",
+                            position: (
+                                140.0,
+                                -40.0,
+                                80.0,
+                            ),
+                            rotation: (
+                                0.104897276,
+                                0.49822173,
+                                -0.060874254,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_lamp",
+                            name: "Planetoid Glow",
+                            position: (
+                                -60.0,
+                                20.0,
+                                90.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Light(Point(
+                            intensity: 2500000.0,
+                            range: 400.0,
+                            radius: 12.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.82,
+                                blue: 0.6,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_nav_a",
+                            name: "KP-7",
+                            position: (
+                                -150.0,
+                                -10.0,
+                                20.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "KP-7",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.75,
+                                blue: 0.4,
+                                alpha: 1.0,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_nav_b",
+                            name: "KP-12",
+                            position: (
+                                -30.0,
+                                -18.0,
+                                -110.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "KP-12",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.75,
+                                blue: 0.4,
+                                alpha: 1.0,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_battery_w1",
+                            name: "Gauntlet Battery",
+                            position: (
+                                -800.0,
+                                20.0,
+                                150.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "bay",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("torpedo_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                            allegiance: Some(Enemy),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_battery_w2",
+                            name: "Gauntlet Battery",
+                            position: (
+                                -780.0,
+                                -30.0,
+                                -170.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "bay",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("torpedo_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                            allegiance: Some(Enemy),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_battery_e1",
+                            name: "Gauntlet Battery",
+                            position: (
+                                660.0,
+                                25.0,
+                                140.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "bay",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("torpedo_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                            allegiance: Some(Enemy),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_battery_e2",
+                            name: "Gauntlet Battery",
+                            position: (
+                                640.0,
+                                -20.0,
+                                -160.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "bay",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("torpedo_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                            allegiance: Some(Enemy),
+                        )),
+                    )),
+                    SetCamera((
+                        position: (
+                            0.0,
+                            80.0,
+                            260.0,
+                        ),
+                        look_at: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "gauntlet_rock_",
+                        count: 26,
+                        seed: 433757350076153859,
+                        region: Ring(
+                            center: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inner: 140.0,
+                            outer: 230.0,
+                            y_min: -75.0,
+                            y_max: -30.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "gauntlet_rock_",
+                                name: "Gauntlet Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.0,
+                                texture: "self://textures/asteroid.png",
+                                impact_sound: Some("self://sounds/impact.wav"),
+                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            1.0,
+                            3.0,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_ship",
+                            name: "Gauntlet Corvette",
+                            position: (
+                                -5.0,
+                                25.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("cargoa"),
+                            controller: AI((
+                                patrol: [
+                                    (
+                                        -5.0,
+                                        25.0,
+                                        0.0,
+                                    ),
+                                    (
+                                        -32.5,
+                                        33.0,
+                                        48.0,
+                                    ),
+                                    (
+                                        -87.5,
+                                        20.0,
+                                        48.0,
+                                    ),
+                                    (
+                                        -115.0,
+                                        25.0,
+                                        0.0,
+                                    ),
+                                    (
+                                        -87.5,
+                                        35.0,
+                                        -48.0,
+                                    ),
+                                    (
+                                        -32.5,
+                                        18.0,
+                                        -48.0,
+                                    ),
+                                ],
+                                leash: Some(250.0),
+                                engage_delay: Some(2.0),
+                                engage_range: Some(300.0),
+                                pd_range: Some(130.0),
+                            )),
+                            allegiance: Some(Player),
+                            modifications: [
+                                (
+                                    section: "turret_port",
+                                    modifications: [
+                                        SetAmmo(400),
+                                    ],
+                                ),
+                                (
+                                    section: "turret_starboard",
+                                    modifications: [
+                                        SetAmmo(400),
+                                    ],
+                                ),
+                            ],
+                        )),
+                    )),
+                    TimerStart((
+                        key: "gauntlet_watchdog",
+                        seconds: Term(Factor(Literal(Number(360.0)))),
+                    )),
+                    TimerStart((
+                        key: "gauntlet_battery_w1_fire",
+                        seconds: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    TimerStart((
+                        key: "gauntlet_battery_w2_fire",
+                        seconds: Term(Factor(Literal(Number(8.0)))),
+                    )),
+                    TimerStart((
+                        key: "gauntlet_battery_e1_fire",
+                        seconds: Term(Factor(Literal(Number(12.0)))),
+                    )),
+                    TimerStart((
+                        key: "gauntlet_battery_e2_fire",
+                        seconds: Term(Factor(Literal(Number(16.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                filters: [
+                    Entity((
+                        id: Some("gauntlet_ship"),
+                    )),
+                ],
+                actions: [
+                    TimerStart((
+                        key: "gauntlet_reset",
+                        seconds: Term(Factor(Literal(Number(8.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "gauntlet_reset",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_weave",
+                        linger: false,
+                        delay: Some(1.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "gauntlet_watchdog",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_weave",
+                        linger: false,
+                        delay: Some(1.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "gauntlet_battery_w1_fire",
+                    )),
+                ],
+                actions: [
+                    ForceTorpedoLaunch((
+                        id: "gauntlet_battery_w1",
+                        target: "gauntlet_ship",
+                    )),
+                    TimerStart((
+                        key: "gauntlet_battery_w1_fire",
+                        seconds: Term(Factor(Literal(Number(15.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "gauntlet_battery_w2_fire",
+                    )),
+                ],
+                actions: [
+                    ForceTorpedoLaunch((
+                        id: "gauntlet_battery_w2",
+                        target: "gauntlet_ship",
+                    )),
+                    TimerStart((
+                        key: "gauntlet_battery_w2_fire",
+                        seconds: Term(Factor(Literal(Number(18.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "gauntlet_battery_e1_fire",
+                    )),
+                ],
+                actions: [
+                    ForceTorpedoLaunch((
+                        id: "gauntlet_battery_e1",
+                        target: "gauntlet_ship",
+                    )),
+                    TimerStart((
+                        key: "gauntlet_battery_e1_fire",
+                        seconds: Term(Factor(Literal(Number(21.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "gauntlet_battery_e2_fire",
+                    )),
+                ],
+                actions: [
+                    ForceTorpedoLaunch((
+                        id: "gauntlet_battery_e2",
+                        target: "gauntlet_ship",
+                    )),
+                    TimerStart((
+                        key: "gauntlet_battery_e2_fire",
+                        seconds: Term(Factor(Literal(Number(24.0)))),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.11.0 - Ships come apart - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.11.0: ships wear damage and tear into drifting wrecks, Kinetic and Pierce rounds travel differently, point defence answers weaving torpedoes per mount, derived skins give hulls four authored identities, the editor becomes visual, and gun rounds leave the rigid-body simulation." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#ships-come-apart" class="news__toc-link">Ships come apart</a>
+                    <a href="#eight-readable-stages" class="news__toc-link news__toc-link--sub">Eight readable stages</a>
+                    <a href="#collapse-is-a-process" class="news__toc-link news__toc-link--sub">Collapse is a process</a>
+                    <a href="#every-shot-has-a-purpose" class="news__toc-link">Every shot has a purpose</a>
+                    <a href="#kinetic-is-a-punch-pierce-is-a-rake" class="news__toc-link news__toc-link--sub">Kinetic is a punch; Pierce is a rake</a>
+                    <a href="#fights-moved-close-enough-to-read" class="news__toc-link news__toc-link--sub">Fights moved close enough to read</a>
+                    <a href="#torpedoes-attack-point-defence-answers" class="news__toc-link">Torpedoes attack; point defence answers</a>
+                    <a href="#lance-and-serpent" class="news__toc-link news__toc-link--sub">Lance and Serpent</a>
+                    <a href="#every-mount-gets-a-threat" class="news__toc-link news__toc-link--sub">Every mount gets a threat</a>
+                    <a href="#ships-have-a-visual-identity" class="news__toc-link">Ships have a visual identity</a>
+                    <a href="#four-authored-looks" class="news__toc-link news__toc-link--sub">Four authored looks</a>
+                    <a href="#build-the-ship-you-can-see" class="news__toc-link">Build the ship you can see</a>
+                    <a href="#skin-while-you-build" class="news__toc-link news__toc-link--sub">Skin while you build</a>
+                    <a href="#flight-and-scenarios-feel-intentional" class="news__toc-link">Flight and scenarios feel intentional</a>
+                    <a href="#size-decides-how-a-ship-turns" class="news__toc-link news__toc-link--sub">Size decides how a ship turns</a>
+                    <a href="#scenarios-get-room-to-finish" class="news__toc-link news__toc-link--sub">Scenarios get room to finish</a>
+                    <a href="#a-lighter-battlefield" class="news__toc-link">A lighter battlefield</a>
+                    <a href="#less-work-around-the-work" class="news__toc-link news__toc-link--sub">Less work around the work</a>
+                    <a href="#more-in-v0110" class="news__toc-link">More in v0.11.0</a>
+                    <a href="#modding-and-compatibility" class="news__toc-link news__toc-link--sub">Modding and compatibility</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2026-08-22 &nbsp;//&nbsp; v0.11.0
+                </p>
+                <h1>v0.11.0 - Ships come apart</h1>
+                <p>For ten releases, Nova Protocol's ships have been assemblies of real sections.
+They carried local health, mass, weapons, thrust, and structural links. But when
+the shooting started, too much of that truth stayed behind the scenes. A hull
+looked healthy until a section disappeared. A thousand bullets were a thousand
+physics bodies. Point-defence mounts could all choose the same torpedo. The
+editor described parts in lists when the important fact was what those parts
+looked like together.</p>
+<p>v0.11.0 makes the structure visible. Cracks deepen across wounded plating.
+Turrets spark and stop. A beaten hull tears itself apart from the outside in,
+leaving wreckage where the ship used to be. Derived skins turn bare assemblies
+into industrial, armoured, civilian, or salvaged craft. Gunfights move close
+enough to read, and every projectile type earns its identity through how it
+travels.</p>
+<p>The same release also asks the engine to do less invisible work. Gun rounds
+leave the rigid-body simulation. Repeated visuals share their assets. Steady
+fixed-step work stops paying thread-pool overhead. A pristine fleet no longer
+renders through a damage pipeline for cracks it does not have.</p>
+<div class="callout">
+<p class="callout__title">v0.11.0 is the destruction and performance release</p>
+<p>Play it in the browser or download the native build from the landing page. The complete compatibility notes are at the end of this post.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0110-release-lead.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0110-release-lead.webm</span>
+        <span class="figure__placeholder-note">A close broadside: cracks spread over the target, a turret sparks out, an outer section severs, and the opened hull drifts through its own wreckage.</span>
+    </div>
+    <figcaption class="figure__caption">The ship does not swap from intact to gone. It wears every stage in between.</figcaption>
+</figure>
+<h2 id="ships-come-apart" tabindex="-1">Ships come apart</h2>
+<p>Damage now has a visible grammar. A section's missing health drives surface
+cracks, smoke, sparks, and exhaust failure. Hit locations remain local: rounds
+and blasts mark the part they actually struck instead of tinting the whole ship
+as one abstract health bar.</p>
+<h3 id="eight-readable-stages" tabindex="-1">Eight readable stages</h3>
+<p>Cracks use eight shared levels, from pristine paint to burnt-out plate. Eight is
+enough to show damage deepening without minting a unique material for every
+section and every health value. The first level is genuinely pristine: it keeps
+the source material and never enters the cracks render pipeline.</p>
+<!-- Game sources: SECTION_CRACK_BUCKETS and nearest-bucket mapping in
+     crates/nova_ship/src/sections/damage_cracks.rs:102-127. -->
+<div class="widget" data-widget="damage-levels">
+<p>A section moves through eight visible crack levels. Level 0 is pristine and keeps its ordinary material; levels 1-7 deepen toward a burnt-out surface.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0110-damage-levels.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0110-damage-levels.webm</span>
+        <span class="figure__placeholder-note">One clad hull section under controlled fire, held long enough at each of the eight crack levels to compare the progression from clean paint to burnt plate.</span>
+    </div>
+    <figcaption class="figure__caption">The capture will show the same section and light at every level; the widget above explains the rule underneath it.</figcaption>
+</figure>
+<p>Damage is not only a shader. A crater records where a hit landed, nearby hits
+merge into one wound, and asteroid fire removes geometry from the rock itself.
+The surface can heal back to pristine if health is restored; the material and
+its performance cost heal with it.</p>
+<h3 id="collapse-is-a-process" tabindex="-1">Collapse is a process</h3>
+<p>A ship no longer waits to be deleted section by section. When its remaining
+structure falls below its authored collapse threshold, the outermost live parts
+start failing first. Detached sections inherit the ship's motion and tumble as
+wrecks. The peel continues inward until the root goes with it, including ring
+structures with no natural loose end.</p>
+<p>The default threshold is deliberately low: five percent of the hull's as-built
+health. A scenario or mod can raise it for a ship that should break earlier, set
+it to zero for the old dismantle-everything rule, or keep a capital fighting
+deeper into its structure.</p>
+<!-- Game source: DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD and authored override in
+     crates/nova_ship/src/sections/integrity.rs:18-45. -->
+<p>A collapsing ship is still the ship until it dies. Guns that remain attached can
+keep firing. Each section raises its own destruction event when it leaves, and
+the ship's defeat and destruction edges still happen exactly once. The visual
+sequence did not replace the scenario contract; it finally catches up with it.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/spine-cut.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop available</span>
+        <span class="figure__placeholder-name">assets/loops/spine-cut.webm</span>
+        <span class="figure__placeholder-note">A piercing flank shot cuts through a ship's spine and the disconnected engine block separates into a drifting wreck.</span>
+    </div>
+    <figcaption class="figure__caption">Structure is authored as explicit mates, so a cut knows what remains one ship and what has become wreckage.</figcaption>
+</figure>
+<h2 id="every-shot-has-a-purpose" tabindex="-1">Every shot has a purpose</h2>
+<p>The old damage-resistance table tried to make ammunition types distinct through
+invisible multipliers. v0.11.0 removes it. A damage type's identity is now what
+the projectile does on its way through the target.</p>
+<h3 id="kinetic-is-a-punch-pierce-is-a-rake" tabindex="-1">Kinetic is a punch; Pierce is a rake</h3>
+<p>A Kinetic round carries one damage budget. It hits hard, continues only through
+a section it destroys, and spends that section's health from the budget. It can
+punch through weak layers, but it cannot deal more damage than it brought.</p>
+<p>A Pierce round deals less damage to each section but applies that damage in full
+to every layer it crosses. Travel comes from a separate penetration budget based
+on each layer's full health, not its remaining health. Softening a heavy part
+first therefore does not make it cheaper to cross. A six-layer ceiling keeps one
+round from raking an entire capital hull.</p>
+<p>Both types read closing speed. Charging a target makes Kinetic hit harder and
+Pierce carry farther; firing while fleeing does less. An indestructible obstacle
+stops either one.</p>
+<!-- Game sources: closing-speed clamps, Pierce power, and layer ceiling in
+     crates/nova_gameplay/src/damage.rs:156-196; travel rules at :319-340. -->
+<div class="widget" data-widget="round-travel">
+<p>Kinetic spends one damage budget and stops when a layer survives. Pierce deals its full hit to every crossed layer while a separate power budget and six-layer ceiling decide how far it travels.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0110-round-types.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0110-round-types.webm</span>
+        <span class="figure__placeholder-note">A synchronized split shot against the same layered target: the Kinetic slug punches through what it destroys and stops, while the Pierce needle marks every section along its line.</span>
+    </div>
+    <figcaption class="figure__caption">Same target and firing line. The path, not a resistance label, tells the ammunition apart.</figcaption>
+</figure>
+<h3 id="fights-moved-close-enough-to-read" tabindex="-1">Fights moved close enough to read</h3>
+<p>PDC rounds now live for two seconds and reach 200 world units. The scavenger gun
+reaches 180. AI standoff, engagement, and point-defence ranges moved with them,
+so ordinary gunfights happen around one to two kilometres on the HUD rather than
+four to five.</p>
+<p>Muzzle speed did not change. The shot does not become weaker because the fight
+became closer; the empty distance before anything readable happened is what
+left.</p>
+<!-- Game sources: PDC speed and lifetime in
+     crates/nova_authoring/src/base_content/sections/standard.rs:262-280;
+     METERS_PER_UNIT in crates/nova_events/src/scale.rs:14. -->
+<h2 id="torpedoes-attack-point-defence-answers" tabindex="-1">Torpedoes attack; point defence answers</h2>
+<p>Torpedoes are decisive now. A standard warhead deals 750 blast damage, and its
+health sits above the hardest hit one stock PDC round can land. A lucky tap no
+longer erases it. The answer is sustained point defence - or destroying the bay
+before the salvo leaves.</p>
+<!-- Game sources: blast damage, projectile health, and the single-hit argument
+     in crates/nova_authoring/src/base_content/sections/standard.rs:565-583. -->
+<h3 id="lance-and-serpent" tabindex="-1">Lance and Serpent</h3>
+<p>A bay launches a torpedo type. The Lance runs straight and faster. The Serpent
+cruises more slowly but corkscrews around its guidance line until the final
+approach, where the weave fades out so the fuze still arrives on target.</p>
+<p>They carry the same warhead. The choice is entirely in the run-in. In the
+shipped comparison, one stock PDC spends about 116 rounds to stop a Lance and
+about 390 to stop a Serpent. It kills the Lance roughly 114 units out; the
+Serpent survives to roughly 40. The Lance arrives sooner and closes faster on a
+ship that runs. The Serpent makes the defence pay.</p>
+<!-- Game and measured-fixture source: the shipped type comparison in
+     crates/nova_authoring/src/base_content/sections/ordnance.rs:13-25. -->
+<div class="widget" data-widget="torpedo-run">
+<p>Across the same 300-unit run, the straight Lance arrives sooner but one stock PDC stops it far out. The weaving Serpent arrives later and forces the same mount to fire roughly three times as much before the kill.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0110-torpedo-types.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0110-torpedo-types.webm</span>
+        <span class="figure__placeholder-note">A Lance and Serpent fly side by side toward one target, cold straight trail beside hot corkscrew, with the weave taper visible near the hull.</span>
+    </div>
+    <figcaption class="figure__caption">The torpedo's colour and flight path say which problem is inbound before it arrives.</figcaption>
+</figure>
+<h3 id="every-mount-gets-a-threat" tabindex="-1">Every mount gets a threat</h3>
+<p>Point defence is assigned per turret, not once per ship. Each mount asks which
+inbound torpedoes it can physically bear on, holds its current assignment while
+it remains useful, and prefers an urgent target no other mount has claimed. A
+rival must be arriving in half the time before it tears a turret away from the
+track it already owns.</p>
+<p>A mount with nothing reachable returns to the primary target. It does not join a
+ship-wide dogpile on a torpedo under its own hull.</p>
+<!-- Game sources: assignment dwell and no-dogpile contract in
+     crates/nova_ship/src/input/point_defense/assignment.rs:35-59; unclaimed
+     preference in assignment.rs:245-303. -->
+<div class="widget" data-widget="point-defense">
+<p>Four mounts divide four reachable inbound torpedoes instead of all choosing the nearest one. A mount keeps its track unless another threat will arrive in less than half the time.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0110-point-defense.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0110-point-defense.webm</span>
+        <span class="figure__placeholder-note">A four-mount battery splits across an inbound torpedo salvo; distinct tracer lanes converge on separate warheads before the survivors reach the hull.</span>
+    </div>
+    <figcaption class="figure__caption">A battery is several guns solving several threats, not several guns wasting one answer.</figcaption>
+</figure>
+<p>Bays regenerate one torpedo every ten seconds. Saturation still beats a defence,
+but it comes from what the attacker carried into the fight rather than from
+waiting behind an endless four-second refill. The campaign uses the two types as
+a difficulty curve: the first torpedo fight throws Lances; the finale escalates
+to Serpents.</p>
+<h2 id="ships-have-a-visual-identity" tabindex="-1">Ships have a visual identity</h2>
+<p>A modular hull can now wear a skin derived from its structure. Set one flag and
+the game samples the boundary of the assembled sections, builds continuous
+cladding over it, leaves firing lanes clear, and makes every plate destructible.
+No plate coordinates are authored. Neighbouring cells share their boundary
+samples, so their surfaces meet.</p>
+<p>The skin is separate from the ship's structural health. Plates and decoration
+carry their own health, mass, and colliders, but they do not hold a severed hull
+together. Shoot one away and the hole exposes the parts beneath it.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0110-derived-skin.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0110-derived-skin.webm</span>
+        <span class="figure__placeholder-note">A bare modular hull gains continuous derived plates, turns to show clear muzzles and nozzles, then loses three near-side plates to expose the structure below.</span>
+    </div>
+    <figcaption class="figure__caption">The structure is authored. The skin reads it.</figcaption>
+</figure>
+<h3 id="four-authored-looks" tabindex="-1">Four authored looks</h3>
+<p>A style decides what the cladding says about the ship:</p>
+<ul>
+<li><strong>Industrial</strong> puts corrugation, radiators, ducts, and warning paint outside.</li>
+<li><strong>Armoured</strong> builds an unbroken belt with hatches, bosses, and sensors.</li>
+<li><strong>Civilian</strong> uses pale satin plates, a cobalt rail, fairings, and lit windows.</li>
+<li><strong>Salvage</strong> layers mismatched patches, weld seams, drums, chains, and whips.</li>
+</ul>
+<p>These are not four colour swaps. Each style owns plate materials and a kit of
+physical greebles placed from the plate's shape, facing, run, depth, and distance
+to a fitting. Placement is deterministic: the same hull gets the same details
+every time, including while it changes live in the editor.</p>
+<!-- Game source: the four authored style ids and stable order in
+     crates/nova_authoring/src/base_content/styles.rs:1-83. -->
+<div class="widget" data-widget="style-explorer">
+<p>Industrial, Armoured, Civilian, and Salvage each select a distinct material palette and greeble vocabulary. Choose a style to inspect the design rule its fixtures express.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/news-0110-greeble-atlas.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Gallery planned</span>
+        <span class="figure__placeholder-name">assets/news-0110-greeble-atlas.png</span>
+        <span class="figure__placeholder-note">A labelled contact sheet of representative industrial, armoured, civilian, and salvage greebles beside one hull wearing each complete style.</span>
+    </div>
+    <figcaption class="figure__caption">Four kits, four readings of what a working spacecraft keeps on its outside.</figcaption>
+</figure>
+<p>Greebles lie down on the surface they stand on instead of balancing upright in
+their cell. A fixture can require one whole plate surface or deliberately claim
+a ridge, cone, or tip. Density can be stated in cells of ship, so a style tuned
+on a generated capital hull does not vanish when applied to a small hand-built
+craft.</p>
+<h2 id="build-the-ship-you-can-see" tabindex="-1">Build the ship you can see</h2>
+<p>The editor's component drawer is replaced by a full-screen parts gallery. Every
+tile renders a live preview. Categories and text search cut the catalog down; a
+focus card turns the selected part beside its stats. Drag rotates it, the wheel
+zooms it, and <code>Q</code> takes the part straight back to the build view.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0110-parts-gallery.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0110-parts-gallery.webm</span>
+        <span class="figure__placeholder-note">The editor opens the parts gallery, filters to a turret, rotates its focus preview, takes it with Q, and returns to a live placement ghost.</span>
+    </div>
+    <figcaption class="figure__caption">A builder finds a part by looking at it, not by decoding a text card.</figcaption>
+</figure>
+<p>Placement itself now mates explicit link-point frames. The editor highlights
+free sockets, snaps the chosen socket onto the one under the pointer, opposes
+their normals, and preserves roll. Occupied, ambiguous, or intersecting
+placements are refused with a reason. The wheel reverses roll; Ctrl-wheel
+reverses the socket choice. The ghost is the real part mesh.</p>
+<p>That change brings Racer, CargoA, and CargoB's semantic parts into the palette.
+Noses, engines, pods, and tails replace coordinate-named cube fragments, and
+parts from different craft can mate because the socket frame - not the source
+ship - defines the join.</p>
+<h3 id="skin-while-you-build" tabindex="-1">Skin while you build</h3>
+<p>Ship Skin in the Tools block derives the cladding around the current assembly.
+Move a part under the pointer and the plates close around the uncommitted ghost;
+refuse the placement and they disappear with it. A ship built clad is the ship
+you fly clad, with the selected style taken from the merged base-and-mod
+catalog.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0110-editor-skin.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0110-editor-skin.webm</span>
+        <span class="figure__placeholder-note">A finished build sheds and regains its derived skin, then switches between the Civilian, Armoured, Salvage, and Industrial looks.</span>
+    </div>
+    <figcaption class="figure__caption">The editor previews the rule, not a substitute for it.</figcaption>
+</figure>
+<h2 id="flight-and-scenarios-feel-intentional" tabindex="-1">Flight and scenarios feel intentional</h2>
+<h3 id="size-decides-how-a-ship-turns" tabindex="-1">Size decides how a ship turns</h3>
+<p>Turn rate is derived from the ship now. The game compares what its flight
+computers can twist, given the hull's inertia, with what the structure can take,
+given an eight-G limit at its furthest face. The lower ceiling wins.</p>
+<p>A short craft swings on a short arm and turns sharply. A long freighter handles
+like one. Losing the nose can make a wreck turn faster because its structural arm
+became shorter. Stacking computers adds torque and redundancy, but it cannot
+push a light ship past the limit of its own hull.</p>
+<!-- Game sources: torque and structural ceilings in
+     crates/nova_ship/src/physics/attitude.rs:72-110; LOAD_LIMIT in
+     crates/nova_events/src/scale.rs:23. -->
+<div class="widget" data-widget="controller-arm">
+<p>The shipped corvette is limited by its structural arm, not by computer torque. Remove its nose and the surviving shorter wreck can turn more sharply; remove the computer-bearing fuselage and it is no longer a ship.</p>
+</div>
+<p>Turret tracking also stops depending on frame rate. Through v0.10.0 the servo
+closed a fixed fraction of its error per rendered frame, so a slow machine made
+guns lag and eventually stop firing. It now closes the same fraction per second.
+The target, not the display, decides whether a mount keeps up.</p>
+<!-- Game source: time-based correction and historical 60 fps equivalence in
+     crates/nova_ship/src/sections/turret_section/aim.rs:254-312. -->
+<div class="widget" data-widget="aim-decay">
+<p>Turret correction is now measured per second. The v0.10.0 per-frame rule fell outside the fire gate on a slow frame; the new curve keeps the same tracking response across playable frame rates.</p>
+</div>
+<h3 id="scenarios-get-room-to-finish" tabindex="-1">Scenarios get room to finish</h3>
+<p>Campaign chapters no longer cut from the killing blow directly to a modal
+Victory frame. A win locks, the live scene gets its outro comms, and only then
+does the outcome overlay take over. The sequence uses the same first-class
+scenario timers available to authored content.</p>
+<p>The main menu becomes a backdrop carousel with four authored scenes and their
+own cameras. The editor sandbox becomes a real free-flight range: seeded rock
+belts, inert targets, dormant pickets, and skybox gates, with F1 always naming
+the way back to the editor.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0110-scenarios.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0110-scenarios.png</span>
+        <span class="figure__placeholder-note">A three-panel strip: the live-world campaign outro, the menu's Torpedo Gauntlet backdrop, and the editor sandbox range with belts and target hulks.</span>
+    </div>
+    <figcaption class="figure__caption">The spaces between fights are authored scenes too.</figcaption>
+</figure>
+<h2 id="a-lighter-battlefield" tabindex="-1">A lighter battlefield</h2>
+<p>The largest performance change is structural enough to see without trusting one
+computer's frame counter. In v0.10.0, a thousand rounds in flight meant a
+thousand rigid bodies and a thousand colliders. In v0.11.0, gun rounds are swept
+math: they keep their visual entity, previous and current position, damage, and
+owner, but they never enter the rigid-body broad phase.</p>
+<p>The measured scenes are not identical - shorter reach and lifetime leave 400
+rounds in flight in the new fight where the old one held 1,000 - so this is not
+presented as a universal frame-rate ratio. The invariant is simpler: each old
+round added one body and one collider; each new round adds neither.</p>
+<!-- Measurement source: paired archetype census recorded in
+     tasks/20260818-220812/DECISIONS.md:1172-1175. Projectile lifetime and reach
+     are sourced above from standard.rs:262-280. -->
+<div class="widget" data-widget="battlefield-load">
+<p>In the paired firing census, v0.10.0 held 1,000 rounds, 1,035 rigid bodies, and 1,046 colliders. v0.11.0 held 400 rounds but only the scene's 35 bodies and 46 colliders: every gun round now adds zero of either.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/news-0110-collider-before-after.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Comparison planned</span>
+        <span class="figure__placeholder-name">assets/news-0110-collider-before-after.png</span>
+        <span class="figure__placeholder-note">The same point-defence firing lane with collider gizmos: v0.10.0 filled with a wireframe per bullet, v0.11.0 showing ships and torpedoes but no bullet colliders.</span>
+    </div>
+    <figcaption class="figure__caption">The performance headline is a thing the engine stopped creating.</figcaption>
+</figure>
+<h3 id="less-work-around-the-work" tabindex="-1">Less work around the work</h3>
+<p>Several smaller changes remove repeated presentation costs:</p>
+<ul>
+<li>Damage cracks share eight materials per source material instead of one
+material per damaged section.</li>
+<li>A pristine section keeps its ordinary material, returning the entire cost of
+cracks when nothing has been hit. In the driven comparison this reduced mean
+frame time by 8.6 percent and p99 by 12.2 percent, with all 24 paired metrics
+moving in the same direction.</li>
+<li>Thruster and torpedo materials are shared by type, and exhaust data changes
+only when the plume changes.</li>
+<li>The small fixed-step schedules run directly instead of paying parallel
+executor overhead larger than their work.</li>
+<li>Muzzle, blast, and launch-puff particle buffers are sized to their real bursts
+instead of all allocating 32,768 slots.</li>
+<li>Scenario hull art is requested during loading instead of by the first ship
+that needs it.</li>
+</ul>
+<!-- Measurement source for pristine cracks:
+     tasks/20260818-220812/DECISIONS.md D24 and
+     tasks/20260818-220812/state-2026-08-22.html section 02. Particle capacities
+     are defined in turret_section/render.rs:331,
+     torpedo_section/render.rs:378, and torpedo_section/render.rs:519. -->
+<p>Those results do not collapse into one honest &quot;the game is N percent faster.&quot;
+Different scenes bind on simulation, render preparation, or presentation. The
+post therefore reports the structural changes and paired subjects they actually
+measured. The final release probe will certify the finished tree rather than
+turn a development profile into a marketing frame rate.</p>
+<h2 id="more-in-v0110" tabindex="-1">More in v0.11.0</h2>
+<p>The feature story above is the release, but several shipped behaviors also got
+cleaner:</p>
+<ul>
+<li><strong>Turret rounds apply their authored damage once.</strong> v0.10.0 could report one
+collider contact twice with the sides swapped and pay damage on both.</li>
+<li><strong>A ship's HP bar stays tied to its as-built maximum.</strong> Destroying a section no
+longer shrinks the denominator and makes the bar fill while the ship dies.</li>
+<li><strong>Neutralization means no weapons or no flight computer.</strong> A disarmed runner
+and a brain-dead gunship are both out of the fight; a bare emplacement with no
+computer still loses only when its guns are gone.</li>
+<li><strong>Unlimited player ammunition is debug-only.</strong> Shipped scenarios and mods use
+their authored magazines.</li>
+<li><strong>World debris expires.</strong> Sliced asteroid fragments leave after 30 seconds
+instead of accumulating until scenario teardown.</li>
+<li><strong>Rounds identify themselves in flight.</strong> Kinetic slugs, Pierce needles, and
+Explosive shells have distinct silhouettes and use their HUD colours.</li>
+<li><strong>Torpedoes fly nose-first.</strong> One shared coned body replaces the flat-ended
+pipe, with each type carrying its own tint.</li>
+</ul>
+<h3 id="modding-and-compatibility" tabindex="-1">Modding and compatibility</h3>
+<p>v0.11.0 deliberately carries no compatibility aliases for its format breaks:</p>
+<ul>
+<li><code>Kinetic</code>, <code>Pierce</code>, and <code>Explosive</code> are the damage roster. <code>Emp</code> is removed;
+<code>ArmorPiercing</code> becomes <code>Pierce</code>.</li>
+<li><code>SectionDamageClass</code> becomes <code>SectionClass</code>; the resistance table is gone.</li>
+<li>The PDC prototype splits into Kinetic and Pierce variants.</li>
+<li>Kinetic and Pierce use the new travel rules and closing-speed model.</li>
+<li>Torpedo bays select a torpedo type; standard warhead health and blast values
+changed.</li>
+<li>Turn ceilings derive from torque, inertia, hull length, and the structural
+load limit.</li>
+<li>Ships accept an authorable collapse threshold and optional derived skin/style.</li>
+<li><code>Style</code> is a new content kind with plate surfaces, fixtures, and scatter rules.</li>
+<li>Menu backdrops must author <code>SetCamera</code> in <code>OnStart</code>.</li>
+<li>The editor's Components drawer is replaced by the parts gallery.</li>
+</ul>
+<p>Run <code>cargo run content lint</code> against each bundle. The current <code>/create/</code>
+reference owns the complete replacement vocabulary and the bundled content shows
+the migrated forms.</p>
+<div class="callout callout--breaking">
+<p class="callout__title">Build a ship, then break it</p>
+<p>v0.11.0 is available from the Nova Protocol landing page. Play in the browser, download the native build, or open the editor and watch a bare structure become a clad ship before taking it into the new sandbox range.</p>
+</div>
+<p>The terse list is in <code>CHANGELOG.md</code>. This post is the visible version: closer
+fights, smarter ordnance, ships with an identity, and wreckage that tells you
+exactly how the battle ended.</p>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

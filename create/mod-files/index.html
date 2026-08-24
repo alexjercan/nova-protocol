@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Mod files - Nova Protocol Creator Docs</title>
+        <meta name="description" content="The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, and styles." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/docs.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Create navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/create/">Create</a>
+                        / <a href="/nova-protocol/create/reference/">Modding reference</a>
+                        / Mod files
+                    </p>
+                    <h1>Mod files</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <nav class="wiki-toc" aria-label="Contents">
+                        <p class="wiki-toc__title">Contents</p>
+                        <ol><li><a href="#folder-structure">Folder structure</a><ol></ol></li><li><a href="#the-bundle-manifest">The bundle manifest</a><ol></ol></li><li><a href="#balance-acknowledgments">Balance acknowledgments</a><ol></ol></li><li><a href="#content-files">Content files</a><ol></ol></li><li><a href="#the-five-content-chapters">The five content chapters</a><ol></ol></li><li><a href="#paths-and-dependencies">Paths and dependencies</a><ol></ol></li><li><a href="#overlay-behavior">Overlay behavior</a><ol></ol></li></ol>
+                    </nav>
+                    <p>A Nova Protocol mod is a folder that contains one bundle manifest, one or more
+content files, and any art or audio that the mod owns. Content files can define
+five kinds of reusable item: campaigns, scenarios, ship sections, whole ships,
+and ship skin styles.</p>
+<p>Use this page to choose the right file. Then open the detailed reference for the
+item you want to author.</p>
+<h2 id="folder-structure" tabindex="-1">Folder structure</h2>
+<p>A small mod can use this layout:</p>
+<pre><code class="hljs language-text">my-mod/
+|- my-mod.bundle.ron
+|- campaign.content.ron
+|- scenarios.content.ron
+|- sections.content.ron
+|- icon.png
+|- screenshots/
+|  `- mission.png
+`- textures/
+   `- skybox.png
+</code></pre>
+<p>Only the bundle manifest has a fixed role. The content filenames and folder
+layout are your choice, but every content file must end in <code>.content.ron</code> and be
+listed by the manifest.</p>
+<p>The manifest filename must use the mod id as its stem:
+<code>my-mod.bundle.ron</code>. Do not name it only <code>bundle.ron</code>.</p>
+<h2 id="the-bundle-manifest" tabindex="-1">The bundle manifest</h2>
+<p>The bundle tells the loader which files belong to the mod:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">content</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-string">&quot;campaign.content.ron&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-string">&quot;scenarios.content.ron&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-string">&quot;sections.content.ron&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">resources</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-string">&quot;icon.png&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-string">&quot;screenshots/mission.png&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-string">&quot;textures/skybox.png&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">meta</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;My Mod&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">description</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A short campaign with custom ship parts.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">author</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Your Name&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">version</span><span class="ron-punct">:</span> <span class="ron-string">&quot;0.1.0&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">dependencies</span><span class="ron-punct">:</span> <span class="ron-punct">[],</span>
+        <span class="ron-key">icon</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;icon.png&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">screenshots</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-string">&quot;screenshots/mission.png&quot;</span><span class="ron-punct">],</span>
+    <span class="ron-punct">),</span>
+<span class="ron-punct">)</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>content</code></td>
+<td>list of paths</td>
+<td>required</td>
+<td>Content files loaded from this folder. Paths are relative to the manifest.</td>
+</tr>
+<tr>
+<td><code>resources</code></td>
+<td>list of paths</td>
+<td><code>[]</code></td>
+<td>Images, models, sounds, and other binary files owned by the mod.</td>
+</tr>
+<tr>
+<td><code>meta.name</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Player-facing mod name. Required for portal publishing.</td>
+</tr>
+<tr>
+<td><code>meta.description</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Player-facing summary.</td>
+</tr>
+<tr>
+<td><code>meta.author</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Author or team name.</td>
+</tr>
+<tr>
+<td><code>meta.version</code></td>
+<td>string</td>
+<td>empty</td>
+<td>Release identifier. Required for portal publishing; change it for each release.</td>
+</tr>
+<tr>
+<td><code>meta.dependencies</code></td>
+<td>list of mod ids</td>
+<td><code>[]</code></td>
+<td>Other mods whose content and <code>dep://&lt;id&gt;/</code> resources this mod uses. Base is always available.</td>
+</tr>
+<tr>
+<td><code>meta.icon</code></td>
+<td><code>Option</code> path</td>
+<td><code>None</code></td>
+<td>Mod icon relative to this folder. Use <code>Some(&quot;icon.png&quot;)</code>.</td>
+</tr>
+<tr>
+<td><code>meta.screenshots</code></td>
+<td>list of paths</td>
+<td><code>[]</code></td>
+<td>Mod screenshots relative to this folder.</td>
+</tr>
+<tr>
+<td><code>new_game_scenario</code></td>
+<td><code>Option</code> scenario id</td>
+<td><code>None</code></td>
+<td>Base-game-only setting. The game warns and ignores it in ordinary mods.</td>
+</tr>
+</tbody>
+</table>
+<p><code>resources</code> lists files, not folders. A <code>.meta</code> sidecar next to a listed image
+travels with that image automatically and is not listed separately.</p>
+<p>The full packaging, catalog, local installation, and publishing flow is in
+<a href="../publish-a-mod/">Publish a mod</a>.</p>
+<h2 id="balance-acknowledgments" tabindex="-1">Balance acknowledgments</h2>
+<p><code>content lint</code> grades every combat scenario for fairness. A <code>close-spawn</code>
+warning says a hostile arrives inside its own weapon envelope of the player
+spawn. When that is the point - a boss entrance, a scripted ambush - declare it
+in a <code>balance_acks.ron</code> beside the manifest. The linter reads the file from the
+bundle it lints, so the justification travels with the mod:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-punct">(</span>
+        <span class="ron-key">scenario</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_first_mission&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">hostile</span><span class="ron-punct">:</span> <span class="ron-string">&quot;boss_1&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-string">&quot;close-spawn&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">reason</span><span class="ron-punct">:</span> <span class="ron-string">&quot;The finale entrance. It telegraphs with an 8s engage_delay and a warning line.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">task</span><span class="ron-punct">:</span> <span class="ron-string">&quot;2026-08-16&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-punct">),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<p>The file is optional and is not listed in <code>content</code>. An acknowledged finding
+still prints, tagged <code>ACK</code> with its reason, but stops counting as an open
+warning.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scenario</code></td>
+<td>The scenario id the finding sits in.</td>
+</tr>
+<tr>
+<td><code>hostile</code></td>
+<td>The scenario object id of the hostile the finding names.</td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td><code>close-spawn</code>. A <code>spawned-dead</code> finding is an ERROR and can never be acknowledged.</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>Why this one is intended. Written for the next reader, not for the linter.</td>
+</tr>
+<tr>
+<td><code>task</code></td>
+<td>Whatever records the decision - a ticket id, a date.</td>
+</tr>
+</tbody>
+</table>
+<p>An ack that matches no live finding is STALE and fails the lint: once the
+content is rebalanced, prune the entry.</p>
+<h2 id="content-files" tabindex="-1">Content files</h2>
+<p>Every <code>*.content.ron</code> file is a RON list. One file may contain any mix of the
+five item kinds:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-type">Campaign</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_campaign&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;My Campaign&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">scenarios</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-string">&quot;my_first_mission&quot;</span><span class="ron-punct">],</span>
+    <span class="ron-punct">)),</span>
+    <span class="ron-type">Scenario</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_first_mission&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;First Mission&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">description</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Clear the shipping lane.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">cubemap</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://textures/skybox.png&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">events</span><span class="ron-punct">:</span> <span class="ron-punct">[],</span>
+    <span class="ron-punct">)),</span>
+    <span class="ron-type">Section</span><span class="ron-punct">((</span>
+        <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_mod_hull&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;My Hull&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">description</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A custom armor block.&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">health</span><span class="ron-punct">:</span> <span class="ron-literal">150.0</span><span class="ron-punct">,</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Hull</span><span class="ron-punct">((</span>
+            <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/gltf/hull-01.glb#Scene0&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-punct">)),</span>
+    <span class="ron-punct">)),</span>
+    <span class="ron-type">Ship</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_corvette&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;My Corvette&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">hull</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">sections</span><span class="ron-punct">:</span> <span class="ron-punct">[]),</span>
+    <span class="ron-punct">)),</span>
+    <span class="ron-type">Style</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_look&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;My Look&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">fixtures</span><span class="ron-punct">:</span> <span class="ron-punct">[],</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<p>Splitting these into <code>campaign.content.ron</code>, <code>scenarios.content.ron</code>, and
+<code>sections.content.ron</code> is a readability convention, not a loader requirement.
+Large mods can use one scenario per file and list all of them in <code>content</code>.</p>
+<h2 id="the-five-content-chapters" tabindex="-1">The five content chapters</h2>
+<div id="wiki-children"></div>
+<ul>
+<li>A <a href="../campaigns/">campaign</a> orders scenarios for the Scenarios menu.</li>
+<li>A <a href="../scenarios/">scenario</a> defines a playable mission or backdrop. Events,
+filters, actions, objects, and expressions belong to scenario scripting.</li>
+<li>A <a href="../sections/">section</a> defines a reusable hull, thruster, controller,
+turret, or torpedo bay.</li>
+<li>A <a href="../ships/">ship</a> defines a whole hull - its section layout and cladding -
+that any scenario can spawn by id.</li>
+<li>A <a href="../styles/">style</a> defines the look a ship's derived cladding wears: plate
+materials, and the destructible decoration scattered over them.</li>
+</ul>
+<h2 id="paths-and-dependencies" tabindex="-1">Paths and dependencies</h2>
+<p>Content uses explicit asset schemes:</p>
+<ul>
+<li><code>self://textures/skybox.png</code> reads a file from this mod's <code>resources</code> list.</li>
+<li><code>dep://base/gltf/hull-01.glb#Scene0</code> uses a base-game resource.</li>
+<li><code>dep://art-pack/models/station.glb#Scene0</code> uses a resource from a mod listed
+in <code>meta.dependencies</code>.</li>
+</ul>
+<p>A plain path without <code>self://</code> or <code>dep://</code> is not a valid asset reference. See
+the <a href="../base-content/">base content catalog</a> for reusable base ids and assets.</p>
+<h2 id="overlay-behavior" tabindex="-1">Overlay behavior</h2>
+<p>Content merges by item id:</p>
+<ul>
+<li>A new id adds a campaign, scenario, section, ship, or style.</li>
+<li>An id that already exists replaces that whole item.</li>
+<li>A duplicate id inside one bundle is a conflict; the first item is kept.</li>
+</ul>
+<p>For sections, the key is <code>base.id</code>. For campaigns, scenarios, ships, and
+styles, the key is <code>id</code>. Prefix new ids with your mod id to avoid accidental
+collisions.</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

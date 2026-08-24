@@ -1,0 +1,1041 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Ship sections internals - Nova Protocol Developer Docs</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-6c135d9b.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Nova Protocol Developer Docs</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="spaceship-sections-and-integrity"><a class="header" href="#spaceship-sections-and-integrity">Spaceship sections and integrity</a></h1>
+<blockquote>
+<p>To add a new section kind, follow the guide
+<a href="guide-add-section.html">Add a ship section</a>.</p>
+</blockquote>
+<p>Ships are assembled from modular <strong>sections</strong>. Each section is a child entity of
+the ship root with its own collider, mass, and health, and contributes one
+behavior (structure, thrust, steering, guns). The <strong>integrity</strong> system tracks
+how sections connect and handles damage, disabling, and cascading destruction.</p>
+<h2 id="sections-nova_shipsections"><a class="header" href="#sections-nova_shipsections">Sections (<code>nova_ship::sections</code>)</a></h2>
+<p>A section is a <code>SectionConfig { base: BaseSectionConfig, kind: SectionKind }</code>.
+<code>BaseSectionConfig</code> is shared by all kinds: <code>id</code>, <code>name</code>, <code>description</code>,
+<code>health</code>, optional <code>impact_sound</code> / <code>destroy_sound</code>, optional <code>collider</code>,
+structural <code>link_points</code>, <code>hide_in_editor</code>, and <code>damage_effects</code> - the authored
+list of looks this section wears as it is damaged (see <a href="#damage-is-two-readings">Damage is two
+readings</a>).</p>
+<p><code>SectionKind</code> variants (one module per kind under <code>crates/nova_ship/src/sections/</code>;
+<code>turret_section/</code> and <code>torpedo_section/</code> are directories, not single files):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Kind</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Hull</code></td><td>Passive structure/armor. Just a <code>render_mesh</code>.</td></tr>
+<tr><td><code>Thruster</code></td><td>Forward thrust (<code>magnitude</code>); drives the exhaust visual.</td></tr>
+<tr><td><code>Controller</code></td><td>Attitude controller (<code>steering_lag</code>, <code>max_torque</code>); lag derives the internal PD gains, torque feeds the hull’s attitude envelope (see below). Also grants flight <code>verbs</code> (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop.</td></tr>
+<tr><td><code>Turret</code></td><td>Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own <code>offset</code>/<code>axis</code>/<code>speed</code>/limits/<code>render_mesh</code>), section-wide <code>muzzle_speed</code> + authored <code>bullet_damage</code> + <code>bullet_kind</code>, per-muzzle <code>fire_rate</code>, optional <code>ammo_capacity</code>.</td></tr>
+<tr><td><code>Torpedo</code></td><td>Torpedo bay. Fires guided torpedoes of an authored <code>torpedo_type</code> (name, tint, <code>max_speed</code>, <code>weave_angle</code>, <code>weave_rate</code>) that detonate an Explosive area blast (<code>blast_radius</code>, <code>blast_damage</code>), optional <code>ammo_capacity</code>. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>GameSections(Vec&lt;SectionConfig&gt;)</code> is the resource of section blueprints.
+Generic prototypes are authored in
+<code>crates/nova_authoring/src/base_content/sections/standard.rs</code>; semantic craft
+parts live under <code>base_content/ships/</code>. Their explicit <code>section_catalog()</code> is
+generated into <code>assets/base/sections/base.content.ron</code> by <code>content -- gen</code> and
+merged into the resource by
+<code>crates/nova_assets/src/merge.rs</code>. The outer-skin cladding is not a prototype at
+all: a ship’s skin is DERIVED from the structure it wraps by <code>nova_ship</code>’s
+<code>shell_skin</code> (<a href="#the-derived-skin">below</a>), so no id names a plate. Look a
+section up with
+<code>sections.get_section("basic_thruster_section")</code>.</p>
+<h3 id="the-attitude-envelope-and-how-controllers-stack-into-it"><a class="header" href="#the-attitude-envelope-and-how-controllers-stack-into-it">The attitude envelope, and how controllers stack into it</a></h3>
+<p>How hard a hull may turn is DERIVED, not authored. <code>AttitudeEnvelope</code>
+(<code>crates/nova_ship/src/physics/attitude.rs</code>) is two ceilings and the lower of
+them:</p>
+<pre><code>alpha_max = min( sum(max_torque) / I ,  LOAD_LIMIT / (r * METERS_PER_UNIT) )
+                 \___ propulsive ___/   \________ structural ________/
+</code></pre>
+<ul>
+<li><code>I</code> is the hull’s largest principal moment of angular inertia, read off
+avian’s <code>ComputedAngularInertia</code>. No formula for it lives in Nova: it is the
+second moment of where the mass actually sits, so no curve in any single
+length can stand in for it.</li>
+<li><code>r</code> is the structural arm, from the hull’s centre of mass to the outer FACE
+of its furthest live section, in world units. <code>structural_arm</code> derives it;
+<code>BodyRadius</code> is a scenario-obstacle radius and is not it.</li>
+<li><code>LOAD_LIMIT</code> and <code>METERS_PER_UNIT</code> are in <code>crates/nova_events/src/scale.rs</code> -
+one definition each, shared by the physics and by the player-facing
+formatter in <code>nova_ui::units</code>.</li>
+</ul>
+<p>The two structural loads are perpendicular components of one acceleration at
+the tip, so they add as a VECTOR: <code>alpha^2 + omega^4 &lt;= (LOAD_LIMIT / r_m)^2</code>.
+A hull already in a hard turn has spent its margin, and its sustained rate is
+<code>sqrt(LOAD_LIMIT / r_m)</code>. Past that corner the centripetal load alone is over
+the limit and the full ceiling comes back, so an over-spun hull can always shed
+rate.</p>
+<p>Two consequences to expect rather than debug. A small hull is STRUCTURE-bound,
+so fitting more computers to it changes nothing at all. A hull that loses
+sections shortens its arm and turns SHARPER than it did intact.</p>
+<p>Every live controller torques the hull in parallel, so a hull with several of
+them would multiply both its gains and the applied torque by the section count.
+<code>update_controller_stack_tuning</code>
+(<code>crates/nova_ship/src/sections/controller_section.rs</code>) prevents that: it runs
+first in <code>FixedUpdate</code> (<code>ControllerSectionSystems::SyncStack</code>), derives ONE
+ship-level attitude loop per root, and writes each live controller a share of
+it into its <code>PDController</code>. The authored numbers stay put in
+<code>ControllerSectionTuning</code>, which is what the pass re-derives from when a
+controller dies. The smallest live <code>steering_lag</code> supplies the stack’s base
+response.</p>
+<p>The ship-level loop, for <code>n</code> live controllers:</p>
+<ul>
+<li>authority: the envelope above. Torque SUMS across controllers, with no curve
+and no cap of its own, because the structural ceiling already caps the
+result. Each controller’s share is its own fraction of the hull’s torque.</li>
+<li>P gain: DIVIDED by <code>stack_curve(n, 1.5) = 1.5 - 0.5 / n</code>, which increases the
+effective steering lag so the stack brakes earlier and lands on the commanded
+attitude instead of sailing past it.</li>
+<li>D gain: held at exactly one fastest computer’s worth. This is not tuning: <code>kd * dt</code>
+crosses 2 at two controllers on the shipped tuning, and past that the PD
+limit-cycles instead of parking (the corkscrew that used to follow a
+released maneuver).</li>
+</ul>
+<p><code>ship_turn_rate</code> (<code>flight/guidance.rs</code>) then sums the live acceleration shares,
+which is why the flight layer is ordered after <code>SyncStack</code>. <code>n = 1</code> is the
+identity case.</p>
+<p>The precision division is the one part of the stack that a structure-bound hull
+does not pay for: it has no extra authority to spend, so a stack costs it a few
+per cent of peak rate and a tick or two of onset in exchange for landing
+cleaner. Measured in <code>flight/tests/stacking.rs</code>, which prints the table.</p>
+<h3 id="meshes-and-colliders-authorable"><a class="header" href="#meshes-and-colliders-authorable">Meshes and colliders (authorable)</a></h3>
+<p>Two authorable knobs decouple a section’s look and physics from the default unit
+cube (<code>crates/nova_ship/src/sections/base_section.rs</code>). Unset content still uses
+the unit-cube defaults:</p>
+<ul>
+<li><code>render_mesh_transform</code> (optional, on every mesh-bearing kind; for turrets
+it sits per JOINT in the joint tree) - an offset /
+rotation / scale applied to the section’s render mesh child ONLY, so a model
+can be re-seated visually without moving the collider or (for turrets) the
+joint tree. Type <code>RenderMeshTransform</code>.</li>
+<li><code>collider</code> on <code>BaseSectionConfig</code> (optional) - the physics shape:
+<code>Cuboid { size }</code>, <code>Sphere { radius }</code>, <code>Capsule { radius, length }</code>, or
+<code>Cylinder { radius, height }</code> (the last three along local Y). <code>None</code> resolves
+to the unit cube (<code>Cuboid { size: (1,1,1) }</code>) - the shape every section had
+before colliders were authorable. <code>base_section</code> hands avian a density of 1,
+so this shape’s volume IS the section’s mass and a larger collider is a
+heavier one. The render mesh never contributes; a section masses its authored
+box.</li>
+</ul>
+<h2 id="building-a-ship"><a class="header" href="#building-a-ship">Building a ship</a></h2>
+<p>A <code>SpaceshipConfig</code> (<code>crates/nova_scenario/src/objects/spaceship.rs</code>) has a
+<code>controller</code> (<code>None</code>, <code>Player</code>, or <code>AI</code>), an <code>allegiance</code>, an optional
+<code>collapse_threshold</code> (below), a <code>skin</code> flag (the
+<a href="#the-derived-skin">derived cladding</a>), and a list of
+<code>SpaceshipSectionConfig</code>, each placing one section at a <code>position</code> + <code>rotation</code>
+relative to the ship root (world units), with a <code>source</code> (<code>Inline</code> /
+<code>Prototype</code>) and optional <code>modifications</code>. The player
+config carries the input mapping (section id -&gt; key/gamepad bindings) plus
+<code>speed_cap</code> and <code>infinite_ammo</code>; the AI config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>/<code>engage_delay</code>.</p>
+<p>Spawning: the base scenario bundle gives the root <code>RigidBody::Dynamic</code>; the
+spaceship object adds <code>SpaceshipRootMarker</code>, and an observer
+(<code>insert_spaceship_sections</code>) spawns each section as a direct child. Every
+section gets <code>SectionMarker</code>, its <code>Collider</code> (the authored <code>collider</code> shape, or
+a unit cube by default), <code>SectionLinkPoints</code>, <code>ConnectedTo</code>, and <code>Health</code> (<code>base_section</code> in
+<code>sections/base_section.rs</code>), so the ship is one rigid body whose child colliders
+each carry their own health.</p>
+<p>See the semantic Racer, CargoA, and CargoB builders under
+<code>crates/nova_authoring/src/base_content/ships/</code> for complete generated examples.
+The editor (<code>crates/nova_editor</code>) assembles ships interactively using
+<code>preview_section</code>, which has no health or rigid body and never enters the
+damage pipeline.</p>
+<h3 id="the-derived-skin"><a class="header" href="#the-derived-skin">The derived skin</a></h3>
+<p><code>skin: true</code> on a ship’s hull asks the game to CLAD it. Nothing authors a plate:
+<code>spawn_ship_skin</code> (<code>sections/shell_skin.rs</code>) reads the finished section batch on
+the same <code>Added&lt;SectionLinkPoints&gt;</code> edge the integrity graph is built off,
+buckets the sections into cells (the lattice is read off the sections, so a hull
+mirrored about its centreline is not cut in two), and derives one plate per cell
+of outer surface from the eight boundary samples that cell shares with its
+neighbours. The same structure always gives the same skin.</p>
+<ul>
+<li>A plate is a <code>SectionFixture</code> (<code>sections/fixture.rs</code>): <code>Collider</code>, <code>Health</code>,
+density and <code>HealthIsolated</code>, but no <code>SectionMarker</code>. So it never joins the
+integrity graph, never counts toward the ship’s health, never wears a
+section’s damage effects (<code>owning_section</code> in <code>damage_cracks.rs</code> stops its
+ancestor walk at the first fixture), and never reaches the palette. Losing one costs the ship nothing it can
+DO - which is the line between a fixture and a section.</li>
+<li>Each plate is a CHILD of the section it clads, so a destroyed section takes
+its own cladding down with it and nothing has to hunt the plates of a part
+that no longer exists.</li>
+<li>On a LIVE ship, derivation runs at spawn and nowhere else. The skin is a pure
+function of the structure, so re-running it would grow back whatever combat
+blew off; <code>despawn_dead_fixtures</code> takes a dead plate away and nothing puts it
+back.</li>
+<li><code>ShipSkinPlugin { render }</code> is split at the render line, not at the look line:
+the derivation and the sweep are gameplay and run headless, and <code>render</code> gates
+only the meshes hung on each plate by the <code>dress_skin_plate</code> observer.</li>
+</ul>
+<p>Cladding is OPT IN. The derivation reads a hull as unit cells, which the
+catalog’s cube sections are and the modelled semantic parts (the racer, the
+haulers) are not.</p>
+<h4 id="the-editors-live-preview"><a class="header" href="#the-editors-live-preview">The editor’s live preview</a></h4>
+<p>The build view clads the ship being ASSEMBLED, and it re-derives rather than
+spawning once: <code>sync_editor_skin</code> (<code>nova_editor/src/skin.rs</code>) runs after
+<code>sync_placement_ghost</code>, hashes the structure it is about to read, and respawns
+the whole skin when that hash moves. Nothing is patched and nothing is
+diffed - the derivation is a pure function, so throwing the plates away and
+asking again is both the simplest answer and the one that cannot drift. On a
+384-plate ship a reflow costs about 2 ms and an unchanged frame about 0.1 ms;
+a real build is an order of magnitude smaller than that, and the ghost only
+travels in whole cells (placement mates sockets), so dragging a part does not
+re-derive per frame.</p>
+<p>Two things it does differently from the spawner:</p>
+<ul>
+<li>The part UNDER THE POINTER is structure, while its placement is legal. That
+is the feature: a hull is dragged about under the skin and the cladding
+closes around it before the click. A REFUSED ghost contributes nothing - it
+will not be built, so cladding it would draw a ship that cannot exist.</li>
+<li>A preview plate is DISPLAY ONLY: <code>ShipSkinMarker</code> and a pose, so the shared
+<code>dress_skin_plate</code> observer still draws it, but no <code>SectionMarker</code>, no
+<code>Collider</code> and no health. The placement solver never counts one as a part,
+the pointer never hits one, and the <code>Q</code> pipette cannot arm one.</li>
+</ul>
+<p>Both readings go through <code>read_structure</code> (<code>shell_skin.rs</code>), so the lattice the
+editor clads on and the lattice the flown ship clads on cannot drift - and the
+build state carries the toggle into the <code>SpaceshipConfig</code> the scenario spawns,
+so what you see in the editor is what you fly.</p>
+<h4 id="the-plate-vocabulary-and-skin-styles"><a class="header" href="#the-plate-vocabulary-and-skin-styles">The plate vocabulary and skin styles</a></h4>
+<p>The derivation works out far more than it keeps. <code>read_plates</code>
+(<code>sections/skin_reading.rs</code>) is a SECOND PASS over the finished plates that reads
+it back out as a <code>PlateReading</code> each: which way the plate faces, what its top is
+shaped like (<code>Flat</code> / <code>Step</code> / <code>Ridge</code> / <code>Peak</code> / <code>Bevel</code> / <code>Brink</code> / <code>Spur</code>),
+which way it falls away, how enclosed its cell is, how long the run of like plate
+through it is and which way that run points, how far it is from the end of that
+run, how much of its cell it fills, how deep the structure under it goes, and how
+close the mouth of a fitting is. The plates are the whole input - their cells are
+the clad set, <code>cell - anchor</code> is the face each shows - so a reading cannot drift
+from the skin it describes. It costs about 0.6 ms on a 384-plate ship, against
+1.6 ms to derive the skin itself.</p>
+<p>The FALLING PLATE is three reliefs and not one, which matters because it is four
+fifths of every ship. A corner sample dies to the cell floor for exactly one
+reason - open space stands at it - so counting the dead corners says how many
+ways a plate falls: one corner is a <code>Bevel</code> (a panel with a corner taken off),
+two on one side is a <code>Brink</code> (the straight edge of a hull), and anything more is
+a <code>Spur</code> (a tip, an outer corner, a saddle). Summing those corner directions and
+turning them by the plate’s own rotation gives <code>PlateReading::fall</code>, the
+OUTBOARD direction - a cardinal on a <code>Brink</code>, a diagonal on a corner, and zero
+where a plate falls two ways and cancels. It is the second alignment axis: a
+piece turned to <code>along</code> lies down an edge, and one turned to <code>fall</code> leans out
+over it.</p>
+<p>A <code>ShipStyleConfig</code> (<code>sections/skin_style.rs</code>) is CONTENT resolved by id out of
+<code>GameStyles</code>, exactly as a section prototype resolves out of <code>GameSections</code>. It
+carries a material per surface role and a list of decoration fixtures, each with
+a model <code>AssetRef</code> and a <code>ScatterRule</code> written in the vocabulary above. The mod
+merge routes <code>Content::Style</code> into <code>GameStyles</code> with the same last-wins overlay
+every other kind gets, so a mod restyles a base look by declaring its id.</p>
+<p><code>scatter_decor</code> (<code>sections/skin_decor.rs</code>) turns plates plus readings plus a
+style into placements. It takes the READINGS, not the structure, so the scatter
+cannot reach past the vocabulary into the derivation. Two properties are
+load-bearing:</p>
+<ul>
+<li>DETERMINISM. There is no RNG. A plate’s claim is a hand-written FNV-1a hash of
+its cell, its out face and the fixture’s id - hand-written because
+<code>DefaultHasher</code> is not promised to be stable across releases of the standard
+library, and a ship that comes back wearing different antennae after a
+toolchain bump would break the same promise the derived skin exists to keep.
+The editor re-derives and re-scatters on every structure change, so anything
+less would flicker while a hull is dragged.</li>
+<li>GRID CLAIMING, not blue noise. A rule claims cells on its own <code>stride</code> and a
+piece is yawed to <code>PlateReading::along</code> or to <code>PlateReading::fall</code>. Poisson
+sampling deliberately destroys alignment, and alignment is the difference
+between decoration that reads as bolted on and decoration that reads as
+confetti.</li>
+</ul>
+<p>One thing is decided by a BLOCK of hull rather than by a cell, and it is the
+DENSITY NORMALISATION. Every other knob is per plate and they multiply, so a rule
+tuned on a 150-plate generated hull put one visible piece on a 20-plate editor
+build. <code>ScatterRule::patch</code> is a floor: within each block of <code>patch</code> cubed cells,
+keyed by the out face, a rule that the share left with nothing claims its lowest
+hashing eligible plate. A block is a fixed division of the ship’s own cells, so a
+hull that grows by one cell keeps every piece outside the block it grew into; the
+floor never displaces another rule’s piece, so priority still means what it says.
+With <code>chance: 0.0</code> the share picks nothing and the rule is purely “one piece per
+block”, which is a density that reads the same at any hull size.</p>
+<p>A decoration is a <code>SectionFixture</code> like a plate, and a child of the PLATE, one
+level further out - so a plate shot off takes its greebles, and
+<code>damage_cracks</code>’s <code>owning_section</code> walk stops at the first fixture it meets
+whichever of the two it started under. The base game generates its greeble models from committed JSON recipes
+(<code>scripts/gen-greebles.py</code>), and the mod-facing format is documented in
+<a href="https://alexjercan.github.io/nova-protocol/create/styles/">Ship skin styles</a>.</p>
+<p>What a hull actually OFFERS is worth knowing before writing a rule, and a
+GENERATED hull and a HAND-BUILT one offer almost opposite things. Measured, per
+ship:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>subject</th><th>plates</th><th>flat</th><th>step</th><th>ridge</th><th>peak</th><th>bevel</th><th>brink</th><th>spur</th></tr>
+</thead>
+<tbody>
+<tr><td><code>wfc_ships</code> row</td><td>132-162</td><td>6-22</td><td>18-22</td><td>0-4</td><td>0</td><td>10-14</td><td>48-66</td><td>34-42</td></tr>
+<tr><td>editor build</td><td>19-27</td><td>0</td><td>2-3</td><td>3-8</td><td>1-3</td><td>0</td><td>0</td><td>9-17</td></tr>
+</tbody>
+</table>
+</div>
+<p>A hand-built ship has NO flat plate, no bevel and no brink at all: it is spurs,
+ridges and studs, because almost every cell of it is one cell wide. So a rule
+written for flat panels lands nowhere on the thing the owner actually builds, and
+no density normalisation can rescue it - a floor over an empty eligible set is
+still empty.</p>
+<p>Both <code>spawn_ship_skin</code> and the editor’s <code>sync_editor_skin</code> log that histogram plus
+a per-rule <code>taken of reach</code> tally at debug, where REACH is everything the rule’s
+filter and lattice admit before the share and before priority. The two zeroes
+mean opposite things: <code>x0 of 78</code> is a rule starved by one above it or thinned away
+by its own share, and <code>x0 of 0</code> is a filter that matches nothing this hull has.</p>
+<h2 id="integrity-damage---disable---destroy"><a class="header" href="#integrity-damage---disable---destroy">Integrity: damage -&gt; disable -&gt; destroy</a></h2>
+<p>The destruction stack is nova’s own, in
+<code>crates/nova_gameplay/src/integrity/</code>, with the ship adapter in
+<code>crates/nova_ship/src/sections/integrity.rs</code>. <code>NovaIntegrityPlugin</code> composes
+eight generic pieces, and the ship adds its own <code>ShipIntegrityPlugin</code> on top:</p>
+<ul>
+<li><code>health.rs</code> - the hit-point store: <code>Health</code>, <code>HealthApplyDamage</code> and the
+<code>HealthZeroMarker</code> its observer adds at zero.</li>
+<li><code>core.rs</code> (<code>IntegrityCorePlugin</code>) - the generic disable/destroy core, plus
+the mass-times-velocity impact damage.</li>
+<li><code>erosion.rs</code> (<code>DamageLevelPlugin</code>) and <code>carve.rs</code> (<code>DamageMarksPlugin</code>) - the
+two damage READINGS, below.</li>
+<li><code>spew.rs</code> (<code>CarveSpewPlugin</code>) and <code>chunk.rs</code> (<code>CarvedChunkPlugin</code>) - what a
+carve leaves behind: dust from every carve, and a real rigid body wherever a
+cut actually severed material.</li>
+<li>Ship-owned <code>ShipIntegrityPlugin</code> (<code>nova_ship</code>, not one of the eight) - derives
+the section graph, handles disabled sections, rolls section health up to the
+ship root, and collapses a root that falls below its
+<code>StructuralCollapseThreshold</code>.</li>
+<li><code>explode.rs</code> (<code>ExplodablePlugin</code>) - what a destroyed body DOES, and it
+detaches. See <a href="#how-a-body-comes-apart">How a body comes apart</a> below.</li>
+<li><code>neutralize.rs</code> - combat-death: fires <code>OnNeutralized</code> when a ship stops
+being a threat.</li>
+</ul>
+<p>Graph build: every section prototype authors local <code>link_points</code> with an id,
+position, and outward unit normal. When avian links a collider to its body
+(<code>ColliderOf</code>), <code>ShipIntegrityPlugin</code> transforms those points into ship-root
+space. Coincident points with opposed normals become symmetric <code>ConnectedTo</code>
+neighbor edges. IDs are for diagnostics and UI, not compatibility. A malformed,
+ambiguous, or disconnected graph is rejected as a whole; collider contact and
+center distance never create fallback edges. <code>SpaceshipRootMarker</code> requires
+<code>IntegrityRoot</code> AND <code>DamageMarks</code>: a ship’s hits belong to the ship, not to
+whatever collider stopped them, because a crater has to cross the seams between
+the plates and sections it reaches. Asteroids are not in the graph at all - a
+rock carries no <code>Health</code> and no <code>IntegrityRoot</code>, only <code>DamageMarks</code>, and its
+death is decided by its own remesh (see
+<a href="scenario-system.html">Scenario engine</a>).</p>
+<h3 id="how-a-body-comes-apart"><a class="header" href="#how-a-body-comes-apart">How a body comes apart</a></h3>
+<p>Nothing computes geometry when something dies. A destroyed <code>ExplodableEntity</code>
+DETACHES: it comes off its parent, becomes a rigid body of its own carrying the
+art and the collider it already had, takes an outward kick and a spin, and
+despawns on a timer (<code>PIECE_LIFETIME_SECS</code>). A death moves entities and clones
+one collider handle, which is why the module has no fragment budget and no
+spawn queue - there is nothing left to ration.</p>
+<p>Four properties follow from that, and each is load-bearing:</p>
+<ul>
+<li><strong>Destructibility is SEMANTIC.</strong> It is <code>ExplodableEntity</code> plus the destroy
+marker, never where a <code>Mesh3d</code> happens to sit. A section carries its health,
+its collider and the marker on a gameplay root while its art hangs off
+<code>SectionRenderOf</code> descendants under a gltf <code>WorldAssetRoot</code>, so anything
+gated on <code>Mesh3d</code> at the gameplay entity finds nothing on any section ever
+shipped. Detaching asks about neither: the children come across whatever they
+are, and the COLLIDER is what says a body can be one.</li>
+<li><strong>An <code>IntegrityRoot</code> is excluded.</strong> <code>ExplodableEntity</code> propagates to parents,
+so a root carries it too - and detaching a root would take the whole
+structure off at once and bypass every node’s own death. The test names
+<code>IntegrityRoot</code> rather than <code>SpaceshipRootMarker</code> because a severed wreck and
+an asteroid husk are roots that are not spaceships, and because this layer
+stays free of anything <code>nova_ship</code> owns.</li>
+<li><strong>The plates and greebles ride the wreck out, their colliders do not.</strong> Every
+direct child moves, still bolted on, which is what a piece breaking off a
+hull looks like and is cheaper than making each one its own body. The
+colliders are stripped on the way, because avian attaches every collider
+under a rigid body to that body: a section wears a plate per face and
+greebles per plate, so a wreck that kept them is one body with dozens of
+shapes, times every section a collapse kills in the same frame. The section’s
+own collider is the shape the wreck is.</li>
+<li><strong>A piece is born inside the body it left,</strong> which is a dynamic body spawned
+interpenetrating another - something the solver fixes by shoving hard. So it
+takes the same <code>ChunkGrace</code> a carved rock chunk takes: kinematic and
+colliderless until it has drifted clear.</li>
+</ul>
+<p>There is NO FALLBACK for a body with no collider: it leaves nothing behind and
+logs an error, and <code>system_destruction_finale</code> asserts that branch never runs
+on shipped content. A refusal rather than a stand-in, because a stand-in looks
+like SOMETHING - a body that had silently failed to come apart would be
+indistinguishable from one that came apart badly.</p>
+<p>Editor placement mates the same sockets, so the editor cannot build a ship the
+graph would reject. <code>snap_placement</code> (<code>nova_ship::sections::link_points</code>) poses a
+part from one mate: the two sockets become coincident and their normals opposed,
+which leaves only the ROLL about that axis free - the builder’s choice, alongside
+which of the part’s own sockets does the mating.</p>
+<p>That roll has a defined ZERO, and it is what makes one part usable on every
+other part. Each socket carries an implied up vector, <code>link_point_up(normal)</code>:
+ship up (+Y) projected onto the socket’s plane, or forward (+Z) on the sockets
+that face +-Y. It is DERIVED from the normal rather than authored, so two parts
+that never met agree on it without anyone writing a second vector, and
+<code>snap_placement</code> mates the two socket FRAMES rather than just the two normals.
+Aligning normals alone leaves the roll to whichever axis a shortest-arc rotation
+happened to sweep about - and for a socket facing exactly opposite the part’s
+own, to an arbitrary perpendicular.</p>
+<p>The other half is the normals themselves. An authoring tool that derives a
+socket from part GEOMETRY gets whatever angle the neighbour happened to sit at,
+so <code>cardinal_axis</code> snaps the derived normal to the nearest axis. It is
+antisymmetric (<code>cardinal_axis(-d) == -cardinal_axis(d)</code>), so both ends of one
+authored edge stay exactly opposed and no existing mate is lost. Without it the
+cargob’s pod faced its fuselage 36 degrees off -X and anything mated onto that
+socket arrived tilted by exactly that much - which is what made parts look like
+they only fit the craft they were cut from.</p>
+<p><code>box_link_points(size)</code> is the general face-socket helper
+(<code>unit_cube_link_points</code> is <code>box_link_points(Vec3::ONE)</code>). A part authored at its
+own size mates against a part of any other size, because the sockets meet face to
+face and the roll comes from the axis alone; <code>pdc_kinetic_turret_section</code> (and
+its <code>pdc_pierce_turret_section</code> twin, the same gun with a different round) is the
+shipped example - one compact mount that fits every hull, replacing ten per-craft
+copies of the same gun.</p>
+<p><code>candidate_link_point_mates</code> is
+the same pairing WITHOUT the ambiguity and connectivity gates, because a ship
+under assembly is legitimately disconnected; the editor uses it to see which
+sockets are taken and to refuse a placement that would leave one with two
+suitors. Collider bounds enter only as the overlap refusal, under the ship lint’s
+rule: interpenetration is allowed exactly where a mate says the interface is
+intentional.</p>
+<p><code>scripts/cut-obj-into-parts.py</code> proposes candidates for freshly cut parts: two
+parts whose bounds meet at a seam and overlap across it get one socket each at
+the centre of that shared face, written into the part manifest as <code>link_points</code>.
+A recipe part can author its own list instead (in ship space, like every other
+recipe coordinate), which replaces the generated one. They are candidates for a
+human to judge - shipped gameplay sockets stay hand-authored in <code>nova_authoring</code>.</p>
+<p>Damage flow:</p>
+<ol>
+<li>A hit triggers <code>HealthApplyDamage</code> (<code>nova_gameplay::integrity::health</code>);
+its observer subtracts the amount and adds <code>HealthZeroMarker</code> at zero. The amount also bubbles up <code>ChildOf</code>, clamped to
+what the section actually had left - so overkill on one section cannot kill
+the ship (a 1000 hit on a 100 hp section costs the root 100). <code>apply_damage</code>
+also takes an <code>at: Option&lt;Vec3&gt;</code> and records a mark there, so a hit says
+WHERE as well as how much; the ram path passes the rammer’s transform.</li>
+<li>Zero health -&gt; <code>IntegrityDisabledMarker</code>. A depleted ship section is destroyed
+at any graph degree. The leaf rule remains for healthy sections disabled by
+final structural collapse.</li>
+<li>Destruction prunes the node from its neighbors’ lists. If surviving structure
+becomes disconnected, the controller-bearing component keeps ship identity
+and every other component becomes an inert dynamic wreck body.</li>
+<li><code>aggregate_ship_health</code> keeps the root’s <code>current</code> equal to the sum of its
+living sections, over a <code>max</code> that is PINNED - a running maximum, never
+re-derived from the survivors. A destroyed section despawns, so a live
+denominator would make the HP bar fill up as a ship is shot apart (150/1100
+reading 100/100) and would make any fraction of it rebound. It is a running
+maximum rather than a set-once pin because a ship’s sections can land across
+several frames.</li>
+<li>At or below its <code>StructuralCollapseThreshold</code> (<code>collapse_threshold</code> on the ship,
+default 0.05) the root gets <code>StructuralCollapseMarker</code> and the ship starts
+TEARING ITSELF APART, rather than dying on the spot: <code>cascade_structural_collapse</code>
+disables every section still standing and hands them to steps 2 and 3 above.
+The extremities are leaves, so they go first and burst their debris; the
+prune turns their neighbors into leaves, and those go on the next frames.
+The wreck peels from the outside in instead of vanishing - how long that
+takes is the remnant’s DEPTH, so a chain peels from both ends over several
+frames while a shallow remnant whose sections are all already leaves goes in
+one. Every section’s own debris burst fires either way.</li>
+<li>The ROOT dies last, and of the same rule. Each destroyed section leaves the
+sum, so step 4 walks <code>current</code> down to zero on its own; with no structure
+left the recompute marks the root <code>HealthZeroMarker</code> and the ordinary chain
+destroys it, which is what fires <code>OnDefeated</code>/<code>OnDestroyed</code>. That is also
+the standalone backstop for a last section removed WITHOUT a damage bubble
+(a direct destroy, a detach), which nothing else would mark, and it is what
+threshold <code>0.0</code> reduces the whole rule to.</li>
+</ol>
+<p><strong>The no-progress override.</strong> Disabling a section costs it no health - only
+DESTRUCTION takes it out of the root’s sum - so a remnant with no leaf never
+drains. Four hulls mated in a ring each keep two neighbors, none ever becomes a
+leaf, nothing is destroyed, <code>current</code> never falls and the root never dies: an
+immortal disabled hulk. So the leaf rule is treated as a preference for the
+ORDER a wreck comes apart in, not a correctness requirement. A cascade tick
+that disables nothing new AND does not see the standing-section count fall is a
+stall, and the most leaf-like survivor is destroyed whatever its neighbors.
+Breaking one node out of a ring leaves a chain, so the ordinary cascade
+resumes and the peel is kept everywhere it is possible. Progress is measured as
+that count FALLING rather than against a frame budget, because the cascade’s own
+gaps are irregular while a count that fell is direct evidence a section died.</p>
+<p>A severed wreck fragment is persistent until scenario teardown. Its healthy
+sections remain damageable, but <code>SectionInactiveMarker</code> disconnects every
+controller, thruster and weapon from the lost command bus. Fragments inherit
+rigid point velocity and receive a momentum-balanced 1 u/s kick away from the
+cut. They are unsigned debris, not ships: no allegiance, control, defeat event,
+or scenario identity.</p>
+<p>A ship is disabled progressively, so a collapsing ship can keep shooting for a
+few frames; its weapons stop as their own sections go. That also means the
+unified defeat edge usually comes from <code>neutralize.rs</code> partway through the
+peel, and the root’s later destruction fires only <code>OnDestroyed</code> - <code>DefeatedMarker</code>
+is what keeps <code>OnDefeated</code> to exactly one.</p>
+<p>Structural collapse is a MATERIAL test and stands apart from neutralization
+(<code>neutralize.rs</code>), which is a CAPABILITY test: a ship can be out of the fight
+with a sound hull (a derelict to board, salvage or let limp away), and a ship
+can collapse while its guns still work.</p>
+<p>The cascade a single section walks through:</p>
+<pre class="mermaid">flowchart TD
+    A[Section takes damage] --&gt; B[Integrity drops]
+    B --&gt; C{Zero health?}
+    C --&gt;|No| A
+    C --&gt;|Yes| F[Destroyed]
+    F --&gt; G[Pruned from neighbors]
+    G --&gt; H{Graph still connected?}
+    H --&gt;|No| P[Detached components become wreck bodies]
+    F --&gt; I[Root current re-aggregated over a pinned max]
+    I --&gt; J{At or below the collapse threshold?}
+    J --&gt;|Yes| K[Every standing section disabled]
+    K --&gt; Q{Leaf?}
+    Q --&gt;|Yes| F
+    Q --&gt;|No| E[Inactive until pruning makes it a leaf]
+    K --&gt; L{Nothing destroyed this tick?}
+    L --&gt;|Stalled| M[Destroy the most leaf-like anyway]
+    M --&gt; G
+    I --&gt; N{No sections left?}
+    N --&gt;|Yes| O[Ship dead]
+</pre>
+
+<h2 id="damage-is-two-readings"><a class="header" href="#damage-is-two-readings">Damage is two readings</a></h2>
+<p>Health decides when something dies. It cannot decide what the wreck LOOKS like,
+because a pool is one number for a whole body and the only geometry one number
+can drive is geometry that changes everywhere at once. So there are two readings
+taken off a hit, and neither is a look of its own.</p>
+<p><strong><code>DamageLevel(f32)</code></strong> (<code>integrity/erosion.rs</code>) - 0.0 pristine to 1.0 destroyed,
+derived from the entity’s OWN <code>Health</code> every time health moves. Read it, never
+write it. Because it is a function of health rather than an accumulator beside
+it, a body at half health always looks the same amount of wrecked, a reload
+restores the look for free, and a scripted <code>destroy</code> grades exactly like a shot.
+Derived per entity and not per aggregate: a skin plate is <code>HealthIsolated</code>, so a
+stripped plate reads as stripped while the hull under it still reads as
+untouched.</p>
+<p><strong><code>DamageMarks(Vec&lt;DamageMark&gt;)</code></strong> (<code>integrity/carve.rs</code>) - where the hits
+LANDED, each a sphere <code>{ at, radius }</code> in the LOCAL frame of the body carrying
+the list. A hit is recorded on the nearest ancestor carrying <code>DamageMarks</code>, never
+on whatever collider it met. That is what makes a carve continuous: a ship’s
+plates each derive from the same list, so two plates sharing a boundary compute
+the same depression at it and a crater crosses the seam instead of stopping at
+it.</p>
+<h3 id="what-material-costs"><a class="header" href="#what-material-costs">What material costs</a></h3>
+<p><code>DAMAGE_PER_UNIT_VOLUME</code> is <strong>8.0 hit points per cubic world unit</strong>. It is the
+whole coupling between what a weapon costs and what it looks like it did, and it
+is ABSOLUTE: the same round makes the same hole in a pebble and in a planetoid,
+because the hole is what the round’s energy is worth. Pricing a crater against
+the body it landed on is the other design, and it makes a big rock unshootable
+and a small one vanish on contact.</p>
+<p><code>mark_radius(amount)</code> is therefore <code>(amount / 8.0 * 3 / (2 * pi))^(1/3)</code> - a
+HEMISPHERE, because a hit lands ON a surface. The shipped kinetic PDC round
+(4.0 damage) carves 0.62 units.</p>
+<p>A mark is priced by what the hit ABSORBED, never by what it asked for
+(<code>absorbed_by</code>): the first <code>Health</code> at or above the hit clamps it, a node already
+spent pays nothing, and a chain with no pool at all spends the whole hit in
+material. Without the clamp a slug that crosses a plate would be charged for the
+plate and then charged again, in full, for the hull behind it.</p>
+<h3 id="the-merge-and-why-a-hole-follows-the-aim"><a class="header" href="#the-merge-and-why-a-hole-follows-the-aim">The merge, and why a hole follows the aim</a></h3>
+<p>Sustained fire has to dig ONE hole rather than two dozen dents, and that job has
+a SIZE - the width of the hole the last round made - which is why it is capped in
+world units and not proportionally.</p>
+<ul>
+<li><code>MARK_MIN_RADIUS</code> 0.15: below this a sphere cannot reach a boundary sample of
+the cell it lands in, so it would cost a budget slot and change nothing.
+Grazing fire should crack, which is the level’s job.</li>
+<li><code>MERGE_REACH</code> 4.0: a ceiling expressed as a multiple of the INCOMING bite,
+never of the grown crater. Testing the grown radius is what let a crater’s own
+growth widen the area that captured the next hit, which widened it again until
+one crater ate the whole body.</li>
+<li><code>MERGE_MAX</code> 1.0 WORLD unit, converted into the body’s own frame by
+<code>DamageMarks::add</code>: “the round landed IN the hole the last one made”. This is
+the cap that actually binds, and it is why the hole follows the aim.</li>
+<li><code>MARK_BUDGET</code> 24. At the budget the SMALLEST crater is folded into its own
+nearest neighbour to free a slot, so nothing is dropped, paid volume is
+conserved, and the hit that just landed is recorded where it landed.</li>
+</ul>
+<p>A blast is the same defect wearing a different hat: it asks for its pressure once
+per collider it overlaps, and a hull built out of hundreds of them would grow one
+crater hundreds of times. <code>record_blast_marks</code> sums contributions PER OWNING
+BODY and cuts them as one crater, capped at the blast’s own radius.
+<code>apply_blast_damage</code> queues that BEFORE the health triggers, so every body prices
+against one pre-damage snapshot - the same contract <code>NovaBlast</code> already states
+for its pressure pass.</p>
+<h3 id="what-a-carve-leaves"><a class="header" href="#what-a-carve-leaves">What a carve leaves</a></h3>
+<p><code>CarveSpew { entity, at, radius, kind }</code> fires whenever a mark changed a body’s
+shape, in world space. <code>kind</code> is the weapon class that paid for the carve, and
+it is what decides the look: <code>spew.rs</code> keys a <code>ShardLook</code> off it, one entry per
+<code>DamageType</code>. Kinetic and Pierce throw 2 to 7 shards of one fixed size
+(<code>ShardLook::size</code>, 0.12u) - kinematic, no collider, <code>TempEntity(2.5)</code> - and
+hold identical values in two SEPARATE entries, so giving a penetrator its own
+debris is editing a number rather than splitting a branch. Explosive throws nothing: a
+warhead’s fireball already covers the frames the geometry changes in, the crater
+is permanent evidence afterwards, and a cut that severs throws real geometry
+anyway. Shards are born INSIDE the body they came off, so a dynamic body with a
+collider would spawn interpenetrating and the solver would shove the two apart -
+a ship kicking itself sideways every time it was shot. An event rather than a
+direct spawn, so a mod that wants a puff or nothing at all replaces the observer
+instead of patching the carve.</p>
+<p>Real geometry leaves a body only where a carve actually SEVERED it, and only the
+body being cut knows that. <code>chunk.rs</code> is what a severed piece spawns through;
+<code>CHUNK_MIN_VOLUME</code> (1.0 cubic unit) is the floor under which a crumb goes out as
+dust instead. The asteroid is the only body that takes this path - see
+<a href="scenario-system.html">Scenario engine</a>.</p>
+<h3 id="the-authored-looks"><a class="header" href="#the-authored-looks">The authored looks</a></h3>
+<p>WHICH looks a section wears is content, not engine. A section authors
+<code>DamageEffects</code>, a list of <code>DamageEffect</code>, and <code>damage_effects.rs</code> turns each
+variant into exactly one component. Nothing else translates, and no effect system
+reads the list - each reads only its own component. So the authored list is the
+CONTENT vocabulary, the components are the RUNTIME vocabulary, and a Rust mod
+that wants a look nobody authored inserts its own component and touches neither.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>variant</th><th>component</th><th>what it does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Cracks</code></td><td><code>DamageCracks</code></td><td>Fractures the section’s surface, glows through when critical, burns out cold when dead. Replaced SCORCH, a whole-body red tint that fought every authored paint scheme and said nothing about WHERE a section was failing.</td></tr>
+<tr><td><code>Sparks</code></td><td><code>DamageSparks</code></td><td>Throws sparks, faster the worse it is, past level 0.35. Removes nothing.</td></tr>
+<tr><td><code>Plume</code></td><td><code>DamagePlume</code></td><td>Guts and flickers a thruster’s exhaust past level 0.35, floored at 25 percent so it never reads as SHUT DOWN. Touches no thrust.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>Default</code> is <code>[Cracks]</code> and not the empty list, so unchanged content and
+third-party mods keep behaving; <code>DamageEffects::none()</code> is the explicit “wears
+nothing”, because “I want none” and “I did not say” are different statements.</p>
+<h3 id="why-cracks-are-quantised"><a class="header" href="#why-cracks-are-quantised">Why cracks are QUANTISED</a></h3>
+<p>A section does not carry its own cracked material. Its damage level snaps to one
+of <code>SECTION_CRACK_BUCKETS</code> steps (<code>damage_cracks.rs</code>), and the mesh swaps to the
+material shared by every section drawn from the same source material at the same
+step. Nothing is ever written into a built material, so no section can crack a
+neighbour that shares its gltf art.</p>
+<p>The reason is BINNING. A draw call bins on the material, so a value per section
+is a bin per section mesh: an eleven-ship <code>wfc_ships</code> gallery held 2,652 section
+meshes in 2,652 bins of one instance each, the worst case there is for
+<code>write_binned_instance_buffers</code>, and it cost roughly half the frame rate. It is
+also why cladding was always free - <code>owning_section</code> stops at a <code>SectionFixture</code>,
+so 10,936 plates kept the 32 shared materials they were painted with and batched
+normally. Buckets put sections on the same footing: source materials times
+buckets, whatever the fleet size, with bucket 0 the pristine step so an
+undamaged fleet batches as if the effect were not there.</p>
+<p>The registry (<code>SectionCracksMaterials</code>) builds a bucket the first time something
+reaches it and forgets a source material the moment nothing draws from it. Both
+matter, and both are aimed at a source a MOD mints per instance rather than per
+prototype: eager buckets would cost it eight materials it never draws, and a
+registry that never forgot would keep them after it was gone. A pristine base
+fleet is one bucket.</p>
+<h3 id="the-same-shape-for-the-exhaust-plume"><a class="header" href="#the-same-shape-for-the-exhaust-plume">The same shape, for the exhaust plume</a></h3>
+<p>A drive’s flame is quantised the same way and for the same reason
+(<code>EXHAUST_PLUME_BUCKETS</code>, <code>thruster_section.rs</code>): the throttle snaps to one of 16
+steps and the cone SWAPS to the material shared by every nozzle of its shape at
+that step. Nothing is written into a built material here either.</p>
+<p>Read the two together, because the plume is where the pattern earns itself.
+Cracks change rarely, so a read-before-write guard nearly covers them. A guided
+torpedo’s throttle genuinely moves EVERY frame, and a hundred can be in the air -
+so the guard covers nothing, and only sharing does. <code>Assets::get_mut</code> marks an
+asset modified whether or not the value moves, and a modified material is
+re-extracted, re-uploaded and has its bind group rebuilt that frame.</p>
+<p>What quantising costs is smoothness, and the shader is what makes 16 enough: one
+bucket step moves the flame tip by 0.0667 local units, and <code>thruster_exhaust.wgsl</code>
+already jitters that same tip by up to <code>wobble_amp = 0.1</code> every frame.</p>
+<p>The rule the vocabulary is kept honest by: <strong>NO SHIP SECTION LOSES GEOMETRY.</strong>
+Every effect here is a material or a particle, and the only thing that changes a
+ship’s shape is a whole PIECE leaving - a plate shot off, a section destroyed. A
+<code>Carve</code> effect that cut a real crater out of authored art was built and then
+removed: reading a solid out of a drawn mesh costs 6-15 ms per mesh, a ship’s
+marks belong to its root, so one round anywhere on a hull turned every mesh under
+it into a solid in one frame - 325 meshes, 2.0 seconds. A rock still carves,
+because a rock’s solid is analytic and its collider IS its mesh.</p>
+<h2 id="typed-damage-cratesnova_gameplaysrcdamagers"><a class="header" href="#typed-damage-cratesnova_gameplaysrcdamagers">Typed damage (<code>crates/nova_gameplay/src/damage.rs</code>)</a></h2>
+<p>Weapon damage is authored, not emergent from bullet physics, and it is ONE
+number: there is no resistance table and no per-section multiplier anywhere in
+the damage path. A projectile carries
+<code>ProjectileDamage { amount, power, layers, kind }</code> with a <code>DamageType</code>:
+<code>Kinetic</code>, <code>Pierce</code>, or <code>Explosive</code>. <code>apply_damage</code> is the single point at which
+any weapon enters the health store, and it is a plain <code>HealthApplyDamage</code>
+trigger - nothing between the weapon and <code>on_damage</code> reinterprets the number.</p>
+<p>A type is a way of TRAVELLING, not a multiplier. That was the point of dropping
+the table: a round visibly crossing three sections is legible from the cockpit,
+a 1.5x is not. <code>SectionClass</code> survives the table as the ship computer’s section
+LABEL (<code>nova_os_ui</code> reads it for codes, glyphs and descriptions); nothing in the
+damage path branches on it.</p>
+<p>Turret bullets are given a near-zero physical mass (<code>NEUTRALIZED_BULLET_MASS</code>)
+so the impact path’s mass-times-velocity damage
+(<code>on_impact_collision_deal_damage</code>, <code>integrity/core.rs</code>) is negligible and the
+authored amount is the only weapon damage. Torpedoes detonate a <code>NovaBlast</code>.
+<code>damage.rs</code> computes linear falloff from each collider’s world centre. For a
+target it then walks the centre ray through closer live ship sections: a
+survivor stops pressure, while a destroyed section transmits 65 percent. All
+blasts collected in one fixed tick read one pre-damage health snapshot. Health is
+charged per COLLIDER; the crater is cut once per BODY (see
+<a href="#damage-is-two-readings">Damage is two readings</a>).</p>
+<h3 id="the-torpedo-fuze"><a class="header" href="#the-torpedo-fuze">The torpedo fuze</a></h3>
+<p><code>CONTACT_FUZE</code> is 3.0 units to the target’s SKIN, not to its centre of mass. A
+torpedo holding a locked ENTITY projects its position onto the colliders in that
+body’s own <code>RigidBodyColliders</code> list. The projection is solid, so a nose already
+inside the hull reads zero, and reading only the locked body’s list means a
+torpedo threading a formation cannot fuze on the wrong ship. The three-unit
+margin clears the torpedo’s own body and both bodies’ motion through the next
+fixed step. <code>contact_reach(speed, dt) = CONTACT_FUZE.max(speed * dt)</code> widens it
+further for a fast torpedo.</p>
+<p>The old fuze was half the blast radius measured to the centre of mass. It had
+three consequences and no upside: a torpedo always stood off exactly half a
+blast radius and so always delivered exactly half its rated pressure; against a
+rock the crater was cut in vacuum beside the surface, because a rock’s centre is
+buried under twelve units of solid; and nothing in the game had a contact fuze at
+all.</p>
+<p>That fallback survives for the one case with nothing to touch: a torpedo with a
+target POSITION but no entity (a scripted launch, or one whose target died in
+flight) still fuzes at <code>blast.radius * 0.5</code>. A torpedo launched with no lock
+never receives a target position at all, so it cannot detonate - it flies its
+lifetime, deals a contact ding and is deleted, and the bay still spends the
+round.</p>
+<p>Note <code>weave_fade</code> is measured off the BLAST RADIUS and not off the fuze: full
+weave beyond three blast radii, linearly to zero at half a blast radius. The
+terminal sprint has to start where the corkscrew stops helping, out at
+point-defense range, not where the warhead finally fires.</p>
+<h3 id="closing-speed"><a class="header" href="#closing-speed">Closing speed</a></h3>
+<p>Both BULLET types are speed-driven, and the term is computed at the hit, not at
+the muzzle: <code>closing_speed(round_velocity, target_velocity)</code> projects the same
+relative velocity <code>on_impact_collision_deal_damage</code> uses onto the round’s own
+line of flight (projecting onto the line BETWEEN the bodies is unusable - at
+contact they are touching, so that direction is noise). Both curves are the
+speed ratio against <code>REFERENCE_CLOSING_SPEED</code> (100 u/s, the shipped PDC’s
+<code>muzzle_speed</code>), clamped:</p>
+<ul>
+<li><code>kinetic_damage_multiplier</code> scales what a hit DEALS, clamped to <code>[0.25, 2.0]</code>;</li>
+<li><code>pierce_power_multiplier</code> scales how far the round GETS - it divides what a
+layer costs - clamped to <code>[0.5, 3.0]</code>.</li>
+</ul>
+<p>Linear, not the ram model’s own curve: <code>impact_damage</code> is impulse plus absorbed
+energy, and at bullet speeds the quadratic energy half reads ~3.9x at twice the
+reference, which would turn a ~400 DPS PDC into ~1600. Both read exactly 1.0 at
+the reference, so authored <code>bullet_damage</code> values keep the feel they were tuned
+for. Speed scaling is deliberately NOT in <code>apply_damage</code>: a ram already carries
+its velocity in the amount, and a blast has no line of flight.</p>
+<h3 id="the-travel-rule"><a class="header" href="#the-travel-rule">The travel rule</a></h3>
+<p><code>pierce_remainder</code> (<code>damage.rs</code>) is the whole rule, one branch per type;
+<code>spend_piercing_damage</code> deals <code>hit_bite</code> through <code>apply_damage</code> and then calls
+it.</p>
+<ul>
+<li>KINETIC spends its DAMAGE. <code>amount</code> doubles as the budget: a hit that fails to
+destroy the target has by definition put the whole bite into it, so the round
+dies; a hit that destroys it costs only the health that was there, priced back
+through the speed curve that scaled the bite, and the rest flies on. A slug
+can never deal more in total than it was fired with.</li>
+<li>PIERCE spends POWER, never damage. <code>amount</code> is flat - the same bite into every
+layer, no speed term and no decay with depth. Crossing a layer costs that
+layer’s <code>Health.max</code> divided by <code>pierce_power_multiplier</code>. MAX, not remaining,
+for two reasons: light plating stays nearly free while a heavy block is
+expensive (the spaced-armour intuition), and softening a section with other
+fire cannot open a cheaper hole through it. A rake’s TOTAL damage therefore
+exceeds what it was fired with, which is intended. <code>PIERCE_BASE_POWER</code> (300 hp
+of thickness) is the budget and <code>MAX_PIERCE_LAYERS</code> (6) the backstop under it,
+because cheap plating alone would not bound the chain.</li>
+</ul>
+<p>A target with no <code>Health</code> on the hit collider (an asteroid, a planetoid, a pool
+that lives on an ancestor) has no thickness to price and nothing provably
+destroyed, so it is a wall to both types at any speed. Nothing in the rule knows
+what it hit, so destructible cover needs no special case. Torpedoes do not use
+it - they detonate on a <a href="#the-torpedo-fuze">contact fuze</a>.</p>
+<p>The carve reads the same absent pool and draws the OPPOSITE conclusion, and the
+pair is easy to misremember. <code>absorbed_by</code> walks the same <code>ChildOf</code> chain: no
+pool anywhere up it means the whole hit is spent in MATERIAL. That is the
+asteroid rule, not a fallback - a rock’s remaining solid is its durability, and
+clamping against a pool it does not have would stop rocks carving at all.</p>
+<p>One avian trap the hit callsite has to handle: <code>CollisionStart</code> is raised once
+per EVENT-ENABLED collider, so a contact with events on both sides arrives
+twice with <code>collider1</code>/<code>collider2</code> swapped. An asymmetric rule must act on one
+ordering only (<code>resolve_bullet_hit</code> keys on the round being named first;
+<code>on_nova_blast_collision</code> on the blast being <code>body1</code>), or it pays out twice
+per contact. A symmetric rule - ram damage - wants both.</p>
+<h2 id="ammo"><a class="header" href="#ammo">Ammo</a></h2>
+<ul>
+<li><code>SectionAmmo</code> (<code>sections/ammo.rs</code>): optional magazine on a weapon section.
+Absent = unlimited fire; <code>ammo_capacity</code> in the turret/torpedo config opts in.
+The player <code>infinite_ammo</code> flag builds that ship’s weapons without magazines,
+but only under the <code>debug</code> feature: a shipped build logs a warning and keeps
+the authored magazines, so unlimited fire is a dev cheat, never a player state.</li>
+<li><code>SectionReload</code> (<code>sections/ammo.rs</code>): optional idle batch reload on a
+magazine, from the turret/torpedo config <code>reload: Some((delay, amount))</code>.
+Every successful shot resets progress; every completed quiet delay restores
+one batch until full. Fire runs before <code>tick_section_reload</code> in FixedUpdate so
+a shot wins an exact completion tick. Unlimited weapons never reload. The HUD
+reads <code>progress()</code> and <code>incoming_rounds()</code> to pulse only the next batch.</li>
+<li><code>LoadedBullet</code> (<code>sections/turret_section/mod.rs</code>): the turret’s loaded-round slot
+(damage type + amount), seeded from the config. Fired bullets and the HUD ammo
+readout colors read this slot, so swapping ammo types is one component write.</li>
+<li><code>DefaultProjectileRender</code> (<code>sections/turret_section/render.rs</code>): the built-in
+round art, ONE mesh + material per <code>DamageType</code>, built in <code>FromWorld</code>. The
+render observer reads the round’s own <code>ProjectileDamage.kind</code> and hands out
+clones, because a turret’s authored <code>projectile_render_mesh</code> is per-TURRET
+while the fired type comes from <code>LoadedBullet</code> at runtime. Every shipped
+turret leaves that field <code>None</code>, so this IS the shipped path at 100 rounds/s
+per muzzle: it must never allocate per shot, and
+<code>default_projectile_render_allocates_no_assets_per_shot</code> pins that. Its meshes
+come from <code>sections::nose_cone_mesh</code> (a cylinder and a cone, merged), which
+the torpedo warhead’s <code>DefaultTorpedoRender</code> shares. The warhead colours ITS
+copy of that mesh with a <code>StandardMaterial</code> held per TINT, so a salvo of one
+ordnance type is one material however many tubes fired it - and so its crack
+buckets, which key on the source, are shared by the salvo too. Note a cracked
+material is an <code>ExtendedMaterial</code> rather than a
+<code>StandardMaterial</code>, which is why <code>SectionCracks</code> holds a STRONG handle to its
+<code>source</code>: once the mesh’s <code>MeshMaterial3d&lt;StandardMaterial&gt;</code> has been swapped
+away that handle is the only thing a later bucket can be built from, and a
+source that cannot be dropped cannot have its <code>AssetId</code> reissued to something
+else.</li>
+</ul>
+<h2 id="find-it-in-the-code"><a class="header" href="#find-it-in-the-code">Find it in the code</a></h2>
+<ul>
+<li>Section kinds and base config: <code>SectionKind</code>, <code>BaseSectionConfig</code> -
+<code>crates/nova_ship/src/sections/base_section.rs</code>.</li>
+<li>Spawn path: <code>insert_spaceship_sections</code> -
+<code>crates/nova_scenario/src/objects/spaceship.rs</code>.</li>
+<li>Integrity core: <code>NovaIntegrityPlugin</code> -
+<code>crates/nova_gameplay/src/integrity/mod.rs</code>; graph, sever and collapse:
+<code>ShipIntegrityPlugin</code> - <code>crates/nova_ship/src/sections/integrity.rs</code>.</li>
+<li>Typed damage and the travel rule: <code>DamageType</code>, <code>apply_damage</code>,
+<code>pierce_remainder</code> - <code>crates/nova_gameplay/src/damage.rs</code>.</li>
+<li>The two damage readings: <code>DamageLevel</code> -
+<code>crates/nova_gameplay/src/integrity/erosion.rs</code>; <code>DamageMarks</code>,
+<code>DAMAGE_PER_UNIT_VOLUME</code>, <code>mark_radius</code>, <code>record_blast_marks</code> -
+<code>crates/nova_gameplay/src/integrity/carve.rs</code>.</li>
+<li>Carve leftovers: <code>CarveSpew</code> - <code>crates/nova_gameplay/src/integrity/spew.rs</code>;
+<code>spawn_carved_chunk</code>, <code>CHUNK_MIN_VOLUME</code> -
+<code>crates/nova_gameplay/src/integrity/chunk.rs</code>.</li>
+<li>How a body comes apart: <code>detach_destroyed_body</code>, <code>DetachedPieceMarker</code> -
+<code>crates/nova_gameplay/src/integrity/explode.rs</code>.</li>
+<li>Authored damage looks: <code>DamageEffect</code>, <code>fit_damage_effects</code> -
+<code>crates/nova_ship/src/sections/damage_effects.rs</code>, with one module per look in
+<code>damage_cracks.rs</code>, <code>damage_sparks.rs</code> and <code>damage_plume.rs</code>.</li>
+<li>Derived skin and styles: <code>ShipSkinPlugin</code> -
+<code>crates/nova_ship/src/sections/shell_skin.rs</code>; <code>ShipStyleConfig</code> -
+<code>crates/nova_ship/src/sections/skin_style.rs</code>.</li>
+<li>API detail: <code>cargo doc --open -p nova_ship</code> (integrity and damage:
+<code>-p nova_gameplay</code>).</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="architecture.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="scenario-system.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="architecture.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="scenario-system.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="mermaid-eefea253.min.js"></script>
+        <script src="mermaid-init-ccf746f1.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

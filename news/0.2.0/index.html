@@ -12,9 +12,10 @@
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -133,15 +134,6 @@ idea traces back here.</p>
 and <kbd>Enter</kbd> advances to the next scenario when the world resource
 reports one is queued. That is the whole player-facing loop in v0.2.0: read your
 goals, meet them, press Enter, move on.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-020-scenario-objectives.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-020-scenario-objectives.png</span>
-        <span class="figure__placeholder-note">In-game with the objectives HUD listing the active scenario goals, an asteroid mid-encounter, and the Enter-to-advance prompt visible once a goal is met.</span>
-    </div>
-    <figcaption class="figure__caption">A scenario is a win condition expressed as data - filters and actions over game events.</figcaption>
-</figure>
 <h2 id="from-the-devlog" tabindex="-1">From the devlog</h2>
 <p>The devlog goes further into the corners this release also touched. These are
 devlog color rather than headline features - the shipped features of v0.2.0 are
@@ -186,15 +178,6 @@ their health runs out, they break apart under fire. That turns a rock from a
 static prop into something that visibly comes apart when you shoot it, and it
 pairs with the event system above - a destroyed asteroid is exactly the kind of
 event a scenario counter listens for.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-020-asteroids.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-020-asteroids.png</span>
-        <span class="figure__placeholder-note">A cluster of procedural asteroids with irregular rocky surfaces, ideally one caught mid-destruction as it splits under fire.</span>
-    </div>
-    <figcaption class="figure__caption">Procedural asteroids that finally look like asteroids - and come apart when you shoot them.</figcaption>
-</figure>
 <h2 id="point-releases" tabindex="-1">Point releases</h2>
 <h3 id="v021---notes-for-the-modders" tabindex="-1">v0.2.1 - Notes for the modders</h3>
 <p><strong>v0.2.1</strong> is aimed squarely at anyone writing mods, and nothing in it is
@@ -240,8 +223,8 @@ everything built on top of the event engine after this point easier to extend.</
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

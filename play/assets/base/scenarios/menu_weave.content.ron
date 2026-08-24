@@ -1,0 +1,443 @@
+[
+    Scenario((
+        id: "menu_weave",
+        name: "Asteroid Weave",
+        description: "An AI ship weaves a waypoint circuit through a dense rock band.",
+        cubemap: "self://textures/cubemap.png",
+        hidden: true,
+        menu_backdrop: true,
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "weave_key",
+                            name: "Key Light",
+                            position: (
+                                -120.0,
+                                100.0,
+                                120.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "weave_rim",
+                            name: "Rim Light",
+                            position: (
+                                60.0,
+                                80.0,
+                                -160.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "weave_fill",
+                            name: "Fill Light",
+                            position: (
+                                140.0,
+                                -40.0,
+                                80.0,
+                            ),
+                            rotation: (
+                                0.104897276,
+                                0.49822173,
+                                -0.060874254,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "weave_lamp",
+                            name: "Planetoid Glow",
+                            position: (
+                                -60.0,
+                                20.0,
+                                90.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Light(Point(
+                            intensity: 2500000.0,
+                            range: 400.0,
+                            radius: 12.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.82,
+                                blue: 0.6,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "weave_nav_0",
+                            name: "NAV-1",
+                            position: (
+                                100.0,
+                                -38.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "NAV-1",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 0.55,
+                                green: 0.85,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "weave_nav_2",
+                            name: "NAV-2",
+                            position: (
+                                3.3,
+                                -42.0,
+                                133.1,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "NAV-2",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 0.55,
+                                green: 0.85,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "weave_nav_4",
+                            name: "NAV-3",
+                            position: (
+                                -153.3,
+                                -35.0,
+                                82.3,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "NAV-3",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 0.55,
+                                green: 0.85,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "weave_nav_6",
+                            name: "NAV-4",
+                            position: (
+                                -153.3,
+                                -40.0,
+                                -82.3,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "NAV-4",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 0.55,
+                                green: 0.85,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "weave_nav_8",
+                            name: "NAV-5",
+                            position: (
+                                3.3,
+                                -36.0,
+                                -133.1,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "NAV-5",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 0.55,
+                                green: 0.85,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "weave_runner",
+                            name: "Weave Runner",
+                            position: (
+                                100.0,
+                                -38.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("racer"),
+                            controller: AI((
+                                patrol: [
+                                    (
+                                        100.0,
+                                        -38.0,
+                                        0.0,
+                                    ),
+                                    (
+                                        73.3,
+                                        -50.0,
+                                        82.3,
+                                    ),
+                                    (
+                                        3.3,
+                                        -42.0,
+                                        133.1,
+                                    ),
+                                    (
+                                        -83.3,
+                                        -55.0,
+                                        133.1,
+                                    ),
+                                    (
+                                        -153.3,
+                                        -35.0,
+                                        82.3,
+                                    ),
+                                    (
+                                        -180.0,
+                                        -48.0,
+                                        0.0,
+                                    ),
+                                    (
+                                        -153.3,
+                                        -40.0,
+                                        -82.3,
+                                    ),
+                                    (
+                                        -83.3,
+                                        -52.0,
+                                        -133.1,
+                                    ),
+                                    (
+                                        3.3,
+                                        -36.0,
+                                        -133.1,
+                                    ),
+                                    (
+                                        73.3,
+                                        -46.0,
+                                        -82.3,
+                                    ),
+                                ],
+                                waypoint_slack: Some(5.0),
+                                arrival_standoff: Some(10.0),
+                            )),
+                        )),
+                    )),
+                    SetCamera((
+                        position: (
+                            0.0,
+                            127.0,
+                            425.0,
+                        ),
+                        look_at: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "weave_rock_",
+                        count: 40,
+                        seed: 433757350076153860,
+                        region: Ring(
+                            center: (
+                                -40.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inner: 100.0,
+                            outer: 190.0,
+                            y_min: -60.0,
+                            y_max: -28.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "weave_rock_",
+                                name: "Weave Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.0,
+                                texture: "self://textures/asteroid.png",
+                                impact_sound: Some("self://sounds/impact.wav"),
+                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            1.0,
+                            3.0,
+                        )),
+                        min_separation: Some(45.0),
+                    )),
+                    TimerStart((
+                        key: "weave_rotate",
+                        seconds: Term(Factor(Literal(Number(150.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "weave_rotate",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_duel",
+                        linger: false,
+                        delay: Some(1.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                filters: [
+                    Entity((
+                        id: Some("weave_runner"),
+                    )),
+                ],
+                actions: [
+                    TimerStart((
+                        key: "weave_reset",
+                        seconds: Term(Factor(Literal(Number(6.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "weave_reset",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_duel",
+                        linger: false,
+                        delay: Some(1.0),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

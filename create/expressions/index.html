@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Variables &amp; expressions - Nova Protocol Creator Docs</title>
+        <meta name="description" content="The complete scenario expression grammar: literals, factors, terms, conditions, reserved variables, and common recipes." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/docs.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Create navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/create/">Create</a>
+                        / <a href="/nova-protocol/create/reference/">Modding reference</a>
+                        / Variables &amp; expressions
+                    </p>
+                    <h1>Variables &amp; expressions</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <nav class="wiki-toc" aria-label="Contents">
+                        <p class="wiki-toc__title">Contents</p>
+                        <ol><li><a href="#values-the-literal-types">Values: the literal types</a><ol></ol></li><li><a href="#factors-the-atoms">Factors: the atoms</a><ol></ol></li><li><a href="#terms-multiply-divide">Terms: multiply / divide</a><ol></ol></li><li><a href="#expressions-add-subtract-the-value-root">Expressions: add / subtract (the value root)</a><ol></ol></li><li><a href="#conditions-the-boolean-root">Conditions: the boolean root</a><ol></ol></li><li><a href="#queries-and-watched-variables">Queries and watched variables</a><ol></ol></li><li><a href="#recipes">Recipes</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol>
+                    </nav>
+                    <p>Scenario state lives in ONE flat variable store: string keys, typed values.
+<a href="../actions/#variableset"><code>VariableSet</code></a> writes it,
+<a href="../filters/#expression"><code>Expression</code> filters</a> read it,
+<a href="../actions/#hudreadout"><code>HudReadout</code></a> displays it, and the whole store
+clears at scenario teardown (nothing persists across scenarios or a retry).
+Expressions are a small hand-rolled AST with the usual precedence chain -
+this page is its complete grammar.</p>
+<p>The chain, from the boolean root down to the atoms:</p>
+<pre><code class="hljs language-text">condition   LessThan | GreaterThan | Equal          (filters only)
+expression  Add | Subtract | Term                   (the value root)
+term        Multiply | Divide | Factor
+factor      Literal | Name | Parens                 (the atoms)
+</code></pre>
+<p>Every node is a tuple variant - operands are written positionally, nested
+inline. The simplest full chains, worth memorizing:</p>
+<pre><code class="hljs language-ron"><span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">))))</span>     <span class="ron-comment">// the number 0</span>
+<span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;beat&quot;</span><span class="ron-punct">)))</span>             <span class="ron-comment">// read the variable &quot;beat&quot;</span>
+</code></pre>
+<h2 id="values-the-literal-types" tabindex="-1">Values: the literal types</h2>
+<p>Three value types (<code>VariableLiteral</code>):</p>
+<table>
+<thead>
+<tr>
+<th>variant</th>
+<th>payload</th>
+<th>example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Number(..)</code></td>
+<td>64-bit float</td>
+<td><code>Literal(Number(4.0))</code></td>
+</tr>
+<tr>
+<td><code>String(..)</code></td>
+<td>string</td>
+<td><code>Literal(String(&quot;act_two&quot;))</code></td>
+</tr>
+<tr>
+<td><code>Boolean(..)</code></td>
+<td>bool</td>
+<td><code>Literal(Boolean(true))</code></td>
+</tr>
+</tbody>
+</table>
+<p>There is no null and no integer type - counters are <code>Number</code>s.</p>
+<h2 id="factors-the-atoms" tabindex="-1">Factors: the atoms</h2>
+<table>
+<thead>
+<tr>
+<th>variant</th>
+<th>payload</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Literal(&lt;literal&gt;)</code></td>
+<td>a value</td>
+<td>a constant</td>
+</tr>
+<tr>
+<td><code>Name(&quot;var&quot;)</code></td>
+<td>a variable key</td>
+<td>read that variable; an UNDEFINED name is an evaluation error (the enclosing filter fails closed, a <code>VariableSet</code> skips the write)</td>
+</tr>
+<tr>
+<td><code>Parens(&lt;expression&gt;)</code></td>
+<td>a whole expression</td>
+<td>parenthesized subexpression - how you put an <code>Add</code> under a <code>Multiply</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="terms-multiply-divide" tabindex="-1">Terms: multiply / divide</h2>
+<table>
+<thead>
+<tr>
+<th>variant</th>
+<th>operands</th>
+<th>semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Factor(&lt;factor&gt;)</code></td>
+<td>-</td>
+<td>a bare factor</td>
+</tr>
+<tr>
+<td><code>Multiply(&lt;factor&gt;, &lt;term&gt;)</code></td>
+<td>factor x term</td>
+<td>Number x Number = product; Boolean x Boolean = logical AND; anything else = type error</td>
+</tr>
+<tr>
+<td><code>Divide(&lt;factor&gt;, &lt;term&gt;)</code></td>
+<td>factor / term</td>
+<td>Numbers only; dividing by 0.0 is an evaluation error (fails closed, never NaN)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="expressions-add-subtract-the-value-root" tabindex="-1">Expressions: add / subtract (the value root)</h2>
+<p>The node <code>VariableSet.expression</code> takes.</p>
+<table>
+<thead>
+<tr>
+<th>variant</th>
+<th>operands</th>
+<th>semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Term(&lt;term&gt;)</code></td>
+<td>-</td>
+<td>a bare term</td>
+</tr>
+<tr>
+<td><code>Add(&lt;term&gt;, &lt;expression&gt;)</code></td>
+<td>term + expression</td>
+<td>Number + Number = sum; Boolean + Boolean = logical OR; String + String = concatenation; mixed = type error</td>
+</tr>
+<tr>
+<td><code>Subtract(&lt;term&gt;, &lt;expression&gt;)</code></td>
+<td>term - expression</td>
+<td>Numbers only</td>
+</tr>
+</tbody>
+</table>
+<p>Note the asymmetric arms: the LEFT operand is a term (or factor, one level
+down), the RIGHT is a full expression. That is ordinary precedence
+plumbing - it is why the shipped increment reads
+<code>Add(Factor(Name(&quot;n&quot;)), Term(Factor(Literal(Number(1.0)))))</code>: the left arm
+skips straight to a factor, the right arm is a complete expression.</p>
+<p>Chains associate RIGHTWARD: <code>a - b - c</code> authored as
+<code>Subtract(a, Subtract(b, Term(c)))</code> computes <code>a - (b - c)</code>. Chained <code>Add</code> is
+safe (associative); for subtraction, use <code>Parens</code> to force the grouping you
+mean.</p>
+<p>A three-term sum, for the record:</p>
+<pre><code class="hljs language-ron"><span class="ron-type">Add</span><span class="ron-punct">(</span>
+    <span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;a&quot;</span><span class="ron-punct">)),</span>
+    <span class="ron-type">Add</span><span class="ron-punct">(</span>
+        <span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;b&quot;</span><span class="ron-punct">)),</span>
+        <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;c&quot;</span><span class="ron-punct">))),</span>
+    <span class="ron-punct">),</span>
+<span class="ron-punct">)</span>
+</code></pre>
+<h2 id="conditions-the-boolean-root" tabindex="-1">Conditions: the boolean root</h2>
+<p>The node an <a href="../filters/#expression"><code>Expression</code> filter</a> wraps. Compares
+two value expressions; yields a boolean.</p>
+<table>
+<thead>
+<tr>
+<th>variant</th>
+<th>operands</th>
+<th>semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LessThan(&lt;expr&gt;, &lt;expr&gt;)</code></td>
+<td>numeric</td>
+<td><code>l &lt; r</code>; non-numbers = type error</td>
+</tr>
+<tr>
+<td><code>GreaterThan(&lt;expr&gt;, &lt;expr&gt;)</code></td>
+<td>numeric</td>
+<td><code>l &gt; r</code>; non-numbers = type error</td>
+</tr>
+<tr>
+<td><code>Equal(&lt;expr&gt;, &lt;expr&gt;)</code></td>
+<td>same type</td>
+<td>Numbers compare within epsilon 1e-6 (exact float equality burned an author once); Strings/Booleans compare exactly; mixed types = type error</td>
+</tr>
+</tbody>
+</table>
+<p>There is NO <code>NotEqual</code>, <code>LessOrEqual</code> or <code>GreaterOrEqual</code>. Compose instead:
+wrap the filter in <a href="../filters/#conditional"><code>Conditional(Not(..))</code></a>, or
+flip the comparison (<code>&gt;= n</code> on an integer counter is <code>&gt; n - 1</code> - and that
+form is the <a href="#recipes">count-gate</a> convention anyway).</p>
+<h2 id="queries-and-watched-variables" tabindex="-1">Queries and watched variables</h2>
+<p>Queries are typed, read-only world observations. A scenario can expose one as
+an auto-updating variable with <code>watches</code>:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">watches</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+    <span class="ron-punct">(</span>
+        <span class="ron-key">variable</span><span class="ron-punct">:</span> <span class="ron-string">&quot;scenario_elapsed&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">query</span><span class="ron-punct">:</span> <span class="ron-type">Scenario</span><span class="ron-punct">((</span><span class="ron-key">property</span><span class="ron-punct">:</span> <span class="ron-type">Elapsed</span><span class="ron-punct">)),</span>
+    <span class="ron-punct">),</span>
+    <span class="ron-punct">(</span>
+        <span class="ron-key">variable</span><span class="ron-punct">:</span> <span class="ron-string">&quot;courier_speed&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">query</span><span class="ron-punct">:</span> <span class="ron-type">Entity</span><span class="ron-punct">((</span>
+            <span class="ron-key">filter</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;courier&quot;</span><span class="ron-punct">),</span>
+            <span class="ron-key">property</span><span class="ron-punct">:</span> <span class="ron-type">Speed</span><span class="ron-punct">,</span>
+        <span class="ron-punct">)),</span>
+    <span class="ron-punct">),</span>
+<span class="ron-punct">],</span>
+</code></pre>
+<p>Use watched values through the normal variable syntax, including HUD readouts:
+<code>Name(&quot;scenario_elapsed&quot;)</code>. A watched name is read-only; <code>VariableSet</code> on it is
+a lint error.</p>
+<p>Queries can also be inline expression factors. This takes a one-shot speed
+snapshot when the action runs:</p>
+<pre><code class="hljs language-ron"><span class="ron-type">VariableSet</span><span class="ron-punct">((</span>
+    <span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;speed_at_gate&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Query</span><span class="ron-punct">(</span><span class="ron-type">Entity</span><span class="ron-punct">((</span>
+        <span class="ron-key">filter</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;courier&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">property</span><span class="ron-punct">:</span> <span class="ron-type">Speed</span><span class="ron-punct">,</span>
+    <span class="ron-punct">))))),</span>
+<span class="ron-punct">))</span>
+</code></pre>
+<p>Supported queries:</p>
+<table>
+<thead>
+<tr>
+<th>query</th>
+<th>result</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Scenario((property: Elapsed))</code></td>
+<td>Number</td>
+<td>live, unpaused scenario seconds; resets on teardown</td>
+</tr>
+<tr>
+<td><code>Entity((filter: (id: &quot;...&quot;), property: Speed))</code></td>
+<td>Number</td>
+<td>speed in u/s of exactly one matching entity</td>
+</tr>
+</tbody>
+</table>
+<p><code>Entity</code> is strict-single. Zero matches, multiple matches, or a missing velocity
+make the query unavailable. Expressions fail closed. Missing is not zero.</p>
+<h2 id="recipes" tabindex="-1">Recipes</h2>
+<p>The compositions every shipped scenario is built from. All of them depend on
+one rule: <strong>seed every variable in <code>OnStart</code></strong> - expression filters
+<a href="../filters/#traps-for-the-unwary">fail closed</a> on unset names.</p>
+<p>Increment a counter (re-evaluated per event, so it accumulates):</p>
+<pre><code class="hljs language-ron"><span class="ron-type">VariableSet</span><span class="ron-punct">((</span>
+    <span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;crates_recovered&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Add</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;crates_recovered&quot;</span><span class="ron-punct">)),</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">1.0</span><span class="ron-punct">))))),</span>
+<span class="ron-punct">))</span>
+</code></pre>
+<p>The count-gate + one-shot flag - a second handler (often <code>OnUpdate</code>, so it
+never depends on handler order) that fires ONCE when the counter crosses a
+threshold. Prefer <code>&gt; n-1</code> over <code>== n</code> on a count gate: a double-fire that
+jumps the counter past <code>n</code> cannot skip a <code>&gt;</code> gate, but sails clean over an
+<code>==</code> one.</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnUpdate</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">GreaterThan</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;crates_recovered&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">1.0</span><span class="ron-punct">)))),</span>      <span class="ron-comment">// fires at 2 or more</span>
+        <span class="ron-punct">))),</span>
+        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;quota_done&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Boolean</span><span class="ron-punct">(</span><span class="ron-literal">false</span><span class="ron-punct">)))),</span>
+        <span class="ron-punct">))),</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">VariableSet</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;quota_done&quot;</span><span class="ron-punct">,</span> <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Boolean</span><span class="ron-punct">(</span><span class="ron-literal">true</span><span class="ron-punct">)))))),</span>
+        <span class="ron-comment">// ... the beat ...</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>A one-shot timed beat (clock threshold + flag):</p>
+<pre><code class="hljs language-ron"><span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+    <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">GreaterThan</span><span class="ron-punct">(</span>
+        <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;scenario_elapsed&quot;</span><span class="ron-punct">))),</span>
+        <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">30.0</span><span class="ron-punct">)))),</span>
+    <span class="ron-punct">))),</span>
+    <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
+        <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;beat_fired&quot;</span><span class="ron-punct">))),</span>
+        <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">)))),</span>
+    <span class="ron-punct">))),</span>
+<span class="ron-punct">],</span>
+</code></pre>
+<p>A repeating wave - gate on <code>elapsed &gt; next_at</code>, re-arm inside the action:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+    <span class="ron-type">VariableSet</span><span class="ron-punct">((</span>
+        <span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;next_at&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Add</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;next_at&quot;</span><span class="ron-punct">)),</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">30.0</span><span class="ron-punct">))))),</span>
+    <span class="ron-punct">)),</span>
+    <span class="ron-comment">// ... spawn the wave ...</span>
+<span class="ron-punct">],</span>
+</code></pre>
+<p>Snapshot the clock to measure &quot;since X&quot;: store <code>scenario_elapsed</code> into your
+own variable when X happens, then gate on
+<code>elapsed &gt; snapshot + grace</code> via <code>Add</code> under <code>Parens</code>.</p>
+<p>A linear state machine: one numeric <code>beat</code> counter, every handler filtered
+on <code>Equal(beat, N)</code> and ending with <code>VariableSet(beat, N+1)</code>. This scales
+better than a boolean per step; the Shakedown Run and the Gauntlet are both
+built this way (see the scenario-engine chapter of the
+<a href="../../dev/">developer book</a>).</p>
+<h2 id="traps-for-the-unwary" tabindex="-1">Traps for the unwary</h2>
+<ul>
+<li>Everything fails CLOSED: undefined names, type mismatches and division by
+zero all log an error and make the filter false / skip the write. No
+crash, no default value - the handler just never fires. Seed in
+<code>OnStart</code>.</li>
+<li>No boolean node exists at the VALUE level beyond the <code>Add</code>/<code>Multiply</code>
+overloads (OR / AND on booleans). For filter logic, prefer multiple
+<code>filters</code> entries (already ANDed) and
+<a href="../filters/#conditional"><code>Conditional</code></a> for OR / NOT.</li>
+<li>RON's recursion limit (128) bounds nesting depth; a pathological
+expression is a parse error, not a hang.</li>
+</ul>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

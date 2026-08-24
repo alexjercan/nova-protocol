@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Create - Nova Protocol</title>
+        <meta name="description" content="Make content for Nova Protocol: author scenarios and campaigns in RON, add ship sections, ships and skins, and publish mods to the portal." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/docs.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Create navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <h1>Create</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    
+                    <p>Nova Protocol supports data-driven mods. A mod can add campaigns, playable
+scenarios, ship sections, whole ships and skin styles, menu backdrops, story
+messages, objectives, enemies, and custom art or audio. The base campaign and
+portal mods use the same content system available to mod authors.</p>
+<p>You need a text editor and a local copy of the repository. Start with one small
+scenario, play it, then publish it when it works.</p>
+<h2 id="learn-to-mod" tabindex="-1">Learn to mod</h2>
+<p>Follow this path in order:</p>
+<ol>
+<li><strong><a href="author-a-scenario/">Create your first scenario</a></strong> - edit the
+working Example Mod, follow one objective from setup to victory, and launch
+it from the Scenarios menu. This introduces events, filters, actions, and
+variables without requiring the full reference.</li>
+<li><strong><a href="publish-a-mod/">Publish a mod</a></strong> - turn finished content into a
+release, run the lint and loader checks, preview the portal, and make it
+installable by other players.</li>
+<li><strong><a href="reference/">Open the modding reference</a></strong> - learn the complete
+format when you are ready to build larger maps, campaigns, custom ship parts,
+and more complex mission logic.</li>
+</ol>
+<h2 id="what-can-a-mod-contain" tabindex="-1">What can a mod contain?</h2>
+<ul>
+<li><strong>Campaigns</strong> group scenarios into an ordered story.</li>
+<li><strong>Scenarios</strong> create playable maps and script them with events, filters,
+actions, objects, and variables.</li>
+<li><strong>Ship sections</strong> add or replace hulls, thrusters, controllers, turrets, and
+torpedo bays.</li>
+<li><strong>Ships and styles</strong> author whole hulls once, spawn them by id, and restyle
+the cladding they wear.</li>
+<li><strong>Resources</strong> provide your own images, models, sounds, thumbnails, and
+skyboxes.</li>
+</ul>
+<p>The <a href="mod-files/">Mod files</a> page shows how those pieces fit into one
+folder and bundle.</p>
+<h2 id="look-it-up" tabindex="-1">Look it up</h2>
+<p>The <a href="reference/">modding reference</a> is the exhaustive catalog:</p>
+<ul>
+<li><a href="mod-files/">Mod files</a> - folder, bundle, content files, resources,
+dependencies, and overlays.</li>
+<li><a href="campaigns/">Campaign files</a> - campaign fields and chapter order.</li>
+<li><a href="scenarios/">Scenario files</a> - scenario metadata and handler shape.</li>
+<li><a href="sections/">Ship sections for mods</a> - every section kind and field.</li>
+<li><a href="ships/">Ships for mods</a> - whole hulls authored once and spawned by id.</li>
+<li><a href="styles/">Ship skin styles for mods</a> - the look a hull's cladding wears.</li>
+<li><a href="base-content/">Base content catalog</a> - reusable ids and
+<code>dep://base/</code> assets.</li>
+</ul>
+<p>Scenario scripting then branches into <a href="events/">Events</a>,
+<a href="filters/">Filters</a>, <a href="actions/">Actions</a>,
+<a href="objects/">Scenario objects</a>, and
+<a href="expressions/">Variables and expressions</a>.</p>
+<h2 id="extend-the-engine" tabindex="-1">Extend the engine</h2>
+<p>The reference lists everything RON content can use. Adding a new event, filter,
+action, object kind, or section kind requires a game-code change. Contributors
+can start with the <a href="../dev/">developer book</a>.</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

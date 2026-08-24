@@ -4,16 +4,18 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Your first flight - Nova Protocol Wiki</title>
+        <meta name="description" content="The full first flight: launch into the Shakedown Run, learn every gesture beat by beat (burn, lock, GOTO, ORBIT, weapons), then the sandbox and where to go next." />
         <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <script defer src="/nova-protocol/docs.js"></script></head>
     <body>
         <header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -39,26 +41,123 @@
                     <h1>Your first flight</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
                     
-                    <p>New to Nova Protocol? This is the shortest path from launch to flying, shooting, and knowing where to look next. If you would rather be walked through it one gesture at a time, jump straight to the <a href="../../tutorial/">tutorial</a> - it teaches every control in order.</p>
+                    <p>Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario - an asteroid field with gravity wells, salvage, and hostile ships. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, the Shakedown Run beat by beat, and where to go next.</p>
 <h2 id="launch-and-start" tabindex="-1">Launch and start</h2>
-<p>The game boots into a main menu. Pick <strong>New Game</strong> - it drops you into the <strong>Shakedown Run</strong>, a guided tutorial scenario with a ready-made ship, so there is nothing to build first. (Sandbox is the other door: it opens the ship editor to build and test-fly your own hull.)</p>
+<p>The game boots into a main menu. <strong>New Game</strong> drops you into the <strong>Shakedown Run</strong> - a guided tutorial scenario with a ready-made ship, so there is nothing to build first. The other doors can wait.</p>
+<details class="explain">
+<summary>Show the full menu rundown</summary>
+<ul>
+<li><strong>New Game</strong> - drops you into the <strong>Shakedown Run</strong>, a guided tutorial scenario with a ready-made ship, so there is nothing to build first.</li>
+<li><strong>Sandbox</strong> - opens the ship editor so you can build a ship and test-fly it in a practice scenario.</li>
+<li><strong>Scenarios</strong> - opens the complete scenario picker.</li>
+<li><strong>Mods</strong> - opens the installed-mod and online-catalog browser.</li>
+<li><strong>Settings</strong> - adjusts volume, graphics quality, and UI skin, and shows the control reference.</li>
+<li><strong>Exit</strong> - quits (hidden in the browser build).</li>
+</ul>
+</details>
+<figure class="figure">
+    <!-- Capture: assets/tutorial-menu.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-name">assets/tutorial-menu.png</span>
+        <span class="figure__placeholder-note">The main menu with its live ambient backdrop (an AI ship flying a thruster orbit) and the New Game / Sandbox / Scenarios / Mods / Settings / Exit options.</span>
+    </div>
+    <figcaption class="figure__caption">The game boots into a main menu; New Game starts the Shakedown Run.</figcaption>
+</figure>
+<p>In any scenario, <kbd>Esc</kbd> pauses the game and gives you Resume / Retry (restart the current scenario) / Settings / Back to Main Menu / Exit.</p>
+<p>Pick <strong>New Game</strong>. The Shakedown Run teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes the instant the gesture lands.</p>
 <h2 id="the-first-two-minutes" tabindex="-1">The first two minutes</h2>
-<p>Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. Distances read in metres and kilometres and speeds in metres per second (<code>m/s</code>); see the <a href="../glossary/">glossary</a>.</p>
+<p>Distances read in metres and kilometres and speeds in metres per second (<code>m/s</code>); see the <a href="../glossary/">glossary</a>.</p>
 <ul>
 <li><strong>Burn.</strong> Hold <kbd>W</kbd> (or <kbd>Space</kbd>) for the main-drive burn and aim with the mouse. You point the hull, then thrust where the nose looks. The velocity sphere beside your ship shows where you are actually going.</li>
 <li><strong>Lock a target.</strong> Hold <kbd>Ctrl</kbd> to sweep the radar; the hollow box shows what you are about to lock. Settle on it and hold steady for a moment - a short lock-on dwell has to fill (longer the farther the target is) before the lock latches, and sweeping off before then cancels it. A white crosshair is a travel (nav) lock; raise weapons first (see below) and it lands as a red combat lock instead.</li>
 <li><strong>GOTO.</strong> With a lock, tap <kbd>G</kbd> and the autopilot flies you there - it burns over, flips, and coasts to a stop just off the target. Any manual input hands the ship straight back to you.</li>
 <li><strong>Raise weapons and fire.</strong> Hold the right mouse button to raise weapons (combat stance); your reticle goes red and the ship is now &quot;hot&quot;. Left mouse fires the turrets and launches torpedoes. A torpedo only launches while you hold a red combat lock.</li>
 </ul>
-<p>That is the whole core loop: burn, lock, GOTO, shoot. The Shakedown Run walks you through each beat and completes as you go.</p>
-<h2 id="where-to-go-next" tabindex="-1">Where to go next</h2>
+<p>That is the whole core loop: burn, lock, GOTO, shoot. The Shakedown Run walks you through each beat in order.</p>
+<h2 id="the-shakedown-run-beat-by-beat" tabindex="-1">The Shakedown Run, beat by beat</h2>
+<p>You open drifting off the dock while Capt. Halloran briefs you through the comms stack - the run's first conversation, and the campaign's first look at your own voice. Her lines carry the story; each objective arrives as a short amber notification, while gold markers keep the current target in view. She keeps talking you through the run, with each line followed by breathing room before the next objective.</p>
+<h3 id="part-1---burn-and-look" tabindex="-1">Part 1 - Burn and look</h3>
+<ol>
+<li><strong>Burn to Beacon 1.</strong> Hold <kbd>W</kbd> to burn, tap <kbd>X</kbd> to STOP. There is a gentle speed cap here that lifts once you arrive.</li>
+<li><strong>Find Beacon 2.</strong> It is off your beam. Hold <kbd>Alt</kbd> to free-look around and spot it, then burn over.</li>
+<li><strong>Recover 3 supply crates</strong> from the debris cluster - fly through each one to collect it.</li>
+</ol>
+<h3 id="part-2---lock-and-let-the-computer-fly" tabindex="-1">Part 2 - Lock and let the computer fly</h3>
+<figure class="figure">
+    <!-- Capture: assets/tutorial-radar-lock.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-name">assets/tutorial-radar-lock.png</span>
+        <span class="figure__placeholder-note">The white NAV crosshair mid-sweep while holding CTRL, with the lock brackets snapping onto a beacon.</span>
+    </div>
+    <figcaption class="figure__caption">Radar locking is deliberate: hold CTRL and the radar locks whatever you look at.</figcaption>
+</figure>
+<ol start="4">
+<li><strong>Lock Beacon 3.</strong> Your targeting computer comes online. Hold <kbd>Ctrl</kbd> on the beacon until the white NAV lock sticks. Radar locking is deliberate now: holding <kbd>Ctrl</kbd> sweeps and live-locks whatever your look ray is on.</li>
+<li><strong>Press GOTO.</strong> With the beacon locked, press <kbd>G</kbd> and let the computer fly you there.</li>
+<li><strong>On to Beacon 4.</strong> A new waypoint appears - lock it and press <kbd>G</kbd> again.</li>
+</ol>
+<h3 id="part-3---gravity-and-orbit" tabindex="-1">Part 3 - Gravity and orbit</h3>
+<figure class="figure">
+    <!-- Capture: assets/tutorial-orbit.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-name">assets/tutorial-orbit.png</span>
+        <span class="figure__placeholder-note">The ship flying a clean ORBIT circle around the planetoid, with the ORBIT radius spoke shown on the HUD.</span>
+    </div>
+    <figcaption class="figure__caption">Press ORBIT near a gravity well and the ship flies itself into a clean circle.</figcaption>
+</figure>
+<ol start="7">
+<li><strong>Coast.</strong> You drift into the planetoid's pull - cut the burn and let gravity carry you.</li>
+<li><strong>Press ORBIT.</strong> Press <kbd>O</kbd> and the ship parks itself into a clean orbit around the well.</li>
+<li><strong>Break away.</strong> Press <kbd>Z</kbd> to cancel the autopilot and burn clear.</li>
+</ol>
+<h3 id="part-4---first-blood" tabindex="-1">Part 4 - First blood</h3>
+<figure class="figure">
+    <!-- Capture: assets/tutorial-combat-lock.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-name">assets/tutorial-combat-lock.png</span>
+        <span class="figure__placeholder-note">Weapons raised (RMB): the red combat reticle locked on the derelict hulk, with the corner target viewfinder inset showing the magnified target.</span>
+    </div>
+    <figcaption class="figure__caption">Raise your weapons with RMB and the radar commits to a red combat lock; the viewfinder shows it live.</figcaption>
+</figure>
+<ol start="10">
+<li><strong>Paint the derelict hulk.</strong> Hold the right mouse button to raise your weapons, keep <kbd>Ctrl</kbd> on the hulk, and watch the corner viewfinder. Raised weapons make the radar commit to a <em>red</em> combat lock instead of the white nav one.</li>
+<li><strong>Open fire.</strong> Locked on, fire the turrets with the left mouse button.</li>
+<li><strong>Drive off the scavenger.</strong> Destroying the hulk draws a scavenger picking through your debris field - put it down.</li>
+</ol>
+<p>Finish that and the Shakedown is complete: the victory screen offers to continue straight into <strong>Broadside</strong>, chapter two - a hauler's distress call, an ambush, and the gang's torpedo gunship. (Tap <kbd>Ctrl</kbd> to clear the combat lock; tap it again to clear the nav lock.)</p>
+<h2 id="the-sandbox" tabindex="-1">The sandbox</h2>
+<figure class="figure">
+    <!-- Capture: assets/wiki-sandbox-range.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-name">assets/wiki-sandbox-range.png</span>
+        <span class="figure__placeholder-note">The sandbox free-flight range from the player ship: the rock belts ahead, target hulks to port, and the F1 back-to-editor objective chip visible.</span>
+    </div>
+    <figcaption class="figure__caption">The sandbox range: nothing to win, nothing to lose but the ship.</figcaption>
+</figure>
+<p><strong>Sandbox</strong> opens the ship editor. Build a hull, press <strong>Play</strong>, and you launch into a free-flight range with nothing to win and nothing to lose but the ship:</p>
 <ul>
-<li><a href="../../tutorial/">Tutorial</a> - the full guided first flight, beat by beat.</li>
+<li><strong>Rock belts</strong>: a shallow one off to starboard, and a deeper wall of bigger rocks straight ahead.</li>
+<li><strong>Target hulks</strong> off to port - inert bare-hull wrecks that never shoot back. Practice fire.</li>
+<li><strong>Pickets</strong> further out. They sit neutral and ignore you until you paint one with a combat lock or fly too close, and then they fight. There is no way to un-wake one.</li>
+<li><strong>Beacons</strong> that swap the sky as you pass through them - one out, one back.</li>
+<li>A <strong>planetoid</strong> off to port with a real gravity well. It is far enough that you have to go looking for it.</li>
+</ul>
+<p>Nothing here ends. The objective on your HUD just names the way out: <kbd>F1</kbd> returns to the editor at any time, and if you die the overlay offers <strong>Retry</strong> on the same range with the same ship.</p>
+<h2 id="where-to-go-next" tabindex="-1">Where to go next</h2>
+<p>That is everything you need to get off the launch pad. The rest of the wiki is the full reference:</p>
+<ul>
 <li><a href="../keybinds/">Keybinds</a> - the complete control reference for keyboard and gamepad.</li>
 <li><a href="../flight-autopilot/">Flight &amp; autopilot</a> - how ships move and what GOTO, ORBIT and STOP each do.</li>
 <li><a href="../targeting-radar/">Targeting &amp; radar</a> - deliberate locking, stances, and per-section fine-lock.</li>
+<li><a href="../sections/">Ship sections</a> - what each part of a ship does.</li>
 <li><a href="../glossary/">Glossary</a> - the recurring terms and units in one place.</li>
 </ul>
+<p style="margin-top: 2.5em"><a href="../../play/" class="btn btn--primary">Launch the game</a></p>
 
                     <div id="wiki-seealso"></div>
                 </article>
@@ -67,8 +166,8 @@
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

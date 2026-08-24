@@ -12,9 +12,10 @@
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -120,15 +121,6 @@ weapons and scenario timers all stop dead behind the banner - so the world does
 not quietly play on underneath a screen you are reading. The closing story lines
 that used to fire behind the victory banner (where nobody could ever read them)
 now live inside the banner itself.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-070-outcome-frame.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-070-outcome-frame.png</span>
-        <span class="figure__placeholder-note">The VICTORY (or DEFEAT) overlay mid-scenario with the Continue/Retry and Main Menu buttons, the frozen world visible behind it.</span>
-    </div>
-    <figcaption class="figure__caption">Scenarios can finally declare a result, and the world freezes behind it.</figcaption>
-</figure>
 <h3 id="pacing-the-cut" tabindex="-1">Pacing the cut</h3>
 <p>Scenario transitions also grew a middle gear between &quot;hard cut now&quot; and &quot;wait
 for a click&quot;. A <code>NextScenario</code> that does not linger can carry a <strong>delay</strong>: the
@@ -180,15 +172,6 @@ stays a hot drop on purpose. Opening comms beats are spaced on the scenario
 clock rather than dumped in one burst. The <strong>beat-sheet convention</strong> - announce,
 breathe, arrive - is written down for scenario authors, and the content lint
 enforces its two hard rules.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-070-broadside-comms.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-070-broadside-comms.png</span>
-        <span class="figure__placeholder-note">Broadside mid-fight: the gunship and boulders in view with a speaker-attributed StoryMessage line showing in the HUD comms panel.</span>
-    </div>
-    <figcaption class="figure__caption">Broadside, with the new comms panel carrying the story mid-fight.</figcaption>
-</figure>
 <h2 id="the-ledger-a-full-campaign-on-the-portal" tabindex="-1">The Ledger: a full campaign on the portal</h2>
 <h3 id="four-chapters-two-endings" tabindex="-1">Four chapters, two endings</h3>
 <p>If Broadside proves the base game can tell a story, <strong>The Ledger</strong> proves a mod
@@ -214,15 +197,6 @@ her.</p>
 the mook gun on <strong>both ending branches</strong> - the playtest-decided answer to the
 balance audit flagging it - because its drama is the close entrance and the
 torpedo you screen with your PDC, not an instant shred.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-070-ledger-ch2.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-070-ledger-ch2.png</span>
-        <span class="figure__placeholder-note">The Ledger chapter two: Magpies burning in down the single lane toward the boulder field, the Dray Mule holding station high off the fight plane.</span>
-    </div>
-    <figcaption class="figure__caption">The Ledger's chapter two, rebuilt around fair fights and real cover.</figcaption>
-</figure>
 <h2 id="smarter-fights" tabindex="-1">Smarter fights</h2>
 <p>The combat model grew five teeth this cycle.</p>
 <h3 id="enemies-take-cover" tabindex="-1">Enemies take cover</h3>
@@ -265,15 +239,6 @@ you have already destroyed and which are still a threat. Unlike your own ship -
 which reddens and darkens gradually as each section wears down - enemies only
 show the black endpoint, staying pristine until a section is actually gone, so
 the enemy hull reads as a checklist, not a health bar.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-070-enemy-damage.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-070-enemy-damage.png</span>
-        <span class="figure__placeholder-note">A hostile ship mid-fight with one section burnt black and the rest pristine, the player's tracer stream still on it.</span>
-    </div>
-    <figcaption class="figure__caption">Destroyed enemy sections char black - the enemy hull reads as a checklist.</figcaption>
-</figure>
 <h2 id="docking-on-the-fine-thrusters" tabindex="-1">Docking on the fine thrusters</h2>
 <h3 id="hold-shift-and-trim" tabindex="-1">Hold SHIFT and trim</h3>
 <p>New this cycle: a <strong>reaction-control system</strong> for the close-in work autopilot
@@ -293,15 +258,6 @@ docking opts a ship in.</p>
 their arrival on RCS, braking with the fine jets in the last stretch once the
 desired velocity is near zero, so a ship eases to a stop instead of pulsing on
 the spot - the same soft burn loop playing while it does.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-070-rcs-dock.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-070-rcs-dock.png</span>
-        <span class="figure__placeholder-note">A ship easing sideways toward a target on RCS: the velocity sphere shown in its violet RCS state, SHIFT-RCS hint visible.</span>
-    </div>
-    <figcaption class="figure__caption">RCS: hold SHIFT and trim the last few meters under the cap.</figcaption>
-</figure>
 <h2 id="a-real-settings-menu" tabindex="-1">A real Settings menu</h2>
 <h3 id="audio-graphics-and-a-keybind-reference" tabindex="-1">Audio, graphics and a keybind reference</h3>
 <p>The Settings menu is real content now instead of a placeholder. It carries a
@@ -319,15 +275,6 @@ upscales to the window. That last lever is aimed squarely at fill-bound hardware
 (laptop iGPUs, phones); the HUD and menus stay crisp and fully clickable, and on
 a strong discrete GPU the win is small - it is a knob for the low end, not a
 general speed-up.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-070-settings.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-070-settings.png</span>
-        <span class="figure__placeholder-note">The Settings modal: master volume slider, the Low/Medium/High graphics preset selector, and the keybind reference panel.</span>
-    </div>
-    <figcaption class="figure__caption">Audio, a graphics preset, and a keybind reference - remembered across restarts.</figcaption>
-</figure>
 <h2 id="a-ship-sounds-like-itself" tabindex="-1">A ship sounds like itself</h2>
 <p>The quietest big change this release: <strong>every world sound is now content-owned</strong>.
 A sound plays because something you can author declares it, which means a modded
@@ -547,8 +494,8 @@ comms, timed beats, shipped art and a menu backdrop.</p>
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

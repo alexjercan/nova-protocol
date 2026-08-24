@@ -1,0 +1,775 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Scenario engine - Nova Protocol Developer Docs</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-6c135d9b.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Nova Protocol Developer Docs</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="scenario--modding-system"><a class="header" href="#scenario--modding-system">Scenario / modding system</a></h1>
+<blockquote>
+<p>How-to companions: <a href="https://alexjercan.github.io/nova-protocol/create/author-a-scenario/">Create your first scenario</a> to write one
+in RON with existing primitives, or <a href="guide-extend-scenarios.html">Extend the scenario engine</a>
+to add new event, filter, action, or object kinds in Rust. The exhaustive
+construct-by-construct catalog for authors is the
+<a href="https://alexjercan.github.io/nova-protocol/create/reference/">modding reference</a>; this page is the engine’s
+internals.</p>
+</blockquote>
+<p><code>crates/nova_scenario</code> is the data-driven scenario engine, the layer for
+missions, objectives, and reactive world behavior. A scenario is a list of
+event handlers; each pairs an event with filters (all must pass) and actions
+(run in order). It builds on <code>GameEventsPlugin</code>/<code>EventWorld</code> from
+<code>nova_events</code>; nova_scenario provides <code>NovaEventWorld</code> and the enums below.</p>
+<h2 id="scenario-structure"><a class="header" href="#scenario-structure">Scenario structure</a></h2>
+<ul>
+<li><code>ScenarioConfig</code> - <code>id</code>, <code>name</code>, <code>description</code>, <code>cubemap</code> (skybox), <code>events</code>.</li>
+<li><code>ScenarioEventConfig</code> - one handler: <code>name: EventConfig</code>, <code>filters</code>, <code>actions</code>.</li>
+<li><code>GameScenarios(HashMap&lt;ScenarioId, ScenarioConfig&gt;)</code> - all known scenarios,
+populated by <code>nova_assets</code> (ready at <code>GameAssetsStates::Loaded</code>).</li>
+<li><code>CampaignConfig</code> - <code>id</code>, <code>name</code>, <code>scenarios</code> (ordered member scenario ids,
+hidden ones allowed); a first-class content kind (<code>Campaign((..))</code>).</li>
+<li><code>GameCampaigns(HashMap&lt;CampaignId, CampaignConfig&gt;)</code> - all known campaigns, the
+ordered campaign-&gt;scenario mapping the Scenarios picker groups/launches by,
+populated by <code>nova_assets</code> alongside <code>GameScenarios</code>.</li>
+<li><code>CurrentScenario(Option&lt;ScenarioConfig&gt;)</code> - the loaded scenario, if any. The
+<code>scenario_is_live</code> run condition gates the ship input/section sets on it.</li>
+</ul>
+<h2 id="loading--unloading-loader"><a class="header" href="#loading--unloading-loader">Loading / unloading (<code>loader/</code>)</a></h2>
+<ul>
+<li><code>LoadScenario(ScenarioConfig)</code> - trigger to load: look one up in
+<code>GameScenarios</code>, <code>commands.trigger(LoadScenario(cfg.clone()))</code> (see
+<code>examples/systems/system_scenario_grammar.rs</code>). Load tears down the previous
+scenario, spawns the camera, input context, one handler per event, fires
+<code>OnStart</code>. No engine
+light: a scene is lit by the <code>Light</code> objects it authors, and one that authors
+none renders black.</li>
+<li><code>ScenarioLoaded</code> - fired after a load; carries <code>scenario_id</code>,
+<code>handler_count</code>, <code>object_count</code> for smoke-test assertions.</li>
+<li><code>UnloadScenario</code> - tears everything down and clears <code>CurrentScenario</code>.</li>
+<li><code>ScenarioScopedMarker</code> - any entity carrying it is despawned (recursively)
+on load/unload. Teardown also runs <code>NovaEventWorld::clear()</code> and clears all
+HUD hint emphasis.</li>
+</ul>
+<p>Cleanup contract: every entity spawned while a scenario is live must (1) carry
+<code>ScenarioScopedMarker</code> (all scenario objects do), (2) carry a lifetime
+component - <code>register_scenario_scoping</code> tags every transient with
+<code>ScenarioScopedMarker</code> the moment it declares one (<code>TempEntity</code> for countdown
+transients, <code>SfxAudioMarker</code> for SFX one-shots), so projectiles, blasts,
+debris, blast cosmetics and still-playing sounds all die with their scenario,
+(3) be a child of a scoped entity, or
+(4) be torn down by a <code>Remove</code> observer (the HUDs on <code>PlayerSpaceshipMarker</code>).
+Anything else leaks.</p>
+<p>A <code>TempEntity</code> does NOT clean itself up reliably: its countdown runs on
+<code>Time&lt;Virtual&gt;</code>, which the pause menu and the outcome overlay STOP. A torpedo
+blast that fuzes on the frame the player dies therefore outlives the whole
+Defeat overlay and survives Retry, arriving in the reloaded scenario with its
+damage intact. Scoping ON the lifetime component, rather than trusting the
+lifetime to run out, is what closes that.</p>
+<h3 id="the-load-warms-every-hull-the-scenario-can-spawn"><a class="header" href="#the-load-warms-every-hull-the-scenario-can-spawn">The load warms every hull the scenario can spawn</a></h3>
+<p>A section’s glTF is resolved by the render observer that builds its mesh child,
+so the FIRST ship wearing a hull paid for that hull’s art. A hull no <code>OnStart</code>
+event spawns is therefore cold when its beat arrives: <code>final_tally</code>’s flagship
+and both of <code>menu_duel</code>’s corvettes appeared in placeholder art and dressed
+themselves a moment later.</p>
+<p><code>preload::scenario_render_meshes</code> walks the loaded config for <code>SpawnScenarioObject</code>
+and <code>ScatterObjects</code> actions, resolves each ship’s <code>ShipSource</code> and every
+section’s <code>SectionSource</code> against the two catalogs, and collects the render
+meshes. That walk is possible at all because a spawn action carries its object’s
+WHOLE config inline rather than an id looked up at spawn time, so what a
+scenario can spawn is readable before it spawns anything.</p>
+<p>Three parts make it work:</p>
+<ul>
+<li><code>AssetRef::resolve</code> is idempotent, so the spawn site is unchanged - it asks
+the <code>AssetServer</code> for the same path and gets back a handle that is already
+warm.</li>
+<li><code>ScenarioPreload</code> HOLDS the handles for the scenario’s lifetime. Without a
+strong handle bevy frees the mesh again long before the mid-mission spawn.</li>
+<li>The load WAITS: <code>scenario_has_settled</code> and the LOADING panel both hold while
+the warm-up is pending, bounded by its own deadline so a missing or broken
+mesh cannot hang the load. A failed mesh counts as settled and is named in a
+warning; the section spawns in placeholder art, exactly as it would have.</li>
+</ul>
+<p>Ships are the only object kind involved. A beacon and a salvage crate build
+primitives, an asteroid meshes itself on a worker, and a light and an anchor
+have no mesh at all. The warm-up is also registered only when
+<code>NovaScenarioPlugin::render</code> is set: a headless rig builds no mesh children, so
+there is nothing to warm and nothing to wait for.</p>
+<h2 id="the-vocabulary-and-who-documents-it"><a class="header" href="#the-vocabulary-and-who-documents-it">The vocabulary, and who documents it</a></h2>
+<p>Three closed enums are the whole authored language, one dispatch match each:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Enum</th><th>File</th><th>Trait it dispatches to</th><th>Creator reference</th></tr>
+</thead>
+<tbody>
+<tr><td><code>EventConfig</code></td><td><code>events.rs</code></td><td><code>EventHandler&lt;NovaEventWorld&gt;</code> (via <code>From</code>)</td><td><code>/create/events/</code></td></tr>
+<tr><td><code>EventFilterConfig</code></td><td><code>filters.rs</code></td><td><code>EventFilter&lt;NovaEventWorld&gt;</code></td><td><code>/create/filters/</code></td></tr>
+<tr><td><code>EventActionConfig</code></td><td><code>actions/mod.rs</code></td><td><code>EventAction&lt;NovaEventWorld&gt;</code></td><td><code>/create/actions/</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>The construct-by-construct catalog is <code>/create/</code>, not this page.</strong> Every
+event’s exact firing condition, every filter field, every action’s RON and
+defaults are the authored CONTRACT and have to be exact; a second copy here
+would be nobody’s job to update, and a reader would have no way to tell which
+one was true. This chapter covers what the enums do not show.</p>
+<p>Events carry identity, not payload-by-position: entities wear
+<code>EntityId(String)</code> and <code>EntityTypeName(String)</code>, and every PAIR event has the
+same filter shape - a subject <code>id</code> plus an <code>other_id</code> / <code>other_type_name</code>.
+Which entity is the subject is per-event (area against body, well against ship,
+target against locker), which is why the filter is one struct rather than one
+per event. Lock and orbit lifecycle events are one-shot EDGES with no hidden
+timer behind them: a target switch queues end-old then start-new, and a
+scenario that needs a continuous hold composes the edges with a keyed timer.</p>
+<p>Filters read and never mutate; they take <code>&amp;NovaEventWorld</code> and the fired
+<code>GameEventInfo</code> and return a bool, and every filter on a handler must pass.
+Actions take <code>&amp;mut NovaEventWorld</code> and run in order. Neither touches the Bevy
+<code>World</code> directly - see the seam below.</p>
+<pre class="mermaid">flowchart LR
+  Event["Event fires"] --&gt; Filters["Filters gate"]
+  Filters --&gt;|all pass| Actions["Actions run"]
+  Filters --&gt;|any fail| Stop["No-op"]
+  Actions --&gt; Vars["Mutate variables"]
+  Actions --&gt; World["Mutate event world"]
+  Actions --&gt; Objects["Spawn / affect objects"]
+</pre>
+
+<h3 id="what-an-action-does-that-its-ron-cannot-show"><a class="header" href="#what-an-action-does-that-its-ron-cannot-show">What an action does that its RON cannot show</a></h3>
+<p>Most actions are a straight write into <code>NovaEventWorld</code>. Four are not, and the
+difference is engine behaviour rather than authored syntax:</p>
+<ul>
+<li><strong><code>Outcome</code></strong> is not just an overlay. Setting one puts the app into
+<code>PauseStates::Paused</code> for as long as it is set, so physics, AI, weapons and
+timers stop behind the banner while the overlay’s own buttons stay live.
+Scenario teardown clears it, which also releases the pause.</li>
+<li><strong><code>SetCamera</code></strong> has to WIN every frame. It drops <code>WASDCameraController</code> and
+pins a <code>ScriptedCameraPose</code> that is re-enforced in
+<code>CameraAuthoritySystems::Override</code>, because both camera controllers keep
+writing the camera <code>Transform</code> otherwise - the same swap the
+player-ship-spawn observer does.</li>
+<li><strong><code>SetSkybox</code></strong> installs DEFERRED. The skybox setup observer reads the image
+immediately and would panic on a handle that has not loaded, so the action
+only tags the scenario camera with <code>PendingSkyboxSwap</code> and
+<code>apply_pending_skybox_swaps</code> inserts the real <code>SkyboxConfig</code> once the image
+is in. A failed load warns and leaves the sky alone.</li>
+<li><strong><code>NextScenario</code></strong> with <code>linger: true</code> does not switch on its own: it parks
+the request until something clears the flag. That something is the
+scenario-advance input or an outcome-overlay button, which is how Continue
+and Retry ride a queued switch.</li>
+</ul>
+<p><code>HintEmphasisSet</code> is worth one line for the same reason: the keybind dock hides
+verbs the ship cannot use, so an emphasis on an unavailable verb REVEALS its
+chip in the dim band rather than doing nothing. That is how a tutorial points
+at a key before it lights up.</p>
+<p>Actions fan out to one submodule per family beside <code>actions/mod.rs</code> -
+<code>flow</code>, <code>mission</code>, <code>ship</code>, <code>spawn</code>, <code>timer</code>, <code>view</code> - and adding one is
+<a href="guide-extend-scenarios.html">Extend the scenario engine</a>.</p>
+<h2 id="variables-and-the-event-world-worldrs-variablesrs"><a class="header" href="#variables-and-the-event-world-worldrs-variablesrs">Variables and the event world (<code>world.rs</code>, <code>variables.rs</code>)</a></h2>
+<p><code>NovaEventWorld</code> holds the scenario state: variables, objectives,
+<code>next_scenario</code>, and a queue of deferred command closures. Filters and actions
+mutate only this resource, never the Bevy <code>World</code>; world access goes through
+<code>world.push_command(|commands| ...)</code>. Each frame <code>state_to_world_system</code> syncs
+objectives into <code>GameObjectives</code> (write-on-diff), runs a queued non-lingering
+<code>NextScenario</code> switch, and drains the command queue.</p>
+<p>The drain is CHUNKED, not one flush. A chapter’s <code>OnStart</code> queues a closure per
+object, and applying them together cost one ~300 ms frame - a frame nothing can
+be drawn on, so the LOADING panel froze on the exact frames it exists to cover.
+Commands are applied one at a time until <code>SPAWN_DRAIN_BUDGET</code> (3 ms) of the
+frame is spent, so a big scene arrives over several frames and a slower machine
+takes MORE FRAMES rather than a longer one. One command per apply is also what
+keeps each object atomic: a ship’s sections all land inside one apply, so the
+<code>Added&lt;SectionLinkPoints&gt;</code> batch the integrity graph and the derived skin key
+off is complete the first time they see it.</p>
+<p>While commands remain, the scenario is SETTLING (<code>EventWorld::is_settling</code>).
+The dispatcher holds every handler, and a handler that queues world work stops
+the current pass, so no handler ever runs against a world known to be
+incomplete. The scenario clock stops, keyed timers do not expire, watches are
+not sampled, the <code>OnUpdate</code> pulse does not fire, and the LOADING panel stays up.
+The world is not yet LIVE, rather than briefly inconsistent. Held events are not
+dropped: they dispatch in order on the frame the world goes live.</p>
+<p><code>scenario_has_settled</code> - the run condition the clock and the pulse read - holds
+for one more reason: the glTF warm-up above. Dispatch is not, so <code>OnStart</code>
+still fires and the scene still builds while the art arrives; what waits is the
+scenario CLOCK, so no mission time passes behind a panel the player cannot see
+past.</p>
+<p>Variables are typed literals (<code>String</code>, <code>Number</code>, <code>Boolean</code>) with a small
+expression tree: <code>VariableExpressionNode</code> (add/subtract), <code>VariableTermNode</code>
+(multiply/divide), <code>VariableFactorNode</code> (literal/name/parens);
+<code>VariableConditionNode</code> (less/greater/equal) yields booleans for filters.</p>
+<h3 id="two-clocks-pace-a-transition"><a class="header" href="#two-clocks-pace-a-transition">Two clocks pace a transition</a></h3>
+<p><code>/create/actions/</code> documents the three gears a scenario switch has - hard cut,
+delayed cut and modal hold. The engine fact underneath them is that they do not
+all run on the same clock, which is the only part that is not obvious from the
+RON:</p>
+<ul>
+<li>A <code>NextScenario</code> <strong>delay</strong> ticks on <code>Time&lt;Virtual&gt;</code>, the pause-frozen
+scenario clock, so a player who pauses holds the cut.</li>
+<li>An <code>Outcome</code>’s <strong><code>auto_advance_secs</code></strong> cannot, because the overlay it belongs
+to STOPS <code>Time&lt;Virtual&gt;</code>. It runs on the wall clock instead. A timed banner
+that used the scenario clock would never fire.</li>
+</ul>
+<p>Anything that has to keep counting behind a frozen overlay is in the same
+position and has the same answer.</p>
+<h3 id="story-pacing-is-a-queue-not-a-slot"><a class="header" href="#story-pacing-is-a-queue-not-a-slot">Story pacing is a QUEUE, not a slot</a></h3>
+<p><code>StoryMessage</code> writes into a bottom-left comms stack rather than a
+latest-wins line: arrival order, a bounded number of cards visible with a
+bounded backlog behind them, oldest dropped when the backlog overflows, and the
+whole log kept in the feed. That is why a burst of lines is survivable - but
+one line per beat is still the style, and the queue is the safety net.</p>
+<p>Two consequences for anything that fires story lines:</p>
+<ul>
+<li><strong>The stack is a HUD surface <code>nova_scenario</code> reaches up into.</strong> The dwell
+limits and the card budget live with the HUD, not with the action, which is
+one of the two edges <a href="architecture.html">Architecture</a> calls out as running the
+“wrong” way on purpose.</li>
+<li><strong>It is scenario-scoped</strong>, so teardown clears the log and nothing bleeds into
+the next scenario or the menu - the same rule as objectives, HUD readouts and
+hint emphasis.</li>
+</ul>
+<p>Field-level detail (<code>dwell</code> and its clamp, <code>icon</code>, the two lint warnings) is
+the authored contract and lives in <code>/create/actions/</code>.</p>
+<h3 id="typed-queries-and-watched-variables"><a class="header" href="#typed-queries-and-watched-variables">Typed queries and watched variables</a></h3>
+<p>The engine exposes read-only world state through typed QUERIES, and a scenario
+samples one into a WATCHED variable. <code>/create/expressions/</code> is the authored
+reference for both - the query kinds, their properties, and the beat and wave
+shapes built on them. Three mechanism facts sit under it:</p>
+<ul>
+<li><strong>The watch owns the name.</strong> A watched variable is written by the sampler
+each live, unpaused update, so <code>VariableSet</code> on that name is REJECTED while
+ordinary reads - <code>Name("...")</code> expressions, <code>HudReadout</code> - work normally. A
+variable is therefore either authored or watched, never both.</li>
+<li><strong>The clock is not created by exposing it.</strong> <code>nova_scenario</code> keeps an
+internal scenario clock for keyed timers whether or not any content asks;
+<code>Scenario(Elapsed)</code> only publishes it. Both stop together under pause and
+behind the outcome overlay, and both restart on a retry - which is what makes
+a run timer show the FINAL time behind a Victory banner instead of counting
+on under it.</li>
+<li><strong><code>Entity</code> is strict-single, and unavailability propagates.</strong> Zero matches,
+several matches, or a match missing the property leaves the query
+unavailable, and an expression over an unavailable value fails CLOSED. Missing
+is not zero, which is the difference between a gate that never opens and a
+gate that opens immediately.</li>
+<li><strong>The entity sampler runs only if something reads it.</strong> Sampling walks every
+<code>EntityId</code> in the world and allocates per match, so its cost scales with the
+WORLD - a duel carries about 1,800 ids, most of them ship sections - and not
+with the scenario. <code>ScenarioConfig::reads_an_entity_query</code> decides at load,
+over the watches AND the inline expression factors together, because an
+inline query has to be answerable the first time its action runs. Anything
+that adds a new place an expression can be authored has to be added to
+<code>ScenarioConfig::inline_queries</code> with it.</li>
+</ul>
+<p>Watches freeze under pause and clear at teardown, like every other piece of
+scenario-scoped state.</p>
+<h2 id="scenario-patterns"><a class="header" href="#scenario-patterns">Scenario patterns</a></h2>
+<p>The event vocabulary has no built-in “state” beyond scenario variables, so the
+shipped mods build their control flow out of one numeric variable plus
+<code>Expression</code> filters. Two idioms recur; both are worked end to end in the
+<a href="#the-gauntlet-worked-example">Gauntlet worked example</a> below. Excerpts here are
+verbatim from <code>webmods/gauntlet/gauntlet.content.ron</code>.</p>
+<h3 id="the-gate-counter-ordering-pattern"><a class="header" href="#the-gate-counter-ordering-pattern">The gate-counter ordering pattern</a></h3>
+<p>A single numeric variable acts as a state machine that enforces ORDERED entry:
+each stage’s handler is guarded on the counter holding that stage’s value, and
+the last thing the handler does is bump the counter to arm the NEXT stage only.
+An event that arrives out of order finds the counter on a different value and
+does nothing.</p>
+<p>Gauntlet’s variable is <code>gate</code> (the index of the gate to thread next, <code>1..=7</code>).
+<code>OnStart</code> seeds it:</p>
+<pre><code class="language-ron">VariableSet((
+    key: "gate",
+    expression: Term(Factor(Literal(Number(1.0)))),
+)),
+</code></pre>
+<p>Each gate’s <code>OnEnter</code> handler carries two filters - an <code>Entity</code> filter that
+matches the area/body, and an <code>Expression</code> filter that pins the counter - so
+only the in-order entry fires:</p>
+<pre><code class="language-ron">(
+    name: OnEnter,
+    filters: [
+        Entity((
+            id: Some("gauntlet_gate_1"),
+            other_id: Some("player_spaceship"),
+        )),
+        Expression((Equal(
+            Term(Factor(Name("gate"))),
+            Term(Factor(Literal(Number(1.0)))),
+        ))),
+    ],
+    actions: [
+        ObjectiveComplete((id: "gate_1")),
+        VariableSet((
+            key: "gate",
+            expression: Term(Factor(Literal(Number(2.0)))),
+        )),
+        // ... re-point the objective marker at gate 2 ...
+    ],
+),
+</code></pre>
+<p>Because gate 2’s handler filters <code>Equal(gate, 2.0)</code>, flying through gate 3
+early - or back through gate 1 again - matches no live handler and is inert. The
+<code>scenario_gate_course</code> rig’s
+<code>gates_advance_only_in_order_and_only_for_the_named_ship</code> test pins exactly
+this on a synthetic course: an out-of-order entry does not advance <code>gate</code>.</p>
+<p>Use it whenever stages must be visited in sequence (a gate run, a guided tour, a
+tutorial’s step chain). The base <code>shakedown_run</code> starter uses the same idiom
+with a <code>beat</code> counter; see <a href="#built-in-scenarios">Built-in scenarios</a>.</p>
+<h3 id="the-act-gating-pattern"><a class="header" href="#the-act-gating-pattern">The act-gating pattern</a></h3>
+<p>A post-decision event can otherwise flip an already-decided outcome: in Gauntlet
+a wreck normally means Defeat, but a wreck that drifts into a rock AFTER the win
+must not overwrite the earned Victory. The fix is to guard the Defeat handler on
+the same counter, past a terminal value the winning handler sets.</p>
+<p>The FINISH handler bumps <code>gate</code> one past the last real gate (to <code>8.0</code>, the
+terminal done-state) as it declares Victory:</p>
+<pre><code class="language-ron">// Terminal: bump past the last gate so no OnEnter re-fires
+// AND the player-death Defeat handler (gated gate &lt; 8) can
+// never flip an earned Victory to Defeat.
+VariableSet((
+    key: "gate",
+    expression: Term(Factor(Literal(Number(8.0)))),
+)),
+Outcome((
+    outcome: Victory,
+    message: Some("You ran the gauntlet clean. ..."),
+)),
+</code></pre>
+<p>The <code>OnDestroyed</code> Defeat handler is then guarded <code>gate &lt; 8</code>, so a death blast
+after the course is finished declares nothing:</p>
+<pre><code class="language-ron">(
+    name: OnDestroyed,
+    filters: [
+        Entity((
+            id: Some("player_spaceship"),
+        )),
+        Expression((LessThan(
+            Term(Factor(Name("gate"))),
+            Term(Factor(Literal(Number(8.0)))),
+        ))),
+    ],
+    actions: [
+        Outcome((
+            outcome: Defeat,
+            message: Some("You wore your hull down to nothing ..."),
+        )),
+        NextScenario((
+            scenario_id: "gauntlet_run",
+            linger: true,
+        )),
+    ],
+),
+</code></pre>
+<p>The rig’s <code>a_wreck_after_the_finish_declares_nothing</code> test seeds <code>gate</code> to
+<code>8.0</code>, fires the death, and asserts no outcome and no retry (its sibling
+<code>a_wreck_before_the_finish_declares_defeat_with_a_retry</code> pins the other half).
+Use this whenever a lethal
+event can still fire after the scenario is decided (a boss’s death explosion
+catching the player, a wreck sliding into a hazard): pick a terminal counter
+value the winning handler sets, and guard every outcome handler against it.</p>
+<h3 id="the-gauntlet-worked-example"><a class="header" href="#the-gauntlet-worked-example">The Gauntlet worked example</a></h3>
+<p><code>webmods/gauntlet</code> is the reference implementation for both patterns. Trace it
+end to end:</p>
+<ul>
+<li>The content file <code>webmods/gauntlet/gauntlet.content.ron</code> - one NEW scenario,
+no base overrides; the gate-counter and act-gating idioms above live here with
+header comments explaining the two geometric invariants.</li>
+<li>The time-trial wiring: <code>OnStart</code> fires one <code>HudReadout</code> on <code>scenario_elapsed</code>
+(<code>Time</code> format) for a live <code>mm:ss.s</code> clock, and seeds a <code>crash</code> counter that
+hazard-zone <code>OnEnter</code> handlers bump on each graze. Crossing FINISH bumps <code>gate</code>
+to its terminal <code>8.0</code>, then TWO <code>crash</code>-gated <code>Outcome(Victory)</code> handlers fire
+in the same pulse (exactly one matches): <code>crash == 0</code> earns the CLEAN RUN
+banner, <code>crash &gt; 0</code> the plain finish. The final time is shown by the frozen
+readout behind the banner (the clock stops on the outcome pause), so the banner
+text only has to vary the clean-run line - no message interpolation needed.</li>
+<li>The test rig <code>crates/nova_assets/tests/scenario_gate_course.rs</code> - authors a
+synthetic course as a RON string, drives the real handlers, and pins the
+ordered-gate sequencing, the repeatable penalty zone, the two counter-keyed
+win banners, the act-gating and the readout wiring. Run it with
+<code>cargo test -p nova_assets --test scenario_gate_course</code>. Geometry invariants
+(gate areas do not overlap; the racing line clears every rock’s worst-case
+body past <code>ASTEROID_GEOMETRIC_FACTOR_MAX</code>) are a CONTENT concern, checked per
+bundle by <code>content lint</code>.</li>
+<li>The <a href="https://alexjercan.github.io/nova-protocol/create/author-a-scenario/#3-plan-one-short-story">first-scenario guide’s completed flow</a>
+is the gentler, single-counter cousin of the gate-counter pattern.</li>
+</ul>
+<h2 id="scenario-objects-objects-scenarioobjectkind"><a class="header" href="#scenario-objects-objects-scenarioobjectkind">Scenario objects (<code>objects/</code>, <code>ScenarioObjectKind</code>)</a></h2>
+<p>One module per kind under <code>objects/</code>, one arm in the <code>ScenarioObjectKind</code> match
+in <code>actions/spawn.rs</code>. The authored fields of each kind - and every trap in
+them - are <code>/create/objects/</code>; what follows is what the modules have in common.</p>
+<p>All share <code>BaseScenarioObjectConfig</code> (id, name, position, rotation) and spawn
+scoped entities via <code>base_scenario_object</code>, which deliberately carries NO body:
+each kind declares its own <code>RigidBody</code>, and the asteroid alone opts into
+<code>Dynamic</code> + <code>TransformInterpolation</code>. A carved rock also emits new dynamic
+bodies at runtime - every piece a crater severs (<code>CarvedChunkMarker</code>,
+<code>integrity/chunk.rs</code>) - so the spawn kinds are not the whole population of a
+live scene.</p>
+<p>Three engine facts the object configs do not show:</p>
+<ul>
+<li><strong>Nothing supplies a light.</strong> <code>Light</code> is an ordinary spawned kind
+(<code>objects/light.rs</code>) and the engine adds none of its own, so a scenario that
+authors no <code>Light</code> renders black. This catches every new backdrop.</li>
+<li><strong>A rock has no <code>health</code> field, and that is not an omission.</strong> What an
+asteroid is made of IS its durability; the mechanism is
+<a href="#how-an-asteroid-carves">below</a>. Its <code>mass</code> is the body’s <code>mu</code> and sets both
+the pull <code>a = mu / r^2</code> and the sphere of influence - the distance where that
+decays to <code>GravitySettings::soi_cutoff_accel</code> - so a well is authored by the
+SOI it should have, <code>mu = soi_cutoff_accel * soi^2</code>. An <code>Anchor</code> publishes
+the same <code>GravityWell</code> from an AUTHORED radius instead of a mesh-derived one,
+which is what makes it deterministic where a carved rock is not.</li>
+<li><strong>Ship section geometry is LINTED, not clamped.</strong> Overlapping unit-cube cells
+and a turret or torpedo mount whose base (local -Y under its rotation) faces
+an empty neighbour cell are <code>content lint</code> ERRORS, so a bad hull fails
+authoring rather than spawning wrong. See
+<a href="sections.html">Ship sections internals</a>.</li>
+</ul>
+<h3 id="how-an-asteroid-carves"><a class="header" href="#how-an-asteroid-carves">How an asteroid carves</a></h3>
+<p>An asteroid is the one body in the game with nothing to hide behind. A ship
+carves through its cladding and stops at the structure underneath, because a
+plate is one cell thick and the hull it is bolted to is a glTF model nothing can
+cut. A rock is solid all the way down, so a carve here goes as deep as the hit
+deserves.</p>
+<p><strong>The field IS the rock.</strong> <code>pristine_field(seed, radius)</code> is the only
+description of an asteroid’s shape. <code>pristine_rock_mesh</code> is that field meshed,
+and it is what the spawn path draws and collides with; the reseed on the first
+hit calls the same function with the same seed and gets the same grid back. It
+used to be two shapes - a subdivided octahedron displaced by the noise for the
+shipped mesh, and a field for the carved one. They agreed to within a cell, which
+is not the same as agreeing: the first hit moved the silhouette and changed the
+size of every facet, and that pop was visible on a rock the shot had barely
+scratched.</p>
+<p><strong>The grid is kept only while it is needed.</strong> 140 KB on an arena rock and 275 KB
+on the biggest the cap allows, and a scenario scatters a hundred rocks most of
+which are never touched - so the spawn path meshes the field and DROPS it. The
+first hit pays to build it again (tens to hundreds of thousands of noise
+samples); from then on nothing resamples.</p>
+<p><strong>The cost model.</strong> <code>FIELD_CELL_WORLD</code> is 0.5 WORLD units, and the cell COUNT is
+derived from it - the opposite way round from how this started. A crater is a
+world-sized thing (a 4-damage PDC round carves 0.62 units whatever it lands on),
+so a grid whose cells grew with the rock could not draw that round’s hole on
+anything big: 32 cells across a radius-3 rock is a 1.02 unit cell, four times the
+round being fired at it. Coarseness is the ART, not a resolution knob - a finer
+grid only makes a smoother rock. <code>FIELD_RESOLUTION_MIN</code> is 16 and
+<code>FIELD_RESOLUTION_MAX</code> is 40; the cap BINDS above about radius 1.8, and what it
+costs there is the cell (a radius-3 rock is gridded at 0.82 units, so a PDC round
+on one is under a cell and only sustained fire - whose mark GROWS where it is
+held - opens a hole). <code>41^3</code> corners is 275 KB per carved rock, paid only by
+rocks that are hit. <code>FIELD_MARGIN</code> is 1.08, only just over 1 because carving
+never ADDS material.</p>
+<p><strong>Nothing happens in the frame that asked for it.</strong> The seed and the whole carve</p>
+<ul>
+<li>split, surface nets, collider, and the geometry of every piece the cut freed -
+run on the async compute pool, at most one job in flight per rock, and the rock
+keeps drawing the surface it already had until one lands. What the main thread
+pays is the sphere subtraction the mark itself reaches, and then PLACEMENT: one
+transform and one spawn per piece. A remesh also waits until the grid actually
+loses a cell (a quantized <code>meshed_volume</code> compare), so sub-cell hits accumulate
+in the field without paying for connectivity, surface generation or a collider
+rebuild.</li>
+</ul>
+<p><code>CarveApplyReport</code> is what holds that line, and it counts GRIDS rather than
+milliseconds because a count reads the same on every box. One grid per rock is
+its own new solid; one per PIECE means the main thread is holding a
+quarter-megabyte field to ask it questions each of which is a scan of all of it.
+It used to. Three rocks landing in one frame with five pieces between them
+measured 17.5 ms in that frame against a 0.02 ms median; the same frame with the
+pieces built on the worker measures 0.03 ms. <code>bug_carve_apply</code> is the range that
+holds it there.</p>
+<p><strong>Severing and death.</strong> <code>SignedField::split_off_islands</code>
+(<code>crates/nova_gameplay/src/mesh/field.rs</code>) hands back whatever the cut freed. A piece past <code>CHUNK_MIN_VOLUME</code>
+becomes a rigid body of its own, meshed by the SAME surface nets the rock is,
+carrying <code>v + omega x r</code>; anything smaller is announced as a carve and goes out
+as dust. Both decisions are the worker’s: the threshold is a WORLD volume and the
+grid is in the rock’s own unit space, so the job is told the scale it cannot see.
+When the remaining solid falls under <code>CHUNK_MIN_VOLUME</code>, or the surface
+comes back empty, the rock inserts <code>IntegrityDestroyMarker</code>, fires
+<code>OnDestroyedEvent</code> itself and despawns its root - so a rock’s <code>OnDestroyed</code> comes
+from <code>nova_scenario</code>, not from <code>nova_gameplay</code>’s integrity stack.</p>
+<p><strong><code>BodyRadius</code> only ever SHRINKS.</strong> Everything sized off a rock’s surface -
+standoff distances, orbit clearances, the sphere of influence - was authored
+against the pristine radius, so shrinking keeps every one of those valid and
+growing would silently invalidate them. The collider density rides along
+unchanged, so avian re-derives mass from the volume that is left: a carved rock
+is a lighter rock.</p>
+<p><strong>The surface is sampled by POSITION.</strong> <code>AsteroidSurfaceMaterial</code> / <code>RockHeight</code>
+are triplanar in the body’s own local space, so a carved rock wears exactly the
+surface an uncarved one does and there is no per-triangle quilting. It is also
+why a severed piece must not inherit that material blindly - a piece is a new
+body with a new origin, and it reads the grain from a different place.</p>
+<h2 id="built-in-scenarios"><a class="header" href="#built-in-scenarios">Built-in scenarios</a></h2>
+<p>The builders live under
+<code>crates/nova_authoring/src/base_content/scenarios/</code>. <code>main_menu/</code> gives each
+menu backdrop its own file, and <code>nova_protocol/</code> owns the campaign chapters plus
+shared cast and pacing vocabulary. Its <code>shakedown/</code> module builds the New Game starter - the
+beat-chain reference: one <code>beat</code> counter gates every handler, and count
+milestones run on <code>OnUpdate</code> handlers keyed on the counter (handler order
+within one event is not load-bearing). The builders are an OFFLINE inventory,
+not the runtime path: <code>content -- gen</code> serializes them to
+the committed <code>assets/base/scenarios/*.content.ron</code>, <code>base.bundle.ron</code> lists
+them, and <code>crates/nova_assets/src/merge.rs</code> merges the parsed RON into
+<code>GameScenarios</code> like any mod’s. <code>content_ron_parity</code> pins builders == RON.</p>
+<h2 id="adding-new-pieces"><a class="header" href="#adding-new-pieces">Adding new pieces</a></h2>
+<ul>
+<li>Event: event + info structs in <code>nova_events/src/lib.rs</code>, an <code>EventConfig</code>
+variant in <code>events.rs</code>, and something that fires it (engine-driven events
+live in <code>loader/</code> - <code>OnStart</code> in <code>lifecycle.rs</code>, <code>OnUpdate</code> in <code>clock.rs</code>,
+the orbit/lock trackers in <code>trackers.rs</code>; area events in <code>objects/area.rs</code>;
+<code>OnNeutralized</code> fires from <code>nova_gameplay</code>’s integrity stack, and a rock’s
+<code>OnDestroyed</code> from <code>objects/asteroid_carve.rs</code> when its field is exhausted).</li>
+<li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in the right
+<code>actions/</code> submodule (<code>flow</code>/<code>mission</code>/<code>ship</code>/<code>spawn</code>/<code>timer</code>/<code>view</code>), plus an
+<code>EventActionConfig</code> variant in <code>actions/mod.rs</code>.</li>
+<li>Filter: same pattern in <code>filters.rs</code> (<code>EventFilterConfig</code>).</li>
+<li>Object: a module under <code>objects/</code> (config + bundle function, plugin in
+<code>objects/mod.rs</code>) plus a <code>ScenarioObjectKind</code> variant/match in
+<code>actions/spawn.rs</code>. Its <code>*_TYPE_NAME</code> const goes in <code>nova_events</code>, beside
+<code>EntityTypeName</code>, so readers below <code>nova_scenario</code> can match on it.</li>
+</ul>
+<h2 id="find-it-in-the-code"><a class="header" href="#find-it-in-the-code">Find it in the code</a></h2>
+<ul>
+<li>Engine plugin: <code>NovaScenarioPlugin</code> - <code>crates/nova_scenario/src/lib.rs</code>;
+generic dispatch: <code>EventHandler</code> - <code>crates/nova_events/src/engine.rs</code>.</li>
+<li>Vocabulary enums: <code>EventConfig</code> - <code>crates/nova_scenario/src/events.rs</code>;
+<code>EventFilterConfig</code> - <code>crates/nova_scenario/src/filters.rs</code>;
+<code>EventActionConfig</code> - <code>crates/nova_scenario/src/actions/mod.rs</code>.</li>
+<li>The state seam: <code>NovaEventWorld</code> - <code>crates/nova_scenario/src/world.rs</code>;
+variables and expressions - <code>crates/nova_scenario/src/variables.rs</code>.</li>
+<li>Loading and scoping: <code>ScenarioLoaderPlugin</code>, <code>ScenarioScopedMarker</code>,
+<code>scenario_is_live</code> - <code>crates/nova_scenario/src/loader/mod.rs</code>; the glTF
+warm-up: <code>ScenarioPreload</code>, <code>scenario_render_meshes</code> -
+<code>crates/nova_scenario/src/loader/preload.rs</code>.</li>
+<li>Objects: <code>ScenarioObjectsPlugin</code> - <code>crates/nova_scenario/src/objects/mod.rs</code>;
+kind dispatch: <code>ScenarioObjectKind</code> -
+<code>crates/nova_scenario/src/actions/spawn.rs</code>.</li>
+<li>Asteroid carving: <code>AsteroidField</code>, <code>carve_asteroid_fields</code>, <code>pristine_field</code> -
+<code>crates/nova_scenario/src/objects/asteroid_carve.rs</code>; the mesher underneath:
+<code>SignedField</code> - <code>crates/nova_gameplay/src/mesh/field.rs</code>; the cost of the
+material itself: <code>DAMAGE_PER_UNIT_VOLUME</code> -
+<code>crates/nova_gameplay/src/integrity/carve.rs</code>.</li>
+<li>API detail: <code>cargo doc --open -p nova_scenario</code> (event engine:
+<code>-p nova_events</code>).</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="sections.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="automation-harness.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="sections.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="automation-harness.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="mermaid-eefea253.min.js"></script>
+        <script src="mermaid-init-ccf746f1.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

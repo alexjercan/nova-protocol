@@ -4,16 +4,18 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Glossary - Nova Protocol Wiki</title>
+        <meta name="description" content="Short definitions for the recurring terms and units - prograde/retrograde, standoff, sphere of influence, hysteresis, fine-lock, hot weapons, neutralized, point defense, Kinetic/Pierce, the torpedo types, diegetic, and the m / km / m-per-s units." />
         <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <script defer src="/nova-protocol/docs.js"></script></head>
     <body>
         <header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -49,10 +51,17 @@
 <ul>
 <li><strong>Prograde / retrograde</strong> - prograde is the direction you are moving; retrograde is the opposite. STOP flips you to retrograde and burns to kill your speed.</li>
 <li><strong>Standoff</strong> - the resting distance GOTO stops at, just off a target (about 500 m plus the target's radius, measured from the surface) rather than ramming it.</li>
-<li><strong>Sphere of influence</strong> - the reach of a <a href="../gravity-wells/">gravity well</a>, about eight times the body's radius. Outside it the well does not pull on you; only the dominant well inside it matters.</li>
+<li><strong>RCS</strong> - reaction-control fine translation for docking: hold <kbd>Shift</kbd> and steer with the mouse and scroll wheel to nudge the hull straight along its own axes, no rotation, capped at a gentle per-axis speed. A trim a scenario grants rather than standard flight - see <a href="../flight-autopilot/#rcs-fine-docking-thrusters">RCS</a>.</li>
+<li><strong>Sphere of influence</strong> - the reach of a <a href="../gravity-wells/">gravity well</a>, set by the body's authored mass alone: the distance where the pull decays to a fixed cutoff. Outside it the well does not pull on you; only the dominant well inside it matters.</li>
 <li><strong>Hysteresis</strong> - a bit of stickiness that stops a state from flickering at its edge. A lock, a fine-lock section, and the dominant well all hold a little past their switch point so they do not chatter.</li>
 <li><strong>Fine-lock</strong> - drilling a combat lock into one specific <a href="../sections/">section</a> of an enemy hull, so turrets and the viewfinder focus that part.</li>
 <li><strong>&quot;Hot&quot; weapons</strong> - your weapons are hot while you hold a raised (red) combat stance or while a combat lock exists. Hot means turret lead pips and the viewfinder frame go red and you can fire.</li>
+<li><strong>Neutralized</strong> - out of the fight for good. A ship that loses its last working gun, or the flight computer it had, stops fighting even though its hull survives: the <a href="../hud/">viewfinder</a> tags the wreck NEUTRALIZED and it keeps drifting rather than despawning.</li>
+<li><strong>Point defense</strong> - your turrets' automatic close-in fire against torpedoes committed to you. It opens up only once an inbound torpedo is close, and every intercept costs real ammunition - see <a href="../combat-weapons/#point-defense">point defense</a>.</li>
+<li><strong>Kinetic / Pierce</strong> - the two bullet behaviors, told apart by tracer colour. A Kinetic round punches: it stops at the first section it fails to destroy. A Pierce round rakes: it crosses several sections and damages every one on the way through. See <a href="../combat-weapons/#damage-types">damage types</a>.</li>
+<li><strong>Lance / Serpent / Breaker</strong> - the <a href="../combat-weapons/#torpedoes">torpedo</a> types, each named and tinted on the viewfinder when you lock one. The Lance runs straight and fast, so point defense can answer it; the Serpent corkscrews on approach and costs far more rounds to stop; the Breaker is the huge crimson siege warhead scripted batteries fire.</li>
+<li><strong>Carve</strong> - what a hit does to a rock: it takes real material out of the asteroid's shape, so the silhouette and the thing you can fly into both change. Only rocks carve - a ship's parts keep the shape they were built in until they die. See <a href="../combat-weapons/#shooting-rock">Shooting rock</a>.</li>
+<li><strong>Crater</strong> - the hole a carve leaves. It stays, and fire landing near it deepens the same hole instead of opening a new one.</li>
 <li><strong>Diegetic</strong> - part of the world rather than an overlay bolted on top. The HUD instruments read the ship's real state and the autopilot flies the same real thrusters you do, so what you see is what the ship is actually doing.</li>
 </ul>
 
@@ -63,8 +72,8 @@
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

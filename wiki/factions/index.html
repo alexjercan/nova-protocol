@@ -4,16 +4,18 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Factions - Nova Protocol Wiki</title>
+        <meta name="description" content="The player / enemy / neutral relation model that drives acquisition, projectile allegiance and reticle tint." />
         <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <script defer src="/nova-protocol/docs.js"></script></head>
     <body>
         <header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -41,12 +43,18 @@
                     
                     <p>Sides in Nova Protocol are deliberately minimal - three states, no alliances or reputation. It is just enough to tell friend from foe from furniture.</p>
 <h2 id="the-relation-model" tabindex="-1">The relation model</h2>
-<p>Every ship carries an allegiance - <strong>Player</strong>, <strong>Enemy</strong> or <strong>Neutral</strong> - and any two things resolve to one of three relations:</p>
+<p>Every ship carries an allegiance - <strong>Player</strong>, <strong>Enemy</strong> or <strong>Neutral</strong> - and any two things resolve to one of three relations: Own, Hostile or Neutral.</p>
+<div class="widget" data-widget="relation-matrix">
+<p>The whole model in one grid: Player-Player and Enemy-Enemy resolve OWN, Player against Enemy resolves HOSTILE either way, and everything touching Neutral or an unmarked body (asteroids, debris, salvage) resolves NEUTRAL - even Neutral against Neutral. Non-combatants stay out of the fight by default.</p>
+</div>
+<details class="explain">
+<summary>Show explanation</summary>
 <ul>
 <li><strong>Own</strong> - the same combatant side (Player-Player or Enemy-Enemy).</li>
 <li><strong>Hostile</strong> - opposing combatants (Player vs Enemy).</li>
-<li><strong>Neutral</strong> - everything else: anything marked Neutral, and any body without an allegiance at all (asteroids, debris, salvage). Non-combatants stay out of the fight by default.</li>
+<li><strong>Neutral</strong> - everything else: anything marked Neutral, and any body without an allegiance at all (asteroids, debris, salvage). Neutral never relates strongly, not even to another neutral - two bystander haulers are not each other's &quot;own&quot; in any meaningful sense.</li>
 </ul>
+</details>
 <h2 id="what-allegiance-drives" tabindex="-1">What allegiance drives</h2>
 <p>Relation is the switch behind most of combat:</p>
 <ul>
@@ -64,8 +72,8 @@
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

@@ -47,6 +47,7 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Prototype("cargoa"),
                             controller: Player((
                                 input_mapping: {
                                     "turret_port": [
@@ -60,144 +61,12 @@
                                 },
                                 infinite_ammo: false,
                             )),
-                            sections: [
+                            modifications: [
                                 (
-                                    id: "engine_starboard",
-                                    position: (
-                                        0.655,
-                                        0.570945,
-                                        1.512835,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_engine_starboard"),
-                                ),
-                                (
-                                    id: "engine_port",
-                                    position: (
-                                        -0.655,
-                                        0.570945,
-                                        1.512835,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_engine_port"),
-                                ),
-                                (
-                                    id: "wing_starboard",
-                                    position: (
-                                        0.805,
-                                        0.5,
-                                        0.11783552,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_wing_starboard"),
-                                ),
-                                (
-                                    id: "wing_port",
-                                    position: (
-                                        -0.805,
-                                        0.5,
-                                        0.11783552,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_wing_port"),
-                                ),
-                                (
-                                    id: "nose",
-                                    position: (
-                                        0.0,
-                                        0.611325,
-                                        -1.512835,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_nose"),
-                                ),
-                                (
-                                    id: "tail",
-                                    position: (
-                                        0.0,
-                                        0.85,
-                                        1.6128349,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_tail"),
-                                ),
-                                (
-                                    id: "fuselage",
-                                    position: (
-                                        0.0,
-                                        0.7,
-                                        0.100000024,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_fuselage"),
+                                    section: "fuselage",
                                     modifications: [
                                         DisableVerb(Rcs),
                                     ],
-                                ),
-                                (
-                                    id: "turret_starboard",
-                                    position: (
-                                        1.35,
-                                        0.4,
-                                        -0.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("racer_turret_starboard"),
-                                ),
-                                (
-                                    id: "turret_port",
-                                    position: (
-                                        -1.35,
-                                        0.4,
-                                        -0.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("racer_turret_port"),
                                 ),
                             ],
                         )),
@@ -205,7 +74,7 @@
                     SpawnScenarioObject((
                         base: (
                             id: "hauler",
-                            name: "Hauler Ceres Queen",
+                            name: "Yacht Ceres Queen",
                             position: (
                                 0.0,
                                 10.0,
@@ -219,115 +88,9 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Prototype("racer"),
                             controller: r#None,
                             allegiance: Some(Neutral),
-                            sections: [
-                                (
-                                    id: "engine_starboard",
-                                    position: (
-                                        1.205,
-                                        0.6,
-                                        1.975,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_engine_starboard"),
-                                ),
-                                (
-                                    id: "engine_port",
-                                    position: (
-                                        -1.205,
-                                        0.6,
-                                        1.975,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_engine_port"),
-                                ),
-                                (
-                                    id: "pod_starboard",
-                                    position: (
-                                        1.205,
-                                        0.7,
-                                        0.47500002,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_pod_starboard"),
-                                ),
-                                (
-                                    id: "pod_port",
-                                    position: (
-                                        -1.205,
-                                        0.7,
-                                        0.47500002,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_pod_port"),
-                                ),
-                                (
-                                    id: "nose",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        -1.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_nose"),
-                                ),
-                                (
-                                    id: "tail",
-                                    position: (
-                                        0.0,
-                                        0.5875,
-                                        1.975,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_tail"),
-                                ),
-                                (
-                                    id: "fuselage",
-                                    position: (
-                                        0.0,
-                                        0.8,
-                                        0.17500001,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargoa_fuselage"),
-                                ),
-                            ],
                         )),
                     )),
                     ScatterObjects((
@@ -365,7 +128,6 @@
                             kind: Asteroid((
                                 radius: 1.0,
                                 texture: "self://textures/asteroid.png",
-                                health: 100.0,
                                 impact_sound: Some("self://sounds/impact.wav"),
                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                 invulnerable: false,
@@ -395,7 +157,6 @@
                         kind: Asteroid((
                             radius: 4.0,
                             texture: "self://textures/asteroid.png",
-                            health: 1000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             invulnerable: true,
                         )),
@@ -419,7 +180,6 @@
                         kind: Asteroid((
                             radius: 4.0,
                             texture: "self://textures/asteroid.png",
-                            health: 1000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             invulnerable: true,
                         )),
@@ -443,7 +203,6 @@
                         kind: Asteroid((
                             radius: 5.0,
                             texture: "self://textures/asteroid.png",
-                            health: 1000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             invulnerable: true,
                         )),
@@ -467,7 +226,6 @@
                         kind: Asteroid((
                             radius: 3.5,
                             texture: "self://textures/asteroid.png",
-                            health: 1000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             invulnerable: true,
                         )),
@@ -491,7 +249,6 @@
                         kind: Asteroid((
                             radius: 3.5,
                             texture: "self://textures/asteroid.png",
-                            health: 1000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             invulnerable: true,
                         )),
@@ -513,144 +270,8 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Prototype("cargob_lance"),
                             controller: AI(()),
-                            sections: [
-                                (
-                                    id: "engine_starboard",
-                                    position: (
-                                        1.005,
-                                        0.7,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_engine_starboard"),
-                                ),
-                                (
-                                    id: "engine_port",
-                                    position: (
-                                        -1.005,
-                                        0.7,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_engine_port"),
-                                ),
-                                (
-                                    id: "pod_starboard",
-                                    position: (
-                                        1.0550001,
-                                        0.7,
-                                        -0.5,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_pod_starboard"),
-                                ),
-                                (
-                                    id: "pod_port",
-                                    position: (
-                                        -1.0550001,
-                                        0.7,
-                                        -0.5,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_pod_port"),
-                                ),
-                                (
-                                    id: "nose",
-                                    position: (
-                                        0.0,
-                                        1.0,
-                                        -1.75,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_nose"),
-                                ),
-                                (
-                                    id: "tail",
-                                    position: (
-                                        0.0,
-                                        0.65,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_tail"),
-                                ),
-                                (
-                                    id: "fuselage",
-                                    position: (
-                                        0.0,
-                                        0.9,
-                                        0.25,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("cargob_fuselage"),
-                                ),
-                                (
-                                    id: "turret_starboard",
-                                    position: (
-                                        1.55,
-                                        1.2,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargob_turret_starboard"),
-                                ),
-                                (
-                                    id: "turret_port",
-                                    position: (
-                                        -1.55,
-                                        1.2,
-                                        0.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("cargob_turret_port"),
-                                ),
-                            ],
                         )),
                     )),
                     StoryMessage((
@@ -804,7 +425,11 @@
                 actions: [
                     VariableSet((
                         key: "act",
-                        expression: Term(Factor(Literal(Number(2.0)))),
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    TimerStart((
+                        key: "outro_tease",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
                     )),
                     ObjectiveComplete((
                         id: "screen",
@@ -815,13 +440,9 @@
                     ObjectiveMarkerDetach((
                         target_id: "gunship",
                     )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The Rust Tally breaks apart - and the Ceres Queen is still whole to see it. But the deep scan does not go quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane."),
-                    )),
-                    NextScenario((
-                        scenario_id: "lifeline",
-                        linger: true,
+                    StoryMessage((
+                        speaker: "Belt Relay",
+                        text: "The Rust Tally breaks apart - and the Ceres Queen is still whole to see it.",
                     )),
                 ],
             ),
@@ -843,7 +464,11 @@
                 actions: [
                     VariableSet((
                         key: "act",
-                        expression: Term(Factor(Literal(Number(2.0)))),
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    TimerStart((
+                        key: "outro_tease",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
                     )),
                     ObjectiveComplete((
                         id: "screen",
@@ -854,13 +479,9 @@
                     ObjectiveMarkerDetach((
                         target_id: "gunship",
                     )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The Rust Tally breaks apart - too late for the Ceres Queen. And the deep scan does not go quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane."),
-                    )),
-                    NextScenario((
-                        scenario_id: "lifeline",
-                        linger: true,
+                    StoryMessage((
+                        speaker: "Belt Relay",
+                        text: "The Rust Tally breaks apart - too late for the Ceres Queen.",
                     )),
                 ],
             ),
@@ -882,7 +503,11 @@
                 actions: [
                     VariableSet((
                         key: "act",
-                        expression: Term(Factor(Literal(Number(2.0)))),
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    TimerStart((
+                        key: "outro_tease",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
                     )),
                     ObjectiveComplete((
                         id: "screen",
@@ -893,13 +518,9 @@
                     ObjectiveMarkerDetach((
                         target_id: "gunship",
                     )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The Rust Tally hangs dead in the void, guns cold and engines dark - and the Ceres Queen is still whole to see it. But the deep scan does not go quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane."),
-                    )),
-                    NextScenario((
-                        scenario_id: "lifeline",
-                        linger: true,
+                    StoryMessage((
+                        speaker: "Belt Relay",
+                        text: "The Rust Tally hangs dead in the void, guns cold and engines dark - and the Ceres Queen is still whole to see it.",
                     )),
                 ],
             ),
@@ -921,7 +542,11 @@
                 actions: [
                     VariableSet((
                         key: "act",
-                        expression: Term(Factor(Literal(Number(2.0)))),
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    TimerStart((
+                        key: "outro_tease",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
                     )),
                     ObjectiveComplete((
                         id: "screen",
@@ -932,13 +557,9 @@
                     ObjectiveMarkerDetach((
                         target_id: "gunship",
                     )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The Rust Tally hangs dead in the void, guns cold and engines dark - too late for the Ceres Queen. And the deep scan does not go quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane."),
-                    )),
-                    NextScenario((
-                        scenario_id: "lifeline",
-                        linger: true,
+                    StoryMessage((
+                        speaker: "Belt Relay",
+                        text: "The Rust Tally hangs dead in the void, guns cold and engines dark - too late for the Ceres Queen.",
                     )),
                 ],
             ),
@@ -1011,10 +632,58 @@
                     )),
                     Outcome((
                         outcome: Defeat,
-                        message: Some("Guns and thrusters gone - the Rust Tally finishes you at leisure."),
+                        message: Some("Nothing left to fight with - the Rust Tally finishes you at leisure."),
                     )),
                     NextScenario((
                         scenario_id: "broadside_gunship",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "outro_tease",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                ],
+                actions: [
+                    StoryMessage((
+                        speaker: "Belt Relay",
+                        text: "The deep scan still is not quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane.",
+                    )),
+                    TimerStart((
+                        key: "outro_banner",
+                        seconds: Term(Factor(Literal(Number(5.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "outro_banner",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The Rust Tally is finished. The gang still holds the lane - and the belt\'s convoys are the next thing it reaches for."),
+                    )),
+                    NextScenario((
+                        scenario_id: "lifeline",
                         linger: true,
                     )),
                 ],

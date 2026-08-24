@@ -4,16 +4,18 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Scenarios - Nova Protocol Wiki</title>
+        <meta name="description" content="What a scenario places into the world and how objectives are wired through events, filters and actions; the scenarios that ship today." />
         <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <script defer src="/nova-protocol/docs.js"></script></head>
     <body>
         <header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -43,7 +45,7 @@
 <h2 id="what-a-scenario-places" tabindex="-1">What a scenario places</h2>
 <p>A scenario spawns a handful of object kinds:</p>
 <ul>
-<li><strong>Asteroids</strong> - rocks with health, a radar signature and an optional <a href="../gravity-wells/">gravity well</a>; destroyable debris or invulnerable planetoids.</li>
+<li><strong>Asteroids</strong> - rocks with a radar signature and an optional <a href="../gravity-wells/">gravity well</a>. A normal rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see <a href="../combat-weapons/#shooting-rock">Shooting rock</a>). An invulnerable planetoid never wears at all.</li>
 <li><strong>Spaceships</strong> - multi-section <a href="../sections/">builds</a> under a player or AI controller (which can withhold or grant flight verbs).</li>
 <li><strong>Nav beacons</strong> - lockable waypoints with authorable radar signatures and optional trigger areas.</li>
 <li><strong>Salvage crates</strong> - small pickups collected by flying through them.</li>
@@ -53,31 +55,43 @@ none renders black.</li>
 <p>Trigger areas - invisible volumes that fire on-enter / on-exit events - are
 created by an action rather than spawned as objects.</p>
 <h2 id="objectives-events-filters-actions" tabindex="-1">Objectives: events, filters, actions</h2>
-<p>Objectives are wired with a three-layer reactive system. An <strong>event</strong> fires under a named condition, a <strong>filter</strong> gates whether it applies, and an <strong>action</strong> runs when both match - all reading and writing typed <strong>variables</strong> (numbers, strings, booleans) with arithmetic and comparisons.</p>
-<ul>
-<li><strong>Events</strong>: OnStart, OnUpdate, OnTimerEnd (a keyed scenario timer finished), OnDefeated (a ship is neutralized or directly destroyed), OnDestroyed, OnNeutralized (a ship is combat-dead - weapons and thrusters gone, hull intact), OnEnter / OnExit (a trigger area), OnOrbitStart / OnOrbitStable / OnOrbitUnstable / OnOrbitEnd (orbit lifecycle edges), OnTravelLockStart / OnTravelLockEnd and OnCombatLockStart / OnCombatLockEnd (<a href="../targeting-radar/">lock</a> lifecycle edges).</li>
-<li><strong>Filters</strong>: match by object id or type (asteroid / beacon / salvage crate), combine with not / or / and, or test a variable expression.</li>
-<li><strong>Actions</strong>: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind dock chip, set a variable, spawn or despawn an object, scatter a seeded field of objects, drive a HUD readout, post a story message, swap the skybox, set a ship's allegiance, pose the camera, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it.</li>
-</ul>
-<p>This is the vocabulary the <a href="../../tutorial/">Shakedown Run</a> is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.</p>
+<p>Objectives are wired with a three-layer reactive system. An <strong>event</strong> fires under a named condition, a <strong>filter</strong> gates whether it applies, and an <strong>action</strong> runs when both match - all reading and writing typed <strong>variables</strong> (numbers, strings, booleans) with arithmetic and comparisons. This is the vocabulary the <a href="../getting-started/">Shakedown Run</a> is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.</p>
+<p>What that buys you as a player is that a scenario reacts. Fly into a marked volume and something answers; neutralize the right ship and the objective completes on its own; a won chapter plays a short outro of comms beats over the live world before any victory screen appears, so the moment lands before the overlay does.</p>
+<p>The full construct catalog - every event, filter and action by name, with its fields - is the authoring contract and lives in the <a href="../../create/scenarios/">Create docs</a>.</p>
 <h2 id="the-shipped-scenarios" tabindex="-1">The shipped scenarios</h2>
 <ul>
 <li><strong>Shakedown Run</strong> - the New Game starter: a guided tutorial that teaches one gesture per beat (burn, freelook, salvage, GOTO, ORBIT, radar lock, a live-fire rehearsal, and a scavenger fight). Winning it offers to continue straight into Broadside.</li>
-<li><strong>Broadside</strong> - chapter two: the scavengers come back in force. Answer a neutral hauler's distress call across an asteroid cover field and break a two-corvette ambush; that win is a checkpoint, and the fight continues into the gang's gunship - screen its torpedoes with your PDC and take it apart section by section. Dying to the gunship retries the gunship, not the ambush, and hard boulders in the field now genuinely block incoming fire - use them.</li>
-<li><strong>Lifeline</strong> - chapter three, part one: the gang hits back where it hurts. Screen a stalled two-hauler convoy against three telegraphed raider waves until the relief wing arrives - a live countdown on the HUD, a protect objective instead of kill-all, and the convoy genuinely draws fire (the haulers fly the player's flag). Winning the Broadside chapter continues here, and winning here continues to the finale.</li>
+<li><strong>Broadside</strong> - chapter two: the scavengers come back in force. Answer a stranded yacht's distress call across an asteroid cover field and break a two-corvette ambush; that win is a checkpoint, and the fight continues into the gang's gunship - screen its torpedoes with your PDC and take it apart section by section. Dying to the gunship retries the gunship, not the ambush, and hard boulders in the field now genuinely block incoming fire - use them.</li>
+<li><strong>Lifeline</strong> - chapter three, part one: the gang hits back where it hurts. Screen a stalled two-ship convoy against three telegraphed raider waves until the relief wing arrives - a live countdown on the HUD, a protect objective instead of kill-all, and the convoy genuinely draws fire (the convoy ships fly the player's flag). Winning the Broadside chapter continues here, and winning here continues to the finale.</li>
 <li><strong>Final Tally</strong> - chapter three's finale, reached from Lifeline's victory: the trace ends at the gang's claim - a cracked megahauler anchorage deep in a planetoid's gravity well, ringed by a belt. Survey the anchorage with a travel lock, break the orbital picket riding the well, and finish the gang's flagship when it casts off with its escort. The campaign closes properly here.</li>
-<li><strong>Asteroid Field</strong> - a combat and gravity sandbox: a dense field, a planetoid to orbit, a fully outfitted ship and an AI drone. (A tiny <em>Asteroid Field - Next</em> loops it.)</li>
-<li><strong>Menu backdrops</strong> - the living scenes behind the menus, picked at random on each menu entry: <strong>Menu Ambience</strong> (a planetoid with an AI ship flying a real ORBIT), <strong>Waystation Traffic</strong> (a hauler convoy circling a freight stop under amber dock lights), and <strong>Scrapyard Drift</strong> (a quiet salvage yard of drifting crates, two wrecks and a lone tug). No gameplay - just scale and motion. Mods can ship their own by flagging a scenario <code>menu_backdrop</code>.</li>
+<li><strong>Menu backdrops</strong> - the living scenes behind the menus, a rotating CAROUSEL: each scene plays its act and hands off to the next. <strong>Torpedo Gauntlet</strong> (a corvette's PDC turrets swat torpedoes streaming in from both flanks until its hard magazines run dry and the stand falls), <strong>Asteroid Weave</strong> (an AI ship threading a dense rock band on real patrol waypoints, hugging its nav beacons), <strong>Duel Cycle</strong> (two corvettes dogfight through the open center; a siege torpedo erases the winner), and <strong>Waystation Traffic</strong> (a hauler convoy circling a freight stop under amber dock lights). Menu entry starts the ring at a random scene. All of it is the real simulation, not a cutscene. Mods can ship their own by flagging a scenario <code>menu_backdrop</code>.</li>
 </ul>
 <h2 id="browsing-and-replaying-scenarios" tabindex="-1">Browsing and replaying scenarios</h2>
+<figure class="figure">
+    <!-- Capture: assets/wiki-scenarios-picker.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-scenarios-picker.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The Scenarios tab with a campaign expanded: its
+            chapters in play order under the collapsible
+            header, standalone scenarios listed below.</span
+        >
+    </div>
+    <figcaption class="figure__caption">Campaigns group their chapters; any chapter can be launched directly for a replay.</figcaption>
+</figure>
 <p>The <strong>Scenarios</strong> tab groups a campaign under a collapsible header - click the
 <code>[-]</code>/<code>[+]</code> header to expand or fold its chapters. A campaign lists its chapters
 in play order, including mid-story chapters that the story reaches automatically
 (the Broadside gunship phase, the Final Tally finale): they show under the
 campaign header so you can launch any chapter directly for a replay without
-flying the whole arc again. Scenarios that belong to no campaign (Asteroid Field,
-standalone mod scenarios) list on their own below the campaigns.</p>
-<p>You can author your own scenarios and mods in RON - see <a href="../modding/">Modding</a>.</p>
+flying the whole arc again. Scenarios that belong to no campaign (standalone
+mod scenarios) list on their own below the campaigns.</p>
+<p>You can author your own scenarios and mods in RON - see the <a href="../../create/">Create docs</a>.</p>
 
                     <div id="wiki-seealso"></div>
                 </article>
@@ -86,8 +100,8 @@ standalone mod scenarios) list on their own below the campaigns.</p>
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

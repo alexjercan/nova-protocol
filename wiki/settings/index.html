@@ -4,16 +4,18 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Settings - Nova Protocol Wiki</title>
+        <meta name="description" content="The Settings menu: a master audio volume slider, the Low/Medium/High graphics-quality preset (juice plus low-end visual gating and render scale), and the read-only keybind reference - reachable from the main menu and the pause menu, remembered across restarts." />
         <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <script defer src="/nova-protocol/docs.js"></script></head>
     <body>
         <header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -60,19 +62,49 @@ you drag.</p>
 <p>A single <strong>Low / Medium / High</strong> preset trades visual richness for performance.
 It does two things at once: it tunes the combat <em>juice</em>, and on the lower tiers
 it drops the heavier effects for weak machines.</p>
-<ul>
-<li><strong>High</strong> - everything on: camera shake, hit flashes, and the full particle
-effects, rendered at your window's native resolution.</li>
-<li><strong>Medium</strong> - drops the camera shake but keeps the particle bursts. Still full
-resolution.</li>
-<li><strong>Low</strong> - turns the combat juice off entirely (no shake, no hit flashes) and
-is <strong>spawn-less</strong>: torpedo and muzzle particle bursts are not created at all.
-Low also renders the world at a <strong>reduced internal resolution</strong> and upscales it
-to fill the window - a lever aimed at fill-bound hardware (laptop iGPUs,
-phones). The HUD and menus stay crisp and fully clickable; only the 3D world
-softens. On a strong discrete GPU the speed win is small, so Low is a knob for
-the low end rather than a general speed-up.</li>
-</ul>
+<table>
+<thead>
+<tr>
+<th>Preset</th>
+<th>Camera shake</th>
+<th>Hit flashes</th>
+<th>Particle bursts</th>
+<th>3D world resolution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>High</td>
+<td>on</td>
+<td>on</td>
+<td>full</td>
+<td>native</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>off</td>
+<td>on</td>
+<td>full</td>
+<td>native</td>
+</tr>
+<tr>
+<td>Low</td>
+<td>off</td>
+<td>off</td>
+<td>not spawned</td>
+<td>reduced, upscaled</td>
+</tr>
+</tbody>
+</table>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>Low is <strong>spawn-less</strong>: torpedo and muzzle particle bursts are not created at
+all, rather than created and hidden. It also renders the world at a <strong>reduced
+internal resolution</strong> and upscales it to fill the window - a lever aimed at
+fill-bound hardware (laptop iGPUs, phones). The HUD and menus stay crisp and
+fully clickable; only the 3D world softens. On a strong discrete GPU the speed
+win is small, so Low is a knob for the low end rather than a general speed-up.</p>
+</details>
 <h2 id="controls-reference" tabindex="-1">Controls reference</h2>
 <p>The <strong>Controls</strong> panel is a read-only reference of the current keyboard and
 gamepad bindings - flight, targeting, camera and pause - the same reference laid
@@ -87,8 +119,8 @@ you assign, per section, in the editor).</p>
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

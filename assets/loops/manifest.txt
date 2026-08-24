@@ -1,0 +1,25 @@
+# captured at commit 89b9a622 on master
+# file<TAB>example<TAB>duration_s<TAB>bytes
+hero-wfc-duel.webm	wfc_arena	6.1	1266674
+landing-wfc-2v2.webm	wfc_arena	6.1	754677
+torpedo-blast.webm	loop_torpedo_blast	5.3	247884
+spine-cut.webm	loop_spine_cut	5.3	169087
+goto-arrival.webm	loop_goto_arrival	10.8	175488
+landing-player-flight.webm	loop_player_flight	4.8	504633
+news-0110-derived-skin.webm	loop_derived_skin	6.9	114029
+news-0110-round-types.webm	loop_round_types	15.0	1036973
+news-0110-torpedo-types.webm	system_torpedo_launch	4.1	111627
+news-0110-point-defense.webm	stress_point_defense	4.1	415034
+landing-cockpit.webm	loop_cockpit	7.7	221417
+loop-section-controller.webm	screenshot_flip_burn	3.6	62276
+lock-dwell.webm	screenshot_radar_lock	2.2	48876
+landing-editor-build.webm	screenshot_editor	11.2	185082
+news-0110-editor-skin.webm	screenshot_editor	10.5	118553
+news-0110-damage-levels.webm	screenshot_damage_levels	5.7	119125
+news-0110-release-lead.webm	loop_spine_cut	5.3	169087
+news-0110-parts-gallery.webm	screenshot_editor	11.2	185082
+nova-os-open.webm	loop_cockpit	7.7	221417
+loop-section-hull.webm	screenshot_damage_levels	5.7	119125
+loop-section-thruster.webm	loop_player_flight	4.8	504633
+loop-section-turret.webm	stress_point_defense	4.1	415034
+loop-section-torpedo-bay.webm	system_torpedo_launch	4.1	111627

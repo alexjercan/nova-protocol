@@ -1,0 +1,598 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Automation harness - Nova Protocol Developer Docs</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-6c135d9b.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Nova Protocol Developer Docs</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="the-automation-harness"><a class="header" href="#the-automation-harness">The automation harness</a></h1>
+<p>How Nova Protocol drives itself without a human at the keyboard: a scripted
+autopilot walks the game through its states, screenshot drivers capture the
+result, and a completion protocol decides when the run is over. It is what
+makes headless verification, the web figures and the performance reports
+repeatable rather than a manual pass.</p>
+<p>All of it lives in the <code>nova_autopilot</code> crate, which depends on <code>bevy</code> alone -
+no <code>nova_*</code> crate, no <code>avian3d</code>. It ships the drivers and the protocol; it does
+not ship anything Nova-specific. The adapters that know about Nova (scenario
+presets, camera posing, freezing rigid bodies, hiding the dev overlay) stay in
+<code>nova_debug</code> and reach in through caller-supplied closures. The drivers are
+generic over the app’s state type, and that generic is what keeps
+<code>GameStates</code> - and with it the whole game dependency tree - out of the crate.</p>
+<p><strong>Read this page as the crate’s contract.</strong> Nova’s own examples run these
+drivers, reaching them through the <code>nova_debug</code> prelude and the
+<code>nova_debug::harness</code> presets - the Nova-flavored adapter, not a second
+implementation - while <code>nova_probe</code> names <code>nova_autopilot::completion</code>
+directly.</p>
+<h2 id="what-it-drives"><a class="header" href="#what-it-drives">What it drives</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Driver</th><th>Does</th><th>What Nova uses it for</th></tr>
+</thead>
+<tbody>
+<tr><td><code>AutopilotPlugin</code></td><td>Walks a list of named steps, each advancing when its predicate over the world holds</td><td>Headless smoke runs, driving a scenario while something else measures</td></tr>
+<tr><td><code>capture_window</code></td><td>Writes the primary window to a PNG and acks it into <code>CaptureLog</code>. Not a driver - the primitive a script’s shot step calls</td><td>The web figures and thumbnails, captured at 1920x1080</td></tr>
+<tr><td><code>completion</code></td><td>The registration and exit protocol every driver reports to</td><td>Ending a run once, when everyone is finished</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>nova_probe_cli</code> (the game binary’s <code>probe</code> subcommand, debug feature only) is the host layer above: it arms the
+harness variables, spawns a subject as a child process and turns the output
+into a correctness and performance report. It arms the variables below -
+including a window-sized <code>NOVA_AUTOPILOT_DEADLINE</code> for its fps pass, which your
+own value overrides. Its in-game half, <code>nova_probe</code>, is what the subject
+wires to collect the evidence.</p>
+<p>A harness run is headless, which for these drivers means a SOFTWARE X server,
+and that is not free: presenting a window under Xvfb costs a CPU copy of every
+pixel, charged to the frame. Correctness is unaffected and so is any ratio, but
+an absolute millisecond off a headless run is the game plus the display server.
+<a href="performance.html">Measuring performance</a> has the size of it and what survives.</p>
+<p>The subject is usually an example, which wires the collectors itself. For
+<code>probe scenario</code> it is the GAME BINARY: <code>src/main.rs</code> adds
+<code>nova_probe::NovaProbePlugin</code> and the <code>nova_autopilot()</code> preset under the same
+<code>debug</code> feature that carries the <code>probe</code> subcommand. Both are inert without
+their variables, so a plain <code>cargo run --features debug</code> behaves exactly as
+before - and a scenario becomes measurable without an example file existing for
+it.</p>
+<h2 id="the-environment-contract"><a class="header" href="#the-environment-contract">The environment contract</a></h2>
+<p>Every driver is inert unless its own variable is set, so an app adds the
+plugins unconditionally and a normal run pays nothing for them. Setting the
+variable is what arms the driver; the value only matters where the table says
+so.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variable</th><th>Arms</th><th>Read by</th><th>Value</th></tr>
+</thead>
+<tbody>
+<tr><td><code>NOVA_AUTOPILOT</code></td><td>the scripted state driver</td><td><code>AutopilotPlugin</code></td><td>any (presence only)</td></tr>
+<tr><td><code>NOVA_CAPTURE</code></td><td>the CAPTURE path of a script that has one: its shot steps write PNGs instead of driving straight through</td><td><code>capturing()</code>, which a script reads while building its steps</td><td>any (presence only)</td></tr>
+<tr><td><code>NOVA_CAPTURE_DIR</code></td><td>nothing on its own</td><td><code>capture_window</code>, and the scenario <code>Screenshot</code> action (<code>nova_scenario/src/actions/view.rs</code>) reads it independently</td><td>directory that relative capture paths resolve under; absolute paths ignore it</td></tr>
+<tr><td><code>NOVA_AUTOPILOT_DEADLINE</code></td><td>nothing on its own</td><td>the completion watcher</td><td>seconds before the run gives up and error-exits naming the laggards (default 120); the RUN-level backstop under a script’s own per-step deadlines</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>NOVA_CAPTURE</code> arms the SHOTS, never a driver. A capturing run therefore sets
+<code>NOVA_AUTOPILOT</code> too, and one script owns the window: there is no second driver
+to fight it over <code>NextState</code>.</p>
+<p>That is the DRIVER contract in full - four variables. It is not every <code>NOVA_*</code>
+variable the workspace reads: <a href="environment-variables.html">Environment variables</a>
+indexes the whole set and says which crate owns each, and the measurement
+knobs’ own values and defaults are tabulated once in <code>nova_probe</code>’s crate
+rustdoc - <code>cargo doc --open -p nova_probe</code> - because the same table serves the
+wasm build as URL query parameters. <a href="performance.html">Measuring performance</a>
+covers what they are FOR. A variable that arms nothing is silent, so a run
+pinned to a name that is on none of those pages does a plain play-through and
+reports nothing wrong.</p>
+<h2 id="reading-the-world-instead-of-looking-at-it"><a class="header" href="#reading-the-world-instead-of-looking-at-it">Reading the world instead of looking at it</a></h2>
+<p>The timeline says what HAPPENED. The world-state snapshot
+(<code>nova_probe::capabilities::snapshot</code>) says what the world LOOKS like: one JSON
+object holding every ship - identity, pose, velocity, aggregate health, mass,
+the collapse/defeat flags and its weapon locks - each ship’s sections with their
+class, pose, health, modifications and magazine state, each section’s fixtures
+(the skin plates and decor bolted to it), and every torpedo and round in flight
+with its owner, damage, remaining lifetime and - for a torpedo - which ordnance
+TYPE it is, since two bays on one hull can load different torpedoes that are
+identical in every other field.</p>
+<p>Use it when a defect would otherwise be judged from a render. A skin bug, a
+section that took damage it should not have, a turret that never reloaded: all
+of them are one <code>jq</code> query away instead of a picture to squint at.</p>
+<pre><code class="language-text">Xvfb :95 -screen 0 1280x720x24 &amp;
+NOVA_AUTOPILOT=1 NOVA_PROBE_SNAPSHOT=/tmp/snap.jsonl \
+  NOVA_PROBE_SNAPSHOT_FRAMES=600,600 BEVY_ASSET_ROOT="$PWD" DISPLAY=:95 \
+  cargo run --example system_turret_gunnery --features debug
+jq -S '.ships[0].sections[] | {id, class, health}' /tmp/snap.jsonl
+</code></pre>
+<p>Two rules make it a DIFFABLE artifact rather than a dump. Every list is sorted
+by a value-derived key, never by entity id or query order, so a respawn that
+renumbers entities does not churn the diff. Every float is rounded to four
+decimals with <code>-0.0</code> normalized, so the last bit of an <code>f32</code> does not either.
+Two snapshots of one frozen frame are byte-identical, which is what the repeated
+frame number above checks.</p>
+<p>It is read-only, deliberately. There is no restore: a scenario is already
+replayable and is its own checkpoint.</p>
+<h2 id="the-completion-protocol"><a class="header" href="#the-completion-protocol">The completion protocol</a></h2>
+<p>One run can carry several collectors - an autopilot timeline, a frame capture -
+each finishing on its own clock. A collector that writes <code>AppExit</code> on its own
+clock discards every other collector’s data, and does it silently: a capture
+cut short by another collector’s exit still writes a plausible file, just a
+shorter one. So the exit is NEGOTIATED. Two rules:</p>
+<ol>
+<li><strong>Register before the run starts.</strong> A collector calls
+<code>completion::register</code> from its <code>Plugin::build</code>, behind its own armed check.
+Nothing joins later, and an unarmed collector must not join at all - it
+would hold the exit open until the deadline.</li>
+<li><strong>The app exits only when every registrant reports done.</strong> A collector calls
+<code>HarnessCompletion::done</code> and never writes <code>AppExit::Success</code> itself; the
+watcher writes it once the pending set empties.</li>
+</ol>
+<p>An error exit is the exception: a collector that genuinely fails (a screenshot
+that cannot save, a stalled script) writes <code>AppExit::error</code> directly, because
+an abort is not a completion and must not wait for anyone. The deadline backstop
+does the same, naming the collectors still pending, so a supervisor reads
+“capture never completed” in the log instead of watching a silent hang.</p>
+<h2 id="writing-a-script"><a class="header" href="#writing-a-script">Writing a script</a></h2>
+<p>A script is a list of STEPS. A step is a name plus four optional parts and one
+required one:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Part</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>name</code></td><td>what a log line and a stall message call this beat</td></tr>
+<tr><td><code>enter</code></td><td>the state to set on entry</td></tr>
+<tr><td><code>on_enter</code></td><td>a world action run once, on entry (a synthesized gesture, a scenario poke)</td></tr>
+<tr><td><code>each</code></td><td>a world action run every frame, with the IN-STEP elapsed seconds</td></tr>
+<tr><td><code>until</code></td><td>the predicate that advances the step</td></tr>
+<tr><td><code>deadline</code></td><td>in-step seconds after which an unsatisfied <code>until</code> ABORTS the run, naming the step</td></tr>
+</tbody>
+</table>
+</div>
+<p>The step advances the first frame <code>until</code> holds. <strong>Name a step after what it is
+waiting FOR, not after what it pokes</strong> - the name is what a stall message
+carries, and “stalled on <code>lock the prey</code>” is a diagnosis where “stalled after 30
+seconds” is a shrug.</p>
+<p>Elapsed time is one predicate among many, so <code>hold(state, secs)</code> - enter a
+state, wait N seconds - is sugar for
+<code>step("hold:&lt;state&gt;").enter(state).until(elapsed(secs))</code> rather than a second
+mechanism. The vocabulary is in <code>nova_autopilot::predicate</code> (<code>elapsed</code>,
+<code>frames</code>, <code>state_is</code>, <code>resource_where</code>, <code>any_entity</code>, <code>and</code>, <code>not</code>), the
+gestures in <code>nova_autopilot::input</code> (<code>press_key</code>, <code>release_key</code>, <code>type_text</code>,
+<code>press_mouse</code>, <code>release_mouse</code>, <code>move_cursor</code>, <code>click_at</code>), and the Nova-typed
+predicates in <code>nova_debug::harness</code> (<code>scenario_variable_is</code>, <code>section_gone</code>,
+<code>player_ship_present</code>). Anything the vocabulary cannot express is a plain
+closure: <code>Arc::new(|world: &amp;World| ...)</code>.</p>
+<p>Typing is its own gesture because a key has two halves. <code>press_key</code> writes the
+HELD state (<code>ButtonInput&lt;KeyCode&gt;</code>), which is what flight code polls;
+<code>type_text</code> writes the keyboard MESSAGE carrying the text a keypress produced,
+which is what a text field reads. A run that drives a filter or a name field
+wants the second - pressing <code>KeyR</code> fills nothing in.</p>
+<p><strong>A driven run owns the pointer.</strong> The examples run on a real display, so a
+real cursor event - the window manager’s enter/motion pair, a developer nudging
+the mouse, the echo of the OS-level warp the driver itself performs - lands in
+the same stream the synthesized one does. One of those between a press beat and
+its release beat CANCELS the click silently: <code>bevy_picking</code> dispatches
+<code>Pointer&lt;Click&gt;</code> from the PREVIOUS frame’s hover map, so a pointer that moved
+off the widget in between produces a release, no click, and no <code>Activate</code> - a
+90-second stall on the beat AFTER the one that actually went wrong. So the
+autopilot pins its pointer: whenever the window disagrees with the last
+position a gesture set, <code>nova_autopilot::input</code> puts the pinned position back
+in <code>First</code>, before the picking backend reads the frame’s events. Nothing at a
+call site changes, and a script needs no defensive re-hover. The pin holds the
+REAL cursor too, since that is what <code>Window::cursor_position</code> moves - so a
+driven run on your own desktop pulls the mouse back whenever you move it off,
+until the run ends.</p>
+<p><strong>A settle predicate over a physics quantity belongs on the physics schedule.</strong>
+“The value held still for N frames” is a common way to write “the solve is
+done”, and on <code>Update</code> it does not mean that: avian runs in <code>FixedPostUpdate</code>,
+so above the fixed rate most <code>Update</code> frames carry no solve pass at all and N
+unchanged frames can all precede the recompute the beat is waiting for. Sample
+in <code>FixedPostUpdate</code> after <code>PhysicsSystems::Prepare</code>, so one sample is one
+pass, and carry any second fact the beat needs (an entity count, say) in the
+same sample rather than reading it live off the world. <code>system_hull_damage</code>’s
+<code>ComSettle</code> is the worked example.</p>
+<p>The rule is “sample where the quantity is WRITTEN”, not “sample on the fixed
+schedule” - <code>system_turret_gunnery</code>’s <code>AimSettle</code> stays on <code>Update</code> precisely
+because its aim error is produced by <code>SmoothLookRotationPlugin</code> in
+<code>PostUpdate</code>, so consecutive fixed ticks inside one frame would read the same
+value and saturate
+the streak mid-slew. What that costs is framerate independence, which you buy
+back separately: a per-frame delta threshold means a different physical
+threshold at every framerate, so compare a RATE against <code>Time::delta_secs()</code>.
+<code>AimSettle</code> is the worked example for that half.</p>
+<p>Related, and the other half of the same mistake: <strong>a beat must be strictly
+weaker than the assert that follows it.</strong> If the beat’s predicate and the next
+step’s assert share a constant, the assert cannot fail and a real regression
+surfaces as a deadline stall on the beat’s name instead of the message that
+explains it. Gate on the stimulus and the world having stopped changing; assert
+on where it ended up. When the two must read the same quantity, give the beat a
+margin - the driver enters the next step on the FOLLOWING frame, so a beat that
+opened at exactly the assert’s threshold on a falling value hands the assert a
+failing one (<code>system_attitude_hold</code>’s <code>OFFSET_BEAT_MARGIN_SECS</code>, and
+<code>system_turret_gunnery</code>’s <code>GATE_TRAVEL_BEAT_MARGIN</code> over a sweep that is not
+even monotonic).</p>
+<p>Where the invariant has no separate stimulus-side observable - “the torpedo
+detonated”, “the burn accelerated” - the beat is the stimulus plus a bounded
+settle sized off the mechanism (<code>LAUNCH_SETTLE_SECS</code>, <code>BURN_WINDOW_SECS</code>,
+<code>HIT_SETTLE_SECS</code>), never the outcome itself. A settle is a runway, so it owes
+a derivation on its constant; what it must not do is read the quantity the
+assert decides.</p>
+<h3 id="the-runway-anti-pattern"><a class="header" href="#the-runway-anti-pattern">The runway anti-pattern</a></h3>
+<p>The shape to avoid is a wall-clock RUNWAY plus one closure that re-derives a
+step machine from booleans:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>app.add_plugins(
+    AutopilotPlugin::&lt;GameStates&gt;::new()
+        .self_completing()
+        .hold(GameStates::Loading, 30.0)   // a runway, unrelated to Loading
+        .input(script),                    // every frame, in every state
+);
+app.add_systems(Last, guard_script_completion);
+
+fn script(world: &amp;mut World, elapsed: f32) {
+    if *world.resource::&lt;State&lt;GameStates&gt;&gt;().get() != GameStates::Playing {
+        return;
+    }
+    // Re-derive a step-relative clock by hand, because `elapsed` is the run's.
+    let playing_since = { /* get_or_insert into a script resource */ };
+    let t = elapsed - playing_since;
+    if t &gt; 1.0 &amp;&amp; !script.spun { script.spun = true; apply_spin(world); }
+    if t &gt; 2.0 &amp;&amp; !script.killed_controller { /* ... */ }
+    // ... and a hand-rolled panic if the runway expires with beats unplayed.
+}
+<span class="boring">}</span></code></pre>
+<p>Everything in it is a symptom: the <code>playing_since</code> offset exists because the
+closure’s clock is the RUN’s and not the beat’s, the booleans exist because a
+closure has no notion of having advanced, and the hand-rolled guard exists
+because nothing else knows the runway expired with beats unplayed. Each is
+carried by the step list for free.</p>
+<p>Write the beats themselves, each waiting on the world
+(<code>examples/systems/system_hull_damage.rs</code>):</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>app.add_plugins(
+    AutopilotPlugin::&lt;GameStates&gt;::new()
+        .step("load the rig")
+        .enter(GameStates::Loading)
+        .until(player_ship_present())   // not "30 seconds should do it"
+        .deadline(15.0)
+        .add()
+        .step("spin the ship")
+        .on_enter(apply_spin)
+        .add()
+        .step("kill the controller section")
+        .on_enter(kill_frontmost_section)
+        .until(section_gone("controller"))  // the real despawn, not a guess
+        .deadline(6.0)
+        .add()
+        // Last beat: the driver reports done after it, so the run ends on the
+        // assertion instead of idling out the rest of a runway.
+        .step("assert the com follows the surviving sections")
+        .on_enter(assert_com_follows_sections)
+        .add(),
+);
+<span class="boring">}</span></code></pre>
+<p>There is no runway, and a stalled step is the driver’s job to report, by name.</p>
+<h3 id="capturing-one-idiom"><a class="header" href="#capturing-one-idiom">Capturing: one idiom</a></h3>
+<p>There is one way to take a screenshot from a script, and it is a step. A shot
+step calls <code>shoot(world, "name.png")</code> from <code>on_enter</code>, so the act, the framing
+and the shot it produces read top-to-bottom in the step list:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>.step("frame the planetoid")
+.on_enter(|world| pose_camera(world, EYE, LOOK))
+.until(frames(SETTLE_FRAMES))
+.add()
+.step("shoot wiki-gravity.png")
+.on_enter(|world| shoot(world, "wiki-gravity.png"))
+.until(shot_written("wiki-gravity.png"))
+.deadline(SHOT_DEADLINE_SECS)
+.add()
+<span class="boring">}</span></code></pre>
+<p><code>shoot</code> is its own gate: it captures only when <code>NOVA_CAPTURE</code> is set, so the
+SAME script is both the capture run and the smoke run.</p>
+<p><code>shoot</code> is asynchronous (the PNG lands at the end of a later frame), which is
+why the shot step holds instead of ending immediately: move the camera in the
+same frame and the pending capture renders the NEXT framing. It holds on the
+ACK, not on a guessed number of frames - <code>capture_window</code> records the path in
+<code>CaptureLog</code> once the write completes, and <code>shot_written</code> reads that. On the
+smoke path, which shoots nothing, the same predicate holds immediately, so a
+script never branches its step timing on <code>capturing()</code>.</p>
+<p>That leaves ONE settle in a capture script, the same on both paths:
+<code>SETTLE_FRAMES</code>, the frames a beat needs to come to rest before its shot. The
+per-example splits that preceded it were each carrying the write latency on top
+of the stillness, which is why they disagreed.</p>
+<p>The scene dressing is separate from the steps and lives in <code>nova_debug::harness</code>
+too: <code>force_capture_resolution</code> (a known 16:9 for every shot in the fleet),
+<code>hide_dev_overlays</code> / <code>hide_hud</code>, and <code>freeze_bodies</code> for a posed set that must
+not drift between framings.</p>
+<p>Do not add a second capture idiom beside it. A driver that walks its own list
+of shots builds that list away from the script producing the state each shot
+frames, which puts timing and framing in different files - and they drift. A
+range that only wants ONE settled picture of itself does not get a driver
+either: <code>nova_screenshot(script)</code> appends the settle-and-shoot beat to the
+script it already has.</p>
+<h3 id="deadlines"><a class="header" href="#deadlines">Deadlines</a></h3>
+<p>A step’s <code>deadline</code> is IN-STEP seconds and is unset by default, leaving
+<code>NOVA_AUTOPILOT_DEADLINE</code> as the run-level backstop for a script that hangs
+somewhere without one. Set a deadline where a stall is worth NAMING, and <strong>keep
+the sum of a script’s deadlines under the run-level value</strong> - otherwise the
+generic hang detector wins the race and the named-step diagnostic is lost. That
+ordering is documented, not enforced: the run-level value comes from the harness
+that launches the process, which the crate cannot see.</p>
+<h3 id="do-not-enter-a-state-something-else-owns"><a class="header" href="#do-not-enter-a-state-something-else-owns">Do not <code>enter</code> a state something else owns</a></h3>
+<p><code>enter</code> force-sets <code>NextState</code>, which is why a Nova script does not enter
+<code>GameStates::Playing</code>: the <code>Loading -&gt; Playing</code> transition is asset-gated by the
+loader, so forcing <code>Playing</code> either fires before the <code>GameAssets</code> resource
+exists (panicking the scene setup that reads it) or re-enters a state the loader
+already entered, double-running <code>OnEnter(Playing)</code>. Enter the state BEFORE the
+gate and let the loader do its own transition, then wait on something the load
+produced - <code>player_ship_present()</code>, a seeded scenario variable. Nova’s
+<code>nova_autopilot()</code> preset (<code>crates/nova_debug/src/harness.rs</code>) is the wall-clock
+fallback for examples with nothing observable to wait on.</p>
+<p>Then arm it from the shell - <code>driven_app</code> is the crate’s own example, the
+<code>scenario</code> forms are Nova’s:</p>
+<pre><code class="language-sh">NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app
+NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/shots \
+  cargo run --example system_scenario_grammar --features debug
+NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/shots \
+  cargo run --example screenshot_gravity --features debug
+</code></pre>
+<p><code>crates/nova_autopilot/examples/driven_app.rs</code> is the end-to-end read: a
+self-contained <code>DefaultPlugins</code> app with its own state machine, driven through
+named predicate steps and exited by the completion protocol, importing no
+<code>nova_*</code> crate but <code>nova_autopilot</code>. Run it with
+<code>NOVA_AUTOPILOT=1 cargo run -p nova_autopilot --example driven_app</code>;
+<code>crates/nova_autopilot/tests/autopilot_example.rs</code> runs the same thing headless
+and asserts on the exit status and the log lines.</p>
+<p>The full API reference is the crate’s rustdoc
+(<code>cargo doc -p nova_autopilot --open</code>); every public item is reachable through
+<code>nova_autopilot::prelude</code>.</p>
+<h2 id="find-it-in-the-code"><a class="header" href="#find-it-in-the-code">Find it in the code</a></h2>
+<ul>
+<li>Driver: <code>AutopilotPlugin</code> - <code>crates/nova_autopilot/src/autopilot.rs</code>;
+<code>capture_window</code> - <code>crates/nova_autopilot/src/capture.rs</code>.</li>
+<li>Protocol and vocabulary: completion -
+<code>crates/nova_autopilot/src/completion.rs</code>; predicates -
+<code>crates/nova_autopilot/src/predicate.rs</code>; gestures -
+<code>crates/nova_autopilot/src/input.rs</code>.</li>
+<li>Nova adapter: the <code>nova_autopilot()</code> and <code>nova_screenshot()</code> presets,
+<code>shoot</code>, scene dressing - <code>crates/nova_debug/src/harness.rs</code>.</li>
+<li>Host layer: the <code>probe</code> subcommand - <code>crates/nova_probe_cli/src/native.rs</code>;
+in-game half: <code>NovaProbePlugin</code> -
+<code>crates/nova_probe/src/capabilities/mod.rs</code>. What the capture measures and
+how to read it: <a href="performance.html">Measuring performance</a>.</li>
+<li>End-to-end example: <code>crates/nova_autopilot/examples/driven_app.rs</code>.</li>
+<li>API detail: <code>cargo doc --open -p nova_autopilot</code>.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="scenario-system.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="environment-variables.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="scenario-system.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="environment-variables.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="mermaid-eefea253.min.js"></script>
+        <script src="mermaid-init-ccf746f1.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

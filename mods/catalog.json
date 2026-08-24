@@ -3,13 +3,13 @@
   "entries": [
     {
       "id": "gauntlet",
-      "version": "1.8.0",
+      "version": "1.10.0",
       "bundle": "gauntlet.bundle.ron",
       "meta": {
         "name": "Gauntlet Run",
         "description": "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
         "author": "Nova Protocol",
-        "version": "1.8.0",
+        "version": "1.10.0",
         "dependencies": [
           "base"
         ],
@@ -19,8 +19,8 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 2449,
-          "sha256": "be0f6863ec10bd4dd22334273a794366985575ead81cbbaf2ecb182589d08483"
+          "size": 2955,
+          "sha256": "213e767cd1d4cb3454ce5ddccfb4772e30916315a5fe23fbb3b7176851378a05"
         },
         {
           "path": "README.md",
@@ -29,13 +29,13 @@
         },
         {
           "path": "gauntlet.bundle.ron",
-          "size": 1440,
-          "sha256": "6d88fb0b6bef5795c4572aadb9e4ead9b1f813529353d4f550e3e5883219e7fa"
+          "size": 1441,
+          "sha256": "b5917b6bc359a0c84adbcd05cf69116217427b58058cde14001e74a1ce0fe1b6"
         },
         {
           "path": "gauntlet.content.ron",
-          "size": 45859,
-          "sha256": "49f18b3a43d17d54dff2c65c67ec6c58fcba592448a5765dbf79baaa95f8ee3c"
+          "size": 44571,
+          "sha256": "cb42a1cc6e8559254c06573e7c6467e22c2916614735b2e9a4da0f7ab3835886"
         },
         {
           "path": "thumbnails/gauntlet_run.png",
@@ -43,17 +43,17 @@
           "sha256": "171e6eb2918105a3f526e04f84cf0fa5a1816701867f5a422a85d8df848a1ce9"
         }
       ],
-      "total_size": 56515
+      "total_size": 55734
     },
     {
       "id": "the-ledger",
-      "version": "1.21.0",
+      "version": "1.25.0",
       "bundle": "the-ledger.bundle.ron",
       "meta": {
         "name": "The Ledger",
         "description": "A salvage crew in over its head: four chapters and a reward finale, one sealed crate everyone in the belt wants.",
         "author": "Nova Protocol",
-        "version": "1.21.0",
+        "version": "1.25.0",
         "dependencies": [
           "base"
         ],
@@ -63,13 +63,18 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 9243,
-          "sha256": "9442ef446df0d00645c8938fc35aa39e4aec90670ced16114192f797a4202847"
+          "size": 11975,
+          "sha256": "5b68f44cadd36d7961af52c7df3effcea2ab7fc4600af9c52d07eac3dbedfbcc"
         },
         {
           "path": "README.md",
           "size": 3582,
           "sha256": "83f518f8176832db5ee9730d5c203753efde9f1d135e9abb195d22fbca115158"
+        },
+        {
+          "path": "balance_acks.ron",
+          "size": 1351,
+          "sha256": "6ef87f614570daf319263dae2087bebf42bb066be65ed0dea608fb0c5b5fae04"
         },
         {
           "path": "ledger_campaign.content.ron",
@@ -78,38 +83,38 @@
         },
         {
           "path": "ledger_ch1.content.ron",
-          "size": 49753,
-          "sha256": "05520f8ce0e4fd4eb6725fced2de0180f32f2da1191f6072dfd5886e26428359"
+          "size": 51266,
+          "sha256": "914552ed48c89be54d8db541a7df7555ced94fbb5c738efdc9971f91727f157f"
         },
         {
           "path": "ledger_ch2.content.ron",
-          "size": 56086,
-          "sha256": "9fea3a458f2cb5cc44d206be07d4f09692c0d6f41feb3fe04fdb428f85654519"
+          "size": 58974,
+          "sha256": "c2f22938b3d9df6ee10af4e04d1c07120d2771de0135c6091c20b81e0ebfa0e6"
         },
         {
           "path": "ledger_ch2b.content.ron",
-          "size": 54204,
-          "sha256": "ca6bc261c314132b2ee02461b319a777bc964129d36220934753dfdbd9bc57dd"
+          "size": 57782,
+          "sha256": "74f3513b300ab205a0035d06567a07d8be4b695235a01cf9778c519c29073701"
         },
         {
           "path": "ledger_ch3.content.ron",
-          "size": 85011,
-          "sha256": "4e5baeb9b680d141f34fff4db04d9b9240792a712b6cc3e10080657601edef2b"
+          "size": 87610,
+          "sha256": "ca532d65d64f91367e96dd13c71d502a681e8cb6ab9c2692bc8500149289b353"
         },
         {
           "path": "ledger_ch4.content.ron",
-          "size": 34026,
-          "sha256": "6cdc7bfa3fd71968f96507ba43bf2f57a326b5136340b923e22f1b40b698f81a"
+          "size": 35729,
+          "sha256": "29a6d9d4ea89d450767343d9adfe622913fd91c41fd320dd1e59e542508ea352"
         },
         {
           "path": "ledger_ch5_the_raid.content.ron",
-          "size": 81004,
-          "sha256": "c3183e79b664aff2fb1f51b10d13b3799d827bb2d9a8f2c9a2729ebcbf4239f1"
+          "size": 88647,
+          "sha256": "b537f02743cf09a4cb0f22c841b18458d7f5c76858569f72bb668f442519b4ec"
         },
         {
           "path": "the-ledger.bundle.ron",
           "size": 1930,
-          "sha256": "9e8c12494a038e01c35eb6ebc3381906540e99ea8dcab92d7dc07d7c35e1c993"
+          "sha256": "2e3fd8d8cbbc7a0057b1a4b55f420604436a625bdf151269dfffaa45103a6889"
         },
         {
           "path": "thumbnails/ledger_ch1_dead_weight.png",
@@ -142,7 +147,7 @@
           "sha256": "5862dea24c8250f2ccea88c83bbd0f74a8029611bde9b758b7a80fb5a0841234"
         }
       ],
-      "total_size": 395446
+      "total_size": 419453
     }
   ]
 }

@@ -1,0 +1,1127 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Building and running - Nova Protocol Developer Docs</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-6c135d9b.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Nova Protocol Developer Docs</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="development"><a class="header" href="#development">Development</a></h1>
+<h2 id="toolchain"><a class="header" href="#toolchain">Toolchain</a></h2>
+<ul>
+<li><strong>Rust nightly</strong>, pinned by <code>rust-toolchain.toml</code> (with rustfmt + clippy).</li>
+<li><strong>NixOS</strong>: <code>nix develop</code> gives the toolchain, the <code>wasm32-unknown-unknown</code>
+target, all system libs Bevy needs (udev, alsa, vulkan, X11/wayland),
+<code>trunk</code>, and <code>sccache</code> (see fast worktree builds below). Without Nix, install
+those yourself. Bare <code>cargo</code> is not on PATH under Nix: run every cargo/rust
+command via <code>nix develop --command &lt;cmd&gt;</code> (the commands below assume you are
+inside <code>nix develop</code>).</li>
+</ul>
+<h2 id="everyday-commands"><a class="header" href="#everyday-commands">Everyday commands</a></h2>
+<pre><code class="language-sh">cargo run                         # the game (boots into the main menu)
+cargo run -- --scenario broadside # the game, straight into one scenario
+cargo run --features dev          # + debug tooling (inspector, wireframe)
+cargo run --example system_scenario_grammar   # run an example
+cargo build --release             # release profile: opt=s, lto, stripped
+cargo check &amp;&amp; cargo fmt          # before committing
+cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
+cargo run content lint   # validate content: refs + balance + input overlaps (also: gen)
+cargo run --features debug probe run system_player_path          # run-harness check (correctness + perf)
+</code></pre>
+<p>Notes that keep the suite honest and fast:</p>
+<ul>
+<li>Use <code>cargo test --workspace</code>, never bare <code>cargo test</code>: unit tests live in the
+member crates, so the bare form runs almost nothing and gives false comfort.</li>
+<li><code>cargo test</code> takes ONE filter and one <code>-p</code> per invocation; separate runs for
+separate filters or packages.</li>
+<li>For a timed headless example run, build first, then time only the run
+(<code>cargo build --example X --features debug</code>, then <code>NOVA_AUTOPILOT=1 timeout N cargo run --example X ...</code>). A cold build inside the timeout burns the window.</li>
+<li>Struct-field changes: <code>cargo check --workspace --all-targets</code>, or examples and
+tests stay silently broken.</li>
+</ul>
+<p>The dev profile uses <code>opt-level = 1</code> for our code, <code>3</code> for dependencies: slow
+first build, fast iteration. <code>split-debuginfo = "unpacked"</code> +
+<code>debug = "line-tables-only"</code> keep link-time RAM around 20 GB instead of 40
+(one Bevy-sized binary per test/example target); set <code>debug = true</code> temporarily
+if you need a debugger.</p>
+<p><strong>Worktree builds (fast via sccache)</strong>: a fresh sprout worktree starts with an
+empty <code>target/</code>, but the devshell wires <code>sccache</code> as <code>RUSTC_WRAPPER</code> (with
+<code>CARGO_INCREMENTAL=0</code>, which sccache requires) so it does NOT pay a full cold
+build. sccache caches each rustc invocation’s output keyed by a hash of the
+source content plus flags plus compiler version, in a shared cache
+(<code>~/.cache/sccache</code>). Unchanged deps (bevy, avian, the whole pinned tree) are
+100% cache hits across worktrees; only changed <code>nova_*</code> crates recompile.</p>
+<p>Measured on 2026-07-21 (game binary, quiet host):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>build</th><th>wall clock</th><th>sccache stats</th></tr>
+</thead>
+<tbody>
+<tr><td>cold (empty cache)</td><td>~6m45s (405s)</td><td>517 misses / 0 hits</td></tr>
+<tr><td>warm (<code>cargo clean</code>, same source)</td><td>~38s</td><td>517 hits / 0 misses (100%)</td></tr>
+</tbody>
+</table>
+</div>
+<p>The warm number is what a fresh sprout worktree gets once the shared cache is
+warm. Recipe from a new worktree:</p>
+<pre><code class="language-sh">cd "$(sprout new &lt;branch&gt;)"
+nix develop --command cargo build          # warm-cache: seconds, not minutes
+nix develop --command sccache --show-stats # confirm the hit rate
+</code></pre>
+<p>Still do NOT point <code>CARGO_TARGET_DIR</code> at another checkout’s cache: cargo keys
+fingerprints on crate name + version + features + profile + rustc, NOT the
+source path, so two checkouts alias each other’s artifacts in a shared dir and
+a worktree binary can silently link another checkout’s code (the stale-binary
+incident). Each worktree keeps its OWN <code>target/</code>; sccache is the SAFE way to
+share compilation because its cache key IS the source content - there is no
+path where a worktree links code from different source. That content-keying is
+also why sccache is transparent to CI: an empty cache is just a cold build.</p>
+<p>The devshell sets <code>CARGO_INCREMENTAL=0</code> shell-wide (sccache is incompatible
+with incremental). This costs the main checkout’s iterative edit-rebuild loop
+its incremental speedup; the fresh-worktree-per-task agent workflow only ever
+does cold-shaped builds, so it is pure win there. A sprout-scoped variant
+(export the wrapper only in sprout shells, keep the main checkout on
+incremental) is possible as a nix.dotfiles follow-up if the main-checkout
+iteration cost bites.</p>
+<h2 id="features"><a class="header" href="#features">Features</a></h2>
+<ul>
+<li><code>debug</code> - the whole <code>nova_debug</code> plugin (inspector, wireframe, overlays) plus
+<code>bevy/track_location</code>.</li>
+<li><code>dev</code> - alias for <code>debug</code>.</li>
+<li><code>trace</code> - <code>bevy/trace</code> + <code>bevy/trace_chrome</code> for span traces; the probe
+harness builds <code>--features debug,trace</code> when it needs one.</li>
+</ul>
+<h3 id="debug-tooling"><a class="header" href="#debug-tooling">Debug tooling</a></h3>
+<p><code>cargo run --features dev</code> compiles in <code>nova_debug</code>’s <code>DebugPlugin</code>
+(<code>crates/nova_debug/src/lib.rs</code>), which adds the inspector, the wireframe
+toggle, and the section/gravity debug overlays. The overlays are gated on a
+<code>DebugEnabled</code> resource toggled at runtime with <strong>F11</strong>
+(<code>DEBUG_TOGGLE_KEYCODE</code>), so they can be flipped off without a rebuild. Note the
+feature is spelled <code>debug</code>, with <code>dev</code> as an alias for it (root <code>Cargo.toml</code>);
+<code>--features dev</code> and <code>--features debug</code> are interchangeable.</p>
+<p><code>DebugPlugin</code> also binds <strong>F12</strong> (<code>SCREENSHOT_KEYCODE</code>,
+<code>crates/nova_debug/src/screenshot.rs</code>) to a screenshot: it captures the primary
+window and saves it to your Downloads directory as <code>&lt;unix-millis&gt;.png</code>. The
+capture is intentionally not gated on <code>DebugEnabled</code>, so it works whether or not
+the overlays are shown. Native only: the module is compiled out under
+<code>target_arch = "wasm32"</code>, which has neither a Downloads directory nor a wall
+clock.</p>
+<p>Three debug-only CLI flags exist, all parsed in <code>src/main.rs</code> and all compiled
+in only under the <code>debug</code> feature. Two of them are the OUTPUTS-OFF pair -
+<code>--norender</code> drops the renderer, <code>--mute</code> silences the speakers - and each has
+an environment twin an example can be armed with, since an example has no
+command line of its own:</p>
+<ul>
+<li>
+<p><code>--norender</code> - build the app through <code>AppBuilder::headless()</code>: no wgpu device,
+no window, no winit event loop, and none of the visual game plugins. The main
+schedule still ticks, so the simulation runs and a probe capture still counts
+frames - CPU ones, with <code>render_world</code> and <code>gpu</code> reading zero.</p>
+<p><strong>Nothing in a headless app ends the run.</strong> There is no window to close and no
+input of any kind, so it needs a driver: <code>--scenario &lt;id&gt;</code> under
+<code>NOVA_AUTOPILOT</code>, or <code>probe scenario</code>. A bare <code>--norender</code> ticks until it is
+killed, and that is by design rather than a hang to report.</p>
+<p>An EXAMPLE has no command line of its own, so the flag cannot reach it. The
+environment does: <strong><code>NOVA_NORENDER=1</code> makes every <code>AppBuilder::new()</code> in the
+process assemble the same headless app</strong>, which is how a range runs without a
+GPU. Set to anything, including empty; unset means render. <code>AppBuilder::headless()</code>
+ignores it, being already headless.</p>
+<pre><code class="language-sh">NOVA_AUTOPILOT=1 NOVA_NORENDER=1 cargo run --features debug --example stress_point_defense
+cargo run --features debug probe run stress_point_defense --norender
+</code></pre>
+<p><strong>Headless is a speed option, not a substitute for a rendered run.</strong> With no
+device there is nothing to break: a duplicate-component panic, a material or
+pipeline failure, and the async-compile SIGSEGV <code>synchronous_pipeline_compilation</code>
+exists to prevent are all invisible headless, and <code>cargo check</code> does not see
+them either. Only a rendered run does. Run ranges headless for speed if you
+like; keep a rendered set as the canary.</p>
+</li>
+<li>
+<p><code>--mute</code> - zero the audio output. The other half of the outputs-off pair:
+Xvfb hides the window but not the speakers, and nobody listens to a scripted
+run. It inserts <code>HarnessMute(true)</code> after the builder, so it wins over
+whatever the environment resolved. The volume SETTING is untouched, so
+persistence and the settings menu never see it, and a muted run says
+<code>nova audio: output muted for this run</code> once at startup.</p>
+<p>The environment twin is <code>NOVA_MUTE</code>, which an example reads through
+<code>HarnessMute::from_env</code>: set to anything but <code>0</code> it mutes, <code>NOVA_MUTE=0</code>
+forces sound even under a harness, and unset it mutes iff a harness variable
+(<code>NOVA_AUTOPILOT</code>, <code>NOVA_CAPTURE</code>) is set.</p>
+<pre><code class="language-sh">cargo run --features debug -- --mute --scenario asteroid_field
+NOVA_MUTE=1 cargo run --features debug --example stress_bullets
+</code></pre>
+</li>
+<li>
+<p><code>--debugdump</code> - print the system schedule graph (via <code>bevy_mod_debugdump</code>)
+and exit. It dumps the <code>Update</code> schedule (<code>debugdump</code> in
+<code>crates/nova_debug/src/lib.rs</code>).</p>
+</li>
+</ul>
+<h3 id="logging"><a class="header" href="#logging">Logging</a></h3>
+<p>The filter is built by <code>log_filter_str</code> in <code>crates/nova_core/src/lib.rs</code>. A
+<code>--features debug</code> run puts the nova crates at DEBUG; a release run leaves them
+at the plugin’s INFO default.</p>
+<p><strong>A new crate needs no filter change.</strong> Every workspace crate is named <code>nova_*</code>
+and <code>EnvFilter</code> matches a directive’s target by PREFIX, so the single <code>nova=</code>
+directive covers all of them. Do not add a per-crate directive: the list this
+replaced named nine of twenty-two crates, and the thirteen it missed sat
+silently at INFO while their neighbours were at DEBUG.</p>
+<p>Pick a level by WHO needs the line and HOW OFTEN it fires, not by how
+interesting it felt while writing it:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>level</th><th>fires</th><th>example</th></tr>
+</thead>
+<tbody>
+<tr><td><code>trace!</code></td><td>per ITEM - anything that scales with content</td><td>one line per spawned object, per section, per widget</td></tr>
+<tr><td><code>debug!</code></td><td>per OPERATION - one line for the whole batch</td><td><code>scattered 26 of 26 'gauntlet_rock_' object(s)</code></td></tr>
+<tr><td><code>info!</code></td><td>a person running the game wants it; should be rare</td><td>the probe’s own report lines</td></tr>
+<tr><td><code>warn!</code>/<code>error!</code></td><td>something is WRONG</td><td>a scenario names an id that does not resolve</td></tr>
+</tbody>
+</table>
+</div>
+<p>An expected-and-handled condition is not a warning. A batch summary carries a
+COUNT - a summary line without a number is barely better than the noise it
+replaced.</p>
+<p><code>RUST_LOG</code> directives are MERGED over this filter by bevy rather than replacing
+it (<code>bevy_log-0.19.0/src/lib.rs:406</code>), so <code>RUST_LOG=nova=trace</code> restores the
+per-item detail without unmuting wgpu and naga.</p>
+<p>A headless run additionally clamps three bevy diagnostics it provokes by
+construction - the missing render app, <code>CompressedImageFormatSupport</code>, and
+gizmos noticing there is no <code>RenderApp</code>. All three are unreachable when a render
+sub-app exists, so a rendering run keeps those targets at their normal level.</p>
+<h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
+<p><code>examples/</code> exercises one subsystem each, end to end; this repo prefers
+runnable examples over isolated unit tests. The examples live in purpose
+directories (bevy-repo style: category dirs, plain slug names), and the
+<code>[[example]]</code> catalog in the root Cargo.toml (<code>autoexamples = false</code>) is the
+single source of truth, listed in curriculum reading order.</p>
+<h3 id="the-category-contract"><a class="header" href="#the-category-contract">The category contract</a></h3>
+<p>A category is not a folder - it is a promise about WHO an example is for. Pick
+the category by its audience, not by what it happens to spawn.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Category</th><th>Who it is for</th><th>What probe does with it</th><th>Disqualifies an example</th></tr>
+</thead>
+<tbody>
+<tr><td><code>playable/</code></td><td>A HUMAN: somebody loads it and does the thing it demonstrates, through an affordance wired outside the <code>NOVA_AUTOPILOT</code> gate</td><td>runtime contract decides; native trace is automatic</td><td>its only affordance is the free-fly camera every cameraless scene already gets</td></tr>
+<tr><td><code>systems/</code></td><td>The PROBE: a behavior staged and asserted, every claim named on the invariant roster</td><td>runtime contract decides; native trace is automatic</td><td>its product is a frame for human eyes rather than a verdict</td></tr>
+<tr><td><code>screenshots/</code></td><td>The WEBSITE and the wiki: frames, webm loops, posed lineups, the frame-time baseline</td><td>runtime contract decides; native trace is automatic</td><td>its verdict is an assert, or a human is meant to drive it</td></tr>
+</tbody>
+</table>
+</div>
+<p>The test between <code>playable/</code> and the other two: would a human loading this
+expect to DO something? If the name promises a verb, it owes the verb. The test
+between <code>systems/</code> and <code>screenshots/</code> is what a run PRODUCES - an assertion, or
+a picture.</p>
+<p>There are THREE categories and there is no fourth: an example that does not fit
+one of them is miscategorised, not a new kind. Autopilot in a <code>playable/</code>
+example is a SECOND driver, for captures and for the run gate - never the only
+one.</p>
+<p>Run policy is DECLARED by the example at runtime, through the probe plugins it
+wires (<code>nova_probe::contract</code>); probe reads it back from <code>probe-contract.json</code>.
+Every cataloged example is spawned (<code>--all</code> subtracts nothing), and one that
+declares no capability grades UNPROBEABLE - the sanctioned opt-out, gated on
+its smoke checks alone. The grading detail lives under
+<a href="#run-verification-probe">Run verification (probe)</a>; what each category proves
+is the table above plus the per-block comments in the root <code>Cargo.toml</code>, and
+review enforces it.</p>
+<h3 id="the-catalog-and-the-harness"><a class="header" href="#the-catalog-and-the-harness">The catalog and the harness</a></h3>
+<p>What is on disk today, in reading order:</p>
+<ul>
+<li><code>playable/</code> - what a person loads and works. The hulls first: <code>carve_asteroids</code>
+(fly a PDC rig at a row of shipped-size rocks and hole one by hand) and
+<code>wfc_arena</code> (a match bench for wave-function-collapse hulls, with a lobby, a
+pause menu, a result board and a <code>--ship TEAM:player</code> slot that puts you in
+one of them). Then the benches and galleries, each with its own keys:
+<code>wfc_ships</code> (<code>R</code> re-rolls the collapsed row), <code>shape_bench</code> and <code>block_bench</code>
+(<code>L</code> cycles the style, <code>C</code> strips the cladding), <code>greeble_catalog</code> (a
+selection ring, a focus turntable, pedestal and cell-frame toggles),
+<code>parts_viewer</code> (a paged grid, a focus turntable and a reassembled recipe ship
+with an explode toggle), <code>widget_zoo</code> (every <code>nova_ui</code> widget factory, live
+and clickable in both skins) and <code>compare_asteroids</code> / <code>compare_planets</code> (the
+number keys re-dress the focus subject). All of them still walk and capture
+under <code>NOVA_AUTOPILOT</code>, which is what keeps them on the probe gate.</li>
+<li><code>systems/</code> - the correctness ranges. Every name carries a prefix for the KIND
+of check it is - <code>system_</code> functionality, <code>bug_</code> a regression range for a
+defect that was found, <code>stress_</code> load - and <code>examples/systems/README.md</code> owns
+the rule. The section curriculum first: <code>system_attitude_hold</code> (PD attitude),
+<code>system_thrust_and_plume</code> (burn -&gt; thrust + plume shader),
+<code>system_hull_damage</code> (damage -&gt; destroy -&gt; ship survives, and the mass
+properties the losses move), <code>system_section_severing</code> (a destroyed interior
+section leaves a real hole and the structure behind it drifts free as its own
+wreck body), <code>system_destruction_finale</code> (every destructible
+body - gltf section, procedural section, multi-part turret, asteroid -
+breaking into its OWN art rather than generic cubes, on one budget),
+<code>system_turret_gunnery</code> and <code>system_torpedo_launch</code> (the
+weapon ranges, the latter also the PN lead-a-crosser deep-dive), and
+<code>system_blast_penetration</code> (explosive falloff, one section shielding the next
+and two salvos that cannot use the hole they make in the same tick). Then the
+cross-cutting systems, every fixture a <code>ScenarioConfig</code> written in Rust and
+loaded with <code>LoadScenario</code>: <code>system_scenario_grammar</code> (the scenario language -
+variables, events, filters, actions), <code>system_player_path</code> (a scenario played
+through the real input pipeline: lock, kill, travel-lock, GOTO),
+<code>system_outcomes</code>
+(die -&gt; the Defeat overlay -&gt; Retry -&gt; a clean reload -&gt; kill -&gt; the
+objective and the CHECKPOINT -&gt; Continue -&gt; the chained scenario),
+<code>bug_neutralized_quiet</code> (a wreck’s point defence stands down) and
+<code>system_borrowed_battery</code> (the Flight Computer works idle player PDCs). Then
+the interface, driven by synthesized pointer input: <code>system_ship_editor</code>
+(build a ship and inspect it, refusals included), <code>system_hud_indicators</code>
+(where a screen-projected indicator lands), <code>system_menu_boot</code> (the shipped
+boot flow) and
+<code>bug_menu_picker</code> (the Scenarios picker, whose pane split must not depend on
+the selection - real fonts, real taffy, which a headless unit rig cannot
+measure at all), <code>bug_sandbox_soak</code> (the editor sandbox entered and then left
+alone, holding one physics step to its own timestep), <code>bug_carve_apply</code> (one
+cut that severs a rock, and what the main thread pays to SWAP the result in -
+the range counts grids rather than milliseconds, so it reads the same on
+every box) and
+<code>system_nova_os</code> (the Tab ship computer, opened with a keystroke and
+clicked THROUGH the CRT glass, so the whole forwarded-pointer chain - window
+rect, screen-to-image mapping, offscreen UI stack, <code>Activate</code> - is asserted
+live rather than one link at a time). Finally the STRESS ranges, one file
+each: <code>stress_bullets</code>,
+<code>stress_torpedoes</code>, <code>stress_point_defense</code>, <code>stress_one_structure</code> and
+<code>stress_many_structures</code> hold a thousand rounds, a thousand guided torpedoes,
+one battery working a stream of inbound ordnance, a thousand sections on one
+body and a hundred bodies, each asserting exact counts, a drain to zero and a
+teardown that leaves nothing, with a frame-time capture riding along. Their
+scale constants are named and carry the comment that they must NEVER reflect
+real content; <code>stress_point_defense</code> also reads <code>NOVA_STRESS_PD_MOUNTS</code> and
+<code>NOVA_STRESS_PD_BAYS</code>, so one build can be swept across scales without
+moving what it asserts.
+The UI idiom: a beat NAMES its target (<code>click_named</code> / <code>hover_named</code> /
+<code>ui_node_centre</code> / <code>ui_node_rect</code> in <code>nova_autopilot::input</code>) so a layout move
+is survivable and only a rename breaks a run; nothing reaches a widget by
+triggering its observer or inserting its state component. A target past the
+fold is SCROLLED to (<code>scroll_lines</code> / <code>scroll_pixels</code> turn the wheel), so a
+list taller than its box costs the run nothing, and a target behind a render
+target is AIMED at by undoing the composite that displays it
+(<code>nova_os_window_px_showing</code>), since a node laid out by an offscreen camera
+reports a rect in a space no cursor can be placed in. A driven run that still
+cannot reach a target says so and states its COVERAGE in the verdict -
+<code>bug_menu_picker</code> names any row it gave up on and fails outright below two
+measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their
+subject is the outcome chain, so pixel coordinates would only add layout
+coupling.</li>
+<li><code>screenshots/</code> - the content producers, and the NAME says what a run makes:
+<code>screenshot_*</code> writes STILLS, <code>loop_*</code> writes VIDEO. One producer captures
+ONE thing in at most THREE frames, because a long scripted walk cannot hold
+the same result twice - the fat sets these replace strung a dozen captures
+onto one script, so a beat that drifted took every frame after it with it.
+Duplication between producers is the accepted price: several stage the same
+set, and the scene builders they share live in <code>examples/screenshots/shared/</code>.
+The stills, by set: the Drydock drift beauty shots (<code>screenshot_gravity</code>,
+<code>screenshot_hero_ship</code>), the menu and editor walks (<code>screenshot_menu</code>,
+<code>screenshot_scenario_picker</code>, <code>screenshot_editor</code>), the section closeups
+(<code>screenshot_section_frame</code>, <code>screenshot_section_weapons</code>), the Tab ship
+computer (<code>screenshot_nova_os_terminal</code>, <code>screenshot_nova_os_apps</code>), the Rock
+hollow combat beats (<code>screenshot_radar_lock</code>, <code>screenshot_contextual_hud</code>,
+<code>screenshot_combat_lock</code>, <code>screenshot_combat_hud</code>, <code>screenshot_combat_wide</code>,
+<code>screenshot_hull_juice</code>, <code>screenshot_torpedo_run</code>) and the flight computer
+around a real well (<code>screenshot_orbit</code>, <code>screenshot_goto_burn</code>,
+<code>screenshot_flip_burn</code>). The two webm producers are <code>loop_torpedo_blast</code> and
+<code>loop_spine_cut</code>. The posed LINEUPS live here too -
+<code>screenshot_thruster_gallery</code> (the shipped drive, the proposed shell family
+and the CC0 candidates in one named row) and <code>screenshot_damage_levels</code> (the
+same ship at five damage levels, side by side, which is one comparison and so
+one producer). Neither registers a key, so a hand-run is a free-fly look at a
+still row; either would move to <code>playable/</code> the day it grows
+<code>greeble_catalog</code>’s selection layer.
+<code>scripts/gen-web-screenshots.py --producers</code> prints the list the site
+actually consumes, so a capture flow never runs off a hand-kept array.</li>
+</ul>
+<p>When adding a substantial feature, add or extend the range that drives it. When
+fixing a bug, WRITE the range that reproduces it first: that is the doctrine in
+<code>AGENTS.md</code>, and the invariant roster is what keeps it honest.</p>
+<p>Every example is HARNESSED: it drives itself under
+<code>NOVA_AUTOPILOT=1</code>, and probe is the regression suite over all of them -
+<code>cargo run --features debug probe run systems</code> (or <code>screenshots</code>, or
+<code>playable</code>) runs one category alone, and <code>--all</code> is the whole catalog, which is
+what CI runs. Each example must reach <code>Playing</code> and exit without panic; every
+<code>systems/</code> range additionally carries panic-on-failure behavior assertions with
+completion backstops (a stalled script fails instead of passing vacuously). The
+rosters are pinned by the display-free
+<code>systems_ranges_assert_their_invariant_roster</code>, so an invariant cannot be
+deleted into a still-green run. The <code>screenshots/</code> and <code>playable/</code> examples
+carry no behavior assertions of their own - they drive the shipped
+scenes to capture frames - but every one walks an <code>AutopilotPlugin</code> step
+timeline, so a beat that never resolves is an error exit naming that step, and
+every one adds <code>nova_probe::NovaProbePlugin</code>, so a probe run grades the walk on
+the engine invariants. Disk and catalog
+cannot drift: the display-free <code>catalog_matches_disk</code> test
+(<code>crates/nova_probe_cli/tests/catalog_drift.rs</code>) fails <code>cargo test --workspace</code>
+when a new example misses its <code>[[example]]</code> block. That is the case nothing else
+catches - with auto-discovery off, an uncataloged example file does not build at
+all and no other tool says so.</p>
+<p>The drivers themselves - <code>AutopilotPlugin</code>, the screenshot capture,
+the completion protocol, and the full <code>NOVA_*</code> environment contract - live in
+the <code>nova_autopilot</code> crate and are documented on
+<a href="automation-harness.html">The automation harness</a>. This page only shows the run
+recipes; that page is the contract.</p>
+<p>Harness runs are SILENT: any harness env (<code>NOVA_AUTOPILOT</code>,
+<code>NOVA_CAPTURE</code>) zeroes the audio output via <code>HarnessMute</code> - Xvfb hides the
+window but not the speakers, and nobody listens to a scripted run. The
+volume SETTING is untouched (persistence and the settings menu never see
+the mute). <code>NOVA_MUTE=0</code> forces sound through a harness run;
+<code>NOVA_MUTE=1</code> mutes a normal one, and the game binary’s <code>--mute</code> flag does the
+same - see the outputs-off pair above.</p>
+<h3 id="examples-as-bug-pins"><a class="header" href="#examples-as-bug-pins">Examples as bug pins</a></h3>
+<p>A bug becomes a RANGE (<code>AGENTS.md</code>): reproduce it in <code>examples/systems/</code>
+before the fix, and the fix is what turns the range green. A unit/App test
+still pins a system-level mechanism, but anything that only manifests in a
+composed scene belongs in a range (for example, <code>system_menu_boot</code> runs the
+shipped boot flow with the ECS fallback error handler swapped to panic, so
+unhandled command errors on those transitions fail CI). A range’s pin is an
+autopilot-script assertion (a named step whose <code>on_enter</code> asserts, reached only
+once the steps before it have waited on the world - see
+<code>system_hull_damage</code>/<code>system_hud_indicators</code> for the style) carrying an
+<code>outcome: &lt;slug&gt;</code>
+marker on the roster; CI’s probe sweep runs it on every push. Caveat: the handler swap
+does NOT catch <code>remove</code>/<code>despawn</code> command warns (they bake in the WARN handler
+at queue time).</p>
+<h2 id="launching-a-scenario-from-the-command-line"><a class="header" href="#launching-a-scenario-from-the-command-line">Launching a scenario from the command line</a></h2>
+<p><code>--scenario &lt;id&gt;</code> on the game binary boots straight into that scenario, past
+the main menu - for anyone who would rather not click through the picker, and
+for a mod author testing one scenario id in one command:</p>
+<pre><code class="language-sh">cargo run -- --scenario broadside          # a base scenario
+cargo run -- --scenario my_mod_intro       # anything an ENABLED mod registers
+cargo run -- --scenario nope               # refuses, and lists every id
+</code></pre>
+<ul>
+<li>The id is matched against the MERGED registry (base plus every enabled mod),
+so a mod’s scenarios are launchable by id and <code>hidden</code> chapters and menu
+backdrops are too - a superset of the rows the Scenarios picker shows.</li>
+<li>An unknown id prints the full id list to stderr and exits non-zero. The check
+happens once the content merge has run, which is after the window opens: the
+merged registry does not exist before that.</li>
+<li>The launch is the picker’s own door (<code>NewGameScenario</code> + <code>GameMode::NewGame</code>
+<ul>
+<li><code>GameStates::Playing</code>), so the scenario comes up through the same loader and
+the same non-blocking load screen as a click on Play.</li>
+</ul>
+</li>
+<li>Native only. The wasm bundle has no command line.</li>
+</ul>
+<h2 id="content-cli"><a class="header" href="#content-cli">Content CLI</a></h2>
+<p><code>content</code> (<code>nova_authoring::cli::main</code>, <code>crates/nova_authoring/src/cli.rs</code>; a
+subcommand of the game binary, not a separate bin) authors and validates the
+game’s content. Two subcommands, run from the repo root:</p>
+<pre><code class="language-sh">cargo run content gen                                   # regenerate the base *.content.ron
+cargo run content lint                                  # lint the whole content tree
+cargo run content lint --target &lt;mod&gt;                   # lint one mod (dir, id, or `base`)
+cargo run content lint --target &lt;mod&gt; --report r.md     # + write a per-mod report (md|html)
+</code></pre>
+<ul>
+<li><code>gen</code> serializes the code-built base content into the committed
+<code>assets/base/**/*.content.ron</code>. The base RON is GENERATED from Rust builders
+(<code>nova_authoring::generation</code>, backed by private <code>base_content</code>) - edit the builder and regenerate, never
+hand-edit the RON, or the <code>content_ron_parity</code> test goes red.</li>
+<li><code>lint</code> runs EVERY content check in one pass (the <code>audit</code> subcommand was folded
+in here - balance is a kind of lint):
+<ul>
+<li>the identifier + geometry + resource checks the load/publish gates cannot
+(dangling <code>NextScenario</code> targets, unspawnable filter targets, duplicate ids,
+scenarios with no terminal <code>Outcome</code>, resource-ref membership, …);</li>
+<li>the combat balance/fairness audit - every combat scenario’s derived sheet,
+graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; a bundle
+acknowledges its OWN deliberate imbalances in a <code>balance_acks.ron</code> beside
+its manifest, so the justification travels with the mod (a stale ack that
+matches no live finding is an ERROR, so every list stays pruned);</li>
+<li>the flight-rig input-overlap check - a content <code>input_mapping</code> section
+bound to a key the always-on flight rig also binds (W/Space/RightTrigger
+burn, autopilot, …) silently double-drives flight and is flagged (WARN).</li>
+<li><code>--target</code> lints a single mod by directory or in-repo id
+(<code>webmods/&lt;id&gt;</code>, <code>assets/mods/&lt;id&gt;</code>, or <code>base</code>); <code>--report &lt;path&gt;</code> writes a
+per-mod document (Markdown, or HTML for a <code>.html</code> path / <code>--format html</code>)
+that names, for each finding, the file + element + explanation + suggested
+fix. Exits non-zero on any ERROR. The <code>content_lint_gate</code>,
+<code>balance_audit_gate</code> and <code>content_report_gate</code> tests run these walks in CI.</li>
+</ul>
+</li>
+</ul>
+<h2 id="web-build"><a class="header" href="#web-build">Web build</a></h2>
+<p>WASM via <strong>Trunk</strong> (<code>Trunk.toml</code>, <code>index.html</code>):</p>
+<pre><code class="language-sh">trunk serve            # serve the game alone on http://localhost:8080
+trunk build --release
+</code></pre>
+<p>For the full site (game at <code>/play/</code>, mod portal at <code>/mods/</code>) with everything
+watched, use <code>scripts/serve-web.sh</code> - see <a href="#local-web-preview">Local web preview</a>
+below.</p>
+<p><code>.cargo/config.toml</code> sets <code>--cfg=web_sys_unstable_apis</code> for wasm; <code>bevy_rand</code>
+uses its <code>wasm_js</code> feature there. Trunk only supports the <code>release</code> profile.
+The GitHub Pages deploy (<code>.github/workflows/deploy-page.yaml</code>) builds the
+landing site (<code>web/</code>) at the root, the game under <code>/play/</code>, and the generated
+mod portal (<code>scripts/gen-portal.py</code>) under <code>/mods/</code>.</p>
+<p>The same sources fan out into three build targets that combine into one
+published site:</p>
+<pre class="mermaid">flowchart LR
+  src[Sources]
+  src --&gt;|cargo| native[Native game]
+  src --&gt;|web build| landing[Landing + wiki]
+  src --&gt;|trunk| wasm[Bevy WASM game]
+  landing --&gt; pages[GitHub Pages]
+  wasm --&gt; pages
+  pages --&gt; root["/ (landing)"]
+  pages --&gt; play["/play/ (game)"]
+</pre>
+
+<h3 id="local-web-preview"><a class="header" href="#local-web-preview">Local web preview</a></h3>
+<p>The published site is three builds stitched together - the content site at <code>/</code>,
+the WASM game at <code>/play/</code>, the generated mod portal at <code>/mods/</code>. Serving only
+one of them locally is what makes <strong>Play</strong> fall back to the landing page and the
+in-game Explore tab come up empty. Two scripts cover the two things you actually
+want:</p>
+<pre><code class="language-sh">nix develop -c scripts/serve-web.sh      # live dev: all three, watched
+nix develop -c scripts/preview-web.sh    # one-shot static build of the deploy
+</code></pre>
+<p><code>serve-web.sh</code> starts all three servers and proxies the other two onto the
+site’s origin, so a single URL has the deployed shape:</p>
+<pre class="mermaid">flowchart LR
+  you([Browser])
+  you --&gt;|":UI_PORT/"| site["webpack dev server&lt;br/&gt;watches web/src"]
+  site --&gt;|proxy /play| game["trunk serve&lt;br/&gt;watches crates, src, assets"]
+  site --&gt;|proxy /mods| mods["serve-mods.sh&lt;br/&gt;watches webmods/"]
+</pre>
+
+<p>Everything rebuilds on save: edit a wiki page and the tab reloads, edit a crate
+and Trunk rebuilds the wasm, edit a mod and the portal is regenerated in place.
+<code>--release</code> switches the game to an optimized build. Ctrl-C stops all three.</p>
+<p>Each server takes a <strong>random free port in 7000-7999</strong>, so several worktrees can
+serve at once - the banner prints the URLs. Pin any of them, or point the site
+at servers you started yourself:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variable</th><th>Read by</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>NOVA_UI_PORT</code></td><td><code>web/webpack.config.js</code></td><td>Fixes the site’s port.</td></tr>
+<tr><td><code>NOVA_GAME_PORT</code></td><td><code>scripts/serve-web.sh</code></td><td>Fixes the game’s port (exported as <code>TRUNK_SERVE_PORT</code>).</td></tr>
+<tr><td><code>NOVA_MODS_PORT</code></td><td><code>scripts/serve-mods.sh</code></td><td>Fixes the portal’s port.</td></tr>
+<tr><td><code>GAME_DEV_URL</code></td><td><code>web/webpack.config.js</code></td><td>Where <code>/play</code> is proxied. Default <code>http://localhost:8080</code> (Trunk’s own default).</td></tr>
+<tr><td><code>MODS_DEV_URL</code></td><td><code>web/webpack.config.js</code></td><td>Where <code>/mods</code> is proxied. Default <code>http://localhost:9000</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Two things are worth knowing before you go off-script:</p>
+<ul>
+<li><strong>Trunk needs explicit watch paths here.</strong> Its default (“the build target’s
+parent folder”, i.e. the repo root) never fires in this repo, so a bare
+<code>trunk serve</code> keeps serving the first build no matter what you edit.
+<code>serve-web.sh</code> passes <code>--watch</code> for each real input (<code>crates</code>, <code>src</code>,
+<code>assets</code>, <code>credits</code>, <code>build</code>, <code>index.html</code>, <code>Cargo.toml</code>, <code>Cargo.lock</code>).</li>
+<li><strong>The portal must be same-origin with the game.</strong> The wasm build derives its
+portal base from <code>window.location</code>, so under <code>/play/</code> it fetches
+<code>&lt;origin&gt;/mods</code>. That is why the <em>site</em> server proxies <code>/mods</code>, and why a
+cross-origin <code>?portal=</code> override fails on CORS. See
+<a href="https://alexjercan.github.io/nova-protocol/create/publish-a-mod/#preview-the-repository-portal">Publish a mod</a>.</li>
+</ul>
+<p><code>preview-web.sh</code> is the other half: no dev servers and no proxies, just
+<code>trunk build</code> + <code>npm run build</code> + <code>gen-portal.py</code> assembled into <code>web/dist</code> and
+served statically on <code>:8090</code>. It does not watch anything, but it is the only
+local check of the real deploy layout - run it before a release.</p>
+<h3 id="regenerating-the-web-screenshots"><a class="header" href="#regenerating-the-web-screenshots">Regenerating the web screenshots</a></h3>
+<p>The site’s <code>.figure</code> blocks ship as placeholders; the real screenshots are
+captured in-engine and packaged into <code>web/src/assets/</code> by
+<code>scripts/gen-web-screenshots.py</code>. Each figure auto-upgrades to its image at
+runtime once the asset exists (progressive enhancement in <code>web/src/site.ts</code>), so
+no HTML edit is needed - just drop the file in.</p>
+<p>Capture (needs a display + GPU; headless CI-style is Xvfb + lavapipe) into a
+staging dir, then package into <code>web/src/assets/</code>:</p>
+<pre><code class="language-sh">export NOVA_CAPTURE_DIR=target/shots
+for shot in $(python3 scripts/gen-web-screenshots.py --producers); do
+    NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example "$shot" --features debug
+done
+python3 scripts/gen-web-screenshots.py   # validate + copy; build composites; write the 44x44 icons
+</code></pre>
+<p>The capture examples run headless under <code>NOVA_AUTOPILOT</code>: each is one autopilot
+script whose steps pose the camera and shoot, and <code>NOVA_CAPTURE</code> is what makes
+those shot steps write 1920x1080 PNGs rather than drive straight through. The Python step validates
+each shot is 16:9, copies it in, builds the composite shots a single capture
+cannot make (e.g. <code>devlog5-radar-stance-slots</code>, two lock stances side by side)
+with a stdlib PNG codec, generates the section icons, and reports which shots
+have no capture example yet. Commit the resulting PNGs (they are content, like
+<code>banner.png</code>). Run <code>python3 scripts/gen-web-screenshots.py --self-test</code> to check
+the PNG codec (decode/resize/compose) and the report’s classification rules in
+isolation.</p>
+<h4 id="what-is-still-missing"><a class="header" href="#what-is-still-missing">What is still missing</a></h4>
+<pre><code class="language-sh">python3 scripts/gen-web-screenshots.py --report
+</code></pre>
+<p>Scans <code>web/src/**</code> for referenced <code>assets/&lt;name&gt;</code> images, diffs them against the
+manifest and the shipped assets, and prints each gap with an owner class:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Class</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>capturable</code></td><td>A game render a cataloged example can capture.</td></tr>
+<tr><td><code>manual</code></td><td>Authored art (post-card thumbnails, icons, diagrams) - no automation produces it.</td></tr>
+<tr><td><code>historical</code></td><td>A figure for an older shipped version; the current build can only approximate it.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Wrong-shaped and unreadable assets, assets the site never references, and staged
+PNGs the manifest does not declare print the same way. The report is ADVISORY:
+it copies nothing and always exits 0, so it is a worklist (for the owner: what
+art to draw; for automation: what a producer could capture), never a gate.</p>
+<p>It closes with the GAME’s half of the same worklist: every Scenarios-picker
+thumbnail still on generated placeholder art, classed <code>manual</code>.</p>
+<h3 id="scenario-picker-thumbnails"><a class="header" href="#scenario-picker-thumbnails">Scenario picker thumbnails</a></h3>
+<p>Every picker-visible scenario shows its own image in the details pane. Real
+per-scenario art is authored, not captured, so until it exists each scenario
+carries a deterministic placeholder - a 320x180 phosphor plate of its own title:</p>
+<pre><code class="language-sh">python3 scripts/gen-scenario-thumbnails.py           # write every PNG
+python3 scripts/gen-scenario-thumbnails.py --check   # verify, write nothing
+</code></pre>
+<p>The PNG lands in the OWNING mod’s tree (<code>assets/base/thumbnails/&lt;id&gt;.png</code>,
+<code>webmods/&lt;mod&gt;/thumbnails/&lt;id&gt;.png</code>) and is referenced as
+<code>self://thumbnails/&lt;id&gt;.png</code> - never <code>dep://</code> another mod’s art. Drop real art
+at the same path and nothing else changes; the report stops listing it, because
+the file no longer matches a fresh render. A new scenario adds one row to
+<code>SCENARIOS</code> in the script and one entry to its bundle’s <code>resources</code>; a scenario
+with no art of its own is what the coverage report lists.</p>
+<h3 id="greeble-meshes"><a class="header" href="#greeble-meshes">Greeble meshes</a></h3>
+<p>The decorative fixtures a hull skin bolts onto its plates - vents, ribbing,
+blisters, masts - are GENERATED, not modelled. <code>scripts/gen-greebles.py</code> builds
+one <code>.glb</code> per JSON recipe in <code>scripts/greeble-recipes/</code> into
+<code>assets/base/gltf/greebles/</code>, all committed:</p>
+<pre><code class="language-sh">python3 scripts/gen-greebles.py             # write every .glb
+python3 scripts/gen-greebles.py --check     # verify, write nothing
+python3 scripts/gen-greebles.py --self-test # internal checks, no I/O
+</code></pre>
+<p>A recipe is a palette plus a list of primitives - <code>box</code>, <code>cylinder</code>, <code>taper</code>,
+<code>ribs</code>, <code>disc</code> - each with a size, an <code>at</code> offset and an optional <code>rotate</code>.
+Solids compose by overlap, not by CSG. Adding a piece is a new recipe file plus
+one entry in <code>assets/base/base.bundle.ron</code>’s <code>resources</code>; no code changes.</p>
+<p>Pieces are authored in the PLATE’s frame (the unit cell, out along <code>+Y</code>, <code>y = 0</code>
+the mounting face) and the generator refuses anything behind that plane, wider
+than half a cell, taller than its declared budget, or over 200 triangles. The
+build is byte-deterministic, which is what <code>--check</code> gates: generated art that
+churns turns every unrelated diff into a binary one.</p>
+<p>The three mesh scripts (<code>gen-greebles.py</code>, <code>cut-obj-into-hulls.py</code>,
+<code>cut-obj-into-parts.py</code>) share ONE hand-rolled, stdlib-only glTF writer,
+<code>scripts/nova_glb.py</code>. Prove a change to it kept the committed art intact by
+re-cutting a ship and diffing against <code>assets/base/gltf/parts/&lt;ship&gt;/</code>, which
+is byte-reproducible from its recipe.</p>
+<h3 id="eyeballing-the-site"><a class="header" href="#eyeballing-the-site">Eyeballing the site</a></h3>
+<p><code>npm run ci</code> proves the bundle compiles and the theme tokens are in sync; it
+proves nothing about how a page LOOKS. For any styling, layout or readability
+change, capture the pages and look at them:</p>
+<pre><code class="language-sh">nix develop -c scripts/shoot-web-pages.sh target/web-shots
+</code></pre>
+<p>It builds <code>web/</code>, serves <code>web/dist</code> on a free port and drives headless chromium
+over the six page kinds (landing, news index, a news post, tutorial, wiki index,
+a wiki page with code + a table + mermaid) at desktop and mobile widths,
+writing <code>&lt;kind&gt;-&lt;width&gt;.png</code> plus a <code>manifest.txt</code> naming the commit. For a
+before/after, run it once per commit into two dirs and compare the matching
+pairs at identical crop and scale - a comparison at two different zooms shows
+you the resize, not the change.</p>
+<h3 id="the-theme-is-shared-with-the-game"><a class="header" href="#the-theme-is-shared-with-the-game">The theme is shared with the game</a></h3>
+<p><code>web/src/style.css</code> and <code>crates/nova_ui/src/theme.rs</code> both mirror the <code>:root</code>
+block of <code>web/design/nova_ui_rework_poc.html</code> - the NOVA OS palette and its
+control vocabulary. That PoC is the single source: change it first, then both
+consumers.</p>
+<p>The PoC ships two skins and the site wears only one. Everything the site draws
+comes from the PHOSPHOR skin (the PoC’s <code>body[data-skin="phosphor"]</code> widget
+zoo): flat translucent green fills, 1px phosphor hairlines, 2px corners on
+controls, glow instead of bevel, and a solid <code>--phosphor</code> inversion for the
+primary state. The light-3D HARDWARE vocabulary (<code>--face</code>, <code>--rim</code>,
+<code>--undercut</code>, <code>--well</code>) stays in <code>:root</code> only to keep the mirror exact - it must
+be consumed nowhere.</p>
+<p><code>web/tests/theme.test.ts</code> (part of <code>npm test</code>, and so of <code>npm run ci</code>) parses
+the PoC and <code>style.css</code> and fails if the site’s tokens go missing or drift in
+value, if the phosphor vocabulary stops being consumed, or if any hardware
+material token is read outside <code>:root</code>.</p>
+<h2 id="run-verification-probe"><a class="header" href="#run-verification-probe">Run verification (probe)</a></h2>
+<p>The run-harness is two crates split at the process boundary: <code>nova_probe</code>
+(<code>crates/nova_probe/</code>) links into the example and collects the evidence, and
+<code>nova_probe_cli</code> (<code>crates/nova_probe_cli/</code>) is the host side. Together they drive an autopilot
+example, records what happened (correctness) and what it cost (performance),
+and assembles one reviewable report. The POST-FEATURE CHECK - “did my change
+break behavior or perf?” - is one command:</p>
+<pre><code class="language-sh">cargo run --features debug probe run system_player_path            # clean + frame time + trace -&gt; report
+cargo run --features debug probe run system_player_path --correctness-only # clean behavioral evidence only
+cargo run --features debug probe run system_player_path --samply   # + named flamegraph
+cargo run --features debug probe run system_player_path --baseline probe-runs  # FPS deltas vs nearest prior commit
+cargo run --features debug probe run system_player_path --repeat 5  # gated repeat set -&gt; a usable worst frame
+cargo run --features debug probe run system_player_path,system_scenario_grammar   # comma list -&gt; aggregate index
+cargo run --features debug probe run systems            # a whole category
+cargo run --features debug probe run --all               # the whole fleet
+cargo run --features debug probe scenario broadside      # a SCENARIO by id, no example involved
+cargo run --features debug probe scenario assets/base/scenarios/broadside.content.ron  # ... or by file
+</code></pre>
+<p>It runs the example headless (throwaway Xvfb; <code>--display :0</code> to reuse yours -
+and note that a software X server is not free, see
+<a href="performance.html#a-capture-under-xvfb-measures-the-x-server-too">Measuring performance</a>),
+captures the run timeline + continuous invariants + the log into
+<code>probe-runs/&lt;short-commit&gt;/&lt;example&gt;/</code> by default (or
+<code>&lt;out-base&gt;/&lt;short-commit&gt;/&lt;example&gt;/</code> with <code>--out &lt;out-base&gt;</code>), optionally
+adds the profiled and samply passes (separate builds - tracing overhead never
+touches the clean numbers), and renders <code>report.html</code> + <code>checks.json</code> with a
+provisional OK/WARN/FAIL/NO_DATA/UNPROBEABLE the reviewer confirms. Every
+run dir carries a <code>probe-run.json</code> manifest (identity, full git SHA, passes, outcomes); <code>probe report</code> only re-renders dirs that have one. The commit root also gets
+<code>index.html</code>, <code>index.json</code>, and <code>probe-all.json</code>, even when the spec names one
+example. <code>--correctness-only</code> runs only the clean pass: timeline, invariants,
+autopilot assertions, completion, reached-Playing, and log checks remain armed,
+while frame-time and traced passes are omitted. CI uses this mode; release
+verification uses the full run. Three verbs are the whole surface - <code>run</code>,
+<code>scenario</code> and <code>report</code> - and each takes <code>-h</code>/<code>--help</code>, as does the root.</p>
+<p><code>probe scenario</code> takes those same passes to a scenario, with nothing in
+between: the SHIPPED GAME BINARY is the program, launched with <code>--scenario &lt;id&gt;</code> or <code>--scenario-file &lt;path.ron&gt;</code> and carrying the probe collectors under
+its <code>debug</code> feature. A positional ending in <code>.ron</code> is a loose content file,
+registered for that run whether or not it is installed - so a scenario a
+contributor or a mod author is still writing is measurable without adding it to
+any catalog. Its <code>self://</code> art resolves against the nearest enclosing
+<code>*.bundle.ron</code> folder, the same place the merge would have resolved it. There
+is no spec to expand and no aggregate: one subject, one run dir, the same
+<code>report.html</code> + <code>checks.json</code>. Measuring a scenario needs NO example, no
+<code>[[example]]</code> block and no Rust file - that is the point of the verb.</p>
+<p>Every run spec resolves to a list. A single example is just a one-item list;
+comma lists, category dir names, and <code>--all</code> expand against the <code>[[example]]</code>
+catalog and run sequentially with continue-on-failure. The status index lives
+above the example dirs: <code>index.html</code> (one row per example - verdict, measured
+n/total, one column per check, duration, a link to its report), <code>index.json</code>
+(the machine mirror), and <code>probe-all.json</code> (the re-render gate). The aggregate
+verdict is the WORST row; the exit code mirrors it. <code>--all</code> runs the whole
+catalog, and a bare <code>probe run</code> errors with the catalog listing rather than
+starting a fleet sweep by accident.
+Categories take single-digit minutes warm; <code>--all</code> is the pre-release/nightly
+sweep (roughly half an hour). <code>--baseline &lt;base&gt;</code> searches <code>&lt;base&gt;</code> for the
+nearest previous commit-hash directory in git history, ignoring compatibility
+folders such as <code>before</code>, then each example compares against
+<code>&lt;base&gt;/&lt;previous-short-commit&gt;/&lt;example&gt;/frametime.csv</code> when present. Without
+<code>--baseline</code>, probe searches the same base used by <code>--out</code>, defaulting to
+<code>probe-runs</code>.</p>
+<p>Probe runs are <strong>profile-sandboxed</strong>: a run measures a commit, so it must not
+depend on your desktop profile. Every native child run is pointed at an empty,
+probe-owned profile under its own run dir - <code>profile/mods</code>
+(<code>NOVA_MODDING_CACHE_ROOT</code>, the downloaded-mod cache and its <code>installed.mods.ron</code>),
+<code>profile/data</code> (<code>XDG_DATA_HOME</code>) and <code>profile/config</code> (<code>XDG_CONFIG_HOME</code>, where
+<code>enabled_mods.ron</code> and <code>settings.ron</code> live) - and the tree is wiped at the start
+of each run. Without it, a mod cached in a structure an older commit cannot
+parse, or a saved enabled-mod set, fails or shifts a run for reasons unrelated
+to the code under measurement. Shipped content is untouched: <code>assets/</code> and
+<code>assets/mods.catalog.ron</code> load exactly as they do for a player, only YOUR saved
+state is swapped out. To probe your real installed mods, export the variable
+yourself - probe preserves any of the three it finds already set, and prints
+which ones it left alone:</p>
+<pre><code class="language-sh">NOVA_MODDING_CACHE_ROOT=~/.local/share/nova-protocol cargo run --features debug probe run system_player_path
+</code></pre>
+<p><code>XDG_CACHE_HOME</code> is deliberately NOT redirected (the shader cache lives there,
+and throwing it away each run would make FPS numbers incomparable). The XDG
+pair is how the <code>dirs</code> crate resolves on Linux, the supported probe host;
+<code>nova_probe_cli::native::profile_sandbox</code> has the details.</p>
+<p>Frame-time capture, the repeat set and its validity gate, the fixed-step and
+Xvfb traps, the frame-cost and census breakdowns, the preset sweep and the
+profiled pass all live on <a href="performance.html">Measuring performance</a>. This section
+stops at the run and its verdict.</p>
+<h3 id="run-timeline-correctness-recording"><a class="header" href="#run-timeline-correctness-recording">Run timeline (correctness recording)</a></h3>
+<p><code>nova_probe</code> also records WHAT HAPPENED during a run: set
+<code>NOVA_PROBE_TIMELINE=&lt;out.jsonl&gt;</code> on any example that adds
+<code>nova_probe::nova_timeline()</code> - which <code>NovaProbePlugin</code> does unconditionally,
+so that is EVERY cataloged example - and the run appends one JSON object per
+line: every <code>GameStates</code>/pause transition, every fired scenario
+event with its payload (kills, area enter/exit, locks), every scenario-variable
+change (old/new), plus the beats the autopilot script pushes itself via
+<code>nova_probe::probe_marker</code>. Entries are flushed as written, so a panicked run
+keeps everything up to the panic. Compare runs by ORDER and VALUES, not
+timestamps (wall-clock and frame counts vary across hosts):</p>
+<pre><code class="language-sh">NOVA_PROBE_TIMELINE=/tmp/run.jsonl NOVA_AUTOPILOT=1 \
+  cargo run --example system_player_path --features debug
+</code></pre>
+<p>The timeline is native-only (no fs in the browser) and inert without the env
+var. It is the correctness half of the run-harness whose performance half is
+<a href="performance.html">Measuring performance</a>; the run report below renders both.</p>
+<p>Continuous INVARIANTS ride the same stream: set <code>NOVA_PROBE_INVARIANTS=1</code> (or
+<code>=strict</code> to panic on the first violation) on a wired example and every frame
+asserts what the engine guarantees - health within <code>0..=max</code> and finite,
+velocities finite (plus an absurd-speed bound at 10x a ship’s soft
+<code>FlightSpeedCap</code>), scenario Number variables finite, registered monotonic
+variables never decreasing (opt-in per example: <code>system_player_path</code> registers
+<code>target_down</code>/<code>leg</code>, <code>system_scenario_grammar</code> seven counters and latches,
+<code>system_outcomes</code> <code>hostile_down</code>), and a total entity-count leak bound. A
+monotonic is one-way within a SCENARIO LIFE, not for the process: the memory is
+forgotten on <code>ScenarioLoaded</code>, so an example that replays through its loop
+point re-seeds its latches without taking a false regression. Violations warn,
+land on the timeline as <code>kind: "invariant"</code> entries, and feed the report’s
+<code>invariants held</code> check.</p>
+<h3 id="the-run-report-one-verdict-surface"><a class="header" href="#the-run-report-one-verdict-surface">The run report (one verdict surface)</a></h3>
+<p><code>run_report</code> assembles a RUN DIRECTORY - whatever the passes above dropped
+into it (<code>timeline.jsonl</code>, <code>frametime.csv</code>, <code>trace.json</code>, <code>run.log</code>, each
+optional) - into a self-contained <code>report.html</code> plus a machine-readable
+<code>checks.json</code>:</p>
+<pre><code class="language-sh">cargo run --features debug probe report &lt;run-dir&gt;... [--baseline &lt;old-run-dir&gt;]
+</code></pre>
+<p>Auto checks produce a provisional OK/WARN/FAIL/NO_DATA/UNPROBEABLE (process
+exit from the run manifest, run completed, reached Playing, invariants held,
+FPS vs baseline as a soft gate, log scan, artifacts loadable); a check whose
+capability the example never declared is N/A - “not claimed” - and an
+unresolvable one is SKIPPED - “not measured”; neither means “held”.
+<code>checks.json</code> pairs the verdict with a <code>measured: n/total</code> figure plus
+per-check structured data. A present-but-unloadable artifact degrades that one
+artifact to absent and FAILS <code>artifacts_loadable</code> with the reason, rather than
+aborting the report the failure would have been visible in.
+Zero evidence is NO_DATA (nonzero exit) and a run that graded no declared
+capability is UNPROBEABLE (zero exit - the sanctioned no-probe-plugin
+opt-out, gated on its smoke checks alone), FPS improvements PASS (only regressions WARN -
+frame numbers are host-noisy), a hung run is killed and still produces a
+FAILing report, and the report ends with a reviewer checklist: the final
+OK/NOT-OK is a human’s or an agent’s call, off <code>checks.json</code> without
+parsing HTML.</p>
+<h2 id="versioning-and-release"><a class="header" href="#versioning-and-release">Versioning and release</a></h2>
+<ul>
+<li>Version: <code>workspace.package.version</code> in root <code>Cargo.toml</code>; crates inherit it.</li>
+<li><code>nova_info::APP_VERSION</code> comes from the <code>APP_VERSION</code> env var via <code>build.rs</code>.</li>
+<li>Packaging assets (icons, installer, .app) live under <code>build/</code>.</li>
+</ul>
+<h3 id="cutting-a-release"><a class="header" href="#cutting-a-release">Cutting a release</a></h3>
+<p>Pushing a tag <code>v[0-9]+.[0-9]+.[0-9]+*</code> triggers <code>release-flow</code>
+(<code>.github/workflows/release.yaml</code>). Steps, on <code>master</code>:</p>
+<ol>
+<li>Check the documentation surfaces are current (see
+<a href="keeping-docs-in-sync.html">Keeping docs in sync</a>): this book builds clean
+(<code>mdbook build</code>) and the pages the cycle’s changes touched are updated.</li>
+<li>Bump <code>workspace.package.version</code> in root <code>Cargo.toml</code>.</li>
+<li>Refresh <code>Cargo.lock</code>: <code>cargo metadata --format-version 1 &gt;/dev/null</code>.</li>
+<li>Update <code>CHANGELOG.md</code> (Keep a Changelog, one concise line per entry):
+promote <code>[Unreleased]</code> to <code>[&lt;version&gt;] - &lt;YYYY-MM-DD&gt;</code>, leave a fresh empty
+<code>## [Unreleased]</code> on top, merge any duplicate section headings that grew
+during the cycle, and update the compare links at the bottom (repoint
+<code>[unreleased]</code>, add the new <code>[&lt;version&gt;]</code> line).</li>
+<li>Commit exactly those three files:
+<code>git add Cargo.toml Cargo.lock CHANGELOG.md &amp;&amp; git commit -m "chore(release): vX.Y.Z"</code>.</li>
+<li><code>git tag vX.Y.Z</code> (CI reads the tag for the release name).</li>
+<li><code>git push origin master &amp;&amp; git push origin vX.Y.Z</code>.</li>
+<li>Watch the run (<code>gh run watch</code>), then check the GitHub release page and
+consider adding summarized release notes (<code>gh release edit vX.Y.Z --notes-file ...</code>).</li>
+<li>Write or expand the release News post (see “Writing the release news post”
+below) and land it in <code>web/</code>; sync any wiki pages the cycle changed (see
+<a href="keeping-docs-in-sync.html">Keeping docs in sync</a>).</li>
+</ol>
+<p>The workflow uploads four assets to a release named after the tag: macOS
+universal <code>.dmg</code>, Linux <code>.tar.gz</code>, Windows <code>.zip</code>, and a wasm-opt’d web zip.
+It can also be re-run via <code>workflow_dispatch</code> with a <code>version</code> input.</p>
+<h3 id="writing-the-release-news-post"><a class="header" href="#writing-the-release-news-post">Writing the release news post</a></h3>
+<p>Every release cycle gets one <strong>News</strong> post on the site (<code>/news/</code>, markdown under
+<code>web/src/news/</code>). News is the merged devlog + release notes: <strong>one post per
+FEATURE release</strong> (<code>v0.X.0</code>). Patch releases do NOT get
+their own post - they fold into the parent feature post’s <code>## Point releases</code>
+section (<code>v0.5.0</code>’s post covers <code>v0.5.1</code> and <code>v0.5.2</code>). The terse per-version
+list stays in <code>CHANGELOG.md</code>; source the post’s content from the cycle’s
+<code>CHANGELOG.md</code> sections.</p>
+<p>A News post follows the spirit of Factorio’s Friday Facts: a narrative lead,
+then a handful of feature-by-feature <code>##</code> sections written candidly (the
+reasoning, the dead-ends, the piece you are proudest of), leaning on screenshots,
+and - where a devlog video exists - an optional <code>## Watch the devlog</code> companion
+near the top (the written highlights must stand on their own; the video is an
+extra). Do not just restate the terse <code>CHANGELOG.md</code>.</p>
+<p>Adding a post touches three places (mirror an existing post such as
+<code>web/src/news/0.5.0.md</code>):</p>
+<ol>
+<li>Write the post at <code>web/src/news/&lt;version&gt;.md</code> (e.g. <code>0.6.0.md</code>). The page
+shell (<code>newsPostShell</code> in <code>web/markdown.js</code>) renders the H1, the
+<code>&lt;date&gt; // v&lt;version&gt;</code> meta line, and the footer (the Discussions prompt plus
+the <code>CHANGELOG.md</code> pointer and “All news” link), so the markdown is just the
+body: the H1 (<code># vX.Y.0 - &lt;title&gt;</code>), the lead, the <code>##</code> sections, <code>.figure</code>
+placeholder blocks for screenshots to capture later, an optional
+<code>.video-embed</code> companion, a <code>.callout.callout--breaking</code> block for any format
+break, and a closing <code>## Point releases</code> section for the cycle’s patches.
+Do not add a footer or a <code>CHANGELOG.md</code> link yourself - the shell adds them.</li>
+<li>Register it in <code>web/webpack.config.js</code>: add an entry to <code>NEWS_POSTS</code>
+(newest-first) with <code>slug</code>/<code>version</code>/<code>date</code>/<code>description</code>. The plugin list and
+the <code>historyApiFallback</code> rewrite both derive from <code>NEWS_POSTS</code>, so no other
+wiring is needed.</li>
+<li>Add a <code>.post-card</code> to <code>web/src/news.html</code> at the top of <code>.post-grid</code>
+(newest-first): a media thumbnail plus the date/version, title, and one-line
+excerpt. For the thumbnail, use the YouTube thumbnail
+(<code>https://img.youtube.com/vi/&lt;id&gt;/hqdefault.jpg</code>) if the release has a video,
+otherwise the <code>.post-card__ph</code> placeholder naming <code>assets/thumb-news-&lt;version&gt;.png</code>.</li>
+<li>Rebuild and check it: <code>cd web &amp;&amp; npm run ci</code> (format check, lint, test, build).</li>
+</ol>
+<h2 id="contributing-a-change"><a class="header" href="#contributing-a-change">Contributing a change</a></h2>
+<p>The everyday loop for landing a change:</p>
+<ol>
+<li>
+<p><strong>Branch</strong> off <code>master</code>. Work items are tracked as <code>tasks/</code> markdown (see
+<a href="#task-tracking">Task tracking</a> below); check the backlog first.</p>
+</li>
+<li>
+<p><strong>Build and format</strong>: <code>cargo check &amp;&amp; cargo fmt</code> before you commit. Do NOT
+run <code>cargo test</code> or <code>cargo clippy</code> locally unless asked - they are slow and
+CI is the source of truth; when you skip them, say so.</p>
+</li>
+<li>
+<p><strong>Drive it with an example.</strong> For a substantial feature, add or extend the
+<code>examples/</code> example that exercises it, with a harnessed autopilot assertion
+(see <a href="#examples">Examples</a>) - this repo prefers a runnable example over an
+isolated unit test.</p>
+</li>
+<li>
+<p><strong>Open a PR.</strong> CI (<code>.github/workflows/ci.yaml</code>) runs on every PR and push to
+<code>master</code>: <code>cargo fmt --check</code>, <code>cargo clippy --workspace --all-targets --features debug -- -D warnings</code>, <code>cargo test --workspace --features debug</code>,
+then the windowed <code>probe run --all --correctness-only</code> sweep under
+Xvfb/lavapipe plus the
+<code>nova_autopilot</code> example test under Xvfb. Three more
+jobs run in parallel with that one: a default-features
+<code>cargo check --workspace --all-targets</code> under <code>RUSTFLAGS=-D warnings</code>, a
+wasm32 <code>cargo clippy --workspace --exclude nova_probe_cli</code> (the host harness
+has no meaning in a browser), and a dependency-license gate. Those two exist
+to catch dead code and unused imports that only appear with <code>debug</code> off or
+on wasm - neither configuration is otherwise built. All of it must be green
+to merge.</p>
+<p>The wasm job is CLIPPY rather than <code>check</code>, and it points <code>CLIPPY_CONF_DIR</code>
+at <code>ci/wasm-clippy/</code>, whose <code>clippy.toml</code> bans the std APIs that COMPILE for
+wasm32 and then panic in the browser - a class of bug no <code>cargo check</code> on
+that target can see. Those bans are correct only there: natively
+<code>bevy::platform::time</code> re-exports std’s clock, so the same list would flag
+correct code in the main job. That is why the config lives outside the
+repository root, and why there is no root <code>clippy.toml</code>.</p>
+</li>
+</ol>
+<p>House style is in <a href="https://github.com/alexjercan/nova-protocol/blob/master/AGENTS.md"><code>AGENTS.md</code></a>
+at the repo root - Rust, Bevy, Nova, comments, documentation, changelog and web,
+each a section. Commit messages are plain and use ASCII punctuation only.
+Releases are a separate, tagged flow (see <a href="#cutting-a-release">Cutting a release</a>).</p>
+<h2 id="task-tracking"><a class="header" href="#task-tracking">Task tracking</a></h2>
+<p>Work items live as markdown under <code>tasks/</code> (managed with the <code>tatr</code> CLI), so
+they are versioned alongside the code. Check the backlog before starting and
+close tasks when done. Each task has its own folder holding its <code>TASK.md</code> plus
+any task-scoped records (<code>SPIKE.md</code>, <code>REVIEW.md</code>, <code>RETRO.md</code>, <code>NOTES.md</code>).
+Multi-task plans are tatr tasks too - a release plan is a task with the strand
+breakdown in its body (or a <code>release</code>/<code>meta</code> tracker task linking the per-strand
+tasks). <code>docs/</code> is the source of this book, not scratch: transient working
+files live outside the repo, and task-scoped records live in <code>tasks/&lt;id&gt;/</code>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="concept-index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="project-tour.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="concept-index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="project-tour.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="mermaid-eefea253.min.js"></script>
+        <script src="mermaid-init-ccf746f1.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

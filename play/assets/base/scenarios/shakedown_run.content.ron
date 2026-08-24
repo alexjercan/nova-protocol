@@ -34,6 +34,7 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Prototype("cargoa"),
                             controller: Player((
                                 input_mapping: {
                                     "turret_port": [
@@ -48,147 +49,15 @@
                                 speed_cap: Some(25.0),
                                 infinite_ammo: false,
                             )),
-                            sections: [
+                            modifications: [
                                 (
-                                    id: "engine_starboard",
-                                    position: (
-                                        0.655,
-                                        0.570945,
-                                        1.512835,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_engine_starboard"),
-                                ),
-                                (
-                                    id: "engine_port",
-                                    position: (
-                                        -0.655,
-                                        0.570945,
-                                        1.512835,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_engine_port"),
-                                ),
-                                (
-                                    id: "wing_starboard",
-                                    position: (
-                                        0.805,
-                                        0.5,
-                                        0.11783552,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_wing_starboard"),
-                                ),
-                                (
-                                    id: "wing_port",
-                                    position: (
-                                        -0.805,
-                                        0.5,
-                                        0.11783552,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_wing_port"),
-                                ),
-                                (
-                                    id: "nose",
-                                    position: (
-                                        0.0,
-                                        0.611325,
-                                        -1.512835,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_nose"),
-                                ),
-                                (
-                                    id: "tail",
-                                    position: (
-                                        0.0,
-                                        0.85,
-                                        1.6128349,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_tail"),
-                                ),
-                                (
-                                    id: "fuselage",
-                                    position: (
-                                        0.0,
-                                        0.7,
-                                        0.100000024,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_fuselage"),
+                                    section: "fuselage",
                                     modifications: [
                                         DisableVerb(Goto),
                                         DisableVerb(Lock),
                                         DisableVerb(Orbit),
                                         DisableVerb(Rcs),
                                     ],
-                                ),
-                                (
-                                    id: "turret_starboard",
-                                    position: (
-                                        1.35,
-                                        0.4,
-                                        -0.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("racer_turret_starboard"),
-                                ),
-                                (
-                                    id: "turret_port",
-                                    position: (
-                                        -1.35,
-                                        0.4,
-                                        -0.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("racer_turret_port"),
                                 ),
                             ],
                         )),
@@ -212,7 +81,6 @@
                         kind: Asteroid((
                             radius: 20.0,
                             texture: "self://textures/asteroid.png",
-                            health: 2000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             mass: Some(27000.0),
@@ -238,7 +106,6 @@
                         kind: Asteroid((
                             radius: 2.5,
                             texture: "self://textures/asteroid.png",
-                            health: 100.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             invulnerable: false,
@@ -263,7 +130,6 @@
                         kind: Asteroid((
                             radius: 1.5,
                             texture: "self://textures/asteroid.png",
-                            health: 100.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             invulnerable: false,
@@ -288,7 +154,6 @@
                         kind: Asteroid((
                             radius: 3.0,
                             texture: "self://textures/asteroid.png",
-                            health: 100.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             invulnerable: false,
@@ -313,7 +178,6 @@
                         kind: Asteroid((
                             radius: 2.0,
                             texture: "self://textures/asteroid.png",
-                            health: 100.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             invulnerable: false,
@@ -338,7 +202,6 @@
                         kind: Asteroid((
                             radius: 1.0,
                             texture: "self://textures/asteroid.png",
-                            health: 100.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             invulnerable: false,
@@ -363,7 +226,6 @@
                         kind: Asteroid((
                             radius: 2.5,
                             texture: "self://textures/asteroid.png",
-                            health: 100.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             invulnerable: false,
@@ -388,7 +250,6 @@
                         kind: Asteroid((
                             radius: 1.5,
                             texture: "self://textures/asteroid.png",
-                            health: 100.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             invulnerable: false,
@@ -413,7 +274,6 @@
                         kind: Asteroid((
                             radius: 2.0,
                             texture: "self://textures/asteroid.png",
-                            health: 100.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             invulnerable: false,
@@ -438,7 +298,6 @@
                         kind: Asteroid((
                             radius: 3.0,
                             texture: "self://textures/asteroid.png",
-                            health: 100.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
                             invulnerable: false,
@@ -626,7 +485,6 @@
                             kind: Asteroid((
                                 radius: 0.8,
                                 texture: "self://textures/asteroid.png",
-                                health: 100.0,
                                 impact_sound: Some("self://sounds/impact.wav"),
                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                 invulnerable: false,
@@ -673,7 +531,6 @@
                             kind: Asteroid((
                                 radius: 0.8,
                                 texture: "self://textures/asteroid.png",
-                                health: 100.0,
                                 impact_sound: Some("self://sounds/impact.wav"),
                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                 invulnerable: false,
@@ -720,7 +577,6 @@
                             kind: Asteroid((
                                 radius: 0.8,
                                 texture: "self://textures/asteroid.png",
-                                health: 100.0,
                                 impact_sound: Some("self://sounds/impact.wav"),
                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                 invulnerable: false,
@@ -767,7 +623,6 @@
                             kind: Asteroid((
                                 radius: 0.8,
                                 texture: "self://textures/asteroid.png",
-                                health: 100.0,
                                 impact_sound: Some("self://sounds/impact.wav"),
                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                 invulnerable: false,
@@ -814,7 +669,6 @@
                             kind: Asteroid((
                                 radius: 0.8,
                                 texture: "self://textures/asteroid.png",
-                                health: 100.0,
                                 impact_sound: Some("self://sounds/impact.wav"),
                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                 invulnerable: false,
@@ -860,7 +714,6 @@
                             kind: Asteroid((
                                 radius: 4.0,
                                 texture: "self://textures/asteroid.png",
-                                health: 100.0,
                                 impact_sound: Some("self://sounds/impact.wav"),
                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                 invulnerable: false,
@@ -1922,14 +1775,58 @@
                                 1.0,
                             ),
                         ),
-                        kind: Asteroid((
-                            radius: 2.5,
-                            texture: "self://textures/asteroid.png",
-                            health: 150.0,
-                            impact_sound: Some("self://sounds/impact.wav"),
-                            destroy_sound: Some("self://sounds/explosion.wav"),
-                            invulnerable: false,
-                            lock_signature: Some(15.0),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "hulk_fore",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "hulk_mid",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                    (
+                                        id: "hulk_aft",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("light_hull_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
                         )),
                     )),
                     ObjectiveMarkerDetach((
@@ -2109,6 +2006,7 @@
                             ),
                         ),
                         kind: Spaceship((
+                            hull: Prototype("cargoa_raider"),
                             controller: AI((
                                 patrol: [
                                     (
@@ -2130,164 +2028,6 @@
                                 leash: Some(150.0),
                                 engage_delay: Some(5.0),
                             )),
-                            sections: [
-                                (
-                                    id: "engine_starboard",
-                                    position: (
-                                        0.655,
-                                        0.570945,
-                                        1.512835,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_engine_starboard"),
-                                    modifications: [
-                                        SetHealth(25.0),
-                                    ],
-                                ),
-                                (
-                                    id: "engine_port",
-                                    position: (
-                                        -0.655,
-                                        0.570945,
-                                        1.512835,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_engine_port"),
-                                    modifications: [
-                                        SetHealth(25.0),
-                                    ],
-                                ),
-                                (
-                                    id: "wing_starboard",
-                                    position: (
-                                        0.805,
-                                        0.5,
-                                        0.11783552,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_wing_starboard"),
-                                    modifications: [
-                                        SetHealth(104.399994),
-                                    ],
-                                ),
-                                (
-                                    id: "wing_port",
-                                    position: (
-                                        -0.805,
-                                        0.5,
-                                        0.11783552,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_wing_port"),
-                                    modifications: [
-                                        SetHealth(104.399994),
-                                    ],
-                                ),
-                                (
-                                    id: "nose",
-                                    position: (
-                                        0.0,
-                                        0.611325,
-                                        -1.512835,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_nose"),
-                                    modifications: [
-                                        SetHealth(69.6),
-                                    ],
-                                ),
-                                (
-                                    id: "tail",
-                                    position: (
-                                        0.0,
-                                        0.85,
-                                        1.6128349,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_tail"),
-                                    modifications: [
-                                        SetHealth(69.6),
-                                    ],
-                                ),
-                                (
-                                    id: "fuselage",
-                                    position: (
-                                        0.0,
-                                        0.7,
-                                        0.100000024,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("racer_fuselage"),
-                                    modifications: [
-                                        SetHealth(140.0),
-                                    ],
-                                ),
-                                (
-                                    id: "turret_starboard",
-                                    position: (
-                                        1.35,
-                                        0.4,
-                                        -0.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        -0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("racer_turret_starboard_light"),
-                                ),
-                                (
-                                    id: "turret_port",
-                                    position: (
-                                        -1.35,
-                                        0.4,
-                                        -0.8,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.70710677,
-                                        0.70710677,
-                                    ),
-                                    source: Prototype("racer_turret_port_light"),
-                                ),
-                            ],
                         )),
                     )),
                     StoryMessage((
@@ -2357,23 +2097,19 @@
                         key: "beat",
                         expression: Term(Factor(Literal(Number(13.0)))),
                     )),
+                    TimerStart((
+                        key: "outro_tease",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
                     ObjectiveComplete((
                         id: "b12_contact",
-                    )),
-                    Objective((
-                        id: "done",
-                        message: "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "pirate",
                     )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The scavenger is scrap - but it was flying scout. A distress call is already crackling from the deep field."),
-                    )),
-                    NextScenario((
-                        scenario_id: "broadside",
-                        linger: true,
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "The scavenger is scrap. Good shooting.",
                     )),
                 ],
             ),
@@ -2393,23 +2129,19 @@
                         key: "beat",
                         expression: Term(Factor(Literal(Number(13.0)))),
                     )),
+                    TimerStart((
+                        key: "outro_tease",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
                     ObjectiveComplete((
                         id: "b12_contact",
-                    )),
-                    Objective((
-                        id: "done",
-                        message: "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "pirate",
                     )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The scavenger drifts dead - guns cold, engines dark - but it was flying scout. A distress call is already crackling from the deep field."),
-                    )),
-                    NextScenario((
-                        scenario_id: "broadside",
-                        linger: true,
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "The scavenger drifts dead - guns cold, engines dark. Good shooting.",
                     )),
                 ],
             ),
@@ -2419,6 +2151,10 @@
                     Entity((
                         id: Some("player_spaceship"),
                     )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(13.0)))),
+                    ))),
                 ],
                 actions: [
                     Outcome((
@@ -2437,14 +2173,70 @@
                     Entity((
                         id: Some("player_spaceship"),
                     )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(13.0)))),
+                    ))),
                 ],
                 actions: [
                     Outcome((
                         outcome: Defeat,
-                        message: Some("Guns and thrusters gone - you drift derelict in the belt."),
+                        message: Some("Nothing left to fight with - you drift derelict in the belt."),
                     )),
                     NextScenario((
                         scenario_id: "shakedown_run",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "outro_tease",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(13.0)))),
+                    ))),
+                ],
+                actions: [
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "It was flying scout, though. A distress call is already crackling from the deep field - and it is not one of ours.",
+                    )),
+                    TimerStart((
+                        key: "outro_banner",
+                        seconds: Term(Factor(Literal(Number(5.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "outro_banner",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(13.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(14.0)))),
+                    )),
+                    Objective((
+                        id: "done",
+                        message: "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("Shakedown complete. The belt is yours - and something out in the deep field is already calling for help."),
+                    )),
+                    NextScenario((
+                        scenario_id: "broadside",
                         linger: true,
                     )),
                 ],

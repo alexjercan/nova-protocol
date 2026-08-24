@@ -12,9 +12,10 @@
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -101,15 +102,6 @@ is a nav lock, and the old relation tints and reticle pips were retired outright
 color now means one thing only. Turrets hold the combat lock even while you aim them
 manually, so peeling off to hand-fire a turret does not throw away the lock the rest
 of the ship is using.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-050-radar-lock.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-050-radar-lock.png</span>
-        <span class="figure__placeholder-note">Side-by-side of the two locks mid-sweep with CTRL held: weapons-lowered white NAV crosshair versus weapons-raised red combat reticle.</span>
-    </div>
-    <figcaption class="figure__caption">Your stance picks the slot: white NAV lock lowered, red combat lock raised.</figcaption>
-</figure>
 <h2 id="the-target-viewfinder-and-kill-cam" tabindex="-1">The target viewfinder and kill cam</h2>
 <p>To make a lock feel like something you have, v0.5.0 adds a <strong>target viewfinder</strong>: a
 corner inset that renders a live, magnified 3D view of your combat lock through a
@@ -125,15 +117,6 @@ scoping. For bodies that have no addressable sections, it falls back to framing 
 by their collider bounds, so a section-less rock still fills the inset cleanly
 instead of sitting tiny in a corner. Anything the second camera cannot resolve gets
 the NO-SIGNAL panel rather than a broken render.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-050-viewfinder.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-050-viewfinder.png</span>
-        <span class="figure__placeholder-note">Full-frame gameplay showing the corner viewfinder inset with its red armed frame and the fine-locked section glowing. A kill-cam freeze-frame is an even better shot if you can catch one.</span>
-    </div>
-    <figcaption class="figure__caption">The corner viewfinder renders a live magnified view of your combat lock, right through to the kill cam.</figcaption>
-</figure>
 <h2 id="the-shakedown-run" tabindex="-1">The Shakedown Run</h2>
 <p>New Game now starts the <strong>Shakedown Run</strong>, a roughly twelve-beat tutorial that walks
 a new pilot through the whole vocabulary: burn, freelook, stop, salvage, GOTO,
@@ -240,15 +223,6 @@ back.</p>
 serves it at the root with the playable game tucked under <code>/play/</code>. This news feed
 and the game's new web home start here, with the wiki and tutorial following shortly
 after in v0.5.2.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-050-web-front-door.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-050-web-front-door.png</span>
-        <span class="figure__placeholder-note">The new web landing site served at the root, with the hero and the entry point down into /play/ for the playable build.</span>
-    </div>
-    <figcaption class="figure__caption">A front door on the web: the landing site at the root, the game tucked under /play/.</figcaption>
-</figure>
 <h2 id="under-the-hood" tabindex="-1">Under the hood</h2>
 <p>A handful of quieter fixes rounded the release out. The debug inspector stays on a
 window camera instead of leaking into render-to-texture cameras, so it no longer
@@ -333,8 +307,8 @@ local workaround.</p>
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

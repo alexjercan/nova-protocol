@@ -12,9 +12,10 @@
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -82,15 +83,6 @@ subsystem to learn: if you know how to attach a thruster, you know how to attach
 a torpedo bay. It inherits mass, placement constraints, and mounting behaviour
 for free, which is exactly the payoff of treating every functional part of a
 ship as a section from the start.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-030-torpedo-blast.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-030-torpedo-blast.png</span>
-        <span class="figure__placeholder-note">A torpedo detonating next to a ship: the blast radius catching several sections at once, with the near-side sections taking damage while the far side survives.</span>
-    </div>
-    <figcaption class="figure__caption">Torpedoes zone an area instead of hitting a single point.</figcaption>
-</figure>
 <h2 id="a-health-system-built-for-sections" tabindex="-1">A health system built for sections</h2>
 <p>Blast damage only means something if there is a consistent thing for it to
 damage. A weapon that hits a whole radius needs targets that can be hit
@@ -137,15 +129,6 @@ filters-and-actions pipeline as every other event. Turning a region of space
 into something a scenario can react to means new scenario shapes without new
 engine code, which was the whole point of building the system data-driven in the
 first place. This is the machinery the scenario system still runs on today.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-030-zone-trigger.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-030-zone-trigger.png</span>
-        <span class="figure__placeholder-note">A ship crossing into a highlighted region of space, firing a zone-entry event that advances an objective.</span>
-    </div>
-    <figcaption class="figure__caption">A zone-entry trigger turns a region of space into a scriptable objective.</figcaption>
-</figure>
 <h2 id="sharper-shaders" tabindex="-1">Sharper shaders</h2>
 <p>Two visual upgrades round the release out, both aimed at legibility rather than
 spectacle.</p>
@@ -220,8 +203,8 @@ that later visual work plugs into.</p>
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

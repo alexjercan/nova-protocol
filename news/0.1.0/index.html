@@ -12,9 +12,10 @@
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -120,15 +121,6 @@ falling out of the same one trick.</p>
 There is no single hull hit-points bar; each piece tracks its own condition.
 Shoot a piece off and the rest of the hull keeps flying, which is the entire
 foundation the combat model is built on.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-010-modular-ship.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-010-modular-ship.png</span>
-        <span class="figure__placeholder-note">A player ship in the test scene: ridged hull with thruster sections firing exhaust, a turret on top, skybox and scattered debris behind it.</span>
-    </div>
-    <figcaption class="figure__caption">A modular ship flying on real thrusters against a generated skybox.</figcaption>
-</figure>
 <h2 id="steering-that-does-not-fight-you" tabindex="-1">Steering that does not fight you</h2>
 <p>Flying purely on hand-placed thrusters is fun for about a minute and then it is
 just hard. Firing individual attitude thrusters by hand to point somewhere is a
@@ -179,15 +171,6 @@ physics flings apart. A kill reads like a real explosion rather than a
 disappearing box - the pieces scatter with their own momentum and tumble away.
 And because health lives per section, destruction stays local: shoot the turret
 off and the ship keeps flying but stops shooting.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-010-section-shatter.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-010-section-shatter.png</span>
-        <span class="figure__placeholder-note">A ship section mid-destruction, sliced into chunks that are flying apart under physics after taking fatal damage.</span>
-    </div>
-    <figcaption class="figure__caption">Sections shatter into physics-driven chunks instead of vanishing.</figcaption>
-</figure>
 <h2 id="editor-and-a-place-to-fly" tabindex="-1">Editor and a place to fly</h2>
 <p>Two scenes wrap it all up into an actual loop.</p>
 <h3 id="the-editor-scene" tabindex="-1">The editor scene</h3>
@@ -235,8 +218,8 @@ visible in outline here.</p>
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

@@ -12,9 +12,10 @@
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -102,15 +103,6 @@ so you can see whether a detonation actually reached its target or fell short.</
 <p>The effect is that torpedoes stop being an area-denial gimmick and become a
 genuine threat you have to respect - both when you fire them and, later in this
 same release, when something fires them at you.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-040-proportional-navigation.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-040-proportional-navigation.png</span>
-        <span class="figure__placeholder-note">An in-game torpedo trail curving onto a moving target, showing the intercept course rather than a straight line-of-sight run. A diagram of line-of-sight rotation vs. the intercept course works too.</span>
-    </div>
-    <figcaption class="figure__caption">Proportional navigation: the torpedo turns toward where the target will be, not where it is.</figcaption>
-</figure>
 <h2 id="a-targeting-arc-that-knows-what-you-are-looking-at" tabindex="-1">A targeting arc that knows what you are looking at</h2>
 <p>A guided weapon needs something to guide toward, so v0.4.0 adds a real
 <strong>targeting layer</strong>. It is not a single toggle but a graduated arc that starts
@@ -156,15 +148,6 @@ is legible rather than a black box - and a <strong>locked-target readout</strong
 range, closing speed and health for whatever you have locked. Between the lock
 markers, the focus meter, the lead pips and the readout, the HUD finally tells you
 what the combat systems are thinking.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-040-hud-substrate.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-040-hud-substrate.png</span>
-        <span class="figure__placeholder-note">A gameplay screenshot with the HUD substrate in full view: a lock marker on an enemy ship, the focus meter, a clamp-to-edge arrow for an off-screen contact, turret lead pips, and the locked-target readout showing range, closing speed and health.</span>
-    </div>
-    <figcaption class="figure__caption">The HUD substrate: anchored markers, apparent-size sizing, edge arrows, lead pips, and a locked-target readout.</figcaption>
-</figure>
 <h2 id="friend-foe-or-furniture" tabindex="-1">Friend, foe, or furniture</h2>
 <p>None of this means anything without a notion of sides, so v0.4.0 introduces a
 <strong>faction and relation model</strong>: every ship is hostile, neutral, or own. The
@@ -208,15 +191,6 @@ new direction. Combined with the standoff orbiting, an AI ship moves the way a
 piloted one does.</p>
 <p>This is the moment Nova Protocol stopped being a shooting range and started being
 a fight.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-040-ai-state-machine.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-040-ai-state-machine.png</span>
-        <span class="figure__placeholder-note">A state-transition diagram of the AI behavior states (Idle, Patrol, Engage, Evade, Retreat) with the edges between them, or a debug-overlay screenshot of an AI ship mid-engagement showing its current state.</span>
-    </div>
-    <figcaption class="figure__caption">The enemy runs a five-state behavior machine and picks its move from the state it is in.</figcaption>
-</figure>
 <h2 id="flying-the-hull-honestly" tabindex="-1">Flying the hull honestly</h2>
 <p>Underneath the combat is a <strong>flight-assist overhaul</strong>. The flight model got two
 distinct modes and a physical foundation that makes damaged ships fly like damaged
@@ -372,8 +346,8 @@ step</strong>, so a flaky windowed run under Xvfb can no longer fail the whole p
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

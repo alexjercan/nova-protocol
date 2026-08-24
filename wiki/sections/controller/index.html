@@ -4,16 +4,18 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Controller - Nova Protocol Wiki</title>
+        <meta name="description" content="The steering system that rotates the ship toward a heading; required to fly." />
         <link rel="icon" href="/nova-protocol/favicon.svg" />
-    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <script defer src="/nova-protocol/docs.js"></script></head>
     <body>
         <header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -56,7 +58,102 @@
     </div>
 </figure>
 <p>The controller is the ship's steering system: it rotates the ship toward a target heading, easing in and settling without overshoot rather than snapping. It is <strong>required</strong> for any ship a player or AI can fly.</p>
-<p>With no live controller, the hull cannot steer itself - so destroying the controller <em>disables</em> a ship without destroying it outright, leaving a drifting, tumbling wreck. It is also what the autopilot verbs drive when they fly the ship for you.</p>
+<p>With no live controller, the hull cannot steer itself - so destroying the <strong>last</strong> controller <em>disables</em> a ship without destroying it outright, leaving a drifting, tumbling wreck. It is also what the autopilot verbs drive when they fly the ship for you.</p>
+<p>A hurt computer cracks and, past about a third of its health gone, throws sparks. It steers exactly as well as it did new right up to the moment it dies: handling degrades when a computer is LOST, never while one is merely damaged.</p>
+<h2 id="what-sets-how-hard-a-ship-turns" tabindex="-1">What sets how hard a ship turns</h2>
+<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :23, METERS_PER_UNIT 10.0 :14) and crates/nova_ship/src/physics/attitude.rs (the two ceilings and the lower one winning :72-93, the arm to the outer FACE of the furthest live section :146-166 reading 2.76 u on the shipped corvette :140-141, the assembled mass properties :175-186, the sustained rate :108-110, the vector load a hard turn spends :121-130). The corvette the widgets fly is crates/nova_authoring/src/base_content/ships/cargo_a.rs (parts :16-96, structural mates :98-108) with the shared PDC's own cube on its two mount points (sections/standard.rs:71,:240-242) and 1501 of torque per computer (standard.rs:384, ships/shared.rs:302); density is 1 and not authorable, so a section's mass IS its authored box (crates/nova_ship/src/sections/base_section.rs:376). Severing on a disconnected graph: crates/nova_ship/src/sections/integrity.rs:231-349. -->
+<p>The computer does not decide it on its own. A ship turns as hard as the lower of two limits allows:</p>
+<ul>
+<li><strong>Its computers.</strong> Their torque against the mass they have to swing. A heavier ship needs more of it for the same turn.</li>
+<li><strong>Its structure.</strong> Hull metal takes 8 G and no more. The further the ship's furthest section sits from its balance point, the gentler the hardest turn that metal survives.</li>
+</ul>
+<div class="widget" data-widget="controller-arm">
+<p>The shipped corvette carries its mass over a 2.76 u arm - balance point to the outer face of its furthest section, which is one of its drives. Hull metal takes 8 G, so that arm allows 2.84 rad/s2 and no more, while the one flight computer in its fuselage could push 41.9 - fifteen times as hard. Shoot the nose off and the balance point slides aft: the arm drops to 2.43 u, the ceiling climbs to 3.23 rad/s2, and the wreck flips 180 degrees in 1.97 s where the whole ship took 2.10 s. Both guns hang off that nose, so they sever away with it.</p>
+</div>
+<p>Every ship in the game today is held by the second one, with a wide margin on the first. Nothing authors the result - it falls out of the shape you built. A short craft swings on a short arm and whips around. A long hauler swings on a long arm and handles like the freighter it is.</p>
+<p>Two things follow that you feel in the cockpit:</p>
+<ul>
+<li><strong>A wreck turns sharper.</strong> Shoot the nose off and the ship's balance point slides aft, shortening the reach to everything behind it - so what is left of the ship turns harder than the whole ship did.</li>
+<li><strong>A hard turn spends the margin.</strong> Holding a fast turn already loads the hull. There is less left to turn harder with, so past a point the ship holds the rate instead of tightening.</li>
+</ul>
+<div class="widget" data-widget="controller-margin">
+<p>The 8 G limit is one acceleration at the hull's furthest point, and the load that holds a curve and the load that tightens it add as a vector rather than being counted separately. So the corvette still has 97% of its 2.84 rad/s2 in hand at 48 deg/s, 83% at 72 deg/s, and nothing at all at 97 deg/s - the rate at which holding the turn spends the whole budget on its own. Authority does not taper off; it holds, then falls away.</p>
+</div>
+<h2 id="stacking-controllers" tabindex="-1">Stacking controllers</h2>
+<p>A big hull can mount more than one. They do not each steer it: they share one steering loop, and their torque adds into it.</p>
+<p>On a ship that is already at its structural limit - which is every shipped ship - that extra torque buys no turn rate at all. Metal does not care how many computers push it. Only a hull heavy enough to run its computers out first gains turn rate from a stack, and only until it reaches its own structural limit too.</p>
+<!-- Flown 170 degree flips, printed by crates/nova_ship/src/flight/tests/stacking.rs::size_decides_the_turn_and_stacking_only_helps_a_torque_bound_hull (:314). Light hull = the "fighter" rig, 3 unit cells (:284-290); heavy barge = the "barge" rig, 15 cells at 20x density (:298-304); 5 degree traverse gate :232; stack sizes :306; 170 degree turn :309. -->
+<table>
+<thead>
+<tr>
+<th>Computers</th>
+<th>Light hull: flip</th>
+<th>Heavy barge: flip</th>
+<th>Heavy barge: overshoot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>2.77 s</td>
+<td>7.52 s</td>
+<td>6.7 deg</td>
+</tr>
+<tr>
+<td>2</td>
+<td>3.17 s</td>
+<td>5.77 s</td>
+<td>none</td>
+</tr>
+<tr>
+<td>4</td>
+<td>3.37 s</td>
+<td>5.03 s</td>
+<td>none</td>
+</tr>
+<tr>
+<td>10</td>
+<td>3.48 s</td>
+<td>5.13 s</td>
+<td>none</td>
+</tr>
+</tbody>
+</table>
+<p>A measured 170 degree flip - the time to come within 5 degrees of the new heading. The light hull gains nothing and pays a little; the barge nearly halves its flip by the fourth computer and then stops dead, because it has run into its own structure.</p>
+<p>What stacking always buys is <em>precision</em>. A stacked hull starts arresting its turn earlier, so it stops on the heading you pointed at instead of sailing past and swinging back - which is the barge losing its 6.7 degree overshoot. The second computer gives most of that gain; the tenth is nearly dead weight, and on a light craft it is a little slower for nothing.</p>
+<p>The other half of stacking is <strong>redundancy</strong>. Lose one of two and the ship does not go brain-dead - it drops to single-controller handling and keeps fighting. Only the last one is the ship's brain.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/loop-section-controller.webm (short gameplay loop) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/loop-section-controller.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >A short loop: a ship flipping to a new heading
+            and settling on it without overshoot.</span
+        >
+    </div>
+</figure>
+<h2 id="variants" tabindex="-1">Variants</h2>
+<p>Every shipped flight computer carries the same torque and the same steering lag. What a ship does with them is the ship's own business - its mass and its length decide that. What separates the fuselage computers is how much structure they add to the craft that carries them.</p>
+<div class="catalog">
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (basic_controller_section health CONTROLLER_BASE_HEALTH 100.0 :31 used :368, steering_lag 0.5 :376, max_torque 1501.0 :384) and crates/nova_authoring/src/base_content/ships/ (controller kind steering_lag :300 and max_torque :302 in shared.rs; racer.rs:81 fuselage 240; cargo_b.rs:77 fuselage 300; cargo_a.rs:84 fuselage 350). -->
+<div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-controller.png</span></span></span><span class="catalog__title">Controller - shipped prototypes</span></div>
+<table>
+<thead>
+<tr><th></th><th>Variant</th><th>Torque</th><th>Steering lag</th><th>Health</th></tr>
+</thead>
+<tbody>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-basic-controller-section.png</span></span></span></td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">1501</td><td class="catalog__num">0.5 s</td><td class="catalog__num">100</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-racer-fuselage.png</span></span></span></td><td><span class="catalog__name">Racer // Fuselage</span><span class="catalog__id">racer_fuselage</span></td><td class="catalog__num">1501</td><td class="catalog__num">0.5 s</td><td class="catalog__num">240</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargob-fuselage.png</span></span></span></td><td><span class="catalog__name">CargoB // Fuselage</span><span class="catalog__id">cargob_fuselage</span></td><td class="catalog__num">1501</td><td class="catalog__num">0.5 s</td><td class="catalog__num">300</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargoa-fuselage.png</span></span></span></td><td><span class="catalog__name">CargoA // Fuselage</span><span class="catalog__id">cargoa_fuselage</span></td><td class="catalog__num">1501</td><td class="catalog__num">0.5 s</td><td class="catalog__num">350</td></tr>
+</tbody>
+</table>
+</div>
 
                     <div id="wiki-seealso"></div>
                 </article>
@@ -65,8 +162,8 @@
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

@@ -1,0 +1,567 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Measuring performance - Nova Protocol Developer Docs</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-6c135d9b.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Nova Protocol Developer Docs</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="measuring-performance"><a class="header" href="#measuring-performance">Measuring performance</a></h1>
+<p>How a frame’s cost is measured here, and the ways a measurement lies. The
+harness that produces the numbers is the same <code>probe</code> front door
+<a href="development.html">Building and running</a> uses for correctness; this page is the
+INSTRUMENT half - what the capture does, what a number is worth, and what has
+to be true before one can be quoted.</p>
+<p>Read <a href="development.html#run-verification-probe">Run verification (probe)</a> first
+for the run mechanics (the verbs, the run directory, the report). Everything
+below assumes a run has happened.</p>
+<h2 id="the-capture"><a class="header" href="#the-capture">The capture</a></h2>
+<p>An env-gated capture plugin drives the real gameplay app to <code>Playing</code>, warms
+up, records the wall-clock delta of every frame for a fixed window, and writes
+percentile stats. It is inert unless <code>NOVA_PROBE</code> is set, so the whole fleet
+carries it permanently. Probe runs it as a DEDICATED capture-only pass when the
+program declares it (the correctness recorder flushes per entry on the frame
+path - measurement and correctness never share a pass), the harness completion
+protocol keeps the app alive until the window closes, and enrolled scenes (a
+script <code>loop_from</code> point) reload + replay so the window measures activity -
+reload intervals are excluded from the stats and reported as their own line.</p>
+<p>Which runs get that pass is the PROGRAM’s own answer, read back off its
+contract. <code>NovaProbePlugin::default()</code> wires the capture, so a cataloged
+example makes a frame-cost claim unless it says otherwise with
+<code>without_frametime()</code> - which is what every <code>screenshots/</code> producer and the
+<code>playable/</code> galleries do, since a posed still has no frame cost worth
+defending. A program that wired no capture is inert, and its contract tells the
+report the frame-time section is empty because the program makes no frame-cost
+claim - not because a capture went missing.</p>
+<p>What the report does with the numbers is REPORT them. The Performance section
+leads with the worst frame, the mean, and what each comes to in FPS, flagged
+when it is under 60; <code>checks.json</code> mirrors it under <code>frames</code>, carrying
+<code>graded: false</code>. Nothing passes or fails on a frame-time number - whether a
+scene is fast enough on this machine, in this build profile, is the reviewer’s
+call and always was.</p>
+<h2 id="one-capture-cannot-prove-a-tail-moved"><a class="header" href="#one-capture-cannot-prove-a-tail-moved">One capture cannot prove a tail moved</a></h2>
+<p>The worst frame is the number that matters - a stutter is a tail, and a mean
+hides it - and it is also the least repeatable thing the capture produces. Two
+captures of an UNCHANGED scene move it by tens of percent, while the mean and
+the median of the same two windows barely move at all. So a claim about the
+worst frame is made over a repeat SET, not over a run:</p>
+<pre><code class="language-sh">cargo run --features debug probe run wfc_arena --repeat 5
+</code></pre>
+<p>Each repeat is its own process, and each writes its own <code>frametime.csv</code> row
+labelled <code>&lt;subject&gt;#&lt;n&gt;</code>. The report then reads them as a set:</p>
+<ul>
+<li>the reference is the MEDIAN of the repeats’ means (and of their medians), so
+one bad capture cannot drag the band over itself;</li>
+<li>a repeat whose mean or median sits outside the band is DISCARDED - it met a
+different machine, or a different amount of scene;</li>
+<li>the tail is read only across what survives, as the median of the admitted
+<strong>p99</strong> values, printed with the spread of that group. The slowest single
+frame gets the same treatment and is printed beside it - as a reading, not
+as the number a claim is made on. It is one sample out of nine hundred and
+behaves like one; p99 is still a tail (the ninth-worst frame) and resolves
+roughly twice as small a change.</li>
+</ul>
+<p>The spread is the point. It is the honest width of the number, and a claimed
+improvement smaller than it has not been measured. Discarding is not grading:
+<code>checks.json</code> carries the whole set under <code>repeats</code> with <code>graded: false</code>, and
+a discarded repeat says something about the machine, never about the code.</p>
+<p>Two things the band cannot do for you. It is derived from a REFERENCE HOST and
+is a property of that machine, so re-derive it elsewhere. And it catches an
+outlier, not a DRIFT: a set taken immediately after a build slides monotonically
+down as the box recovers, the reference lands in the middle of the slide, and
+the gate throws out both ends. Let the machine settle before a repeat set, and
+treat a set the gate empties as “measure it again”, never as a result.</p>
+<h3 id="a-refresh-cap-is-a-sets-finding-not-a-windows"><a class="header" href="#a-refresh-cap-is-a-sets-finding-not-a-windows">A refresh cap is a set’s finding, not a window’s</a></h3>
+<p>A run that named a presentation mode promising NOT to block on refresh can
+still be paced by the display: the surface falls back, or a compositor holds
+the swap chain, and every frame then waits for the same clock edge. What the
+capture reports is the display’s period, at a perfectly plausible-looking
+number.</p>
+<p>Each capture measures its own CLUSTER SHAPE - the frame time the window
+collapsed onto, and the share of frames within 5% of it - and writes both
+beside its stats (<code>cluster_ms</code> / <code>cluster_share</code> in <code>frametime.csv</code>, on the
+summary line, and in the per-run JSON). A window that clusters at 0.72 or more
+on a period of at least 4 ms logs a <code>SUSPECT reason=refresh_capped</code> line and
+keeps its stats. The 4 ms floor is a display fact - nothing refreshes above
+250 Hz - so a scene faster than that is cheap and steady, not capped.</p>
+<p>The 0.72 bar sits above every workload this project has measured (point-defence
+stress 0.60-0.68, the damage-cracks A/B 0.64-0.65, 34 gallery captures
+0.03-0.44) and below every real cap (a 165 Hz <code>Fifo</code> capture, 0.76-0.81). It
+started at 0.60 when only the outer two groups existed; the middle two landed in
+the gap afterwards. Expect to move it again, because it measures STEADINESS and
+the engine keeps getting steadier - that is precisely why clearing it is a
+suspicion and not a verdict.</p>
+<p>Under a mode that MAY block on refresh (<code>fifo</code>, <code>autovsync</code>) the columns stay
+empty: clustering there is the mode working, so it is not evidence of anything
+and the honest record is that nothing was measured.</p>
+<p><strong>A suspicion, because one window cannot settle it.</strong> The check fires on
+STEADINESS, and an optimisation makes frames steadier - so a threshold applied
+per window preferentially accuses the FASTER arm of an A/B, which is a bias
+pointed at the null and the worst direction for an instrument to be wrong in.</p>
+<p>The repeat set is where the evidence exists, because a refresh period is a
+CONSTANT. When two or more captures of a set are suspects and their cluster
+medians agree to within 1%, the set measured the display: every capture is
+discarded and the set reports no tail, the same shape as any other set the gate
+empties. When the medians DISAGREE, no display did that, and the captures are
+gated on their statistics like any others. <code>checks.json</code> carries the call under
+<code>repeats.sets[].refresh_cap</code> (<code>refresh_capped</code>, <code>workload</code>, <code>unverifiable</code>,
+<code>not_suspected</code> or <code>unmeasured</code>) with the per-capture shapes under it.</p>
+<p>Agreement is a far tighter test than cluster membership, and the two numbers are
+not interchangeable. The 5% band spans the SCATTER inside one window, which is
+wide - a capped window is not a flat line. The 1% agreement spans the drift of a
+period ACROSS windows, which for a crystal-derived clock is none: the 165 Hz
+captures this was built from agree to under a tenth of a percent.</p>
+<p><strong>Neither bar is sound on its own, and the point-defence stress set is why.</strong>
+Four of its windows held 20.824 / 20.972 / 20.975 / 21.006 ms - agreement to
+0.72%, inside the 1% that reads as one display. A steady workload really can
+reproduce its period, so agreement is necessary and nowhere near sufficient; the
+share bar is what separated that set. Expect any set that is both very steady
+and very reproducible to need both bars to survive.</p>
+<p>One lone suspect in a set reads <code>unverifiable</code>: there is no sibling to check
+its period against, so whether it measured the display is UNMEASURED, and the
+set is neither refused nor waved through. Repeat it to settle it.</p>
+<h2 id="was-the-window-one-scene"><a class="header" href="#was-the-window-one-scene">Was the window one scene?</a></h2>
+<p>A capture also records how many FIXED STEPS ran inside each frame, bucketed by
+count in the per-run JSON (<code>fixed_steps</code>), on the summary line, and as a table
+in the report’s Performance section (<code>checks.json</code> mirrors it beside <code>frames</code>).
+Bevy runs <code>RunFixedMainLoop</code> until the accumulated virtual time is spent,
+capped by <code>Time&lt;Virtual&gt;::max_delta</code>, so a frame that overruns the timestep
+hands its overrun to the next frame as extra steps.</p>
+<p>Two readings matter, and no percentile shows either:</p>
+<ul>
+<li><strong>Frames that ran NO step.</strong> In a scene slower than the timestep that means
+the simulation was STOPPED inside the window - a pause, a menu, a result
+screen. A window carrying them did not measure one scene, whatever its mean
+says. In a scene faster than the timestep it is ordinary and says nothing.</li>
+<li><strong>Frames at the top of the range.</strong> When that count is
+<code>max_delta / timestep</code> the clamp is firing: those frames are discarding real
+time the world never simulates.</li>
+</ul>
+<p>A stopped simulation is not merely reported, it is REFUSED. The capture reads
+<code>Time&lt;Virtual&gt;</code> directly, and a frame that arrives paused (or at relative speed
+zero) inside the warm-up or the window aborts the whole capture: it logs at
+ERROR naming the phase and the frame, writes NO <code>frametime.csv</code> row and no
+per-run JSON, and the <code>capture_simulated</code> check fails the run and lists every
+refused capture. A refusal rather than a flag, because a stopped scene keeps
+drawing at a steady cost - the mean and median it produces are exactly the shape
+a validity gate admits.</p>
+<p>So a scene that can REACH AN END needs a window that closes before it does. An
+example declares its own with <code>NovaProbePlugin::frametime_window(warmup, frames)</code>, sized from a measured run of that scene rather than guessed;
+<code>wfc_arena</code> does, because its 4v4 is a match that can be won.</p>
+<p>A bounded window is still not enough on its own, because <strong>a scene can end
+before its clock stops.</strong> A fight whose losing side is gone is over while
+<code>Time&lt;Virtual&gt;</code> still ticks and every environment gate still passes; what the
+window measures then is the aftermath, at a fraction of the cost, in a row that
+looks like any other. <code>wfc_arena</code> meets this by construction - its capture opens
+on both teams having fired and connected, and a WIPE is what credits the last of
+that damage, so the gate can open onto an empty arena.</p>
+<p><code>NovaProbePlugin::live_frametime(&lt;predicate&gt;)</code> is the second half. The predicate
+is re-evaluated every warm-up and capture frame, and the first frame it fails
+refuses the window with reason <code>scene_ended</code> - same ERROR line, same discarded
+stats, same failing check as a stopped simulation. <code>wfc_arena</code> names “both teams
+still have a ship flying”. It says nothing about how MANY are left on purpose: a
+four-on-one is a fight in progress, and refusing that would be a judgement about
+workload rather than about the scene existing.</p>
+<p><code>NOVA_PROBE_MAX_DELTA=&lt;secs&gt;</code> forces the ceiling for a run, which is how a claim
+about the fixed loop gets tested instead of argued. Capping it in a SHIPPING
+build would trade a bounded tail for simulation time the world never runs, so
+it stays a measurement knob.</p>
+<p><strong>Pin it to one step before comparing two arms.</strong> The loop AMPLIFIES whatever
+it is handed. Write <code>B</code> for the per-frame base cost and <code>s</code> for the cost of one
+fixed step; a frame of measured cost <code>F</code> runs <code>F / T</code> steps at Bevy’s default
+<code>Time&lt;Fixed&gt;</code> period <code>T</code>, so</p>
+<pre><code class="language-text">F = B + s * F / T      -&gt;      F = B / (1 - s / T)
+</code></pre>
+<p>A frame is not slow because the fixed loop ran; the loop ran because the frame
+was slow, and then charged it again. As <code>s</code> approaches <code>T</code> the denominator goes
+to zero and the reading runs away, so two arms that differ by a little in <code>B</code>
+can differ by a lot in <code>F</code> - and the difference is the amplifier, not the
+change. Pinned to a single step per frame a capture reads <code>B</code> directly, and
+arms become comparable.</p>
+<h2 id="a-capture-under-xvfb-measures-the-x-server-too"><a class="header" href="#a-capture-under-xvfb-measures-the-x-server-too">A capture under Xvfb measures the X server too</a></h2>
+<p><strong>Read this before quoting any absolute millisecond a probe run produced.</strong> A
+software X server has no scanout, so presenting a window is a CPU-side copy of
+every pixel of it, and the render thread pays for that inside <code>render_system</code>
+after the graph has already finished. On this project’s host, at 1280x720, an
+EMPTY scene costs 16.7 ms under <code>xvfb-run</code> and 3.0 ms against a real display -
+same binary, same window, same pin, same <code>Immediate</code> presentation. The gap is
+linear in window pixels (1.4 ms at 160x90, 11.5 ms at 720p, 50 ms at 1440p) and
+does not move when <code>NOVA_PROBE_RENDER_SCALE</code> cuts the shading to a sixteenth, so
+it is the window and not the drawing.</p>
+<p>It is an ADDITIVE constant, not a scale factor. An A/B whose two arms share a
+window size divides it out, so ratios and ablations under Xvfb stand. A budget,
+an FPS gate and a “this scene costs N ms” claim do not.</p>
+<p>Two knobs make it visible. <code>NOVA_PROBE_PRESENT=immediate</code> names the presentation
+mode instead of requesting <code>AutoNoVsync</code> - bevy logs the fallback for a named
+mode and says nothing for the auto ones, so this is how a run proves it was not
+capped at refresh. <code>NOVA_PROBE_RENDER_DIAG=1</code> asks the renderer for GPU timestamp
+queries and turns on the frame-cost report’s per-pass GPU table (it costs a
+resolve pass and a readback, about 3% of the frame, so it is never a default).</p>
+<p>So an absolute number wants a REAL display, and the window does not have to be
+in your way to get one. An armed run wears the <code>WM_CLASS</code> / app id
+<code>nova_core::MEASURE_WINDOW_CLASS</code> and no other run does, so a window manager
+can send it elsewhere on its own - on i3,
+<code>for_window [class="nova-measure"] move container to workspace 3</code>. The class is
+deliberately distinct from the normal one, so a placement rule can never catch
+a hand-run somebody is playing.</p>
+<h2 id="where-a-frames-milliseconds-went"><a class="header" href="#where-a-frames-milliseconds-went">Where a frame’s milliseconds went</a></h2>
+<p>Any armed capture also logs a <code>nova framecost:</code> line and, under it, three
+tables: every main-world schedule, every top-level <code>RenderSystems</code> phase with
+the render graph carved out of <code>Render</code> so the submit and the present are
+visible on their own, and every render pass the device timed. Read them
+together - the main world and the render world overlap under pipelined
+rendering, so a frame costs about the longer of the two, and GPU far under both
+says the device is not the constraint.</p>
+<p>Beside it, <code>nova census:</code> counts the world once per capture: entities by
+component, the archetypes they fall into, and mesh instances against DISTINCT
+mesh handles. Instances and distinct always side by side - 12,572 instances over
+681 meshes is a different story from the 12,572 alone. Distinct handles are what
+a draw call bins on, so the pair is what separates “the scene is big” from “the
+scene batches badly” (see
+<a href="sections.html#why-cracks-are-quantised">Why cracks are QUANTISED</a>).</p>
+<h2 id="the-fixed-loop-is-single-threaded-on-purpose"><a class="header" href="#the-fixed-loop-is-single-threaded-on-purpose">The fixed loop is single-threaded on purpose</a></h2>
+<p><code>AppBuilder::assemble</code> puts <code>FixedFirst</code> through <code>FixedLast</code> on Bevy’s
+single-threaded executor, so a schedule table’s fixed-loop rows are self time,
+not fan-out. Those schedules run 64 times a second and are made of many small
+systems; the multithreaded executor’s per-schedule task fan-out costs more than
+the parallelism buys. Matched at 650-750 dynamic bodies in a 1v1
+<code>wfc_arena</code> fight, the per-step median measured 7.9 ms multithreaded against
+6.1 single-threaded, with the capture’s 1% low 27 fps against 48;
+<code>stress_point_defense</code> at ~2,040 bodies measured 3.17 ms against 2.84.</p>
+<p>Avian’s <code>PhysicsSchedule</code> and <code>SubstepSchedule</code> are LEFT multithreaded. The same
+switch applied to them moved no step metric and made the frame tail worse (p99
+36.9 ms against 40.6): the solver’s <code>par_for_each</code> passes are the one part of a
+fixed step that does saturate threads. Re-measure before moving either boundary.</p>
+<h2 id="the-window-and-the-deadline-sized-to-it"><a class="header" href="#the-window-and-the-deadline-sized-to-it">The window, and the deadline sized to it</a></h2>
+<p>The capture window is the capture crate’s full 180/900 baseline unless the
+example declared one of its own, so probe numbers stay comparable with the
+sweep’s; your <code>NOVA_PROBE_WARMUP</code> / <code>NOVA_PROBE_FRAMES</code> override both. The
+completion deadline is SIZED to the BASELINE window (not a flat 120s, and a
+ceiling for any shorter one an example declares): probe sets
+<code>NOVA_AUTOPILOT_DEADLINE</code> for the fps pass to <code>(warmup + frames) / ~2fps + margin</code>, so a slow-but-progressing capture (a heavy scene in a dev build under
+software rendering - the <code>stress_*</code> ranges are the case) completes instead of
+tripping the hang detector; a genuine hang still fails at a window-appropriate
+bound, and your own <code>NOVA_AUTOPILOT_DEADLINE</code> overrides it. Every example’s <code>main</code>
+returns <code>AppExit</code>, so a deadline expiry is a non-zero process exit the
+<code>process_exit</code> check reports. See the crate docs for the full knob list
+(<code>NOVA_PROBE_*</code>).</p>
+<h2 id="sweeping-presets-renderers-and-the-web"><a class="header" href="#sweeping-presets-renderers-and-the-web">Sweeping presets, renderers and the web</a></h2>
+<p>The perf sweep is the same front door: a preset matrix of the frame-time
+capture, one labeled <code>frametime.csv</code> row per cell, release-built (dev-profile
+frame numbers are not baselines):</p>
+<pre><code class="language-sh">cargo run --features debug probe run stress_bullets --release --preset high --preset low
+cargo run --features debug probe run stress_bullets --release --render sw ...  # lavapipe floor
+cargo run --features debug probe run stress_bullets --release --norender      # no renderer at all
+cargo run --features debug probe run &lt;scenario&gt; --platform web   # web/WebGPU capture (scraped)
+</code></pre>
+<p><code>--render</code> picks the BACKEND for every pass, the frame-time one included: <code>sw</code>
+forces the lavapipe ICD and its short 20/120 window. <code>--norender</code> decides
+whether anything draws at all, sets <code>NOVA_NORENDER</code> in the child, starts no
+Xvfb, and is refused alongside <code>--render</code> - there is no backend to pick when
+nothing draws. It keeps the 180/900 baseline window, because a headless run has
+no fill cost to shorten around, and it is native only: a wasm run has no process
+environment to set. Its rows name themselves in <code>frametime.csv</code> - <code>backend</code> and
+<code>adapter</code> both read <code>unknown</code>, there being no adapter. It measures the main
+schedule alone, so it CANNOT see a render-side panic; a speed option beside a
+rendered run, never instead of one.</p>
+<p>To measure a named SHIPPED scenario, use the <code>probe scenario</code> verb rather than
+<code>run --scenario</code>: it launches the game binary itself and needs no example.
+<code>run --scenario</code> only sets <code>NOVA_PROBE_SCENARIO</code>, which no cataloged example
+reads on the native side; on <code>--platform web</code> it is load-bearing, because
+<code>nova_perf_web</code> takes the scenario id from the URL.</p>
+<p>Every capture records run metadata (wgpu backend + GPU adapter, resolution,
+graphics preset, git SHA, host and - schema v3 - the BUILD PROFILE) so a
+results file names its own renderer (pre-v3 files, like the v0.7.0
+baseline, still load; their profile reads <code>unknown</code>). The report badges
+each row <code>dev</code> or <code>release</code>: dev numbers are NOT baselines, and because the
+capture is wired by default, the badge is what keeps ad-hoc dev captures from
+being mistaken for comparable measurements. The web platform
+builds the perf_web wasm app through Trunk, serves it from an embedded static
+server, drives headless Chromium with the calibrated WebGPU flags, and
+scrapes the summary line into a labeled CSV row (no fs in the browser).
+Compare runs with <code>probe report &lt;after&gt; --baseline &lt;before&gt;</code> - signed deltas
+per label - and <code>report</code> only accepts dirs probe itself produced
+(<code>probe-run.json</code> is the gate).</p>
+<h2 id="profiled-pass-where-does-the-time-go"><a class="header" href="#profiled-pass-where-does-the-time-go">Profiled pass (where does the time go)</a></h2>
+<p>Per-system costs come from a SEPARATE traced run - tracing overhead inflates
+frame times, so a profiled run RANKS systems while the clean capture owns the
+FPS truth (never mix the two):</p>
+<pre><code class="language-sh">cargo run --features debug probe run system_scenario_grammar          # trace + report table
+cargo run --features debug probe run system_scenario_grammar --samply # + flamegraph
+</code></pre>
+<p>The profiled pass builds with <code>--features debug,trace</code> (bevy’s per-system
+spans are compiled in only under <code>bevy/trace</code>), runs headless with
+<code>TRACE_CHROME</code> into the run dir (plus the <code>RUST_LOG=bevy_ecs=info</code> override
+that un-hides the spans from the game’s log filter), and the report renders
+the top-N table (<code>probe report &lt;run-dir&gt;</code> re-renders it). Open the raw
+<code>trace.json</code> in https://ui.perfetto.dev for the full picture; <code>samply load</code>
+opens the flamegraph in the Firefox Profiler (the samply run is skipped with
+a note when samply is missing or blocked - sampling needs
+<code>perf_event_paranoid &lt;= 1</code> AND, on many-core hosts, enough perf ring-buffer
+memory: an “mmap failed” means raising <code>perf_event_mlock_kb</code>, e.g.
+<code>echo 16384 | sudo tee /proc/sys/kernel/perf_event_mlock_kb</code>). The samply
+run builds with the dedicated <code>profiling</code> cargo profile (full DWARF in the
+binary + frame pointers via RUSTFLAGS) so our frames symbolicate to real
+names instead of raw addresses; frames inside the NVIDIA driver blob and
+stripped system libraries stay hex - that is their stripping, not a build
+problem. Load the profile right after recording: symbolication resolves
+from the binary on disk, so a rebuild in between loses names.</p>
+<p><strong>Expect the trace to be enormous.</strong> It carries one span per system per frame
+and grows at roughly 28 MB per second of traced gameplay, with nothing capping
+it, so a long range leaves GIGABYTES in its run dir - the report prints the size
+beside the table. That is deliberate: the raw file is the Perfetto artifact, and
+a byte cap or a span filter would buy disk by truncating the deep dive it exists
+for. The host reads it as a STREAM instead, at flat memory (about 70 MB peak,
+whatever the file’s size), so the cost is disk and disk only. It is a scratch
+artifact: keep it while you are profiling, delete the run dir when you are not.</p>
+<h2 id="find-it-in-the-code"><a class="header" href="#find-it-in-the-code">Find it in the code</a></h2>
+<ul>
+<li>The capture, its window and its knobs: <code>FrameTimePlugin</code>, <code>nova_frametime</code> -
+<code>crates/nova_probe/src/capabilities/frametime.rs</code>. The crate rustdoc
+(<code>cargo doc --open -p nova_probe</code>) carries the full <code>NOVA_PROBE_*</code> table,
+native env var against wasm query string.</li>
+<li>Where the milliseconds went: <code>FrameCostPlugin</code> -
+<code>crates/nova_probe/src/capabilities/framecost.rs</code>; the GPU half is gated on
+<code>nova_core::RENDER_DIAG_ENV</code>.</li>
+<li>What an armed run looks like from outside: <code>nova_core::PROBE_ENV</code> and
+<code>nova_core::MEASURE_WINDOW_CLASS</code> - <code>crates/nova_core/src/lib.rs</code>.
+<code>nova_probe</code> re-exports <code>PROBE_ENV</code>; it lives down there because the window
+builder needs it.</li>
+<li>What the scene contained: <code>CensusPlugin</code> -
+<code>crates/nova_probe/src/capabilities/census.rs</code>.</li>
+<li>Driving a repeat set, the presets, the web platform, the traced and samply
+passes: <code>crates/nova_probe_cli/src/native/</code>. Reading one back - the validity
+band and the refresh-cap discriminator - <code>read_repeats</code> and <code>RefreshCap</code> in
+<code>crates/nova_probe_cli/src/evaluation/frames.rs</code>; the stats and CSV/JSON
+schema both halves speak - <code>crates/nova_probe/src/stats.rs</code>.</li>
+<li>The bundle an example wires: <code>NovaProbePlugin</code> -
+<code>crates/nova_probe/src/capabilities/mod.rs</code>.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="environment-variables.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="guide-add-section.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="environment-variables.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="guide-add-section.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="mermaid-eefea253.min.js"></script>
+        <script src="mermaid-init-ccf746f1.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

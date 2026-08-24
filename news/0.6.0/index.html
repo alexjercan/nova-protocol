@@ -12,9 +12,10 @@
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -92,15 +93,6 @@ proof the pipeline works end to end: a scenario that used to ship in the binary
 is now discovered, downloaded, verified and merged exactly like any third-party
 mod would be. It also makes the base game a little leaner, since players who
 never touch Gauntlet Run no longer carry it.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-060-portal-catalog.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-060-portal-catalog.png</span>
-        <span class="figure__placeholder-note">The generated catalog.json (or a rendered view of it) showing the Gauntlet Run entry with its version, size and sha256 hash.</span>
-    </div>
-    <figcaption class="figure__caption">Mods are published as hashed, versioned static bundles with a generated catalog.</figcaption>
-</figure>
 <h2 id="explore-online-mods-from-inside-the-game" tabindex="-1">Explore online: mods from inside the game</h2>
 <p>The <strong>Explore online</strong> tab is what makes that portal live. You browse the
 catalog in-game and then install, update or uninstall any mod without ever
@@ -116,15 +108,6 @@ what you have and what you last knew about, rather than an empty error screen.
 And updates <strong>preserve whether a mod was enabled</strong>: refreshing a mod to a new
 version never quietly toggles it off, so an update is safe to run on a mod you
 depend on being active.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-060-explore-online.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-060-explore-online.png</span>
-        <span class="figure__placeholder-note">The Mods menu on the Explore online tab: portal catalog on the left with per-row install/update state, a details panel on the right, mid-download progress if you can catch it.</span>
-    </div>
-    <figcaption class="figure__caption">Browse the portal and install mods without leaving the game.</figcaption>
-</figure>
 <h2 id="a-real-install-pipeline" tabindex="-1">A real install pipeline</h2>
 <p>Underneath Explore online sits an install pipeline built with one goal above all:
 never corrupt your game. It came together in two layers - a local cache
@@ -200,15 +183,6 @@ discoverable next to the built-in ones. To support it, scenarios gained two
 optional fields: a <strong><code>thumbnail</code></strong> so the details pane can show what a scenario
 looks like, and a <strong><code>hidden</code></strong> flag so a scenario can exist without appearing in
 the picker.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-060-scenarios-picker.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-060-scenarios-picker.png</span>
-        <span class="figure__placeholder-note">The Scenarios picker overlay: scenario list on the left, details pane with thumbnail on the right, Play button.</span>
-    </div>
-    <figcaption class="figure__caption">Every playable scenario, base and modded, in one picker.</figcaption>
-</figure>
 <h3 id="swapping-the-sky-mid-scenario" tabindex="-1">Swapping the sky mid-scenario</h3>
 <p>Scenarios can now change the backdrop while they run. A new <strong><code>SetSkybox</code></strong>
 action swaps the skybox cubemap mid-scenario, and it is <strong>deferred until the new
@@ -229,15 +203,6 @@ handles its absence directly. A browser without WebGPU now shows a clear
 heads-up under the landing page's &quot;Play in browser&quot; button. Between the two, a
 player on an unsupported browser learns exactly what is wrong at the front door
 and again at the canvas, rather than staring at a blank screen guessing.</p>
-<figure class="figure">
-    <!-- Capture: assets/news-060-web-particles.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Image needed</span>
-        <span class="figure__placeholder-name">assets/news-060-web-particles.png</span>
-        <span class="figure__placeholder-note">The web build mid-combat showing a torpedo detonation burst and muzzle flash rendering in the browser, ideally with the browser chrome visible to make clear it is the web build.</span>
-    </div>
-    <figcaption class="figure__caption">Muzzle flash, trails and torpedo bursts now render in the browser on WebGPU.</figcaption>
-</figure>
 <h2 id="faster-event-dispatch-measured-first" tabindex="-1">Faster event dispatch, measured first</h2>
 <p>Modding event dispatch is now <strong>indexed by event name</strong>. Instead of walking
 every registered handler to find the ones that care about an event, dispatch
@@ -329,8 +294,8 @@ scenario lives next to the example that is its only real consumer.</p>
         <footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
     <nav aria-label="Footer">
-        <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"

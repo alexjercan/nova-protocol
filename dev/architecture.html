@@ -1,0 +1,596 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Architecture - Nova Protocol Developer Docs</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-6c135d9b.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Nova Protocol Developer Docs</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="architecture"><a class="header" href="#architecture">Architecture</a></h1>
+<blockquote>
+<p>New to the codebase? Start with the <a href="project-tour.html">Project tour</a> for a
+faster orientation, then come back here for the detail.</p>
+</blockquote>
+<p>Nova Protocol is a 3D space shooter built on <strong>Bevy 0.19</strong> with <strong>avian3d</strong> physics.
+It is a Cargo workspace: the root <code>nova-protocol</code> crate is a thin shell and all the
+real code lives under <code>crates/</code>.</p>
+<h2 id="crate-map"><a class="header" href="#crate-map">Crate map</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Crate</th><th>Responsibility</th></tr>
+</thead>
+<tbody>
+<tr><td><code>nova-protocol</code> (root)</td><td><code>src/main.rs</code> = clap CLI + entrypoint. <code>src/lib.rs</code> re-exports <code>nova_core</code>. Runnable examples in <code>examples/</code>.</td></tr>
+<tr><td><code>nova_core</code></td><td>Thin wiring only: <code>AppBuilder</code> assembles every plugin (window/log/asset setup, status UI). No gameplay logic.</td></tr>
+<tr><td><code>nova_menu</code></td><td>Main menu (owns the <code>MainMenu</code> state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write <code>GameMode</code> and hand off to <code>Playing</code>. The Settings modal (audio volume, graphics preset, read-only keybind reference) is shared by both entry points and persisted cross-platform in <code>settings_store</code> (RON file / localStorage).</td></tr>
+<tr><td><code>nova_editor</code></td><td>The ship editor scene (<code>NovaEditorPlugin</code>). Comes up on entering <code>Playing</code>, only in <code>GameMode::Sandbox</code>.</td></tr>
+<tr><td><code>nova_gameplay</code></td><td>The shared gameplay layer under the ship: <code>integrity/</code> (health, the two damage readings <code>erosion</code> and <code>carve</code>, and the debris a carve leaves in <code>spew</code>/<code>chunk</code>), <code>damage</code>, <code>gravity</code> (gravity wells), <code>markers</code> (the entity markers the ship tags with and this layer reads), <code>math</code>, <code>audio</code> (the generic SFX engine <code>nova_menu</code> and <code>nova_os_ui</code> also use), <code>juice</code>, <code>shake</code>, <code>settings</code> (<code>MasterVolume</code>/<code>GraphicsQuality</code> + apply systems), <code>mesh</code> (the procedural <code>TriangleMeshBuilder</code>, plus the <code>SignedField</code> an asteroid is meshed from and carved in - nothing here takes a finished mesh apart), <code>transform</code>, <code>relations</code>, <code>beacon</code>, <code>objectives</code> (the <code>GameObjectives</code> list, its panel and the conveyance tags), <code>lifetime</code> (<code>TempEntity</code>/<code>DespawnEntity</code>), <code>cooldown</code>, <code>plugin</code>. Also owns <code>GameStates</code>, <code>PauseStates</code>, and the <code>GameMode</code> resource. Knows nothing about a ship.</td></tr>
+<tr><td><code>nova_ship</code></td><td>The ship and how it is flown: <code>sections/</code> (the modular hull, its ammo, and the authored damage looks in <code>damage_effects</code>/<code>damage_cracks</code>/<code>damage_sparks</code>/<code>damage_plume</code>), <code>input/</code> (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, the <code>reference</code> keybind table), <code>flight/</code> (the diegetic controller and its autopilot verbs), <code>camera/</code> (the chase-camera controller and the chase/skybox/post/WASD rigs under it), <code>physics/</code> (the PD attitude controller) and <code>ship_audio/</code> (the soundtrack those five produce). Depends on <code>nova_gameplay</code> and never the reverse; <code>NovaShipPlugin</code> owns the <code>SpaceshipSystems</code> brackets and <code>nova_core</code> adds it after <code>NovaGameplayPlugin</code>.</td></tr>
+<tr><td><code>nova_hud</code></td><td>The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs <code>nova_hud -&gt; nova_gameplay</code>. <code>nova_core</code> adds <code>NovaHudPlugin</code> render-gated, and the crate places <code>NovaHudSystems</code> between the section and camera sets itself.</td></tr>
+<tr><td><code>nova_os</code></td><td>NOVA OS logic with no UI in it: the terminal model (<code>terminal</code>), the shell command language and typo suggestions (<code>shell</code>), and the app runtime seam (<code>app</code>).</td></tr>
+<tr><td><code>nova_os_ui</code></td><td>The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (<code>terminal</code>), and the two apps that run on it - <code>map</code> (schematic local space) and <code>ship</code> (schematic player ship). A PEER of the flight HUD, not one of its widgets: <code>nova_core</code> adds it, and nothing in <code>nova_hud</code> reaches into it (it reads <code>NovaHudAssets</code> and <code>NovaHudSystems</code>, so it sits ABOVE <code>nova_hud</code>).</td></tr>
+<tr><td><code>nova_scenario</code></td><td>Scenario/modding engine: <code>events</code>, <code>filters</code>, <code>actions</code>, <code>variables</code>, <code>world</code>, <code>loader</code>, <code>objects/</code>, <code>lint/</code> (the scenario half of the <code>content -- lint</code> checks), <code>render_scale</code> (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See <a href="scenario-system.html">Scenario engine</a>.</td></tr>
+<tr><td><code>nova_events</code></td><td>Game event kinds and entity identity components, shared between gameplay and scenario.</td></tr>
+<tr><td><code>nova_events_macros</code></td><td>Procedural macros behind <code>nova_events</code>’ derives.</td></tr>
+<tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup. Loads glb/textures/shaders/sounds, and loads the base game’s own generated content (<code>assets/base/</code>) through the same bundle machinery as mods. Owns the mod merge (<code>register_bundles</code>, <code>EnabledMods</code>, <code>ModCatalog</code>), the portal client and downloads (<code>portal/</code>), and prefs persistence.</td></tr>
+<tr><td><code>nova_modding</code></td><td>Bundle/content/catalog ASSET LOADERS and the <code>Content</code> routing enum. See <a href="https://alexjercan.github.io/nova-protocol/create/mod-files/">Mod files</a>.</td></tr>
+<tr><td><code>nova_mod_format</code></td><td>Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>, not a crate. See <a href="https://alexjercan.github.io/nova-protocol/create/publish-a-mod/">Publish a mod</a>.</td></tr>
+<tr><td><code>nova_ui</code></td><td>Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (<code>theme::*</code>), the <code>UiSkin</code> visual-language switch (<code>skin</code>), the themed widgets (<code>widget</code>: button, slider, segmented control, list rows, panel chrome), screen-level composition (<code>screen</code>: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (<code>hud</code>), player-facing unit formatting (<code>units</code>), the shared typeface (<code>font</code>) and the generic <code>status_bar</code>. Consumed by <code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code> and <code>nova_assets</code>.</td></tr>
+<tr><td><code>nova_debug</code></td><td>Debug-only plugin (inspector, overlays). Compiled only under the <code>debug</code> feature.</td></tr>
+<tr><td><code>nova_info</code></td><td>Exposes <code>APP_VERSION</code>, injected by <code>build.rs</code>.</td></tr>
+<tr><td><code>nova_autopilot</code></td><td>Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; <code>nova_debug</code>, <code>nova_probe</code> and <code>nova_probe_cli</code> all build on it. See <a href="automation-harness.html">Automation harness</a>.</td></tr>
+<tr><td><code>nova_probe</code></td><td>Dev tooling (not in the shipped game): the IN-GAME half of the run-harness - the capability plugins an example wires to collect evidence about its own run (<code>capabilities::</code> <code>frametime</code>, <code>timeline</code>, <code>invariants</code>, <code>snapshot</code>, <code>census</code>, <code>framecost</code>, all bundled by <code>NovaProbePlugin</code>), the <code>contract</code> an example declares, and the wire format the host reads. See <a href="performance.html">Measuring performance</a> and <a href="development.html">Building and running</a>.</td></tr>
+<tr><td><code>nova_probe_cli</code></td><td>Dev tooling: the HOST half of the run-harness - spawns autopilot runs as child processes, grades their artifacts (<code>evaluation</code>) and renders the reports (<code>report</code>). Owns the <code>cargo run --features debug probe run/report</code> CLI. The two halves meet at the filesystem: nothing in <code>nova_probe</code> reads a run’s output back.</td></tr>
+<tr><td><code>nova_perf_web</code></td><td>The wasm app <code>probe run --platform web</code> boots and measures: the real game started into a scenario with the frame-time capture armed. Dev tooling, never shipped.</td></tr>
+<tr><td><code>nova_authoring</code></td><td>The OFFLINE half of the content pipeline (never shipped): the Rust builders that define every built-in scenario and section, the <code>content -- gen</code> serializer that writes them to the committed <code>assets/base/**/*.content.ron</code>, and the <code>content -- lint</code> walk that validates a content tree.</td></tr>
+<tr><td><code>nova_meta_gen</code></td><td>Binary under <code>tools/</code> (web-build tooling, not a game crate): writes default <code>.meta</code> sidecars for web assets that lack one (a Trunk <code>post_build</code> hook for <code>AssetMetaCheck::Always</code>). Boots a headless Bevy app, so it stays Rust.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The dependency layering the table describes, from top-level shell down to leaf crates:</p>
+<pre class="mermaid">graph TD
+    root["nova-protocol (root)"] --&gt; core["nova_core"]
+    core --&gt; menu["nova_menu"]
+    core --&gt; editor["nova_editor"]
+    core --&gt; gameplay["nova_gameplay"]
+    core --&gt; ship["nova_ship"]
+    core --&gt; hud["nova_hud"]
+    core --&gt; osui["nova_os_ui"]
+    core --&gt; scenario["nova_scenario"]
+    core --&gt; assets["nova_assets"]
+    ship --&gt; gameplay
+    ship --&gt; events["nova_events"]
+    hud --&gt; ship
+    hud --&gt; gameplay
+    hud --&gt; ui["nova_ui"]
+    osui --&gt; hud
+    osui --&gt; ship
+    osui --&gt; gameplay
+    osui --&gt; os["nova_os"]
+    osui --&gt; ui
+    menu --&gt; osui
+    menu --&gt; ui
+    editor --&gt; ship
+    editor --&gt; ui
+    gameplay --&gt; events
+    gameplay --&gt; ui
+    scenario --&gt; events
+    scenario --&gt; gameplay
+    scenario --&gt; ship
+    scenario --&gt; hud
+    assets --&gt; modding["nova_modding"]
+    assets --&gt; scenario
+    modding --&gt; modfmt["nova_mod_format"]
+    core --&gt; debug["nova_debug"]
+    core --&gt; info["nova_info"]
+</pre>
+
+<p>The graph is curated for readability, not exhaustive: <code>nova_core</code> and <code>nova_menu</code>
+depend on nearly every crate below them, and edges implied by the layering (for
+example <code>nova_menu -&gt; nova_ship</code>) are pruned. The authoritative dependency list
+for any crate is its <code>Cargo.toml</code>. Two edges people guess wrong:</p>
+<ul>
+<li><strong><code>nova_ui</code> is not menu-only.</strong> Every crate that renders UI draws on it -
+<code>nova_gameplay</code> (which adds <code>NovaUiPlugin</code> render-gated), <code>nova_hud</code> (the
+chip language and screen-indicator styling), <code>nova_os_ui</code>, <code>nova_menu</code>,
+<code>nova_editor</code> and <code>nova_assets</code>.</li>
+<li><strong><code>nova_scenario</code> reaches up into <code>nova_ship</code> and <code>nova_hud</code>.</strong> It spawns
+ships and drives HUD-facing surfaces (comms dwell limits, target-inset render
+targets), so it sits beside them, not below them.</li>
+</ul>
+<p>The dev-tool crates hang off this graph without joining it: <code>nova_debug</code> builds
+on <code>nova_autopilot</code> plus the game crates it inspects; <code>nova_probe</code> wires
+<code>nova_core</code> + <code>nova_autopilot</code> into a measurable app; <code>nova_probe_cli</code> depends
+only on <code>nova_probe</code>, <code>nova_autopilot</code> and <code>nova_assets</code> (it is a host process,
+not a game plugin); <code>nova_perf_web</code> is <code>nova_core</code> + <code>nova_probe</code>; and
+<code>nova_authoring</code> reads half the workspace to build and lint content offline.</p>
+<p>Every crate exposes a <code>pub mod prelude</code>. Import from the prelude
+(<code>use nova_gameplay::prelude::*</code>), not from inner modules. <code>nova_core::prelude</code>
+re-exports all sub-crate preludes, so top-level code and examples usually just do
+<code>use nova_protocol::prelude::*</code>.</p>
+<h3 id="generic-helpers-live-here-too"><a class="header" href="#generic-helpers-live-here-too">Generic helpers live here too</a></h3>
+<p>The generic, non-Nova Bevy helpers (WASD/chase cameras, skybox, post-processing,
+the mesh builder and the signed field, PD controller, health, status bar, the generic game-event queue
+<code>GameEventsPlugin</code>/<code>EventWorld</code>) are nova’s own: the camera and transform rigs,
+the mesh toolkit in <code>nova_gameplay</code>, the camera rigs and the PD controller in
+<code>nova_ship</code>, the status bar and
+tween in <code>nova_ui</code>, the event engine in <code>nova_events</code>, the inspector and
+wireframe layers in <code>nova_debug</code>. They live in nova crates on purpose:
+splitting a generic layer out before the game is done produces generic-looking
+code shaped by one game’s needs. Whether any of it deserves extracting is a
+question for after the game ships.</p>
+<p><code>nova_ui::status_bar</code> is the shape that line is drawn on. It is a generic
+readout - a row of value/colour closures over any <code>Any</code> subject - and it stays
+in the leaf crate. Nova’s own damage readout is NOT built on it: it is
+diegetic, and every section fractures its own material as its <code>DamageLevel</code>
+rises (<code>nova_ship::sections::damage_cracks</code>), from a vocabulary each section
+AUTHORS (<code>damage_effects</code>). That readout keys on Nova’s section graph, its
+authored vocabulary and an extended material, so it is game-specific and is not
+a promotion candidate. A generic widget and a diegetic one are different things
+at different layers, and the test is whether another game could take it as it
+stands.</p>
+<p>Boundary policy, from most game-agnostic to most game-specific:</p>
+<ol>
+<li>The generic-leaning modules named above - reusable Bevy primitives that
+happen to live in a nova crate; keep them free of game-specific types.</li>
+<li><code>nova_gameplay</code> - the shared gameplay layer, ship-agnostic.</li>
+<li><code>nova_ship</code> - the ship above that layer.</li>
+<li><code>nova_hud</code> and <code>nova_os_ui</code> - consumers of the ship and of gameplay, above
+both. <code>nova_os_ui</code> is above <code>nova_hud</code> in turn: it orders itself against
+<code>NovaHudSystems</code>.</li>
+<li><code>nova_core</code> - wiring only.</li>
+</ol>
+<h2 id="app-assembly"><a class="header" href="#app-assembly">App assembly</a></h2>
+<p><code>AppBuilder</code> (in <code>crates/nova_core/src/lib.rs</code>) is the single place the app is wired:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>AppBuilder::new()                 // Bevy DefaultPlugins + window/log/asset/render setup
+    .with_game_plugins(my_plugin) // optional: your own systems/observers
+    .build()                      // adds the plugin stack, returns App
+<span class="boring">}</span></code></pre>
+<p><code>AppBuilder::headless()</code> is the same builder with no wgpu device, no window, no
+winit event loop and none of the visual game plugins. Rendering is fixed by the
+CONSTRUCTOR rather than by a setter, because <code>DefaultPlugins</code> bakes the wgpu and
+window settings the moment the builder starts - a later setter could not reach
+them. It is one switch and not two because the halves cannot be separated:
+<code>bevy_hanabi</code> panics without a render sub-app, so dropping the device forces
+dropping the plugins that need it.</p>
+<p><code>build()</code> inits <code>GameStates</code> + <code>PauseStates</code>, then adds, in order:
+<code>EnhancedInputPlugin</code>, <code>GameAssetsPlugin</code>, <code>LoadingScreenPlugin</code>,
+<code>NovaGameplayPlugin</code>, <code>NovaShipPlugin</code> (the ship orders its sets inside
+gameplay’s <code>SpaceshipSystems</code> brackets, so it comes after), <code>NovaScenarioPlugin</code>,
+then - render-gated, a headless harness run draws neither - <code>NovaHudPlugin</code> and
+<code>NovaOsUiPlugin</code> (HUD first: the monitor orders itself against
+<code>NovaHudSystems</code>), then <code>NovaEditorPlugin</code> and <code>NovaMenuPlugin</code> (both only when
+no custom game plugins were supplied - the menu fronts the default app and
+nothing else, so an example that brings its own game plugins goes straight
+<code>Loading -&gt; Playing</code>), and finally <code>DebugPlugin</code> under the <code>debug</code> feature. On
+<code>OnEnter(GameAssetsStates::Loaded)</code> it hands off to <code>MainMenu</code> (or straight to
+<code>Playing</code> when the menu is off) and spawns the status UI.</p>
+<p><code>NovaGameplayPlugin</code> pulls in avian3d <code>PhysicsPlugins</code> (zero gravity, projectile
+collision hooks), <code>bevy_rand</code>, <code>bevy_hanabi</code> particles (on wasm via the WebGPU
+backend), <code>NovaUiPlugin</code> (render-gated), the transform/lifetime/mesh rigs, and
+the shared gameplay sub-plugins: integrity, damage, gravity, relations, audio,
+juice, settings. The ship stack (input, sections, flight, camera, physics) is
+<code>NovaShipPlugin</code>’s, and the HUD is <code>NovaHudPlugin</code>’s - both added by
+<code>nova_core</code>, not by gameplay.</p>
+<h2 id="states"><a class="header" href="#states">States</a></h2>
+<ul>
+<li><code>GameStates { Loading, MainMenu, Playing }</code> (<code>nova_gameplay</code>) - top-level
+lifecycle. <code>MainMenu</code> only occurs when <code>NovaMenuPlugin</code> fronts the app (the
+default editor app); examples with custom game plugins go straight
+<code>Loading -&gt; Playing</code>. The <code>GameMode</code> resource (<code>Sandbox</code> default | <code>NewGame</code>)
+records what the menu handed off to.</li>
+<li><code>PauseStates { Unpaused, Paused, NovaOs }</code> - the freeze axis. <code>Paused</code> is the
+ESC pause overlay; <code>NovaOs</code> is the Tab ship-computer takeover (same clock
+freeze, cursor freed, no pause menu). Both frozen variants enter only from
+<code>Unpaused</code> and exit back to it, never into each other. <code>nova_gameplay</code> owns
+the enum and gates the spaceship sets; <code>nova_menu</code> owns the toggle, the
+overlay UI, and the clock freeze (<code>Time&lt;Virtual&gt;</code> + <code>Time&lt;Physics&gt;</code>). Only
+meaningful inside <code>Playing</code>; leaving <code>Playing</code> resets it.</li>
+<li><code>GameAssetsStates { Loading, Processing, Loaded }</code> (<code>nova_assets</code>) - asset
+pipeline. Scenario setup hooks <code>OnEnter(GameAssetsStates::Loaded)</code> - see
+<code>examples/systems/system_scenario_grammar.rs</code>.</li>
+</ul>
+<p>The top-level lifecycle, the pause overlay nested inside <code>Playing</code>, and the asset
+pipeline that gates entry:</p>
+<pre class="mermaid">stateDiagram-v2
+    state "GameStates" as GS {
+        [*] --&gt; Loading
+        Loading --&gt; MainMenu: menu app
+        Loading --&gt; Playing: custom game plugins
+        MainMenu --&gt; Playing: New Game / Sandbox
+        state "Playing" as Playing {
+            [*] --&gt; Unpaused
+            Unpaused --&gt; Paused: ESC
+            Paused --&gt; Unpaused: ESC
+            Unpaused --&gt; NovaOs: Tab
+            NovaOs --&gt; Unpaused: Tab
+        }
+    }
+
+    state "GameAssetsStates" as AS {
+        [*] --&gt; AsLoading: Loading
+        AsLoading --&gt; Processing
+        Processing --&gt; Loaded
+    }
+
+    AS --&gt; GS: OnEnter(Loaded) hands off to MainMenu / Playing
+</pre>
+
+<p>Leaving <code>Playing</code> resets <code>PauseStates</code> back to <code>Unpaused</code>.</p>
+<h2 id="frame-flow"><a class="header" href="#frame-flow">Frame flow</a></h2>
+<p>Gameplay systems run in an explicit chain, configured identically in <code>Update</code> and
+<code>FixedUpdate</code>. <code>nova_ship::NovaShipPlugin</code> declares the brackets and the ship
+sets; <code>nova_hud</code> slots <code>NovaHudSystems</code> into the gap itself:</p>
+<pre><code>SpaceshipSystems::First -&gt; SpaceshipInputSystems -&gt; SpaceshipSectionSystems
+    -&gt; NovaHudSystems -&gt; NovaCameraSystems -&gt; SpaceshipSystems::Last
+</code></pre>
+<ul>
+<li>Physics (avian3d) runs in <code>FixedPostUpdate</code> on a fixed timestep. Rigid bodies get
+<code>TransformInterpolation</code> so rendering stays smooth between physics ticks.</li>
+<li><code>PostUpdate</code> hosts the chase camera’s final move and the HUD’s world-to-screen
+projection, ordered after it.</li>
+<li>While <code>Paused</code>, the input and section sets are gated off and the clocks freeze.</li>
+</ul>
+<p>The render-rate chain (run in both <code>Update</code> and <code>FixedUpdate</code>) versus the
+fixed-timestep physics step and the interpolation that smooths rendering between
+ticks:</p>
+<pre class="mermaid">flowchart LR
+    subgraph render["Update / FixedUpdate chain"]
+        first["Spaceship First"] --&gt; input["Spaceship Input"]
+        input --&gt; section["Spaceship Section"]
+        section --&gt; hud["Nova HUD"]
+        hud --&gt; cam["Nova Camera"]
+        cam --&gt; last["Spaceship Last"]
+    end
+
+    subgraph fixed["FixedPostUpdate"]
+        phys["avian3d physics (fixed step)"]
+        phys --&gt; interp["TransformInterpolation"]
+    end
+
+    subgraph post["PostUpdate"]
+        chase["chase camera final move"] --&gt; worldscreen["HUD world-to-screen"]
+    end
+
+    render --&gt; fixed --&gt; post
+</pre>
+
+<h3 id="update-vs-fixedupdate---which-schedule-does-my-system-go-in"><a class="header" href="#update-vs-fixedupdate---which-schedule-does-my-system-go-in">Update vs FixedUpdate - which schedule does my system go in?</a></h3>
+<p>The chain above is configured IDENTICALLY in <code>Update</code> and <code>FixedUpdate</code>
+(<code>nova_ship::NovaShipPlugin</code>, two <code>configure_sets</code> calls with the same set order),
+so a gameplay set can host systems in either schedule. The split is not
+cosmetic: since every dynamic body opted into avian’s <code>TransformInterpolation</code>,
+the game carries two pose representations on two clocks:</p>
+<ul>
+<li><strong>Raw physics pose</strong> – avian <code>Position</code>/<code>Rotation</code>, advanced on the 64 Hz
+<code>FixedUpdate</code> tick. This is the truth the simulation integrates.</li>
+<li><strong>Render pose</strong> – <code>Transform</code>, eased between the previous and current physics
+states, with <code>GlobalTransform</code> propagated from it in <code>PostUpdate</code>.</li>
+</ul>
+<p>Which schedule:</p>
+<ul>
+<li>Put a system in <strong>FixedUpdate</strong> when it feeds the physics sim – forces and
+impulses, spawns whose motion the fixed clock advances (torpedoes, which
+physics integrates; gun rounds, which <code>nova_gameplay::rounds</code> sweeps by hand
+after the physics step), guidance. It
+MUST read the raw <code>Position</code>/<code>Rotation</code> (or compose the root’s raw pose with a
+local mount offset). During <code>FixedUpdate</code> of frame N, <code>GlobalTransform</code> still
+holds the eased pose propagated in frame N-1’s <code>PostUpdate</code>, so it is stale
+render state here; the avian child-collider pose is one tick stale too.</li>
+<li>Put a system in <strong>Update</strong> (or <code>PostUpdate</code>) when it consumes the rendered
+frame – camera, HUD world-to-screen projection, effects. It reads the eased
+<code>Transform</code>/<code>GlobalTransform</code>, and every pose in one on-screen computation must
+come from the same frame. A consumer of <code>PostUpdate</code>-written state must be
+ordered after its producer.</li>
+<li>Put a system in <strong>FixedUpdate</strong> when what it computes DECIDES a fixed-step
+consequence, <strong>even when the same value is also drawn</strong>. This is the rule that
+is easiest to get wrong, because such a system looks like render-rate work: it
+has an on-screen output, so it reads as belonging beside the camera and the
+HUD. Ask instead whether anything on the fixed clock BRANCHES on what it
+writes. If it does, the state that branch samples advances once per FRAME
+while the branch is taken once per STEP, and the outcome is a function of the
+host’s frame rate.</li>
+</ul>
+<p>Why gameplay is split across both: the chain runs in <code>Update</code> for
+render-rate work and in <code>FixedUpdate</code> for sim-rate work; the same set order in
+both keeps ordering consistent wherever a system lands.</p>
+<p>The fixed loop runs on the SINGLE-THREADED executor (<code>AppBuilder::assemble</code>), so
+a <code>FixedUpdate</code> system gets no parallelism from its neighbours - only from its
+own <code>par_iter</code>. That is a deliberate trade for the schedules’ size; the number
+behind it is in <a href="performance.html#the-fixed-loop-is-single-threaded-on-purpose">Measuring performance</a>.</p>
+<p>What breaks if a system lands in the wrong schedule – worked example: a
+<code>FixedUpdate</code> system reading <code>GlobalTransform</code>. <code>thruster_impulse_system</code> used to
+apply its impulse at the thruster child’s <code>GlobalTransform</code>, i.e. the previous
+frame’s eased pose, up to ~2 ticks of ship motion behind the raw physics it was
+pushing, while taking thrust DIRECTION from the raw <code>Rotation</code> – mixing both
+clocks in one impulse. The application-point error is proportional to velocity;
+at speed a COM-centered engine developed an uncompensated lever arm the throttle
+balancer could not see, and the measured failure was a zero-true-torque lateral
+engine spinning the hull to 7.1 rad/s in 15 frames (0 rad/s after reading the raw
+pose). The fix (<code>thruster_section.rs</code>, see the comment above <code>apply_linear_impulse_at_point</code>)
+composes both application point and thrust direction from the root’s raw
+<code>Position</code>/<code>Rotation</code>. The same footgun produced the bullet-spew, HUD-jitter and
+crosshair-twitch bugs in that family; all were error proportional to velocity,
+which is why they only showed at high speed.</p>
+<p>Worked example for the third rule – a DRAWN value that gates a fixed-step
+branch. A turret’s aim chain solved the intercept, drove the hinges and wrote
+the joint pose in <code>PostUpdate</code>, which is where a thing you can see belongs. But
+<code>shoot_spawn_projectile</code> runs in <code>FixedUpdate</code> and asks, per tick, whether the
+muzzle is inside a 0.92 deg cone of that aim point. The barrel’s pose was
+therefore a staircase with one step per FRAME, its tracking residual scaled with
+the frame period, and the cone is narrower than the residual’s span: measured on
+<code>stress_point_defense</code>, the battery held its trigger 9.7% of the time at 20 fps
+and 60.6% at 106 fps – same scene, same seed, a six-fold difference in how
+strong point defence was. Moving the whole chain (solve, hinge controller, joint
+sync) onto the fixed clock made the trigger duty 0.811-0.817 across the same
+span. Nothing about the aim chain looked like sim work; the tell was that a
+<code>FixedUpdate</code> system branched on its output.</p>
+<p>Cross-system communication goes through events and observers (Bevy <code>On&lt;...&gt;</code>
+observers, e.g. the integrity/destruction chain) rather than direct calls. Prefer
+adding an event/observer over coupling two systems.</p>
+<h2 id="assets"><a class="header" href="#assets">Assets</a></h2>
+<p><code>assets/</code> is <strong>runtime-only</strong> - everything the game actually loads: <code>shaders/</code>
+(<code>.wgsl</code>), <code>icons/</code>, <code>sounds/</code> (UI chrome: menu clicks + objective chimes),
+and the <code>base/</code>/<code>mods/</code> data (<code>.ron</code>). The base game’s own art and world audio
+live UNDER <code>assets/base/</code> (exported <code>gltf/</code> models <code>.glb</code>, <code>textures/</code>,
+<code>sounds/</code> <code>.wav</code> world cues, <code>banner.png</code>), referenced by base content with
+<code>self://</code> and by mods with <code>dep://base/&lt;path&gt;</code>. It is the whole directory the
+web (Trunk <code>copy-dir</code>) and native (<code>release.yaml</code>) builds ship, so non-runtime
+files must not live here. The Blender SOURCES the <code>gltf/</code> models are exported
+from live OUT of the shipped tree, in top-level <code>art/blender/</code>, because nothing
+loads them at runtime. The built-in sections, ships, styles, scenarios and
+campaigns ARE data: the Rust builders under
+<code>crates/nova_authoring/src/base_content/</code> (<code>sections/</code>, <code>ships/</code>, <code>styles.rs</code>,
+<code>scenarios/</code>, <code>campaigns.rs</code>, <code>assets.rs</code>) are the single source, and
+<code>cargo run content gen</code> serializes them to the
+committed <code>assets/base/**/*.content.ron</code> the game loads like any other bundle.
+Never hand-edit the generated files; edit the builders and re-run <code>gen</code>.</p>
+<h2 id="find-it-in-the-code"><a class="header" href="#find-it-in-the-code">Find it in the code</a></h2>
+<ul>
+<li>App assembly, plugin order: <code>AppBuilder</code> - <code>crates/nova_core/src/lib.rs</code>;
+game binary and CLI flags - <code>src/main.rs</code>.</li>
+<li>States: <code>GameStates</code>, <code>PauseStates</code>, <code>GameMode</code> -
+<code>crates/nova_gameplay/src/lib.rs</code>; ESC overlay and clock freeze -
+<code>crates/nova_menu/src/pause.rs</code>.</li>
+<li>Frame-flow sets: <code>SpaceshipSystems</code> - <code>crates/nova_gameplay/src/plugin.rs</code>;
+chained in <code>Update</code> + <code>FixedUpdate</code> by <code>NovaShipPlugin</code> -
+<code>crates/nova_ship/src/lib.rs</code>.</li>
+<li>The two damage readings: <code>DamageLevel</code> -
+<code>crates/nova_gameplay/src/integrity/erosion.rs</code>; <code>DamageMarks</code> and the carve
+cost model - <code>crates/nova_gameplay/src/integrity/carve.rs</code>.</li>
+<li>Asset gate and mod merge: <code>GameAssetsPlugin</code> -
+<code>crates/nova_assets/src/plugin.rs</code>; <code>register_bundles</code> -
+<code>crates/nova_assets/src/merge.rs</code>.</li>
+<li>API detail: <code>cargo doc --open -p nova_core</code> (any crate from the map works).</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="keeping-docs-in-sync.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="sections.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="keeping-docs-in-sync.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="sections.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="mermaid-eefea253.min.js"></script>
+        <script src="mermaid-init-ccf746f1.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

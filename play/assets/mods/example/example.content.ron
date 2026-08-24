@@ -29,7 +29,6 @@
             id: "reinforced_hull_section",
             name: "Reinforced Hull Section (Example Mod)",
             description: "Base hull, up-armored by the example mod to show section overlay by id.",
-            mass: 1.0,
             health: 400.0,
             link_points: [
                 (
@@ -122,12 +121,16 @@
     // uses it, so you can see it in play. `kind: Hull` reuses the base hull mesh
     // via `dep://base/...`; a real mod could point `render_mesh` at its own
     // `self://` model instead.
+    //
+    // HEALTH is the axis a structural part is tuned on: 500 here, against the
+    // 400 of the override above and the base game's 200. A section's mass is
+    // its collider volume, so a part built on the unit cell weighs exactly what
+    // every other unit cell weighs - toughness is what tells hull apart.
     Section((
         base: (
             id: "example_plated_hull_section",
             name: "Plated Hull Section (Example Mod)",
-            description: "A brand-new section the example mod adds: heavier plating than the base hull.",
-            mass: 1.2,
+            description: "A brand-new section the example mod adds: the toughest hull on the board at 500 hp.",
             health: 500.0,
             link_points: [
                 (
@@ -332,40 +335,42 @@
                                 speed_cap: Some(25.0),
                                 infinite_ammo: false,
                             )),
-                            sections: [
-                                (
-                                    id: "controller",
-                                    position: (0.0, 0.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_controller_section"),
-                                ),
-                                (
-                                    id: "hull_front",
-                                    position: (0.0, 0.0, 1.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    // the OVERRIDDEN base section (id 1 above)
-                                    source: Prototype("reinforced_hull_section"),
-                                ),
-                                (
-                                    id: "hull_rear",
-                                    position: (0.0, 0.0, 2.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    // the NEW section this mod adds (id 2 above)
-                                    source: Prototype("example_plated_hull_section"),
-                                ),
-                                (
-                                    id: "thruster",
-                                    position: (0.0, 0.0, 3.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_thruster_section"),
-                                ),
-                                (
-                                    id: "turret",
-                                    position: (0.0, 0.0, -1.0),
-                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
-                                    source: Prototype("better_turret_section"),
-                                ),
-                            ],
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "controller",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "hull_front",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        // the OVERRIDDEN base section (id 1 above)
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_rear",
+                                        position: (0.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        // the NEW section this mod adds (id 2 above)
+                                        source: Prototype("example_plated_hull_section"),
+                                    ),
+                                    (
+                                        id: "thruster",
+                                        position: (0.0, 0.0, 3.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "turret",
+                                        position: (0.0, 0.0, -0.75),
+                                        rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                        source: Prototype("pdc_kinetic_turret_section"),
+                                    ),
+                                ],
+                            )),
                         )),
                     )),
                     // A lit beacon centrepiece the rocks sit in front of. Purely
@@ -401,9 +406,9 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 2.5,
+                            // Small size, not hidden health, keeps this tutorial target brief.
+                            radius: 0.25,
                             texture: "self://textures/rock.png",
-                            health: 50.0,
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -417,9 +422,8 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 3.0,
+                            radius: 0.3,
                             texture: "self://textures/rock.png",
-                            health: 50.0,
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -612,7 +616,6 @@
                         kind: Asteroid((
                             radius: 2.0,
                             texture: "self://textures/rock.png",
-                            health: 50.0,
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -655,6 +658,14 @@
                 name: OnStart,
                 filters: [],
                 actions: [
+                    // The backdrop camera contract: every menu backdrop poses
+                    // its OWN camera with a SetCamera (a backdrop without one
+                    // is a content Error and never enters the menu rotation).
+                    // The authored position IS the framing.
+                    SetCamera((
+                        position: (0.0, 100.0, 335.0),
+                        look_at: (0.0, 0.0, 0.0),
+                    )),
                     // The backdrop lights itself, like every shipped menu scene.
                     SpawnScenarioObject((
                         base: (
@@ -713,11 +724,9 @@
                             aim: Some((0.0, 0.0, 0.0)),
                         )),
                     )),
-                    // A slow, invulnerable planetoid to anchor the view, plus an
-                    // AI ship set to orbit it - calm motion, nothing to fight.
-                    // The well is id `menu_planetoid`: the menu's cinematic
-                    // camera frames on exactly that id (any other id makes the
-                    // menu fall back to the scenario's own camera pose).
+                    // A slow, invulnerable planetoid to anchor the view, plus
+                    // an AI ship set to orbit it - calm motion, nothing to
+                    // fight. The orbit directive names the well by its id.
                     SpawnScenarioObject((
                         base: (
                             id: "menu_planetoid",
@@ -728,7 +737,6 @@
                         kind: Asteroid((
                             radius: 18.0,
                             texture: "self://textures/rock.png",
-                            health: 2000.0,
                             mass: Some(36_000.0),
                             invulnerable: true,
                             lock_signature: None,
@@ -745,26 +753,28 @@
                             controller: AI((
                                 orbit: Some("menu_planetoid"),
                             )),
-                            sections: [
-                                (
-                                    id: "controller",
-                                    position: (0.0, 0.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_controller_section"),
-                                ),
-                                (
-                                    id: "hull_front",
-                                    position: (0.0, 0.0, 1.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("reinforced_hull_section"),
-                                ),
-                                (
-                                    id: "thruster",
-                                    position: (0.0, 0.0, 2.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_thruster_section"),
-                                ),
-                            ],
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "controller",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "hull_front",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "thruster",
+                                        position: (0.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype("basic_thruster_section"),
+                                    ),
+                                ],
+                            )),
                         )),
                     )),
                 ],

@@ -1,0 +1,423 @@
+[
+    Scenario((
+        id: "menu_duel",
+        name: "Duel Cycle",
+        description: "Two corvettes duel; a siege torpedo erases the winner; repeat.",
+        cubemap: "self://textures/cubemap.png",
+        hidden: true,
+        menu_backdrop: true,
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_key",
+                            name: "Key Light",
+                            position: (
+                                -120.0,
+                                100.0,
+                                120.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_rim",
+                            name: "Rim Light",
+                            position: (
+                                60.0,
+                                80.0,
+                                -160.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_fill",
+                            name: "Fill Light",
+                            position: (
+                                140.0,
+                                -40.0,
+                                80.0,
+                            ),
+                            rotation: (
+                                0.104897276,
+                                0.49822173,
+                                -0.060874254,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_lamp",
+                            name: "Planetoid Glow",
+                            position: (
+                                -60.0,
+                                20.0,
+                                90.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Light(Point(
+                            intensity: 2500000.0,
+                            range: 400.0,
+                            radius: 12.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.82,
+                                blue: 0.6,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_finisher",
+                            name: "Duel Finisher",
+                            position: (
+                                -950.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                -0.70710677,
+                                0.0,
+                                0.70710677,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Inline((
+                                sections: [
+                                    (
+                                        id: "siege_bay",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype("heavy_torpedo_section"),
+                                    ),
+                                ],
+                            )),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                    SetCamera((
+                        position: (
+                            0.0,
+                            90.0,
+                            300.0,
+                        ),
+                        look_at: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "duel_rock_",
+                        count: 12,
+                        seed: 433757350076153861,
+                        region: Ring(
+                            center: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inner: 150.0,
+                            outer: 220.0,
+                            y_min: -70.0,
+                            y_max: -35.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "duel_rock_",
+                                name: "Duel Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.0,
+                                texture: "self://textures/asteroid.png",
+                                impact_sound: Some("self://sounds/impact.wav"),
+                                destroy_sound: Some("self://sounds/explosion.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            1.0,
+                            3.0,
+                        )),
+                    )),
+                    TimerStart((
+                        key: "duel_respawn",
+                        seconds: Term(Factor(Literal(Number(0.5)))),
+                    )),
+                    TimerStart((
+                        key: "duel_watchdog",
+                        seconds: Term(Factor(Literal(Number(300.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "duel_respawn",
+                    )),
+                ],
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_victor",
+                            name: "Duel Victor",
+                            position: (
+                                -420.0,
+                                25.0,
+                                100.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("cargoa"),
+                            controller: AI((
+                                patrol: [
+                                    (
+                                        -70.0,
+                                        10.0,
+                                        50.0,
+                                    ),
+                                    (
+                                        70.0,
+                                        15.0,
+                                        -50.0,
+                                    ),
+                                    (
+                                        0.0,
+                                        5.0,
+                                        70.0,
+                                    ),
+                                ],
+                                leash: Some(250.0),
+                                engage_delay: Some(6.0),
+                            )),
+                            allegiance: Some(Player),
+                            modifications: [
+                                (
+                                    section: "fuselage",
+                                    modifications: [
+                                        SetHealth(500.0),
+                                    ],
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "duel_rival",
+                            name: "Duel Rival",
+                            position: (
+                                420.0,
+                                -15.0,
+                                -100.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            hull: Prototype("cargoa_raider"),
+                            controller: AI((
+                                patrol: [
+                                    (
+                                        70.0,
+                                        -5.0,
+                                        -50.0,
+                                    ),
+                                    (
+                                        -70.0,
+                                        -10.0,
+                                        50.0,
+                                    ),
+                                    (
+                                        0.0,
+                                        -15.0,
+                                        -70.0,
+                                    ),
+                                ],
+                                leash: Some(250.0),
+                                engage_delay: Some(6.0),
+                            )),
+                            modifications: [
+                                (
+                                    section: "fuselage",
+                                    modifications: [
+                                        SetHealth(500.0),
+                                    ],
+                                ),
+                            ],
+                        )),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                filters: [
+                    Entity((
+                        id: Some("duel_rival"),
+                    )),
+                ],
+                actions: [
+                    TimerStart((
+                        key: "duel_finisher_beat",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "duel_finisher_beat",
+                    )),
+                ],
+                actions: [
+                    SetAllegiance((
+                        id: "duel_finisher",
+                        allegiance: Enemy,
+                    )),
+                    ForceTorpedoLaunch((
+                        id: "duel_finisher",
+                        target: "duel_victor",
+                    )),
+                    TimerStart((
+                        key: "duel_finisher_beat",
+                        seconds: Term(Factor(Literal(Number(20.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnDefeated,
+                filters: [
+                    Entity((
+                        id: Some("duel_victor"),
+                    )),
+                ],
+                actions: [
+                    TimerCancel((
+                        key: "duel_finisher_beat",
+                    )),
+                    TimerStart((
+                        key: "duel_reset",
+                        seconds: Term(Factor(Literal(Number(8.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "duel_reset",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_waystation",
+                        linger: false,
+                        delay: Some(1.0),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "duel_watchdog",
+                    )),
+                ],
+                actions: [
+                    NextScenario((
+                        scenario_id: "menu_waystation",
+                        linger: false,
+                        delay: Some(1.0),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
