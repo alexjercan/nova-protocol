@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backlog ideation - beyond v0.12.0</title>
+<style>
+  :root {
+    --bg: #fafaf8; --fg: #1a1a1a; --muted: #6b6b66; --line: #e4e4de;
+    --accent: #6f4f2f; --chip: #f2efea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --fg: #e6e4de; --muted: #8f8f88; --line: #2a2d33;
+      --accent: #c9a06a; --chip: #221e1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 46rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+  h1 { font-size: 1.35rem; margin: 0 0 .25rem; }
+  .sub { color: var(--muted); margin: 0 0 2rem; font-size: .9rem; }
+  .sub a { color: var(--accent); }
+  h2 {
+    font-size: .78rem; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); margin: 2.2rem 0 .4rem; font-weight: 600;
+  }
+  ol.tasks { list-style: none; margin: 0; padding: 0; }
+  ol.tasks li { padding: .8rem 0; border-top: 1px solid var(--line); }
+  ol.tasks li:first-child { border-top: none; }
+  .row { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; }
+  .p {
+    font: 600 .72rem/1.4 ui-monospace, monospace; color: var(--accent);
+    background: var(--chip); border-radius: 4px; padding: .05rem .4rem;
+    flex: none;
+  }
+  .row a { color: var(--fg); font-weight: 600; text-decoration: none; }
+  .row a:hover { color: var(--accent); text-decoration: underline; }
+  .id { font: .72rem ui-monospace, monospace; color: var(--muted); }
+  p.d { margin: .25rem 0 0; color: var(--muted); font-size: .88rem; }
+  .foot { margin-top: 2.5rem; border-top: 1px solid var(--line);
+          padding-top: 1rem; color: var(--muted); font-size: .82rem; }
+  .foot a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Backlog ideation &mdash; beyond v0.12.0</h1>
+  <p class="sub">
+    Nine broad-on-purpose ideas, one or two sentences each, all backlog at
+    priority 0. Deliberately unscoped &mdash; a pick gets a real rewrite before it
+    enters a release. The v0.12.0 board:
+    <a href="file:///home/alex/personal/nova-protocol/tasks/20260815-231945/v0.12.0-tasks.html">v0.12.0-tasks.html</a>.
+    Generated 2026-08-24.
+  </p>
+
+  <h2>The agent thread &mdash; grows out of the process channel</h2>
+  <ol class="tasks">
+    <li>
+      <div class="row"><span class="p">idea</span>
+        <a href="file:///home/alex/personal/nova-protocol/tasks/20260824-125929/TASK.md">An agent plays the game over the process channel</a>
+        <span class="id">20260824-125929</span></div>
+      <p class="d">An external agent drives a full scenario over stdin/stdout in
+      --norender step mode: reads snapshots, writes inputs, completes objectives
+      with no human at the keyboard.</p>
+    </li>
+    <li>
+      <div class="row"><span class="p">idea</span>
+        <a href="file:///home/alex/personal/nova-protocol/tasks/20260824-125933/TASK.md">Benchmark the agent: score autonomous play across scenarios</a>
+        <span class="id">20260824-125933</span></div>
+      <p class="d">A harness that scores autonomous runs - completion, time, damage
+      taken, ammo spent - across the scenario set, tracked release over release.</p>
+    </li>
+  </ol>
+
+  <h2>A bigger game</h2>
+  <ol class="tasks">
+    <li>
+      <div class="row"><span class="p">idea</span>
+        <a href="file:///home/alex/personal/nova-protocol/tasks/20260824-125938/TASK.md">Open-world mode: factions, travel, and ship progression</a>
+        <span class="id">20260824-125938</span></div>
+      <p class="d">Mount and Blade in space, beside the scripted scenarios: freeform
+      travel, factions with standing and conflicts you can join, upgrades and
+      unlocks, trade and salvage - a living sandbox driven by systems, not RON
+      scripts.</p>
+    </li>
+    <li>
+      <div class="row"><span class="p">idea</span>
+        <a href="file:///home/alex/personal/nova-protocol/tasks/20260824-125943/TASK.md">Space stations: dockable structures with services</a>
+        <span class="id">20260824-125943</span></div>
+      <p class="d">Dockable stations as first-class scenario objects and open-world
+      anchors: repair, rearm, trade, mission boards. The natural showcase for huge
+      multi-cell structures.</p>
+    </li>
+    <li>
+      <div class="row"><span class="p">idea</span>
+        <a href="file:///home/alex/personal/nova-protocol/tasks/20260824-125959/TASK.md">More campaign chapters after the ledger</a>
+        <span class="id">20260824-125959</span></div>
+      <p class="d">The ledger campaign ends; the story does not have to. More
+      chapters or a second arc, authored on the improved scenario language so the
+      beats cost lines instead of handler cascades.</p>
+    </li>
+  </ol>
+
+  <h2>Content and feel</h2>
+  <ol class="tasks">
+    <li>
+      <div class="row"><span class="p">idea</span>
+        <a href="file:///home/alex/personal/nova-protocol/tasks/20260824-125947/TASK.md">Railgun: a spinal kinetic weapon family</a>
+        <span class="id">20260824-125947</span></div>
+      <p class="d">Charge time, a hitscan-fast slug, brutal recoil that interacts
+      with the attitude model, and a distinct vacuum firing effect. A capital-ship
+      reason to exist.</p>
+    </li>
+    <li>
+      <div class="row"><span class="p">idea</span>
+        <a href="file:///home/alex/personal/nova-protocol/tasks/20260824-125951/TASK.md">Grow the ship cast beyond the cargo family</a>
+        <span class="id">20260824-125951</span></div>
+      <p class="d">A capital hull, a station tug, a proper raider silhouette,
+      civilian traffic - each with a role in scenarios or the open world, built on
+      the generated-art pipeline.</p>
+    </li>
+    <li>
+      <div class="row"><span class="p">idea</span>
+        <a href="file:///home/alex/personal/nova-protocol/tasks/20260824-125955/TASK.md">An audio direction pass: combat and UI soundscape</a>
+        <span class="id">20260824-125955</span></div>
+      <p class="d">Combat weight, UI feedback, engine and RCS character, station
+      ambience, and a music direction - the audio side has never had a dedicated
+      pass.</p>
+    </li>
+  </ol>
+
+  <h2>Reach</h2>
+  <ol class="tasks">
+    <li>
+      <div class="row"><span class="p">idea</span>
+        <a href="file:///home/alex/personal/nova-protocol/tasks/20260824-130004/TASK.md">Ship packaged native releases to itch.io</a>
+        <span class="id">20260824-130004</span></div>
+      <p class="d">Packaged native releases on itch.io (maybe Steam later) with the
+      nix package as the reproducible base - the game reaches players who never
+      open a repo.</p>
+    </li>
+  </ol>
+
+  <p class="foot">
+    These are ideation, not commitments: broad by request, so the backlog holds
+    the direction without pretending the scoping happened. Kept beside the
+    <a href="file:///home/alex/personal/nova-protocol/tasks/20260815-231945/V0.12.0-PLAN.md">v0.12.0 plan</a>
+    in the market-research record.
+  </p>
+</main>
+</body>
+</html>

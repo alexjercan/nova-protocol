@@ -37,6 +37,8 @@ art generator. Research that informs it is the most valuable.
   `CONTENT-AND-ART.md`, `NODE-EDITOR-PRIOR-ART.md`.
 - `v0.12.0-tasks.html` - the board as a browsable page: every v0.12.0 task
   with a short description and a file:// link. Open in a browser.
+- `backlog-ideas.html` - the ideation backlog beyond v0.12.0 (owner round,
+  2026-08-24): nine deliberately broad one-liner tasks, same page style.
 
 ## Round 2: hull plating shape and greeble placement
 
