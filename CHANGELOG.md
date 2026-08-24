@@ -17,9 +17,14 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Interface & HUD
 
-- The editor holds a scenario of ships rather than one ship: build several,
-  click one to work on it, and a Scene list on the rail says which you are
-  inside. Play hands off the whole scenario, from its root.
+- The editor holds a scenario of ships under a real scene tree and a top bar
+  of per-context actions: one click enters a ship or selects a section,
+  entering shows only that ship, and Play compiles the scenario root.
+- Add Ship starts a blank ship - the first armed part founds it at the ship
+  origin - and dragging a ship at the scenario node slides it on the ground
+  plane.
+- A click in the world selects: a section inside a ship, a ship outside.
+  Rebinding a section's key is a top-bar action on the selection.
 
 ### Ships & Sections
 

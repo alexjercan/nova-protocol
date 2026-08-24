@@ -110,6 +110,14 @@ pub struct EditorProbe {
     /// Whether Play would hand off right now. False inside a ship, where the
     /// button is disabled.
     pub can_play: bool,
+    /// The ship nodes ON STAGE, in id order: every ship at the scenario node,
+    /// only the entered one inside a ship. What a driven run reads to prove
+    /// the focus isolation, instead of counting rendered meshes.
+    pub visible_ships: Vec<String>,
+    /// The context nodes' poses, where they have one: ships in world space at
+    /// the scenario node, sections in ship-local space inside one. What a drag
+    /// beat asserts against.
+    pub node_positions: Vec<(String, Vec3)>,
 }
 
 /// Refresh [`EditorProbe`] from the build state.
@@ -126,6 +134,8 @@ pub(crate) fn sync_editor_probe(
     selected: Res<SelectedNode>,
     nodes: SectionNodes,
     q_ships: ShipNodes,
+    q_visibility: Query<&Visibility>,
+    poses: Query<&Transform>,
     mut probe: ResMut<EditorProbe>,
 ) {
     let wanted = if *editor.get() == ExampleStates::Editor {
@@ -139,11 +149,33 @@ pub(crate) fn sync_editor_probe(
                 .find(|listed| listed.entity == node)
                 .map(|listed| listed.id.0.clone())
         });
-        snapshot.context_nodes = listed.into_iter().map(|node| node.id.0.clone()).collect();
         // The same rule `continue_to_simulation` enforces, reported rather than
         // re-derived from the button's paint - a driven run asserts what Play
         // WOULD do, not what it looks like.
         snapshot.can_play = context.scenario().is_some() && context.ship().is_none();
+        // What `sync_ship_focus` decided, read off the same component it
+        // writes. A ship with no `Visibility` (a bare test fixture) counts as
+        // on stage, which is what it would render as.
+        let mut on_stage: Vec<String> = q_ships
+            .iter()
+            .filter(|(entity, ..)| {
+                q_visibility
+                    .get(*entity)
+                    .map(|visibility| *visibility != Visibility::Hidden)
+                    .unwrap_or(true)
+            })
+            .map(|(_, _, id, _)| id.0.clone())
+            .collect();
+        on_stage.sort_unstable();
+        snapshot.visible_ships = on_stage;
+        snapshot.node_positions = listed
+            .iter()
+            .filter_map(|node| {
+                let pose = poses.get(node.entity).ok()?;
+                Some((node.id.0.clone(), pose.translation))
+            })
+            .collect();
+        snapshot.context_nodes = listed.into_iter().map(|node| node.id.0.clone()).collect();
         snapshot
     } else {
         EditorProbe::default()
@@ -220,6 +252,8 @@ fn snapshot(
         context_nodes: Vec::new(),
         selected_node: None,
         can_play: false,
+        visible_ships: Vec::new(),
+        node_positions: Vec::new(),
     }
 }
 
@@ -401,6 +435,57 @@ mod tests {
         assert!(
             !inside.can_play,
             "Play compiles the document, which is not what a ship context asked for"
+        );
+    }
+
+    /// The stage as data: which ships render, so a driven run proves the focus
+    /// isolation without counting meshes - and the context nodes' poses, which
+    /// is what a drag beat asserts against.
+    #[test]
+    fn the_probe_reports_the_stage_and_the_node_positions() {
+        use crate::node::{NodeId, ScenarioNode, ShipNode};
+
+        let mut world = world(ExampleStates::Editor);
+        let scenario = world
+            .spawn((ScenarioNode, NodeId("scenario".to_string())))
+            .id();
+        world.resource_mut::<EditContext>().path = vec![scenario];
+        let _first = world
+            .spawn((
+                ShipNode::default(),
+                NodeId("ship_1".to_string()),
+                Transform::default(),
+                Visibility::Visible,
+                ChildOf(scenario),
+            ))
+            .id();
+        let second = world
+            .spawn((
+                ShipNode::default(),
+                NodeId("ship_2".to_string()),
+                Transform::from_xyz(24.0, 0.0, 0.0),
+                Visibility::Visible,
+                ChildOf(scenario),
+            ))
+            .id();
+
+        let outside = sync(&mut world);
+        assert_eq!(outside.visible_ships, ["ship_1", "ship_2"]);
+        assert_eq!(
+            outside.node_positions,
+            [
+                ("ship_1".to_string(), Vec3::ZERO),
+                ("ship_2".to_string(), Vec3::new(24.0, 0.0, 0.0)),
+            ],
+            "ships report their stage positions at the scenario node"
+        );
+
+        // What sync_ship_focus does on entering the first ship.
+        *world.get_mut::<Visibility>(second).unwrap() = Visibility::Hidden;
+        assert_eq!(
+            sync(&mut world).visible_ships,
+            ["ship_1"],
+            "a hidden sibling is not on the stage"
         );
     }
 

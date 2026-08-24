@@ -293,6 +293,50 @@ pub(crate) fn inside_id<'a>(context: &EditContext, q_ships: &'a ShipNodes) -> Op
     q_ships.get(ship).ok().map(|(_, _, id, _)| id)
 }
 
+/// FOCUS the entered ship: inside one, every other ship leaves the stage;
+/// at the scenario node everything is back.
+///
+/// Two writes because hiding is two facts. `Visibility` takes the meshes off
+/// screen, and the views' `Pickable` follows it because the picking ray does
+/// not care what renders - an invisible collider would still eat clicks, and
+/// the founding click ("nothing under the pointer") most of all.
+pub(crate) fn sync_ship_focus(
+    mut commands: Commands,
+    context: Res<EditContext>,
+    mut ships: Query<(Entity, &mut Visibility), With<ShipNode>>,
+    q_sections: Query<&ChildOf, With<SectionNode>>,
+    views: Query<(Entity, &ChildOf, Has<Pickable>), With<NodeView>>,
+) {
+    let entered = context.ship();
+    let hidden = |ship: Entity| entered.is_some_and(|edited| edited != ship);
+    for (ship, mut visibility) in &mut ships {
+        let wanted = if hidden(ship) {
+            Visibility::Hidden
+        } else {
+            Visibility::Visible
+        };
+        if *visibility != wanted {
+            *visibility = wanted;
+        }
+    }
+    // Views carry no `Pickable` of their own, so its presence IS the "this
+    // ship is off the stage" mark and removal restores the default.
+    for (view, owner, ignored) in &views {
+        let Ok(section_owner) = q_sections.get(owner.parent()) else {
+            continue;
+        };
+        match (hidden(section_owner.parent()), ignored) {
+            (true, false) => {
+                commands.entity(view).insert(Pickable::IGNORE);
+            }
+            (false, true) => {
+                commands.entity(view).remove::<Pickable>();
+            }
+            _ => {}
+        }
+    }
+}
+
 /// The node a picking hit belongs to: hits land on views, and the document is
 /// the parent.
 pub(crate) fn node_of_view(
@@ -584,6 +628,57 @@ mod tests {
         assert!(
             world.get::<SectionNode>(section).is_some(),
             "the section is still in the document"
+        );
+    }
+
+    /// Entering a ship takes every other ship off the stage - the meshes AND
+    /// the picking, because an invisible collider would still eat clicks.
+    #[test]
+    fn entering_a_ship_hides_and_unpicks_its_siblings() {
+        let mut world = World::new();
+        let (first, _) = document(&mut world, SectionSource::Inline(hull("hull")));
+        let (second, second_section) = document(&mut world, SectionSource::Inline(hull("hull")));
+        world
+            .run_system_once(rebuild_node_views)
+            .expect("the view rebuild runs");
+        world.insert_resource(EditContext {
+            path: vec![Entity::PLACEHOLDER, first],
+        });
+
+        let view_of = |world: &mut World, section: Entity| {
+            world
+                .query_filtered::<(Entity, &ChildOf), With<NodeView>>()
+                .iter(world)
+                .find(|(_, owner)| owner.parent() == section)
+                .map(|(view, _)| view)
+                .expect("the section grew a view")
+        };
+
+        world
+            .run_system_once(sync_ship_focus)
+            .expect("the focus sync runs");
+        assert_eq!(world.get::<Visibility>(first), Some(&Visibility::Visible));
+        assert_eq!(
+            world.get::<Visibility>(second),
+            Some(&Visibility::Hidden),
+            "the sibling leaves the stage"
+        );
+        let hidden_view = view_of(&mut world, second_section);
+        assert_eq!(
+            world.get::<Pickable>(hidden_view),
+            Some(&Pickable::IGNORE),
+            "and its colliders leave the pointer's way"
+        );
+
+        world.resource_mut::<EditContext>().exit();
+        world
+            .run_system_once(sync_ship_focus)
+            .expect("the focus sync runs");
+        assert_eq!(world.get::<Visibility>(second), Some(&Visibility::Visible));
+        assert_eq!(
+            world.get::<Pickable>(hidden_view),
+            None,
+            "back at the scenario node the default picking is restored"
         );
     }
 

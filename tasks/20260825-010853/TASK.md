@@ -56,3 +56,42 @@ tree, actions split per context, and an edit context you can see.
 - Add Ship starts blank and the first part founds it at the origin.
 - The driven editor range covers: found a blank ship, select in the world,
   enter via the tree, isolation, and a plane drag. It stays green.
+
+## Proof (first half, landed 2026-08-25)
+
+Landed as `5198d3de` (tree + top bar + blank Add Ship + world select) and the
+focus + drag commit that follows it. All three driven ranges green under
+Xvfb, EXIT=0:
+
+- system_ship_editor: `founded the ship with basic_controller_section_1` at
+  the ship origin; `select mode marked 'reinforced_hull_section_3' and placed
+  nothing`; inside ship_2 the probe lists `visible_ships == ["ship_2"]` and
+  both ships back at the scenario node; `clicked ship_1 in the world -
+  selected, not entered`; re-entry through `Scene Row ship_1` finds the same
+  8 ids; `dragged ship_1 from (0,0,0) to (1.085,0,0)` with altitude
+  unchanged; the flown ship re-derives the same 7 mates in 26 plates.
+- screenshot_editor and bug_sandbox_soak reworked for the new doors (both
+  were latently red on master: they still pressed Play from inside a ship).
+- 103 unit tests in nova_editor; `cargo check --workspace --all-targets`
+  clean. The captured `feature-editor.png` shows the bar, the tree and the
+  clipped one-line rows.
+
+Decisions taken in flight:
+
+- Leaving a ship PUTS THE TOOL DOWN (`disarm_outside_ship`): placement and
+  delete are ship-context verbs, and a part silently in hand at the scenario
+  node blocked both select and drag while showing no tool anywhere.
+- "Empty space" for the founding click means the nearest picking hit is the
+  WINDOW: bevy_picking targets the window when nothing is under the pointer,
+  so any other hit is a click on something.
+- Focus isolation writes two facts: `Visibility` on the ship node, and
+  `Pickable::IGNORE` on the hidden views - the picking ray does not care
+  what renders, and an invisible collider still eats clicks.
+
+## Second half (not started)
+
+- Node settings and the section inspector; enter at section level.
+- The add-object menu beyond the one Ship entry, and non-ship kinds.
+- Rotation (and any further transform) gizmos with real handles.
+- Long ids clip at the rail edge; the rail's width wants a look when the
+  inspector lands.

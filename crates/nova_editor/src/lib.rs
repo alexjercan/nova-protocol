@@ -44,12 +44,14 @@ use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
     sync_section_keybind_labels, EditorRebind,
 };
-use node::{ensure_document, rebuild_node_views, EditContext};
+use node::{ensure_document, rebuild_node_views, sync_ship_focus, EditContext};
 use nova_ui::widget::button_on_setting;
 use placement::{
-    clear_placement_preview, cycle_placement_pose, draw_delete_target, draw_link_points,
-    draw_ship_heading, found_empty_ship, on_click_spaceship_section, pick_section_under_pointer,
+    clear_placement_preview, cycle_placement_pose, disarm_outside_ship, draw_delete_target,
+    draw_link_points, draw_ship_heading, found_empty_ship, on_click_spaceship_section,
+    on_ship_drag, on_ship_drag_end, on_ship_drag_start, pick_section_under_pointer,
     sync_placement_ghost, sync_tool_selection, update_placement_preview, wheel_placement_pose,
+    ShipDrag,
 };
 use probe::sync_editor_probe;
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
@@ -233,6 +235,18 @@ fn editor_plugin(app: &mut App) {
 
     app.add_observer(on_click_spaceship_section);
 
+    // Dragging a ship across the stage - the scenario node's one transform
+    // gesture. The grab state is reset on entering the editor for the same
+    // reason the rebind is: a drag cannot survive its views being rebuilt.
+    app.init_resource::<ShipDrag>();
+    app.add_observer(on_ship_drag_start);
+    app.add_observer(on_ship_drag);
+    app.add_observer(on_ship_drag_end);
+    app.add_systems(
+        OnEnter(ExampleStates::Editor),
+        |mut drag: ResMut<ShipDrag>| *drag = ShipDrag::default(),
+    );
+
     // The placement ghost: solve once per frame, then show it. Both are gated
     // on the gallery being closed - it covers the build area, so nothing under
     // it is being pointed at.
@@ -253,19 +267,27 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
+            // Before the tool-chip reconciler, so a tool put down by leaving
+            // the ship repaints in the same frame.
+            disarm_outside_ship,
             sync_tool_selection,
             sync_key_legend,
             sync_attitude_readout,
             sync_skin_toggle,
             sync_style_list,
-            // The tree, the breadcrumb, the panels and the two greyable
-            // buttons all report the edit context, so they sit together with
-            // the rest of the rail's readouts.
-            sync_scene_list,
-            sync_context_panels,
-            sync_breadcrumb,
-            sync_rebind_button,
-            sync_play_button,
+            // The tree, the breadcrumb, the panels, the two greyable buttons
+            // and the stage focus all report the edit context, so they sit
+            // together with the rest of the rail's readouts. An inner group
+            // only because a flat tuple would pass Bevy's arity limit.
+            (
+                sync_scene_list,
+                sync_context_panels,
+                sync_breadcrumb,
+                sync_rebind_button,
+                sync_play_button,
+                sync_ship_focus,
+            )
+                .chain(),
             pick_section_under_pointer,
             cycle_placement_pose,
             update_placement_preview,

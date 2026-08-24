@@ -221,6 +221,8 @@ struct EditorWalk {
     /// the document's own key, so coming back to the same ones is what says the
     /// tree survived the trip.
     ids: Vec<String>,
+    /// Where the first ship stood before the drag beat grabbed it.
+    first_ship_at: Vec3,
 }
 
 /// The whole driven run.
@@ -972,6 +974,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 !probe.can_play,
                 "Play is refused inside a ship - it compiles the whole document"
             );
+            assert_eq!(
+                probe.visible_ships,
+                vec!["ship_2".to_string()],
+                "inside a ship the stage shows only that ship"
+            );
             nova_probe::probe_marker(
                 world,
                 "outcome: a second ship stands beside the first",
@@ -1002,6 +1009,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outside a ship there is no edited ship to report"
             );
             assert!(probe.can_play, "Play is the scenario node's gesture");
+            assert_eq!(
+                probe.visible_ships,
+                vec!["ship_1".to_string(), "ship_2".to_string()],
+                "the scenario node puts every ship back on the stage"
+            );
             let listed = probe.context_nodes.clone();
             nova_probe::probe_marker(
                 world,
@@ -1040,6 +1052,56 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 serde_json::json!({}),
             );
             info!("editor: clicked ship_1 in the world - selected, not entered");
+        })
+        .add()
+        // The one transform gesture: grab the ship's body and slide it on the
+        // ground plane. The pointer is still over ship_1 from the select.
+        .step("editor: grab the first ship")
+        .on_enter(|world: &mut World| {
+            let at = first_ship_position(world);
+            world.resource_mut::<EditorWalk>().first_ship_at = at;
+            press_mouse(MouseButton::Left)(world);
+        })
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: drag it across the plane")
+        .on_enter(|world: &mut World| {
+            let at = aim_at_the_first_ship(world).expect("the grabbed ship is on screen");
+            move_cursor(at + Vec2::new(90.0, 0.0))(world);
+        })
+        .until(the_first_ship_moved())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: release the drag")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the ship moved on the plane and stayed selected")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorWalk>().first_ship_at;
+            let now = first_ship_position(world);
+            let marked = world.resource::<EditorProbe>().selected_node.clone();
+            assert!(
+                now.distance(before) > 0.5,
+                "the drag must move the ship ({before:?} -> {now:?})"
+            );
+            assert!(
+                (now.y - before.y).abs() < 1e-3,
+                "a ground-plane drag never changes altitude"
+            );
+            assert_eq!(
+                marked.as_deref(),
+                Some("ship_1"),
+                "grabbing a ship is also pointing at it"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: a drag slides the ship on the ground plane",
+                serde_json::json!({}),
+            );
+            info!("editor: dragged ship_1 from {before:?} to {now:?}");
         })
         .add()
         // And back in, with one click on the ship's tree row.
@@ -1456,6 +1518,32 @@ fn at_the_scenario_node() -> Wait {
 fn the_first_ship_is_selected() -> Wait {
     std::sync::Arc::new(|world: &World| {
         world.resource::<EditorProbe>().selected_node.as_deref() == Some("ship_1")
+    })
+}
+
+/// Where the first ship stands on the stage, off the probe's node positions.
+#[cfg(feature = "debug")]
+fn first_ship_position(world: &World) -> Vec3 {
+    world
+        .resource::<EditorProbe>()
+        .node_positions
+        .iter()
+        .find(|(id, _)| id == "ship_1")
+        .map(|(_, at)| *at)
+        .expect("ship_1 is listed at the scenario node")
+}
+
+/// Advance once the first ship stands away from the drag stamp - the
+/// ground-plane drag doing its work.
+#[cfg(feature = "debug")]
+fn the_first_ship_moved() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let stamp = world.resource::<EditorWalk>().first_ship_at;
+        world
+            .resource::<EditorProbe>()
+            .node_positions
+            .iter()
+            .any(|(id, at)| id == "ship_1" && at.distance(stamp) > 0.5)
     })
 }
 

@@ -768,6 +768,139 @@ pub(crate) fn on_click_spaceship_section(
     }
 }
 
+/// Put the armed tool down on the way OUT of a ship.
+///
+/// Placing and deleting are ship-context verbs - the solver only ever scans
+/// the edited ship, and the Parts and Delete buttons live in the ship's action
+/// group. Out at the scenario node the pointer selects and drags, and a part
+/// silently still in hand would refuse both while showing no tool anywhere on
+/// screen.
+pub(crate) fn disarm_outside_ship(context: Res<EditContext>, mut choice: ResMut<SectionChoice>) {
+    if context.ship().is_none() && *choice != SectionChoice::None {
+        *choice = SectionChoice::None;
+    }
+}
+
+/// The ship being dragged across the stage, and how it was grabbed.
+///
+/// A resource rather than drag-event state because the grab OFFSET has to
+/// survive from `DragStart` to every `Drag`: without it the ship would jump to
+/// put its origin under the pointer the moment the drag began.
+#[derive(Resource, Default, Debug)]
+pub(crate) struct ShipDrag {
+    pub(crate) ship: Option<Entity>,
+    /// Ship translation minus the grab point on the ground plane.
+    pub(crate) offset: Vec3,
+}
+
+/// Where `ray` meets the horizontal plane at `height`, or `None` when it runs
+/// parallel to it or the plane is behind the camera.
+fn ray_to_ground(ray: Ray3d, height: f32) -> Option<Vec3> {
+    let direction = ray.direction.as_vec3();
+    if direction.y.abs() < 1e-4 {
+        return None;
+    }
+    let t = (height - ray.origin.y) / direction.y;
+    (t > 0.0).then(|| ray.origin + direction * t)
+}
+
+/// The ground-plane point under a viewport position.
+fn pointer_ground_hit(
+    camera: &Camera,
+    camera_pose: &GlobalTransform,
+    viewport: Vec2,
+    height: f32,
+) -> Option<Vec3> {
+    let ray = camera.viewport_to_world(camera_pose, viewport).ok()?;
+    ray_to_ground(ray, height)
+}
+
+/// Grab a ship at the scenario node: dragging its body slides it on the ground
+/// plane. The first transform gesture, and deliberately the only one for now.
+///
+/// Scenario-node only, and only in select mode: inside a ship the pointer
+/// belongs to the build tools, and mating is the rule in there - free-dragging
+/// parts would build hulls the runtime's integrity graph rejects.
+pub(crate) fn on_ship_drag_start(
+    drag: On<Pointer<DragStart>>,
+    context: Res<EditContext>,
+    selection: Res<SectionChoice>,
+    camera: Option<Single<(&Camera, &GlobalTransform), With<crate::gallery::EditorCamera>>>,
+    q_views: Query<&ChildOf, With<NodeView>>,
+    q_sections: Query<&ChildOf, With<SectionNode>>,
+    q_ships: Query<&Transform, With<ShipNode>>,
+    mut selected: ResMut<SelectedNode>,
+    mut state: ResMut<ShipDrag>,
+) {
+    if drag.button != PointerButton::Primary {
+        return;
+    }
+    if context.ship().is_some() || *selection != SectionChoice::None {
+        return;
+    }
+    let Some(section) = node_of_view(drag.entity, &q_views) else {
+        return;
+    };
+    let Ok(owner) = q_sections.get(section) else {
+        return;
+    };
+    let ship = owner.parent();
+    let (Ok(transform), Some(camera)) = (q_ships.get(ship), camera) else {
+        return;
+    };
+    let (camera, camera_pose) = *camera;
+    let Some(grab) = pointer_ground_hit(
+        camera,
+        camera_pose,
+        drag.pointer_location.position,
+        transform.translation.y,
+    ) else {
+        return;
+    };
+    state.ship = Some(ship);
+    state.offset = transform.translation - grab;
+    // Grabbing is also pointing at: the tree marks the ship being moved.
+    selected.0 = Some(ship);
+}
+
+/// Slide the grabbed ship to keep its grab point under the pointer.
+///
+/// The plane height is the ship's own, so the drag never changes altitude:
+/// position on the stage is a layout choice, the Y axis is not.
+pub(crate) fn on_ship_drag(
+    drag: On<Pointer<Drag>>,
+    camera: Option<Single<(&Camera, &GlobalTransform), With<crate::gallery::EditorCamera>>>,
+    state: Res<ShipDrag>,
+    mut q_ships: Query<&mut Transform, With<ShipNode>>,
+) {
+    let Some(ship) = state.ship else {
+        return;
+    };
+    let (Ok(mut transform), Some(camera)) = (q_ships.get_mut(ship), camera) else {
+        return;
+    };
+    let (camera, camera_pose) = *camera;
+    let Some(hit) = pointer_ground_hit(
+        camera,
+        camera_pose,
+        drag.pointer_location.position,
+        transform.translation.y,
+    ) else {
+        return;
+    };
+    let wanted = hit + state.offset;
+    if transform.translation != wanted {
+        transform.translation = wanted;
+    }
+}
+
+/// Let go.
+pub(crate) fn on_ship_drag_end(_drag: On<Pointer<DragEnd>>, mut state: ResMut<ShipDrag>) {
+    if state.ship.is_some() {
+        state.ship = None;
+    }
+}
+
 /// Draw the ship's sockets while a part is armed, and the socket on the armed
 /// part that is about to mate.
 ///
@@ -1126,6 +1259,58 @@ mod tests {
             world.query::<&SectionNode>().iter(&world).count(),
             1,
             "a founded ship is never founded twice"
+        );
+    }
+
+    /// A placement tool is a ship-context verb: it survives being inside the
+    /// ship and is put down on the way out to the scenario node.
+    #[test]
+    fn leaving_the_ship_puts_the_tool_down() {
+        let mut world = World::new();
+        world.insert_resource(SectionChoice::Section("hull".to_string()));
+        let ship = world.spawn_empty().id();
+        world.insert_resource(EditContext {
+            path: vec![Entity::PLACEHOLDER, ship],
+        });
+
+        world.run_system_once(disarm_outside_ship).unwrap();
+        assert_eq!(
+            *world.resource::<SectionChoice>(),
+            SectionChoice::Section("hull".to_string()),
+            "inside a ship the tool stays in hand"
+        );
+
+        world.resource_mut::<EditContext>().exit();
+        world.run_system_once(disarm_outside_ship).unwrap();
+        assert_eq!(*world.resource::<SectionChoice>(), SectionChoice::None);
+    }
+
+    /// The drag plane maths: a ray meets the ground where it says, and a ray
+    /// that cannot reach the plane moves nothing rather than teleporting the
+    /// ship to a projected infinity.
+    #[test]
+    fn a_drag_ray_lands_on_the_ground_plane_or_nowhere() {
+        let down = Ray3d::new(Vec3::new(2.0, 10.0, 3.0), Dir3::NEG_Y);
+        assert_eq!(ray_to_ground(down, 0.0), Some(Vec3::new(2.0, 0.0, 3.0)));
+
+        let slanted = Ray3d::new(
+            Vec3::new(0.0, 4.0, 0.0),
+            Dir3::new(Vec3::new(1.0, -1.0, 0.0)).expect("a unit direction"),
+        );
+        let landed = ray_to_ground(slanted, 0.0).expect("a slanted ray lands");
+        assert!(
+            landed.abs_diff_eq(Vec3::new(4.0, 0.0, 0.0), 1e-5),
+            "landed at {landed:?}"
+        );
+
+        let level = Ray3d::new(Vec3::new(0.0, 4.0, 0.0), Dir3::X);
+        assert_eq!(ray_to_ground(level, 0.0), None, "parallel never lands");
+
+        let behind = Ray3d::new(Vec3::new(0.0, 4.0, 0.0), Dir3::Y);
+        assert_eq!(
+            ray_to_ground(behind, 0.0),
+            None,
+            "a plane behind the camera is not a place to drag to"
         );
     }
 
