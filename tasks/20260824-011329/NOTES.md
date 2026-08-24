@@ -267,3 +267,17 @@ stamped them with the base SHA `fd7955e2` and they could not prove they
 exercised `213aef62`. Everything below was re-run on a CLEAN tree at the
 correction commit `2f839ba1`, and the commit-bound artefacts are preserved with
 the task under `proof/` rather than left in ephemeral scratch space.
+
+## CI, and the close
+
+Run 32736838936 at `261d3695` is green on all eight jobs - `probe / systems`
+at 17.9 min is the bullet this task's Done-when names, and the other two probe
+shards passed with it. That is the first CI-side proof of the state waits: the
+shard the task opened on had failed at `raise a tower` under the same
+lavapipe path.
+
+One follow-up landed on top of the range work: R2's new doc comment on
+`ui_node_present` wrapped an aside onto a line starting with `- `, which
+`clippy::doc_lazy_continuation` read as an unindented list continuation and
+which failed the run at `b9dcb68f`. Reworded, not indented - it was never a
+list. Fixed in `261d3695`.

@@ -1,6 +1,6 @@
 # Wait on the editor's state, not on frame counts
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.12.0, editor, probe, bug
 

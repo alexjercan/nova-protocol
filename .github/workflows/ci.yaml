@@ -210,6 +210,25 @@ jobs:
           probe run ${{ matrix.category }} --correctness-only --timeout 300
           --out "$RUNNER_TEMP/probe-runs"
 
+      # The shard's verdict table, ON the run page. Artifacts are auth-gated
+      # zips that GitHub never renders, so index.html is unreadable without a
+      # download; this puts the same rows (verdict, measured n/total, the
+      # failing check names) in the job summary, which GitHub renders inline.
+      # Sanitized markdown - the report's own CSS cannot come along, so this is
+      # a second RENDERING of index.json, never a second verdict.
+      #
+      # `if: always()` and the script's own exit-0-on-missing-index are both
+      # load-bearing: the summary is worth most on the runs that failed, and it
+      # must never turn a green sweep red by failing to describe it.
+      - name: Probe summary
+        if: always()
+        run: >-
+          python3 scripts/probe-summary.py
+          --runs "$RUNNER_TEMP/probe-runs"
+          --title "probe / ${{ matrix.category }}"
+          --artifact "probe-runs-${{ matrix.category }}"
+          >> "$GITHUB_STEP_SUMMARY"
+
       # The reports and logs for whatever the sweep graded, green or not: a
       # failing check is diagnosed from its run.log, which the step output only
       # tails. Named per shard - artifact names must be unique within a run.
