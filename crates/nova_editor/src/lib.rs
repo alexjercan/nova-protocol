@@ -137,6 +137,10 @@ fn editor_plugin(app: &mut App) {
             // Same reason as the placement chain below: the Escape that closes
             // the gallery must not also put down the part it was holding.
             .before(gallery::gallery_keyboard)
+            // And the Escape that cancels a rebind must not also leave the ship.
+            // Explicit, because this reads the target that system clears: run
+            // the other way round and the guard sees a rebind already gone.
+            .before(apply_section_rebind)
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
     );
 
@@ -367,17 +371,23 @@ fn declare_editor_escape_owner(
 /// Escape backs out one step: it puts the armed part down, and with nothing in
 /// hand it leaves the ship you are inside.
 ///
-/// The gallery answers its own Escape while it is up (see `gallery::input`) and
-/// a pending rebind cancels on Escape in `keybind`, so by the time the key
-/// reaches here the ladder is: armed part, then edit context, then the pause
-/// menu. Putting a part down and leaving the ship on ONE press would throw away
-/// two steps of context for one gesture.
+/// ONE RUNG PER PRESS. The full ladder is: the gallery (which answers its own
+/// Escape while it is up, see `gallery::input`), then a pending rebind (which
+/// `keybind::apply_section_rebind` cancels), then the armed part, then the edit
+/// context, then the pause menu. The two rungs this system does not own are the
+/// two it has to check for itself - the gallery through a run condition, the
+/// rebind here - because both of those cancel in the SAME frame this reads the
+/// key, not before it.
 fn escape_backs_out(
     keys: Res<ButtonInput<KeyCode>>,
+    // Read before `apply_section_rebind` consumes it - see the ordering at the
+    // registration. A rebind cancelled and a ship left on one press is two rungs
+    // of context thrown away for one gesture.
+    rebind: Res<EditorRebind>,
     mut choice: ResMut<SectionChoice>,
     mut context: ResMut<EditContext>,
 ) {
-    if !keys.just_pressed(KeyCode::Escape) {
+    if !keys.just_pressed(KeyCode::Escape) || rebind.target.is_some() {
         return;
     }
     if *choice != SectionChoice::None {
@@ -527,9 +537,10 @@ mod tests {
         }
     }
 
-    /// The back gesture is a LADDER, one rung per press: a part in hand goes
-    /// down first, and only a second Escape leaves the ship. One press doing
-    /// both would throw away two steps of context for one gesture.
+    /// The back gesture is a LADDER, one rung per press: a pending rebind owns
+    /// the press, then a part in hand goes down, and only after that does
+    /// Escape leave the ship. One press doing two would throw away two steps of
+    /// context for one gesture.
     #[test]
     fn escape_puts_the_part_down_first_and_leaves_the_ship_second() {
         let scenario = Entity::from_raw_u32(1).expect("a test entity id");
@@ -540,9 +551,25 @@ mod tests {
         keys.press(KeyCode::Escape);
         world.insert_resource(keys);
         world.insert_resource(SectionChoice::Section("hull".to_string()));
+        world.init_resource::<EditorRebind>();
         world.insert_resource(EditContext {
             path: vec![scenario, ship],
         });
+
+        // A pending rebind owns the press outright: `apply_section_rebind`
+        // cancels it in this same frame, so backing out here as well would
+        // spend two rungs on one gesture.
+        world.resource_mut::<EditorRebind>().target = Some(Entity::PLACEHOLDER);
+        world
+            .run_system_once(escape_backs_out)
+            .expect("the back-out system runs");
+        assert_eq!(
+            *world.resource::<SectionChoice>(),
+            SectionChoice::Section("hull".to_string()),
+            "the rebind takes the press; the part stays in hand"
+        );
+        assert_eq!(world.resource::<EditContext>().ship(), Some(ship));
+        world.resource_mut::<EditorRebind>().target = None;
 
         world
             .run_system_once(escape_backs_out)

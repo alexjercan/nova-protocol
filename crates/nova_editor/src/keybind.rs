@@ -7,7 +7,11 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::Binding;
 use nova_ship::prelude::*;
 
-use crate::{gallery::EditorCamera, node::SectionNode, ExampleStates};
+use crate::{
+    gallery::EditorCamera,
+    node::{EditContext, SectionNode},
+    ExampleStates,
+};
 
 /// The section currently awaiting a new keybind. Armed by clicking a bindable
 /// section in select mode (`SectionChoice::None`); `apply_section_rebind`
@@ -33,19 +37,27 @@ pub(crate) struct SectionKeybindLabel {
 /// The chip text of the currently-armed section (see [`EditorRebind`]).
 const REBIND_PROMPT: &str = "press key";
 
-/// Every section node that takes an input binding.
+/// Every section of the EDITED ship that takes an input binding.
 ///
 /// Read off the DOCUMENT rather than off three optional components on a view:
 /// a section's binds belong to its node, and the view they are drawn over is
 /// despawned and rebuilt on every visit to the editor.
+///
+/// Scoped to the edit context for the same reason the solver and the cladding
+/// are: a ship standing beside the one you are inside is not what these chips
+/// label, and only the player-driven ship's binds reach the hand-off at all.
 fn bindable_sections(
-    q_sections: &Query<(Entity, &SectionNode)>,
+    ship: Option<Entity>,
+    q_sections: &Query<(Entity, &ChildOf, &SectionNode)>,
     sections: Option<&GameSections>,
 ) -> Vec<Entity> {
+    let Some(ship) = ship else {
+        return Vec::new();
+    };
     q_sections
         .iter()
-        .filter(|(_, section)| section.bindable(sections))
-        .map(|(entity, _)| entity)
+        .filter(|(_, owner, section)| owner.parent() == ship && section.bindable(sections))
+        .map(|(entity, ..)| entity)
         .collect()
 }
 
@@ -55,10 +67,11 @@ fn bindable_sections(
 pub(crate) fn sync_section_keybind_labels(
     mut commands: Commands,
     catalog: Option<Res<GameSections>>,
-    q_sections: Query<(Entity, &SectionNode)>,
+    context: Res<EditContext>,
+    q_sections: Query<(Entity, &ChildOf, &SectionNode)>,
     q_labels: Query<(Entity, &SectionKeybindLabel)>,
 ) {
-    let bindable = bindable_sections(&q_sections, catalog.as_deref());
+    let bindable = bindable_sections(context.ship(), &q_sections, catalog.as_deref());
     for (label, SectionKeybindLabel { section }) in &q_labels {
         if !bindable.contains(section) {
             commands.entity(label).despawn();
@@ -194,16 +207,19 @@ pub(crate) fn apply_section_rebind(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     catalog: Option<Res<GameSections>>,
+    context: Res<EditContext>,
     mut rebind: ResMut<EditorRebind>,
-    mut q_sections: Query<&mut SectionNode>,
+    mut q_sections: Query<(&mut SectionNode, &ChildOf)>,
 ) {
     let Some(section) = rebind.target else {
         return;
     };
-    // The section vanished (deleted while armed): drop the rebind.
-    let still_bindable = q_sections
-        .get(section)
-        .is_ok_and(|node| node.bindable(catalog.as_deref()));
+    // The section vanished (deleted while armed), or the editor left the ship
+    // it belongs to. Either way the chip that was prompting is gone, so a key
+    // pressed now would be captured by a section nothing is showing.
+    let still_bindable = q_sections.get(section).is_ok_and(|(node, owner)| {
+        context.ship() == Some(owner.parent()) && node.bindable(catalog.as_deref())
+    });
     if !still_bindable {
         rebind.target = None;
         rebind.awaiting_release = false;
@@ -252,7 +268,7 @@ pub(crate) fn apply_section_rebind(
         binds
     };
 
-    let Ok(mut node) = q_sections.get_mut(section) else {
+    let Ok((mut node, _)) = q_sections.get_mut(section) else {
         rebind.target = None;
         return;
     };
@@ -266,24 +282,54 @@ mod tests {
     use nova_scenario::prelude::SectionSource;
 
     use super::*;
+    use crate::node::ShipNode;
 
-    /// A section node of `kind`, carrying `binds` - the shape every one of
-    /// these tests works on now that a section's inputs live on its node.
-    fn section_node(world: &mut World, kind: SectionKind, binds: Vec<Binding>) -> Entity {
+    /// The ship these tests edit: spawned and ENTERED on first use, so a
+    /// section from `section_node` hangs on the ship in the edit context. The
+    /// chips are scoped to that ship, so a fixture without one labels nothing.
+    fn edited_ship(world: &mut World) -> Entity {
+        let mut ships = world.query_filtered::<Entity, With<ShipNode>>();
+        if let Some(ship) = ships.iter(world).next() {
+            return ship;
+        }
+        let ship = world.spawn(ShipNode::default()).id();
+        world.insert_resource(EditContext {
+            path: vec![Entity::PLACEHOLDER, ship],
+        });
+        ship
+    }
+
+    /// A section node of `kind` on `ship`, carrying `binds` - the shape every
+    /// one of these tests works on now that a section's inputs live on its node.
+    fn section_on(
+        world: &mut World,
+        ship: Entity,
+        kind: SectionKind,
+        binds: Vec<Binding>,
+    ) -> Entity {
         world
-            .spawn(SectionNode {
-                source: SectionSource::Inline(SectionConfig {
-                    base: BaseSectionConfig {
-                        id: "part".to_string(),
-                        name: "part".to_string(),
-                        ..default()
-                    },
-                    kind,
-                }),
-                modifications: vec![],
-                binds,
-            })
+            .spawn((
+                SectionNode {
+                    source: SectionSource::Inline(SectionConfig {
+                        base: BaseSectionConfig {
+                            id: "part".to_string(),
+                            name: "part".to_string(),
+                            ..default()
+                        },
+                        kind,
+                    }),
+                    modifications: vec![],
+                    binds,
+                },
+                ChildOf(ship),
+            ))
             .id()
+    }
+
+    /// The same, on the ship the editor is inside.
+    fn section_node(world: &mut World, kind: SectionKind, binds: Vec<Binding>) -> Entity {
+        let ship = edited_ship(world);
+        section_on(world, ship, kind, binds)
     }
 
     fn thruster(world: &mut World, binds: Vec<Binding>) -> Entity {
@@ -340,6 +386,63 @@ mod tests {
         assert_eq!(
             world.query::<&SectionKeybindLabel>().iter(&world).count(),
             0
+        );
+    }
+
+    /// Chips label the ship you are INSIDE. A second ship standing beside it
+    /// carries its own bindable sections, and drawing their keys over it would
+    /// offer a rebind the hand-off never reads - only the player-driven ship's
+    /// binds are lowered.
+    #[test]
+    fn a_ship_you_are_not_inside_gets_no_chips() {
+        let mut world = World::new();
+        let mine = thruster(&mut world, vec![Binding::from(KeyCode::KeyW)]);
+        let other = world.spawn(ShipNode::default()).id();
+        section_on(&mut world, other, SectionKind::Turret(default()), vec![]);
+
+        world.run_system_once(sync_section_keybind_labels).unwrap();
+        let labels: Vec<Entity> = world
+            .query::<&SectionKeybindLabel>()
+            .iter(&world)
+            .map(|l| l.section)
+            .collect();
+        assert_eq!(labels, vec![mine], "only the edited ship is labelled");
+
+        // Backing out to the scenario context takes the chips with it.
+        world.resource_mut::<EditContext>().exit();
+        world.run_system_once(sync_section_keybind_labels).unwrap();
+        assert_eq!(
+            world.query::<&SectionKeybindLabel>().iter(&world).count(),
+            0,
+            "no ship entered, nothing to label"
+        );
+    }
+
+    /// A rebind armed on one ship must not survive leaving it: the chip that
+    /// was prompting is gone, so the next key would be captured by a section
+    /// nothing is showing.
+    #[test]
+    fn leaving_the_ship_drops_a_pending_rebind() {
+        let mut world = World::new();
+        let section = turret(&mut world, vec![Binding::from(KeyCode::Space)]);
+        armed(&mut world, section);
+        world.resource_mut::<EditContext>().exit();
+        let mut input = ButtonInput::<KeyCode>::default();
+        input.press(KeyCode::KeyR);
+        world.insert_resource(input);
+        world.init_resource::<ButtonInput<MouseButton>>();
+
+        world.run_system_once(apply_section_rebind).unwrap();
+
+        assert_eq!(
+            world.resource::<EditorRebind>().target,
+            None,
+            "the rebind is dropped"
+        );
+        assert_eq!(
+            binds_of(&world, section),
+            vec![Binding::from(KeyCode::Space)],
+            "and the key that was pressed bound nothing"
         );
     }
 
