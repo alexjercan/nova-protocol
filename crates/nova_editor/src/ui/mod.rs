@@ -1,12 +1,13 @@
-//! The editor UI: a wiki-inspired left rail of categories, the ship tools and
-//! the placement readout. The theme + shared button widgets live in `nova_ui`;
-//! `rail` holds the editor-specific category rows and this module assembles
-//! them into the scene.
+//! The editor UI: a top bar of context actions over a left rail holding the
+//! Scene tree, plus the placement readout. The theme + shared button widgets
+//! live in `nova_ui`; `rail` holds the editor-specific rows and this module
+//! assembles them into the scene.
 //!
-//! Parts are picked in the `gallery`, which replaced the component drawer that
-//! used to sit beside this rail. The drawer listed every prototype as a text
-//! card, which cannot say what a part LOOKS like - the one thing a builder
-//! needs from a parts list.
+//! The layout is split by QUESTION: the top bar answers "where am I and what
+//! can I do here" (breadcrumb + per-context actions), the rail answers "what
+//! does the document hold" (the tree, and the edited ship's settings). Parts
+//! are picked in the `gallery`, which replaced the component drawer that used
+//! to sit beside this rail.
 
 pub(crate) mod rail;
 
@@ -25,23 +26,20 @@ use nova_ui::{
 
 use crate::{
     config::{
-        AttitudeReadout, EditorKeyLegend, PlacementStatus, PlayButton, SceneList, SceneRow,
-        SceneRowPress, SceneUpRow, SectionChoice, SelectedNode, SkinToggleCheckbox, StyleChoice,
-        StyleList,
+        AttitudeReadout, ContextBreadcrumb, EditorKeyLegend, PlacementStatus, PlayButton,
+        RebindButton, ScenarioActions, SceneList, SceneRow, SectionChoice, SelectedNode,
+        ShipActions, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList,
     },
     gallery::{EditorCamera, EditorChrome, GalleryAction},
-    node::{context_nodes, EditContext, NodeKind, SectionNodes, ShipNode, ShipNodes},
-    placement::{
-        continue_to_simulation, create_new_spaceship, create_new_spaceship_with_controller,
+    keybind::on_rebind_action,
+    node::{
+        sections_of, EditContext, NodeId, ScenarioNode, SectionNode, SectionNodes, ShipDriver,
+        ShipNode, ShipNodes,
     },
-    ui::rail::{category_row, coming_soon_category, scene_row, skin_toggle_row, style_row},
+    placement::{continue_to_simulation, create_blank_ship},
+    ui::rail::{scene_row, skin_toggle_row, style_row},
     ExampleStates,
 };
-
-/// How long after a Scene row is pressed a second press on the same row still
-/// reads as a double-click. The OS figure is usually 500ms; 400 is inside every
-/// platform default, so a deliberate double never misses.
-pub(crate) const DOUBLE_CLICK_WINDOW: f32 = 0.4;
 
 /// The ship the rail is reporting on, or `None` out in the scenario context.
 fn edited_ship<'a>(context: &EditContext, ships: &'a Query<&ShipNode>) -> Option<&'a ShipNode> {
@@ -137,10 +135,10 @@ pub(crate) fn setup_editor_scene(
         .spawn((
             DespawnOnExit(ExampleStates::Editor),
             Name::new("Editor Root"),
-            // The gallery hides the whole rail + drawer while it is up.
+            // The gallery hides the whole top bar + rail while it is up.
             EditorChrome,
-            // Pass pointer events through the empty (right) area to the 3D scene,
-            // so building is not blocked; the rail/drawer panels still block.
+            // Pass pointer events through the empty area to the 3D scene, so
+            // building is not blocked; the top bar and rail panels still block.
             Pickable {
                 should_block_lower: false,
                 is_hoverable: false,
@@ -148,144 +146,238 @@ pub(crate) fn setup_editor_scene(
             Node {
                 width: percent(100),
                 height: percent(100),
-                flex_direction: FlexDirection::Row,
+                flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Stretch,
-                justify_content: JustifyContent::FlexStart,
                 ..default()
             },
         ))
         .with_children(|root| {
+            // The top bar: where you are, and what you can DO there. Actions
+            // live up here rather than in the rail because they are verbs of
+            // the current context, and the rail's vertical budget belongs to
+            // the tree - the old all-in-one rail ran out of screen the moment
+            // the tree grew two rows.
             root.spawn((
-                Name::new("Editor Rail"),
+                Name::new("Editor Top Bar"),
                 Node {
-                    width: px(RAIL_W),
-                    height: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::Stretch,
-                    padding: UiRect::all(px(10)),
-                    border: UiRect::right(px(theme::BORDER_W)),
+                    width: percent(100),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::axes(px(10), px(6)),
+                    border: UiRect::bottom(px(theme::BORDER_W)),
+                    column_gap: px(10),
                     ..default()
                 },
                 panel(skin),
             ))
-            .with_children(|rail| {
-                rail.spawn((
+            .with_children(|bar| {
+                bar.spawn((
                     Name::new("Editor Title"),
                     Text::new("EDITOR"),
                     TextFont {
-                        font_size: FontSize::Px(20.0),
+                        font_size: FontSize::Px(16.0),
                         ..default()
                     },
                     TextColor(theme::SCREEN_TEXT),
-                    Node {
-                        margin: UiRect::bottom(px(8)),
+                ));
+                // The breadcrumb doubles as the context readout: the tree marks
+                // the entered node, this says the same thing as a path.
+                bar.spawn((
+                    Name::new("Context Breadcrumb"),
+                    ContextBreadcrumb,
+                    Text::new(""),
+                    TextLayout {
+                        linebreak: LineBreak::NoWrap,
                         ..default()
                     },
-                ));
-
-                rail.spawn(panel_header("Categories"));
-                rail.spawn((
-                    Name::new("Parts Gallery Category"),
-                    category_row("Parts"),
-                    GalleryAction::Open,
-                ));
-                rail.spawn(coming_soon_category("Ships", skin));
-                rail.spawn(coming_soon_category("Objects", skin));
-                rail.spawn(coming_soon_category("Events", skin));
-                rail.spawn(coming_soon_category("Objectives", skin));
-
-                // The document, as a list. WIP furniture: it exists so the node
-                // tree can be driven and tested by hand until the real
-                // hierarchy panel lands. The rows are built by
-                // `sync_scene_list`, because what is in the list depends on
-                // which node the editor is inside.
-                rail.spawn(separator());
-                rail.spawn(panel_header("Scene"));
-                rail.spawn((Name::new("Scene List"), SceneList, rail_list_node()));
-
-                rail.spawn(separator());
-                rail.spawn(panel_header("Ship"));
-                // NOTE: names kept exact - the editor / menu_newgame autopilots
-                // find these by Name and press them. Display text is free to
-                // change.
-                rail.spawn((
-                    Name::new("Create New Spaceship Button V2"),
-                    themed_button("New Ship"),
-                    observe(create_new_spaceship_with_controller),
-                ));
-                rail.spawn((
-                    Name::new("Create New Spaceship Button V1"),
-                    themed_button("New Hull Ship"),
-                    observe(create_new_spaceship),
-                ));
-                // The attitude readout, under the ship buttons and above the
-                // tools: it is a property of the hull being built, and it moves
-                // with every part placed. Without it a hull that is too big to
-                // turn reads as the game being broken rather than as a hull
-                // that wants another computer.
-                rail.spawn((
-                    Name::new("Attitude Readout"),
-                    AttitudeReadout,
-                    Text::new(""),
                     TextFont {
-                        font_size: FontSize::Px(12.0),
+                        font_size: FontSize::Px(13.0),
                         ..default()
                     },
                     TextColor(theme::PHOSPHOR_MUTED),
+                ));
+                bar.spawn((
+                    Name::new("Top Bar Spacer"),
                     Node {
-                        margin: UiRect::vertical(px(4)),
+                        flex_grow: 1.0,
                         ..default()
                     },
                 ));
+                // NOTE: button names kept stable - the driven walks find these
+                // by Name and press them. Display text is free to change.
+                bar.spawn((
+                    Name::new("Scenario Actions"),
+                    ScenarioActions,
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        column_gap: px(8),
+                        ..default()
+                    },
+                ))
+                .with_children(|actions| {
+                    actions.spawn((
+                        Name::new("Add Ship Button"),
+                        themed_button("Add Ship"),
+                        observe(create_blank_ship),
+                    ));
+                });
+                bar.spawn((
+                    Name::new("Ship Actions"),
+                    ShipActions,
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        column_gap: px(8),
+                        ..default()
+                    },
+                ))
+                .with_children(|actions| {
+                    actions.spawn((
+                        Name::new("Parts Gallery Category"),
+                        themed_button("Parts"),
+                        GalleryAction::Open,
+                    ));
+                    actions.spawn((
+                        Name::new("Delete Section Button"),
+                        themed_button("Delete"),
+                        ButtonValue(SectionChoice::Delete),
+                    ));
+                    // Acts on the SELECTED section; `sync_rebind_button` greys
+                    // it while the selection cannot take a binding.
+                    actions.spawn((
+                        Name::new("Rebind Section Button"),
+                        RebindButton,
+                        themed_button("Rebind"),
+                        observe(on_rebind_action),
+                    ));
+                });
+                // On the bar in EVERY context, greyed inside a ship (see
+                // `sync_play_button`): a control that vanishes reads as a bug,
+                // and the greyed button says where Play went. In its own slot
+                // because `themed_button` is percent(100) wide - built for the
+                // rail - and a bare one on the bar swallows the whole row.
+                bar.spawn((
+                    Name::new("Play Slot"),
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                ))
+                .with_children(|slot| {
+                    slot.spawn((
+                        Name::new("Play Button"),
+                        PlayButton,
+                        themed_button("Play"),
+                        observe(continue_to_simulation),
+                    ));
+                });
+            });
 
-                rail.spawn(separator());
-                rail.spawn(panel_header("Tools"));
-                // Deselect the build/delete tool -> select mode
-                // (SectionChoice::None), where clicking a section rebinds its
-                // key.
-                rail.spawn((
-                    Name::new("Select Section Button"),
-                    themed_button("Select / Rebind"),
-                    ButtonValue(SectionChoice::None),
-                ));
-                rail.spawn((
-                    Name::new("Delete Section Button"),
-                    themed_button("Delete Section"),
-                    ButtonValue(SectionChoice::Delete),
-                ));
-                // A SETTING among the modes: it arms nothing, it changes what
-                // the ship on the stage looks like - and what it looks like
-                // when it flies.
-                rail.spawn((
-                    Name::new("Ship Skin Toggle"),
-                    skin_toggle_row(clad, skin),
-                    observe(on_skin_toggle),
-                ));
-                // Under the toggle, and shown only while it is on, because it
-                // answers the question the toggle raises: the skin is on, and
-                // this is which of the shipped looks it wears. One row per
-                // style out of the MERGED content, so a mod's look is listed
-                // beside the base ones without the editor knowing any id.
-                rail.spawn((Name::new("Ship Look List"), StyleList, rail_list_node()))
-                    .with_children(|list| {
-                        for (index, (id, name)) in looks.iter().enumerate() {
-                            list.spawn((
-                                Name::new(format!("Look: {name}")),
-                                // The first is what an unset style wears, so it
-                                // is the row that starts marked.
-                                style_row(id, name, index == 0, skin),
-                                observe(on_style_choice),
+            // Everything under the bar: the rail on the left, the 3D viewport
+            // behind the rest.
+            root.spawn((
+                Name::new("Editor Content"),
+                Pickable {
+                    should_block_lower: false,
+                    is_hoverable: false,
+                },
+                Node {
+                    width: percent(100),
+                    flex_grow: 1.0,
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Stretch,
+                    justify_content: JustifyContent::FlexStart,
+                    ..default()
+                },
+            ))
+            .with_children(|content| {
+                content
+                    .spawn((
+                        Name::new("Editor Rail"),
+                        Node {
+                            width: px(RAIL_W),
+                            flex_direction: FlexDirection::Column,
+                            align_items: AlignItems::Stretch,
+                            padding: UiRect::all(px(10)),
+                            border: UiRect::right(px(theme::BORDER_W)),
+                            ..default()
+                        },
+                        panel(skin),
+                    ))
+                    .with_children(|rail| {
+                        // The document, as a tree. The rows are built by
+                        // `sync_scene_list`, because what is expanded depends
+                        // on which node the editor is inside.
+                        rail.spawn(panel_header("Scene"));
+                        rail.spawn((Name::new("Scene List"), SceneList, rail_list_node()));
+
+                        // Ship settings: properties of the ship being edited,
+                        // so the whole block is hidden at the scenario node by
+                        // `sync_context_panels`.
+                        rail.spawn((
+                            Name::new("Ship Settings"),
+                            ShipSettings,
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                align_items: AlignItems::Stretch,
+                                ..default()
+                            },
+                        ))
+                        .with_children(|settings| {
+                            settings.spawn(separator());
+                            settings.spawn(panel_header("Ship"));
+                            // The attitude readout: a property of the hull
+                            // being built, and it moves with every part placed.
+                            // Without it a hull that is too big to turn reads
+                            // as the game being broken rather than as a hull
+                            // that wants another computer.
+                            settings.spawn((
+                                Name::new("Attitude Readout"),
+                                AttitudeReadout,
+                                Text::new(""),
+                                TextFont {
+                                    font_size: FontSize::Px(12.0),
+                                    ..default()
+                                },
+                                TextColor(theme::PHOSPHOR_MUTED),
+                                Node {
+                                    margin: UiRect::vertical(px(4)),
+                                    ..default()
+                                },
                             ));
-                        }
+                            // A SETTING rather than a tool: it arms nothing, it
+                            // changes what the ship on the stage looks like -
+                            // and what it looks like when it flies.
+                            settings.spawn((
+                                Name::new("Ship Skin Toggle"),
+                                skin_toggle_row(clad, skin),
+                                observe(on_skin_toggle),
+                            ));
+                            // Under the toggle, and shown only while it is on,
+                            // because it answers the question the toggle
+                            // raises: the skin is on, and this is which of the
+                            // shipped looks it wears. One row per style out of
+                            // the MERGED content, so a mod's look is listed
+                            // beside the base ones without the editor knowing
+                            // any id.
+                            settings
+                                .spawn((Name::new("Ship Look List"), StyleList, rail_list_node()))
+                                .with_children(|list| {
+                                    for (index, (id, name)) in looks.iter().enumerate() {
+                                        list.spawn((
+                                            Name::new(format!("Look: {name}")),
+                                            // The first is what an unset style
+                                            // wears, so it starts marked.
+                                            style_row(id, name, index == 0, skin),
+                                            observe(on_style_choice),
+                                        ));
+                                    }
+                                });
+                        });
                     });
-
-                rail.spawn(separator());
-                rail.spawn((
-                    Name::new("Play Button"),
-                    PlayButton,
-                    themed_button("Play"),
-                    observe(continue_to_simulation),
-                ));
             });
 
             // The placement verdict, along the bottom rather than in the rail:
@@ -388,76 +480,122 @@ fn rail_list_node() -> Node {
     }
 }
 
-/// One row the Scene list wants: the node it points at, and how it reads.
+/// One row the Scene tree wants: the node it points at, and how it reads.
 struct WantedRow {
-    /// `None` is the ".." row, which is a gesture rather than a node.
-    node: Option<Entity>,
-    /// A leading glyph, so the kinds are told apart without a second column.
-    kind: &'static str,
+    node: Entity,
+    /// The tree furniture in front of the label: ASCII connectors for the
+    /// depth, then a glyph for what the node is. `@` marks the node the editor
+    /// is inside, `>` the ship Play hands to the player, `-` a design beside
+    /// it, and a section wears its kind.
+    lead: String,
     label: String,
 }
 
-/// What the Scene list is showing, so a frame that changed nothing costs one
+/// What the Scene tree is showing, so a frame that changed nothing costs one
 /// comparison instead of a respawned list - and, more to the point, so hover
 /// and selection survive a frame in which the document did not change.
 #[derive(Default)]
 pub(crate) struct ShownScene {
-    rows: Vec<(Option<Entity>, String)>,
+    rows: Vec<(Entity, String, String)>,
 }
 
-/// The rows the current edit context calls for: whatever it contains, with a
-/// ".." on top while there is somewhere to go back to.
-fn wanted_rows(context: &EditContext, q_ships: &ShipNodes, nodes: &SectionNodes) -> Vec<WantedRow> {
-    let mut rows = Vec::new();
-    if context.ship().is_some() {
-        rows.push(WantedRow {
-            node: None,
-            kind: "..",
-            label: "scenario".to_string(),
-        });
+/// The glyph a section row wears: its kind, so the tree says what a ship is
+/// made of without a second column.
+fn section_glyph(section: &SectionNode, catalog: Option<&GameSections>) -> &'static str {
+    match section.resolve(catalog).map(|config| &config.kind) {
+        Some(SectionKind::Hull(_)) => "=",
+        Some(SectionKind::Controller(_)) => "o",
+        Some(SectionKind::Thruster(_)) => "^",
+        Some(SectionKind::Turret(_)) => "+",
+        Some(SectionKind::Torpedo(_)) => "!",
+        None => "?",
     }
-    rows.extend(
-        context_nodes(context, q_ships, nodes)
-            .into_iter()
-            .map(|node| WantedRow {
-                node: Some(node.entity),
-                // The ship the player flies is the one Play hands over, and
-                // nothing else on the row says so.
-                kind: match node.kind {
-                    NodeKind::PlayerShip => ">",
-                    NodeKind::AiShip | NodeKind::Section => "-",
-                },
-                label: node.id.0.clone(),
-            }),
-    );
+}
+
+/// The whole document as a tree: the scenario root, every ship under it, and
+/// the ENTERED ship's sections nested under that ship. Sibling ships stay
+/// collapsed - their sections are not what the builder is working on, and a
+/// 150px rail cannot hold three ships' worth of rows.
+fn wanted_rows(
+    context: &EditContext,
+    q_scenarios: &Query<&NodeId, With<ScenarioNode>>,
+    q_ships: &ShipNodes,
+    nodes: &SectionNodes,
+    catalog: Option<&GameSections>,
+) -> Vec<WantedRow> {
+    let Some(scenario) = context.scenario() else {
+        return Vec::new();
+    };
+    let Ok(root_id) = q_scenarios.get(scenario) else {
+        return Vec::new();
+    };
+    let mut rows = vec![WantedRow {
+        node: scenario,
+        lead: "*".to_string(),
+        label: root_id.0.clone(),
+    }];
+
+    let entered = context.ship();
+    let mut ships: Vec<_> = q_ships
+        .iter()
+        .filter(|(_, owner, ..)| owner.parent() == scenario)
+        .collect();
+    ships.sort_unstable_by(|a, b| a.2.cmp(b.2));
+    for (ship, _, id, node) in ships {
+        let glyph = if entered == Some(ship) {
+            "@"
+        } else {
+            match node.driver {
+                ShipDriver::Player => ">",
+                ShipDriver::Ai => "-",
+            }
+        };
+        rows.push(WantedRow {
+            node: ship,
+            lead: format!("|- {glyph}"),
+            label: id.0.clone(),
+        });
+        if entered != Some(ship) {
+            continue;
+        }
+        for (section, id, node, _) in sections_of(ship, nodes) {
+            rows.push(WantedRow {
+                node: section,
+                lead: format!("|  |- {}", section_glyph(node, catalog)),
+                label: id.0.clone(),
+            });
+        }
+    }
     rows
 }
 
-/// Rebuild the Scene list when the document or the context changes, and mark
+/// Rebuild the Scene tree when the document or the context changes, and mark
 /// the selected row.
 ///
-/// A whole-list rebuild rather than a per-row reconcile: the list is short, it
+/// A whole-list rebuild rather than a per-row reconcile: the tree is short, it
 /// changes only when the builder does something, and the ROW ORDER changes with
 /// it - a reconciler that matched rows to nodes would still have to reorder.
-/// The compare against [`ShownScene`] is what keeps a static list from
+/// The compare against [`ShownScene`] is what keeps a static tree from
 /// respawning every frame and eating its own hover.
 pub(crate) fn sync_scene_list(
     mut commands: Commands,
     skin: Res<UiSkin>,
     context: Res<EditContext>,
+    catalog: Option<Res<GameSections>>,
     mut selected: ResMut<SelectedNode>,
+    q_scenarios: Query<&NodeId, With<ScenarioNode>>,
     q_ships: ShipNodes,
     nodes: SectionNodes,
     lists: Query<Entity, With<SceneList>>,
-    rows: Query<(Entity, Option<&SceneRow>, Has<Selected>), Or<(With<SceneRow>, With<SceneUpRow>)>>,
+    rows: Query<(Entity, &SceneRow, Has<Selected>)>,
     mut shown: Local<ShownScene>,
 ) {
-    let wanted = wanted_rows(&context, &q_ships, &nodes);
-    // A selection cannot outlive the context it was made in: the node it names
-    // is not in this list, so there is no row left to carry the mark.
+    let wanted = wanted_rows(&context, &q_scenarios, &q_ships, &nodes, catalog.as_deref());
+    // A selection cannot outlive its row: a section of a ship that was left is
+    // not in the tree, so there is nothing left to carry the mark.
     if selected
         .0
-        .is_some_and(|node| !wanted.iter().any(|row| row.node == Some(node)))
+        .is_some_and(|node| !wanted.iter().any(|row| row.node == node))
     {
         selected.0 = None;
     }
@@ -465,9 +603,9 @@ pub(crate) fn sync_scene_list(
         return;
     };
 
-    let signature: Vec<(Option<Entity>, String)> = wanted
+    let signature: Vec<(Entity, String, String)> = wanted
         .iter()
-        .map(|row| (row.node, row.label.clone()))
+        .map(|row| (row.node, row.lead.clone(), row.label.clone()))
         .collect();
     if shown.rows != signature {
         commands.entity(list).despawn_related::<Children>();
@@ -477,19 +615,13 @@ pub(crate) fn sync_scene_list(
                 // pass below: these rows do not exist in `rows` until next
                 // frame, and a highlight that lags a frame behind the click
                 // that made it reads as a dropped input.
-                let marked = row.node.is_some() && row.node == selected.0;
+                let marked = Some(row.node) == selected.0;
                 let mut entity = list.spawn((
                     Name::new(format!("Scene Row {}", row.label)),
-                    scene_row(row.kind, &row.label, marked, *skin),
+                    scene_row(&row.lead, &row.label, marked, *skin),
+                    SceneRow(row.node),
+                    observe(on_scene_row),
                 ));
-                match row.node {
-                    Some(node) => {
-                        entity.insert((SceneRow(node), observe(on_scene_row)));
-                    }
-                    None => {
-                        entity.insert((SceneUpRow, observe(on_scene_up)));
-                    }
-                }
                 if marked {
                     entity.insert(Selected);
                 }
@@ -503,7 +635,7 @@ pub(crate) fn sync_scene_list(
     }
 
     for (entity, row, marked) in &rows {
-        match (row.is_some_and(|row| Some(row.0) == selected.0), marked) {
+        match (Some(row.0) == selected.0, marked) {
             (true, false) => {
                 commands.entity(entity).insert(Selected);
             }
@@ -515,51 +647,35 @@ pub(crate) fn sync_scene_list(
     }
 }
 
-/// Select the node a Scene row names, and ENTER it on a double-click.
+/// One click, and the row's kind says what it means: a ship row ENTERS the
+/// ship, the scenario root leaves it, and a section row SELECTS - the thing an
+/// inspector and the Rebind action hang off.
 ///
-/// Two gestures on one row because selecting and entering are two different
-/// questions - "tell me about this" and "work on this" - and a list that
-/// entered on every click could not answer the first at all. Godot's scene tree
-/// draws the same line.
+/// A container is entered and a leaf is selected, so one gesture covers both
+/// questions without a double-click - which the owner tried and read as "the
+/// first click did nothing".
 pub(crate) fn on_scene_row(
     activate: On<Activate>,
-    time: Res<Time>,
     rows: Query<&SceneRow>,
     ships: Query<(), With<ShipNode>>,
-    mut last: ResMut<SceneRowPress>,
+    scenarios: Query<(), With<ScenarioNode>>,
     mut selected: ResMut<SelectedNode>,
     mut context: ResMut<EditContext>,
 ) {
     let Ok(SceneRow(node)) = rows.get(activate.entity) else {
         return;
     };
-    let now = time.elapsed_secs();
-    let doubled = last.row == Some(activate.entity) && now - last.at <= DOUBLE_CLICK_WINDOW;
-    *last = SceneRowPress {
-        row: Some(activate.entity),
-        at: now,
-    };
-
-    // Only a ship can be entered today. A double-click on a section is still a
-    // select, which is what the section inspector will hang off.
-    if doubled && ships.contains(*node) {
+    if scenarios.contains(*node) {
+        context.to_root();
+        selected.0 = None;
+        return;
+    }
+    if ships.contains(*node) {
         context.enter(*node);
-        // The list is about to be rebuilt for the ship's own contents, where
-        // the ship itself is not a row.
         selected.0 = None;
         return;
     }
     selected.0 = Some(*node);
-}
-
-/// Leave the node the editor is inside.
-pub(crate) fn on_scene_up(
-    _activate: On<Activate>,
-    mut selected: ResMut<SelectedNode>,
-    mut context: ResMut<EditContext>,
-) {
-    context.exit();
-    selected.0 = None;
 }
 
 /// Disable Play anywhere but the scenario node.
@@ -583,6 +699,82 @@ pub(crate) fn sync_play_button(
                 commands.entity(entity).insert(InteractionDisabled);
             }
             (false, true) => {
+                commands.entity(entity).remove::<InteractionDisabled>();
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Show each context its own verbs: the scenario node's action group at the
+/// scenario node, the ship's action group and settings block inside a ship.
+///
+/// Hidden rather than disabled, unlike Play: a greyed Add Ship inside a ship
+/// would say "this exists here and is refused", and it does not exist there -
+/// adding a ship is a thing the SCENARIO does.
+pub(crate) fn sync_context_panels(
+    context: Res<EditContext>,
+    mut panels: Query<
+        (&mut Node, Has<ScenarioActions>),
+        Or<(With<ScenarioActions>, With<ShipActions>, With<ShipSettings>)>,
+    >,
+) {
+    let inside = context.ship().is_some();
+    for (mut node, scenario_only) in &mut panels {
+        let display = if scenario_only != inside {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+}
+
+/// Write the top bar's breadcrumb: the context path, in the document's own
+/// ids. The same fact the tree's `@` mark shows, said as a sentence.
+pub(crate) fn sync_breadcrumb(
+    context: Res<EditContext>,
+    ids: Query<&NodeId>,
+    mut crumbs: Query<&mut Text, With<ContextBreadcrumb>>,
+) {
+    let wanted = context
+        .path
+        .iter()
+        .filter_map(|node| ids.get(*node).ok())
+        .map(|id| id.0.as_str())
+        .collect::<Vec<_>>()
+        .join(" / ");
+    for mut text in &mut crumbs {
+        if text.0 != wanted {
+            text.0 = wanted.clone();
+        }
+    }
+}
+
+/// Grey the Rebind action unless the selection can take a binding: a bindable
+/// section of the edited ship. The same guards `on_rebind_action` enforces,
+/// painted, so the button never invites a press that does nothing.
+pub(crate) fn sync_rebind_button(
+    mut commands: Commands,
+    catalog: Option<Res<GameSections>>,
+    context: Res<EditContext>,
+    selected: Res<SelectedNode>,
+    q_sections: Query<(&SectionNode, &ChildOf)>,
+    buttons: Query<(Entity, Has<InteractionDisabled>), With<RebindButton>>,
+) {
+    let armable = selected.0.is_some_and(|node| {
+        q_sections.get(node).is_ok_and(|(section, owner)| {
+            context.ship() == Some(owner.parent()) && section.bindable(catalog.as_deref())
+        })
+    });
+    for (entity, marked) in &buttons {
+        match (armable, marked) {
+            (false, false) => {
+                commands.entity(entity).insert(InteractionDisabled);
+            }
+            (true, true) => {
                 commands.entity(entity).remove::<InteractionDisabled>();
             }
             _ => {}
@@ -707,8 +899,8 @@ pub(crate) fn sync_key_legend(
 ) {
     let line = match *selection {
         SectionChoice::None => {
-            "Tab parts   LMB rebind a section   Q pick its part   RMB+drag look   \
-             WASD/Space/Shift fly   Ship Skin clads the build, Look dresses it   Esc pause"
+            "Tab parts   LMB select   Q pick its part   RMB+drag look   \
+             WASD/Space/Shift fly   Rebind acts on the selection   Esc pause"
         }
         SectionChoice::Section(_) => {
             "LMB place   wheel roll   Ctrl+wheel socket   R roll   F socket   Q pick   \
@@ -725,22 +917,18 @@ pub(crate) fn sync_key_legend(
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use nova_scenario::prelude::SectionSource;
     use nova_ship::prelude::ShipStyleConfig;
 
     use super::*;
-    use crate::node::{NextChildOrdinal, NodeId, ScenarioNode, SectionNode, ShipDriver};
+    use crate::node::NextChildOrdinal;
 
-    /// A rail with the Scene list on it and the reconciler running, over an
+    /// A rail with the Scene tree on it and the reconciler running, over an
     /// empty document. The tests below fill the document in.
     fn scene_app() -> App {
         let mut app = App::new();
         app.insert_resource(UiSkin::default());
-        app.init_resource::<Time>();
         app.init_resource::<SelectedNode>();
-        app.init_resource::<SceneRowPress>();
         app.world_mut()
             .spawn((Name::new("Scene List"), SceneList, rail_list_node()));
         app.add_systems(Update, sync_scene_list);
@@ -833,43 +1021,31 @@ mod tests {
             .expect("a row for that node")
     }
 
-    fn up_row(app: &mut App) -> Entity {
-        app.world_mut()
-            .query_filtered::<Entity, With<SceneUpRow>>()
+    /// The lead texts of the rows, in draw order - the tree furniture the
+    /// glyph assertions read.
+    fn row_leads(app: &mut App) -> Vec<String> {
+        let list = app
+            .world_mut()
+            .query_filtered::<Entity, With<SceneList>>()
             .single(app.world())
-            .expect("an up row")
+            .expect("one scene list");
+        let rows: Vec<Entity> = app
+            .world()
+            .get::<Children>(list)
+            .map(|children| children.iter().collect())
+            .unwrap_or_default();
+        rows.into_iter()
+            .filter_map(|row| {
+                let first = app.world().get::<Children>(row)?.iter().next()?;
+                Some(app.world().get::<Text>(first)?.0.clone())
+            })
+            .collect()
     }
 
-    /// The list is the CONTEXT's contents: ships at the scenario node, and the
-    /// way back out plus that ship's sections once you are inside one.
+    /// The tree is the DOCUMENT: the scenario root, every ship, and the
+    /// entered ship's sections nested under it. Sibling ships stay collapsed.
     #[test]
-    fn the_scene_list_follows_the_edit_context() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        let first = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
-        spawn_ship(&mut app, scenario, "ship_2", ShipDriver::Ai);
-        section_node(&mut app, first, "hull_1");
-
-        app.update();
-        assert_eq!(
-            row_names(&mut app),
-            vec!["ship_1", "ship_2"],
-            "the scenario node lists its ships, and no sections"
-        );
-
-        app.world_mut().resource_mut::<EditContext>().enter(first);
-        app.update();
-        assert_eq!(
-            row_names(&mut app),
-            vec!["scenario", "hull_1"],
-            "inside a ship: the way out, then that ship's sections"
-        );
-    }
-
-    /// A ship you are not inside contributes nothing to the list of the ship
-    /// you ARE inside - the whole reason the context exists.
-    #[test]
-    fn a_sibling_ships_sections_are_not_listed() {
+    fn the_scene_tree_opens_the_entered_branch_only() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         let first = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
@@ -877,36 +1053,57 @@ mod tests {
         section_node(&mut app, first, "hull_1");
         section_node(&mut app, second, "turret_1");
 
+        app.update();
+        assert_eq!(
+            row_names(&mut app),
+            vec!["scenario", "ship_1", "ship_2"],
+            "at the scenario node every branch is collapsed"
+        );
+
+        app.world_mut().resource_mut::<EditContext>().enter(first);
+        app.update();
+        assert_eq!(
+            row_names(&mut app),
+            vec!["scenario", "ship_1", "hull_1", "ship_2"],
+            "the entered ship opens; its sibling does not"
+        );
+
         app.world_mut().resource_mut::<EditContext>().enter(second);
         app.update();
-
-        assert_eq!(row_names(&mut app), vec!["scenario", "turret_1"]);
-    }
-
-    /// Click SELECTS. Entering is a second gesture, so a builder can ask about
-    /// a node without descending into it.
-    #[test]
-    fn a_single_click_selects_without_entering() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
-        app.update();
-
-        let row = row_for(&mut app, ship);
-        press(&mut app, row);
-
-        assert_eq!(app.world().resource::<SelectedNode>().0, Some(ship));
         assert_eq!(
-            app.world().resource::<EditContext>().ship(),
-            None,
-            "a select is not an enter"
+            row_names(&mut app),
+            vec!["scenario", "ship_1", "ship_2", "turret_1"],
+            "entering the sibling moves the open branch"
         );
     }
 
-    /// Double-click ENTERS, Godot-style. The second press lands inside
-    /// `DOUBLE_CLICK_WINDOW` because the test clock has not moved.
+    /// The lead column is the tree's whole vocabulary: `*` the root, `>` the
+    /// ship Play flies, `-` a design beside it, `@` where the editor is, and a
+    /// section wears its kind.
     #[test]
-    fn a_double_click_enters_the_ship() {
+    fn the_lead_glyphs_say_who_is_who() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let first = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        spawn_ship(&mut app, scenario, "ship_2", ShipDriver::Ai);
+        section_node(&mut app, first, "hull_1");
+
+        app.update();
+        assert_eq!(row_leads(&mut app), vec!["*", "|- >", "|- -"]);
+
+        app.world_mut().resource_mut::<EditContext>().enter(first);
+        app.update();
+        assert_eq!(
+            row_leads(&mut app),
+            vec!["*", "|- @", "|  |- =", "|- -"],
+            "the entered ship is marked, and its hull section shows its kind"
+        );
+    }
+
+    /// One click on a ship row ENTERS it - the owner tried double-click and
+    /// read the first click as a dropped input.
+    #[test]
+    fn a_single_click_on_a_ship_row_enters_it() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
@@ -915,56 +1112,61 @@ mod tests {
 
         let row = row_for(&mut app, ship);
         press(&mut app, row);
-        press(&mut app, row);
 
         assert_eq!(app.world().resource::<EditContext>().ship(), Some(ship));
         assert_eq!(
             app.world().resource::<SelectedNode>().0,
             None,
-            "the ship is not a row of its own contents, so the mark is dropped"
+            "a container is entered, not selected"
         );
-        assert_eq!(row_names(&mut app), vec!["scenario", "hull_1"]);
+        assert_eq!(
+            row_names(&mut app),
+            vec!["scenario", "ship_1", "hull_1"],
+            "and its branch is open"
+        );
     }
 
-    /// A slow second click is two selections, not a double-click. Without the
-    /// window, any two clicks on one row would eventually descend.
+    /// A section row SELECTS: a leaf has nothing to enter yet, and the mark is
+    /// what an inspector and the Rebind action act on.
     #[test]
-    fn a_slow_second_click_is_not_a_double_click() {
+    fn a_section_row_selects_without_moving_the_context() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        let section = section_node(&mut app, ship, "hull_1");
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
         app.update();
 
-        let row = row_for(&mut app, ship);
-        press(&mut app, row);
-        app.world_mut()
-            .resource_mut::<Time>()
-            .advance_by(Duration::from_secs_f32(DOUBLE_CLICK_WINDOW + 0.1));
+        let row = row_for(&mut app, section);
         press(&mut app, row);
 
-        assert_eq!(app.world().resource::<EditContext>().ship(), None);
-        assert_eq!(app.world().resource::<SelectedNode>().0, Some(ship));
+        assert_eq!(app.world().resource::<SelectedNode>().0, Some(section));
+        assert_eq!(
+            app.world().resource::<EditContext>().ship(),
+            Some(ship),
+            "selecting a section does not move the context"
+        );
     }
 
-    /// The ".." row is the way back, and it lands at the scenario node rather
+    /// The root row is the way back, and it lands at the scenario node rather
     /// than outside the document.
     #[test]
-    fn the_up_row_leaves_the_ship() {
+    fn the_root_row_leaves_the_ship() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
         app.world_mut().resource_mut::<EditContext>().enter(ship);
         app.update();
 
-        let up = up_row(&mut app);
-        press(&mut app, up);
+        let root = row_for(&mut app, scenario);
+        press(&mut app, root);
 
         assert_eq!(app.world().resource::<EditContext>().ship(), None);
         assert_eq!(
             app.world().resource::<EditContext>().scenario(),
             Some(scenario)
         );
-        assert_eq!(row_names(&mut app), vec!["ship_1"]);
+        assert_eq!(row_names(&mut app), vec!["scenario", "ship_1"]);
     }
 
     /// A selection cannot outlive the context it was made in: there is no row
@@ -1052,6 +1254,110 @@ mod tests {
             ),
             "and pressing it anyway does not hand off"
         );
+    }
+
+    /// Each context shows its own verbs: Add Ship at the scenario node, the
+    /// ship actions and settings inside a ship - never both.
+    #[test]
+    fn each_context_shows_its_own_actions() {
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut world = World::new();
+        world.init_resource::<EditContext>();
+        let scenario = world.spawn(ScenarioNode).id();
+        let ship = world.spawn(ShipNode::default()).id();
+        world.resource_mut::<EditContext>().path = vec![scenario];
+        let add = world.spawn((ScenarioActions, Node::default())).id();
+        let tools = world.spawn((ShipActions, Node::default())).id();
+        let settings = world.spawn((ShipSettings, Node::default())).id();
+
+        let display = |world: &World, entity: Entity| world.get::<Node>(entity).unwrap().display;
+
+        world.run_system_once(sync_context_panels).unwrap();
+        assert_eq!(display(&world, add), Display::Flex);
+        assert_eq!(display(&world, tools), Display::None);
+        assert_eq!(display(&world, settings), Display::None);
+
+        world.resource_mut::<EditContext>().enter(ship);
+        world.run_system_once(sync_context_panels).unwrap();
+        assert_eq!(display(&world, add), Display::None);
+        assert_eq!(display(&world, tools), Display::Flex);
+        assert_eq!(display(&world, settings), Display::Flex);
+    }
+
+    /// The breadcrumb is the context path in the document's own ids.
+    #[test]
+    fn the_breadcrumb_spells_the_context_path() {
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut world = World::new();
+        world.init_resource::<EditContext>();
+        let scenario = world
+            .spawn((ScenarioNode, NodeId("scenario".to_string())))
+            .id();
+        let ship = world
+            .spawn((ShipNode::default(), NodeId("ship_1".to_string())))
+            .id();
+        let crumb = world.spawn((ContextBreadcrumb, Text::new(""))).id();
+        world.resource_mut::<EditContext>().path = vec![scenario];
+
+        world.run_system_once(sync_breadcrumb).unwrap();
+        assert_eq!(world.get::<Text>(crumb).unwrap().0, "scenario");
+
+        world.resource_mut::<EditContext>().enter(ship);
+        world.run_system_once(sync_breadcrumb).unwrap();
+        assert_eq!(world.get::<Text>(crumb).unwrap().0, "scenario / ship_1");
+    }
+
+    /// Rebind is greyed until the selection can actually take a binding - the
+    /// same guards the action enforces, painted.
+    #[test]
+    fn rebind_is_greyed_until_a_bindable_section_is_selected() {
+        use bevy::ecs::system::RunSystemOnce;
+        use nova_ship::prelude::{SectionConfig, SectionKind, TurretSectionConfig};
+
+        let section = |kind: SectionKind| SectionNode {
+            source: SectionSource::Inline(SectionConfig {
+                base: BaseSectionConfig {
+                    id: "part".to_string(),
+                    name: "part".to_string(),
+                    ..default()
+                },
+                kind,
+            }),
+            modifications: vec![],
+            binds: vec![],
+        };
+
+        let mut world = World::new();
+        world.init_resource::<SelectedNode>();
+        let ship = world.spawn(ShipNode::default()).id();
+        world.insert_resource(EditContext {
+            path: vec![Entity::PLACEHOLDER, ship],
+        });
+        let hull = world
+            .spawn((section(SectionKind::Hull(default())), ChildOf(ship)))
+            .id();
+        let turret = world
+            .spawn((
+                section(SectionKind::Turret(TurretSectionConfig::default())),
+                ChildOf(ship),
+            ))
+            .id();
+        let button = world.spawn(RebindButton).id();
+
+        let disabled = |world: &World| world.entity(button).contains::<InteractionDisabled>();
+
+        world.run_system_once(sync_rebind_button).unwrap();
+        assert!(disabled(&world), "nothing selected, nothing to rebind");
+
+        world.resource_mut::<SelectedNode>().0 = Some(hull);
+        world.run_system_once(sync_rebind_button).unwrap();
+        assert!(disabled(&world), "a hull takes no binding");
+
+        world.resource_mut::<SelectedNode>().0 = Some(turret);
+        world.run_system_once(sync_rebind_button).unwrap();
+        assert!(!disabled(&world), "a turret of the edited ship can rebind");
     }
 
     fn style(id: &str) -> ShipStyleConfig {

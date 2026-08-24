@@ -206,6 +206,12 @@ impl EditContext {
             self.path.pop();
         }
     }
+
+    /// Straight back to the scenario node, however deep the path is - what
+    /// clicking the tree's root row means.
+    pub(crate) fn to_root(&mut self) {
+        self.path.truncate(1);
+    }
 }
 
 /// Every section node on `ship`, in id order.
@@ -245,23 +251,10 @@ pub(crate) type SectionNodes<'w, 's> = Query<
 pub(crate) type ShipNodes<'w, 's> =
     Query<'w, 's, (Entity, &'static ChildOf, &'static NodeId, &'static ShipNode)>;
 
-/// What a node listed by [`context_nodes`] IS, for callers that have to say so
-/// without knowing the component types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NodeKind {
-    /// The ship Play hands to the player.
-    PlayerShip,
-    /// A ship built beside it: a design, not something that flies yet.
-    AiShip,
-    /// A section of the ship being edited.
-    Section,
-}
-
 /// One node the current edit context contains.
 pub(crate) struct ContextNode<'a> {
     pub(crate) entity: Entity,
     pub(crate) id: &'a NodeId,
-    pub(crate) kind: NodeKind,
 }
 
 /// Everything the edit context CONTAINS, in id order.
@@ -283,25 +276,14 @@ pub(crate) fn context_nodes<'a>(
         let mut ships: Vec<_> = q_ships
             .iter()
             .filter(|(_, owner, ..)| owner.parent() == scenario)
-            .map(|(entity, _, id, ship)| ContextNode {
-                entity,
-                id,
-                kind: match ship.driver {
-                    ShipDriver::Player => NodeKind::PlayerShip,
-                    ShipDriver::Ai => NodeKind::AiShip,
-                },
-            })
+            .map(|(entity, _, id, _)| ContextNode { entity, id })
             .collect();
         ships.sort_unstable_by(|a, b| a.id.cmp(b.id));
         return ships;
     };
     sections_of(ship, nodes)
         .into_iter()
-        .map(|(entity, id, ..)| ContextNode {
-            entity,
-            id,
-            kind: NodeKind::Section,
-        })
+        .map(|(entity, id, ..)| ContextNode { entity, id })
         .collect()
 }
 
@@ -361,23 +343,19 @@ pub(crate) fn ensure_document(mut commands: Commands, mut context: ResMut<EditCo
     context.path = vec![scenario];
 }
 
-/// Add a ship to the document, seeded with one section, and go inside it.
+/// Add a BLANK ship to the document and go inside it.
 ///
-/// Additive: a second "New Ship" no longer despawns the first. Ships are spaced
-/// along +X so two of them are two things on the stage rather than one pile.
-///
-/// The seed is placed HERE rather than by a second call, because the ship's id
-/// counter is a component on an entity `Commands` has only reserved: a caller
-/// that turned round and asked the query for it would find nothing and mint a
-/// duplicate id. The first child is always ordinal 1, so the ship is spawned
-/// with its counter already spent.
+/// Additive: a second "Add Ship" is one more subtree standing beside the first
+/// rather than a reset. Ships are spaced along +X so two of them are two things
+/// on the stage rather than one pile. Blank on purpose - which part a ship
+/// starts from is the builder's first decision, and the empty ship's founding
+/// click (see `crate::placement::found_empty_ship`) is where they make it.
 pub(crate) fn spawn_ship_node(
     commands: &mut Commands,
     ordinals: &mut Query<&mut NextChildOrdinal>,
     context: &mut EditContext,
     ships: usize,
     driver: ShipDriver,
-    seed: &SectionConfig,
 ) -> Option<Entity> {
     let scenario = context.scenario()?;
     let id = mint_id(ordinals, scenario, "ship");
@@ -390,20 +368,12 @@ pub(crate) fn spawn_ship_node(
             },
             Name::new(format!("Ship Node {}", id.0)),
             id,
-            NextChildOrdinal(1),
+            NextChildOrdinal::default(),
             Transform::from_xyz(ships as f32 * SHIP_NODE_SPACING, 0.0, 0.0),
             Visibility::Visible,
             ChildOf(scenario),
         ))
         .id();
-    insert_section_node(
-        commands,
-        ship,
-        NodeId(format!("{}_1", seed.base.id)),
-        seed,
-        Transform::default(),
-        vec![],
-    );
     context.enter(ship);
     Some(ship)
 }

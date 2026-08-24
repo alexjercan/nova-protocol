@@ -39,8 +39,8 @@ use nova_protocol::prelude::*;
 mod ui_walk;
 #[cfg(feature = "debug")]
 use ui_walk::{
-    count_sections, pose_editor_camera, the_build_camera_is_posed, the_ship_is_up, the_skin_is_on,
-    Gestures, STEP_DEADLINE_SECS,
+    count_sections, pose_editor_camera, the_build_camera_is_posed, the_editor_can_play,
+    the_editor_is_inside_a_ship, the_skin_is_on, Gestures, STEP_DEADLINE_SECS,
 };
 
 #[derive(Parser)]
@@ -126,15 +126,17 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(the_build_camera_is_posed())
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .click("create the ship", "Create New Spaceship Button V2")
-        // The preview being there is the wait; its COLLIDERS are covered by the
-        // first `place` beat, which holds until the editor has solved a
-        // placement at the face it aimed at - and it cannot solve one before
-        // avian has prepared the collider that aim's ray has to hit.
-        .step("the new ship is up")
-        .until(the_ship_is_up())
+        .click("create the ship", "Add Ship Button")
+        .step("the blank ship is entered")
+        .until(the_editor_is_inside_a_ship())
         .deadline(STEP_DEADLINE_SECS)
         .add()
+        // A blank ship is FOUNDED: arm a controller and click empty space,
+        // which drops it at the ship's own origin. The first `place` beat
+        // after this covers its collider - the editor cannot solve a mate
+        // before avian has prepared the collider that aim's ray has to hit.
+        .arm("arm the controller", "basic_controller_section")
+        .found("found the ship")
         // Build it: arm a part through the gallery, then click the ship itself
         // through the real picking pipeline. A placed section mates the socket
         // nearest the pointer, so each beat below names the section it grows
@@ -162,9 +164,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .place("turret on the spine", Vec3::new(1.0, 0.0, 0.0), Vec3::Y)
         .step("the ship was built")
         .on_enter(|world: &mut World| {
-            // The controller the New Ship button spawns, plus the four sections
-            // the gestures placed. A short count means a click missed its face
-            // and the shot shows a thinner ship than the figure claims.
+            // The founding controller plus the four sections the gestures
+            // placed. A short count means a click missed its face and the shot
+            // shows a thinner ship than the figure claims.
             let sections = count_sections(world);
             assert_eq!(
                 sections, 5,
@@ -176,16 +178,21 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // Put the part down before the shot: a builder holding one sees every
         // free socket drawn on the ship, which is the right answer while
-        // building and pure clutter in a figure of the finished thing.
-        .click("put the part down", "Select Section Button")
-        // The rail chip actually disarming is its own claim. `editor_placement_clear()`
-        // below is true either way - it holds when nothing is armed OR when
-        // nothing is under the pointer - so a missed Select would sail through
-        // it the moment the pointer reached empty space, with the part still in
-        // hand and its link-point clutter still in the figure (review a4a6 R4).
-        .step("the part is out of the builder's hand")
+        // building and pure clutter in a figure of the finished thing. Escape
+        // is the gesture now that select mode is the default rather than a
+        // rail button. The tool actually disarming is its own claim:
+        // `editor_placement_clear()` below is true either way - it holds when
+        // nothing is armed OR when nothing is under the pointer - so a missed
+        // Escape would sail through it the moment the pointer reached empty
+        // space, with the part still in hand and its link-point clutter still
+        // in the figure (review a4a6 R4).
+        .step("press Escape to put the part down")
+        .on_enter(press_key(KeyCode::Escape))
         .until(editor_tool_is(EditorTool::Select))
         .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("release Escape")
+        .on_enter(release_key(KeyCode::Escape))
         .add()
         // Park the pointer clear of the ship: hovering a section raises the
         // placement GHOST, and a translucent extra section is exactly the thing
@@ -270,6 +277,13 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .step("hide the collider diagnostic")
         .on_enter(|world| set_colliders(world, false))
+        .add()
+        // Play compiles the document from the scenario node, so the walk
+        // steps out of the ship through the tree's root row first.
+        .click("leave the ship for the hand-off", "Scene Row scenario")
+        .step("Play is reachable")
+        .until(the_editor_can_play())
+        .deadline(STEP_DEADLINE_SECS)
         .add()
         .click("launch the built ship", "Play Button")
         .step("reach the sandbox range")

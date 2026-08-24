@@ -1,22 +1,23 @@
-//! Section keybind labels + click-to-rebind. Each
-//! bindable section (thruster/turret/torpedo) gets a screen-space chip showing
-//! its current key; clicking it in select mode arms a rebind that captures the
-//! next key or mouse-button press.
+//! Section keybind labels + the Rebind action. Each bindable section
+//! (thruster/turret/torpedo) gets a screen-space chip showing its current key;
+//! the top bar's Rebind button arms a capture for the SELECTED section, and
+//! `apply_section_rebind` consumes the next key or mouse-button press.
 
-use bevy::prelude::*;
+use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
 use nova_ship::prelude::*;
 
 use crate::{
+    config::SelectedNode,
     gallery::EditorCamera,
     node::{EditContext, SectionNode},
     ExampleStates,
 };
 
-/// The section currently awaiting a new keybind. Armed by clicking a bindable
-/// section in select mode (`SectionChoice::None`); `apply_section_rebind`
-/// consumes the next key or mouse-button press. Reset to `None` on every state
-/// entry.
+/// The section currently awaiting a new keybind. Armed by the top bar's
+/// Rebind action on the selected section ([`on_rebind_action`]);
+/// `apply_section_rebind` consumes the next key or mouse-button press. Reset
+/// to `None` on every state entry.
 #[derive(Resource, Debug, Clone, Default)]
 pub(crate) struct EditorRebind {
     pub(crate) target: Option<Entity>,
@@ -178,6 +179,37 @@ pub(crate) fn hide_section_keybind_labels(
             *visibility = Visibility::Hidden;
         }
     }
+}
+
+/// The top bar's Rebind action: arm a keybind capture for the SELECTED
+/// section.
+///
+/// This used to be what a click on a section meant, which left "look at this"
+/// with no gesture at all. Now the click selects and the intent to rebind is
+/// its own button, so the capture can never be armed by accident. The guards
+/// mirror `apply_section_rebind`'s validity check: a selection that is not a
+/// bindable section of the edited ship arms nothing.
+pub(crate) fn on_rebind_action(
+    _activate: On<Activate>,
+    catalog: Option<Res<GameSections>>,
+    context: Res<EditContext>,
+    selected: Res<SelectedNode>,
+    q_sections: Query<(&SectionNode, &ChildOf)>,
+    mut rebind: ResMut<EditorRebind>,
+) {
+    let Some(section) = selected.0 else {
+        return;
+    };
+    let Ok((node, owner)) = q_sections.get(section) else {
+        return;
+    };
+    if context.ship() != Some(owner.parent()) || !node.bindable(catalog.as_deref()) {
+        return;
+    }
+    rebind.target = Some(section);
+    // The press that armed this is a mouse click on the button: wait for it to
+    // release, so the arming LMB is not captured as the new binding.
+    rebind.awaiting_release = true;
 }
 
 /// Why `binding` cannot be given to a section, or `None` when it is free.
@@ -572,6 +604,42 @@ mod tests {
             binds_of(&world, taken),
             vec![Binding::from(KeyCode::KeyR)],
             "the first section keeps the key"
+        );
+    }
+
+    /// The Rebind action arms the SELECTED section, and only a selection the
+    /// capture could actually serve: a bindable section of the edited ship.
+    #[test]
+    fn the_rebind_action_arms_only_a_bindable_selection() {
+        use bevy::ui_widgets::Activate;
+
+        use crate::config::SelectedNode;
+
+        let mut app = App::new();
+        app.init_resource::<EditorRebind>();
+        app.init_resource::<SelectedNode>();
+        app.add_observer(on_rebind_action);
+        let turret = turret(app.world_mut(), vec![Binding::from(MouseButton::Left)]);
+        let hull = section_node(app.world_mut(), SectionKind::Hull(default()), vec![]);
+        let button = app.world_mut().spawn_empty().id();
+
+        // Nothing selected: the press arms nothing.
+        app.world_mut().trigger(Activate { entity: button });
+        assert_eq!(app.world().resource::<EditorRebind>().target, None);
+
+        // A hull selected: not bindable, still nothing.
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(hull);
+        app.world_mut().trigger(Activate { entity: button });
+        assert_eq!(app.world().resource::<EditorRebind>().target, None);
+
+        // The turret selected: armed, and waiting out the arming click.
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(turret);
+        app.world_mut().trigger(Activate { entity: button });
+        let rebind = app.world().resource::<EditorRebind>();
+        assert_eq!(rebind.target, Some(turret));
+        assert!(
+            rebind.awaiting_release,
+            "the arming click must not be captured as the binding"
         );
     }
 

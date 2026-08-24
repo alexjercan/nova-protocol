@@ -100,11 +100,12 @@ pub struct EditorProbe {
     /// to, and the only way a driven run can tell "entered ship_2" from "still
     /// looking at ship_1 from outside".
     pub inside: Option<String>,
-    /// The node ids the Scene list is showing, in the order it shows them.
-    /// Ships at the scenario node, sections inside a ship. The ".." row is a
-    /// gesture rather than a node and is not listed.
+    /// The node ids the current context CONTAINS, in id order: ships at the
+    /// scenario node, sections inside a ship. The Scene tree draws more than
+    /// this (the root row, collapsed sibling ships), but this is the list every
+    /// editor system is scoped to.
     pub context_nodes: Vec<String>,
-    /// The id of the node the Scene list has marked, or `None`.
+    /// The id of the node the Scene tree has marked, or `None`.
     pub selected_node: Option<String>,
     /// Whether Play would hand off right now. False inside a ship, where the
     /// button is disabled.

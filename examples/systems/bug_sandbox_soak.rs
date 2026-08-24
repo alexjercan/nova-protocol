@@ -1,8 +1,9 @@
 //! bug_sandbox_soak: the editor sandbox, entered the way a player enters it, then
 //! LEFT ALONE.
 //!
-//! The walk is the owner's - main menu, Sandbox, New Ship, Play - and then the
-//! script does nothing at all for [`SOAK_SECS`]. Sitting still IS the gesture:
+//! The walk is the owner's - main menu, Sandbox, Add Ship, found it with a
+//! controller, Play - and then the script does nothing at all for
+//! [`SOAK_SECS`]. Sitting still IS the gesture:
 //! the range exists because the sandbox held its frame rate for a few seconds
 //! after Play and then fell to 2 FPS on its own, with no input, no spawning,
 //! and a flat entity count.
@@ -109,6 +110,27 @@ fn the_ship_is_up() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predic
     })
 }
 
+/// Advance once the editor is inside a ship - what Add Ship does.
+#[cfg(feature = "debug")]
+fn inside_a_ship() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| world.resource::<EditorProbe>().inside.is_some())
+}
+
+/// Advance once Play would hand off - the walk is back at the scenario node.
+#[cfg(feature = "debug")]
+fn play_is_reachable() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| world.resource::<EditorProbe>().can_play)
+}
+
+/// The part the walk founds the blank ship with.
+#[cfg(feature = "debug")]
+const FOUNDING_PART: &str = "basic_controller_section";
+
+/// A viewport point (logical px) with nothing under it on the 1024x768 window
+/// the app opens - where the founding click lands.
+#[cfg(feature = "debug")]
+const EMPTY_SPACE: Vec2 = Vec2::new(760.0, 640.0);
+
 /// How long the run sits still. Long enough that a curve which is going to
 /// slide has slid: the collapse this range pins was complete within six
 /// seconds of the field spawning, and a slower box only reaches it sooner.
@@ -119,7 +141,8 @@ const SOAK_SECS: f32 = 45.0;
 #[cfg(feature = "debug")]
 const SAMPLE_SECS: f64 = 5.0;
 
-/// The walk: menu -> Sandbox -> New Ship -> Play -> sit still -> verdict.
+/// The walk: menu -> Sandbox -> Add Ship -> found it -> Play -> sit still ->
+/// verdict.
 #[cfg(feature = "debug")]
 fn sandbox_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
@@ -144,21 +167,92 @@ fn sandbox_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .deadline(90.0)
         .add()
         .step("soak: let the editor lay out")
-        .until(ui_node_present("Create New Spaceship Button V2"))
+        .until(ui_node_present("Add Ship Button"))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .step("soak: click New Ship")
-        .on_enter(click_named("Create New Spaceship Button V2"))
+        .step("soak: click Add Ship")
+        .on_enter(click_named("Add Ship Button"))
         .until(pointer_pressed())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        // The preview SHIP is the ack of the click, not a count of frames: the
-        // Play beat below hands whatever is built to the scenario, so a run that
-        // pressed Play on an empty editor would soak an empty range.
-        .step("soak: release New Ship")
+        .step("soak: release Add Ship")
         .on_enter(release_mouse(MouseButton::Left))
+        .until(inside_a_ship())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // The ship starts BLANK, so the walk founds it with a controller from
+        // the gallery: Tab opens, `/` gives the filter the caret, the typed id
+        // narrows the grid, Enter focuses, Enter arms, and a click on empty
+        // space drops the part at the ship origin. The founded ship is the ack
+        // the Play beat needs - a run that pressed Play on an empty editor
+        // would soak an empty range.
+        .step("soak: open the gallery")
+        .on_enter(press_key(KeyCode::Tab))
+        .until(editor_gallery_open())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: release Tab")
+        .on_enter(release_key(KeyCode::Tab))
+        .add()
+        .step("soak: put the caret in the filter")
+        .on_enter(press_key(KeyCode::Slash))
+        .until(editor_filter_focused())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: release /")
+        .on_enter(release_key(KeyCode::Slash))
+        .add()
+        .step("soak: filter to the controller")
+        .on_enter(type_text(FOUNDING_PART))
+        .until(editor_gallery_selected(FOUNDING_PART))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: Enter to focus")
+        .on_enter(press_key(KeyCode::Enter))
+        .until(ui_node_present("Gallery Focus Card"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: release Enter")
+        .on_enter(release_key(KeyCode::Enter))
+        .add()
+        .step("soak: Enter to take the part")
+        .on_enter(press_key(KeyCode::Enter))
+        .until(editor_gallery_closed())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: release Enter again")
+        .on_enter(release_key(KeyCode::Enter))
+        .add()
+        .step("soak: point at empty space")
+        .on_enter(move_cursor(EMPTY_SPACE))
+        .add()
+        .step("soak: found the ship")
+        .on_enter(press_mouse(MouseButton::Left))
         .until(the_ship_is_up())
         .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: release the founding click")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // Play lives at the scenario node, so the walk backs out of the ship:
+        // one Escape puts the part down, one leaves.
+        .step("soak: Escape puts the part down")
+        .on_enter(press_key(KeyCode::Escape))
+        .until(editor_tool_is(EditorTool::Select))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: release Escape")
+        .on_enter(release_key(KeyCode::Escape))
+        .add()
+        .step("soak: Escape leaves the ship")
+        .on_enter(press_key(KeyCode::Escape))
+        .until(play_is_reachable())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: release Escape again")
+        .on_enter(release_key(KeyCode::Escape))
         .add()
         .step("soak: press Play")
         .on_enter(click_named("Play Button"))

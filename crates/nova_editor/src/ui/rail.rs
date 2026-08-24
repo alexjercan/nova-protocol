@@ -1,47 +1,15 @@
-//! The left category rail, styled after the web wiki sidebar: an active
-//! "Parts" category that opens the gallery, plus greyed coming-soon rows
-//! (Ships/Objects/Events/Objectives) that advertise "the rest".
+//! The left rail's widgets: the Scene tree rows and the ship settings rows.
+//! The theme and the shared button shapes live in `nova_ui`; this module only
+//! assembles editor-specific rows out of them.
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
 use nova_ui::{
     prelude::{ThemedButton, UiSkin},
     theme,
-    widget::{badge, checkbox, list_row_colors, BadgeKind, ListRow},
+    widget::{checkbox, list_row_colors, ListRow},
 };
 
 use crate::config::{SkinToggleCheckbox, StyleChoice};
-
-/// A live category row. Uses `ThemedButton` so it gets the shared hover
-/// colouring, but carries no `ButtonValue`, so pressing one never touches
-/// `SectionChoice`; the caller supplies the name and what the press does.
-pub(crate) fn category_row(label: &str) -> impl Bundle {
-    let label = label.to_string();
-    (
-        ThemedButton,
-        Button,
-        Hovered::default(),
-        Node {
-            width: percent(100),
-            min_height: px(30),
-            margin: UiRect::vertical(px(2)),
-            padding: UiRect::axes(px(10), px(6)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            align_items: AlignItems::Center,
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
-            ..default()
-        },
-        BorderColor::all(theme::PHOSPHOR_MUTED),
-        BackgroundColor(theme::SCREEN_0),
-        children![(
-            Text::new(label),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(theme::PHOSPHOR),
-        )],
-    )
-}
 
 /// The cladding toggle: a tool row that is a SETTING rather than a mode, so it
 /// carries the shared `checkbox` widget instead of a `ButtonValue`.
@@ -124,15 +92,24 @@ pub(crate) fn style_row(id: &str, name: &str, selected: bool, skin: UiSkin) -> i
     )
 }
 
-/// One row of the Scene list: a node in the current edit context, or the ".."
-/// that leaves it.
+/// One row of the Scene tree: the scenario root, a ship, or a section of the
+/// entered ship.
 ///
 /// The same `ListRow` shape the look rows use, so the shared reconciler paints
-/// the selection and the hover and this module owns no colour. `kind` is a
-/// leading glyph rather than an icon - WIP furniture, and a glyph is one text
-/// node instead of a mesh and an asset handle.
-pub(crate) fn scene_row(kind: &str, label: &str, selected: bool, skin: UiSkin) -> impl Bundle {
+/// the selection and the hover and this module owns no colour. `lead` is the
+/// tree furniture in front of the label - ASCII connectors for the depth plus
+/// a glyph for the node's kind - one muted text node instead of an icon asset,
+/// which is also what keeps the tree in the terminal look the rest of the
+/// screen wears.
+pub(crate) fn scene_row(lead: &str, label: &str, selected: bool, skin: UiSkin) -> impl Bundle {
     let (background, border) = list_row_colors(selected, false, skin);
+    // A minted id can outgrow the 150px rail. NoWrap + clip keeps every row
+    // one line tall - a wrapped lead column stacked its glyphs vertically and
+    // the tree stopped reading as a tree.
+    let one_line = TextLayout {
+        linebreak: LineBreak::NoWrap,
+        ..default()
+    };
     (
         ListRow,
         Button,
@@ -146,13 +123,15 @@ pub(crate) fn scene_row(kind: &str, label: &str, selected: bool, skin: UiSkin) -
             align_items: AlignItems::Center,
             column_gap: px(6),
             border_radius: BorderRadius::all(px(theme::RADIUS)),
+            overflow: Overflow::clip(),
             ..default()
         },
         BorderColor::all(border),
         BackgroundColor(background),
         children![
             (
-                Text::new(kind.to_string()),
+                Text::new(lead.to_string()),
+                one_line,
                 TextFont {
                     font_size: FontSize::Px(12.0),
                     ..default()
@@ -161,47 +140,13 @@ pub(crate) fn scene_row(kind: &str, label: &str, selected: bool, skin: UiSkin) -
             ),
             (
                 Text::new(label.to_string()),
+                one_line,
                 TextFont {
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
                 TextColor(theme::PHOSPHOR),
             )
-        ],
-    )
-}
-
-/// A greyed, non-interactive coming-soon category row with an amber "soon"
-/// badge - the categories "the rest" will make real.
-pub(crate) fn coming_soon_category(label: &str, skin: UiSkin) -> impl Bundle {
-    (
-        Name::new(format!("{label} Category (soon)")),
-        Node {
-            width: percent(100),
-            min_height: px(30),
-            margin: UiRect::vertical(px(2)),
-            padding: UiRect::axes(px(10), px(6)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            column_gap: px(6),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
-            ..default()
-        },
-        BorderColor::all(theme::PHOSPHOR_MUTED.with_alpha(0.5)),
-        BackgroundColor(theme::SPACE),
-        children![
-            (
-                Text::new(label.to_string()),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(theme::PHOSPHOR_MUTED),
-            ),
-            // The shared badge widget (amber), matching the widget_zoo.
-            badge(BadgeKind::Amber, "soon", skin),
         ],
     )
 }

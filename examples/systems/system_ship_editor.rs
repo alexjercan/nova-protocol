@@ -9,15 +9,18 @@
 //! The arc, one beat per gesture:
 //!
 //! 1. click Sandbox in the main menu, which is also the smoke coverage for the menu itself;
-//! 2. click New Ship - which keeps the editor-preview controller fix (task 20260706-212909) honest:
-//!    a live controller on the non-physics preview root used to flood the log with "root not found"
-//!    every frame, so this run staying quiet is the regression check;
+//! 2. click Add Ship - a BLANK ship, entered - then arm a controller and FOUND it with a click
+//!    on empty space, which lands the first section at the ship's own origin. The founded
+//!    controller also keeps the editor-preview controller fix (task 20260706-212909) honest: a
+//!    live controller on the non-physics preview root used to flood the log every frame, so this
+//!    run staying quiet is the regression check;
 //! 3. arm a hull through the parts gallery - the editor's only parts picker;
 //! 4. place TWO sections by clicking the ship through the real picking pipeline (avian's
 //!    physics-picking backend raycasts the pointer to a hit, and the editor's own
 //!    `on_click_spaceship_section` observer places the section);
-//! 5. click Select / Rebind and click the ship again - select mode must place NOTHING;
-//! 6. click Delete Section and click the ship again - the count drops back;
+//! 5. Escape puts the part down, and a click on the ship in select mode places NOTHING - it
+//!    SELECTS the section under the pointer, the same mark its tree row would take;
+//! 6. click Delete (top bar) and click the ship again - the count drops back;
 //! 7. walk the gallery end to end - browse (the tiles are up), filter (typing narrows the grid to
 //!    one part), focus (the card names that part), select (Place arms the tool and closes the
 //!    gallery) and place (a click on the ship builds the part the gallery picked);
@@ -181,10 +184,14 @@ const BOOT_DEADLINE_SECS: f32 = 90.0;
 #[cfg(feature = "debug")]
 const PLAY_DEADLINE_SECS: f32 = 60.0;
 
-/// The hull the run builds with. The same id `create_new_spaceship` seeds a
-/// hull ship from, so a catalog that dropped it has already broken the editor.
+/// The hull the run builds with.
 #[cfg(feature = "debug")]
 const HULL_PROTOTYPE: &str = "reinforced_hull_section";
+
+/// The part the run FOUNDS the blank ship with. A controller, so the founded
+/// ship is also the regression check for the editor-preview controller fix.
+#[cfg(feature = "debug")]
+const CONTROLLER_PROTOTYPE: &str = "basic_controller_section";
 
 /// A viewport point (logical px) with neither the ship nor a rail panel under
 /// it, on the 1024x768 window the app opens. Pointing here is how a beat puts
@@ -240,33 +247,50 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(state_is(GameStates::Playing))
         .deadline(BOOT_DEADLINE_SECS)
         .add()
-        .click_a_widget("editor: click New Ship", "Create New Spaceship Button V2")
-        // The preview spawning is what the run waits for, and nothing else has
-        // to be waited for after it: the first click on the ship holds until the
-        // EDITOR has solved a placement there, which cannot happen before avian
-        // has prepared the collider that click's ray must hit.
-        .step("editor: the new ship is up")
-        .until(sections_number(1))
+        .click_a_widget("editor: click Add Ship", "Add Ship Button")
+        .step("editor: the blank ship is up and entered")
+        .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .step("editor: the ship came up with a controller")
+        // A blank ship has no view for the placement ray to hit, so the first
+        // part FOUNDS it: armed from the gallery, dropped on empty space,
+        // landing at the ship's own origin.
+        .arm_from_the_gallery("editor: arm the controller", CONTROLLER_PROTOTYPE)
+        .step("editor: point at empty space")
         .on_enter(|world: &mut World| {
-            // `create_new_spaceship_with_controller` spawns the preview with
-            // exactly its controller section - the editor's own marker types are
-            // crate-private, so the section COUNT is what an example can see, and
-            // it is the same claim: the ship exists and it is not empty.
-            let sections = count_sections(world);
+            move_cursor(EMPTY_SPACE)(world);
+            stamp_sections(world);
+        })
+        .add()
+        .press_and_release("editor: found the ship", sections_grew_by(1))
+        .step("editor: the founding section is at the origin")
+        .on_enter(|world: &mut World| {
+            let section = world
+                .resource::<EditorProbe>()
+                .ship
+                .first()
+                .expect("the founding click placed a section")
+                .clone();
             assert_eq!(
-                sections, 1,
-                "New Ship must create a ship carrying its controller section"
+                section.id,
+                format!("{CONTROLLER_PROTOTYPE}_1"),
+                "the founding section's id is minted from its prototype"
+            );
+            assert_eq!(
+                section.position,
+                Vec3::ZERO,
+                "the first part founds the ship at its own origin"
             );
             let hull = hull_section_name(world).expect("the catalog lists a hull section");
             nova_probe::probe_marker(
                 world,
-                "outcome: new ship carries its controller",
+                "outcome: a blank ship is founded at its origin",
                 serde_json::json!({}),
             );
-            info!("editor: ship created, will build with `{hull}`");
+            info!(
+                "editor: founded the ship with `{}`, will build with `{hull}`",
+                section.id
+            );
             world.resource_mut::<EditorWalk>().hull = hull;
         })
         .add()
@@ -304,21 +328,23 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             stamp_sections(world);
         })
         .add()
-        .click_a_widget("editor: click Select / Rebind", "Select Section Button")
-        // The armed tool is READ now rather than inferred: the rail chip
-        // disarming the placement tool is a claim this beat makes, where it
-        // used to be something the next two clicks had to imply by building
-        // nothing.
-        .step("editor: the editor put the part down")
+        // Escape is how a builder puts the part down now that select mode is
+        // the default rather than a rail button. The armed tool is READ rather
+        // than inferred: the probe reporting Select is the claim.
+        .step("editor: press Escape to put the part down")
+        .on_enter(press_key(KeyCode::Escape))
         .until(editor_tool_is(EditorTool::Select))
         .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: release Escape")
+        .on_enter(release_key(KeyCode::Escape))
         .add()
         .click_the_ship(
             "editor: click the ship in select mode",
             the_pointer_is_on_the_ship(),
             sections_grew_by(0),
         )
-        .step("editor: select mode placed nothing")
+        .step("editor: select mode selected instead of placing")
         .on_enter(|world: &mut World| {
             let before = world.resource::<EditorWalk>().sections;
             let now = count_sections(world);
@@ -327,12 +353,15 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "select mode must not place anything; the same click built a \
                  section a moment ago"
             );
+            let marked = world.resource::<EditorProbe>().selected_node.clone();
+            let marked =
+                marked.expect("a click in select mode marks the section under the pointer");
             nova_probe::probe_marker(
                 world,
-                "outcome: select mode places nothing",
+                "outcome: select mode selects, and places nothing",
                 serde_json::json!({}),
             );
-            info!("editor: select mode is inert for placement ({now} sections)");
+            info!("editor: select mode marked '{marked}' and placed nothing ({now} sections)");
         })
         .add()
         .click_a_widget("editor: click Delete Section", "Delete Section Button")
@@ -918,12 +947,16 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             world.resource_mut::<EditorWalk>().ids = ids;
         })
         .add()
-        .click_a_widget(
-            "editor: click New Hull Ship",
-            "Create New Spaceship Button V1",
-        )
+        // Add Ship is a scenario-context action, so the run steps out through
+        // the tree's root row first - the same door a builder uses.
+        .click_a_widget("editor: leave to add a second ship", "Scene Row scenario")
+        .step("editor: back at the scenario node to add a ship")
+        .until(at_the_scenario_node())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .click_a_widget("editor: click Add Ship again", "Add Ship Button")
         .step("editor: the second ship is up and entered")
-        .until(inside_a_ship_of(1))
+        .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: a second ship did not replace the first")
@@ -931,10 +964,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             let probe = world.resource::<EditorProbe>();
             let second = probe.inside.clone().expect("the new ship was entered");
             let first = world.resource::<EditorWalk>().ids.clone();
-            assert_eq!(
-                probe.ship.len(),
-                1,
-                "a new ship carries its seed section and nothing else"
+            assert!(
+                probe.ship.is_empty(),
+                "a new ship starts blank - its first part is the builder's decision"
             );
             assert!(
                 !probe.can_play,
@@ -951,9 +983,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
         })
         .add()
-        // Out through the Scene list's ".." row - the WIP furniture that makes
-        // the context reachable by hand at all.
-        .click_a_widget("editor: leave the ship", "Scene Row scenario")
+        // Out through the tree's root row.
+        .click_a_widget("editor: leave the second ship", "Scene Row scenario")
         .step("editor: the scenario node holds both ships")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
@@ -980,9 +1011,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: back at the scenario node, listing {listed:?}");
         })
         .add()
-        // And back in, by clicking the ship's body: a click on a ship you are
-        // not inside is an enter, which is the only way in before the real
-        // hierarchy panel lands.
+        // A world click out here SELECTS: the viewport and the tree answer a
+        // click the same way, and the tree is the door.
         .step("editor: aim at the first ship")
         .on_enter(|world: &mut World| {
             let at = aim_at_the_first_ship(world)
@@ -993,9 +1023,31 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .press_and_release(
-            "editor: click into the first ship",
-            back_inside_the_stamped_ship(),
+            "editor: click the first ship's body",
+            the_first_ship_is_selected(),
         )
+        .step("editor: the world click selected without entering")
+        .on_enter(|world: &mut World| {
+            let probe = world.resource::<EditorProbe>();
+            assert_eq!(probe.selected_node.as_deref(), Some("ship_1"));
+            assert!(
+                probe.inside.is_none(),
+                "a world click at the scenario node selects; entering is the tree's gesture"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: a world click selects the ship",
+                serde_json::json!({}),
+            );
+            info!("editor: clicked ship_1 in the world - selected, not entered");
+        })
+        .add()
+        // And back in, with one click on the ship's tree row.
+        .click_a_widget("editor: enter through the tree", "Scene Row ship_1")
+        .step("editor: back inside the first ship")
+        .until(back_inside_the_stamped_ship())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         .step("editor: the ids survived the trip out and back")
         .on_enter(|world: &mut World| {
             let before = world.resource::<EditorWalk>().ids.clone();
@@ -1333,12 +1385,6 @@ fn count_plates(world: &World) -> usize {
 #[cfg(feature = "debug")]
 type Wait = std::sync::Arc<nova_protocol::nova_debug::harness::Predicate>;
 
-/// Advance once the preview ship carries exactly `count` sections.
-#[cfg(feature = "debug")]
-fn sections_number(count: usize) -> Wait {
-    std::sync::Arc::new(move |world: &World| count_sections(world) == count)
-}
-
 /// Advance once the ship carries `delta` MORE sections than the last
 /// [`stamp_sections`] took.
 ///
@@ -1401,6 +1447,15 @@ fn at_the_scenario_node() -> Wait {
     std::sync::Arc::new(|world: &World| {
         let probe = world.resource::<EditorProbe>();
         probe.inside.is_none() && probe.can_play
+    })
+}
+
+/// Advance once the Scene tree's mark sits on the first ship - what a world
+/// click at the scenario node does now, where it used to enter.
+#[cfg(feature = "debug")]
+fn the_first_ship_is_selected() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        world.resource::<EditorProbe>().selected_node.as_deref() == Some("ship_1")
     })
 }
 

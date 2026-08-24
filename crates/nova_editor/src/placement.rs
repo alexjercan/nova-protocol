@@ -23,7 +23,7 @@ use nova_ui::{
 use crate::{
     config::{
         Placement, PlacementPose, PlacementPreview, PlacementStatus, SectionChoice, SectionGhost,
-        SectionPreviewMarker,
+        SectionPreviewMarker, SelectedNode,
     },
     keybind::EditorRebind,
     node::{
@@ -130,20 +130,23 @@ fn default_binds_for(
     }
 }
 
-/// Add a ship to the document, seeded with one catalog section, and go inside
-/// it.
+/// Add a BLANK ship to the document and go inside it - the scenario context's
+/// "Add Ship" action.
 ///
 /// ADDITIVE, where this used to despawn whatever was on the stage and reset the
-/// build state: the document holds ships, so a second "New Ship" is one more
+/// build state: the document holds ships, so a second "Add Ship" is one more
 /// subtree standing beside the first rather than a reset. The new ship becomes
-/// the edit context, so the next click builds on the ship the button just made.
-fn seed_new_ship(
-    commands: &mut Commands,
-    ordinals: &mut Query<&mut NextChildOrdinal>,
-    context: &mut EditContext,
-    ships: usize,
-    section: &SectionConfig,
+/// the edit context, so the builder lands inside the thing they just made.
+/// Blank rather than seeded: which part a ship starts from is the builder's
+/// first decision, and [`found_empty_ship`] is where they make it.
+pub(crate) fn create_blank_ship(
+    _activate: On<Activate>,
+    mut commands: Commands,
+    mut ordinals: Query<&mut NextChildOrdinal>,
+    q_ships: Query<(), With<ShipNode>>,
+    mut context: ResMut<EditContext>,
 ) {
+    let ships = q_ships.iter().count();
     // The first ship of a document is the one the player flies; anything built
     // beside it is scenery until something says otherwise. A second Player ship
     // would make "which one do I fly" ambiguous, and the answer belongs to the
@@ -153,56 +156,65 @@ fn seed_new_ship(
     } else {
         ShipDriver::Ai
     };
-    if spawn_ship_node(commands, ordinals, context, ships, driver, section).is_none() {
+    if spawn_ship_node(&mut commands, &mut ordinals, &mut context, ships, driver).is_none() {
         warn!("editor: no document to add a ship to - skipping");
     }
 }
 
-pub(crate) fn create_new_spaceship(
-    _activate: On<Activate>,
-    mut commands: Commands,
+/// FOUND an empty ship: with a part armed and nothing under the pointer, a
+/// click drops the first section at the ship's own origin.
+///
+/// A blank ship has no view for the placement ray to hit, so the mate solver
+/// can never say where the first part goes - somebody has to pick a pose out
+/// of nothing, and the ship origin is the one pose that means the same thing
+/// in every saved file. The empty-space test doubles as the UI guard: a click
+/// on any widget or any view lands a hit and is not a founding.
+pub(crate) fn found_empty_ship(
+    mouse: Res<ButtonInput<MouseButton>>,
+    keyboard: Option<Res<ButtonInput<KeyCode>>>,
+    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    q_pointer: Query<&PointerInteraction>,
+    q_windows: Query<(), With<bevy::window::Window>>,
+    selection: Res<SectionChoice>,
     sections: Res<GameSections>,
+    context: Res<EditContext>,
+    nodes: SectionNodes,
+    mut commands: Commands,
     mut ordinals: Query<&mut NextChildOrdinal>,
-    q_ships: Query<(), With<ShipNode>>,
-    mut context: ResMut<EditContext>,
 ) {
-    let Some(section) = required_section(&sections, REINFORCED_HULL_SECTION_ID) else {
-        return;
-    };
-    if !matches!(section.kind, SectionKind::Hull(_)) {
-        warn!("editor: '{REINFORCED_HULL_SECTION_ID}' is not a hull section - skipping");
+    if !mouse.just_pressed(MouseButton::Left) {
         return;
     }
-    seed_new_ship(
-        &mut commands,
-        &mut ordinals,
-        &mut context,
-        q_ships.iter().count(),
-        section,
-    );
-}
-
-pub(crate) fn create_new_spaceship_with_controller(
-    _activate: On<Activate>,
-    mut commands: Commands,
-    sections: Res<GameSections>,
-    mut ordinals: Query<&mut NextChildOrdinal>,
-    q_ships: Query<(), With<ShipNode>>,
-    mut context: ResMut<EditContext>,
-) {
-    let Some(section) = required_section(&sections, BASIC_CONTROLLER_SECTION_ID) else {
+    let SectionChoice::Section(id) = &*selection else {
         return;
     };
-    if !matches!(section.kind, SectionKind::Controller(_)) {
-        warn!("editor: '{BASIC_CONTROLLER_SECTION_ID}' is not a controller section - skipping");
+    let Some(ship) = context.ship() else {
+        return;
+    };
+    if !sections_of(ship, &nodes).is_empty() {
         return;
     }
-    seed_new_ship(
+    // "Empty space" means the nearest hit is the WINDOW itself: bevy_picking
+    // targets the window when no entity is under the pointer, so any other
+    // nearest hit - a UI panel, a view - is a click on something.
+    if q_pointer
+        .iter()
+        .filter_map(|interaction| interaction.get_nearest_hit())
+        .any(|(entity, _)| !q_windows.contains(*entity))
+    {
+        return;
+    }
+    let Some(config) = required_section(&sections, id) else {
+        return;
+    };
+    let binds = default_binds_for(&config.kind, keyboard.as_deref(), gamepad.as_deref());
+    spawn_section_node(
         &mut commands,
         &mut ordinals,
-        &mut context,
-        q_ships.iter().count(),
-        section,
+        ship,
+        config,
+        Transform::default(),
+        binds,
     );
 }
 
@@ -479,6 +491,10 @@ pub(crate) fn sync_placement_ghost(
     preview: Res<PlacementPreview>,
     sections: Res<GameSections>,
     context: Res<EditContext>,
+    selection: Res<SectionChoice>,
+    // `&ChildOf` only: the ghost query below writes `Transform`, so reading the
+    // section nodes through `SectionNodes` here would be a B0001 conflict.
+    q_owners: Query<&ChildOf, With<SectionNode>>,
     mut gizmos: Gizmos,
     ghosts: Query<(Entity, &SectionGhost, &mut Transform)>,
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
@@ -515,7 +531,20 @@ pub(crate) fn sync_placement_ghost(
     }
 
     let Some(placement) = preview.placement.as_ref() else {
-        set_status(status, None);
+        // A part in hand over an EMPTY ship has no view to solve against, so
+        // the status line carries the founding rule instead of going dark -
+        // without it, a blank Add Ship reads as an editor that stopped placing.
+        let founding = matches!(*selection, SectionChoice::Section(_))
+            && edited.is_some_and(|ship| !q_owners.iter().any(|owner| owner.parent() == ship));
+        set_status(
+            status,
+            founding.then(|| {
+                (
+                    "click empty space - the first part founds the ship".to_string(),
+                    theme::PHOSPHOR_MUTED,
+                )
+            }),
+        );
         return;
     };
     set_status(
@@ -640,8 +669,8 @@ fn set_status(status: StatusQuery, line: Option<(String, Color)>) {
     }
 }
 
-/// Place, delete, arm a rebind, or ENTER another ship - depending on the armed
-/// tool and on which ship was clicked.
+/// Place, delete, or SELECT - depending on the armed tool and on which ship
+/// was clicked.
 ///
 /// Placement itself commits [`PlacementPreview`] - the pose the ghost is
 /// already showing - rather than re-deriving anything from this click.
@@ -650,19 +679,20 @@ fn set_status(status: StatusQuery, line: Option<(String, Color)>) {
 /// is find the document entity behind the collider that was hit.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one click routes to enter, place, delete or rebind"
+    reason = "one click routes to select, place or delete"
 )]
 pub(crate) fn on_click_spaceship_section(
     click: On<Pointer<Press>>,
     mut commands: Commands,
-    mut context: ResMut<EditContext>,
+    context: Res<EditContext>,
     selection: Res<SectionChoice>,
     keyboard: Option<Res<ButtonInput<KeyCode>>>,
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     sections: Res<GameSections>,
     preview: Res<PlacementPreview>,
     mut ordinals: Query<&mut NextChildOrdinal>,
-    mut rebind: ResMut<EditorRebind>,
+    rebind: Res<EditorRebind>,
+    mut selected: ResMut<SelectedNode>,
     q_views: Query<&ChildOf, With<NodeView>>,
     q_nodes: Query<(&SectionNode, &ChildOf)>,
 ) {
@@ -673,35 +703,33 @@ pub(crate) fn on_click_spaceship_section(
     let Some(node) = node_of_view(click.entity, &q_views) else {
         return;
     };
-    let Ok((section, owner)) = q_nodes.get(node) else {
+    let Ok((_, owner)) = q_nodes.get(node) else {
         return;
     };
 
-    // A section of a ship you are NOT inside can only mean one thing: go in
-    // there. The solver only ever scans the edited ship, so such a click could
-    // never have been a placement, and reading it as one would silently do
-    // nothing.
+    // While a rebind is pending, the next click is the user PICKING a
+    // mouse-button binding (e.g. LMB), so it must not also move the selection
+    // out from under the chip that is prompting.
+    if rebind.target.is_some() {
+        return;
+    }
+
+    // A section of a ship you are NOT inside selects the SHIP: the world and
+    // the tree answer a click the same way, and the tree is the door - the
+    // solver only ever scans the edited ship, so such a click could never have
+    // been a placement anyway.
     let owner = owner.parent();
     if context.ship() != Some(owner) {
-        context.enter(owner);
+        selected.0 = Some(owner);
         return;
     }
 
     match *selection {
         SectionChoice::None => {
-            // NOTE: no placement tool selected = select/edit mode - clicking a
-            // bindable section arms a rebind, and `apply_section_rebind`
-            // captures the next key or mouse-button press. Non-bindable sections
-            // (hull, controller) and empty space do nothing.
-            //
-            // Only arm when nothing is armed yet: while a rebind is pending, the
-            // next click is the user PICKING a mouse-button binding (e.g. LMB),
-            // so it must not re-arm on whatever is under the cursor.
-            if rebind.target.is_none() && section.bindable(Some(&sections)) {
-                rebind.target = Some(node);
-                // Wait for this arming click to release before capturing.
-                rebind.awaiting_release = true;
-            }
+            // No tool in hand = select mode: the clicked section takes the
+            // mark, exactly as its tree row would. Rebinding is the top bar's
+            // Rebind action on this selection.
+            selected.0 = Some(node);
         }
         SectionChoice::Section(_) => {
             let Some(placement) = preview.placement.as_ref() else {
@@ -933,26 +961,12 @@ mod tests {
         }
     }
 
-    fn turret_config(id: &str) -> SectionConfig {
-        SectionConfig {
-            base: BaseSectionConfig {
-                id: id.to_string(),
-                name: id.to_string(),
-                ..default()
-            },
-            kind: SectionKind::Turret(TurretSectionConfig::default()),
-        }
-    }
-
-    /// An app with a document and the "New Ship" observers armed.
-    fn document_app(catalog: Vec<SectionConfig>, with_controller: bool) -> App {
+    /// An app with a document and the "Add Ship" observer armed.
+    fn document_app(catalog: Vec<SectionConfig>) -> App {
         let mut app = App::new();
         app.insert_resource(GameSections(catalog));
         app.init_resource::<EditContext>();
-        app.add_observer(create_new_spaceship);
-        if with_controller {
-            app.add_observer(create_new_spaceship_with_controller);
-        }
+        app.add_observer(create_blank_ship);
         app.world_mut()
             .run_system_once(ensure_document)
             .expect("the document is created");
@@ -980,11 +994,11 @@ mod tests {
     }
 
     /// The document is one scenario node, created once, and the editor opens
-    /// OUTSIDE any ship - the "New Ship" buttons still own creation, exactly as
-    /// they did when an empty build state rebuilt nothing.
+    /// OUTSIDE any ship - the "Add Ship" action still owns creation, exactly as
+    /// the buttons did when an empty build state rebuilt nothing.
     #[test]
     fn a_fresh_document_is_one_empty_scenario_node() {
-        let mut app = document_app(vec![], false);
+        let mut app = document_app(vec![]);
 
         assert_eq!(
             app.world_mut()
@@ -1006,44 +1020,11 @@ mod tests {
         assert_eq!(app.world().resource::<EditContext>().scenario(), scenario);
     }
 
-    /// F11: a mod overlay that drops the seeded id must log and skip, not panic
-    /// the process on "New Hull Ship".
+    /// Add Ship starts BLANK and entered: which part a ship begins from is the
+    /// builder's first decision, not the button's.
     #[test]
-    fn a_missing_seed_section_skips_instead_of_panicking() {
-        let mut app = document_app(vec![], true);
-
-        press_new_ship(&mut app);
-
-        assert!(
-            ship_nodes(&mut app).is_empty(),
-            "no ship is built from a missing catalog id"
-        );
-        assert!(
-            section_nodes(&mut app).is_empty(),
-            "and the document is untouched"
-        );
-    }
-
-    /// F11: the seeded id resolving to the WRONG kind is the other overlay
-    /// failure - it used to `panic!` outright.
-    #[test]
-    fn a_retyped_seed_section_skips_instead_of_panicking() {
-        let mut app = document_app(vec![turret_config(REINFORCED_HULL_SECTION_ID)], false);
-
-        press_new_ship(&mut app);
-
-        assert!(
-            ship_nodes(&mut app).is_empty(),
-            "a retyped seed builds no ship"
-        );
-    }
-
-    /// The happy path, so the two skip tests above cannot pass vacuously - and
-    /// the id assertion is the whole point of the change: a section's id is
-    /// minted from its prototype and owes nothing to the entity it landed on.
-    #[test]
-    fn a_present_seed_section_builds_a_ship_node_with_a_minted_id() {
-        let mut app = document_app(vec![hull_config(REINFORCED_HULL_SECTION_ID)], false);
+    fn add_ship_starts_blank_and_entered() {
+        let mut app = document_app(vec![]);
 
         press_new_ship(&mut app);
 
@@ -1052,7 +1033,7 @@ mod tests {
         assert_eq!(
             app.world().resource::<EditContext>().ship(),
             Some(ships[0]),
-            "the new ship is the one the next click builds on"
+            "the new ship is the one the founding click builds"
         );
         assert_eq!(
             app.world()
@@ -1061,27 +1042,14 @@ mod tests {
             Some(ShipDriver::Player),
             "the first ship of a document is the one the player flies"
         );
-
-        let sections = section_nodes(&mut app);
-        assert_eq!(sections.len(), 1, "the seed section is in the document");
-        assert_eq!(
-            app.world().get::<NodeId>(sections[0]),
-            Some(&NodeId(format!("{REINFORCED_HULL_SECTION_ID}_1"))),
-            "the id is minted from the prototype, not from the entity"
-        );
-        assert!(
-            app.world()
-                .get::<ChildOf>(sections[0])
-                .is_some_and(|owner| owner.parent() == ships[0]),
-            "and it hangs on the ship it was seeded into"
-        );
+        assert!(section_nodes(&mut app).is_empty(), "and it starts empty");
     }
 
-    /// Two ships in one session, which is what the whole model exists for. The
-    /// second "New Ship" used to despawn the first and reset the build state.
+    /// Two ships in one session, which is what the whole model exists for. A
+    /// second "Add Ship" once despawned the first and reset the build state.
     #[test]
     fn a_second_new_ship_leaves_the_first_standing() {
-        let mut app = document_app(vec![hull_config(REINFORCED_HULL_SECTION_ID)], false);
+        let mut app = document_app(vec![]);
 
         press_new_ship(&mut app);
         let first = ship_nodes(&mut app);
@@ -1090,11 +1058,6 @@ mod tests {
         press_new_ship(&mut app);
         let ships = ship_nodes(&mut app);
         assert_eq!(ships.len(), 2, "the first ship is still there");
-        assert_eq!(
-            section_nodes(&mut app).len(),
-            2,
-            "and it kept its section - the second ship seeded its own"
-        );
 
         let second = *ships
             .iter()
@@ -1110,17 +1073,70 @@ mod tests {
             Some(ShipDriver::Ai),
             "a ship built beside the player's is not a second thing to fly"
         );
-        // Ids are per-parent, so both ships name their seed section the same and
-        // neither is wrong: the scope that has to be unique is the hull.
-        let ids: Vec<Option<&NodeId>> = section_nodes(&mut app)
-            .iter()
-            .map(|section| app.world().get::<NodeId>(*section))
-            .collect();
-        assert!(
-            ids.iter()
-                .all(|id| *id == Some(&NodeId(format!("{REINFORCED_HULL_SECTION_ID}_1")))),
-            "section ids are unique within their ship, not across the document"
+    }
+
+    /// A world inside an empty edited ship, with a part armed and the left
+    /// button just pressed - the founding gesture, minus the pointer.
+    fn founding_world(armed: Option<&str>) -> (World, Entity) {
+        let mut world = World::new();
+        world.insert_resource(GameSections(vec![hull_config("hull")]));
+        let ship = world
+            .spawn((ShipNode::default(), NextChildOrdinal::default()))
+            .id();
+        world.insert_resource(EditContext {
+            path: vec![Entity::PLACEHOLDER, ship],
+        });
+        world.insert_resource(match armed {
+            Some(id) => SectionChoice::Section(id.to_string()),
+            None => SectionChoice::None,
+        });
+        let mut mouse = ButtonInput::<MouseButton>::default();
+        mouse.press(MouseButton::Left);
+        world.insert_resource(mouse);
+        (world, ship)
+    }
+
+    /// The founding click: a part armed over an EMPTY ship lands at the ship's
+    /// own origin, with a minted id - the pose that means the same thing in
+    /// every saved file.
+    #[test]
+    fn a_click_founds_an_empty_ship_at_its_origin() {
+        let (mut world, ship) = founding_world(Some("hull"));
+
+        world.run_system_once(found_empty_ship).unwrap();
+
+        let mut sections = world.query::<(&NodeId, &Transform, &ChildOf, &SectionNode)>();
+        let placed: Vec<_> = sections.iter(&world).collect();
+        assert_eq!(placed.len(), 1, "the founding click placed the part");
+        let (id, transform, owner, _) = placed[0];
+        assert_eq!(id, &NodeId("hull_1".to_string()));
+        assert_eq!(transform.translation, Vec3::ZERO, "at the ship origin");
+        assert_eq!(owner.parent(), ship);
+
+        // Once founded, the ship is no longer empty: a FRESH click is the mate
+        // solver's business, not this system's.
+        {
+            let mut mouse = world.resource_mut::<ButtonInput<MouseButton>>();
+            mouse.release(MouseButton::Left);
+            mouse.clear();
+            mouse.press(MouseButton::Left);
+        }
+        world.run_system_once(found_empty_ship).unwrap();
+        assert_eq!(
+            world.query::<&SectionNode>().iter(&world).count(),
+            1,
+            "a founded ship is never founded twice"
         );
+    }
+
+    /// With no part armed the click is a select, and founding stays out of it.
+    #[test]
+    fn founding_needs_a_part_in_hand() {
+        let (mut world, _) = founding_world(None);
+
+        world.run_system_once(found_empty_ship).unwrap();
+
+        assert_eq!(world.query::<&SectionNode>().iter(&world).count(), 0);
     }
 
     /// F29: a held camera key must not become the new section's binding, and a

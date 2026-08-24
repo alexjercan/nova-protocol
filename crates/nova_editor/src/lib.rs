@@ -39,7 +39,7 @@ mod snap;
 mod ui;
 
 use attitude::sync_attitude_readout;
-use config::{PlacementPose, PlacementPreview, SceneRowPress, SectionChoice, SelectedNode};
+use config::{PlacementPose, PlacementPreview, SectionChoice, SelectedNode};
 use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
     sync_section_keybind_labels, EditorRebind,
@@ -48,7 +48,7 @@ use node::{ensure_document, rebuild_node_views, EditContext};
 use nova_ui::widget::button_on_setting;
 use placement::{
     clear_placement_preview, cycle_placement_pose, draw_delete_target, draw_link_points,
-    draw_ship_heading, on_click_spaceship_section, pick_section_under_pointer,
+    draw_ship_heading, found_empty_ship, on_click_spaceship_section, pick_section_under_pointer,
     sync_placement_ghost, sync_tool_selection, update_placement_preview, wheel_placement_pose,
 };
 use probe::sync_editor_probe;
@@ -56,8 +56,8 @@ pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
 use ui::{
-    setup_editor_scene, sync_key_legend, sync_play_button, sync_scene_list, sync_skin_toggle,
-    sync_style_list,
+    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
+    sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_style_list,
 };
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`],
@@ -103,7 +103,6 @@ fn editor_plugin(app: &mut App) {
     app.insert_resource(SectionChoice::None);
     app.init_resource::<EditContext>();
     app.init_resource::<SelectedNode>();
-    app.init_resource::<SceneRowPress>();
     app.init_resource::<EditorRebind>();
     // Normally the gameplay plugin's; init'd here too so a menu-less rig (and
     // the tests below) still has one to write.
@@ -259,13 +258,21 @@ fn editor_plugin(app: &mut App) {
             sync_attitude_readout,
             sync_skin_toggle,
             sync_style_list,
-            // The Scene list and the Play gate both report the edit context, so
-            // they sit with the rest of the rail's readouts.
+            // The tree, the breadcrumb, the panels and the two greyable
+            // buttons all report the edit context, so they sit together with
+            // the rest of the rail's readouts.
             sync_scene_list,
+            sync_context_panels,
+            sync_breadcrumb,
+            sync_rebind_button,
             sync_play_button,
             pick_section_under_pointer,
             cycle_placement_pose,
             update_placement_preview,
+            // The founding click reads the same pointer state the solver does:
+            // with an empty edited ship there is nothing to solve against, and
+            // a click on clear space drops the first part at the ship origin.
+            found_empty_ship,
             sync_placement_ghost,
             // AFTER the ghost: the cladding counts the part under the pointer
             // as structure, so it has to be derived from the same solve the

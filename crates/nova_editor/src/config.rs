@@ -7,11 +7,12 @@
 
 use bevy::prelude::*;
 
-/// The active placement tool, driven by the rail tools and the component cards
-/// through `button_on_setting::<SectionChoice>`.
+/// The active placement tool, driven by the top bar's tool buttons and the
+/// gallery cards through `button_on_setting::<SectionChoice>`.
 #[derive(Resource, Default, Debug, PartialEq, Eq, Clone, Reflect)]
 pub(crate) enum SectionChoice {
-    /// Select / rebind mode: clicking a bindable section arms a keybind capture.
+    /// Select mode: clicking a node in the world selects it, exactly as its
+    /// tree row would.
     #[default]
     None,
     /// Place the section with this catalog id.
@@ -20,43 +21,54 @@ pub(crate) enum SectionChoice {
     Delete,
 }
 
-/// The node the Scene list has selected, or `None`.
+/// The node the Scene tree has selected, or `None`.
 ///
-/// SELECTION IS NOT CONTEXT. Selecting a node marks it in the list; entering it
-/// is a second gesture (double-click, or the Up row on the way back). Godot
-/// draws the same line, and it is what lets a click on a node you are inside
-/// mean "look at this" rather than "descend".
+/// SELECTION IS NOT CONTEXT. Selecting a node marks it in the tree so an
+/// inspector (and the Rebind action) has something to act on; the context is
+/// which CONTAINER the editor is inside. A section is selected, a ship is
+/// entered.
 #[derive(Resource, Default, Debug)]
 pub(crate) struct SelectedNode(pub(crate) Option<Entity>);
-
-/// The last Scene row pressed and when, so a second press on the same row
-/// inside [`DOUBLE_CLICK_WINDOW`](crate::ui::DOUBLE_CLICK_WINDOW) reads as a
-/// double-click. Bevy's button widget reports presses, not gestures.
-#[derive(Resource, Default, Debug)]
-pub(crate) struct SceneRowPress {
-    pub(crate) row: Option<Entity>,
-    /// `Time::elapsed_secs` at that press.
-    pub(crate) at: f32,
-}
 
 /// The Scene block's row container, emptied and refilled by
 /// `crate::ui::sync_scene_list`.
 #[derive(Component)]
 pub(crate) struct SceneList;
 
-/// One Scene row, carrying the node it points at.
+/// One Scene row, carrying the node it points at. The scenario root is a row
+/// like any other: clicking it is how the tree leaves a ship.
 #[derive(Component)]
 pub(crate) struct SceneRow(pub(crate) Entity);
-
-/// The Scene list's ".." row: leaves the node you are inside. Only present
-/// while there is somewhere to go back to.
-#[derive(Component)]
-pub(crate) struct SceneUpRow;
 
 /// The Play button, so `crate::ui::sync_play_button` can disable it outside the
 /// scenario node.
 #[derive(Component)]
 pub(crate) struct PlayButton;
+
+/// The top bar's breadcrumb: where in the document the editor is, as a path.
+#[derive(Component)]
+pub(crate) struct ContextBreadcrumb;
+
+/// The top bar's scenario-context action group (Add Ship). Shown only at the
+/// scenario node; each context gets its own verbs.
+#[derive(Component)]
+pub(crate) struct ScenarioActions;
+
+/// The top bar's ship-context action group (Parts, Delete, Rebind). Shown only
+/// inside a ship.
+#[derive(Component)]
+pub(crate) struct ShipActions;
+
+/// The rail's ship settings block (skin, look, attitude). Shown only inside a
+/// ship: they are properties of the ship being edited, and there is none at
+/// the scenario node.
+#[derive(Component)]
+pub(crate) struct ShipSettings;
+
+/// The Rebind action's button, greyed unless the selection is a bindable
+/// section of the edited ship.
+#[derive(Component)]
+pub(crate) struct RebindButton;
 
 /// The ghost part that previews where a placed section will land.
 #[derive(Component)]

@@ -165,10 +165,35 @@ pub fn count_sections(world: &World) -> usize {
         .map_or(0, |mut sections| sections.iter(world).count())
 }
 
-/// Advance once a preview ship exists at all - what the New Ship button is for.
+/// Advance once a preview ship exists at all - what founding a blank ship
+/// leaves behind.
 pub fn the_ship_is_up() -> Arc<Predicate> {
     Arc::new(|world: &World| count_sections(world) > 0)
 }
+
+/// Advance once the editor is inside a ship - what Add Ship does.
+pub fn the_editor_is_inside_a_ship() -> Arc<Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .get_resource::<EditorProbe>()
+            .is_some_and(|probe| probe.inside.is_some())
+    })
+}
+
+/// Advance once Play would hand off - the editor is out at the scenario node,
+/// which is the only place Play compiles the document from.
+pub fn the_editor_can_play() -> Arc<Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .get_resource::<EditorProbe>()
+            .is_some_and(|probe| probe.can_play)
+    })
+}
+
+/// Where a founding click lands, in logical pixels on the 1920x1080 capture
+/// window: clear of the ship, the rail and the top bar, so nothing is under
+/// the pointer - which is the editor's own test for "found here".
+pub const FOUND_CLICK: Vec2 = Vec2::new(1720.0, 960.0);
 
 /// Advance once the derived cladding is on the build.
 pub fn the_skin_is_on() -> Arc<Predicate> {
@@ -254,6 +279,11 @@ pub trait Gestures {
     /// the catalog id to narrow the grid to one tile, then Enter to focus it
     /// and Enter again to place it (which closes the gallery).
     fn arm(self, label: &str, prototype: &str) -> Self;
+
+    /// FOUND a blank ship: with a part armed, click empty space. The editor
+    /// drops the first section at the ship's own origin, because a blank ship
+    /// has no view for a mate ray to hit.
+    fn found(self, label: &str) -> Self;
 }
 
 impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
@@ -307,6 +337,34 @@ impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
                 let sections = count_sections(world);
                 info!("editor build: {sections} sections");
             })
+            .add()
+    }
+
+    fn found(self, label: &str) -> Self {
+        self.step(format!("{label}: point at empty space"))
+            .on_enter(|world: &mut World| {
+                move_cursor(FOUND_CLICK)(world);
+                let count = count_sections(world);
+                world.insert_resource(BuildTally(count));
+            })
+            // Nothing under the pointer is the editor's own founding test, and
+            // "no placement to solve" is how it says so.
+            .until(editor_placement_clear())
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: press"))
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(pointer_pressed())
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: release"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(pointer_released())
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: it founded"))
+            .until(the_section_landed())
+            .deadline(STEP_DEADLINE_SECS)
             .add()
     }
 
