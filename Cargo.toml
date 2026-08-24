@@ -522,7 +522,9 @@ debug = false
 debug = 0
 
 # This is used by trunk as it doesn't support custom profiles: https://github.com/trunk-rs/trunk/issues/605
-# xbuild also uses this profile for building android AABs because I couldn't find a configuration for it
+# xbuild also uses this profile for building android AABs because I couldn't find a configuration for it.
+# Release CI overrides LTO to thin for the wasm-only jobs. Fat LTO exceeded the
+# hosted runner after the v0.11.0 graph grew, while native dist builds keep it.
 [profile.release]
 opt-level = "s"
 lto = true

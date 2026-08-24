@@ -21,6 +21,9 @@ env:
   # Trunk's relative public_url ("./" in Trunk.toml), which resolves correctly
   # from /nova-protocol/play/ without baking the subpath in.
   PUBLIC_PATH: /nova-protocol/
+  # Fat LTO exceeds the hosted runner during nova_core's final wasm link.
+  # wasm-opt still handles final size optimization after this thin-LTO build.
+  CARGO_PROFILE_RELEASE_LTO: thin
 
 jobs:
   build-web:

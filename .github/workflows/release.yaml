@@ -225,6 +225,10 @@ jobs:
     needs: get-version
     env:
       VERSION: ${{needs.get-version.outputs.version}}
+      # Fat LTO spent 43 minutes in nova_core's final wasm link before the
+      # hosted runner terminated it (exit 143). wasm-opt still handles final
+      # size optimization; thin LTO keeps this release link within CI capacity.
+      CARGO_PROFILE_RELEASE_LTO: thin
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
