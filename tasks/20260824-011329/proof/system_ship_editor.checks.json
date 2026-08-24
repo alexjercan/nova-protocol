@@ -1,0 +1,130 @@
+{
+  "checks": [
+    {
+      "data": {
+        "failed": [],
+        "primary_passes": 1
+      },
+      "detail": "every run's own assertions held",
+      "name": "process_exit",
+      "status": "PASS",
+      "threshold": "every primary pass exits success, untimed",
+      "value": "1 pass(es), all clean exits"
+    },
+    {
+      "data": {
+        "end_frame": 432,
+        "entries": 28
+      },
+      "detail": "the run closed its bracket cleanly",
+      "name": "run_completed",
+      "status": "PASS",
+      "threshold": "run_end present + AppExit Success + entry count consistent",
+      "value": "run_end at frame 432"
+    },
+    {
+      "data": {
+        "frame": 40
+      },
+      "detail": "the run reached gameplay",
+      "name": "reached_playing",
+      "status": "PASS",
+      "threshold": "a GameStates transition entered Playing",
+      "value": "Playing at frame 40"
+    },
+    {
+      "data": {
+        "by_name": {},
+        "checked_frames": 432,
+        "health_subjects": 83,
+        "velocity_subjects": 50,
+        "violations": 0
+      },
+      "detail": "every engine-guaranteed bound held; peak subjects: 83 health, 50 velocity",
+      "name": "invariants_held",
+      "status": "PASS",
+      "threshold": "0 violations",
+      "value": "0 violations over 432 checked frames"
+    },
+    {
+      "data": null,
+      "detail": "the example wires no nova_probe::nova_frametime() - there is no capture window to refuse",
+      "name": "capture_simulated",
+      "status": "N/A",
+      "threshold": "every captured frame simulated",
+      "value": "not claimed"
+    },
+    {
+      "data": null,
+      "detail": "the example wires no nova_probe::nova_frametime() - it makes no frame-cost assertion, so there is nothing to compare",
+      "name": "fps_within_baseline",
+      "status": "N/A",
+      "threshold": "regression <= 10%",
+      "value": "not claimed"
+    },
+    {
+      "data": {
+        "offending": 0
+      },
+      "detail": "log scanned clean",
+      "name": "log_clean",
+      "status": "PASS",
+      "threshold": "no panics / ERROR lines / command errors",
+      "value": "0 offending lines"
+    },
+    {
+      "data": {
+        "unloadable": 0
+      },
+      "detail": "every artifact present in the run dir parsed",
+      "name": "artifacts_loadable",
+      "status": "PASS",
+      "threshold": "every present artifact parses",
+      "value": "0 unloadable"
+    }
+  ],
+  "fixed_steps": {
+    "captures": [],
+    "graded": false,
+    "note": "how many fixed steps ran inside each captured frame. Frames with none mean the simulation was stopped inside the window; frames at the top of the range are where Time<Virtual>::max_delta is discarding time. Reported, never graded."
+  },
+  "frames": {
+    "captures": [],
+    "graded": false,
+    "note": "reported for a reader, never graded - no check passes or fails on a frame-time number",
+    "smooth_fps": 60.0,
+    "smooth_frame_ms": 16.666666666666668
+  },
+  "generated_by": "nova_probe run_report",
+  "measured": "6/8",
+  "repeats": {
+    "cluster_agreement": 0.01,
+    "cluster_band": 0.05,
+    "cluster_share_threshold": 0.72,
+    "graded": false,
+    "note": "the mean and median gate which captures COUNT; the tail is read only across the admitted ones. Make a claim on p99_ms and check it against p99_spread; worst_ms is a diagnostic beside it. refresh_cap is the set's call on whether it measured the DISPLAY rather than the game: a period is a constant, so it takes agreeing cluster medians across captures, never one clustered window. Nothing here passes or fails.",
+    "sets": [],
+    "tolerance": 0.2
+  },
+  "reviewer_confirmation_required": true,
+  "run": {
+    "armed": {
+      "fps": false,
+      "invariants": true,
+      "timeline": true
+    },
+    "example": "system_ship_editor",
+    "full_git_sha": "2f839ba19a013fe2c3cd989799c57e9a0027783a",
+    "git_sha": "2f839ba1",
+    "host": "nixos",
+    "passes": [
+      {
+        "name": "clean",
+        "success": true,
+        "timed_out": false
+      }
+    ],
+    "started_unix": 1787572150
+  },
+  "verdict": "OK"
+}

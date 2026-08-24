@@ -12,6 +12,7 @@
 //! - `skin`      - the derived cladding, re-derived live while a part is dragged
 //! - `scenario`  - the player-only asteroid+planetoid scene handed off on Play
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
+//! - `probe`     - the one public, read-only snapshot of all of the above
 #![warn(missing_docs)]
 
 use bevy::{
@@ -29,6 +30,7 @@ mod gallery;
 mod keybind;
 mod placement;
 mod preview;
+mod probe;
 mod scenario;
 mod skin;
 mod snap;
@@ -42,18 +44,24 @@ use keybind::{
 };
 use nova_ui::widget::button_on_setting;
 use placement::{
-    cycle_placement_pose, draw_delete_target, draw_link_points, draw_ship_heading,
-    on_click_spaceship_section, pick_section_under_pointer, rebuild_editor_preview_on_enter,
-    sync_placement_ghost, sync_tool_selection, update_placement_preview, wheel_placement_pose,
+    clear_placement_preview, cycle_placement_pose, draw_delete_target, draw_link_points,
+    draw_ship_heading, on_click_spaceship_section, pick_section_under_pointer,
+    rebuild_editor_preview_on_enter, sync_placement_ghost, sync_tool_selection,
+    update_placement_preview, wheel_placement_pose,
 };
+use probe::sync_editor_probe;
+pub use probe::{EditorPlacement, EditorProbe, EditorTool};
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
 use ui::{setup_editor_scene, sync_key_legend, sync_skin_toggle, sync_style_list};
 
-/// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`]
-/// and the sandbox registration ordering handle into scope.
+/// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`],
+/// the sandbox registration ordering handle and the read-only [`EditorProbe`]
+/// snapshot into scope.
 pub mod prelude {
-    pub use super::{EditorSandboxSystems, NovaEditorPlugin};
+    pub use super::{
+        EditorPlacement, EditorProbe, EditorSandboxSystems, EditorTool, NovaEditorPlugin,
+    };
 }
 
 /// Ordering handle for the editor sandbox's registration into `GameScenarios`.
@@ -195,6 +203,12 @@ fn editor_plugin(app: &mut App) {
         ),
     );
 
+    // The outward snapshot of everything below. `PostUpdate` so it reports the
+    // frame that has just finished whichever system decided it, and ungated so
+    // leaving the editor CLEARS it rather than freezing the last build.
+    app.init_resource::<EditorProbe>();
+    app.add_systems(PostUpdate, sync_editor_probe);
+
     // Button colours, selection highlight, and the component tooltip.
     ui::register(app);
     // The parts browser: its own state, overlay and 3D stage.
@@ -209,6 +223,18 @@ fn editor_plugin(app: &mut App) {
     // it is being pointed at.
     app.init_resource::<PlacementPose>();
     app.init_resource::<PlacementPreview>();
+    // The answer is REBUILT every frame the editor is up, and this half is
+    // ungated: the solver below is skipped while the gallery covers the build
+    // area, and the gallery CLOSES later in the same `Update` than the solver
+    // would have run - so without an unconditional clear, that frame reports the
+    // build view's last answer from before the overlay went up. See
+    // `clear_placement_preview`.
+    app.add_systems(
+        Update,
+        clear_placement_preview
+            .before(update_placement_preview)
+            .run_if(in_state(ExampleStates::Editor)),
+    );
     app.add_systems(
         Update,
         (

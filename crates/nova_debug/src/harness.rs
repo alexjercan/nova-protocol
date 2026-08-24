@@ -98,6 +98,7 @@ pub use nova_autopilot::{
     // is why re-exporting it is the route rather than a third path dependency.
     predicate::{not, Predicate},
 };
+use nova_editor::prelude::{EditorPlacement, EditorProbe, EditorTool};
 use nova_events::prelude::EntityId;
 use nova_gameplay::{
     prelude::{PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker},
@@ -226,6 +227,80 @@ pub fn script_reports_done() -> Arc<Predicate> {
 /// end of "loading", where a wall-clock runway is only a guess at it.
 pub fn player_ship_present() -> Arc<Predicate> {
     any_entity::<(With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>()
+}
+
+/// Advance once the editor is holding `tool`.
+///
+/// Which tool is armed is a decision the editor makes - a rail chip sets it,
+/// the gallery sets it, Escape clears it - and [`EditorProbe`] is where it
+/// became readable. A beat that clicks Delete waits for THIS, so a rail that
+/// stopped answering fails at the click rather than at whatever the next
+/// gesture happened to build.
+pub fn editor_tool_is(tool: EditorTool) -> Arc<Predicate> {
+    resource_where::<EditorProbe>(move |editor| editor.tool == tool)
+}
+
+/// Advance once the editor is holding a PART - whichever one.
+///
+/// "A part is armed" is the one thing the gallery beats used to prove only by
+/// clicking the ship afterwards and seeing what appeared.
+pub fn editor_part_armed() -> Arc<Predicate> {
+    resource_where::<EditorProbe>(|editor| matches!(editor.tool, EditorTool::Place(_)))
+}
+
+/// Advance once nothing is being placed: no part armed, or nothing under the
+/// pointer. The wait that puts the ghost AWAY before a figure is taken.
+pub fn editor_placement_clear() -> Arc<Predicate> {
+    resource_where::<EditorProbe>(|editor| editor.placement == EditorPlacement::None)
+}
+
+/// Advance once the editor has SOLVED a legal placement under the pointer.
+///
+/// The gate every placing click owes itself: the ghost on screen is the thing
+/// a press commits, so a press before the solve has landed commits nothing.
+/// Frame counts were guessing at this, and guessing wrong on a software
+/// renderer.
+pub fn editor_placement_solved() -> Arc<Predicate> {
+    resource_where::<EditorProbe>(|editor| {
+        matches!(editor.placement, EditorPlacement::Solved { .. })
+    })
+}
+
+/// Advance once the editor has REFUSED the placement under the pointer.
+///
+/// The refusal beats' gate. Paired with [`editor_placement_solved`] through
+/// [`or`](nova_autopilot::predicate::or) it is "the solver has an ANSWER",
+/// which is what an assertion about the answer has to wait for.
+pub fn editor_placement_refused() -> Arc<Predicate> {
+    resource_where::<EditorProbe>(|editor| {
+        matches!(editor.placement, EditorPlacement::Refused { .. })
+    })
+}
+
+/// Advance once the parts gallery overlay is up.
+pub fn editor_gallery_open() -> Arc<Predicate> {
+    resource_where::<EditorProbe>(|editor| editor.gallery_open)
+}
+
+/// Advance once the parts gallery overlay is down - what taking a part from it
+/// is supposed to do, and the gate the click that follows needs, because the
+/// overlay covers the ship that click aims at.
+pub fn editor_gallery_closed() -> Arc<Predicate> {
+    resource_where::<EditorProbe>(|editor| !editor.gallery_open)
+}
+
+/// Advance once the gallery's filter field holds the caret. Typing reaches the
+/// filter only while it does, so a beat that types waits for this first.
+pub fn editor_filter_focused() -> Arc<Predicate> {
+    resource_where::<EditorProbe>(|editor| editor.filter_focused)
+}
+
+/// Advance once the gallery's selection resolves to `prototype` through the
+/// active filter - the honest end of "type enough of the id to leave one tile",
+/// where a frame count only guessed at how long the grid takes to narrow.
+pub fn editor_gallery_selected(prototype: impl Into<String>) -> Arc<Predicate> {
+    let prototype = prototype.into();
+    resource_where::<EditorProbe>(move |editor| editor.selected.as_deref() == Some(&*prototype))
 }
 
 /// The PNG a [`nova_screenshot`] beat writes. Relative, so it stages under
@@ -603,10 +678,13 @@ mod tests {
 /// beats compose from.
 pub mod prelude {
     pub use super::{
-        assert_scenario_loaded, force_capture_resolution, freeze_bodies, hide_dev_overlays,
-        hide_hud, nova_autopilot, nova_screenshot, player_ship_present, pose_camera,
-        scenario_camera_present, scenario_variable_is, script_reports_done, section_gone, shoot,
-        ScenarioLoadedAssertPlugin, NOVA_AUTOPILOT_SECS, NOVA_AUTOPILOT_STEP, NOVA_SCREENSHOT_PATH,
-        REACHED_PLAYING, SETTLE_FRAMES, SHOT_DEADLINE_SECS,
+        assert_scenario_loaded, editor_filter_focused, editor_gallery_closed, editor_gallery_open,
+        editor_gallery_selected, editor_part_armed, editor_placement_clear,
+        editor_placement_refused, editor_placement_solved, editor_tool_is,
+        force_capture_resolution, freeze_bodies, hide_dev_overlays, hide_hud, nova_autopilot,
+        nova_screenshot, player_ship_present, pose_camera, scenario_camera_present,
+        scenario_variable_is, script_reports_done, section_gone, shoot, ScenarioLoadedAssertPlugin,
+        NOVA_AUTOPILOT_SECS, NOVA_AUTOPILOT_STEP, NOVA_SCREENSHOT_PATH, REACHED_PLAYING,
+        SETTLE_FRAMES, SHOT_DEADLINE_SECS,
     };
 }

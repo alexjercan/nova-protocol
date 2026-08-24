@@ -79,7 +79,7 @@ fn main() -> bevy::app::AppExit {
                 })
             }),
         );
-        app.init_resource::<EditorProbe>();
+        app.init_resource::<EditorWalk>();
         app.add_plugins(nova_screenshot(editor_script()));
         framelog(&mut app);
     }
@@ -151,28 +151,35 @@ fn report_frame(world: &mut World) {
 #[cfg(feature = "debug")]
 const FLOWN_RANGE: &str = "editor_sandbox";
 
-/// Frames a beat waits for a gesture to land: the picking backend needs a frame
-/// to raycast the new pointer position and the editor's observers a frame to
-/// react. Generous rather than tight - this runs on a software-rendered CI GPU.
+/// In-step seconds a beat of this walk gets before the run gives up on it.
 ///
-/// A FRAME COUNT IS STILL THE WRONG UNIT, and raising it fixes nothing - that
-/// was tried, at 24, and the run failed at the same beat only slower. The
-/// `raise a tower` failure it was blamed for was never about time: the run
-/// mounted its turret on a different FACE from one run to the next, so the
-/// coordinates the tower beats name held nothing to build on. That is fixed at
-/// the source in [`placed_sections`], not here.
+/// THE ONLY NUMBER LEFT. Every wait here is a condition on the app - the widget
+/// laid out, the picking pointer registering the press, the editor solving a
+/// placement, the section landing - so this is a backstop rather than a settle:
+/// a healthy run satisfies each beat within a frame or two of the gesture and
+/// never comes near it. That is why it can be generous against a
+/// software-rendered CI GPU without slowing a good run down, where the frame
+/// count it replaced was paid in full by every beat on every machine.
 ///
-/// The shape that would retire this number is waiting on the EDITOR's state - a
-/// placement solved, a section landed - which needs `nova_editor` to expose one
-/// (`SectionGhost`, `Placement` and `PlacementStatus` are all `pub(crate)`).
-/// Task 20260824-011329.
+/// What it buys is the diagnostic. A frame count sails past whatever it was
+/// guessing at, and the run then fails several beats later on a snapshot
+/// assertion that raced; an unmet condition fails AT its beat, naming it - "the
+/// editor never solved a placement there" instead of "expected 5 sections, got
+/// 4".
 #[cfg(feature = "debug")]
-const SETTLE: u32 = 10;
+const BEAT_DEADLINE_SECS: f32 = 20.0;
 
-/// Frames the run waits after creating a ship, for the preview to spawn and for
-/// avian to prepare its section colliders before anything is clicked.
+/// In-step seconds the two asset-gated beats get: reaching the main menu, and
+/// reaching gameplay through it. Sized to outlast a cold load on a
+/// software-rendered CI GPU, and kept under the harness completion deadline so
+/// a stall names the beat rather than tripping the generic hang detector.
 #[cfg(feature = "debug")]
-const SHIP_SETTLE: u32 = 40;
+const BOOT_DEADLINE_SECS: f32 = 90.0;
+
+/// In-step seconds the hand-off beats get: Play tears the editor down and loads
+/// a scenario, which is a second asset-gated wait rather than a gesture.
+#[cfg(feature = "debug")]
+const PLAY_DEADLINE_SECS: f32 = 60.0;
 
 /// The hull the run builds with. The same id `create_new_spaceship` seeds a
 /// hull ship from, so a catalog that dropped it has already broken the editor.
@@ -189,7 +196,7 @@ const EMPTY_SPACE: Vec2 = Vec2::new(760.0, 640.0);
 /// anything.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
-struct EditorProbe {
+struct EditorWalk {
     /// The hull section the run places, resolved from the catalog once the
     /// component cards are up.
     hull: String,
@@ -207,39 +214,36 @@ struct EditorProbe {
 
 /// The whole driven run.
 ///
-/// A gesture beat and its VERDICT beat are separate on purpose: the gesture's
-/// effect is only visible after the frames the editor needs, and a verdict that
-/// panics names the beat it belongs to instead of stalling the step it was
-/// folded into.
+/// Every beat waits on a CONDITION - a widget laid out, the picking pointer
+/// registering a press, the editor solving a placement, a section landing - and
+/// carries a deadline. Nothing here counts frames: a frame is not a unit of
+/// work, and the same `frames(10)` was about 20 ms on a workstation and about
+/// 600 ms on lavapipe while saying nothing about whether the editor had
+/// finished reacting to anything.
+///
+/// A gesture beat and its VERDICT beat stay separate: the wait is what makes
+/// the verdict safe to read, and a verdict that panics names the beat it
+/// belongs to instead of stalling the step it was folded into.
 #[cfg(feature = "debug")]
 fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("editor: reach the main menu")
         .until(state_is(GameStates::MainMenu))
+        .deadline(BOOT_DEADLINE_SECS)
         .add()
-        .step("editor: let the menu lay out")
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: click Sandbox")
-        .on_enter(click_named("Sandbox Button"))
-        .until(frames(SETTLE))
-        .add()
-        // The menu buttons act on `Activate`, which fires on RELEASE over the
-        // same widget - so a click is two beats throughout this script.
-        .step("editor: release Sandbox")
-        .on_enter(release_mouse(MouseButton::Left))
+        .click_a_widget("editor: click Sandbox", "Sandbox Button")
+        .step("editor: Sandbox reached gameplay")
         .until(state_is(GameStates::Playing))
+        .deadline(BOOT_DEADLINE_SECS)
         .add()
-        .step("editor: let the editor lay out")
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: click New Ship")
-        .on_enter(click_named("Create New Spaceship Button V2"))
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: release New Ship")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SHIP_SETTLE))
+        .click_a_widget("editor: click New Ship", "Create New Spaceship Button V2")
+        // The preview spawning is what the run waits for, and nothing else has
+        // to be waited for after it: the first click on the ship holds until the
+        // EDITOR has solved a placement there, which cannot happen before avian
+        // has prepared the collider that click's ray must hit.
+        .step("editor: the new ship is up")
+        .until(sections_number(1))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: the ship came up with a controller")
         .on_enter(|world: &mut World| {
@@ -259,26 +263,28 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 serde_json::json!({}),
             );
             info!("editor: ship created, will build with `{hull}`");
-            world.resource_mut::<EditorProbe>().hull = hull;
+            world.resource_mut::<EditorWalk>().hull = hull;
         })
-        .until(frames(1))
         .add()
         // Arm the hull through the gallery - the editor's only parts picker now
         // that the component drawer is gone.
         .arm_from_the_gallery("editor: arm the hull", HULL_PROTOTYPE)
-        // `SectionChoice` - the armed tool - is crate-private to `nova_editor`, so
-        // the example cannot read it. The arming is proven the only way it is
-        // observable from outside: the next two clicks on the ship place sections,
-        // and the same clicks place nothing once Select mode disarms it.
         .step("editor: stamp the count before building")
         .on_enter(stamp_sections)
-        .until(frames(1))
         .add()
-        .click_the_ship("editor: place the first section")
-        .click_the_ship("editor: place the second section")
+        .click_the_ship(
+            "editor: place the first section",
+            editor_placement_solved(),
+            sections_grew_by(1),
+        )
+        .click_the_ship(
+            "editor: place the second section",
+            editor_placement_solved(),
+            sections_grew_by(2),
+        )
         .step("editor: two sections were placed")
         .on_enter(|world: &mut World| {
-            let before = world.resource::<EditorProbe>().sections;
+            let before = world.resource::<EditorWalk>().sections;
             let now = count_sections(world);
             assert_eq!(
                 now,
@@ -293,20 +299,24 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: placed 2 sections ({before} -> {now})");
             stamp_sections(world);
         })
-        .until(frames(1))
         .add()
-        .step("editor: click Select / Rebind")
-        .on_enter(click_named("Select Section Button"))
-        .until(frames(SETTLE))
+        .click_a_widget("editor: click Select / Rebind", "Select Section Button")
+        // The armed tool is READ now rather than inferred: the rail chip
+        // disarming the placement tool is a claim this beat makes, where it
+        // used to be something the next two clicks had to imply by building
+        // nothing.
+        .step("editor: the editor put the part down")
+        .until(editor_tool_is(EditorTool::Select))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .step("editor: release Select / Rebind")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
-        .click_the_ship("editor: click the ship in select mode")
+        .click_the_ship(
+            "editor: click the ship in select mode",
+            the_pointer_is_on_the_ship(),
+            sections_grew_by(0),
+        )
         .step("editor: select mode placed nothing")
         .on_enter(|world: &mut World| {
-            let before = world.resource::<EditorProbe>().sections;
+            let before = world.resource::<EditorWalk>().sections;
             let now = count_sections(world);
             assert_eq!(
                 now, before,
@@ -320,20 +330,20 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor: select mode is inert for placement ({now} sections)");
         })
-        .until(frames(1))
         .add()
-        .step("editor: click Delete Section")
-        .on_enter(click_named("Delete Section Button"))
-        .until(frames(SETTLE))
+        .click_a_widget("editor: click Delete Section", "Delete Section Button")
+        .step("editor: the delete tool is armed")
+        .until(editor_tool_is(EditorTool::Delete))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .step("editor: release Delete Section")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
-        .click_the_ship("editor: click the ship in delete mode")
+        .click_the_ship(
+            "editor: click the ship in delete mode",
+            the_pointer_is_on_the_ship(),
+            sections_shrank_by(1),
+        )
         .step("editor: the count dropped back")
         .on_enter(|world: &mut World| {
-            let before = world.resource::<EditorProbe>().sections;
+            let before = world.resource::<EditorWalk>().sections;
             let now = count_sections(world);
             assert_eq!(
                 now,
@@ -348,21 +358,18 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor: deleted a section ({before} -> {now})");
         })
-        .until(frames(1))
         .add()
         // The parts gallery, walked the way a player walks it: browse, filter,
-        // focus, select, place. Every beat is a real gesture on a real widget -
-        // the gallery state is crate-private, so what the run can see is what
-        // the player can see (tiles, the focus card, the section that appears).
-        .step("editor: open the parts gallery")
-        .on_enter(click_named("Parts Gallery Category"))
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: release the gallery category")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
+        // focus, select, place. Every beat is a real gesture on a real widget;
+        // what it WAITS on is the gallery's own state, so a grid that never
+        // narrowed fails at the filter rather than at whatever the next Enter
+        // happened to arm.
+        .click_a_widget("editor: open the parts gallery", "Parts Gallery Category")
         .step("editor: the gallery is browsing the catalog")
+        .until(and(editor_gallery_open(), some_gallery_tiles()))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the gallery lists the catalog")
         .on_enter(|world: &mut World| {
             let tiles = count_named_with_prefix(world, GALLERY_TILE);
             assert!(
@@ -375,9 +382,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 serde_json::json!({}),
             );
             info!("editor: gallery is up with {tiles} tiles");
-            world.resource_mut::<EditorProbe>().tiles = tiles;
+            world.resource_mut::<EditorWalk>().tiles = tiles;
         })
-        .until(frames(1))
         .add()
         // The two gallery figures. `shoot` writes nothing unless NOVA_CAPTURE
         // is armed, and `shot_written` is inert in the same case, so the smoke
@@ -392,23 +398,24 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // field) is what `arm_from_the_gallery` drives.
         .step("editor: put the caret in the filter")
         .on_enter(press_key(KeyCode::Slash))
-        .until(frames(SETTLE))
+        .until(editor_filter_focused())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: release /")
         .on_enter(release_key(KeyCode::Slash))
-        .until(frames(SETTLE))
         .add()
         .step("editor: filter the gallery")
         .on_enter(|world: &mut World| {
             let needle = filter_needle(world);
             type_text(needle)(world);
         })
-        .until(frames(SETTLE))
+        .until(the_gallery_narrowed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: the filter narrowed the grid to the hull")
         .on_enter(|world: &mut World| {
-            let hull = world.resource::<EditorProbe>().hull.clone();
-            let before = world.resource::<EditorProbe>().tiles;
+            let hull = world.resource::<EditorWalk>().hull.clone();
+            let before = world.resource::<EditorWalk>().tiles;
             let now = count_named_with_prefix(world, GALLERY_TILE);
             assert!(
                 now < before,
@@ -425,22 +432,26 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor: filter narrowed the gallery ({before} -> {now} tiles)");
         })
-        .until(frames(1))
         .add()
         .step("editor: focus the filtered tile")
         .on_enter(|world: &mut World| {
-            let hull = world.resource::<EditorProbe>().hull.clone();
+            let hull = world.resource::<EditorWalk>().hull.clone();
             click_named(format!("{GALLERY_TILE}{hull}"))(world);
         })
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: release the tile")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(and(
+            pointer_released(),
+            ui_node_present("Gallery Focus Card"),
+        ))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: the focus card names the part and reads its stats")
         .on_enter(|world: &mut World| {
-            let hull = world.resource::<EditorProbe>().hull.clone();
+            let hull = world.resource::<EditorWalk>().hull.clone();
             let lines = subtree_text(world, "Gallery Focus Card");
             assert!(
                 lines.contains(&hull),
@@ -459,37 +470,34 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor: focus card reads `{hull}`");
         })
-        .until(frames(1))
         .add()
         .step("editor: shoot the gallery focus card")
         .on_enter(|world: &mut World| shoot(world, "editor-gallery-focus.png"))
         .until(shot_written("editor-gallery-focus.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
-        .step("editor: place the focused part")
-        .on_enter(click_named("Gallery Place Button"))
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: release Place")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
+        .click_a_widget("editor: place the focused part", "Gallery Place Button")
         .step("editor: the gallery closed and armed the tool")
+        .until(and(editor_gallery_closed(), editor_part_armed()))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the build view is back")
         .on_enter(|world: &mut World| {
             assert!(
                 ui_node_rect(world, "Parts Gallery").is_none(),
                 "placing from the gallery must close it"
             );
-            // Only now is the section count the SHIP's again: a gallery tile is
-            // a section preview too, and it despawns with the overlay.
             stamp_sections(world);
         })
-        .until(frames(SETTLE))
         .add()
-        .click_the_ship("editor: place the gallery's pick")
+        .click_the_ship(
+            "editor: place the gallery's pick",
+            editor_placement_solved(),
+            sections_grew_by(1),
+        )
         .step("editor: the gallery's pick was placed")
         .on_enter(|world: &mut World| {
-            let before = world.resource::<EditorProbe>().sections;
+            let before = world.resource::<EditorWalk>().sections;
             let now = count_sections(world);
             assert_eq!(
                 now,
@@ -504,23 +512,26 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: placed the gallery's pick ({before} -> {now})");
             stamp_sections(world);
         })
-        .until(frames(1))
         .add()
         // Snapping: the roll is the one degree of freedom a mate leaves, so a
         // rolled part must still mate. R turns the ghost a quarter turn about
-        // the mating axis before the click commits it.
+        // the mating axis before the click commits it. The pose is applied in
+        // the same frame the press is read, and the click that follows waits for
+        // a SOLVED placement, so there is nothing here to settle for.
         .step("editor: roll the ghost a quarter turn")
         .on_enter(press_key(KeyCode::KeyR))
-        .until(frames(SETTLE))
         .add()
         .step("editor: release R")
         .on_enter(release_key(KeyCode::KeyR))
-        .until(frames(SETTLE))
         .add()
-        .click_the_ship("editor: place the rolled part")
+        .click_the_ship(
+            "editor: place the rolled part",
+            editor_placement_solved(),
+            sections_grew_by(1),
+        )
         .step("editor: the ship is one structure, with a rolled mate in it")
         .on_enter(|world: &mut World| {
-            let before = world.resource::<EditorProbe>().sections;
+            let before = world.resource::<EditorWalk>().sections;
             let now = count_sections(world);
             assert_eq!(now, before + 1, "the rolled part was built");
             assert!(
@@ -545,9 +556,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 serde_json::json!({}),
             );
             info!("editor: {now} sections, {mates} mates, one connected structure");
-            world.resource_mut::<EditorProbe>().mates = mates;
+            world.resource_mut::<EditorWalk>().mates = mates;
         })
-        .until(frames(1))
         .add()
         // The FAST path through the same picker: Tab opens it, and a part is
         // taken by pointing at it and pressing Q. No focus card, no Place
@@ -555,11 +565,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // it is walked as a whole gesture rather than trusted to unit tests.
         .step("editor: open the gallery with Tab")
         .on_enter(press_key(KeyCode::Tab))
-        .until(frames(SETTLE))
+        .until(and(editor_gallery_open(), some_gallery_tiles()))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: release Tab")
         .on_enter(release_key(KeyCode::Tab))
-        .until(frames(SETTLE))
         .add()
         .step("editor: Tab put the gallery up")
         .on_enter(|world: &mut World| {
@@ -569,22 +579,25 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             stamp_sections(world);
         })
-        .until(frames(1))
         .add()
+        // The pipette reads the tile under the POINTER, so the hover is the
+        // thing to wait on: Q on a tile the picking backend has not hovered yet
+        // takes nothing at all, silently.
         .step("editor: hover a tile")
         .on_enter(|world: &mut World| {
-            let hull = world.resource::<EditorProbe>().hull.clone();
+            let hull = world.resource::<EditorWalk>().hull.clone();
             hover_named(format!("{GALLERY_TILE}{hull}"))(world);
         })
-        .until(frames(SETTLE))
+        .until(the_hull_tile_is_hovered())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: take it with Q")
         .on_enter(press_key(KeyCode::KeyQ))
-        .until(frames(SETTLE))
+        .until(and(editor_gallery_closed(), editor_part_armed()))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: release Q")
         .on_enter(release_key(KeyCode::KeyQ))
-        .until(frames(SETTLE))
         .add()
         .step("editor: Q closed the gallery holding that part")
         .on_enter(|world: &mut World| {
@@ -593,12 +606,15 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "taking a part with Q must hand the builder back to the ship"
             );
         })
-        .until(frames(SETTLE))
         .add()
-        .click_the_ship("editor: place the part Q took")
+        .click_the_ship(
+            "editor: place the part Q took",
+            editor_placement_solved(),
+            sections_grew_by(1),
+        )
         .step("editor: the pipette's part was placed")
         .on_enter(|world: &mut World| {
-            let before = world.resource::<EditorProbe>().sections;
+            let before = world.resource::<EditorWalk>().sections;
             let now = count_sections(world);
             assert_eq!(
                 now,
@@ -612,7 +628,6 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor: placed the part Q took ({before} -> {now})");
         })
-        .until(frames(1))
         .add()
         // The SKIN, which is the one part of the build view nobody builds:
         // cladding derived from the structure under it. Three figures - the
@@ -620,12 +635,13 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // that is still in the builder's hand.
         //
         // The hull the pipette took stays armed throughout. Pointing AWAY from
-        // the ship is what puts the ghost away for the first two figures: with
-        // nothing under the pointer there is no placement to solve, so no ghost
-        // and no status line.
+        // the ship is what puts the ghost away for the first two figures, and
+        // the editor SAYS when it has: with nothing under the pointer there is
+        // no placement to solve, so no ghost and no status line.
         .step("editor: look away from the ship")
         .on_enter(move_cursor(EMPTY_SPACE))
-        .until(frames(SETTLE))
+        .until(editor_placement_clear())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: shoot the bare build")
         .on_enter(|world: &mut World| {
@@ -639,13 +655,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(shot_written("editor-skin-off.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
-        .step("editor: click Ship Skin")
-        .on_enter(click_named("Ship Skin Toggle"))
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: release Ship Skin")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .click_a_widget("editor: click Ship Skin", "Ship Skin Toggle")
+        .step("editor: the skin closed over the build")
+        .until(the_skin_is_on())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: the build came up clad")
         .on_enter(|world: &mut World| {
@@ -661,7 +674,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 serde_json::json!({}),
             );
             info!("editor: the skin laid {plates} plates over the build");
-            world.resource_mut::<EditorProbe>().plates = plates;
+            world.resource_mut::<EditorWalk>().plates = plates;
             stamp_sections(world);
             shoot(world, "editor-skin.png");
         })
@@ -678,11 +691,12 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             let (centre, _) = aim_at_a_visible_face(world).expect("a section faces the camera");
             move_cursor(centre)(world);
         })
-        .until(frames(SETTLE))
+        .until(the_skin_reflowed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: the skin reflowed around the part in hand")
         .on_enter(|world: &mut World| {
-            let settled = world.resource::<EditorProbe>().plates;
+            let settled = world.resource::<EditorWalk>().plates;
             let now = count_plates(world);
             assert_ne!(
                 now, settled,
@@ -691,7 +705,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             assert_eq!(
                 count_sections(world),
-                world.resource::<EditorProbe>().sections,
+                world.resource::<EditorWalk>().sections,
                 "and it must reflow without anything being BUILT - the click \
                  has not happened yet"
             );
@@ -721,19 +735,13 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             move_cursor(centre)(world);
             stamp_sections(world);
         })
-        .until(frames(SETTLE))
+        .until(editor_placement_solved())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .step("editor: press on the free face")
-        .on_enter(press_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: release")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
+        .press_and_release("editor: press on the free face", sections_grew_by(1))
         .step("editor: the module mounted on that face")
         .on_enter(|world: &mut World| {
-            let before = world.resource::<EditorProbe>().sections;
+            let before = world.resource::<EditorWalk>().sections;
             let now = count_sections(world);
             assert_eq!(
                 now,
@@ -748,38 +756,38 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor: mounted the shared PDC ({before} -> {now})");
         })
-        .until(frames(1))
         .add()
+        // An ANSWER is what this waits for, either one: `or` holds the beat
+        // until the solver has spoken, and the verdict below is what says which
+        // answer it had to be.
         .step("editor: aim at the same socket, now occupied")
         .on_enter(|world: &mut World| {
             let (_, off_centre) = aim_at_a_visible_face(world).expect("the same face is up");
             move_cursor(off_centre)(world);
         })
-        .until(frames(SETTLE))
+        .until(or(editor_placement_solved(), editor_placement_refused()))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: the occupied socket says so")
         .on_enter(|world: &mut World| {
+            let refusal = placement_refusal(world);
             let status = subtree_text(world, "Placement Status");
-            info!("editor: placement status reads {status:?}");
+            info!("editor: the editor refuses with {refusal:?}, status reads {status:?}");
+            assert!(
+                refusal.is_some_and(|reason| reason.contains("occupied")),
+                "an occupied socket must be refused; the editor decided {refusal:?}"
+            );
             assert!(
                 status.iter().any(|line| line.contains("occupied")),
-                "an occupied socket must be refused in words; the status read {status:?}"
+                "and the builder must be told so in words; the status read {status:?}"
             );
             stamp_sections(world);
         })
-        .until(frames(1))
         .add()
-        .step("editor: press on the occupied socket")
-        .on_enter(press_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: release")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
+        .press_and_release("editor: press on the occupied socket", sections_grew_by(0))
         .step("editor: the refused click built nothing")
         .on_enter(|world: &mut World| {
-            let before = world.resource::<EditorProbe>().sections;
+            let before = world.resource::<EditorWalk>().sections;
             let now = count_sections(world);
             assert_eq!(
                 now, before,
@@ -799,9 +807,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 panic!("the assembled ship must derive one connected graph: {error}")
             });
             info!("editor: the finished ship derives {mates} mates over {now} sections");
-            world.resource_mut::<EditorProbe>().mates = mates;
+            world.resource_mut::<EditorWalk>().mates = mates;
         })
-        .until(frames(1))
         .add()
         // The refusal figure: the ghost at the pose a click would build, its
         // bounds box red, and the reason under the ship.
@@ -831,7 +838,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             Vec3::new(0.0, 2.5, 1.0),
         )
         // A DRIVE rather than a hull slab: this is the case where the ghost is
-        // the thing that fires, and a slab has no lane of its own.
+        // the thing that fires, and a slab has no lane of its own. The REFUSAL
+        // is the wait, so an editor that solved this pose fails here, naming
+        // the beat, instead of downstream on a count that came out right for
+        // the wrong reason.
         .arm_from_the_gallery("editor: arm a drive", "basic_thruster_section")
         .step("editor: aim the drive up the tower's lane")
         .on_enter(|world: &mut World| {
@@ -840,33 +850,32 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             move_cursor(at)(world);
             stamp_sections(world);
         })
-        .until(frames(SETTLE))
+        .until(editor_placement_refused())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: a drive that cannot fire says so")
         .on_enter(|world: &mut World| {
+            let refusal = placement_refusal(world);
             let status = subtree_text(world, "Placement Status");
-            info!("editor: placement status reads {status:?}");
+            info!("editor: the editor refuses with {refusal:?}, status reads {status:?}");
+            assert!(
+                refusal.is_some_and(|reason| reason.contains("block")),
+                "a drive whose plume would fire into the ship's own plating must \
+                 be refused; the editor decided {refusal:?}"
+            );
             assert!(
                 status.iter().any(|line| line.contains("block")),
-                "a drive whose plume would fire into the ship's own plating must \
-                 be refused in words; the status read {status:?}"
+                "and the builder must be told so in words; the status read {status:?}"
             );
             shoot(world, "editor-placement-blocked-exit.png");
         })
         .until(shot_written("editor-placement-blocked-exit.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
-        .step("editor: press on the blocked lane")
-        .on_enter(press_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: release")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
-        .add()
+        .press_and_release("editor: press on the blocked lane", sections_grew_by(0))
         .step("editor: the blocked exit built nothing either")
         .on_enter(|world: &mut World| {
-            let before = world.resource::<EditorProbe>().sections;
+            let before = world.resource::<EditorWalk>().sections;
             let now = count_sections(world);
             assert_eq!(
                 now, before,
@@ -885,28 +894,28 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             let mates = mate_graph(world, None).unwrap_or_else(|error| {
                 panic!("the assembled ship must derive one connected graph: {error}")
             });
-            world.resource_mut::<EditorProbe>().mates = mates;
+            world.resource_mut::<EditorWalk>().mates = mates;
             info!("editor: the finished ship derives {mates} mates over {now} sections");
+            stamp_sections(world);
         })
-        .until(frames(1))
         .add()
         // Play: the ship the editor assembled becomes the ship that flies, and
         // the runtime derives the SAME graph from the flat saved poses.
-        .step("editor: press Play")
-        .on_enter(click_named("Play Button"))
-        .until(frames(SETTLE))
-        .add()
-        .step("editor: release Play")
-        .on_enter(release_mouse(MouseButton::Left))
+        .click_a_widget("editor: press Play", "Play Button")
+        .step("editor: the built ship flies")
         .until(player_ship_present())
-        .deadline(60.0)
+        .deadline(PLAY_DEADLINE_SECS)
         .add()
-        .step("editor: let the scenario settle")
-        .until(frames(SHIP_SETTLE))
+        // The hand-off itself, waited on rather than settled for: the flown ship
+        // is whole when it carries every section the editor built, and clad when
+        // the derived plates are back.
+        .step("editor: the flown ship is whole and clad")
+        .until(and(the_flown_ship_is_whole(), the_skin_is_on()))
+        .deadline(PLAY_DEADLINE_SECS)
         .add()
         .step("editor: the flown ship derives the same mate graph")
         .on_enter(|world: &mut World| {
-            let built = world.resource::<EditorProbe>().mates;
+            let built = world.resource::<EditorWalk>().mates;
             let root = player_root(world);
             let flown = mate_graph(world, Some(root))
                 .unwrap_or_else(|error| panic!("the spawned ship must derive a graph: {error}"));
@@ -935,7 +944,6 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor: the flown ship came up in {plates} plates");
         })
-        .until(frames(1))
         .add()
 }
 
@@ -1105,7 +1113,7 @@ fn aim_at_a_visible_face(world: &mut World) -> Option<(Vec2, Vec2)> {
 #[cfg(feature = "debug")]
 fn filter_needle(world: &World) -> String {
     world
-        .resource::<EditorProbe>()
+        .resource::<EditorWalk>()
         .hull
         .split_whitespace()
         .next()
@@ -1114,13 +1122,19 @@ fn filter_needle(world: &World) -> String {
 }
 
 /// How many laid-out, visible UI nodes have a name starting with `prefix`.
+///
+/// `&World`, so the same count backs both the beats that ASSERT on it and the
+/// predicates that WAIT on it.
 #[cfg(feature = "debug")]
-fn count_named_with_prefix(world: &mut World, prefix: &str) -> usize {
+fn count_named_with_prefix(world: &World, prefix: &str) -> usize {
     world
-        .query::<(&Name, &InheritedVisibility)>()
-        .iter(world)
-        .filter(|(name, visibility)| visibility.get() && name.as_str().starts_with(prefix))
-        .count()
+        .try_query::<(&Name, &InheritedVisibility)>()
+        .map_or(0, |mut query| {
+            query
+                .iter(world)
+                .filter(|(name, visibility)| visibility.get() && name.as_str().starts_with(prefix))
+                .count()
+        })
 }
 
 /// The display name of any hull section in the catalog (the section the run places).
@@ -1134,42 +1148,171 @@ fn hull_section_name(world: &World) -> Option<String> {
 }
 
 /// Count the preview ship's sections.
+///
+/// `&World` for the same reason [`count_named_with_prefix`] is: the beats read
+/// it and the predicates below wait on it, and one counter cannot disagree with
+/// itself.
 #[cfg(feature = "debug")]
-fn count_sections(world: &mut World) -> usize {
-    let mut q = world.query_filtered::<(), With<SectionMarker>>();
-    q.iter(world).count()
+fn count_sections(world: &World) -> usize {
+    world
+        .try_query_filtered::<(), With<SectionMarker>>()
+        .map_or(0, |mut sections| sections.iter(world).count())
 }
 
 /// Count the skin plates on screen - the editor's preview cladding, and after
 /// Play the flown ship's real one. Both wear the same marker, which is the
 /// point: one derivation, two places.
 #[cfg(feature = "debug")]
-fn count_plates(world: &mut World) -> usize {
-    let mut q = world.query_filtered::<(), With<ShipSkinMarker>>();
-    q.iter(world).count()
+fn count_plates(world: &World) -> usize {
+    world
+        .try_query_filtered::<(), With<ShipSkinMarker>>()
+        .map_or(0, |mut plates| plates.iter(world).count())
 }
 
-/// How long a placement gesture gets to show up before the run gives up on it.
-///
-/// Generous on purpose: this is the difference between a slow machine and a
-/// broken editor, and only the second one should fail. A healthy run satisfies
-/// it on the frame it is entered.
+/// A predicate over the world, in the shape every `until` takes.
 #[cfg(feature = "debug")]
-const PLACE_DEADLINE_SECS: f32 = 15.0;
+type Wait = std::sync::Arc<nova_protocol::nova_debug::harness::Predicate>;
 
-/// The gesture put exactly one new section on the ship, measured against the
-/// count [`stamp_sections`] took before it.
-///
-/// `&World` rather than the `&mut World` [`count_sections`] wants, because a
-/// predicate only ever reads.
+/// Advance once the preview ship carries exactly `count` sections.
 #[cfg(feature = "debug")]
-fn the_socket_filled() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        let want = world.resource::<EditorProbe>().sections + 1;
-        world
-            .try_query_filtered::<(), With<SectionMarker>>()
-            .is_some_and(|mut sections| sections.iter(world).count() == want)
+fn sections_number(count: usize) -> Wait {
+    std::sync::Arc::new(move |world: &World| count_sections(world) == count)
+}
+
+/// Advance once the ship carries `delta` MORE sections than the last
+/// [`stamp_sections`] took.
+///
+/// `delta` of zero is the wait a click that must build NOTHING takes: by the
+/// time the pointer has registered its release the editor has already answered
+/// the press, so a count still equal to the stamp is a fact and not a hope.
+#[cfg(feature = "debug")]
+fn sections_grew_by(delta: usize) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        count_sections(world) == world.resource::<EditorWalk>().sections + delta
     })
+}
+
+/// Advance once the ship carries `delta` FEWER sections than the last stamp -
+/// what a click in delete mode is for.
+#[cfg(feature = "debug")]
+fn sections_shrank_by(delta: usize) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        count_sections(world) + delta == world.resource::<EditorWalk>().sections
+    })
+}
+
+/// Advance once the flown ship carries every section the editor built.
+///
+/// The hand-off, waited on rather than settled for: Play tears the preview down
+/// and the scenario spawns the real ship a while later, and "a while" is a
+/// property of the machine.
+#[cfg(feature = "debug")]
+fn the_flown_ship_is_whole() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let built = world.resource::<EditorWalk>().sections;
+        let Some(root) = world
+            .try_query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+            .and_then(|mut roots| roots.iter(world).next())
+        else {
+            return false;
+        };
+        world
+            .try_query_filtered::<&ChildOf, With<SectionMarker>>()
+            .is_some_and(|mut sections| {
+                sections
+                    .iter(world)
+                    .filter(|ChildOf(parent)| *parent == root)
+                    .count()
+                    == built
+            })
+    })
+}
+
+/// Advance once the derived cladding is on whatever ship is on screen.
+#[cfg(feature = "debug")]
+fn the_skin_is_on() -> Wait {
+    std::sync::Arc::new(|world: &World| count_plates(world) > 0)
+}
+
+/// Advance once the cladding has re-derived to a different number of plates
+/// than the last stamp - what holding a part against the ship does to it.
+#[cfg(feature = "debug")]
+fn the_skin_reflowed() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        count_plates(world) != world.resource::<EditorWalk>().plates
+    })
+}
+
+/// Advance once the gallery is listing anything at all - the layout pass behind
+/// the state, which the beats that count tiles and hover one both need.
+#[cfg(feature = "debug")]
+fn some_gallery_tiles() -> Wait {
+    std::sync::Arc::new(|world: &World| count_named_with_prefix(world, GALLERY_TILE) > 0)
+}
+
+/// Advance once the grid holds fewer tiles than the last stamp - what typing
+/// into the filter is for.
+#[cfg(feature = "debug")]
+fn the_gallery_narrowed() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        count_named_with_prefix(world, GALLERY_TILE) < world.resource::<EditorWalk>().tiles
+    })
+}
+
+/// Advance once the picking pointer is hovering the gallery tile for the hull
+/// the run builds with.
+///
+/// The pipette reads the HOVER, not the selection, so this is the fact Q needs
+/// and nothing else says it: the tile is resolved by `Name` at run time, which
+/// is why it is a closure here rather than a named-target predicate.
+#[cfg(feature = "debug")]
+fn the_hull_tile_is_hovered() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let tile = format!("{GALLERY_TILE}{}", world.resource::<EditorWalk>().hull);
+        world
+            .try_query::<(&Name, &bevy::picking::hover::Hovered)>()
+            .is_some_and(|mut query| {
+                query
+                    .iter(world)
+                    .any(|(name, hovered)| name.as_str() == tile && hovered.get())
+            })
+    })
+}
+
+/// Advance once the picking pointer is over one of the ship's sections.
+///
+/// The aim ack for a click that is NOT placing: select and delete mode solve no
+/// placement, so this is all the editor has to say about where the pointer is.
+#[cfg(feature = "debug")]
+fn the_pointer_is_on_the_ship() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let Some(hit) = world
+            .try_query::<&bevy::picking::pointer::PointerInteraction>()
+            .and_then(|mut pointers| {
+                pointers
+                    .iter(world)
+                    .filter_map(|interaction| interaction.get_nearest_hit())
+                    .map(|(entity, _)| *entity)
+                    .next()
+            })
+        else {
+            return false;
+        };
+        world.get::<SectionMarker>(hit).is_some()
+    })
+}
+
+/// The refusal the editor is showing, if it is refusing.
+///
+/// Read off `nova_editor`'s own [`EditorProbe`] rather than scraped out of the
+/// status line: what the SOLVER decided and what the builder is told are two
+/// claims, and the refusal beats make both.
+#[cfg(feature = "debug")]
+fn placement_refusal(world: &World) -> Option<&'static str> {
+    match world.resource::<EditorProbe>().placement {
+        EditorPlacement::Refused { reason, .. } => Some(reason),
+        _ => None,
+    }
 }
 
 /// Record the live section count, so the beat after the next gesture can say
@@ -1177,7 +1320,7 @@ fn the_socket_filled() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pre
 #[cfg(feature = "debug")]
 fn stamp_sections(world: &mut World) {
     let count = count_sections(world);
-    world.resource_mut::<EditorProbe>().sections = count;
+    world.resource_mut::<EditorWalk>().sections = count;
 }
 
 /// Every line of text under the named UI node, empty when no such node is up.
@@ -1230,34 +1373,102 @@ fn aim_at_a_section(world: &mut World) -> Option<Vec2> {
     camera.world_to_viewport(camera_transform, section_pos).ok()
 }
 
-/// The three-beat gesture the run performs on the SHIP rather than on the UI:
-/// aim the pointer at a section, press, release.
+/// The gestures this walk is written in, each spelled as beats that WAIT.
 ///
-/// An extension trait rather than a free function so a click on the ship reads
-/// in the script exactly like a click on a widget does. The editor acts on
-/// `Pointer<Press>`, so the press is what does the work and the release only
-/// lets go.
-///
-/// Named for the GESTURE, not for placement: the same three beats also drive
-/// the select-mode and delete-mode clicks, where placing nothing is the claim
-/// (review R1.6).
+/// An extension trait rather than free functions so a gesture reads in the
+/// script as one line. What every method has in common is the shape: act, then
+/// hold until the app has done the thing the act asks for - never until a
+/// number of frames has gone by.
 #[cfg(feature = "debug")]
-trait ClickTheShip {
-    fn click_the_ship(self, label: &str) -> Self;
-}
+trait EditorGestures {
+    /// Click a NAMED widget: wait for it to lay out, press it, release it.
+    ///
+    /// Three beats, each with a condition. The layout wait is the one a frame
+    /// count hid: `click_named` warns and CONTINUES when the name resolves to
+    /// nothing, so a press fired at a panel that has not laid out yet is a beat
+    /// silently lost, and the run fails later somewhere else.
+    fn click_a_widget(self, label: &str, name: &str) -> Self;
 
-/// The same gesture aimed at a NAMED face, plus the verdict that it built.
-///
-/// [`ClickTheShip`] takes whatever face the camera likes, which is what most of
-/// the run wants. Building a particular SHAPE needs a particular face, and the
-/// verdict is what says the shape is really there rather than assumed.
-#[cfg(feature = "debug")]
-trait PlaceOnTheFace {
+    /// Press and release the pointer where it already is, then hold until
+    /// `landed` - what the click was supposed to change.
+    fn press_and_release(self, label: &str, landed: Wait) -> Self;
+
+    /// Aim at the ship's nearest section, press, release, and wait for `landed`.
+    ///
+    /// `aimed` is what says the pointer is where the beat meant it to be: a
+    /// solved placement while a part is armed, the pointer being over a section
+    /// otherwise. The editor acts on `Pointer<Press>`, so the press is what does
+    /// the work and the release only lets go.
+    fn click_the_ship(self, label: &str, aimed: Wait, landed: Wait) -> Self;
+
+    /// The same gesture aimed at a NAMED point in ship space, for building a
+    /// particular SHAPE rather than whatever face the camera likes.
     fn place_on_the_face(self, label: &str, socket: Vec3) -> Self;
+
+    /// Arm `prototype` through the gallery, by keyboard: open it, type the
+    /// catalog id, Enter to focus the tile it left, Enter to place.
+    ///
+    /// The keyboard path rather than clicking a tile by name: the semantic parts
+    /// are named for their ROLE (three craft each carry a "Turret Port"), so a
+    /// name is not a unique target where a catalog id is. Every beat waits on
+    /// the gallery's own state, so a filter that narrowed to the wrong part
+    /// fails at the filter instead of arming something else.
+    fn arm_from_the_gallery(self, label: &str, prototype: &str) -> Self;
 }
 
 #[cfg(feature = "debug")]
-impl PlaceOnTheFace for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+impl EditorGestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    fn click_a_widget(self, label: &str, name: &str) -> Self {
+        let target = name.to_string();
+        self.step(format!("{label}: the widget is up"))
+            .until(ui_node_present(name.to_string()))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: press"))
+            .on_enter(click_named(target))
+            .until(pointer_pressed())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            // Widgets act on `Activate`, which fires on RELEASE over the same
+            // node, so this is the beat that carries the button's effect - and
+            // the caller's next beat is where that effect is waited on.
+            .step(format!("{label}: release"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(pointer_released())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+    }
+
+    fn press_and_release(self, label: &str, landed: Wait) -> Self {
+        self.step(format!("{label}: press"))
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(pointer_pressed())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: release"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(pointer_released())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: it landed"))
+            .until(landed)
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+    }
+
+    fn click_the_ship(self, label: &str, aimed: Wait, landed: Wait) -> Self {
+        self.step(format!("{label}: aim"))
+            .on_enter(|world: &mut World| {
+                let at = aim_at_a_section(world)
+                    .expect("a preview section, the 3D camera and the window are all up");
+                move_cursor(at)(world);
+            })
+            .until(aimed)
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .press_and_release(label, landed)
+    }
+
     fn place_on_the_face(self, label: &str, socket: Vec3) -> Self {
         self.step(format!("{label}: aim"))
             .on_enter(move |world: &mut World| {
@@ -1265,112 +1476,72 @@ impl PlaceOnTheFace for nova_protocol::nova_debug::harness::AutopilotPlugin<Game
                 move_cursor(at)(world);
                 stamp_sections(world);
             })
-            .until(frames(SETTLE))
+            // The EDITOR says the aim landed on a socket it can build on. A
+            // frame count could only say that some frames had gone by, and the
+            // difference is the whole diagnostic: a face that solves nothing
+            // fails here rather than three beats later on a count.
+            .until(editor_placement_solved())
+            .deadline(BEAT_DEADLINE_SECS)
             .add()
-            .step(format!("{label}: press"))
-            .on_enter(press_mouse(MouseButton::Left))
-            .until(frames(SETTLE))
-            .add()
-            .step(format!("{label}: release"))
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(frames(SETTLE))
-            .add()
-            // WAIT for the section rather than reading the count a fixed number
-            // of frames after the release. The gesture is delivered through the
-            // real picking pipeline, and how many frames that takes to land is a
-            // property of the MACHINE: on a software rasterizer this beat read
-            // the count before the placement had happened and failed with the
-            // socket still empty. An unmet `until` aborts the run naming this
-            // step, so a gesture that genuinely builds nothing still fails, and
-            // fails saying which beat did it.
-            .step(format!("{label}: it built"))
-            .until(the_socket_filled())
-            .deadline(PLACE_DEADLINE_SECS)
-            .add()
+            .press_and_release(label, sections_grew_by(1))
     }
-}
 
-/// Arm a prototype through the gallery, by keyboard: open it, type enough of
-/// the catalog id to leave one tile, Enter to focus it, Enter to place.
-///
-/// The keyboard path rather than clicking a tile by name: the semantic parts
-/// are named for their ROLE (three craft each carry a "Turret Port"), so a name
-/// is not a unique target where a catalog id is.
-#[cfg(feature = "debug")]
-trait ArmFromTheGallery {
-    fn arm_from_the_gallery(self, label: &str, prototype: &str) -> Self;
-}
-
-#[cfg(feature = "debug")]
-impl ArmFromTheGallery for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     fn arm_from_the_gallery(self, label: &str, prototype: &str) -> Self {
         let filter = prototype.to_string();
-        let mut script = self
-            .step(format!("{label}: open the gallery"))
-            .on_enter(click_named("Parts Gallery Category"))
-            .until(frames(SETTLE))
-            .add()
-            .step(format!("{label}: release"))
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(frames(SETTLE))
-            .add()
-            // The filter takes the keyboard only once it has the caret; a
-            // click on the field is how a mouse user gives it one.
-            .step(format!("{label}: click the filter field"))
-            .on_enter(click_named("Gallery Filter"))
-            .until(frames(SETTLE))
-            .add()
-            .step(format!("{label}: release the filter field"))
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(frames(SETTLE))
-            .add()
-            .step(format!("{label}: filter to `{prototype}`"))
-            .on_enter(move |world: &mut World| type_text(filter.clone())(world))
-            .until(frames(SETTLE))
-            .add();
-        // Enter focuses the selected tile; Enter again places it and closes.
-        for beat in ["focus", "place"] {
-            script = script
-                .step(format!("{label}: press Enter to {beat}"))
-                .on_enter(press_key(KeyCode::Enter))
-                .until(frames(SETTLE))
-                .add()
-                .step(format!("{label}: release Enter"))
-                .on_enter(release_key(KeyCode::Enter))
-                .until(frames(SETTLE))
-                .add();
-        }
-        script
-            .step(format!("{label}: the gallery closed"))
-            .on_enter(|world: &mut World| {
-                assert!(
-                    ui_node_rect(world, "Parts Gallery").is_none(),
-                    "placing from the gallery must close it"
-                );
-            })
-            .until(frames(SETTLE))
-            .add()
-    }
-}
-
-#[cfg(feature = "debug")]
-impl ClickTheShip for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    fn click_the_ship(self, label: &str) -> Self {
-        self.step(format!("{label}: aim"))
-            .on_enter(|world: &mut World| {
-                let at = aim_at_a_section(world)
-                    .expect("a preview section, the 3D camera and the window are all up");
-                move_cursor(at)(world);
-            })
-            .until(frames(SETTLE))
-            .add()
-            .step(format!("{label}: press"))
-            .on_enter(press_mouse(MouseButton::Left))
-            .until(frames(SETTLE))
-            .add()
-            .step(format!("{label}: release"))
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(frames(SETTLE))
-            .add()
+        let narrowed = prototype.to_string();
+        let armed = prototype.to_string();
+        self.click_a_widget(
+            &format!("{label}: open the gallery"),
+            "Parts Gallery Category",
+        )
+        .step(format!("{label}: the gallery is up"))
+        .until(and(editor_gallery_open(), some_gallery_tiles()))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // The filter takes the keyboard only once it has the caret; a click on
+        // the field is how a mouse user gives it one.
+        .click_a_widget(
+            &format!("{label}: click the filter field"),
+            "Gallery Filter",
+        )
+        .step(format!("{label}: the filter has the caret"))
+        .until(editor_filter_focused())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // Typed, then WAITED on: the gallery's selection resolving to this id
+        // through the live filter is the honest end of "type enough to leave
+        // one tile", and it fails here rather than arming a neighbour.
+        .step(format!("{label}: filter to `{prototype}`"))
+        .on_enter(move |world: &mut World| type_text(filter.clone())(world))
+        .until(editor_gallery_selected(narrowed))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step(format!("{label}: press Enter to focus"))
+        .on_enter(press_key(KeyCode::Enter))
+        .until(ui_node_present("Gallery Focus Card"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step(format!("{label}: release Enter"))
+        .on_enter(release_key(KeyCode::Enter))
+        .add()
+        .step(format!("{label}: press Enter to place"))
+        .on_enter(press_key(KeyCode::Enter))
+        .until(and(
+            editor_gallery_closed(),
+            editor_tool_is(EditorTool::Place(armed)),
+        ))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step(format!("{label}: release Enter"))
+        .on_enter(release_key(KeyCode::Enter))
+        .add()
+        .step(format!("{label}: the gallery closed"))
+        .on_enter(|world: &mut World| {
+            assert!(
+                ui_node_rect(world, "Parts Gallery").is_none(),
+                "placing from the gallery must close it"
+            );
+        })
+        .add()
     }
 }

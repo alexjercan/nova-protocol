@@ -8,6 +8,15 @@
 //! `Activate`, which fires on RELEASE over the same node, so every click here
 //! spans two beats.
 //!
+//! Every beat THIS KIT builds waits on the app rather than on a frame count:
+//! the widget laid out, the picking pointer registering the press, the editor
+//! solving a placement, the camera reaching its pose. A frame is not a unit of
+//! work - the same count was milliseconds on a workstation and most of a second
+//! under lavapipe, and said nothing about whether the app had finished
+//! reacting. Nothing here counts frames at all; the only frame count a walk
+//! built on it should still need is pre-SHOT stillness, which is what
+//! `SETTLE_FRAMES` is for.
+//!
 //! Included by each walk with
 //! `#[cfg(feature = "debug")] #[path = "shared/ui_walk.rs"] mod ui_walk;` -
 //! everything here is script-only, so the whole module sits behind ONE gate at
@@ -21,8 +30,10 @@
 // unused half is not dead code, it is another walk's tool.
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use bevy::prelude::*;
-use nova_protocol::prelude::*;
+use nova_protocol::{nova_debug::harness::Predicate, prelude::*};
 
 /// Seconds a step may sit before it is called a stall. Sized with headroom for a
 /// slow software-rendered CI GPU (llvmpipe), where every beat costs more
@@ -50,12 +61,10 @@ pub const EDITOR_EYE: Vec3 = Vec3::new(4.44, 3.17, 7.25);
 /// gone, so it now clears more room than it has to.)
 pub const EDITOR_LOOK: Vec3 = Vec3::new(0.62, 0.25, 0.5);
 
-/// Frames a pointer gesture on the SHIP gets: the picking backend needs a
-/// frame to raycast the new pointer position and the editor's observers a
-/// frame to react. Never shorter than the walk's other settles - a click that
-/// lands before the raycast has moved places nothing, and this is the one part
-/// of the walk that silently produces a thinner ship rather than failing.
-pub const GESTURE_FRAMES: u32 = 12;
+/// How close the camera has to be to [`EDITOR_EYE`] before a beat calls the
+/// build pose reached. Loose enough for float drift through the enforcer,
+/// far tighter than the distance to the gallery's parking spot.
+const POSE_EPSILON: f32 = 1e-2;
 
 /// Put the editor's camera on [`EDITOR_EYE`] and PIN it there.
 ///
@@ -66,6 +75,9 @@ pub const GESTURE_FRAMES: u32 = 12;
 /// any key is down (removing the component does not stop it: its private state
 /// survives), so a one-shot set is gone by the next frame. It was, and every
 /// section the build placed landed on the face the ORIGINAL pose saw.
+///
+/// The pose is APPLIED by the loader's enforcer a system later, which is why
+/// the beat that calls this holds on [`the_build_camera_is_posed`].
 pub fn pose_editor_camera(world: &mut World) {
     let camera = world
         .query_filtered::<Entity, With<Camera3d>>()
@@ -102,16 +114,87 @@ pub fn assert_gallery_camera_is_parked(world: &mut World) {
         .next()
         .expect("the open gallery retains the editor camera");
     assert!(
-        camera.translation.y > 1_000.0,
+        camera.translation.y > GALLERY_PARK_HEIGHT,
         "the open gallery must park its camera away from the preview ship; got {:?}",
         camera.translation
     );
 }
 
+/// How high the gallery parks the editor camera above the build area.
+const GALLERY_PARK_HEIGHT: f32 = 1_000.0;
+
+/// Advance once the gallery has parked the editor camera off the build area -
+/// what [`assert_gallery_camera_is_parked`] then states as a claim.
+pub fn the_gallery_camera_is_parked() -> Arc<Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&Transform, With<Camera3d>>()
+            .is_some_and(|mut cameras| {
+                cameras
+                    .iter(world)
+                    .any(|camera| camera.translation.y > GALLERY_PARK_HEIGHT)
+            })
+    })
+}
+
+/// Advance once the editor camera has REACHED the scripted build pose.
+///
+/// [`pose_editor_camera`] pins the pose; the loader's enforcer applies it a
+/// system later. A beat that aims through the camera before then projects its
+/// target through whatever pose the camera still holds - the gallery's parking
+/// spot, a thousand units up - and misses the ship entirely.
+pub fn the_build_camera_is_posed() -> Arc<Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&Transform, With<Camera3d>>()
+            .is_some_and(|mut cameras| {
+                cameras
+                    .iter(world)
+                    .any(|camera| camera.translation.abs_diff_eq(EDITOR_EYE, POSE_EPSILON))
+            })
+    })
+}
+
 /// Count the preview ship's sections.
-pub fn count_sections(world: &mut World) -> usize {
-    let mut q = world.query_filtered::<(), With<SectionMarker>>();
-    q.iter(world).count()
+///
+/// `&World`, so one counter serves both the beats that read it and the
+/// predicates that wait on it.
+pub fn count_sections(world: &World) -> usize {
+    world
+        .try_query_filtered::<(), With<SectionMarker>>()
+        .map_or(0, |mut sections| sections.iter(world).count())
+}
+
+/// Advance once a preview ship exists at all - what the New Ship button is for.
+pub fn the_ship_is_up() -> Arc<Predicate> {
+    Arc::new(|world: &World| count_sections(world) > 0)
+}
+
+/// Advance once the derived cladding is on the build.
+pub fn the_skin_is_on() -> Arc<Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<(), With<ShipSkinMarker>>()
+            .is_some_and(|mut plates| plates.iter(world).next().is_some())
+    })
+}
+
+/// The section count a [`Gestures::place`] beat measured before its gesture, so
+/// the beat after it can wait for exactly one more.
+///
+/// Inserted on first use rather than registered by each walk: this kit is
+/// `#[path]`-included, and a resource three examples had to remember to add
+/// would be three chances to forget one.
+#[derive(Resource, Default)]
+pub struct BuildTally(pub usize);
+
+/// Advance once the ship carries one more section than the last [`BuildTally`].
+pub fn the_section_landed() -> Arc<Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .get_resource::<BuildTally>()
+            .is_some_and(|tally| count_sections(world) == tally.0 + 1)
+    })
 }
 
 /// Where to point the pointer to hit the `face` face of the section mounted at
@@ -147,13 +230,23 @@ pub fn aim_at_face(world: &mut World, section: Vec3, face: Vec3) -> Vec2 {
 /// a press and a release spelled out at every call site buried what the walk
 /// actually does.
 pub trait Gestures {
-    /// Press and release the pointer over the named widget. Widgets act on
-    /// `Activate`, which fires on RELEASE over the same node.
+    /// Press and release the pointer over the named widget, once it is on
+    /// screen. Widgets act on `Activate`, which fires on RELEASE over the same
+    /// node.
+    ///
+    /// The layout wait is the one a frame count hid: `click_named` warns and
+    /// CONTINUES when the name resolves to nothing, so a press fired at a panel
+    /// that has not laid out yet is a beat silently lost and the walk fails
+    /// somewhere else.
     fn click(self, label: &str, name: &str) -> Self;
 
     /// Place a section on the ship: aim at the `face` face of the section
     /// mounted at `on`, press, release. The editor acts on `Pointer<Press>`, so
     /// the press does the work and the release only lets go.
+    ///
+    /// The aim holds until the EDITOR has solved a placement there, and the
+    /// last beat until the section has landed - so a gesture that missed its
+    /// face fails at that gesture rather than three shots later on a thin ship.
     fn place(self, label: &str, on: Vec3, face: Vec3) -> Self;
 
     /// Arm `prototype` through the parts gallery - the editor's only parts
@@ -165,13 +258,20 @@ pub trait Gestures {
 
 impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     fn click(self, label: &str, name: &str) -> Self {
-        self.step(format!("{label}: press"))
-            .on_enter(click_named(name.to_string()))
-            .until(frames(GESTURE_FRAMES))
+        let target = name.to_string();
+        self.step(format!("{label}: the widget is up"))
+            .until(ui_node_present(name.to_string()))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: press"))
+            .on_enter(click_named(target))
+            .until(pointer_pressed())
+            .deadline(STEP_DEADLINE_SECS)
             .add()
             .step(format!("{label}: release"))
             .on_enter(release_mouse(MouseButton::Left))
-            .until(frames(GESTURE_FRAMES))
+            .until(pointer_released())
+            .deadline(STEP_DEADLINE_SECS)
             .add()
     }
 
@@ -180,68 +280,90 @@ impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
             .on_enter(move |world: &mut World| {
                 let at = aim_at_face(world, on, face);
                 move_cursor(at)(world);
+                let count = count_sections(world);
+                world.insert_resource(BuildTally(count));
             })
-            .until(frames(GESTURE_FRAMES))
+            .until(editor_placement_solved())
+            .deadline(STEP_DEADLINE_SECS)
             .add()
             .step(format!("{label}: press"))
             .on_enter(press_mouse(MouseButton::Left))
-            .until(frames(GESTURE_FRAMES))
+            .until(pointer_pressed())
+            .deadline(STEP_DEADLINE_SECS)
             .add()
             .step(format!("{label}: release"))
             .on_enter(release_mouse(MouseButton::Left))
-            .until(frames(GESTURE_FRAMES))
+            .until(pointer_released())
+            .deadline(STEP_DEADLINE_SECS)
             .add()
             // Per-gesture, not just the total at the end: a short final count
             // says the build missed, this says WHICH gesture missed.
+            .step(format!("{label}: it built"))
+            .until(the_section_landed())
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
             .step(format!("{label}: count"))
             .on_enter(|world: &mut World| {
                 let sections = count_sections(world);
                 info!("editor build: {sections} sections");
             })
-            .until(frames(1))
             .add()
     }
 
     fn arm(self, label: &str, prototype: &str) -> Self {
         let filter = prototype.to_string();
-        let mut script = self
-            .step(format!("{label}: release the scripted build camera"))
+        let narrowed = prototype.to_string();
+        let armed = prototype.to_string();
+        self.step(format!("{label}: release the scripted build camera"))
             .on_enter(release_editor_camera_pose)
-            .until(frames(1))
             .add()
             .click(
                 &format!("{label}: open the gallery"),
                 "Parts Gallery Category",
             )
+            .step(format!("{label}: the gallery parked the camera"))
+            .until(and(editor_gallery_open(), the_gallery_camera_is_parked()))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
             .step(format!("{label}: verify the gallery camera"))
             .on_enter(assert_gallery_camera_is_parked)
-            .until(frames(1))
             .add()
             // The filter takes the keyboard only once it has the caret.
             .step(format!("{label}: put the caret in the filter"))
             .on_enter(press_key(KeyCode::Slash))
-            .until(frames(GESTURE_FRAMES))
+            .until(editor_filter_focused())
+            .deadline(STEP_DEADLINE_SECS)
             .add()
             .step(format!("{label}: release /"))
             .on_enter(release_key(KeyCode::Slash))
-            .until(frames(GESTURE_FRAMES))
             .add()
+            // Typed, then WAITED on: the gallery's selection resolving to this
+            // id through the live filter is the honest end of "type enough to
+            // leave one tile".
             .step(format!("{label}: filter to `{prototype}`"))
             .on_enter(move |world: &mut World| type_text(filter.clone())(world))
-            .until(frames(GESTURE_FRAMES))
-            .add();
-        for beat in ["focus", "place"] {
-            script = script
-                .step(format!("{label}: Enter to {beat}"))
-                .on_enter(press_key(KeyCode::Enter))
-                .until(frames(GESTURE_FRAMES))
-                .add()
-                .step(format!("{label}: release Enter"))
-                .on_enter(release_key(KeyCode::Enter))
-                .until(frames(GESTURE_FRAMES))
-                .add();
-        }
-        script
+            .until(editor_gallery_selected(narrowed))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: Enter to focus"))
+            .on_enter(press_key(KeyCode::Enter))
+            .until(ui_node_present("Gallery Focus Card"))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: release Enter"))
+            .on_enter(release_key(KeyCode::Enter))
+            .add()
+            .step(format!("{label}: Enter to place"))
+            .on_enter(press_key(KeyCode::Enter))
+            .until(and(
+                editor_gallery_closed(),
+                editor_tool_is(EditorTool::Place(armed)),
+            ))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: release Enter"))
+            .on_enter(release_key(KeyCode::Enter))
+            .add()
             .step(format!("{label}: the gallery closed"))
             .on_enter(|world: &mut World| {
                 assert!(
@@ -251,7 +373,10 @@ impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
                 );
                 pose_editor_camera(world);
             })
-            .until(frames(SETTLE_FRAMES))
+            // The camera has to REACH the build pose before the next beat aims
+            // through it; the enforcer applies the pin a system later.
+            .until(the_build_camera_is_posed())
+            .deadline(STEP_DEADLINE_SECS)
             .add()
     }
 }

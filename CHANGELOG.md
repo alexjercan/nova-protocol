@@ -15,6 +15,14 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Internals & Tooling
+
+- The editor publishes its build state - armed tool, solved or refused
+  placement, parts gallery - as read-only data, and the driven editor ranges
+  wait on it instead of counting frames.
+- Autopilot scripts can wait on a UI node laying out, on the picking pointer
+  registering a press or a release, and on either of two conditions (`or`).
+
 ## [0.11.0] - 2026-08-23
 
 ### Combat & Weapons

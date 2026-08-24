@@ -74,11 +74,39 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// Frames a beat waits for a gesture to land: the picking backend needs a frame
-/// to raycast the new pointer position and the menu's observers a frame to
-/// react. Generous rather than tight - this runs on a software-rendered CI GPU.
+/// In-step seconds a gesture beat gets before the run gives up on it.
+///
+/// Every wait in this walk is a CONDITION - the button laid out, the picking
+/// pointer registering the press, the menu torn down - so this is a backstop
+/// rather than a settle. A frame count could only say that some frames had gone
+/// by, which on a software-rendered CI GPU is a different amount of work every
+/// time.
 #[cfg(feature = "debug")]
-const SETTLE: u32 = 10;
+const BEAT_DEADLINE_SECS: f32 = 20.0;
+
+/// The button the walk clicks, and the node whose absence proves the teardown.
+#[cfg(feature = "debug")]
+const NEW_GAME_BUTTON: &str = "New Game Button";
+
+/// How many nodes carry [`NEW_GAME_BUTTON`], visible or not.
+///
+/// Counted by `Name` rather than by layout: a menu that merely HID itself is
+/// not a menu that was torn down, and this range's claim is the second one.
+#[cfg(feature = "debug")]
+fn menu_buttons(world: &World) -> usize {
+    world.try_query::<&Name>().map_or(0, |mut names| {
+        names
+            .iter(world)
+            .filter(|name| name.as_str() == NEW_GAME_BUTTON)
+            .count()
+    })
+}
+
+/// Advance once no [`NEW_GAME_BUTTON`] is left in the world.
+#[cfg(feature = "debug")]
+fn the_menu_tore_down() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| menu_buttons(world) == 0)
+}
 
 /// Seconds the run gives the New Game click to reach gameplay state. Sized to
 /// outlast `shakedown_run`'s load on a software-rendered CI GPU, and kept UNDER
@@ -101,12 +129,14 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
             .until(state_is(GameStates::MainMenu))
             .add()
             .step("menu_boot: let the menu lay out")
-            .until(frames(SETTLE))
+            .until(ui_node_present(NEW_GAME_BUTTON))
+            .deadline(BEAT_DEADLINE_SECS)
             .add(),
     )
     .step("menu_boot: click New Game")
-    .on_enter(click_named("New Game Button"))
-    .until(frames(SETTLE))
+    .on_enter(click_named(NEW_GAME_BUTTON))
+    .until(pointer_pressed())
+    .deadline(BEAT_DEADLINE_SECS)
     .add()
     // The menu buttons act on `Activate`, which fires on RELEASE over the
     // same widget - so a click is two beats.
@@ -119,7 +149,8 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
     .deadline(BOOT_SECS)
     .add()
     .step("menu_boot: let the teardown finish")
-    .until(frames(SETTLE))
+    .until(the_menu_tore_down())
+    .deadline(BEAT_DEADLINE_SECS)
     .add()
     .step("menu_boot: the boot flow completed")
     .on_enter(|world: &mut World| {
@@ -135,11 +166,7 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
             "outcome: new game reaches gameplay",
             serde_json::json!({}),
         );
-        let menu_buttons = world
-            .query::<&Name>()
-            .iter(world)
-            .filter(|name| name.as_str() == "New Game Button")
-            .count();
+        let menu_buttons = menu_buttons(world);
         assert_eq!(
             menu_buttons, 0,
             "the main menu must be torn down once gameplay is up; \
@@ -148,6 +175,5 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         nova_probe::probe_marker(world, "outcome: the menu tore down", serde_json::json!({}));
         info!("menu_boot: the menu tore down and gameplay state is up");
     })
-    .until(frames(1))
     .add()
 }

@@ -156,12 +156,57 @@ Elapsed time is one predicate among many, so `hold(state, secs)` - enter a
 state, wait N seconds - is sugar for
 `step("hold:<state>").enter(state).until(elapsed(secs))` rather than a second
 mechanism. The vocabulary is in `nova_autopilot::predicate` (`elapsed`,
-`frames`, `state_is`, `resource_where`, `any_entity`, `and`, `not`), the
+`frames`, `state_is`, `resource_where`, `any_entity`, `ui_node_present`,
+`pointer_pressed`, `pointer_released`, `and`, `or`, `not`), the
 gestures in `nova_autopilot::input` (`press_key`, `release_key`, `type_text`,
 `press_mouse`, `release_mouse`, `move_cursor`, `click_at`), and the Nova-typed
 predicates in `nova_debug::harness` (`scenario_variable_is`, `section_gone`,
-`player_ship_present`). Anything the vocabulary cannot express is a plain
-closure: `Arc::new(|world: &World| ...)`.
+`player_ship_present`, and the `editor_*` set below). Anything the vocabulary
+cannot express is a plain closure: `Arc::new(|world: &World| ...)`.
+
+### A UI gesture is three waits, not three sleeps
+
+A click on a widget owes the app three acks, and each one is a predicate:
+
+| Beat | Waits on | Why a frame count is not that |
+| --- | --- | --- |
+| the widget is up | `ui_node_present(name)` | `click_named` WARNS and continues on an unresolved name, so a press at a panel that has not laid out is a beat silently lost |
+| press | `pointer_pressed()` | the picking backend turns the button event into pointer state a `PreUpdate` later, and a release before that is a click the widget never saw |
+| release | `pointer_released()` | `Activate` fires on the release edge, so this is the beat the button's effect belongs after |
+
+Two things those predicates are careful about, because both were wrong once.
+`ui_node_present` waits for a BOX, not for an entity: a node that has not been
+through `ui_layout_system` carries `ComputedNode::default()` - zero size at the
+origin, the same value a `Display::None` node keeps - and advancing on that
+hands `click_named` a degenerate rect at the window corner, which is the race
+the settles existed for. And the pointer acks answer for `PointerId::Mouse`
+alone, because that is the pointer the gestures drive; an app may carry others
+(Nova's terminal parks a forwarded one), and a second pointer sitting in the
+opposite state would otherwise ack for the one the beat actually moved.
+
+What the button DID is the caller's next beat, and it is a condition too. The
+editor publishes its own decisions as data for exactly this: `nova_editor`'s
+public, read-only `EditorProbe` carries the armed tool, what a click would build
+right now (solved, refused with the reason, or nothing), whether the parts
+gallery is up, whether its filter holds the caret, and which prototype the
+selection resolves to. `nova_debug::harness` wraps those as `editor_tool_is`,
+`editor_part_armed`, `editor_placement_solved`, `editor_placement_refused`,
+`editor_placement_clear`, `editor_gallery_open`, `editor_gallery_closed`,
+`editor_filter_focused` and `editor_gallery_selected`.
+
+So a placing gesture reads: aim, hold until the editor SOLVED a placement there;
+press, hold until the pointer registered it; release; hold until the section
+landed. `system_ship_editor` and the `screenshot_editor` walk are written that
+way end to end, and neither counts a frame outside a pre-shot settle.
+
+**Where the only observable IS the outcome, the beat may share the assert's
+quantity** - the exception to the strictly-weaker rule below. "The socket
+filled" has no stimulus-side twin: the count is both what the beat waits for and
+what the verdict states. The trade is deliberate, and it is the better half: an
+unmet `until` aborts naming the beat that missed, where a snapshot assertion a
+fixed number of frames later reported a wrong number and left which gesture
+produced it to be guessed. Keep the assert anyway - it is where the claim is
+written down.
 
 Typing is its own gesture because a key has two halves. `press_key` writes the
 HELD state (`ButtonInput<KeyCode>`), which is what flight code polls;

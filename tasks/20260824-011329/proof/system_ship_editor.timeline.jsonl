@@ -1,0 +1,29 @@
+{"data":{"git_sha":"2f839ba1","host":"nixos"},"frame":0,"kind":"run_start","name":"run","scenario_elapsed":null,"t_real":0.0}
+{"data":{"entered":"Unpaused","exited":null},"frame":0,"kind":"state","name":"PauseStates","scenario_elapsed":null,"t_real":0.0}
+{"data":{"entered":"Loading","exited":null},"frame":0,"kind":"state","name":"GameStates","scenario_elapsed":null,"t_real":0.0}
+{"data":null,"frame":33,"kind":"scenario_event","name":"onstart","scenario_elapsed":0.0,"t_real":1.358152049}
+{"data":{"entered":"MainMenu","exited":"Loading"},"frame":33,"kind":"state","name":"GameStates","scenario_elapsed":0.0,"t_real":1.358152049}
+{"data":{"entered":"Playing","exited":"MainMenu"},"frame":40,"kind":"state","name":"GameStates","scenario_elapsed":null,"t_real":1.906307695}
+{"data":{},"frame":51,"kind":"marker","name":"outcome: new ship carries its controller","scenario_elapsed":null,"t_real":2.323159769}
+{"data":{},"frame":100,"kind":"marker","name":"outcome: two clicks place two sections","scenario_elapsed":null,"t_real":4.445969489}
+{"data":{},"frame":118,"kind":"marker","name":"outcome: select mode places nothing","scenario_elapsed":null,"t_real":5.289588802}
+{"data":{},"frame":136,"kind":"marker","name":"outcome: delete removes the section clicked","scenario_elapsed":null,"t_real":6.036798131}
+{"data":{},"frame":146,"kind":"marker","name":"outcome: the gallery lists the catalog","scenario_elapsed":null,"t_real":6.419853199}
+{"data":{},"frame":156,"kind":"marker","name":"outcome: the filter narrows the gallery","scenario_elapsed":null,"t_real":6.875945076}
+{"data":{},"frame":163,"kind":"marker","name":"outcome: the focus card names the part","scenario_elapsed":null,"t_real":7.134105393}
+{"data":{},"frame":186,"kind":"marker","name":"outcome: the gallery pick builds","scenario_elapsed":null,"t_real":8.123493245}
+{"data":{},"frame":200,"kind":"marker","name":"outcome: the build derives one connected graph","scenario_elapsed":null,"t_real":8.823660031}
+{"data":{},"frame":225,"kind":"marker","name":"outcome: hover and Q arm the part","scenario_elapsed":null,"t_real":10.023757308}
+{"data":{},"frame":240,"kind":"marker","name":"outcome: the skin clads the build","scenario_elapsed":null,"t_real":10.758231529}
+{"data":{},"frame":245,"kind":"marker","name":"outcome: the skin reflows around the held part","scenario_elapsed":null,"t_real":11.052030595}
+{"data":{},"frame":284,"kind":"marker","name":"outcome: the shared mount fits a hull face","scenario_elapsed":null,"t_real":13.143886907}
+{"data":{},"frame":296,"kind":"marker","name":"outcome: an occupied socket refuses","scenario_elapsed":null,"t_real":13.860471227}
+{"data":{},"frame":384,"kind":"marker","name":"outcome: a blocked drive lane refuses","scenario_elapsed":null,"t_real":18.93761847}
+{"data":null,"frame":391,"kind":"scenario_event","name":"onstart","scenario_elapsed":0.0,"t_real":19.393538837}
+{"data":{"new":false,"old":null},"frame":392,"kind":"variable","name":"picket_lance_awake","scenario_elapsed":0.0,"t_real":19.393538837}
+{"data":{"new":false,"old":null},"frame":392,"kind":"variable","name":"picket_sentinel_awake","scenario_elapsed":0.0,"t_real":19.393538837}
+{"data":{"new":false,"old":null},"frame":392,"kind":"variable","name":"picket_warden_awake","scenario_elapsed":0.0,"t_real":19.393538837}
+{"data":{},"frame":397,"kind":"marker","name":"outcome: the flown ship re-derives the graph","scenario_elapsed":0.0,"t_real":19.887503459}
+{"data":{},"frame":397,"kind":"marker","name":"outcome: the flown ship wears the skin","scenario_elapsed":0.0,"t_real":19.887503459}
+{"data":{"checks":432,"health_subjects":83,"velocity_subjects":50,"violations":0},"frame":432,"kind":"invariant_summary","name":"invariants","scenario_elapsed":0.0,"t_real":24.078145655}
+{"data":{"entries":28,"exit":"Success"},"frame":432,"kind":"run_end","name":"run","scenario_elapsed":0.0,"t_real":24.078145655}

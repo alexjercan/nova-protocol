@@ -1,8 +1,8 @@
 # Wait on the editor's state, not on frame counts
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 95
-- TAGS: v0.12.0,editor,probe,bug
+- TAGS: v0.12.0, editor, probe, bug
 
 Phase 0 of the v0.12.0 editor release (`20260812-131912`). It is
 simultaneously the CI fix, and the first proof of the node model's premise:
@@ -104,3 +104,10 @@ node's rect. All of these become direct reads.
 `--render sw` reproduces the CI failure locally in about 70 seconds, which is
 the fast loop for this. It is the same lavapipe path CI runs on, and it is how
 the torpedo fuze bug next door was found and confirmed.
+
+`NOTES.md` carries what was built and the evidence. Read its first section
+first: the "Why" above is STALE. The `raise a tower` failure was the
+archetype-ordered face pick, already fixed at the source in `placed_sections`,
+and the unchanged range passed `--render sw` here before a line was touched.
+What was left - and what was done - is the structural half this task also asks
+for.

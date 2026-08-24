@@ -89,15 +89,25 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// Frames a beat waits for a gesture to land: the picking backend needs a
-/// frame to raycast the new pointer position and the editor's observers a
-/// frame to react.
+/// In-step seconds a gesture beat gets before the run gives up on it.
+///
+/// Every wait in the walk below is a CONDITION - the button laid out, the
+/// picking pointer registering the press, the preview ship spawned - so this is
+/// a backstop rather than a settle. A frame count could only say that some
+/// frames had gone by, which buys nothing when the point of the beat is that
+/// the editor has REACTED.
 #[cfg(feature = "debug")]
-const SETTLE: u32 = 10;
+const BEAT_DEADLINE_SECS: f32 = 20.0;
 
-/// Frames the run waits after creating a ship, for the preview to spawn.
+/// Advance once the editor's preview ship exists.
 #[cfg(feature = "debug")]
-const SHIP_SETTLE: u32 = 40;
+fn the_ship_is_up() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<(), With<SectionMarker>>()
+            .is_some_and(|mut sections| sections.iter(world).next().is_some())
+    })
+}
 
 /// How long the run sits still. Long enough that a curve which is going to
 /// slide has slid: the collapse this range pins was complete within six
@@ -118,11 +128,13 @@ fn sandbox_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .deadline(90.0)
         .add()
         .step("soak: let the menu lay out")
-        .until(frames(SETTLE))
+        .until(ui_node_present("Sandbox Button"))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("soak: click Sandbox")
         .on_enter(click_named("Sandbox Button"))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         // The menu buttons act on `Activate`, which fires on RELEASE over the
         // same widget - so a click is two beats.
@@ -132,19 +144,26 @@ fn sandbox_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .deadline(90.0)
         .add()
         .step("soak: let the editor lay out")
-        .until(frames(SETTLE))
+        .until(ui_node_present("Create New Spaceship Button V2"))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("soak: click New Ship")
         .on_enter(click_named("Create New Spaceship Button V2"))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // The preview SHIP is the ack of the click, not a count of frames: the
+        // Play beat below hands whatever is built to the scenario, so a run that
+        // pressed Play on an empty editor would soak an empty range.
         .step("soak: release New Ship")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SHIP_SETTLE))
+        .until(the_ship_is_up())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("soak: press Play")
         .on_enter(click_named("Play Button"))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("soak: release Play")
         .on_enter(release_mouse(MouseButton::Left))
@@ -157,7 +176,6 @@ fn sandbox_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("soak: read the settled scene")
         .on_enter(read_the_settled_scene)
-        .until(frames(1))
         .add()
 }
 
@@ -176,7 +194,6 @@ fn scenario_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .add()
         .step("soak: read the settled scene")
         .on_enter(read_the_settled_scene)
-        .until(frames(1))
         .add()
 }
 

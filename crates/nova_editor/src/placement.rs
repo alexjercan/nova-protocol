@@ -477,6 +477,25 @@ pub(crate) fn pick_section_under_pointer(
     }
 }
 
+/// Put last frame's answer away before this frame's has a chance to be solved.
+///
+/// UNGATED, unlike [`update_placement_preview`], and that is the whole point.
+/// The solver is gated on the gallery being CLOSED and ordered before the
+/// gallery's own keyboard, so the frame a keystroke closes the overlay carries
+/// no solve at all - while the pointer, the camera and the armed part have all
+/// moved since the last one. Without this, that frame's answer is the build
+/// view's from before the gallery went up, and anything reading the preview
+/// (the public [`EditorProbe`](crate::EditorProbe) most of all) is told a click
+/// would build something it would not.
+///
+/// So the invariant is: the answer is REBUILT every frame, and a frame with no
+/// solve has no answer.
+pub(crate) fn clear_placement_preview(mut preview: ResMut<PlacementPreview>) {
+    if preview.placement.is_some() {
+        preview.placement = None;
+    }
+}
+
 /// Recompute what a click would build, from the section under the pointer.
 ///
 /// One solve per frame feeds both the ghost and the click, so the builder

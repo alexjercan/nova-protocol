@@ -57,7 +57,8 @@ pub mod prelude {
             ui_node_centre, ui_node_rect,
         },
         predicate::{
-            and, any_entity, elapsed, frames, loop_written, resource_where, shot_written, state_is,
+            and, any_entity, elapsed, frames, loop_written, or, pointer_pressed, pointer_released,
+            resource_where, shot_written, state_is, ui_node_present,
         },
     };
 
@@ -66,11 +67,14 @@ pub mod prelude {
     pub use super::{
         debugdump,
         harness::{
-            assert_scenario_loaded, capture_window, capturing, force_capture_resolution,
-            freeze_bodies, hide_dev_overlays, hide_hud, loop_end, loop_start, nova_autopilot,
-            nova_screenshot, player_ship_present, pose_camera, scenario_camera_present,
-            scenario_variable_is, script_reports_done, section_gone, shoot, CaptureLog,
-            LoopCapturePlugin, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES, SHOT_DEADLINE_SECS,
+            assert_scenario_loaded, capture_window, capturing, editor_filter_focused,
+            editor_gallery_closed, editor_gallery_open, editor_gallery_selected, editor_part_armed,
+            editor_placement_clear, editor_placement_refused, editor_placement_solved,
+            editor_tool_is, force_capture_resolution, freeze_bodies, hide_dev_overlays, hide_hud,
+            loop_end, loop_start, nova_autopilot, nova_screenshot, player_ship_present,
+            pose_camera, scenario_camera_present, scenario_variable_is, script_reports_done,
+            section_gone, shoot, CaptureLog, LoopCapturePlugin, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES,
+            SHOT_DEADLINE_SECS,
         },
         DebugPlugin,
     };

@@ -38,7 +38,10 @@ use nova_protocol::prelude::*;
 #[path = "shared/ui_walk.rs"]
 mod ui_walk;
 #[cfg(feature = "debug")]
-use ui_walk::{count_sections, pose_editor_camera, Gestures, STEP_DEADLINE_SECS};
+use ui_walk::{
+    count_sections, pose_editor_camera, the_build_camera_is_posed, the_ship_is_up, the_skin_is_on,
+    Gestures, STEP_DEADLINE_SECS,
+};
 
 #[derive(Parser)]
 #[command(name = "screenshot_editor")]
@@ -111,22 +114,26 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(state_is(GameStates::MainMenu))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("settle the menu and its ambience backdrop")
-        .until(frames(SETTLE_FRAMES))
-        .add()
-        // The editor: reached the way a player reaches it.
+        // The editor: reached the way a player reaches it. `click` waits for the
+        // button to lay out, so the menu needs no settle of its own.
         .click("leave for the editor", "Sandbox Button")
         .step("reach the editor")
-        .until(and(state_is(GameStates::Playing), frames(SETTLE_FRAMES)))
+        .until(state_is(GameStates::Playing))
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("pose the editor camera off the axis")
         .on_enter(pose_editor_camera)
-        .until(frames(SETTLE_FRAMES))
+        .until(the_build_camera_is_posed())
+        .deadline(STEP_DEADLINE_SECS)
         .add()
         .click("create the ship", "Create New Spaceship Button V2")
-        .step("settle the new ship and its colliders")
-        .until(frames(SETTLE_FRAMES))
+        // The preview being there is the wait; its COLLIDERS are covered by the
+        // first `place` beat, which holds until the editor has solved a
+        // placement at the face it aimed at - and it cannot solve one before
+        // avian has prepared the collider that aim's ray has to hit.
+        .step("the new ship is up")
+        .until(the_ship_is_up())
+        .deadline(STEP_DEADLINE_SECS)
         .add()
         // Build it: arm a part through the gallery, then click the ship itself
         // through the real picking pipeline. A placed section mates the socket
@@ -142,14 +149,14 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         script = script
             .step("open the editor build loop")
             .on_enter(|world| loop_start(world, EDITOR_LOOP))
-            .until(frames(1))
             .add();
     }
 
     script = script
         .click("derive the ship skin", "Ship Skin Toggle")
         .step("let the skin close around the structure")
-        .until(frames(SETTLE_FRAMES))
+        .until(the_skin_is_on())
+        .deadline(STEP_DEADLINE_SECS)
         .add()
         .arm("arm the turret", "pdc_kinetic_turret_section")
         .place("turret on the spine", Vec3::new(1.0, 0.0, 0.0), Vec3::Y)
@@ -166,18 +173,29 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor build: {sections} sections on the preview ship");
         })
-        .until(frames(1))
         .add()
         // Put the part down before the shot: a builder holding one sees every
         // free socket drawn on the ship, which is the right answer while
         // building and pure clutter in a figure of the finished thing.
         .click("put the part down", "Select Section Button")
+        // The rail chip actually disarming is its own claim. `editor_placement_clear()`
+        // below is true either way - it holds when nothing is armed OR when
+        // nothing is under the pointer - so a missed Select would sail through
+        // it the moment the pointer reached empty space, with the part still in
+        // hand and its link-point clutter still in the figure (review a4a6 R4).
+        .step("the part is out of the builder's hand")
+        .until(editor_tool_is(EditorTool::Select))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
         // Park the pointer clear of the ship: hovering a section raises the
         // placement GHOST, and a translucent extra section is exactly the thing
-        // a reader would mistake for part of the built ship.
+        // a reader would mistake for part of the built ship. The editor SAYS
+        // when the ghost is away - with nothing under the pointer there is no
+        // placement to solve.
         .step("park the pointer clear of the ship")
         .on_enter(|world: &mut World| move_cursor(Vec2::new(1720.0, 960.0))(world))
-        .until(frames(SETTLE_FRAMES))
+        .until(editor_placement_clear())
+        .deadline(STEP_DEADLINE_SECS)
         .add();
 
     if capturing() {
@@ -196,7 +214,6 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         script = script
             .step("open the editor skin loop")
             .on_enter(|world| loop_start(world, EDITOR_SKIN_LOOP))
-            .until(frames(1))
             .add()
             .click("remove the derived skin", "Ship Skin Toggle")
             .step("hold the bare structure")
@@ -253,7 +270,6 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .step("hide the collider diagnostic")
         .on_enter(|world| set_colliders(world, false))
-        .until(frames(1))
         .add()
         .click("launch the built ship", "Play Button")
         .step("reach the sandbox range")

@@ -4613,6 +4613,7 @@ dependencies = [
  "dirs",
  "itertools 0.15.0",
  "nova_autopilot",
+ "nova_editor",
  "nova_events",
  "nova_gameplay",
  "nova_hud",

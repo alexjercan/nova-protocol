@@ -240,17 +240,33 @@ pub fn click_at(
 /// toggled-by-[`Visibility`] overlay could not fail (a settings-panel
 /// screenshot shipped as the bare main menu at exit 0).
 ///
+/// "Through a layout pass" is checked, not assumed: a node that has not been
+/// laid out carries [`ComputedNode::default()`] - zero size at the origin - and
+/// so does a `Display::None` one. Having the components is not having a BOX, and
+/// a zero-size rect at the window corner is not somewhere a pointer can be put.
+/// Both are rejected here, so a beat that waits on this waits for a target that
+/// exists rather than for an entity that has been spawned (review a4a6 R2).
+///
 /// A name two laid-out nodes share resolves to whichever the query yields
 /// first, which is arbitrary - so it WARNS. A driven run silently clicking a
 /// ghost is the exact failure naming targets exists to make visible (review
 /// R1.5).
-pub fn ui_node_rect(world: &mut World, name: &str) -> Option<Rect> {
-    let mut query = world.query::<(
+///
+/// `&World`, so the same resolve backs both the gestures (which hold `&mut
+/// World`, and reborrow into this) and
+/// [`ui_node_present`](crate::predicate::ui_node_present), the predicate a beat
+/// waits on before pointing at a widget.
+pub fn ui_node_rect(world: &World, name: &str) -> Option<Rect> {
+    let Some(mut query) = world.try_query::<(
         &Name,
         &UiGlobalTransform,
         &ComputedNode,
         &InheritedVisibility,
-    )>();
+    )>() else {
+        // A component this reads is not registered, which is the same answer as
+        // "no such node": nothing has spawned one yet.
+        return None;
+    };
     let rects: Vec<Rect> = query
         .iter(world)
         .filter(|(node_name, _, _, visibility)| node_name.as_str() == name && visibility.get())
@@ -258,6 +274,7 @@ pub fn ui_node_rect(world: &mut World, name: &str) -> Option<Rect> {
             let scale = computed.inverse_scale_factor();
             Rect::from_center_size(transform.translation * scale, computed.size() * scale)
         })
+        .filter(is_a_target)
         .collect();
     if rects.len() > 1 {
         warn!(
@@ -268,9 +285,20 @@ pub fn ui_node_rect(world: &mut World, name: &str) -> Option<Rect> {
     rects.first().copied()
 }
 
+/// Whether a resolved rect is somewhere a pointer can actually be put: a finite
+/// box with area.
+///
+/// The pre-layout and `Display::None` cases both arrive here as a zero-size rect
+/// (`ComputedNode::default()` is zero size, and its inverse scale factor is zero
+/// too, which collapses the centre as well). A degenerate box is not a target,
+/// and pointing at one is how a gesture is silently lost.
+fn is_a_target(rect: &Rect) -> bool {
+    rect.min.is_finite() && rect.max.is_finite() && rect.width() > 0.0 && rect.height() > 0.0
+}
+
 /// The logical-pixel centre of the laid-out UI node called `name`, if there is
 /// one - [`ui_node_rect`]'s centre, and what the pointer beats aim at.
-pub fn ui_node_centre(world: &mut World, name: &str) -> Option<Vec2> {
+pub fn ui_node_centre(world: &World, name: &str) -> Option<Vec2> {
     ui_node_rect(world, name).map(|rect| rect.center())
 }
 
@@ -325,7 +353,7 @@ pub fn hover_named(name: impl Into<String>) -> impl Fn(&mut World) + Send + Sync
 
 /// The shared warn-and-continue resolve behind [`click_named`] and
 /// [`hover_named`].
-fn resolve(world: &mut World, name: &str, gesture: &str) -> Option<Vec2> {
+fn resolve(world: &World, name: &str, gesture: &str) -> Option<Vec2> {
     let centre = ui_node_centre(world, name);
     if centre.is_none() {
         warn!("autopilot: {gesture} on `{name}` found no laid-out UI node with that Name");

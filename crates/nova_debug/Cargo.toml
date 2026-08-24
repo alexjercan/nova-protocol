@@ -13,6 +13,10 @@ bevy-inspector-egui = { version = "0.37" }
 itertools = { version = "0.15.0" }
 bevy_mod_debugdump = { version = "0.16" }
 nova_autopilot = { path = "../nova_autopilot" }
+# For the editor-state predicates in `harness`: the driven editor ranges wait on
+# `EditorProbe` rather than on frame counts, and a Nova-typed predicate cannot
+# live in `nova_autopilot` (bevy alone).
+nova_editor = { path = "../nova_editor" }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_ship = { path = "../nova_ship" }
