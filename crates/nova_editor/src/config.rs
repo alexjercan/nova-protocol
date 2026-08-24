@@ -1,36 +1,11 @@
-//! The editor's build-state resources and preview markers: what the player is
-//! assembling (`PlayerSpaceshipConfig`), which placement tool is active
-//! (`SectionChoice`), and the non-physics preview entities.
+//! The editor's placement state and screen furniture: which tool is active
+//! (`SectionChoice`), what a click would build (`PlacementPreview`), and the
+//! markers the rail and the ghost are found by.
+//!
+//! The SHIP is not here. What the player is assembling lives in
+//! [`crate::node`] as a tree of node entities, one config component per node.
 
-use bevy::{platform::collections::HashMap, prelude::*};
-use bevy_enhanced_input::prelude::Binding;
-use nova_scenario::prelude::*;
-
-/// The ship the player is building, in the exact serialized shape the scenario
-/// consumes on hand-off. `sections` is keyed by the live preview entity so a
-/// delete/rebind can find its config; `inputs` mirrors each bindable section's
-/// keybinds (what the scenario's `PlayerControllerConfig` reads).
-#[derive(Resource, Debug, Clone, Default, Reflect)]
-pub(crate) struct PlayerSpaceshipConfig {
-    pub(crate) sections: HashMap<Entity, SpaceshipSectionConfig>,
-    pub(crate) inputs: HashMap<Entity, Vec<Binding>>,
-    /// Whether the ship wears its derived cladding - shown live in the build
-    /// view (see `crate::skin`) and carried through to the flown ship, so what
-    /// the builder sees is what they fly.
-    ///
-    /// Part of the BUILD STATE rather than a view setting of its own: it is a
-    /// property of the ship, it has to survive a trip out to the scenario and
-    /// back, and one resource changing is one thing for the preview to watch.
-    pub(crate) skin: bool,
-    /// The style id the ship's cladding wears, or `None` for the first style
-    /// the content merge loaded.
-    ///
-    /// Part of the build state for the same reason `skin` is: it travels out to
-    /// the scenario with the ship. `None` falls back to the first AUTHORED
-    /// style rather than to a hard-coded id, so a mod that ships one look is
-    /// what the editor shows; the rail's Look row writes an explicit id.
-    pub(crate) style: Option<String>,
-}
+use bevy::prelude::*;
 
 /// The active placement tool, driven by the rail tools and the component cards
 /// through `button_on_setting::<SectionChoice>`.
@@ -44,14 +19,6 @@ pub(crate) enum SectionChoice {
     /// Delete the clicked section.
     Delete,
 }
-
-/// The root of the editor's preview ship. Deliberately distinct from the gameplay
-/// `SpaceshipRootMarker`: the preview is a static, pickable visual used only to build a
-/// `PlayerSpaceshipConfig`, so it must not trigger `insert_spaceship_sections` or any of the
-/// integrity/health systems that key on `SpaceshipRootMarker`. The real ship is built from
-/// the config when entering the scenario.
-#[derive(Component)]
-pub(crate) struct SpaceshipPreviewMarker;
 
 /// The ghost part that previews where a placed section will land.
 #[derive(Component)]
@@ -98,6 +65,11 @@ pub(crate) struct SectionGhost {
     pub(crate) prototype: String,
     /// Socket index the ghost mates with.
     pub(crate) source: usize,
+    /// The ship node it hangs on. Part of its identity because a solve is in
+    /// SHIP-LOCAL space: entering another ship with the same part still in hand
+    /// keeps the prototype and the socket, and a ghost kept across that switch
+    /// would draw the new ship's pose on the old ship.
+    pub(crate) ship: Entity,
 }
 
 /// The editor's placement status line: why the ghost is refused.

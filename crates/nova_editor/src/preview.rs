@@ -12,8 +12,7 @@
 //! being dead.
 
 use avian3d::prelude::Collider;
-use bevy::{ecs::system::EntityCommands, prelude::*};
-use bevy_enhanced_input::prelude::Binding;
+use bevy::ecs::system::EntityCommands;
 use nova_gameplay::markers::prelude::SectionMarker;
 use nova_ship::prelude::*;
 
@@ -33,16 +32,14 @@ pub(crate) enum PreviewRole {
 /// Turn `entity` into a preview of `section`: the shared preview bundle plus
 /// the kind-specific one that renders it.
 ///
-/// `binds` are the input bindings a BUILT section carries; a [`Display`]
-/// preview passes none and gets an empty binding component, which nothing
-/// reads outside the scenario hand-off.
-///
-/// [`Display`]: PreviewRole::Display
+/// No input bindings. A section's binds are DOCUMENT data
+/// ([`SectionNode::binds`](crate::node::SectionNode::binds)), and a preview is a
+/// picture of a section: a second copy of the binds out here would have to be
+/// kept in step across every despawn of the view that held it.
 pub(crate) fn insert_preview_section(
     entity: &mut EntityCommands,
     section: &SectionConfig,
     role: PreviewRole,
-    binds: Vec<Binding>,
 ) {
     entity.insert(preview_section(section.base.clone()));
     match &section.kind {
@@ -53,22 +50,13 @@ pub(crate) fn insert_preview_section(
             entity.insert(preview_controller_section(controller.clone()));
         }
         SectionKind::Thruster(thruster) => {
-            entity.insert((
-                preview_thruster_section(thruster.clone()),
-                SpaceshipThrusterInputBinding(binds),
-            ));
+            entity.insert(preview_thruster_section(thruster.clone()));
         }
         SectionKind::Turret(turret) => {
-            entity.insert((
-                preview_turret_section(turret.clone()),
-                SpaceshipTurretInputBinding(binds),
-            ));
+            entity.insert(preview_turret_section(turret.clone()));
         }
         SectionKind::Torpedo(torpedo) => {
-            entity.insert((
-                preview_torpedo_section(torpedo.clone()),
-                SpaceshipTorpedoInputBinding(binds),
-            ));
+            entity.insert(preview_torpedo_section(torpedo.clone()));
         }
     }
     if role == PreviewRole::Display {
@@ -80,7 +68,7 @@ pub(crate) fn insert_preview_section(
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::system::RunSystemOnce;
+    use bevy::{ecs::system::RunSystemOnce, prelude::*};
     use nova_gameplay::prelude::{
         ControllerSectionMarker, SectionClass, ThrusterSectionMarker, TorpedoSectionMarker,
         TurretSectionMarker,
@@ -100,7 +88,7 @@ mod tests {
         world
             .run_system_once(move |mut commands: Commands| {
                 let mut entity = commands.spawn_empty();
-                insert_preview_section(&mut entity, &section, PreviewRole::Section, vec![]);
+                insert_preview_section(&mut entity, &section, PreviewRole::Section);
                 entity.id()
             })
             .expect("the preview spawner runs")

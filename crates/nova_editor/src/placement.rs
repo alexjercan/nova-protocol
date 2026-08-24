@@ -1,19 +1,19 @@
-//! Building the preview ship: creating a fresh ship, rebuilding it from the
-//! surviving config on re-entry, and the pointer path that places, previews and
-//! deletes sections.
+//! Building a ship: adding one to the document, and the pointer path that
+//! places, previews and deletes its sections.
 //!
 //! A part is placed by MATING link points (see [`crate::snap`]), never by
 //! offsetting along a hit normal, so the editor can only build ships the
 //! runtime's own integrity graph accepts. Nothing here spawns live physics - it
-//! only edits `PlayerSpaceshipConfig` and the pickable preview entities.
+//! edits the node tree ([`crate::node`]) and the views hung off it.
+//!
+//! Everything here works on the ship in the EDIT CONTEXT and no other. A click
+//! on a ship you are not inside is an "enter", never a placement.
 
 use bevy::{
     input::mouse::MouseWheel, picking::pointer::PointerInteraction, prelude::*,
     ui_widgets::Activate,
 };
 use bevy_enhanced_input::prelude::Binding;
-use nova_gameplay::prelude::*;
-use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{ButtonValue, Selected},
@@ -22,10 +22,14 @@ use nova_ui::{
 
 use crate::{
     config::{
-        Placement, PlacementPose, PlacementPreview, PlacementStatus, PlayerSpaceshipConfig,
-        SectionChoice, SectionGhost, SectionPreviewMarker, SpaceshipPreviewMarker,
+        Placement, PlacementPose, PlacementPreview, PlacementStatus, SectionChoice, SectionGhost,
+        SectionPreviewMarker,
     },
     keybind::EditorRebind,
+    node::{
+        node_of_view, sections_of, spawn_section_node, spawn_ship_node, EditContext,
+        NextChildOrdinal, NodeView, SectionNode, SectionNodes, ShipDriver, ShipNode,
+    },
     preview::{insert_preview_section, PreviewRole},
     snap::{self, PlacedSection},
     ExampleStates,
@@ -126,89 +130,41 @@ fn default_binds_for(
     }
 }
 
-/// Spawn one preview section under the preview ship, through the shared
-/// [`insert_preview_section`] spawner - so click-placement, the on-enter
-/// rebuild and the gallery tiles cannot drift apart.
-fn spawn_preview_section(
-    parent: &mut ChildSpawnerCommands,
-    section: &SectionConfig,
-    transform: Transform,
-    binds: Vec<Binding>,
-) -> Entity {
-    let mut entity = parent.spawn(transform);
-    insert_preview_section(&mut entity, section, PreviewRole::Section, binds);
-    entity.id()
-}
-
-/// Record a freshly spawned preview section in the build state. The config id
-/// IS the preview entity: `sandbox_objects` keys the scenario's `input_mapping`
-/// by that same entity, so the two must not diverge.
-fn register_preview_section(
-    config: &mut PlayerSpaceshipConfig,
-    entity: Entity,
-    section: &SectionConfig,
-    transform: Transform,
-    binds: Vec<Binding>,
-) {
-    config.sections.insert(
-        entity,
-        SpaceshipSectionConfig {
-            id: entity.to_string(),
-            position: transform.translation,
-            rotation: transform.rotation,
-            source: SectionSource::Inline(section.clone()),
-            modifications: vec![],
-        },
-    );
-    if !binds.is_empty() {
-        config.inputs.insert(entity, binds);
-    }
-}
-
-/// Replace the preview ship with a fresh one seeded from a single catalog
-/// section, and reset the build state to match.
+/// Add a ship to the document, seeded with one catalog section, and go inside
+/// it.
 ///
-/// `skin` is carried over rather than reset: the cladding toggle is how the
-/// builder chose to LOOK at ships, and starting a new one is not a request to
-/// change that.
-fn reset_preview_to_seed(
+/// ADDITIVE, where this used to despawn whatever was on the stage and reset the
+/// build state: the document holds ships, so a second "New Ship" is one more
+/// subtree standing beside the first rather than a reset. The new ship becomes
+/// the edit context, so the next click builds on the ship the button just made.
+fn seed_new_ship(
     commands: &mut Commands,
-    q_spaceship: &Query<Entity, With<SpaceshipPreviewMarker>>,
+    ordinals: &mut Query<&mut NextChildOrdinal>,
+    context: &mut EditContext,
+    ships: usize,
     section: &SectionConfig,
-    name: &'static str,
-    skin: bool,
 ) {
-    for entity in q_spaceship {
-        commands.entity(entity).despawn();
+    // The first ship of a document is the one the player flies; anything built
+    // beside it is scenery until something says otherwise. A second Player ship
+    // would make "which one do I fly" ambiguous, and the answer belongs to the
+    // ship rather than to the order the buttons were pressed.
+    let driver = if ships == 0 {
+        ShipDriver::Player
+    } else {
+        ShipDriver::Ai
+    };
+    if spawn_ship_node(commands, ordinals, context, ships, driver, section).is_none() {
+        warn!("editor: no document to add a ship to - skipping");
     }
-
-    let root = commands
-        .spawn((
-            DespawnOnExit(ExampleStates::Editor),
-            SpaceshipPreviewMarker,
-            Name::new(name),
-            Transform::default(),
-            Visibility::Visible,
-        ))
-        .id();
-
-    let transform = Transform::default();
-    let mut seed = Entity::PLACEHOLDER;
-    commands.entity(root).with_children(|parent| {
-        seed = spawn_preview_section(parent, section, transform, vec![]);
-    });
-
-    let mut config = PlayerSpaceshipConfig { skin, ..default() };
-    register_preview_section(&mut config, seed, section, transform, vec![]);
-    commands.insert_resource(config);
 }
 
 pub(crate) fn create_new_spaceship(
     _activate: On<Activate>,
     mut commands: Commands,
-    q_spaceship: Query<Entity, With<SpaceshipPreviewMarker>>,
     sections: Res<GameSections>,
-    player_config: Res<PlayerSpaceshipConfig>,
+    mut ordinals: Query<&mut NextChildOrdinal>,
+    q_ships: Query<(), With<ShipNode>>,
+    mut context: ResMut<EditContext>,
 ) {
     let Some(section) = required_section(&sections, REINFORCED_HULL_SECTION_ID) else {
         return;
@@ -217,21 +173,22 @@ pub(crate) fn create_new_spaceship(
         warn!("editor: '{REINFORCED_HULL_SECTION_ID}' is not a hull section - skipping");
         return;
     }
-    reset_preview_to_seed(
+    seed_new_ship(
         &mut commands,
-        &q_spaceship,
+        &mut ordinals,
+        &mut context,
+        q_ships.iter().count(),
         section,
-        "Spaceship Preview",
-        player_config.skin,
     );
 }
 
 pub(crate) fn create_new_spaceship_with_controller(
     _activate: On<Activate>,
     mut commands: Commands,
-    q_spaceship: Query<Entity, With<SpaceshipPreviewMarker>>,
     sections: Res<GameSections>,
-    player_config: Res<PlayerSpaceshipConfig>,
+    mut ordinals: Query<&mut NextChildOrdinal>,
+    q_ships: Query<(), With<ShipNode>>,
+    mut context: ResMut<EditContext>,
 ) {
     let Some(section) = required_section(&sections, BASIC_CONTROLLER_SECTION_ID) else {
         return;
@@ -240,80 +197,13 @@ pub(crate) fn create_new_spaceship_with_controller(
         warn!("editor: '{BASIC_CONTROLLER_SECTION_ID}' is not a controller section - skipping");
         return;
     }
-    reset_preview_to_seed(
+    seed_new_ship(
         &mut commands,
-        &q_spaceship,
+        &mut ordinals,
+        &mut context,
+        q_ships.iter().count(),
         section,
-        "Spaceship Preview with Controller",
-        player_config.skin,
     );
-}
-
-/// Rebuild the preview ship from [`PlayerSpaceshipConfig`] on every entry into
-/// the editor. The preview entities are `DespawnOnExit(Editor)` but the config
-/// resource survives, so a second visit used to show nothing - every click
-/// dropped - while Play still spawned the ship the first visit built. The
-/// config is keyed by live preview entity, so both maps are re-keyed onto the
-/// entities spawned here.
-pub(crate) fn rebuild_editor_preview_on_enter(
-    mut commands: Commands,
-    mut player_config: ResMut<PlayerSpaceshipConfig>,
-) {
-    if player_config.sections.is_empty() {
-        return;
-    }
-
-    let previous: Vec<(SpaceshipSectionConfig, Vec<Binding>)> = player_config
-        .sections
-        .iter()
-        .map(|(entity, section)| {
-            (
-                section.clone(),
-                player_config
-                    .inputs
-                    .get(entity)
-                    .cloned()
-                    .unwrap_or_default(),
-            )
-        })
-        .collect();
-
-    let root = commands
-        .spawn((
-            DespawnOnExit(ExampleStates::Editor),
-            SpaceshipPreviewMarker,
-            Name::new("Spaceship Preview"),
-            Transform::default(),
-            Visibility::Visible,
-        ))
-        .id();
-
-    let mut rebuilt = PlayerSpaceshipConfig {
-        // Re-keyed onto the entities spawned here, but the same SHIP - the
-        // cladding toggle is part of it and must survive the round trip.
-        skin: player_config.skin,
-        style: player_config.style.clone(),
-        ..default()
-    };
-    commands.entity(root).with_children(|parent| {
-        for (section, binds) in &previous {
-            // A prototype source would need the catalog, which a mod overlay may
-            // have changed since; the editor only ever writes Inline.
-            let SectionSource::Inline(config) = &section.source else {
-                warn!(
-                    "editor: preview section '{}' is not inline - dropping it from the rebuild",
-                    section.id
-                );
-                continue;
-            };
-            let transform =
-                Transform::from_translation(section.position).with_rotation(section.rotation);
-            let entity = spawn_preview_section(parent, config, transform, binds.clone());
-            register_preview_section(&mut rebuilt, entity, config, transform, binds.clone());
-        }
-    });
-
-    *player_config = rebuilt;
 }
 
 /// Keep the rail and drawer selection in step with the armed tool, whoever set
@@ -449,29 +339,22 @@ pub(crate) fn wheel_placement_pose(
 pub(crate) fn pick_section_under_pointer(
     keys: Res<ButtonInput<KeyCode>>,
     q_pointer: Query<&PointerInteraction>,
-    player_config: Res<PlayerSpaceshipConfig>,
-    q_section: Query<(), With<SectionMarker>>,
+    q_views: Query<&ChildOf, With<NodeView>>,
+    q_nodes: Query<&SectionNode>,
     mut selection: ResMut<SectionChoice>,
 ) {
     if !keys.just_pressed(PLACEMENT_PICK_KEY) {
         return;
     }
-    let Some(entity) = q_pointer
+    let Some(section) = q_pointer
         .iter()
         .filter_map(|interaction| interaction.get_nearest_hit())
-        .map(|(entity, _)| *entity)
-        .find(|entity| q_section.get(*entity).is_ok())
+        .find_map(|(entity, _)| node_of_view(*entity, &q_views))
+        .and_then(|node| q_nodes.get(node).ok())
     else {
         return;
     };
-    let Some(SectionSource::Inline(config)) = player_config
-        .sections
-        .get(&entity)
-        .map(|section| &section.source)
-    else {
-        return;
-    };
-    let picked = SectionChoice::Section(config.base.id.clone());
+    let picked = SectionChoice::Section(section.prototype().to_string());
     if *selection != picked {
         *selection = picked;
     }
@@ -502,15 +385,14 @@ pub(crate) fn clear_placement_preview(mut preview: ResMut<PlacementPreview>) {
 /// cannot commit something other than what is on screen.
 pub(crate) fn update_placement_preview(
     q_pointer: Query<&PointerInteraction>,
-    spaceship: Option<Single<&Children, With<SpaceshipPreviewMarker>>>,
-    q_section: Query<(&Transform, &SectionLinkPoints, &SectionCollider), With<SectionMarker>>,
+    q_views: Query<&ChildOf, With<NodeView>>,
+    // The ship being edited, and only it: a section on a ship you are not
+    // inside is not something a click can build on.
+    context: Res<EditContext>,
+    nodes: SectionNodes,
     selection: Res<SectionChoice>,
     pose: Res<PlacementPose>,
     sections: Res<GameSections>,
-    // What each preview section IS, which its entity does not say: the solver
-    // needs the kind to know which way a part fires, and the build state is
-    // where the editor already keeps that.
-    player_config: Res<PlayerSpaceshipConfig>,
     mut preview: ResMut<PlacementPreview>,
 ) {
     preview.placement = None;
@@ -518,24 +400,27 @@ pub(crate) fn update_placement_preview(
     let SectionChoice::Section(id) = &*selection else {
         return;
     };
-    let (Some(spaceship), Some(part)) = (spaceship, sections.get_section(id)) else {
+    let (Some(edited), Some(part)) = (context.ship(), sections.get_section(id)) else {
         return;
     };
 
-    // The ship as the solver sees it, in the order its indices refer to.
+    // The ship as the solver sees it, in the order its indices refer to. Read
+    // out of the DOCUMENT rather than off the scene: the sockets, the footprint
+    // and the exit are all properties of the section's config, and the config is
+    // what the node carries.
     let mut entities = Vec::new();
     let mut ship = Vec::new();
-    for child in spaceship.iter() {
-        let Ok((transform, link_points, collider)) = q_section.get(child) else {
+    for (entity, _, section, transform) in sections_of(edited, &nodes) {
+        let Some(config) = section.resolve(Some(&sections)) else {
             continue;
         };
-        entities.push(child);
+        entities.push(entity);
         ship.push(PlacedSection {
             position: transform.translation,
             rotation: transform.rotation,
-            link_points: link_points.to_vec(),
-            collider: *collider,
-            exit: section_exit(&player_config, &sections, child),
+            link_points: config.base.link_points.clone(),
+            collider: config.base.collider.unwrap_or_default(),
+            exit: exit_normal(&config.kind),
         });
     }
 
@@ -543,7 +428,8 @@ pub(crate) fn update_placement_preview(
         .iter()
         .filter_map(|interaction| interaction.get_nearest_hit())
         .find_map(|(entity, hit)| {
-            let index = entities.iter().position(|section| section == entity)?;
+            let node = node_of_view(*entity, &q_views)?;
+            let index = entities.iter().position(|section| *section == node)?;
             Some((index, hit.position?))
         })
     else {
@@ -566,48 +452,49 @@ pub(crate) fn update_placement_preview(
     });
 }
 
-/// Which way the section on `entity` fires, launches or exhausts, in its own
-/// frame.
-///
-/// Read back out of the BUILD STATE rather than off the entity: a preview
-/// section carries its sockets and its collider as components, but nothing on it
-/// says what kind of part it is, and the config is where the editor already
-/// records that.
-fn section_exit(
-    config: &PlayerSpaceshipConfig,
-    sections: &GameSections,
-    entity: Entity,
-) -> Option<Vec3> {
-    match &config.sections.get(&entity)?.source {
-        SectionSource::Inline(section) => exit_normal(&section.kind),
-        SectionSource::Prototype(id) => exit_normal(&sections.get_section(id)?.kind),
-    }
-}
-
 /// Show the solved placement: the part's real mesh at the pose a click would
 /// build, a bounds box in the colour of its verdict, and the refusal in words.
+///
+/// The solve is in SHIP-LOCAL space, because that is the space the section node
+/// it would become is posed in. The ghost is therefore parented to the ship, and
+/// the bounds gizmo - which is drawn in world space - is put through the ship's
+/// pose on the way out.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the ghost reconciles a mesh, a gizmo and a status line from one solve"
+)]
 pub(crate) fn sync_placement_ghost(
     mut commands: Commands,
     preview: Res<PlacementPreview>,
     sections: Res<GameSections>,
+    context: Res<EditContext>,
     mut gizmos: Gizmos,
     ghosts: Query<(Entity, &SectionGhost, &mut Transform)>,
-    q_link_points: Query<&SectionLinkPoints>,
+    q_ships: Query<&GlobalTransform, With<ShipNode>>,
+    q_nodes: Query<&SectionNode>,
     status: StatusQuery,
 ) {
-    let wanted = preview.placement.as_ref().map(|placement| SectionGhost {
-        prototype: placement.prototype.clone(),
-        source: placement.solve.source,
-    });
+    let edited = context.ship();
+    let wanted = preview
+        .placement
+        .as_ref()
+        .zip(edited)
+        .map(|(placement, ship)| SectionGhost {
+            prototype: placement.prototype.clone(),
+            source: placement.solve.source,
+            ship,
+        });
 
-    // The mesh is rebuilt only when the PART or its socket choice changes; a
-    // pose change is a transform write, so dragging the pointer across a hull
-    // does not respawn a scene every frame.
+    // The mesh is rebuilt only when the PART, its socket choice or the ship it
+    // is being placed on changes; a pose change is a transform write, so
+    // dragging the pointer across a hull does not respawn a scene every frame.
     let mut kept = false;
     for (entity, ghost, mut transform) in ghosts {
         match (&wanted, preview.placement.as_ref()) {
             (Some(wanted), Some(placement))
-                if ghost.prototype == wanted.prototype && ghost.source == wanted.source =>
+                if ghost.prototype == wanted.prototype
+                    && ghost.source == wanted.source
+                    && ghost.ship == wanted.ship =>
             {
                 *transform = placement.solve.transform;
                 kept = true;
@@ -632,18 +519,15 @@ pub(crate) fn sync_placement_ghost(
                 format!(
                     "{} <- {}",
                     socket_id(
-                        q_link_points.get(placement.target_section).ok(),
+                        q_nodes
+                            .get(placement.target_section)
+                            .ok()
+                            .and_then(|section| section.resolve(Some(&sections))),
                         placement.solve.target
                     ),
-                    sections.get_section(&placement.prototype).map_or_else(
-                        String::new,
-                        |section| {
-                            section
-                                .base
-                                .link_points
-                                .get(placement.solve.source)
-                                .map_or_else(String::new, |point| point.id.clone())
-                        }
+                    socket_id(
+                        sections.get_section(&placement.prototype),
+                        placement.solve.source
                     ),
                 ),
                 theme::PHOSPHOR_MUTED,
@@ -651,6 +535,9 @@ pub(crate) fn sync_placement_ghost(
         }),
     );
 
+    let Some(ship) = edited else {
+        return;
+    };
     if let (false, Some(section)) = (kept, sections.get_section(&placement.prototype)) {
         let mut entity = commands.spawn((
             DespawnOnExit(ExampleStates::Editor),
@@ -658,9 +545,14 @@ pub(crate) fn sync_placement_ghost(
             SectionGhost {
                 prototype: placement.prototype.clone(),
                 source: placement.solve.source,
+                ship,
             },
             SectionPreviewMarker,
             placement.solve.transform,
+            // Parented to the ship it is being placed on, because the solve is
+            // in that ship's space - a ghost hung off the world would sit at the
+            // right pose on the wrong ship.
+            ChildOf(ship),
             // The ghost sits between the pointer and the ship it is being
             // placed on: it must never take the ray that positions it.
             Pickable {
@@ -668,11 +560,14 @@ pub(crate) fn sync_placement_ghost(
                 is_hoverable: false,
             },
         ));
-        insert_preview_section(&mut entity, section, PreviewRole::Display, vec![]);
+        insert_preview_section(&mut entity, section, PreviewRole::Display);
     }
 
     // The bounds box is the verdict: the mesh alone cannot say "refused".
-    if let Some(section) = sections.get_section(&placement.prototype) {
+    if let (Ok(ship_pose), Some(section)) = (
+        q_ships.get(ship),
+        sections.get_section(&placement.prototype),
+    ) {
         let half = section
             .base
             .collider
@@ -682,14 +577,18 @@ pub(crate) fn sync_placement_ghost(
             None => theme::PHOSPHOR,
             Some(_) => theme::RED,
         };
-        gizmos.cube(placement.solve.transform.with_scale(half * 2.0), colour);
+        // Gizmos are drawn in WORLD space while the solve is ship-local.
+        let pose = ship_pose
+            .mul_transform(placement.solve.transform)
+            .compute_transform();
+        gizmos.cube(pose.with_scale(half * 2.0), colour);
     }
 }
 
-/// The diagnostic id of one socket on a live section, for the readout.
-fn socket_id(link_points: Option<&SectionLinkPoints>, index: usize) -> String {
-    link_points
-        .and_then(|points| points.get(index))
+/// The diagnostic id of one socket on a section, for the readout.
+fn socket_id(config: Option<&SectionConfig>, index: usize) -> String {
+    config
+        .and_then(|config| config.base.link_points.get(index))
         .map_or_else(String::new, |point| point.id.clone())
 }
 
@@ -730,38 +629,50 @@ fn set_status(status: StatusQuery, line: Option<(String, Color)>) {
     }
 }
 
-/// Place, delete or arm a rebind, depending on the armed tool.
+/// Place, delete, arm a rebind, or ENTER another ship - depending on the armed
+/// tool and on which ship was clicked.
 ///
 /// Placement itself commits [`PlacementPreview`] - the pose the ghost is
 /// already showing - rather than re-deriving anything from this click.
-#[allow(clippy::too_many_arguments)]
+///
+/// Clicks land on a [`NodeView`], never on a node, so the first thing this does
+/// is find the document entity behind the collider that was hit.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one click routes to enter, place, delete or rebind"
+)]
 pub(crate) fn on_click_spaceship_section(
     click: On<Pointer<Press>>,
     mut commands: Commands,
-    spaceship: Single<Entity, With<SpaceshipPreviewMarker>>,
+    mut context: ResMut<EditContext>,
     selection: Res<SectionChoice>,
     keyboard: Option<Res<ButtonInput<KeyCode>>>,
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     sections: Res<GameSections>,
     preview: Res<PlacementPreview>,
-    mut player_config: ResMut<PlayerSpaceshipConfig>,
+    mut ordinals: Query<&mut NextChildOrdinal>,
     mut rebind: ResMut<EditorRebind>,
-    q_section: Query<(), With<SectionMarker>>,
-    q_bindable: Query<
-        (),
-        Or<(
-            With<SpaceshipThrusterInputBinding>,
-            With<SpaceshipTurretInputBinding>,
-            With<SpaceshipTorpedoInputBinding>,
-        )>,
-    >,
+    q_views: Query<&ChildOf, With<NodeView>>,
+    q_nodes: Query<(&SectionNode, &ChildOf)>,
 ) {
     if click.button != PointerButton::Primary {
         return;
     }
 
-    let entity = click.entity;
-    if q_section.get(entity).is_err() {
+    let Some(node) = node_of_view(click.entity, &q_views) else {
+        return;
+    };
+    let Ok((section, owner)) = q_nodes.get(node) else {
+        return;
+    };
+
+    // A section of a ship you are NOT inside can only mean one thing: go in
+    // there. The solver only ever scans the edited ship, so such a click could
+    // never have been a placement, and reading it as one would silently do
+    // nothing.
+    let owner = owner.parent();
+    if context.ship() != Some(owner) {
+        context.enter(owner);
         return;
     }
 
@@ -775,8 +686,8 @@ pub(crate) fn on_click_spaceship_section(
             // Only arm when nothing is armed yet: while a rebind is pending, the
             // next click is the user PICKING a mouse-button binding (e.g. LMB),
             // so it must not re-arm on whatever is under the cursor.
-            if rebind.target.is_none() && q_bindable.get(entity).is_ok() {
-                rebind.target = Some(entity);
+            if rebind.target.is_none() && section.bindable(Some(&sections)) {
+                rebind.target = Some(node);
                 // Wait for this arming click to release before capturing.
                 rebind.awaiting_release = true;
             }
@@ -795,26 +706,25 @@ pub(crate) fn on_click_spaceship_section(
                 );
                 return;
             }
-            let Some(section) = required_section(&sections, &placement.prototype) else {
+            let Some(config) = required_section(&sections, &placement.prototype) else {
                 return;
             };
 
-            let transform = placement.solve.transform;
-            let binds = default_binds_for(&section.kind, keyboard.as_deref(), gamepad.as_deref());
-            let mut placed = Entity::PLACEHOLDER;
-            commands
-                .entity(spaceship.into_inner())
-                .with_children(|parent| {
-                    placed = spawn_preview_section(parent, section, transform, binds.clone());
-                });
-            register_preview_section(&mut player_config, placed, section, transform, binds);
+            let binds = default_binds_for(&config.kind, keyboard.as_deref(), gamepad.as_deref());
+            spawn_section_node(
+                &mut commands,
+                &mut ordinals,
+                owner,
+                config,
+                placement.solve.transform,
+                binds,
+            );
         }
         SectionChoice::Delete => {
-            commands.entity(entity).despawn();
-            player_config.sections.remove(&entity);
-            // The scenario's input_mapping is built from `inputs`; a leftover
-            // entry would map a key to a section that no longer exists.
-            player_config.inputs.remove(&entity);
+            // The node goes and takes its view with it. Its binds are part of
+            // the node, so there is no second map left holding a key bound to a
+            // section that no longer exists.
+            commands.entity(node).despawn();
         }
     }
 }
@@ -832,25 +742,30 @@ pub(crate) fn draw_link_points(
     preview: Res<PlacementPreview>,
     selection: Res<SectionChoice>,
     sections: Res<GameSections>,
-    spaceship: Option<Single<&Children, With<SpaceshipPreviewMarker>>>,
-    q_section: Query<(&Transform, &SectionLinkPoints), With<SectionMarker>>,
+    context: Res<EditContext>,
+    nodes: SectionNodes,
+    q_ships: Query<&GlobalTransform, With<ShipNode>>,
     mut gizmos: Gizmos,
 ) {
-    let (SectionChoice::Section(_), Some(spaceship)) = (&*selection, spaceship) else {
+    let (SectionChoice::Section(_), Some(edited)) = (&*selection, context.ship()) else {
+        return;
+    };
+    // Sockets are solved in ship-local space and drawn in world space.
+    let Ok(ship_pose) = q_ships.get(edited) else {
         return;
     };
 
     let mut entities = Vec::new();
     let mut ship = Vec::new();
-    for child in spaceship.iter() {
-        let Ok((transform, link_points)) = q_section.get(child) else {
+    for (entity, _, section, transform) in sections_of(edited, &nodes) {
+        let Some(config) = section.resolve(Some(&sections)) else {
             continue;
         };
-        entities.push(child);
+        entities.push(entity);
         ship.push(PlacedSectionLinkPoints {
             position: transform.translation,
             rotation: transform.rotation,
-            link_points: link_points.as_slice(),
+            link_points: config.base.link_points.as_slice(),
         });
     }
 
@@ -874,8 +789,10 @@ pub(crate) fn draw_link_points(
             if taken.contains(&(section_index, point_index)) {
                 continue;
             }
-            let position = section.position + section.rotation * point.position;
-            let normal = (section.rotation * point.normal).normalize_or(Vec3::Z);
+            let position =
+                ship_pose.transform_point(section.position + section.rotation * point.position);
+            let normal =
+                (ship_pose.rotation() * section.rotation * point.normal).normalize_or(Vec3::Z);
             let colour = if aimed == Some((section_index, point_index)) {
                 theme::PHOSPHOR
             } else {
@@ -899,8 +816,8 @@ pub(crate) fn draw_link_points(
     let transform = placement.solve.transform;
     draw_socket(
         &mut gizmos,
-        transform.translation + transform.rotation * source.position,
-        (transform.rotation * source.normal).normalize_or(Vec3::Z),
+        ship_pose.transform_point(transform.translation + transform.rotation * source.position),
+        (ship_pose.rotation() * transform.rotation * source.normal).normalize_or(Vec3::Z),
         match placement.solve.refusal {
             None => theme::PHOSPHOR,
             Some(_) => theme::RED,
@@ -926,30 +843,40 @@ fn draw_socket(gizmos: &mut Gizmos, position: Vec3, normal: Vec3, colour: Color)
 /// showed, so a builder could only find out which way their thrusters pointed
 /// by flying it.
 pub(crate) fn draw_ship_heading(
-    spaceship: Option<Single<&Transform, With<SpaceshipPreviewMarker>>>,
-    q_section: Query<(&Transform, &SectionCollider), With<SectionMarker>>,
+    context: Res<EditContext>,
+    sections: Res<GameSections>,
+    nodes: SectionNodes,
+    q_ships: Query<&GlobalTransform, With<ShipNode>>,
     mut gizmos: Gizmos,
 ) {
-    let Some(spaceship) = spaceship else {
+    let Some(edited) = context.ship() else {
+        return;
+    };
+    let Ok(ship_pose) = q_ships.get(edited) else {
         return;
     };
     // Reach past the nose of the ship, so the arrow is never buried inside it.
-    let reach = q_section
+    let reach = sections_of(edited, &nodes)
         .iter()
-        .map(|(transform, collider)| {
-            (transform.translation.z - collider.aabb_half_extents().z).abs()
+        .filter_map(|(_, _, section, transform)| {
+            let config = section.resolve(Some(&sections))?;
+            let half = config.base.collider.unwrap_or_default().aabb_half_extents();
+            Some((transform.translation.z - half.z).abs())
         })
         .fold(1.0f32, f32::max)
         + 1.0;
-    let origin = spaceship.translation;
-    let nose = origin + spaceship.rotation * (Vec3::NEG_Z * reach);
+    let pose = ship_pose.compute_transform();
+    let origin = pose.translation;
+    let nose = origin + pose.rotation * (Vec3::NEG_Z * reach);
     gizmos.arrow(origin, nose, theme::AMBER_NOVA);
 }
 
 /// Outline the section a delete click would remove.
 pub(crate) fn draw_delete_target(
     q_pointer: Query<&PointerInteraction>,
-    q_section: Query<(&Transform, &SectionCollider), With<SectionMarker>>,
+    q_views: Query<&ChildOf, With<NodeView>>,
+    q_nodes: Query<(&SectionNode, &GlobalTransform)>,
+    sections: Res<GameSections>,
     selection: Res<SectionChoice>,
     mut gizmos: Gizmos,
 ) {
@@ -963,20 +890,26 @@ pub(crate) fn draw_delete_target(
     else {
         return;
     };
-    let Ok((transform, collider)) = q_section.get(*entity) else {
+    let Some((section, pose)) = node_of_view(*entity, &q_views)
+        .and_then(|node| q_nodes.get(node).ok())
+        .map(|(section, pose)| (section, pose.compute_transform()))
+    else {
+        return;
+    };
+    let Some(config) = section.resolve(Some(&sections)) else {
         return;
     };
     gizmos.cube(
-        transform.with_scale(collider.aabb_half_extents() * 2.0),
+        pose.with_scale(config.base.collider.unwrap_or_default().aabb_half_extents() * 2.0),
         theme::RED,
     );
 }
-
 #[cfg(test)]
 mod tests {
-    use bevy::{ecs::system::RunSystemOnce, platform::collections::HashMap};
+    use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+    use crate::node::{ensure_document, NodeId, ScenarioNode};
 
     fn hull_config(id: &str) -> SectionConfig {
         SectionConfig {
@@ -1000,34 +933,83 @@ mod tests {
         }
     }
 
+    /// An app with a document and the "New Ship" observers armed.
+    fn document_app(catalog: Vec<SectionConfig>, with_controller: bool) -> App {
+        let mut app = App::new();
+        app.insert_resource(GameSections(catalog));
+        app.init_resource::<EditContext>();
+        app.add_observer(create_new_spaceship);
+        if with_controller {
+            app.add_observer(create_new_spaceship_with_controller);
+        }
+        app.world_mut()
+            .run_system_once(ensure_document)
+            .expect("the document is created");
+        app
+    }
+
+    fn press_new_ship(app: &mut App) {
+        let button = app.world_mut().spawn_empty().id();
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+    }
+
+    fn ship_nodes(app: &mut App) -> Vec<Entity> {
+        app.world_mut()
+            .query_filtered::<Entity, With<ShipNode>>()
+            .iter(app.world())
+            .collect()
+    }
+
+    fn section_nodes(app: &mut App) -> Vec<Entity> {
+        app.world_mut()
+            .query_filtered::<Entity, With<SectionNode>>()
+            .iter(app.world())
+            .collect()
+    }
+
+    /// The document is one scenario node, created once, and the editor opens
+    /// OUTSIDE any ship - the "New Ship" buttons still own creation, exactly as
+    /// they did when an empty build state rebuilt nothing.
+    #[test]
+    fn a_fresh_document_is_one_empty_scenario_node() {
+        let mut app = document_app(vec![], false);
+
+        assert_eq!(
+            app.world_mut()
+                .query::<&ScenarioNode>()
+                .iter(app.world())
+                .count(),
+            1
+        );
+        assert!(ship_nodes(&mut app).is_empty());
+        let context = app.world().resource::<EditContext>();
+        assert!(context.scenario().is_some());
+        assert_eq!(context.ship(), None);
+
+        // Idempotent: a second entry into the editor finds the document it left.
+        let scenario = context.scenario();
+        app.world_mut()
+            .run_system_once(ensure_document)
+            .expect("the document check runs");
+        assert_eq!(app.world().resource::<EditContext>().scenario(), scenario);
+    }
+
     /// F11: a mod overlay that drops the seeded id must log and skip, not panic
     /// the process on "New Hull Ship".
     #[test]
     fn a_missing_seed_section_skips_instead_of_panicking() {
-        let mut app = App::new();
-        app.insert_resource(GameSections(vec![]));
-        app.insert_resource(PlayerSpaceshipConfig::default());
-        app.add_observer(create_new_spaceship);
-        app.add_observer(create_new_spaceship_with_controller);
-        let button = app.world_mut().spawn_empty().id();
+        let mut app = document_app(vec![], true);
 
-        app.world_mut().trigger(Activate { entity: button });
-        app.update();
+        press_new_ship(&mut app);
 
-        assert_eq!(
-            app.world_mut()
-                .query::<&SpaceshipPreviewMarker>()
-                .iter(app.world())
-                .count(),
-            0,
-            "no preview ship is built from a missing catalog id"
+        assert!(
+            ship_nodes(&mut app).is_empty(),
+            "no ship is built from a missing catalog id"
         );
         assert!(
-            app.world()
-                .resource::<PlayerSpaceshipConfig>()
-                .sections
-                .is_empty(),
-            "and the build state is untouched"
+            section_nodes(&mut app).is_empty(),
+            "and the document is untouched"
         );
     }
 
@@ -1035,53 +1017,98 @@ mod tests {
     /// failure - it used to `panic!` outright.
     #[test]
     fn a_retyped_seed_section_skips_instead_of_panicking() {
-        let mut app = App::new();
-        app.insert_resource(GameSections(vec![turret_config(
-            REINFORCED_HULL_SECTION_ID,
-        )]));
-        app.insert_resource(PlayerSpaceshipConfig::default());
-        app.add_observer(create_new_spaceship);
-        let button = app.world_mut().spawn_empty().id();
+        let mut app = document_app(vec![turret_config(REINFORCED_HULL_SECTION_ID)], false);
 
-        app.world_mut().trigger(Activate { entity: button });
-        app.update();
+        press_new_ship(&mut app);
 
-        assert_eq!(
-            app.world_mut()
-                .query::<&SpaceshipPreviewMarker>()
-                .iter(app.world())
-                .count(),
-            0,
+        assert!(
+            ship_nodes(&mut app).is_empty(),
             "a retyped seed builds no ship"
         );
     }
 
-    /// The happy path, so the two skip tests above cannot pass vacuously.
+    /// The happy path, so the two skip tests above cannot pass vacuously - and
+    /// the id assertion is the whole point of the change: a section's id is
+    /// minted from its prototype and owes nothing to the entity it landed on.
     #[test]
-    fn a_present_seed_section_builds_the_preview_ship() {
-        let mut app = App::new();
-        app.insert_resource(GameSections(vec![hull_config(REINFORCED_HULL_SECTION_ID)]));
-        app.insert_resource(PlayerSpaceshipConfig::default());
-        app.add_observer(create_new_spaceship);
-        let button = app.world_mut().spawn_empty().id();
+    fn a_present_seed_section_builds_a_ship_node_with_a_minted_id() {
+        let mut app = document_app(vec![hull_config(REINFORCED_HULL_SECTION_ID)], false);
 
-        app.world_mut().trigger(Activate { entity: button });
-        app.update();
+        press_new_ship(&mut app);
 
+        let ships = ship_nodes(&mut app);
+        assert_eq!(ships.len(), 1);
         assert_eq!(
-            app.world_mut()
-                .query::<&SpaceshipPreviewMarker>()
-                .iter(app.world())
-                .count(),
-            1
+            app.world().resource::<EditContext>().ship(),
+            Some(ships[0]),
+            "the new ship is the one the next click builds on"
         );
-        let config = app.world().resource::<PlayerSpaceshipConfig>();
-        assert_eq!(config.sections.len(), 1, "the seed section is registered");
-        let (entity, section) = config.sections.iter().next().unwrap();
         assert_eq!(
-            section.id,
-            entity.to_string(),
-            "a section's config id is its preview entity"
+            app.world()
+                .get::<ShipNode>(ships[0])
+                .map(|ship| ship.driver),
+            Some(ShipDriver::Player),
+            "the first ship of a document is the one the player flies"
+        );
+
+        let sections = section_nodes(&mut app);
+        assert_eq!(sections.len(), 1, "the seed section is in the document");
+        assert_eq!(
+            app.world().get::<NodeId>(sections[0]),
+            Some(&NodeId(format!("{REINFORCED_HULL_SECTION_ID}_1"))),
+            "the id is minted from the prototype, not from the entity"
+        );
+        assert!(
+            app.world()
+                .get::<ChildOf>(sections[0])
+                .is_some_and(|owner| owner.parent() == ships[0]),
+            "and it hangs on the ship it was seeded into"
+        );
+    }
+
+    /// Two ships in one session, which is what the whole model exists for. The
+    /// second "New Ship" used to despawn the first and reset the build state.
+    #[test]
+    fn a_second_new_ship_leaves_the_first_standing() {
+        let mut app = document_app(vec![hull_config(REINFORCED_HULL_SECTION_ID)], false);
+
+        press_new_ship(&mut app);
+        let first = ship_nodes(&mut app);
+        assert_eq!(first.len(), 1);
+
+        press_new_ship(&mut app);
+        let ships = ship_nodes(&mut app);
+        assert_eq!(ships.len(), 2, "the first ship is still there");
+        assert_eq!(
+            section_nodes(&mut app).len(),
+            2,
+            "and it kept its section - the second ship seeded its own"
+        );
+
+        let second = *ships
+            .iter()
+            .find(|ship| **ship != first[0])
+            .expect("a second ship");
+        assert_eq!(
+            app.world().resource::<EditContext>().ship(),
+            Some(second),
+            "the new ship is entered"
+        );
+        assert_eq!(
+            app.world().get::<ShipNode>(second).map(|ship| ship.driver),
+            Some(ShipDriver::Ai),
+            "a ship built beside the player's is not a second thing to fly"
+        );
+        // Ids are per-parent, so both ships name their seed section the same and
+        // neither is wrong: the scope that has to be unique is the hull.
+        let ids: Vec<Option<&NodeId>> = section_nodes(&mut app)
+            .iter()
+            .map(|section| app.world().get::<NodeId>(*section))
+            .collect();
+        assert!(
+            ids.iter()
+                .all(|id| *id == Some(&NodeId(format!("{REINFORCED_HULL_SECTION_ID}_1")))),
+            "section ids are unique within their ship, not across the document"
         );
     }
 
@@ -1143,103 +1170,6 @@ mod tests {
             binds,
             vec![Binding::from(MouseButton::Left)],
             "W drives the camera, so the turret keeps its default"
-        );
-    }
-
-    /// F31: re-entering the editor rebuilds the preview from the surviving
-    /// config, and re-keys the config onto the new entities so Play still finds
-    /// each section's bindings.
-    #[test]
-    fn re_entering_the_editor_rebuilds_the_preview_from_the_config() {
-        let mut world = World::new();
-        // A key left over from the previous visit: its entity is gone, exactly
-        // as DespawnOnExit(Editor) leaves it.
-        let stale = world.spawn_empty().id();
-        world.despawn(stale);
-        let turret = turret_config("turret");
-        let binds = vec![Binding::from(KeyCode::KeyR)];
-        world.insert_resource(PlayerSpaceshipConfig {
-            sections: HashMap::from([(
-                stale,
-                SpaceshipSectionConfig {
-                    id: stale.to_string(),
-                    position: Vec3::new(1.0, 2.0, 3.0),
-                    rotation: Quat::IDENTITY,
-                    source: SectionSource::Inline(turret.clone()),
-                    modifications: vec![],
-                },
-            )]),
-            inputs: HashMap::from([(stale, binds.clone())]),
-            skin: true,
-            style: None,
-        });
-
-        world
-            .run_system_once(rebuild_editor_preview_on_enter)
-            .unwrap();
-
-        assert_eq!(
-            world
-                .query::<&SpaceshipPreviewMarker>()
-                .iter(&world)
-                .count(),
-            1,
-            "the preview ship is back"
-        );
-        let live: Vec<Entity> = world
-            .query_filtered::<Entity, With<SpaceshipTurretInputBinding>>()
-            .iter(&world)
-            .collect();
-        assert_eq!(live.len(), 1, "the turret section is back");
-
-        let config = world.resource::<PlayerSpaceshipConfig>();
-        assert!(
-            !config.sections.contains_key(&stale),
-            "the dead entity key is gone"
-        );
-        assert_eq!(
-            config.sections.keys().copied().collect::<Vec<_>>(),
-            live,
-            "the config is keyed by the live preview entity"
-        );
-        assert_eq!(config.sections[&live[0]].id, live[0].to_string());
-        assert_eq!(
-            config.inputs.get(&live[0]),
-            Some(&binds),
-            "the section keeps its bindings across the rebuild"
-        );
-        assert_eq!(
-            world
-                .entity(live[0])
-                .get::<SpaceshipTurretInputBinding>()
-                .unwrap()
-                .0,
-            binds,
-            "and so does the live component"
-        );
-        assert!(
-            config.skin,
-            "the cladding toggle is part of the ship, so it survives the rebuild"
-        );
-    }
-
-    /// A first entry (nothing built yet) must not spawn an empty preview ship -
-    /// the "New Ship" buttons still own creation.
-    #[test]
-    fn an_empty_config_rebuilds_nothing() {
-        let mut world = World::new();
-        world.init_resource::<PlayerSpaceshipConfig>();
-
-        world
-            .run_system_once(rebuild_editor_preview_on_enter)
-            .unwrap();
-
-        assert_eq!(
-            world
-                .query::<&SpaceshipPreviewMarker>()
-                .iter(&world)
-                .count(),
-            0
         );
     }
 }

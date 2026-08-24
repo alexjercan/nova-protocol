@@ -28,10 +28,13 @@ use std::{
 // NOTE: bevy's platform Instant, not std's - `std::time::Instant::now` panics
 // on wasm32-unknown-unknown, which this crate ships to.
 use bevy::{platform::time::Instant, prelude::*};
-use nova_scenario::prelude::SectionSource;
 use nova_ship::prelude::*;
 
-use crate::config::{PlacementPreview, PlayerSpaceshipConfig, SpaceshipPreviewMarker};
+use crate::{
+    config::PlacementPreview,
+    node::{sections_of, EditContext, SectionNodes, ShipNode},
+    ExampleStates,
+};
 
 /// Marks one preview plate, so a re-derive can find the whole of last frame's
 /// skin without touching anything else in the scene.
@@ -41,9 +44,9 @@ pub(crate) struct EditorSkinPlate;
 /// What the plates on screen were derived FROM, so a frame that changed nothing
 /// costs one hash instead of a respawned skin.
 ///
-/// The root entity is part of it: New Ship despawns the preview ship and its
-/// plates with it, and the same structure rebuilt under a new root still needs
-/// its skin laid again.
+/// The ship node is part of it: entering another ship must re-derive rather
+/// than keep the plates of the one you left, and the same structure under a
+/// different root still needs its skin laid again.
 #[derive(Default)]
 pub(crate) struct ShownSkin {
     /// Hash of the derived-from structure, or `None` when nothing is clad.
@@ -64,20 +67,28 @@ pub(crate) struct ShownSkin {
 ///
 /// `Res`, never `ResMut`: writing the build state here would mark it changed
 /// every frame and this would re-derive for ever.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the cladding is derived from the document, the ghost and the style catalog"
+)]
 pub(crate) fn sync_editor_skin(
     mut commands: Commands,
-    player_config: Res<PlayerSpaceshipConfig>,
+    context: Res<EditContext>,
     preview: Res<PlacementPreview>,
     sections: Res<GameSections>,
     styles: Res<GameStyles>,
-    root: Option<Single<Entity, With<SpaceshipPreviewMarker>>>,
+    nodes: SectionNodes,
+    q_ships: Query<&ShipNode>,
     q_plates: Query<Entity, With<EditorSkinPlate>>,
     mut shown: Local<ShownSkin>,
 ) {
-    let Some(root) = root.map(|root| *root) else {
+    let Some(root) = context.ship() else {
         return;
     };
-    if !player_config.skin {
+    let Ok(ship) = q_ships.get(root) else {
+        return;
+    };
+    if !ship.skin {
         if shown.signature.is_some() {
             strip(&mut commands, &q_plates);
             *shown = ShownSkin::default();
@@ -91,35 +102,27 @@ pub(crate) fn sync_editor_skin(
     // same place and for the same reason a placement's does: a preview section
     // carries its sockets and its collider as components and nothing that says
     // what kind of part it is.
-    let mut placed: Vec<PlacedPart> = player_config
-        .sections
-        .values()
-        .filter_map(|section| {
-            let SectionSource::Inline(config) = &section.source else {
-                return None;
-            };
+    // `sections_of` hands them over in id order, which is why the sort this
+    // used to do by POSITION is gone: the document has a stable key now, so the
+    // signature below cannot report a change that is only a change of order.
+    let mut placed: Vec<PlacedPart> = sections_of(root, &nodes)
+        .into_iter()
+        .filter_map(|(_, _, section, transform)| {
+            let config = section.resolve(Some(&sections))?;
             Some(PlacedPart {
-                position: section.position,
-                rotation: section.rotation,
+                position: transform.translation,
+                rotation: transform.rotation,
                 link_points: config.base.link_points.as_slice(),
                 exit: exit_normal(&config.kind),
             })
         })
         .collect();
-    // Sorted because the build state is keyed by ENTITY: the same ship read
-    // twice can hand its sections over in two orders, and the signature below
-    // would then report a change that is only a change of order.
-    placed.sort_unstable_by(|a, b| {
-        (a.position.x, a.position.y, a.position.z)
-            .partial_cmp(&(b.position.x, b.position.y, b.position.z))
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
     if let Some(ghost) = ghost_section(&preview, &sections) {
         placed.push(ghost);
     }
 
     let signature = signature(root, &placed);
-    let style = editor_style(&player_config, &styles);
+    let style = editor_style(ship, &styles);
     let style_id = style.map(|style| style.id.as_str());
     if shown.signature == Some(signature)
         && shown.style.as_deref() == style_id
@@ -130,7 +133,7 @@ pub(crate) fn sync_editor_skin(
 
     let started = Instant::now();
     strip(&mut commands, &q_plates);
-    // The style goes on the preview ROOT, which is where `dress_skin_plate`'s
+    // The style goes on the ship NODE, which is where `dress_skin_plate`'s
     // ancestor walk looks for it - the same walk that finds a flown ship's on
     // its own root two levels up.
     commands
@@ -144,6 +147,10 @@ pub(crate) fn sync_editor_skin(
         laid.push(
             commands
                 .spawn((
+                    // The ship node OUTLIVES the editor state, so a plate has to
+                    // carry its own teardown: without this the cladding would
+                    // still be hanging on the ship when Play spawns the real one.
+                    DespawnOnExit(ExampleStates::Editor),
                     Name::new("Editor Skin Plate"),
                     EditorSkinPlate,
                     // What `dress_skin_plate` (nova_ship) hangs the meshes off.
@@ -171,6 +178,7 @@ pub(crate) fn sync_editor_skin(
     if let Some(style) = style {
         for placement in scatter_decor(&plates, &readings, style) {
             commands.spawn((
+                DespawnOnExit(ExampleStates::Editor),
                 Name::new("Editor Skin Decor"),
                 ShipDecorMarker(style.fixtures[placement.fixture].model.clone()),
                 decor_pose(&plates[placement.plate], placement.turns),
@@ -212,11 +220,8 @@ pub(crate) fn sync_editor_skin(
 /// ship that has not falls back to the FIRST authored style rather than to a
 /// hard-coded id - which is what makes a mod that ships one look show up in the
 /// editor without the editor knowing its name.
-fn editor_style<'a>(
-    player_config: &PlayerSpaceshipConfig,
-    styles: &'a GameStyles,
-) -> Option<&'a ShipStyleConfig> {
-    match &player_config.style {
+fn editor_style<'a>(ship: &ShipNode, styles: &'a GameStyles) -> Option<&'a ShipStyleConfig> {
+    match &ship.style {
         Some(id) => styles.get_style(id),
         None => styles.first(),
     }
@@ -292,11 +297,12 @@ fn signature(root: Entity, placed: &[PlacedPart]) -> u64 {
 mod tests {
     use avian3d::prelude::Collider;
     use nova_gameplay::{markers::prelude::SectionMarker, prelude::AssetRef};
-    use nova_scenario::prelude::SpaceshipSectionConfig;
+    use nova_scenario::prelude::SectionSource;
 
     use super::*;
     use crate::{
         config::Placement,
+        node::{NextChildOrdinal, NodeId, SectionNode},
         snap::{self, Refusal},
     };
 
@@ -314,8 +320,8 @@ mod tests {
         }
     }
 
-    /// The editor as this system sees it: a build state, a preview root, and
-    /// nothing else it reads.
+    /// The editor as this system sees it: a document with one ship node
+    /// entered, and nothing else it reads.
     fn app(skin: bool) -> App {
         styled_app(skin, GameStyles::default())
     }
@@ -324,36 +330,51 @@ mod tests {
     fn styled_app(skin: bool, styles: GameStyles) -> App {
         let mut app = App::new();
         app.insert_resource(GameSections(vec![hull("hull")]));
-        app.insert_resource(PlayerSpaceshipConfig { skin, ..default() });
         app.insert_resource(styles);
         app.init_resource::<PlacementPreview>();
-        app.world_mut().spawn((
-            SpaceshipPreviewMarker,
-            Transform::default(),
-            Visibility::Visible,
-        ));
+        let ship = app
+            .world_mut()
+            .spawn((
+                ShipNode { skin, ..default() },
+                NextChildOrdinal::default(),
+                Transform::default(),
+                Visibility::Visible,
+            ))
+            .id();
+        app.insert_resource(EditContext {
+            path: vec![Entity::PLACEHOLDER, ship],
+        });
         app.add_systems(Update, sync_editor_skin);
         app
     }
 
-    /// Put a section into the build state at `position`, keyed by a fresh
-    /// entity as the editor keys it.
+    /// The ship node the tests build on.
+    fn edited(app: &App) -> Entity {
+        app.world()
+            .resource::<EditContext>()
+            .ship()
+            .expect("the test app enters its ship")
+    }
+
+    /// Put a section node on the ship at `position`.
     fn build(app: &mut App, position: Vec3) {
-        let entity = app.world_mut().spawn_empty().id();
-        let section = hull("hull");
-        app.world_mut()
-            .resource_mut::<PlayerSpaceshipConfig>()
-            .sections
-            .insert(
-                entity,
-                SpaceshipSectionConfig {
-                    id: entity.to_string(),
-                    position,
-                    rotation: Quat::IDENTITY,
-                    source: SectionSource::Inline(section),
-                    modifications: vec![],
-                },
-            );
+        let ship = edited(app);
+        let index = app
+            .world_mut()
+            .query_filtered::<(), With<SectionNode>>()
+            .iter(app.world())
+            .count();
+        app.world_mut().spawn((
+            SectionNode {
+                source: SectionSource::Inline(hull("hull")),
+                modifications: vec![],
+                binds: vec![],
+            },
+            NodeId(format!("hull_{index}")),
+            Transform::from_translation(position),
+            Visibility::Visible,
+            ChildOf(ship),
+        ));
     }
 
     /// The part under the pointer, at `position`, with `refusal`.
@@ -565,8 +586,10 @@ mod tests {
         app.update();
         let before = decor(&mut app);
 
+        let ship = edited(&app);
         app.world_mut()
-            .resource_mut::<PlayerSpaceshipConfig>()
+            .get_mut::<ShipNode>(ship)
+            .expect("the ship node")
             .style = Some("second".to_string());
         app.update();
 
@@ -577,7 +600,7 @@ mod tests {
         );
         let style = app
             .world_mut()
-            .query_filtered::<&ShipStyle, With<SpaceshipPreviewMarker>>()
+            .query_filtered::<&ShipStyle, With<ShipNode>>()
             .single(app.world())
             .expect("one preview root");
         assert_eq!(style.0.as_deref(), Some("second"));
@@ -637,11 +660,18 @@ mod tests {
         app.update();
         assert_eq!(plates(&mut app), 6);
 
-        app.world_mut().resource_mut::<PlayerSpaceshipConfig>().skin = false;
+        let ship = edited(&app);
+        app.world_mut()
+            .get_mut::<ShipNode>(ship)
+            .expect("the ship node")
+            .skin = false;
         app.update();
         assert_eq!(plates(&mut app), 0, "unclad means no plates at all");
 
-        app.world_mut().resource_mut::<PlayerSpaceshipConfig>().skin = true;
+        app.world_mut()
+            .get_mut::<ShipNode>(ship)
+            .expect("the ship node")
+            .skin = true;
         app.update();
         assert_eq!(plates(&mut app), 6, "and back on again");
     }

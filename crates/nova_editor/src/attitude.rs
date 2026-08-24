@@ -6,30 +6,21 @@
 //! attitude model gains a term a builder has to see.
 
 use bevy::prelude::*;
-use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
-use crate::config::{AttitudeReadout, PlayerSpaceshipConfig};
+use crate::{
+    config::AttitudeReadout,
+    node::{sections_of, EditContext, SectionNodes},
+};
 
-/// The preview hull's attitude envelope, or `None` while it has no sections.
+/// The edited hull's attitude envelope, or `None` while it has no sections.
 ///
 /// Assembled from the same authored boxes the flown ship spawns, through the
 /// same avian arithmetic, so the readout and the hull cannot disagree.
-pub(crate) fn preview_envelope(
-    player_config: &PlayerSpaceshipConfig,
-    sections: &GameSections,
-) -> Option<AttitudeEnvelope> {
-    let resolve = |section: &SpaceshipSectionConfig| match &section.source {
-        SectionSource::Inline(config) => Some(config.clone()),
-        SectionSource::Prototype(id) => sections.get_section(id).cloned(),
-    };
-    let parts: Vec<(Vec3, Quat, SectionConfig)> = player_config
-        .sections
-        .values()
-        .filter_map(|section| {
-            resolve(section).map(|config| (section.position, section.rotation, config))
-        })
-        .collect();
+///
+/// Takes the posed parts rather than a ship handle, so the arithmetic can be
+/// exercised without a document.
+pub(crate) fn preview_envelope(parts: &[(Vec3, Quat, SectionConfig)]) -> Option<AttitudeEnvelope> {
     if parts.is_empty() {
         return None;
     }
@@ -95,11 +86,24 @@ pub(crate) fn readout_line(envelope: Option<AttitudeEnvelope>) -> String {
 /// section placed or deleted anywhere on the hull, and the line it writes is
 /// compared before it is stored, so an unchanged build wakes nothing.
 pub(crate) fn sync_attitude_readout(
-    player_config: Res<PlayerSpaceshipConfig>,
+    context: Res<EditContext>,
     sections: Res<GameSections>,
+    nodes: SectionNodes,
     mut readout: Query<&mut Text, With<AttitudeReadout>>,
 ) {
-    let line = readout_line(preview_envelope(&player_config, &sections));
+    let parts: Vec<(Vec3, Quat, SectionConfig)> = context
+        .ship()
+        .map(|ship| {
+            sections_of(ship, &nodes)
+                .into_iter()
+                .filter_map(|(_, _, section, transform)| {
+                    let config = section.resolve(Some(&sections))?;
+                    Some((transform.translation, transform.rotation, config.clone()))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let line = readout_line(preview_envelope(&parts));
     for mut text in &mut readout {
         if text.0 != line {
             text.0.clone_from(&line);
@@ -109,8 +113,6 @@ pub(crate) fn sync_attitude_readout(
 
 #[cfg(test)]
 mod tests {
-    use bevy::platform::collections::HashMap;
-
     use super::*;
 
     fn hull(id: &str) -> SectionConfig {
@@ -140,24 +142,11 @@ mod tests {
         }
     }
 
-    fn build(parts: &[(f32, SectionConfig)]) -> PlayerSpaceshipConfig {
-        let mut sections = HashMap::default();
-        for (index, (z, config)) in parts.iter().enumerate() {
-            sections.insert(
-                Entity::from_raw_u32(index as u32 + 1).unwrap(),
-                SpaceshipSectionConfig {
-                    id: format!("s{index}"),
-                    position: Vec3::new(0.0, 0.0, *z),
-                    rotation: Quat::IDENTITY,
-                    source: SectionSource::Inline(config.clone()),
-                    modifications: vec![],
-                },
-            );
-        }
-        PlayerSpaceshipConfig {
-            sections,
-            ..default()
-        }
+    fn build(parts: &[(f32, SectionConfig)]) -> Vec<(Vec3, Quat, SectionConfig)> {
+        parts
+            .iter()
+            .map(|(z, config)| (Vec3::new(0.0, 0.0, *z), Quat::IDENTITY, config.clone()))
+            .collect()
     }
 
     /// The reference hull on the build screen reads the number the model was
@@ -169,7 +158,7 @@ mod tests {
             (0.0, computer(1501.0)),
             (1.0, hull("nose")),
         ]);
-        let envelope = preview_envelope(&build, &GameSections::default()).unwrap();
+        let envelope = preview_envelope(&build).unwrap();
         assert_eq!(envelope.binds(), AttitudeLimit::Structure);
         assert_eq!(
             readout_line(Some(envelope)),
@@ -186,7 +175,7 @@ mod tests {
             .collect();
         parts[22] = (0.0, computer(1501.0));
         let build = build(&parts);
-        let envelope = preview_envelope(&build, &GameSections::default()).unwrap();
+        let envelope = preview_envelope(&build).unwrap();
         assert_eq!(envelope.binds(), AttitudeLimit::Torque);
         assert!(
             readout_line(Some(envelope)).ends_with("torque-limited"),
@@ -200,7 +189,7 @@ mod tests {
     #[test]
     fn a_computerless_hull_says_so() {
         let build = build(&[(-1.0, hull("aft")), (1.0, hull("nose"))]);
-        let envelope = preview_envelope(&build, &GameSections::default()).unwrap();
+        let envelope = preview_envelope(&build).unwrap();
         assert_eq!(readout_line(Some(envelope)), "Turn  no computer");
         assert_eq!(readout_line(None), "Turn  -");
     }

@@ -24,16 +24,22 @@ use nova_ui::{
 
 use crate::{
     config::{
-        AttitudeReadout, EditorKeyLegend, PlacementStatus, PlayerSpaceshipConfig, SectionChoice,
-        SkinToggleCheckbox, StyleChoice, StyleList,
+        AttitudeReadout, EditorKeyLegend, PlacementStatus, SectionChoice, SkinToggleCheckbox,
+        StyleChoice, StyleList,
     },
     gallery::{EditorCamera, EditorChrome, GalleryAction},
+    node::{EditContext, ShipNode},
     placement::{
         continue_to_simulation, create_new_spaceship, create_new_spaceship_with_controller,
     },
     ui::rail::{category_row, coming_soon_category, skin_toggle_row, style_row},
     ExampleStates,
 };
+
+/// The ship the rail is reporting on, or `None` out in the scenario context.
+fn edited_ship<'a>(context: &EditContext, ships: &'a Query<&ShipNode>) -> Option<&'a ShipNode> {
+    ships.get(context.ship()?).ok()
+}
 
 /// Left rail width (px). Kept narrow so the rail stays clear of screen centre
 /// on the 1024-wide window, where the editor preview ship projects - a UI panel
@@ -56,10 +62,13 @@ pub(crate) fn setup_editor_scene(
     skin: Res<UiSkin>,
     game_assets: Res<GameAssets>,
     styles: Res<GameStyles>,
-    player_config: Res<PlayerSpaceshipConfig>,
+    context: Res<EditContext>,
+    q_ships: Query<&ShipNode>,
 ) {
     let skin = *skin;
-    let clad = player_config.skin;
+    // The rail is built for the ship the editor opens on. With none entered the
+    // checkbox starts unclad, which is what a fresh ship is.
+    let clad = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
     let looks: Vec<(String, String)> = styles
         .iter()
         .map(|style| (style.id.clone(), style.name.clone()))
@@ -341,9 +350,15 @@ pub(crate) fn setup_editor_scene(
 /// that flies cannot disagree about whether it is clad.
 pub(crate) fn on_skin_toggle(
     _activate: On<Activate>,
-    mut player_config: ResMut<PlayerSpaceshipConfig>,
+    context: Res<EditContext>,
+    mut q_ships: Query<&mut ShipNode>,
 ) {
-    player_config.skin = !player_config.skin;
+    let Some(ship) = context.ship() else {
+        return;
+    };
+    if let Ok(mut ship) = q_ships.get_mut(ship) {
+        ship.skin = !ship.skin;
+    }
 }
 
 /// The look list's own column, so the rows read as one group under the toggle
@@ -364,12 +379,15 @@ fn style_list_node() -> Node {
 pub(crate) fn on_style_choice(
     activate: On<Activate>,
     choices: Query<&StyleChoice>,
-    mut player_config: ResMut<PlayerSpaceshipConfig>,
+    context: Res<EditContext>,
+    mut q_ships: Query<&mut ShipNode>,
 ) {
-    let Ok(choice) = choices.get(activate.entity) else {
+    let (Ok(choice), Some(ship)) = (choices.get(activate.entity), context.ship()) else {
         return;
     };
-    player_config.style = Some(choice.0.clone());
+    if let Ok(mut ship) = q_ships.get_mut(ship) {
+        ship.style = Some(choice.0.clone());
+    }
 }
 
 /// Show the look list only while the ship is clad, and mark the row the build
@@ -384,12 +402,14 @@ pub(crate) fn on_style_choice(
 /// need not be a frame the style changed on.
 pub(crate) fn sync_style_list(
     mut commands: Commands,
-    player_config: Res<PlayerSpaceshipConfig>,
+    context: Res<EditContext>,
+    q_ships: Query<&ShipNode>,
     styles: Res<GameStyles>,
     mut lists: Query<&mut Node, With<StyleList>>,
     rows: Query<(Entity, &StyleChoice, Has<Selected>)>,
 ) {
-    let display = if player_config.skin {
+    let ship = edited_ship(&context, &q_ships);
+    let display = if ship.is_some_and(|ship| ship.skin) {
         Display::Flex
     } else {
         Display::None
@@ -400,7 +420,7 @@ pub(crate) fn sync_style_list(
         }
     }
 
-    let active = match player_config.style.as_deref() {
+    let active = match ship.and_then(|ship| ship.style.as_deref()) {
         Some(id) => styles.get_style(id),
         None => styles.first(),
     }
@@ -428,12 +448,13 @@ pub(crate) fn sync_style_list(
 /// as [`sync_key_legend`]: the row is spawned on entering the editor, which
 /// need not be a frame the toggle changed on.
 pub(crate) fn sync_skin_toggle(
-    player_config: Res<PlayerSpaceshipConfig>,
+    context: Res<EditContext>,
+    q_ships: Query<&ShipNode>,
     skin: Res<UiSkin>,
     boxes: Query<(&Children, &mut BackgroundColor, &mut BorderColor), With<SkinToggleCheckbox>>,
     mut glyphs: Query<(&mut Text, &mut TextColor)>,
 ) {
-    let on = player_config.skin;
+    let on = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
     let (fill, edge, glyph_colour) = checkbox_colors(on, *skin);
     let mark = checkbox_glyph(on);
     for (children, mut background, mut border) in boxes {
@@ -503,9 +524,15 @@ mod tests {
     fn app(clad: bool) -> App {
         let mut app = App::new();
         app.insert_resource(GameStyles(vec![style("first"), style("second")]));
-        app.insert_resource(PlayerSpaceshipConfig {
-            skin: clad,
-            ..default()
+        let ship = app
+            .world_mut()
+            .spawn(ShipNode {
+                skin: clad,
+                ..default()
+            })
+            .id();
+        app.insert_resource(EditContext {
+            path: vec![Entity::PLACEHOLDER, ship],
         });
         app.world_mut()
             .spawn((StyleList, style_list_node()))
@@ -516,6 +543,28 @@ mod tests {
             });
         app.add_systems(Update, sync_style_list);
         app
+    }
+
+    /// The ship node the rail is reporting on.
+    fn ship_node(app: &App) -> &ShipNode {
+        let ship = app
+            .world()
+            .resource::<EditContext>()
+            .ship()
+            .expect("the test app enters its ship");
+        app.world().get::<ShipNode>(ship).expect("the ship node")
+    }
+
+    fn set_skin(app: &mut App, on: bool) {
+        let ship = app
+            .world()
+            .resource::<EditContext>()
+            .ship()
+            .expect("the test app enters its ship");
+        app.world_mut()
+            .get_mut::<ShipNode>(ship)
+            .expect("the ship node")
+            .skin = on;
     }
 
     fn row(app: &mut App, id: &str) -> Entity {
@@ -554,10 +603,7 @@ mod tests {
         app.world_mut().trigger(Activate { entity: second });
         app.update();
 
-        assert_eq!(
-            app.world().resource::<PlayerSpaceshipConfig>().style,
-            Some("second".to_string()),
-        );
+        assert_eq!(ship_node(&app).style, Some("second".to_string()),);
         assert_eq!(marked(&mut app), vec!["second".to_string()]);
     }
 
@@ -576,7 +622,7 @@ mod tests {
         };
         assert_eq!(display(&mut app), Display::None);
 
-        app.world_mut().resource_mut::<PlayerSpaceshipConfig>().skin = true;
+        set_skin(&mut app, true);
         app.update();
         assert_eq!(display(&mut app), Display::Flex);
     }

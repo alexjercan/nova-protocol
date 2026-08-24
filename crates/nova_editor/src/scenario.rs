@@ -11,6 +11,7 @@
 //! away to be scenery rather than a wall (see [`PLANETOID_POSITION`]).
 
 use bevy::prelude::*;
+use bevy_enhanced_input::prelude::Binding;
 use nova_assets::prelude::*;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_scenario::prelude::*;
@@ -19,7 +20,7 @@ use nova_ship::prelude::{
     PDC_KINETIC_TURRET_SECTION_ID, REINFORCED_HULL_SECTION_ID,
 };
 
-use crate::config::PlayerSpaceshipConfig;
+use crate::node::{sections_of, SectionNodes, ShipDriver, ShipNode};
 
 /// The sandbox's scenario id. Registered in [`GameScenarios`] on hand-off so
 /// the DEFEAT overlay's Retry can reload it by id like any other scenario;
@@ -198,13 +199,14 @@ const BEACON_LOCK_SIGNATURE: f32 = 30.0;
 pub(crate) fn setup_scenario(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
-    player_config: Res<PlayerSpaceshipConfig>,
+    nodes: SectionNodes,
+    q_ships: Query<(Entity, &ShipNode)>,
     // Optional: the registry is written by the bundle merge, and a rig that
     // never merged content must still be able to fly the sandbox - it just
     // does not get the retry.
     scenarios: Option<ResMut<GameScenarios>>,
 ) {
-    let scenario = sandbox_scenario(&game_assets, &player_config);
+    let scenario = sandbox_scenario(&game_assets, &lower_player_ship(&q_ships, &nodes));
 
     // Re-register with the ship the editor just built: the boot-time entry
     // (`register_sandbox_scenario`) carries the DEFAULT hull, and the DEFEAT
@@ -235,21 +237,66 @@ pub(crate) fn sandbox_unregistered(scenarios: Option<Res<GameScenarios>>) -> boo
 /// [`setup_scenario`] overwrites the entry with the built ship on hand-off.
 pub(crate) fn register_sandbox_scenario(
     game_assets: Res<GameAssets>,
-    player_config: Res<PlayerSpaceshipConfig>,
+    nodes: SectionNodes,
+    q_ships: Query<(Entity, &ShipNode)>,
     mut scenarios: ResMut<GameScenarios>,
 ) {
-    let scenario = sandbox_scenario(&game_assets, &player_config);
+    let scenario = sandbox_scenario(&game_assets, &lower_player_ship(&q_ships, &nodes));
     scenarios.insert(scenario.id.clone(), scenario);
+}
+
+/// The player's ship, lowered out of the document.
+///
+/// A query WALK, not a resource read: the ship is a subtree, and this is the
+/// step that flattens it into the shape the scenario loader consumes. Ships
+/// whose driver is not [`ShipDriver::Player`] are not lowered yet - stamping
+/// designs into a scenario as instances is `20260824-120524`'s job - so a
+/// document with none produces the same empty hull an untouched editor always
+/// handed over.
+fn lower_player_ship(q_ships: &Query<(Entity, &ShipNode)>, nodes: &SectionNodes) -> LoweredShip {
+    let Some((entity, ship)) = q_ships
+        .iter()
+        .find(|(_, ship)| ship.driver == ShipDriver::Player)
+    else {
+        return LoweredShip::default();
+    };
+    let placed = sections_of(entity, nodes);
+    LoweredShip {
+        sections: placed
+            .iter()
+            .map(|(_, id, section, transform)| SpaceshipSectionConfig {
+                id: id.0.clone(),
+                position: transform.translation,
+                rotation: transform.rotation,
+                source: section.source.clone(),
+                modifications: section.modifications.clone(),
+            })
+            .collect(),
+        inputs: placed
+            .iter()
+            .filter(|(_, _, section, _)| !section.binds.is_empty())
+            .map(|(_, id, section, _)| (id.0.clone(), section.binds.clone()))
+            .collect(),
+        skin: ship.skin,
+        style: ship.style.clone(),
+    }
+}
+
+/// The player's ship as the scenario wants it: a flat section list, the input
+/// mapping keyed by those sections' STABLE ids, and the cladding choice.
+#[derive(Default)]
+pub(crate) struct LoweredShip {
+    sections: Vec<SpaceshipSectionConfig>,
+    inputs: Vec<(SectionId, Vec<Binding>)>,
+    skin: bool,
+    style: Option<String>,
 }
 
 /// Build the sandbox: two rock belts, a hulk corridor, three dormant pickets,
 /// two sky beacons, one distant planetoid, and the ship the editor just built.
-pub(crate) fn sandbox_scenario(
-    game_assets: &GameAssets,
-    player_config: &PlayerSpaceshipConfig,
-) -> ScenarioConfig {
+pub(crate) fn sandbox_scenario(game_assets: &GameAssets, player: &LoweredShip) -> ScenarioConfig {
     let asteroid_texture = game_assets.asteroid_texture.clone();
-    let objects = sandbox_objects(player_config, asteroid_texture.clone());
+    let objects = sandbox_objects(player, asteroid_texture.clone());
 
     ScenarioConfig {
         description: "A free-flight range: rocks, target hulks, dormant pickets and a planetoid."
@@ -271,7 +318,7 @@ pub(crate) fn sandbox_scenario(
 /// scatter actions (see [`belt_scatter`]), so the field is the same field on
 /// every load and on every retry.
 fn sandbox_objects(
-    player_config: &PlayerSpaceshipConfig,
+    player: &LoweredShip,
     asteroid_texture: Handle<Image>,
 ) -> Vec<ScenarioObjectConfig> {
     let mut objects = vec![planetoid(asteroid_texture)];
@@ -284,7 +331,7 @@ fn sandbox_objects(
     );
     objects.extend(PICKETS.iter().map(picket_ship));
     objects.extend(SKY_BEACONS.iter().map(sky_beacon));
-    objects.push(player_ship(player_config));
+    objects.push(player_ship(player));
 
     objects
 }
@@ -448,7 +495,7 @@ fn sky_beacon(beacon: &SkyBeacon) -> ScenarioObjectConfig {
 }
 
 /// The ship the editor just built, with the keybinds it was built with.
-fn player_ship(player_config: &PlayerSpaceshipConfig) -> ScenarioObjectConfig {
+fn player_ship(player: &LoweredShip) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: PLAYER_ID.to_string(),
@@ -459,11 +506,7 @@ fn player_ship(player_config: &PlayerSpaceshipConfig) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping: player_config
-                    .inputs
-                    .iter()
-                    .map(|(entity, key)| (entity.to_string(), key.clone()))
-                    .collect(),
+                input_mapping: player.inputs.iter().cloned().collect(),
 
                 speed_cap: None,
                 // The editor sandbox keeps normal finite magazines. Safe even
@@ -475,9 +518,9 @@ fn player_ship(player_config: &PlayerSpaceshipConfig) -> ScenarioObjectConfig {
             // derived skin over the same structure, so the flown ship must not
             // come up bare (or clad) against it.
             hull: ShipSource::Inline(ShipHull {
-                sections: player_config.sections.values().cloned().collect(),
-                skin: player_config.skin,
-                style: player_config.style.clone(),
+                sections: player.sections.clone(),
+                skin: player.skin,
+                style: player.style.clone(),
                 ..default()
             }),
             ..default()
@@ -752,7 +795,7 @@ mod tests {
     const CAMERA_FAR: f32 = 1000.0;
 
     fn objects() -> Vec<ScenarioObjectConfig> {
-        sandbox_objects(&PlayerSpaceshipConfig::default(), Handle::default())
+        sandbox_objects(&LoweredShip::default(), Handle::default())
     }
 
     fn events() -> Vec<ScenarioEventConfig> {
@@ -1167,12 +1210,11 @@ mod tests {
     #[test]
     fn the_cladding_toggle_reaches_the_flown_ship() {
         for clad in [false, true] {
-            let config = PlayerSpaceshipConfig {
+            let lowered = LoweredShip {
                 skin: clad,
-                style: None,
                 ..default()
             };
-            let player = find(&sandbox_objects(&config, Handle::default()), PLAYER_ID);
+            let player = find(&sandbox_objects(&lowered, Handle::default()), PLAYER_ID);
             let ScenarioObjectKind::Spaceship(ship) = player.kind else {
                 panic!("the player object is a spaceship");
             };

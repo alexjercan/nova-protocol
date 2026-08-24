@@ -13,6 +13,7 @@ use nova_ship::prelude::GameSections;
 use crate::{
     config::{PlacementPreview, SectionChoice},
     gallery::GalleryState,
+    node::{sections_of, EditContext, SectionNodes},
     ExampleStates,
 };
 
@@ -50,11 +51,29 @@ pub enum EditorPlacement {
     },
 }
 
+/// One section of the ship being edited, as data.
+///
+/// The POSE is in the ship's own frame, which is the frame the solver works in
+/// and the frame a saved file records. A driven run used to read this off the
+/// scene, which stopped being possible when the thing carrying `SectionMarker`
+/// became a render-only view with an identity transform of its own.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EditorSection {
+    /// The section's stable id, unique within its ship.
+    pub id: String,
+    /// The catalog prototype it was built from.
+    pub prototype: String,
+    /// Where it sits, in the ship's frame.
+    pub position: Vec3,
+    /// How it is turned, in the ship's frame.
+    pub rotation: Quat,
+}
+
 /// The editor's outward state, refreshed once a frame.
 ///
 /// Read-only from outside the crate: it is what a harness waits ON, and an
 /// editor that also read it back would be waiting on itself.
-#[derive(Resource, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Resource, Debug, Clone, Default, PartialEq)]
 pub struct EditorProbe {
     /// Which placement tool is armed.
     pub tool: EditorTool,
@@ -68,6 +87,13 @@ pub struct EditorProbe {
     /// The catalog id the gallery's selection resolves to through the active
     /// filter - what Enter would focus, and then place.
     pub selected: Option<String>,
+    /// The sections of the ship being edited, in id order. Empty out in the
+    /// scenario context, where there is no ship to report.
+    ///
+    /// SCOPED to the edit context on purpose: with more than one ship on the
+    /// stage, a sweep of every section in the world is several ships at once,
+    /// and the runtime's own structure derivation rejects that.
+    pub ship: Vec<EditorSection>,
 }
 
 /// Refresh [`EditorProbe`] from the build state.
@@ -80,10 +106,14 @@ pub(crate) fn sync_editor_probe(
     preview: Res<PlacementPreview>,
     gallery: Res<GalleryState>,
     sections: Option<Res<GameSections>>,
+    context: Res<EditContext>,
+    nodes: SectionNodes,
     mut probe: ResMut<EditorProbe>,
 ) {
     let wanted = if *editor.get() == ExampleStates::Editor {
-        snapshot(&choice, &preview, &gallery, sections.as_deref())
+        let mut snapshot = snapshot(&choice, &preview, &gallery, sections.as_deref());
+        snapshot.ship = edited_ship(&context, &nodes);
+        snapshot
     } else {
         EditorProbe::default()
     };
@@ -92,6 +122,22 @@ pub(crate) fn sync_editor_probe(
     if *probe != wanted {
         *probe = wanted;
     }
+}
+
+/// The sections of the ship in the edit context, in id order.
+fn edited_ship(context: &EditContext, nodes: &SectionNodes) -> Vec<EditorSection> {
+    let Some(ship) = context.ship() else {
+        return Vec::new();
+    };
+    sections_of(ship, nodes)
+        .into_iter()
+        .map(|(_, id, section, transform)| EditorSection {
+            id: id.0.clone(),
+            prototype: section.prototype().to_string(),
+            position: transform.translation,
+            rotation: transform.rotation,
+        })
+        .collect()
 }
 
 /// The snapshot for one frame of the live editor.
@@ -136,12 +182,16 @@ fn snapshot(
             .open
             .then(|| sections.and_then(|sections| gallery.selected_id(sections)))
             .flatten(),
+        // Filled in by the caller, which has the document; this half of the
+        // snapshot is a pure function of the tool and the gallery.
+        ship: Vec::new(),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_scenario::prelude::SectionSource;
     use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, SectionConfig, SectionKind};
 
     use super::*;
@@ -178,12 +228,17 @@ mod tests {
     }
 
     /// A world in the editor state, with the resources the snapshot reads.
+    ///
+    /// The edit context is empty: these cases are about the TOOL and the
+    /// gallery, so there is no ship to report and `ship` stays empty. The
+    /// document's own reporting is covered in `crate::node`.
     fn world(state: ExampleStates) -> World {
         let mut world = World::new();
         world.insert_resource(State::new(state));
         world.insert_resource(SectionChoice::None);
         world.init_resource::<PlacementPreview>();
         world.init_resource::<GalleryState>();
+        world.init_resource::<EditContext>();
         world.init_resource::<EditorProbe>();
         world
     }
@@ -193,6 +248,56 @@ mod tests {
             .run_system_once(sync_editor_probe)
             .expect("the probe sync runs");
         world.resource::<EditorProbe>().clone()
+    }
+
+    /// The ship in the edit context is reported as DATA, in id order.
+    ///
+    /// This is what a driven run reads instead of the scene: what carries
+    /// `SectionMarker` in the editor is a render-only view whose own transform
+    /// is identity, so the pose is only answerable from the document. Reported
+    /// in ID order rather than query order, because a run that picks one
+    /// section out of this list must pick the same one every time.
+    #[test]
+    fn the_probe_reports_the_edited_ship_in_id_order() {
+        use crate::node::{NodeId, SectionNode};
+
+        let mut world = world(ExampleStates::Editor);
+        assert!(
+            sync(&mut world).ship.is_empty(),
+            "no ship entered, nothing to report"
+        );
+
+        let ship = world.spawn(crate::node::ShipNode::default()).id();
+        // Spawned nose-first so query order and id order disagree.
+        for (id, z) in [("hull_2", 1.0), ("hull_1", 0.0)] {
+            world.spawn((
+                SectionNode {
+                    source: SectionSource::Inline(SectionConfig {
+                        base: BaseSectionConfig {
+                            id: "hull".to_string(),
+                            name: "hull".to_string(),
+                            ..default()
+                        },
+                        kind: SectionKind::Hull(HullSectionConfig::default()),
+                    }),
+                    modifications: vec![],
+                    binds: vec![],
+                },
+                NodeId(id.to_string()),
+                Transform::from_xyz(0.0, 0.0, z),
+                ChildOf(ship),
+            ));
+        }
+        world.resource_mut::<EditContext>().path = vec![Entity::PLACEHOLDER, ship];
+
+        let reported = sync(&mut world).ship;
+        assert_eq!(
+            reported.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            ["hull_1", "hull_2"],
+            "reported in id order, not in the order they were spawned"
+        );
+        assert_eq!(reported[0].prototype, "hull");
+        assert_eq!(reported[1].position, Vec3::new(0.0, 0.0, 1.0));
     }
 
     /// The armed tool and the solved mate are the two facts a placement beat
@@ -331,6 +436,7 @@ mod tests {
         app.insert_resource(SectionChoice::None);
         app.init_resource::<PlacementPreview>();
         app.init_resource::<GalleryState>();
+        app.init_resource::<EditContext>();
         app.init_resource::<EditorProbe>();
         app.add_systems(
             Update,

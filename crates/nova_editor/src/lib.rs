@@ -3,7 +3,8 @@
 //!
 //! Structure:
 //! - `attitude`  - what the hull under construction would turn like
-//! - `config`    - the build-state resources + preview markers
+//! - `node`      - the document: the node tree and the edit context
+//! - `config`    - the placement state + screen furniture
 //! - `preview`   - the one place a section config becomes preview entities
 //! - `placement` - creating a ship + the pointer place/preview/delete observers
 //! - `keybind`   - section keybind chips + click-to-rebind
@@ -28,6 +29,7 @@ mod attitude;
 mod config;
 mod gallery;
 mod keybind;
+mod node;
 mod placement;
 mod preview;
 mod probe;
@@ -37,20 +39,20 @@ mod snap;
 mod ui;
 
 use attitude::sync_attitude_readout;
-use config::{PlacementPose, PlacementPreview, PlayerSpaceshipConfig, SectionChoice};
+use config::{PlacementPose, PlacementPreview, SectionChoice};
 use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
     sync_section_keybind_labels, EditorRebind,
 };
+use node::{ensure_document, rebuild_node_views, EditContext};
 use nova_ui::widget::button_on_setting;
 use placement::{
     clear_placement_preview, cycle_placement_pose, draw_delete_target, draw_link_points,
     draw_ship_heading, on_click_spaceship_section, pick_section_under_pointer,
-    rebuild_editor_preview_on_enter, sync_placement_ghost, sync_tool_selection,
-    update_placement_preview, wheel_placement_pose,
+    sync_placement_ghost, sync_tool_selection, update_placement_preview, wheel_placement_pose,
 };
 use probe::sync_editor_probe;
-pub use probe::{EditorPlacement, EditorProbe, EditorTool};
+pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
 use ui::{setup_editor_scene, sync_key_legend, sync_skin_toggle, sync_style_list};
@@ -60,7 +62,8 @@ use ui::{setup_editor_scene, sync_key_legend, sync_skin_toggle, sync_style_list}
 /// snapshot into scope.
 pub mod prelude {
     pub use super::{
-        EditorPlacement, EditorProbe, EditorSandboxSystems, EditorTool, NovaEditorPlugin,
+        EditorPlacement, EditorProbe, EditorSandboxSystems, EditorSection, EditorTool,
+        NovaEditorPlugin,
     };
 }
 
@@ -95,7 +98,7 @@ pub(crate) enum ExampleStates {
 fn editor_plugin(app: &mut App) {
     app.init_state::<ExampleStates>();
     app.insert_resource(SectionChoice::None);
-    app.insert_resource(PlayerSpaceshipConfig::default());
+    app.init_resource::<EditContext>();
     app.init_resource::<EditorRebind>();
     // Normally the gameplay plugin's; init'd here too so a menu-less rig (and
     // the tests below) still has one to write.
@@ -130,7 +133,7 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(PreUpdate, declare_editor_escape_owner);
     app.add_systems(
         Update,
-        escape_puts_down_the_armed_part
+        escape_backs_out
             // Same reason as the placement chain below: the Escape that closes
             // the gallery must not also put down the part it was holding.
             .before(gallery::gallery_keyboard)
@@ -180,16 +183,20 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(
         OnEnter(ExampleStates::Editor),
         (
+            // The document first: the rail is built for the ship it opens on,
+            // and the views are hung off nodes that have to exist.
+            ensure_document,
             setup_editor_scene,
-            // The preview entities are DespawnOnExit(Editor) but the config
-            // resource survives, so a second visit must rebuild the ship the
-            // first visit built - Play spawns it either way.
-            rebuild_editor_preview_on_enter,
+            // Node entities survive the trip out to the scenario; their views do
+            // not, so a second visit gives the same document new bodies. Play
+            // spawns the ship either way - it reads the document, not the view.
+            rebuild_node_views,
             setup_grab_cursor_editor,
             |mut selection: ResMut<SectionChoice>| {
                 *selection = SectionChoice::None;
             },
-        ),
+        )
+            .chain(),
     );
     app.add_systems(
         OnEnter(ExampleStates::Scenario),
@@ -333,36 +340,51 @@ fn editor_plugin(app: &mut App) {
 /// Say whether the editor answers Escape itself this frame (see
 /// [`EscapeOwner`]).
 ///
-/// It does while there is something to back OUT of: the parts gallery is up,
-/// a part is armed, or a rebind is waiting for a key. With none of those the
-/// key falls through to the pause menu, which stays the sanctioned way out of
-/// the editor. Written every frame, including the `false`: whoever claims the
-/// key also has to release it.
+/// It does while there is something to back OUT of: the parts gallery is up, a
+/// part is armed, a rebind is waiting for a key, or the editor is INSIDE a ship
+/// and can step back out to the scenario. With none of those the key falls
+/// through to the pause menu, which stays the sanctioned way out of the editor.
+/// Written every frame, including the `false`: whoever claims the key also has
+/// to release it.
 fn declare_editor_escape_owner(
     editor: Res<State<ExampleStates>>,
     gallery: Res<gallery::GalleryState>,
     choice: Res<SectionChoice>,
     rebind: Res<EditorRebind>,
+    context: Res<EditContext>,
     mut owner: ResMut<EscapeOwner>,
 ) {
     let owned = *editor.get() == ExampleStates::Editor
-        && (gallery.open || rebind.target.is_some() || *choice != SectionChoice::None);
+        && (gallery.open
+            || rebind.target.is_some()
+            || *choice != SectionChoice::None
+            || context.ship().is_some());
     if owner.0 != owned {
         owner.0 = owned;
     }
 }
 
-/// Escape puts the armed part down. The gallery answers its own Escape while it
-/// is up (see `gallery::input`), and a pending rebind cancels on Escape in
-/// `keybind`; this is the last step of the same gesture, and it leaves the
-/// editor in select mode rather than raising the pause overlay.
-fn escape_puts_down_the_armed_part(
+/// Escape backs out one step: it puts the armed part down, and with nothing in
+/// hand it leaves the ship you are inside.
+///
+/// The gallery answers its own Escape while it is up (see `gallery::input`) and
+/// a pending rebind cancels on Escape in `keybind`, so by the time the key
+/// reaches here the ladder is: armed part, then edit context, then the pause
+/// menu. Putting a part down and leaving the ship on ONE press would throw away
+/// two steps of context for one gesture.
+fn escape_backs_out(
     keys: Res<ButtonInput<KeyCode>>,
     mut choice: ResMut<SectionChoice>,
+    mut context: ResMut<EditContext>,
 ) {
-    if keys.just_pressed(KeyCode::Escape) && *choice != SectionChoice::None {
-        *choice = SectionChoice::None;
+    if !keys.just_pressed(KeyCode::Escape) {
+        return;
     }
+    if *choice != SectionChoice::None {
+        *choice = SectionChoice::None;
+        return;
+    }
+    context.exit();
 }
 
 fn switch_scene_editor(
@@ -488,6 +510,9 @@ mod tests {
                 target: rebinding.then_some(Entity::PLACEHOLDER),
                 awaiting_release: false,
             });
+            // Out in the scenario context, so the claim is decided by the three
+            // things this case varies rather than by having a ship to leave.
+            world.init_resource::<EditContext>();
             world.init_resource::<EscapeOwner>();
 
             world
@@ -502,21 +527,46 @@ mod tests {
         }
     }
 
-    /// The last step of the back gesture: Escape with a part in hand puts it
-    /// down rather than raising the pause overlay.
+    /// The back gesture is a LADDER, one rung per press: a part in hand goes
+    /// down first, and only a second Escape leaves the ship. One press doing
+    /// both would throw away two steps of context for one gesture.
     #[test]
-    fn escape_puts_the_armed_part_down() {
+    fn escape_puts_the_part_down_first_and_leaves_the_ship_second() {
+        let scenario = Entity::from_raw_u32(1).expect("a test entity id");
+        let ship = Entity::from_raw_u32(2).expect("a test entity id");
+
         let mut world = World::new();
         let mut keys = ButtonInput::<KeyCode>::default();
         keys.press(KeyCode::Escape);
         world.insert_resource(keys);
         world.insert_resource(SectionChoice::Section("hull".to_string()));
+        world.insert_resource(EditContext {
+            path: vec![scenario, ship],
+        });
 
         world
-            .run_system_once(escape_puts_down_the_armed_part)
-            .expect("the disarm system runs");
-
+            .run_system_once(escape_backs_out)
+            .expect("the back-out system runs");
         assert_eq!(*world.resource::<SectionChoice>(), SectionChoice::None);
+        assert_eq!(
+            world.resource::<EditContext>().ship(),
+            Some(ship),
+            "the first press only put the part down"
+        );
+
+        world
+            .run_system_once(escape_backs_out)
+            .expect("the back-out system runs");
+        assert_eq!(
+            world.resource::<EditContext>().ship(),
+            None,
+            "the second press leaves the ship"
+        );
+        assert_eq!(
+            world.resource::<EditContext>().scenario(),
+            Some(scenario),
+            "and lands in the scenario context, not outside the document"
+        );
     }
 
     /// Counts LoadScenario triggers so the NewGame test can prove the editor

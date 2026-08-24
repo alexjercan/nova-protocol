@@ -112,8 +112,11 @@ work.
    a query walk, every caller converted. Large and indivisible - the crate
    does not compile between deleting the resource and converting its
    readers, and a bridge type is the compatibility machinery AGENTS.md
-   rules out.
-3. WIP UI, probe fields, tests.
+   rules out. Pulls the ship's geometry onto `EditorProbe` forward from
+   step 3: the harness read section poses off the scene, and the thing
+   carrying `SectionMarker` is now a view whose own transform is identity,
+   so the range cannot stay green without it.
+3. WIP UI, the remaining probe fields, tests.
 
 ## Done when
 
@@ -131,7 +134,9 @@ work.
 
 - Affordance overlays: thrust direction, turret arcs, the section inspector.
 - Non-ship node kinds and their preview spawners (`20260714-081703`).
-- Save and load to disk, prefab stamping (`20260824-120524`).
+- Save and load to disk, prefab stamping (`20260824-120524`). Lowering emits
+  the `Player`-driven ship only; ships built beside it are designs, and
+  stamping a design into a scenario as an instance is that task's job.
 - The sandbox range stays code-authored constants in `sandbox_scenario`
   (scenario.rs:34-196), supplied at lowering exactly as today. It is the
   fixed backdrop until templates land, at which point "start from the

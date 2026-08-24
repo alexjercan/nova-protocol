@@ -153,7 +153,7 @@ pub(crate) fn spawn_tile(
             is_hoverable: false,
         },
     ));
-    insert_preview_section(&mut entity, section, PreviewRole::Display, vec![]);
+    insert_preview_section(&mut entity, section, PreviewRole::Display);
     // Hidden AFTER the preview bundle, which carries a `Visibility` of its own
     // and used to overwrite this one. An unhidden tile draws one frame at the
     // stage origin - which projects to the middle of the screen - so every

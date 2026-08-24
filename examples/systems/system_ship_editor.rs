@@ -972,11 +972,11 @@ const GALLERY_TILE: &str = "Gallery Tile ";
 /// that name a face by its coordinates found nothing there. Sorting here is what
 /// makes the ship the run builds the SAME ship every time.
 #[cfg(feature = "debug")]
-fn placed_sections(world: &mut World, root: Option<Entity>) -> Vec<(Transform, SectionLinkPoints)> {
+fn placed_sections(world: &mut World, root: Entity) -> Vec<(Transform, SectionLinkPoints)> {
     let mut sections: Vec<_> = world
         .query_filtered::<(&Transform, &SectionLinkPoints, &ChildOf), With<SectionMarker>>()
         .iter(world)
-        .filter(|(_, _, ChildOf(parent))| root.is_none_or(|root| *parent == root))
+        .filter(|(_, _, ChildOf(parent))| *parent == root)
         .map(|(transform, points, _)| (*transform, points.clone()))
         .collect();
     sections.sort_by(|(a, _), (b, _)| by_pose(a.translation, b.translation));
@@ -1007,9 +1007,48 @@ fn player_root(world: &mut World) -> Entity {
 
 /// How many mates the runtime derivation finds over one ship's sections, or
 /// the errors that rejected it.
+/// The sections of the ship being EDITED, read off the public
+/// [`EditorProbe`] rather than off the scene.
+///
+/// The scene stopped being able to answer this: what carries `SectionMarker` in
+/// the editor is a render-only view whose own transform is identity, and the
+/// pose lives on the document node above it. The probe reports the ship in the
+/// edit context, which also means a second ship on the stage cannot leak into a
+/// derivation that demands ONE connected structure.
+///
+/// Link points come from the public catalog, keyed by the prototype the probe
+/// names - the same catalog the editor placed the section out of.
+#[cfg(feature = "debug")]
+fn edited_sections(world: &mut World) -> Vec<(Transform, SectionLinkPoints)> {
+    let Some(probe) = world.get_resource::<EditorProbe>() else {
+        return Vec::new();
+    };
+    let ship = probe.ship.clone();
+    let Some(catalog) = world.get_resource::<GameSections>() else {
+        return Vec::new();
+    };
+    let mut sections: Vec<_> = ship
+        .iter()
+        .filter_map(|section| {
+            let config = catalog.get_section(&section.prototype)?;
+            Some((
+                Transform::from_translation(section.position).with_rotation(section.rotation),
+                SectionLinkPoints(config.base.link_points.clone()),
+            ))
+        })
+        .collect();
+    sections.sort_by(|(a, _), (b, _)| by_pose(a.translation, b.translation));
+    sections
+}
+
 #[cfg(feature = "debug")]
 fn mate_graph(world: &mut World, root: Option<Entity>) -> Result<usize, String> {
-    let sections = placed_sections(world, root);
+    let sections = match root {
+        // A flown ship IS its sections: the marker and the pose are the same
+        // entity out there.
+        Some(root) => placed_sections(world, root),
+        None => edited_sections(world),
+    };
     let placed: Vec<PlacedSectionLinkPoints> = sections
         .iter()
         .map(|(transform, points)| PlacedSectionLinkPoints {
@@ -1027,7 +1066,7 @@ fn mate_graph(world: &mut World, root: Option<Entity>) -> Result<usize, String> 
 /// leaves behind.
 #[cfg(feature = "debug")]
 fn sections_with_a_rotation(world: &mut World) -> usize {
-    placed_sections(world, None)
+    edited_sections(world)
         .iter()
         .filter(|(transform, _)| transform.rotation.angle_between(Quat::IDENTITY) > 1e-3)
         .count()
@@ -1068,7 +1107,7 @@ fn aim_at_a_visible_face(world: &mut World) -> Option<(Vec2, Vec2)> {
 
     // The unit-cube hull sections are the ship's body; a mounted module is
     // smaller than a face and must not become the target itself.
-    let sections = placed_sections(world, None);
+    let sections = edited_sections(world);
     let (transform, points) = sections
         .iter()
         .filter(|(_, points)| points.len() >= 6)
