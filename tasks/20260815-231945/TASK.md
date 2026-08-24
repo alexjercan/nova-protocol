@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: backlog,research,art
+- TAGS: backlog, research, art
 
 ## Goal
 
@@ -31,6 +31,10 @@ art generator. Research that informs it is the most valuable.
   my own Nova-specific reading kept separate from theirs. None of its figures
   could be re-verified from here; the file says so.
 - `PLATING-AND-GREEBLES.md` - round 2, below.
+- `COMBAT-MODE.md` - round 3, below.
+- `V0.12.0-PLAN.md` - round 4 synthesis: the v0.12.0 release plan. Its
+  evidence: `EDITOR-STATE.md`, `SCENARIO-PIPELINE.md`, `INPUT-AND-PROCESS.md`,
+  `CONTENT-AND-ART.md`, `NODE-EDITOR-PRIOR-ART.md`.
 
 ## Round 2: hull plating shape and greeble placement
 
@@ -164,3 +168,15 @@ turret modes, plus any submarine or naval sim with a weapons officer.
 
 Feeds `20260816-114054` (autonomous point defence for the player), which is
 DESIGNED but undecided and must not be built before this lands.
+
+## Round 4: v0.12.0 planning - the editor release
+
+Ran 2026-08-24, five parallel lanes, all landed. `V0.12.0-PLAN.md` is the
+synthesis and the entry point; it carries the release theme (node-model
+editor), the decisions taken with the owner, the task board with priorities,
+and the dependency spine. The five evidence files are listed in Contents.
+
+Consumed by the v0.12.0 task rewrites of 2026-08-24: `20260812-131912`
+(epic), `20260824-011329`, `20260714-081703`, `20260820-174148`,
+`20260820-223059`, `20260817-090834`, `20260822-204201`, `20260714-001140`,
+and the new tasks the plan lists. `20260812-131901` closed into the plan.

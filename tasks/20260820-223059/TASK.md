@@ -1,10 +1,8 @@
 # Give the scenario language the primitives its content hand-rolls
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog
-
-# Give the scenario language the primitives its content hand-rolls
+- PRIORITY: 72
+- TAGS: v0.12.0,scenario,events
 
 The modding vocabulary is sound and the review says so plainly
 (`tasks/20260818-220812/review-modding-model.md`): a stateless
@@ -216,3 +214,39 @@ ceremony comes back.
   MUST land there (`docs/keeping-docs-in-sync.md`).
 - Stage 3 written up as a recommendation with the content evidence stages 1-2
   produce, and NOT implemented as part of this task.
+
+## Verified against the tree, round 4 (2026-08-24)
+
+Scheduled into v0.12.0. Full audit:
+`tasks/20260815-231945/SCENARIO-PIPELINE.md` section 3. The deltas that
+change the design, none that change the direction:
+
+- **The cursor CANNOT live in the `Sequence` action.** `EventAction::action`
+  takes `&self`, actions are Arc-shared, and `EventHandlerIndex` stores
+  CLONES of handlers (engine.rs:362-369) - a cursor inside the action
+  diverges between the ECS copy and the index copy. The cursor lives in
+  `NovaEventWorld`, keyed by an authored LITERAL sequence key, exactly as
+  timers do (world.rs:504, loader/clock.rs:66-71). The key is lintable and
+  serialises - the mid-scenario-save argument survives.
+- **`once` needs a same-pass latch, not only despawn.** Retirement-by-despawn
+  already works and is tested (engine.rs:643), but `queue_system`
+  (engine.rs:429-462) drains the whole queue against one index snapshot and
+  a commanded despawn lands next frame - two queued events of the same name
+  would fire a `once` handler twice. Latch it in `W`, which `queue_system`
+  holds as `ResMut`.
+- **`once` is a serde-defaulted field** on `ScenarioEventConfig`
+  (loader/mod.rs:308-323); old files parse unchanged.
+- **The hidden half of `Sequence`: four walkers recurse.** Everything that
+  walks `event.actions` walks it top-level only today and must recurse into
+  steps: `inline_queries` (loader/mod.rs:259 - missing it silently disables
+  the entity sampler for nested expressions), `object_count` (:352 -
+  harness assertions read it), lint `collect_declared`/`check_action`
+  (lint/scenario.rs:318, :346), and the per-event spawn-id pass (:120).
+- **Corrections to this body**: `ledger_ch3` is a HAND-WRITTEN webmod
+  (webmods/the-ledger/ledger_ch3.content.ron), not generated base - its
+  rewrite is a direct RON edit, and the evidence now spans both producer
+  kinds. `lint/scenario.rs` is 1391 lines today, not 1,452. Handler counts
+  confirmed: shakedown_run 19/42, ledger_ch3 15/27, lifeline 13/27.
+- Keep the `until:`/`deadline:` vocabulary consciously parallel with the
+  autopilot predicates that `20260824-011329` extends - same idea, two
+  consumers.

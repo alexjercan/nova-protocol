@@ -1,43 +1,70 @@
 # Promote the thruster shells: check the candidates, ship the picks
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,art,ship,content
+- PRIORITY: 60
+- TAGS: v0.12.0,art,ship,content
+
+Rewritten 2026-08-24 for v0.12.0. Audit:
+`tasks/20260815-231945/CONTENT-AND-ART.md` section 1. The multi-cell
+question this task used to defer is now OPEN as `20260824-120531`; this task
+stays 1x1-only and lands early - it is mechanical and independent.
 
 ## Goal
 
-Promote the thruster shell candidates from art to the game: the seven
-bell/vector-language shells (task 20260817-013639, landed as
-art/part-candidates/shells/) become real thruster looks, and each candidate
-is CHECKED before promotion.
+Promote the 1x1 thruster shell candidates from `art/part-candidates/shells/`
+to real thruster looks, each candidate CHECKED before promotion. Close the
+determinism-gate CI gap while touching the generator.
+
+## The candidates
+
+Five 1x1x1: `shell_bell`, `shell_gimbal`, `shell_twin`, `shell_paddle`,
+`shell_vector`. Owner review already happened once: `20260817-013639`
+closure records bell + vector KEPT (the gallery labels agree,
+screenshot_thruster_gallery.rs:232, :272). Re-confirm the picks from the
+gallery rather than assuming them; gimbal/twin/paddle are candidates too.
+The large `shell_bank` (3x3x1) and `shell_capital` (5x5x3) belong to
+`20260824-120531`, not here.
 
 ## The checks (per candidate, before any promotion)
 
-- exhaust geometry agrees with the thrust convention: thrust is -Z, the
-  bell opens +Z (clearance.rs exit_normal), and the exit_pocket / exhaust
-  lane clearance fits the mesh silhouette
-- triangle budget and material sanity at ship render distance (the gallery
-  render is the judging view; owner picks WHICH candidates promote)
-- recipe determinism stays under gen-thruster-shells.py --check
+- Exhaust geometry agrees with the thrust convention: thrust -Z, bell opens
+  +Z (clearance.rs:64-66 `exit_normal`); the exit_pocket / exhaust lane
+  clearance fits the mesh silhouette (shell_skin.rs:321).
+- Triangle budget and material sanity at ship render distance; the gallery
+  render is the judging view.
+- Recipe determinism stays under `gen-thruster-shells.py --check`
+  (lines 145-167 rebuild and byte-compare).
 
-## Promotion (1x1 only)
+## The promotion path (audited, mechanical)
 
-- the chosen candidate(s) replace or join the basic_thruster render mesh as
-  authored prototype models (nova_authoring section builders + content gen;
-  never hand-edit the generated RON)
-- wfc_ships / wfc_arena inherit the new look automatically through the
-  prototype; verify with a bench or arena render
-- the large formats (shell_bank 3x3x1, shell_capital 5x5x3) stay ART until
-  the multi-cell section question (THRUSTERS.md follow-up 3) is decided -
-  this task does NOT open that
+1. Move the picked .glb(s) to `assets/base/gltf/` (the greeble pattern -
+   assets/base/gltf/greebles/README.md), recipe stays the source, --check
+   points at the new path.
+2. Register an `AssetRef<WorldAsset>` in
+   crates/nova_authoring/src/base_content/assets.rs (pattern at lines 22-26).
+3. Set `render_mesh` + `render_mesh_transform` on `basic_thruster_section`
+   (base_content/sections/standard.rs:320-360; `render_mesh: None` today at
+   :355). The exhaust cone spawns for every thruster either way
+   (thruster_section.rs:734-745), so the plume comes free.
+4. `cargo run content gen`; commit the regenerated RON (never hand-edit).
+5. Verify: gallery row plus a wfc_ships / wfc_arena render - both inherit
+   the look through the prototype automatically.
+
+If promotion replaces the primitive look, no id changes; new prototypes get
+new builder ids (content lint guards duplicates). The one-socket test
+(standard.rs:695) only breaks if link points change - promotion alone does
+not touch them.
+
+## The CI gap (fold in here)
+
+`gen-thruster-shells.py --check` and the greeble twin run in NO CI step
+(.github/workflows/ci.yaml has no python step; recorded unfixed in
+`20260817-013639`). Add the check line so the byte-reproducibility gate
+actually gates.
 
 ## Done when
 
-- owner has picked from the gallery; picked shells fly on real ships in a
-  render; checks recorded per candidate; large formats explicitly deferred
-
-## Backlogged 2026-08-18
-
-Art and content, and v0.11.0 is now the performance/examples/docs release
-(`20260818-220812`). Nothing here is blocked - it is out of the release's lane.
-The candidates are landed under `art/part-candidates/shells/` and keep.
+- Owner has picked from the gallery; picked shells fly on real ships in a
+  render; checks recorded per candidate here.
+- The determinism gates run in CI.
+- Large formats live in `20260824-120531`, explicitly not here.

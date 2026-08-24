@@ -4,77 +4,58 @@
 - PRIORITY: 0
 - TAGS: backlog,input,gamepad,mobile,spike
 
-## Goal
+Rewritten 2026-08-24. The settings-menu half (tabs + rebinding, the absorbed
+`20260818-182012` Part C) moved into v0.12.0 as `20260824-120527`; this task
+keeps the two parts that should target a SETTLED editor and menu surface,
+which v0.12.0's node-editor rework is actively changing. Stays backlog;
+schedule after the editor interaction model lands. Current-state audit:
+`tasks/20260815-231945/INPUT-AND-PROCESS.md` (it corrects this task's stale
+paths: the flight rig is nova_ship/src/input/player/flight_rig.rs, the HUD
+crate is nova_hud).
 
-Broaden input beyond keyboard + mouse in two independently shippable v0.11.0
-workstreams.
-Gameplay already has gamepad bindings (flight verbs in player.rs; pause / HUD
-cycle / back-to-editor added in the v0.5.x cycle), but the menus and the editor
-cannot be driven by a gamepad at all, and there is no touch support for mobile.
+## Part A - Gamepad navigation for menus and the editor
 
-### Part A - Gamepad navigation for menus and the editor
+Make the whole out-of-cockpit UI operable with a gamepad (no mouse):
 
-Make the whole out-of-cockpit UI operable with a gamepad (no mouse required):
-
-- **Menus** (main menu + ESC pause menu, `nova_menu`): directional focus
+- Menus (main menu + ESC pause menu, `nova_menu`): directional focus
   movement (D-Pad / left stick), confirm (South), back/cancel (East), with a
-  visible focus ring, so New Game / Sandbox / Settings / Resume / Exit are all
-  reachable on a pad.
-- **Editor** (`nova_editor`): navigate the section palette / build panel, place
-  and rebind sections, and trigger the play-test transition from the pad.
-- Prefer Bevy's UI focus/navigation primitives if they fit; otherwise a small
-  focus-ring + gamepad-driven focus system. Wire it through the existing
-  `ButtonInput<GamepadButton>` reads / input rig.
+  visible focus ring.
+- Editor (`nova_editor`): navigate the gallery and rail, place and rebind
+  sections, trigger play-test from the pad.
+- Prefer Bevy's UI focus/navigation primitives if they fit; otherwise a
+  small focus-ring + gamepad-driven focus system.
+- The existing raw pad reads are inventoried in INPUT-AND-PROCESS.md
+  section 5 (pause Start, HUD Select, editor L3, placement capture, NOVA OS
+  RightThumb/Start). By then they should be registry actions
+  (`20260820-174148`) or documented fixed chords.
 
-### Part B - Mobile virtual pad (touch)
+## Part B - Mobile virtual pad (touch)
 
-Make the web build playable on a phone with on-screen touch controls, built on
-the bevy-common-systems touch primitives as the reference implementation:
+Make the web build playable on a phone, built on the bevy-common-systems
+touch primitives as the reference implementation:
 
 - `bevy_common_systems::ui::touchpad` - `TouchpadPlugin` + `TouchSeen`
-  (reveal-on-first-touch gating via `RevealOnTouch` / `HideOnTouch`, so a
-  desktop session never sees the pad, with no wasm/`maxTouchPoints` sniffing),
-  plus the pure, unit-testable hit-tests `stick_deflection` (finger offset from
-  a floating origin -> stick vector) and `button_grid_at` (touch pos -> zone).
-- `bevy_common_systems::input::pointer::UnifiedPointer` - collapses
-  mouse/touch/cursor into one per-frame pointer (touch wins over cursor) for
-  aim/look on a touch device.
-- Reference the crate's shipped touch-control work:
-  `~/personal/bevy-common-systems/docs/2026-07-04-{dropzone,reactor,overload}-touch-controls.md`
-  and `examples/08_dropzone.rs`.
-- Lay out an on-screen left stick (thrust / nav intent), a right-side aim area,
-  and buttons for the core verbs (GOTO / ORBIT / STOP, radar lock, fire),
-  revealed only once the screen is first touched.
-
-Done when: the menus and the editor are fully operable with a gamepad, and the
-web build is playable on a touchscreen via a virtual pad built on the
-bevy-common-systems primitives.
+  (reveal-on-first-touch via `RevealOnTouch`/`HideOnTouch`; no
+  wasm/maxTouchPoints sniffing), pure hit-tests `stick_deflection` and
+  `button_grid_at`.
+- `bevy_common_systems::input::pointer::UnifiedPointer` for aim/look.
+- Reference the crate's shipped touch work:
+  ~/personal/bevy-common-systems/docs/2026-07-04-{dropzone,reactor,overload}-touch-controls.md
+  and examples/08_dropzone.rs.
+- On-screen left stick (thrust/nav), right-side aim area, buttons for the
+  core verbs (GOTO / ORBIT / STOP, radar lock, fire), revealed on first
+  touch.
+- `bevy-common-systems` is a git dependency with a local checkout at
+  ~/personal/bevy-common-systems; extend the primitives there and bump the
+  pinned rev if needed.
 
 ## Notes
 
-- Scheduled after the v0.11.0 editor interaction model settles.
 - Requires a spike first (menu-nav approach: Bevy UI focus vs a custom focus
-  ring; virtual-pad layout and on-screen verbs), then split Part A and Part B
-  into independent child tasks. Implement gamepad navigation first.
-- `bevy-common-systems` is a git dependency with a local checkout at
-  `~/personal/bevy-common-systems`; if the touch primitives need extending, make
-  the change there (same task flow) and bump the pinned `rev` here.
-- Touch points in this repo: menu widgets are bevy `ui_widgets`
-  (`Button`/`Activate`) in `nova_menu`; the editor build UI is in `nova_editor`;
-  existing gamepad reads are `Option<Res<ButtonInput<GamepadButton>>>` (see
-  `nova_editor`, `nova_menu`, `nova_gameplay/hud`) and the `bindings!` flight rig
-  in `nova_gameplay/src/input/player.rs`.
+  ring; virtual-pad layout), then split Part A and Part B into independent
+  child tasks. Gamepad navigation first; mobile last, so its layout targets
+  stable interactions.
 
-## Backlogged 2026-08-18, and absorbs `20260818-182012`
-
-Moved to the backlog with the editor epic - Part A is largely editor UI, and
-v0.11.0 is now the performance/examples/docs release (`20260818-220812`).
-
-Absorbs closed duplicate `20260818-182012`, which adds a Part C:
-
-- Turn Settings into a real settings menu. Today it is master volume, a
-  graphics preset and a READ-ONLY keybind reference. Wanted: rebinding for
-  keyboard AND gamepad. Persistence already exists (settings survive restarts)
-  - reuse it for bindings.
-- The keybinds wiki page already documents a gamepad column. Make the game
-  match the page, or correct the page where the design differs.
+Done when: the menus and the editor are fully operable with a gamepad, and
+the web build is playable on a touchscreen via a virtual pad built on the
+bevy-common-systems primitives.

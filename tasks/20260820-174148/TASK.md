@@ -1,8 +1,8 @@
 # The game as a process: named inputs, a command channel, and state on stdout
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog
+- PRIORITY: 70
+- TAGS: v0.12.0,tooling,input,autopilot
 
 Make the game drivable and observable as a PROCESS: named input actions, a
 command channel that carries both inputs and scenario actions, world state on
@@ -135,3 +135,50 @@ Share the dispatcher, not the surface. Console is optional and goes LAST.
 - A range drives the game through the dispatcher instead of a raw `KeyCode`.
 - A headless run emits world state and accepts input on a channel, and the same
   input sequence replays to the same result.
+
+## Round 4 findings (2026-08-24) - what the audit changed
+
+Scheduled into v0.12.0. Full audit:
+`tasks/20260815-231945/INPUT-AND-PROCESS.md`; step-mode and snapshot detail
+in `SCENARIO-PIPELINE.md` section 5.
+
+**Phase 1 is a REGISTRY, not just names.** Naming rig actions does not
+delete `reference.rs` by itself: the settings panel renders in the main menu
+and no rig exists there (the rig spawns with the player ship). Build a
+persistent bindings registry - per action: name, keyboard binds, gamepad
+binds - that the flight rig is BUILT FROM. That one structure serves the
+settings menu (`20260824-120527` depends on it), rebinding persistence, and
+this task's dispatcher. Two more hand-kept mirrors die with it:
+`flight_rig_reserved_sources()` (hints.rs:164-195, conflict checking) and
+the `key_glyphs` coverage - both must become registry-derived or they go
+stale on the first remap.
+
+Phase 1 name scope: the fixed rigs only - flight + targeting (11 actions,
+nova_ship/src/input/player/flight_rig.rs:97-260; every action already
+carries a display `Name`), camera (3, camera/rig.rs:175-208), scenario
+advance (1). Per-section weapon actions are dynamic (derived names later)
+and the raw system chords (pause, HUD, NOVA OS, comms) stay fixed rows.
+
+**Dispatcher route (proven path).** Inject where the autopilot already does:
+`PreUpdate` after `InputSystems` (nova_autopilot/src/autopilot.rs:390);
+`apply(name, phase)` resolves the registry to a live `Binding` and calls the
+existing `press_key`/`press_mouse` helpers (input.rs:74-131). Gamepad
+synthesis is deliberately absent there; for wheel/motion/gamepad sources,
+spike the `bevy_enhanced_input` 0.26 mock API (mock.rs:173-200) - whether it
+composes with `Hold`/`Tap` (the radar gesture) is UNVERIFIED. Proof-of-done
+for phase 1: port `hollow::hold_radar`/`release_radar`
+(examples/screenshots/shared/hollow.rs:509-523) and the 38 hardcoded
+press_key/press_mouse call sites across 7 example files.
+
+**Step mode (settled direction).** Replace `ScheduleRunnerPlugin` at
+nova_core/src/lib.rs:211 with a custom runner: tick N with
+`TimeUpdateStrategy::ManualDuration` (first manual update is dt 0 - warm
+up), `capture_snapshot(&mut World)` (confirmed pure, snapshot.rs:364), write
+the line, block on the channel.
+
+**The SyncWorldPlugin leak is confirmed and worse than noted**: ~24 bytes
+per synced spawn AND per component removal, ~2.4 MB per 100k
+(nova_core/src/lib.rs:212-229), and `PendingSyncEntity` is `pub(crate)`
+upstream so it CANNOT be drained from outside. Resolve the strategy
+(upstream fix or bounded sessions) in this task before advertising
+indefinite driven sessions.

@@ -1,8 +1,8 @@
 # Editor: full-spaceship copy-paste palette
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,editor,ui
+- TAGS: backlog, editor, ui
 
 Goal: full-spaceship palette in the editor - browse complete ship prototypes
 with 3D preview and stamp ("copy paste") a whole ship into the scene;
@@ -32,3 +32,14 @@ DoD:
 ## Backlogged 2026-08-18
 
 Moves with the editor epic `20260812-131912`. Unchanged, rescheduled.
+
+## CLOSED 2026-08-24 - absorbed, not cancelled
+
+Owner call during v0.12.0 planning: the node-editor model subsumes this.
+"Stamp a ship" becomes "instance a prefab" - a `ScenarioObjectConfig` with a
+`ShipSource::Prototype` hull and a minted literal id. The whole scope (ship
+gallery tab, stamp placement, in-scene duplicate, save/reload DoD) lives on
+in `20260824-120524` (editor save/load + prefab stamping), which also carries
+the reuse notes (the parts-gallery stage/tiles are reusable; `browsable` is
+section-typed, gallery/catalog.rs:73). Plan of record:
+`tasks/20260815-231945/V0.12.0-PLAN.md`.
