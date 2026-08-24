@@ -40,3 +40,8 @@ action masks its child's failure, so prior release jobs looked green while
 shipping the unoptimized module. Both web workflows now pass the required
 feature flags. The exact command reduced this build from 65,807,917 to
 58,350,397 bytes.
+
+The repaired `nova-protocol_v0.11.0_web.zip` contains the generated third-party
+license manifest and passed `unzip -t`. It was attached to the existing v0.11.0
+release at 32,460,964 bytes with SHA-256
+`04909692791ce0b128e2f8b3a790d61a8db8de7dcbd3b7bf9e7f8f5ef94ffe4a`.
