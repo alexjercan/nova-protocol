@@ -74,6 +74,9 @@ jobs:
         uses: NiklasEi/wasm-opt-action@v2
         with:
           file: dist/*.wasm
+          # Rust emits these post-MVP instructions. wasm-opt otherwise rejects
+          # the module and this action masks its non-zero child status.
+          options: -Os --enable-bulk-memory --enable-nontrapping-float-to-int
 
       # --- developer book: mdbook (prebuilt binaries, not cargo-install) ---
       - name: Install mdbook

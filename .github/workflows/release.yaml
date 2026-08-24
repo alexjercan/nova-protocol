@@ -261,6 +261,9 @@ jobs:
         uses: NiklasEi/wasm-opt-action@v2
         with:
           file: dist/*.wasm
+          # Rust emits these post-MVP instructions. wasm-opt otherwise rejects
+          # the module and this action masks its non-zero child status.
+          options: -Os --enable-bulk-memory --enable-nontrapping-float-to-int
       - name: Zip release
         uses: vimtor/action-zip@v1.1
         with:

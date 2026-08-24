@@ -30,3 +30,13 @@ wasm size optimization.
 - `git diff --check` passed.
 - Actionlint parsed both edited workflows. Its only finding is the pre-existing
   `actions/setup-dotnet@v3` version at `release.yaml:193`.
+
+## Release repair
+
+While preparing the missing v0.11.0 archive, the optimization step exposed a
+pre-existing fault: Rust emits bulk-memory and non-trapping conversion
+instructions, but the action called `wasm-opt -Os` without enabling them. The
+action masks its child's failure, so prior release jobs looked green while
+shipping the unoptimized module. Both web workflows now pass the required
+feature flags. The exact command reduced this build from 65,807,917 to
+58,350,397 bytes.
