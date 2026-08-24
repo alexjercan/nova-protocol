@@ -35,6 +35,8 @@ art generator. Research that informs it is the most valuable.
 - `V0.12.0-PLAN.md` - round 4 synthesis: the v0.12.0 release plan. Its
   evidence: `EDITOR-STATE.md`, `SCENARIO-PIPELINE.md`, `INPUT-AND-PROCESS.md`,
   `CONTENT-AND-ART.md`, `NODE-EDITOR-PRIOR-ART.md`.
+- `v0.12.0-tasks.html` - the board as a browsable page: every v0.12.0 task
+  with a short description and a file:// link. Open in a browser.
 
 ## Round 2: hull plating shape and greeble placement
 
