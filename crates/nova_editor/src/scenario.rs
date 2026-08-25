@@ -41,10 +41,6 @@ const SANDBOX_ID: &str = "editor_sandbox";
 /// the player and by the editor's input mapping.
 const PLAYER_ID: &str = "player_spaceship";
 
-/// Where the ship you built starts. Everything else is laid out around this,
-/// and the layout tests measure from it.
-const PLAYER_SPAWN: Vec3 = Vec3::ZERO;
-
 /// The planetoid: far enough that it reads as a destination.
 ///
 /// It used to sit 314u from the spawn, which put the player INSIDE it in every
@@ -364,30 +360,24 @@ fn lower_ship(
 /// EVERY ship of the document, lowered out of it.
 ///
 /// A query WALK, not a resource read: a ship is a subtree, and this is the
-/// step that flattens each into the shape the scenario loader consumes. The
-/// [`ShipDriver::Player`] ship anchors the range at [`PLAYER_SPAWN`]; every
-/// AI ship keeps its stage offset FROM the player, so the layout the builder
-/// dragged out on the ground plane is the layout that flies. A document with
-/// no player ship produces the same empty hull an untouched editor always
-/// handed over.
+/// step that flattens each into the shape the scenario loader consumes.
+///
+/// A ship's pose is its OWN. The stage is one space and every node stands in
+/// it, so a ship flies from the point it was dragged to and turning or moving
+/// one moves nothing else. An earlier rule made the player's ship an anchor
+/// that pinned the whole fleet to the range origin, which meant dragging the
+/// only ship in a document looked like it did nothing at all. A document with
+/// no player ship still produces the same empty hull an untouched editor
+/// always handed over.
 fn lower_fleet(
     q_ships: &Query<(Entity, &NodeId, &ShipNode, &Transform)>,
     nodes: &SectionNodes,
 ) -> LoweredFleet {
-    let anchor = q_ships
-        .iter()
-        .find(|(_, _, ship, _)| ship.driver == ShipDriver::Player)
-        .map_or(Vec3::ZERO, |(_, _, _, transform)| transform.translation);
     let mut fleet = LoweredFleet::default();
     let mut ships: Vec<_> = q_ships.iter().collect();
     ships.sort_unstable_by(|a, b| a.1.cmp(b.1));
     for (entity, id, ship, transform) in ships {
-        // The offset stays in WORLD axes and is not turned by the anchor's own
-        // rotation: what the builder laid out on the ground plane is the
-        // layout that flies, whichever way the player's ship happens to face.
-        let pose = Transform::from_translation(PLAYER_SPAWN + transform.translation - anchor)
-            .with_rotation(transform.rotation);
-        let lowered = lower_ship(entity, ship, pose, nodes);
+        let lowered = lower_ship(entity, ship, *transform, nodes);
         match ship.driver {
             ShipDriver::Player => fleet.player = lowered,
             ShipDriver::Ai => fleet.ai.push((id.0.clone(), lowered)),
@@ -627,12 +617,7 @@ fn player_ship(player: &LoweredShip) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: PLAYER_ID.to_string(),
             name: "Player's Spaceship".to_string(),
-            // The player ANCHORS the range - the belts, pickets and beacons are
-            // all authored around this point - so dragging the player's ship
-            // moves the fleet around it rather than moving the ship off the
-            // range. Its heading is its own, though: a ship turned on the stage
-            // is a ship that launches turned.
-            position: PLAYER_SPAWN,
+            position: player.position,
             rotation: player.rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -938,6 +923,12 @@ fn sandbox_events(objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig
 
 #[cfg(test)]
 mod tests {
+    /// The point the range is laid out around. Ships no longer spawn here by
+    /// rule - each stands where the builder put it - but the belts, planetoid
+    /// and pickets are still authored about this point, and the layout tests
+    /// measure from it.
+    const RANGE_ORIGIN: Vec3 = Vec3::ZERO;
+
     use bevy::ecs::system::RunSystemOnce;
     use nova_gameplay::prelude::{GravitySettings, GravityWell};
 
@@ -1068,7 +1059,7 @@ mod tests {
     #[test]
     fn the_spawn_is_clear_of_the_planetoid() {
         let (body_radius, well) = planetoid_reach();
-        let distance = PLAYER_SPAWN.distance(PLANETOID_POSITION);
+        let distance = RANGE_ORIGIN.distance(PLANETOID_POSITION);
 
         assert!(
             distance > well.soi_radius,
@@ -1095,7 +1086,7 @@ mod tests {
     #[test]
     fn the_whole_range_is_inside_the_camera_far_plane() {
         for object in objects() {
-            let distance = PLAYER_SPAWN.distance(object.base.position);
+            let distance = RANGE_ORIGIN.distance(object.base.position);
             assert!(
                 distance < CAMERA_FAR,
                 "'{}' is {distance:.0}u from the spawn, past the {CAMERA_FAR:.0}u far plane",
@@ -1105,7 +1096,7 @@ mod tests {
         // The belts are scattered, so check their corners instead.
         for belt in &BELTS {
             for corner in [belt.min, belt.max] {
-                let distance = PLAYER_SPAWN.distance(corner);
+                let distance = RANGE_ORIGIN.distance(corner);
                 assert!(
                     distance < CAMERA_FAR,
                     "belt '{}' reaches {distance:.0}u, past the far plane",
@@ -1537,6 +1528,59 @@ mod tests {
             escort.base.position,
             Vec3::new(24.0, 0.0, 0.0),
             "and turning a ship does not move it"
+        );
+    }
+
+    /// A ship's pose is its own. The player's ship used to ANCHOR the fleet -
+    /// its own translation was subtracted from every ship's - so dragging the
+    /// only ship in a document moved nothing, and dragging the player moved
+    /// every other ship instead of itself.
+    #[test]
+    fn each_ship_flies_from_where_it_was_dragged() {
+        let mut world = World::new();
+        let player_at = Vec3::new(60.0, 10.0, -20.0);
+        let escort_at = Vec3::new(84.0, 10.0, -20.0);
+        world.spawn((
+            NodeId("ship_1".to_string()),
+            ShipNode {
+                driver: ShipDriver::Player,
+                ..default()
+            },
+            Transform::from_translation(player_at),
+        ));
+        world.spawn((
+            NodeId("ship_2".to_string()),
+            ShipNode {
+                driver: ShipDriver::Ai,
+                ..default()
+            },
+            Transform::from_translation(escort_at),
+        ));
+
+        let fleet = world
+            .run_system_once(
+                |q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>, nodes: SectionNodes| {
+                    let fleet = lower_fleet(&q_ships, &nodes);
+                    (
+                        fleet.player.position,
+                        fleet
+                            .ai
+                            .iter()
+                            .map(|(_, ship)| ship.position)
+                            .collect::<Vec<_>>(),
+                    )
+                },
+            )
+            .expect("the lowering runs");
+
+        assert_eq!(
+            fleet.0, player_at,
+            "the player's ship stands where it was left, not at the range origin"
+        );
+        assert_eq!(
+            fleet.1,
+            vec![escort_at],
+            "and an escort's pose is its own, not an offset from the player's"
         );
     }
 

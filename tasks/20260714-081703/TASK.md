@@ -104,3 +104,59 @@ and `cargo check --examples --features debug` clean.
 What is left in slice 1: save/reload (in `20260824-120524`), an inspector for
 an object's own fields (radius, colour, mass - today a placed object keeps its
 stock config), and gizmos for trigger areas.
+
+## Next items: the Nova editor pass (2026-08-25)
+
+Owner feedback on the built editor, against a reference shot of Jackdaw (a
+generic Bevy scene editor). The steer: Nova Protocol's editor is NOT a generic
+ECS editor. It edits SCENARIO OBJECTS. Anything that only makes sense for an
+arbitrary Bevy app is out of scope.
+
+Landed already this round (commits `5eb626b1`, `e0d9ddef`):
+
+- Move/turn handles on the selected node; F, View > Frame Selection and a
+  tree-row click all frame a node.
+- Rig sizing measured once per selection - a world-axis `ColliderAabb` grows
+  as the hull turns inside it, so per-frame sizing made the handles swell
+  under their own turn ring.
+- Ship heading survives the hand-off; the lowering hardcoded `Quat::IDENTITY`.
+
+### Settled decisions
+
+- **A ship's pose is its own.** Dropping the anchor rule: the player's ship no
+  longer pins the fleet to `PLAYER_SPAWN`. Ships and the range are independent
+  - a ship spawns where it was dragged, and moving it does not move anything
+  else. Supersedes the "player anchors the range" convention in
+  `lower_fleet`.
+- **The Inspector is Nova-specific.** It presents a scenario object's OWN
+  meaningful fields, not a reflection dump of its components. No generic
+  "Add Component", no Materials/Resources/Systems tabs.
+- **Out of scope, permanently:** a project-file tree and an asset browser.
+  Too generic to be part of Nova. Revisit only if authored "templates"
+  become a thing.
+- **No scale.** Nova has translation and rotation; sections mate, they do not
+  stretch. The transform block carries two rows, not three.
+
+### Ordered slices
+
+1. **Inspector as a Nova component view.** Full transform block (translation
+   and rotation, no scale). Typed field editors per data type rather than one
+   text box: a colour swatch that shows the colour, a bool toggle, an enum
+   dropdown, a numeric field. Show the fields that matter per kind, grouped
+   the way Nova thinks about them. Reach CHILD data: a turret's fire rate
+   lives on a section, not on the node root, so the Inspector needs a way to
+   present a node's parts as inspectable rows. That last piece is what makes
+   this a Nova editor rather than a generic one.
+2. **Floating windows.** A window host for things that do not belong in the
+   rail, with the colour picker as its first tenant.
+3. **Navigation and chrome.** Parts / Delete / Bind move out of the top right
+   into the left menus. Entering a node ISOLATES it: only that node and the
+   node above it are visible and selectable - selecting an unrelated object
+   from inside a node makes no sense. Double-click on a non-ship scenario
+   object does something rather than nothing. Icons per node kind, and hover
+   to reveal.
+4. **The stage.** A world grid. Gizmos for objects with no mesh of their own
+   - lights first, then trigger areas (already owed by slice 1 above).
+5. **More per-object settings.** The tail of "an inspector for an object's own
+   fields" owed by slice 1; folds into slice 1 of this list once the typed
+   editors exist.
