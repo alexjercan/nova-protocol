@@ -7,6 +7,7 @@
 //! - `inspect`   - the reflected fields of the inspected node, and their write-back
 //! - `frame`     - putting the camera on a node, on demand
 //! - `gizmo`     - the handles that move and turn the selected node
+//! - `glyph`     - one mark per kind, wherever a kind is drawn
 //! - `config`    - the placement state + screen furniture
 //! - `preview`   - the one place a section or object config becomes preview entities
 //! - `placement` - creating ships and objects + the pointer place/preview/delete observers
@@ -38,6 +39,7 @@ mod config;
 mod frame;
 mod gallery;
 mod gizmo;
+mod glyph;
 mod highlight;
 mod inspect;
 mod keybind;

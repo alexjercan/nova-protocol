@@ -4,7 +4,7 @@
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
 use nova_ui::{
-    prelude::{panel, ThemedButton, UiSkin},
+    prelude::{panel, ThemedButton, UiSkin, UiText},
     theme,
     widget::{checkbox, list_row_colors, ListRow},
 };
@@ -166,6 +166,10 @@ pub(crate) fn scene_row(
         BackgroundColor(background),
         children![
             (
+                // `UiText`, like every span in the row: the marks are line art
+                // that only the shipped face has, and the engine's built-in
+                // font draws a missing glyph as an empty box.
+                UiText,
                 Text::new(lead.to_string()),
                 one_line,
                 row_font.clone(),
@@ -183,6 +187,7 @@ pub(crate) fn scene_row(
                     ..default()
                 },
                 children![(
+                    UiText,
                     Text::new(label.to_string()),
                     one_line,
                     row_font.clone(),
@@ -192,6 +197,7 @@ pub(crate) fn scene_row(
             // Which one this is. Fixed at the row's right edge, because it is
             // the only thing telling a run of same-part rows apart.
             (
+                UiText,
                 Text::new(trail.to_string()),
                 one_line,
                 row_font,

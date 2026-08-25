@@ -26,7 +26,6 @@ use bevy::{
     ui_widgets::{observe, Activate},
 };
 use nova_assets::prelude::*;
-use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{key_chip, panel, panel_header, separator, themed_button, ButtonLabel, UiSkin},
@@ -43,10 +42,13 @@ use crate::{
     },
     frame::{ask_for, on_frame_selection, FrameRequest, FrameSelectionItem},
     gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
+    glyph::{
+        category_mark, choice_mark, object_mark, section_mark, ship_mark, INSIDE, SCENARIO, SHIP_AI,
+    },
     keybind::{on_rebind_action, EditorRebind},
     node::{
         objects_of, sections_of, EditContext, NodeId, ObjectChoice, ObjectNode, ObjectNodes,
-        ScenarioNode, SectionNode, SectionNodes, ShipDriver, ShipNode, ShipNodes,
+        ScenarioNode, SectionNode, SectionNodes, ShipNode, ShipNodes,
     },
     placement::{
         continue_to_simulation, create_blank_ship, create_scenario_object, cycle_armed_socket,
@@ -57,8 +59,8 @@ use crate::{
         menu::{
             menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim, menu_z, on_menu_button,
             on_menu_scrim, toggle_key_legend, toggle_link_points, toggle_object_volumes,
-            toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown, MenuId, MenuTail,
-            OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
+            toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown, MenuId, MenuLead,
+            MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
         },
         rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint, SceneRowTrash},
         window::{window_layer, DestructiveVerb},
@@ -83,17 +85,17 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("New Scenario Item"),
                 DestructiveVerb::NewScenario,
-                menu_item_row("New Scenario", MenuTail::None, skin),
+                menu_item_row("New Scenario", MenuLead::None, MenuTail::None, skin),
             ));
             items.spawn((
                 Name::new("Save Item"),
-                menu_item_row("Save", MenuTail::Key("Ctrl+S"), skin),
+                menu_item_row("Save", MenuLead::None, MenuTail::Key("Ctrl+S"), skin),
                 observe(ask_to_save),
             ));
             items.spawn((
                 Name::new("Open Item"),
                 DestructiveVerb::Open,
-                menu_item_row("Open", MenuTail::None, skin),
+                menu_item_row("Open", MenuLead::None, MenuTail::None, skin),
             ));
             // Still greyed: Save As needs a name to save under and a place to
             // type it, and there is one save slot until it has both. It says
@@ -101,21 +103,21 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             // as "you cannot save", which is the opposite of what it means.
             items.spawn((
                 Name::new("Save As... Item"),
-                menu_item_row("Save As...", MenuTail::Word("soon"), skin),
+                menu_item_row("Save As...", MenuLead::None, MenuTail::Word("soon"), skin),
                 InteractionDisabled,
             ));
             items.spawn(separator());
             items.spawn((
                 Name::new("Back To Main Menu Item"),
                 DestructiveVerb::MainMenu,
-                menu_item_row("Back to Main Menu", MenuTail::None, skin),
+                menu_item_row("Back to Main Menu", MenuLead::None, MenuTail::None, skin),
             ));
         }
         MenuId::Edit => {
             for label in ["Undo", "Redo"] {
                 items.spawn((
                     Name::new(format!("{label} Item")),
-                    menu_item_row(label, MenuTail::Word("soon"), skin),
+                    menu_item_row(label, MenuLead::None, MenuTail::Word("soon"), skin),
                     InteractionDisabled,
                 ));
             }
@@ -123,7 +125,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Delete Item"),
                 MenuDeleteItem,
-                menu_item_row("Delete", MenuTail::Key("Del"), skin),
+                menu_item_row("Delete", MenuLead::None, MenuTail::Key("Del"), skin),
                 observe(delete_selected_node),
             ));
         }
@@ -131,32 +133,32 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Key Legend Item"),
                 ViewToggle::KeyLegend,
-                menu_item_row("Key Legend", MenuTail::Word("on"), skin),
+                menu_item_row("Key Legend", MenuLead::Toggle, MenuTail::None, skin),
                 observe(toggle_key_legend),
             ));
             items.spawn((
                 Name::new("Link Points Item"),
                 ViewToggle::LinkPoints,
-                menu_item_row("Link Points", MenuTail::Word("on"), skin),
+                menu_item_row("Link Points", MenuLead::Toggle, MenuTail::None, skin),
                 observe(toggle_link_points),
             ));
             items.spawn((
                 Name::new("World Grid Item"),
                 ViewToggle::WorldGrid,
-                menu_item_row("World Grid", MenuTail::Word("on"), skin),
+                menu_item_row("World Grid", MenuLead::Toggle, MenuTail::None, skin),
                 observe(toggle_world_grid),
             ));
             items.spawn((
                 Name::new("Object Volumes Item"),
                 ViewToggle::ObjectVolumes,
-                menu_item_row("Object Volumes", MenuTail::Word("on"), skin),
+                menu_item_row("Object Volumes", MenuLead::Toggle, MenuTail::None, skin),
                 observe(toggle_object_volumes),
             ));
             items.spawn(separator());
             items.spawn((
                 Name::new("Frame Selection Item"),
                 FrameSelectionItem,
-                menu_item_row("Frame Selection", MenuTail::Key("F"), skin),
+                menu_item_row("Frame Selection", MenuLead::None, MenuTail::Key("F"), skin),
                 observe(on_frame_selection),
             ));
         }
@@ -168,7 +170,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 Name::new("Parts Item"),
                 ShipMenuItem,
                 GalleryAction::Open,
-                menu_item_row("Parts...", MenuTail::Key("Tab"), skin),
+                menu_item_row("Parts...", MenuLead::None, MenuTail::Key("Tab"), skin),
             ));
             items.spawn(separator());
             // The pose verbs. They live only in a legend View can switch off,
@@ -177,26 +179,41 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Roll The Part Item"),
                 ArmedMenuItem,
-                menu_item_row("Roll the Part (or wheel)", MenuTail::Key("R"), skin),
+                menu_item_row(
+                    "Roll the Part (or wheel)",
+                    MenuLead::None,
+                    MenuTail::Key("R"),
+                    skin,
+                ),
                 observe(roll_armed_part),
             ));
             items.spawn((
                 Name::new("Cycle The Socket Item"),
                 ArmedMenuItem,
-                menu_item_row("Cycle the Socket (or Ctrl+wheel)", MenuTail::Key("F"), skin),
+                menu_item_row(
+                    "Cycle the Socket (or Ctrl+wheel)",
+                    MenuLead::None,
+                    MenuTail::Key("F"),
+                    skin,
+                ),
                 observe(cycle_armed_socket),
             ));
             items.spawn((
                 Name::new("Put The Part Down Item"),
                 ArmedMenuItem,
-                menu_item_row("Put the Part Down", MenuTail::Key("Esc"), skin),
+                menu_item_row(
+                    "Put the Part Down",
+                    MenuLead::None,
+                    MenuTail::Key("Esc"),
+                    skin,
+                ),
                 observe(put_armed_part_down),
             ));
             items.spawn(separator());
             items.spawn((
                 Name::new("Rebind Key Item"),
                 RebindButton,
-                menu_item_row("Rebind Key", MenuTail::None, skin),
+                menu_item_row("Rebind Key", MenuLead::None, MenuTail::None, skin),
                 observe(on_rebind_action),
             ));
         }
@@ -214,7 +231,10 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Add Ship Button"),
                 ScenarioMenuItem,
-                menu_item_row("Ship", MenuTail::None, skin),
+                // The OUTLINE ship: the row adds a design beside the one already
+                // there. The first ship of an empty document becomes the
+                // player's and the tree fills its mark in.
+                menu_item_row("Ship", MenuLead::Glyph(SHIP_AI), MenuTail::None, skin),
                 observe(create_blank_ship),
             ));
             items.spawn(separator());
@@ -223,7 +243,12 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                     Name::new(format!("Add {}", choice.label())),
                     choice,
                     ScenarioMenuItem,
-                    menu_item_row(choice.label(), MenuTail::None, skin),
+                    menu_item_row(
+                        choice.label(),
+                        MenuLead::Glyph(choice_mark(choice)),
+                        MenuTail::None,
+                        skin,
+                    ),
                     observe(create_scenario_object),
                 ));
             }
@@ -236,7 +261,12 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                     Name::new(format!("Add {} Item", category.label())),
                     ShipMenuItem,
                     GalleryAction::Browse(category),
-                    menu_item_row(&format!("{}...", category.label()), MenuTail::None, skin),
+                    menu_item_row(
+                        &format!("{}...", category.label()),
+                        MenuLead::Glyph(category_mark(category)),
+                        MenuTail::None,
+                        skin,
+                    ),
                 ));
             }
         }
@@ -887,46 +917,6 @@ pub(crate) struct ShownScene {
     rows: Vec<WantedRow>,
 }
 
-/// The icon a section row wears, and what that icon MEANS: one match, so the
-/// glyph in the rail and the word the hover reveals can never drift apart.
-///
-/// Glyphs rather than image assets, because the rail is a terminal and a
-/// one-character column costs nothing to lay out. A row is 150px wide and its
-/// id clips - the icon is what a builder actually reads down the list, so it
-/// has to carry the kind on its own.
-fn section_mark(
-    section: &SectionNode,
-    catalog: Option<&GameSections>,
-) -> (&'static str, &'static str) {
-    match section.resolve(catalog).map(|config| &config.kind) {
-        Some(SectionKind::Hull(_)) => ("=", "HULL"),
-        Some(SectionKind::Controller(_)) => ("o", "CONTROLLER"),
-        Some(SectionKind::Thruster(_)) => ("^", "THRUSTER"),
-        Some(SectionKind::Turret(_)) => ("+", "TURRET"),
-        Some(SectionKind::Torpedo(_)) => ("!", "TORPEDO"),
-        None => ("?", "PART"),
-    }
-}
-
-/// The icon a world object wears, and its kind. Distinct from the ship glyphs
-/// (`@`, `>`, `-`) because object rows sit at the SAME depth as ships: the world
-/// holds both, and the lead column is what says which is which.
-///
-/// Free to reuse a SECTION's glyph - a rock and a controller are both `o` -
-/// because the two never share a tree: entering a ship takes the world out of
-/// the rail, and the sections only appear once it has.
-fn object_mark(object: &ObjectNode) -> (&'static str, &'static str) {
-    match object.kind {
-        ScenarioObjectKind::Anchor(_) => ("x", "ANCHOR"),
-        // Not `*`: that is the scenario root, one row above it.
-        ScenarioObjectKind::Asteroid(_) => ("o", "ASTEROID"),
-        ScenarioObjectKind::Spaceship(_) => ("#", "SPACESHIP"),
-        ScenarioObjectKind::Beacon(_) => ("!", "BEACON"),
-        ScenarioObjectKind::SalvageCrate(_) => ("%", "SALVAGE"),
-        ScenarioObjectKind::Light(_) => ("~", "LIGHT"),
-    }
-}
-
 /// The document as a tree, for the context the editor is standing in.
 ///
 /// At the scenario node that is the whole world: the root, every ship under it,
@@ -960,7 +950,7 @@ fn wanted_rows(
     let mut rows = vec![WantedRow {
         node: scenario,
         depth: 0,
-        lead: "*".to_string(),
+        lead: SCENARIO.to_string(),
         id: root_id.0.clone(),
         label: root_label,
         trail: root_trail,
@@ -979,23 +969,30 @@ fn wanted_rows(
         if entered.is_some_and(|inside| inside != ship) {
             continue;
         }
-        let (glyph, kind) = if entered == Some(ship) {
-            ("@", "SHIP - EDITING")
-        } else {
-            match node.driver {
-                ShipDriver::Player => (">", "SHIP - PLAYER"),
-                ShipDriver::Ai => ("-", "SHIP - AI"),
-            }
-        };
-        let (label, trail) = tree_text(&node.name, &id.0);
+        // WHO FLIES IT in the lead, WHERE YOU ARE in the trail. One column
+        // for both meant entering the player's ship hid the fact that it was
+        // the player's.
+        let (glyph, kind) = ship_mark(node.driver);
+        let (label, ordinal) = tree_text(&node.name, &id.0);
+        let inside = entered == Some(ship);
         rows.push(WantedRow {
             node: ship,
             depth: 1,
             lead: glyph.to_string(),
             id: id.0.clone(),
             label,
-            trail,
-            kind: kind.to_string(),
+            // The ordinal and the mark share the trail, because a named ship
+            // has no ordinal to draw and only one ship at a time is entered.
+            trail: match (ordinal.as_str(), inside) {
+                ("", true) => INSIDE.to_string(),
+                (ordinal, true) => format!("{ordinal} {INSIDE}"),
+                (ordinal, false) => ordinal.to_string(),
+            },
+            kind: if inside {
+                format!("{kind} - EDITING")
+            } else {
+                kind.to_string()
+            },
         });
         if entered != Some(ship) {
             continue;
@@ -1804,7 +1801,10 @@ mod tests {
     use nova_ship::prelude::ShipStyleConfig;
 
     use super::*;
-    use crate::node::NextChildOrdinal;
+    use crate::{
+        glyph::SHIP_PLAYER,
+        node::{NextChildOrdinal, ShipDriver},
+    };
 
     /// A rail with the Scene tree on it and the reconciler running, over an
     /// empty document. The tests below fill the document in.
@@ -2035,9 +2035,9 @@ mod tests {
         );
     }
 
-    /// The lead column is the tree's whole vocabulary: `*` the root, `>` the
-    /// ship Play flies, `-` a design beside it, `@` where the editor is, and a
-    /// section wears its kind.
+    /// The lead column is the tree's whole vocabulary: the root, the ship Play
+    /// flies, a design beside it, and a section wearing its kind. WHERE THE
+    /// EDITOR IS does not live here - see below.
     #[test]
     fn the_lead_glyphs_say_who_is_who() {
         let mut app = scene_app();
@@ -2047,14 +2047,50 @@ mod tests {
         section_node(&mut app, first, "hull_1");
 
         app.update();
-        assert_eq!(row_leads(&mut app), vec!["*", ">", "-"]);
+        assert_eq!(
+            row_leads(&mut app),
+            vec![SCENARIO, SHIP_PLAYER, SHIP_AI],
+            "who flies which ship is readable without entering either"
+        );
 
         app.world_mut().resource_mut::<EditContext>().enter(first);
         app.update();
         assert_eq!(
             row_leads(&mut app),
-            vec!["*", "@", "="],
-            "the entered ship is marked, and its hull section shows its kind"
+            vec![SCENARIO, SHIP_PLAYER, hull_mark(&mut app, first)],
+            "entering keeps the driver mark and the hull section shows its kind"
+        );
+    }
+
+    /// The mark the hull section under `ship` is drawn with, read from the same
+    /// function the row is built by rather than restated as a literal.
+    fn hull_mark(app: &mut App, ship: Entity) -> &'static str {
+        let section = app
+            .world_mut()
+            .query::<(&ChildOf, &SectionNode)>()
+            .iter(app.world())
+            .find(|(parent, _)| parent.parent() == ship)
+            .expect("the ship has a section")
+            .1
+            .clone();
+        section_mark(&section, None).0
+    }
+
+    /// Two facts, two columns: entering the player's ship used to overwrite the
+    /// mark that said it was the player's.
+    #[test]
+    fn the_entered_ship_is_marked_beside_its_driver() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.update();
+
+        assert!(
+            row_columns(&mut app).contains(&("ship".to_string(), format!("1 {INSIDE}"))),
+            "{:?}",
+            row_columns(&mut app)
         );
     }
 
@@ -2762,18 +2798,16 @@ mod tests {
         app.init_resource::<EditorRebind>();
         app.init_resource::<OpenMenu>();
         app.add_systems(Update, sync_key_legend);
-        app.world_mut()
-            .spawn((
-                EditorKeyLegend,
-                Node::default(),
-                Children::spawn(SpawnWith(move |cells: &mut RelatedSpawner<ChildOf>| {
-                    cells.spawn(legend_mode_cell());
-                    for index in 0..LEGEND_CELLS {
-                        cells.spawn(legend_cell(index));
-                    }
-                })),
-            ))
-            .id();
+        app.world_mut().spawn((
+            EditorKeyLegend,
+            Node::default(),
+            Children::spawn(SpawnWith(move |cells: &mut RelatedSpawner<ChildOf>| {
+                cells.spawn(legend_mode_cell());
+                for index in 0..LEGEND_CELLS {
+                    cells.spawn(legend_cell(index));
+                }
+            })),
+        ));
         app
     }
 

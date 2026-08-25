@@ -23,7 +23,7 @@ use nova_gameplay::prelude::GameStates;
 use nova_ui::{
     prelude::UiSkin,
     theme,
-    widget::{key_chip, list_row_colors, ListRow},
+    widget::{checkbox_glyph, key_chip, list_row_colors, ListRow, UiText},
 };
 
 use crate::config::{EditorOverlays, SelectedNode};
@@ -126,7 +126,10 @@ pub(crate) fn menu_dropdown_node() -> Node {
 /// One column, three things it could be, and until now no way to tell them
 /// apart: a key looked exactly like a toggle's state. A KEY is drawn as the
 /// chip every other surface in the game draws a key as; a WORD is the row's
-/// own state, in the muted tone a label wears.
+/// own availability, in the muted tone a label wears.
+///
+/// A toggle's state is NOT here any more - it moved to the lead column, where
+/// it is drawn with the checkbox's own glyph (see [`MenuLead::Toggle`]).
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) enum MenuTail<'a> {
     /// Nothing to say.
@@ -134,10 +137,32 @@ pub(crate) enum MenuTail<'a> {
     None,
     /// The key that runs this row.
     Key(&'a str),
-    /// A word about the row itself - a toggle's `on`/`off`, an unbuilt row's
+    /// A word about whether the row can be pressed at all - an unbuilt row's
     /// `soon`.
     Word(&'a str),
 }
+
+/// What a row's LEAD column carries.
+///
+/// The menus were the one surface in the editor with no marks on them, which
+/// left the Add rows naming kinds the tree draws icons for and the toggles
+/// spelling their state in a column that also held keys.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) enum MenuLead<'a> {
+    /// Nothing in the column - which the column keeps anyway, so every label in
+    /// a menu starts at the same x.
+    #[default]
+    None,
+    /// The kind mark [`crate::glyph`] draws for the same thing elsewhere.
+    Glyph(&'a str),
+    /// A checkbox, ticked from the row's own state by the pass that owns it.
+    Toggle,
+}
+
+/// The lead column of a row, so the toggle marks and the paint pass can find
+/// it.
+#[derive(Component)]
+pub(crate) struct MenuLeadMark;
 
 /// The chip half of a row's tail, so the paint pass can find it.
 #[derive(Component)]
@@ -149,10 +174,15 @@ const TAIL_FONT: f32 = 11.0;
 /// One item row: the same `ListRow` shape the rail's rows wear, so the shared
 /// reconciler paints the hover and this module owns no colour.
 ///
-/// Every row has exactly two children - the label and the tail - so
-/// [`sync_menu_item_paint`] and [`sync_view_menu_marks`] can reach either by
-/// position rather than by search.
-pub(crate) fn menu_item_row(label: &str, tail: MenuTail, skin: UiSkin) -> impl Bundle {
+/// Every row has exactly three children - the lead, the label and the tail - so
+/// [`sync_menu_item_paint`] and [`sync_view_menu_marks`] can reach any of them
+/// by position rather than by search.
+pub(crate) fn menu_item_row(
+    label: &str,
+    lead: MenuLead,
+    tail: MenuTail,
+    skin: UiSkin,
+) -> impl Bundle {
     let (background, border) = list_row_colors(false, false, skin);
     (
         ListRow,
@@ -167,24 +197,63 @@ pub(crate) fn menu_item_row(label: &str, tail: MenuTail, skin: UiSkin) -> impl B
             border: UiRect::all(px(theme::BORDER_W)),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            column_gap: px(16),
+            column_gap: px(8),
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
         BorderColor::all(border),
         BackgroundColor(background),
         children![
+            menu_item_lead(lead),
             (
+                UiText,
                 Text::new(label.to_string()),
                 TextFont {
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
                 TextColor(ITEM_LABEL),
+                // GROWS, which is what right-aligns the tail: three children in
+                // a row cannot be spaced apart without pushing the label to the
+                // middle of the menu.
+                Node {
+                    flex_grow: 1.0,
+                    ..default()
+                },
             ),
             menu_item_tail(tail),
         ],
+    )
+}
+
+/// The row's left-hand column.
+///
+/// Always spawned and always the same width, even where there is no mark to
+/// draw: a column that appeared only on the rows that had one would step every
+/// other label sideways.
+fn menu_item_lead(lead: MenuLead) -> impl Bundle {
+    let glyph = match lead {
+        MenuLead::None => "",
+        MenuLead::Glyph(glyph) => glyph,
+        // Ticked by `sync_view_menu_marks` from the state the row toggles.
+        MenuLead::Toggle => checkbox_glyph(false),
+    };
+    (
+        MenuLeadMark,
+        // `UiText`: the marks are line art the engine's built-in font does not
+        // carry, and a missing glyph is drawn as an empty box.
+        UiText,
+        Text::new(glyph.to_string()),
+        TextFont {
+            font_size: FontSize::Px(12.0),
+            ..default()
+        },
+        TextColor(ITEM_MARK),
+        Node {
+            width: px(12),
+            flex_shrink: 0.0,
+            ..default()
+        },
     )
 }
 
@@ -204,6 +273,7 @@ fn menu_item_tail(tail: MenuTail) -> impl Bundle {
                 }
                 OwnedTail::Word(word) => {
                     parent.spawn((
+                        UiText,
                         Text::new(word.clone()),
                         TextFont {
                             font_size: FontSize::Px(TAIL_FONT),
@@ -369,12 +439,15 @@ pub(crate) fn toggle_object_volumes(_activate: On<Activate>, mut overlays: ResMu
     overlays.object_volumes = !overlays.object_volumes;
 }
 
-/// Repaint the View toggles' labels, so the menu says what is on rather than
-/// only what can be turned on.
+/// Tick the View toggles, so the menu says what is ON rather than only what
+/// can be turned on.
+///
+/// The CHECKBOX's own glyph, in the lead column: the state used to be the word
+/// `on` in the column that also holds keys, which made three vocabularies of
+/// one column and left the editor with two drawings of a tick.
 pub(crate) fn sync_view_menu_marks(
     overlays: Res<EditorOverlays>,
     marks: Query<(&ViewToggle, &Children)>,
-    tails: Query<&Children>,
     mut texts: Query<&mut Text>,
 ) {
     for (toggle, children) in &marks {
@@ -384,13 +457,13 @@ pub(crate) fn sync_view_menu_marks(
             ViewToggle::WorldGrid => overlays.world_grid,
             ViewToggle::ObjectVolumes => overlays.object_volumes,
         };
-        let Some(word) = tail_word(children, &tails) else {
+        let Some(lead) = children.iter().next() else {
             continue;
         };
-        let Ok(mut text) = texts.get_mut(word) else {
+        let Ok(mut text) = texts.get_mut(lead) else {
             continue;
         };
-        let wanted = if on { "on" } else { "off" };
+        let wanted = checkbox_glyph(on);
         if text.0 != wanted {
             text.0 = wanted.to_string();
         }
@@ -436,6 +509,9 @@ pub(crate) fn sync_menu_item_paint(
 ) {
     for (disabled, children) in &items {
         let mut children = children.iter();
+        if let Some(lead) = children.next() {
+            paint_text(&mut texts, lead, ITEM_MARK, disabled);
+        }
         if let Some(label) = children.next() {
             paint_text(&mut texts, label, ITEM_LABEL, disabled);
         }
@@ -611,12 +687,6 @@ pub(crate) fn sync_armed_menu(
     }
 }
 
-/// The text a row's tail carries, reached through the tail's wrapper.
-fn tail_word(row: &Children, tails: &Query<&Children>) -> Option<Entity> {
-    let tail = row.iter().nth(1)?;
-    tails.get(tail).ok()?.first().copied()
-}
-
 /// File > Back to Main Menu: end the session.
 ///
 /// The document dies with it (`teardown_document` on leaving `Playing`), which
@@ -734,7 +804,9 @@ mod tests {
     }
 
     /// The View rows say what is ON, not only what can be turned on: a toggle
-    /// that reads the same in both states tells a builder nothing.
+    /// that reads the same in both states tells a builder nothing. The state is
+    /// the CHECKBOX's mark, in the lead column, so it cannot be read as the key
+    /// that runs the row.
     #[test]
     fn the_view_rows_report_what_they_toggle() {
         let mut world = World::new();
@@ -745,7 +817,12 @@ mod tests {
         let row = world
             .spawn((
                 ViewToggle::LinkPoints,
-                menu_item_row("Link Points", MenuTail::Word("on"), UiSkin::default()),
+                menu_item_row(
+                    "Link Points",
+                    MenuLead::Toggle,
+                    MenuTail::None,
+                    UiSkin::default(),
+                ),
             ))
             .id();
         world.flush();
@@ -753,23 +830,22 @@ mod tests {
         world
             .run_system_once(sync_view_menu_marks)
             .expect("the sync runs");
-        assert_eq!(toggle_mark(&world, row), "on");
+        assert_eq!(toggle_mark(&world, row), checkbox_glyph(true));
 
         world.trigger(Activate { entity: row });
         world.flush();
         world
             .run_system_once(sync_view_menu_marks)
             .expect("the sync runs");
-        assert_eq!(toggle_mark(&world, row), "off");
+        assert_eq!(toggle_mark(&world, row), checkbox_glyph(false));
         assert!(!world.resource::<EditorOverlays>().link_points);
     }
 
-    /// What a row's tail says, read the way the sync writes it: the row's
-    /// second child holds the tail, and the tail holds the word.
+    /// What a row's LEAD says, read the way the sync writes it: the mark is the
+    /// row's first child.
     fn toggle_mark(world: &World, row: Entity) -> String {
-        let tail = world.get::<Children>(row).expect("the row has children")[1];
-        let word = world.get::<Children>(tail).expect("the tail has a child")[0];
-        world.get::<Text>(word).expect("the word").0.clone()
+        let lead = world.get::<Children>(row).expect("the row has children")[0];
+        world.get::<Text>(lead).expect("the mark").0.clone()
     }
 
     /// The Ship menu's rows need a ship. At the scenario node they are greyed
