@@ -19,8 +19,8 @@ use nova_ui::theme;
 
 use crate::{
     config::{
-        EditorOverlays, EditorStatus, LastClick, Placement, PlacementPose, PlacementPreview,
-        SectionChoice, SectionGhost, SectionPreviewMarker, SelectedNode,
+        EditorGizmos, EditorOverlays, EditorStatus, LastClick, Placement, PlacementPose,
+        PlacementPreview, SectionChoice, SectionGhost, SectionPreviewMarker, SelectedNode,
     },
     frame::{ask_for, FrameRequest},
     keybind::EditorRebind,
@@ -563,7 +563,7 @@ pub(crate) fn sync_placement_ghost(
     // `&ChildOf` only: the ghost query below writes `Transform`, so reading the
     // section nodes through `SectionNodes` here would be a B0001 conflict.
     q_owners: Query<&ChildOf, With<SectionNode>>,
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<EditorGizmos>,
     ghosts: Query<(Entity, &SectionGhost, &mut Transform)>,
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
     q_nodes: Query<&SectionNode>,
@@ -1000,7 +1000,7 @@ pub(crate) fn draw_link_points(
     context: Res<EditContext>,
     nodes: SectionNodes,
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<EditorGizmos>,
 ) {
     if !overlays.link_points {
         return;
@@ -1107,7 +1107,7 @@ pub(crate) fn draw_link_points(
 
 /// One socket marker: a ring on the socket's plane plus a stub along its
 /// normal, so both WHERE it is and which way it faces read at a glance.
-fn draw_socket(gizmos: &mut Gizmos, position: Vec3, normal: Vec3, colour: Color) {
+fn draw_socket(gizmos: &mut Gizmos<EditorGizmos>, position: Vec3, normal: Vec3, colour: Color) {
     gizmos.circle(
         Isometry3d::new(position, Quat::from_rotation_arc(Vec3::Z, normal)),
         SOCKET_MARKER_RADIUS,
@@ -1127,7 +1127,7 @@ pub(crate) fn draw_ship_heading(
     sections: Res<GameSections>,
     nodes: SectionNodes,
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<EditorGizmos>,
 ) {
     let Some(edited) = context.ship() else {
         return;
@@ -1158,7 +1158,7 @@ pub(crate) fn draw_delete_target(
     q_nodes: Query<(&SectionNode, &GlobalTransform)>,
     sections: Res<GameSections>,
     selection: Res<SectionChoice>,
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<EditorGizmos>,
 ) {
     if !matches!(*selection, SectionChoice::Delete) {
         return;

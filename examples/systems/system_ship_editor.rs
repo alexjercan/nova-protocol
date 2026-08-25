@@ -1511,6 +1511,21 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: framed ship_1, camera {before:?} -> {now:?}");
         })
         .add()
+        // The stage figure. Taken HERE because this is the one beat where the
+        // grid, the handles and a marked ship are all on screen at once, which
+        // is the picture every change to the stage has to be judged against.
+        .step("editor: shoot the stage")
+        .on_enter(|world: &mut World| {
+            assert_eq!(
+                world.resource::<EditorProbe>().selected_node.as_deref(),
+                Some("ship_1"),
+                "the stage figure wants the handles up, so it wants a selection"
+            );
+            shoot(world, "editor-stage.png");
+        })
+        .until(shot_written("editor-stage.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
         // And back in - two clicks on the ship's tree row, because entering is
         // the gesture that hides the rest of the document.
         .double_click_a_widget("editor: enter through the tree", "Scene Row ship_1")

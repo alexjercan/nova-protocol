@@ -51,8 +51,8 @@ mod ui;
 use attitude::sync_attitude_readout;
 use bundle::{apply_file_request, save_key, FileRequest};
 use config::{
-    EditorOverlays, EditorStatus, LastClick, PlacementPose, PlacementPreview, SectionChoice,
-    SelectedNode,
+    editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, LastClick, PlacementPose,
+    PlacementPreview, SectionChoice, SelectedNode,
 };
 use frame::{apply_frame_request, frame_key, sync_frame_item, FrameRequest};
 use gizmo::sync_gizmo;
@@ -129,6 +129,9 @@ pub(crate) enum ExampleStates {
 
 fn editor_plugin(app: &mut App) {
     app.init_state::<ExampleStates>();
+    // Everything the editor draws in immediate mode, at one weight. See
+    // `EditorGizmos`.
+    app.insert_gizmo_config(EditorGizmos, editor_gizmo_config());
     app.insert_resource(SectionChoice::None);
     app.init_resource::<EditContext>();
     app.init_resource::<SelectedNode>();

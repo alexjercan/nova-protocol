@@ -41,14 +41,25 @@ const ARM: f32 = 1.0;
 /// be pointed at: the body under the rig is draggable and clickable, and an
 /// arm through the middle of it would take every click aimed at the middle.
 const ARM_START: f32 = 0.4;
-/// Arm thickness. Thin enough to read as a line, thick enough to hit.
-const ARM_RADIUS: f32 = 0.035;
+/// Arm thickness. A line, not a pipe: the arms are a readout of which way the
+/// axis goes, and at the old thickness they were the loudest thing on a stage
+/// that also has a grid to read.
+const ARM_RADIUS: f32 = 0.012;
 /// The arrowhead on the end of an arm.
 const TIP: f32 = 0.26;
 const TIP_RADIUS: f32 = 0.1;
 /// The turn ring, just inside the arrowheads so the two do not overlap.
 const RING: f32 = 0.82;
-const RING_THICKNESS: f32 = 0.035;
+const RING_THICKNESS: f32 = 0.012;
+
+/// What the pointer actually hits.
+///
+/// Handles are picked off the DRAWN mesh, so thinning the arm would thin the
+/// grab target with it and leave a rig that has to be aimed at. The grab
+/// bodies keep the old thickness and paint nothing: one shape to see, a
+/// fatter one to hit, in the same place.
+const ARM_GRAB_RADIUS: f32 = 0.045;
+const RING_GRAB_THICKNESS: f32 = 0.045;
 
 /// How much of the distance to the camera one arm spans, so the rig keeps
 /// roughly the same size on screen however far the stage is being watched from.
@@ -161,6 +172,19 @@ pub(crate) fn setup_gizmo(
         height: TIP,
     });
     let ring = meshes.add(Torus::new(RING - RING_THICKNESS, RING + RING_THICKNESS));
+    let arm_grab = meshes.add(Cylinder::new(ARM_GRAB_RADIUS, ARM - ARM_START));
+    let ring_grab = meshes.add(Torus::new(
+        RING - RING_GRAB_THICKNESS,
+        RING + RING_GRAB_THICKNESS,
+    ));
+    // Transparent rather than `Visibility::Hidden`: mesh picking only casts at
+    // what a camera can see, so a hidden body is a body nothing can grab.
+    let grab = materials.add(StandardMaterial {
+        base_color: Color::NONE,
+        alpha_mode: AlphaMode::Blend,
+        unlit: true,
+        ..default()
+    });
 
     commands
         .spawn((
@@ -209,6 +233,17 @@ pub(crate) fn setup_gizmo(
                     // Local to the arm, which is already aimed: the arm's own
                     // +Y is the axis, and its own centre is the arm's middle.
                     Transform::from_xyz(0.0, (ARM - ARM_START + TIP) * 0.5, 0.0),
+                ))
+                .with_child((
+                    Name::new(format!("Gizmo Move Grab {}", axis.label())),
+                    GizmoHandle {
+                        axis,
+                        kind: HandleKind::Move,
+                    },
+                    Pickable::default(),
+                    Mesh3d(arm_grab.clone()),
+                    MeshMaterial3d(grab.clone()),
+                    Transform::default(),
                 ));
                 rig.spawn((
                     Name::new(format!("Gizmo Turn {}", axis.label())),
@@ -220,6 +255,17 @@ pub(crate) fn setup_gizmo(
                     Mesh3d(ring.clone()),
                     MeshMaterial3d(paint),
                     Transform::from_rotation(aim),
+                ))
+                .with_child((
+                    Name::new(format!("Gizmo Turn Grab {}", axis.label())),
+                    GizmoHandle {
+                        axis,
+                        kind: HandleKind::Turn,
+                    },
+                    Pickable::default(),
+                    Mesh3d(ring_grab.clone()),
+                    MeshMaterial3d(grab.clone()),
+                    Transform::default(),
                 ));
             }
         });

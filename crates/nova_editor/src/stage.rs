@@ -25,7 +25,7 @@ use nova_scenario::prelude::{LightConfig, ScenarioObjectKind};
 use nova_ui::theme;
 
 use crate::{
-    config::{EditorOverlays, SelectedNode},
+    config::{EditorGizmos, EditorOverlays, SelectedNode},
     frame::node_bounds,
     gallery::EditorCamera,
     node::{objects_of, EditContext, ObjectNodes},
@@ -62,7 +62,13 @@ const MAX_STEP: f32 = 1000.0;
 const LEVEL: f32 = 1.0e-3;
 
 /// The grid itself, and the brighter line every [`DECADE`] cells.
-const GRID: Color = theme::PHOSPHOR_MUTED;
+///
+/// The fine pass is `PHOSPHOR_MUTED` taken down by alpha rather than a new
+/// palette entry: the theme mirrors the PoC `:root` tokens one for one and is
+/// drift-tested against the site. Sixty cells of it at full strength read as
+/// the subject; at this weight the decade lines carry the scale and the grid
+/// is the floor again.
+const GRID: Color = Color::srgba_u8(0x0d, 0x6e, 0x35, 0x9c);
 const GRID_DECADE: Color = theme::PHOSPHOR_DIM;
 
 /// The drop line from the selected node to the plane, and the footprint ring
@@ -103,7 +109,7 @@ pub(crate) fn draw_world_grid(
     q_children: Query<&Children>,
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
     q_poses: Query<&GlobalTransform, Without<EditorCamera>>,
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<EditorGizmos>,
 ) {
     if !overlays.world_grid || context.ship().is_some() {
         return;
@@ -202,7 +208,7 @@ pub(crate) fn draw_object_volumes(
     context: Res<EditContext>,
     q_objects: ObjectNodes,
     camera: Option<Single<&GlobalTransform, With<EditorCamera>>>,
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<EditorGizmos>,
 ) {
     if !overlays.object_volumes || context.ship().is_some() {
         return;
@@ -246,7 +252,7 @@ fn trigger_radius(kind: &ScenarioObjectKind) -> Option<f32> {
 }
 
 /// One light's own gizmo: which way a sun shines, or how far a lamp reaches.
-fn draw_light(gizmos: &mut Gizmos, pose: &Transform, light: &LightConfig, eye: Vec3) {
+fn draw_light(gizmos: &mut Gizmos<EditorGizmos>, pose: &Transform, light: &LightConfig, eye: Vec3) {
     match light {
         LightConfig::Directional { color, aim, .. } => {
             let toward = sun_direction(pose, *aim);

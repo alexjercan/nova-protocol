@@ -7,6 +7,31 @@
 
 use bevy::prelude::*;
 
+/// The group every immediate-mode line in the editor draws in.
+///
+/// One group for the whole editor, so [`EDITOR_LINE_WIDTH`] settles the weight
+/// of the grid, the trigger volumes, the plumb line, the ship heading and the
+/// link points together - and settles it for the editor alone, which sharing
+/// Bevy's default group would not.
+#[derive(Clone, Default, Reflect, GizmoConfigGroup)]
+pub(crate) struct EditorGizmos;
+
+/// Line width (px) for those lines. Under Bevy's 2 px default: everything
+/// drawn here is drawn AROUND the subject, and at the default the floor read
+/// as heavily as the thing standing on it.
+const EDITOR_LINE_WIDTH: f32 = 1.0;
+
+/// The editor's gizmo config, applied at plugin registration.
+pub(crate) fn editor_gizmo_config() -> GizmoConfig {
+    GizmoConfig {
+        line: GizmoLineConfig {
+            width: EDITOR_LINE_WIDTH,
+            ..default()
+        },
+        ..default()
+    }
+}
+
 /// The active placement tool: what the next click on the ship does. Set by the
 /// gallery when a part is armed and by Ship > Delete Parts.
 #[derive(Resource, Default, Debug, PartialEq, Eq, Clone, Reflect)]
