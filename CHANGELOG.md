@@ -57,6 +57,11 @@ does NOT get an entry - and it is the only place they are written down.
 - Every placed node reports its heading in degrees beside its position, and
   typing one turns it. There is no scale row: Nova sections mate, they do not
   stretch.
+- The Inspector reaches into a node's lists - a turret's fire rate lives on a
+  muzzle inside its joint tree - and groups deep rows under a heading rather
+  than showing one column of long paths.
+- The Inspector scrolls, so a config taller than the panel is rolled down to
+  rather than running off the bottom of the screen.
 - Back to Main Menu ends the session and deletes the scenario draft; Play
   round-trips still return to it.
 

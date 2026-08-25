@@ -138,6 +138,13 @@ pub(crate) enum PathStep {
     Field(String),
     /// A tuple, tuple-struct or enum-variant slot.
     Slot(usize),
+    /// One element of a list.
+    ///
+    /// Distinct from [`PathStep::Slot`] because the two READ differently: a
+    /// slot is plumbing a builder never sees (the payload inside an `Option`),
+    /// while an item is one of several things they authored and has to be told
+    /// apart from its siblings.
+    Item(usize),
 }
 
 /// How a row reads, and so which widget draws it.
@@ -201,7 +208,10 @@ pub(crate) struct InspectorRow {
     pub(crate) path: Vec<PathStep>,
     /// Set when the target is an `Option`: an empty field clears it.
     pub(crate) optional: bool,
-    /// The row's label.
+    /// The heading the row sits under, when its value is nested inside the
+    /// config rather than one of its own top-level fields.
+    pub(crate) group: Option<String>,
+    /// The row's label, WITHIN its heading.
     pub(crate) label: String,
     /// The value, and the widget it implies.
     pub(crate) value: RowValue,
@@ -213,22 +223,44 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         root,
         path: Vec::new(),
         optional: false,
+        group: None,
         label: label.to_string(),
         value: RowValue::Fixed(text.into()),
+    }
+}
+
+/// A walked row: its heading and its label both come from WHERE it sits, so a
+/// caller that has the path never has to name it twice.
+fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue) -> InspectorRow {
+    let (group, label) = heading_and_label(&path);
+    InspectorRow {
+        root,
+        path,
+        optional,
+        group,
+        label,
+        value,
     }
 }
 
 /// The label a path reads as: every named step, prettied and joined, so
 /// `exhaust.offset` says "Exhaust Offset" and cannot be confused with the
 /// `offset` of something else.
+///
+/// List INDICES are part of the name - `children[1].offset` says "Children 2
+/// Offset" - because two siblings' offsets are two different values and a panel
+/// that called them both "Offset" would be lying about one of them.
 fn label_of(path: &[PathStep]) -> String {
-    let named: Vec<String> = path
-        .iter()
-        .filter_map(|step| match step {
-            PathStep::Field(name) => Some(pretty(name)),
-            PathStep::Slot(_) => None,
-        })
-        .collect();
+    let mut named: Vec<String> = Vec::new();
+    for step in path {
+        match step {
+            PathStep::Field(name) => named.push(pretty(name)),
+            // One-based: the second joint is "2" to everyone who is not a
+            // programmer, and this label is read by a builder.
+            PathStep::Item(index) => named.push((index + 1).to_string()),
+            PathStep::Slot(_) => {}
+        }
+    }
     if named.is_empty() {
         // The only path with no named step is the config's own root, which is
         // an enum: the row says WHICH KIND it is.
@@ -236,6 +268,31 @@ fn label_of(path: &[PathStep]) -> String {
     } else {
         named.join(" ")
     }
+}
+
+/// A row's heading and its short label: everything but the last named step,
+/// and the last named step.
+///
+/// The split is what keeps a deep config readable. A turret's fire rate is
+/// eight steps down its joint tree, and one flat row called "Root Children 2
+/// Children 2 Muzzle Fire Rate" is a path, not a label. Under a heading that
+/// says where you are, the row is just "Fire Rate".
+fn heading_and_label(path: &[PathStep]) -> (Option<String>, String) {
+    // Split on the last named STEP, never on the last space: `fire_rate` is
+    // already two words, and cutting there would leave a row called "Rate"
+    // under a heading ending "Fire".
+    let last = path
+        .iter()
+        .rposition(|step| matches!(step, PathStep::Field(_)));
+    let Some(last) = last else {
+        return (None, label_of(path));
+    };
+    let group = label_of(&path[..last]);
+    let leaf = label_of(&path[last..]);
+    (
+        (!group.is_empty() && group != "Kind").then_some(group),
+        leaf,
+    )
 }
 
 /// `lock_signature` -> `Lock Signature`.
@@ -283,33 +340,20 @@ fn walk(
     out: &mut Vec<InspectorRow>,
 ) {
     if let Some(flag) = value.try_downcast_ref::<bool>() {
-        out.push(InspectorRow {
-            root,
-            label: label_of(&path),
-            path,
-            optional: false,
-            value: RowValue::Flag(*flag),
-        });
+        out.push(walked(root, path, false, RowValue::Flag(*flag)));
         return;
     }
-    if let Some(colour) = value.try_downcast_ref::<Color>() {
-        out.push(InspectorRow {
+    if let Some(colour) = any_colour(value) {
+        out.push(walked(
             root,
-            label: label_of(&path),
             path,
-            optional: false,
-            value: RowValue::Colour(colour_text(*colour)),
-        });
+            false,
+            RowValue::Colour(colour_text(colour)),
+        ));
         return;
     }
     if let Some(text) = leaf_text(value) {
-        out.push(InspectorRow {
-            root,
-            label: label_of(&path),
-            path,
-            optional: false,
-            value: RowValue::Text(text),
-        });
+        out.push(walked(root, path, false, RowValue::Text(text)));
         return;
     }
     if is_option(value) {
@@ -339,6 +383,18 @@ fn walk(
                 walk(field, root, step(&path, PathStep::Slot(index)), out);
             }
         }
+        ReflectRef::List(items) => {
+            // A list is walked ELEMENT BY ELEMENT rather than shown as debug
+            // text. Without this a turret's fire rate - which lives on a muzzle
+            // inside a joint inside `root.children` - had no row at all, and the
+            // panel said the turret simply did not have one.
+            for index in 0..items.len() {
+                let Some(item) = items.get(index) else {
+                    continue;
+                };
+                walk(item, root, step(&path, PathStep::Item(index)), out);
+            }
+        }
         ReflectRef::Enum(chosen) => {
             // A variant that carries FIELDS is a readout, not a choice:
             // switching to one would mean inventing every field of it that
@@ -357,13 +413,7 @@ fn walk(
                 }
                 None => RowValue::Fixed(chosen.variant_name().to_string()),
             };
-            out.push(InspectorRow {
-                root,
-                label: label_of(&path),
-                path: path.clone(),
-                optional: false,
-                value,
-            });
+            out.push(walked(root, path.clone(), false, value));
             for index in 0..chosen.field_len() {
                 let Some(field) = chosen.field_at(index) else {
                     continue;
@@ -375,13 +425,7 @@ fn walk(
                 walk(field, root, inner, out);
             }
         }
-        _ => out.push(InspectorRow {
-            root,
-            label: label_of(&path),
-            path,
-            optional: false,
-            value: RowValue::Fixed(debug_of(value)),
-        }),
+        _ => out.push(walked(root, path, false, RowValue::Fixed(debug_of(value)))),
     }
 }
 
@@ -405,23 +449,16 @@ fn walk_option(
             ReflectRef::Enum(chosen) => chosen.field_at(0).and_then(leaf_text).unwrap_or_default(),
             _ => String::new(),
         };
-        out.push(InspectorRow {
-            root,
-            label: label_of(&path),
-            path,
-            optional: true,
-            value: RowValue::Text(text),
-        });
+        out.push(walked(root, path, true, RowValue::Text(text)));
         return;
     }
     if !present {
-        out.push(InspectorRow {
+        out.push(walked(
             root,
-            label: label_of(&path),
             path,
-            optional: true,
-            value: RowValue::Fixed("none".to_string()),
-        });
+            true,
+            RowValue::Fixed("none".to_string()),
+        ));
         return;
     }
     let ReflectRef::Enum(chosen) = value.reflect_ref() else {
@@ -480,7 +517,10 @@ fn leaf_type(type_path: &str) -> bool {
             | "usize"
             | "alloc::string::String"
             | "bevy_color::color::Color"
+            | "bevy_color::linear_rgba::LinearRgba"
+            | "bevy_color::srgba::Srgba"
             | "glam::Vec3"
+            | "glam::Quat"
     )
 }
 
@@ -507,8 +547,14 @@ fn leaf_text(value: &dyn PartialReflect) -> Option<String> {
     if let Some(text) = value.try_downcast_ref::<String>() {
         return Some(text.clone());
     }
-    if let Some(colour) = value.try_downcast_ref::<Color>() {
-        return Some(colour_text(*colour));
+    if let Some(colour) = any_colour(value) {
+        return Some(colour_text(colour));
+    }
+    if let Some(turn) = value.try_downcast_ref::<Quat>() {
+        // Degrees, for the same reason the pose's heading row is degrees: a
+        // walked `Quat` is four rows called X, Y, Z and W, and nobody authors a
+        // rotation that way.
+        return leaf_text(&heading_of(&Transform::from_rotation(*turn)));
     }
     if let Some(vector) = value.try_downcast_ref::<Vec3>() {
         return Some(format!(
@@ -535,6 +581,24 @@ fn number_text(value: f64) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+/// The colour `value` holds, whichever of the three colour types a config
+/// happens to have used.
+///
+/// `LinearRgba` and `Srgba` are colours to the builder looking at them even
+/// though they are plain structs to the walker, which would otherwise take them
+/// apart into four rows called Red, Green, Blue and Alpha.
+fn any_colour(value: &dyn PartialReflect) -> Option<Color> {
+    if let Some(colour) = value.try_downcast_ref::<Color>() {
+        return Some(*colour);
+    }
+    if let Some(colour) = value.try_downcast_ref::<LinearRgba>() {
+        return Some(Color::from(*colour));
+    }
+    value
+        .try_downcast_ref::<Srgba>()
+        .map(|colour| Color::from(*colour))
 }
 
 /// `#rrggbb`, or `#rrggbbaa` when the colour is not opaque.
@@ -580,6 +644,22 @@ fn parse_leaf(type_path: &str, text: &str) -> Result<Box<dyn PartialReflect>, St
         "bevy_color::color::Color" => Srgba::hex(text)
             .map(|srgba| Box::new(Color::from(srgba)) as Box<dyn PartialReflect>)
             .map_err(|_| "not a #rrggbb colour".to_string()),
+        "bevy_color::linear_rgba::LinearRgba" => Srgba::hex(text)
+            .map(|srgba| Box::new(LinearRgba::from(srgba)) as Box<dyn PartialReflect>)
+            .map_err(|_| "not a #rrggbb colour".to_string()),
+        "bevy_color::srgba::Srgba" => Srgba::hex(text)
+            .map(|srgba| Box::new(srgba) as Box<dyn PartialReflect>)
+            .map_err(|_| "not a #rrggbb colour".to_string()),
+        // Three DEGREES, the same three the pose's heading row reads and
+        // writes - so a rotation nested in a config is authored the way a
+        // node's own is.
+        "glam::Quat" => {
+            let degrees = parse_leaf("glam::Vec3", text)?;
+            let degrees = degrees
+                .try_downcast_ref::<Vec3>()
+                .ok_or_else(|| "wants yaw, pitch, roll".to_string())?;
+            Ok(Box::new(heading_to(*degrees)))
+        }
         "glam::Vec3" => {
             let parts: Vec<&str> = text.split(',').map(str::trim).collect();
             let [x, y, z] = parts.as_slice() else {
@@ -606,6 +686,7 @@ fn resolve<'a>(
             (ReflectMut::Tuple(fields), PathStep::Slot(index)) => fields.field_mut(*index)?,
             (ReflectMut::Enum(chosen), PathStep::Field(name)) => chosen.field_mut(name)?,
             (ReflectMut::Enum(chosen), PathStep::Slot(index)) => chosen.field_at_mut(*index)?,
+            (ReflectMut::List(items), PathStep::Item(index)) => items.get_mut(*index)?,
             _ => return None,
         };
     }
@@ -760,6 +841,7 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
         root: FieldRoot::Config,
         path: Vec::new(),
         optional: false,
+        group: None,
         label: "Driver".to_string(),
         value: RowValue::Driver(ship.driver),
     }];
@@ -795,6 +877,7 @@ pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<Inspecto
         root: FieldRoot::Label,
         path: Vec::new(),
         optional: false,
+        group: None,
         label: "Name".to_string(),
         value: RowValue::Text(object.name.clone()),
     }];
@@ -822,6 +905,7 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             root: FieldRoot::Pose,
             path: Vec::new(),
             optional: false,
+            group: None,
             label: "Position".to_string(),
             value: RowValue::Text(leaf_text(&pose.translation).unwrap_or_default()),
         },
@@ -829,6 +913,7 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             root: FieldRoot::Heading,
             path: Vec::new(),
             optional: false,
+            group: None,
             label: "Heading".to_string(),
             value: RowValue::Text(leaf_text(&heading_of(pose)).unwrap_or_default()),
         },

@@ -510,6 +510,11 @@ pub(crate) fn setup_editor_scene(
                 Node {
                     width: percent(100),
                     flex_grow: 1.0,
+                    // Allowed to SHRINK below its content. Without this a tall
+                    // child - an inspector on a turret's joint tree - grows the
+                    // row past the bottom of the screen instead of being given
+                    // a box to scroll inside.
+                    min_height: px(0),
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Stretch,
                     justify_content: JustifyContent::FlexStart,

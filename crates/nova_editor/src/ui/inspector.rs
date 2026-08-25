@@ -21,9 +21,9 @@ use bevy::{
 use nova_ship::prelude::{GameSections, WASDCameraController};
 use nova_ui::{
     prelude::{
-        panel, panel_header, segmented_container, segmented_option, text_field, Selected,
-        TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldValue,
-        UiSkin,
+        panel, panel_header, scroll_column, scroll_viewport, segmented_container, segmented_option,
+        text_field, Selected, TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted,
+        TextFieldValue, UiSkin,
     },
     theme,
     widget::{checkbox, checkbox_colors, checkbox_glyph, swatch},
@@ -94,6 +94,11 @@ pub(crate) struct InspectorDriver {
     ship: Entity,
     driver: ShipDriver,
 }
+
+/// A heading over the rows that share a group. Text like a readout, so the
+/// repaint has to be able to tell the two apart.
+#[derive(Component)]
+pub(crate) struct InspectorGroup;
 
 /// The colour block beside a colour field, so the repaint can find it and
 /// recolour it when the hex beside it is retyped.
@@ -174,6 +179,11 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
             margin: UiRect::left(Val::Auto),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Stretch,
+            // Bounded, so the list inside it has something to scroll WITHIN.
+            // Without this the panel simply grew to its content and a long
+            // config ran off the bottom of the screen.
+            min_height: px(0),
+            max_height: percent(100),
             padding: UiRect::all(px(10)),
             border: UiRect::left(px(theme::BORDER_W)),
             overflow: Overflow::clip(),
@@ -201,15 +211,18 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
                     ..default()
                 },
             ),
+            // SCROLLS. A turret's joint tree is thirty rows deep, and a panel
+            // that simply ran off the bottom of the screen put its muzzle's
+            // fire rate somewhere no pointer could reach.
             (
                 Name::new("Inspector List"),
                 InspectorList,
                 Node {
                     width: percent(100),
-                    flex_direction: FlexDirection::Column,
                     align_items: AlignItems::Stretch,
-                    ..default()
+                    ..scroll_column()
                 },
+                scroll_viewport(),
             ),
         ],
     )
@@ -273,7 +286,34 @@ fn build_rows(
     rows: &[InspectorRow],
     skin: UiSkin,
 ) {
+    let mut heading: Option<&str> = None;
     for (slot, row) in rows.iter().enumerate() {
+        // A heading whenever the group CHANGES, so a turret's joint tree reads
+        // as a handful of short rows under where they are rather than as one
+        // column of eight-word paths.
+        if row.group.as_deref() != heading {
+            heading = row.group.as_deref();
+            if let Some(group) = heading {
+                list.spawn((
+                    Name::new(format!("Inspector Group {group}")),
+                    InspectorGroup,
+                    Text::new(group.to_uppercase()),
+                    TextLayout {
+                        linebreak: LineBreak::NoWrap,
+                        ..default()
+                    },
+                    TextFont {
+                        font_size: FontSize::Px(11.0),
+                        ..default()
+                    },
+                    TextColor(theme::PHOSPHOR_MUTED),
+                    Node {
+                        margin: UiRect::top(px(6)),
+                        ..default()
+                    },
+                ));
+            }
+        }
         let field = InspectorField {
             node,
             root: row.root,
@@ -432,7 +472,11 @@ pub(crate) fn sync_inspector(
     mut fields: Query<(&InspectorSlot, &mut TextFieldValue), Without<TextFieldFocused>>,
     mut readouts: Query<
         (&InspectorSlot, &mut Text),
-        (With<InspectorFixed>, Without<InspectorTitle>),
+        (
+            With<InspectorFixed>,
+            Without<InspectorTitle>,
+            Without<InspectorGroup>,
+        ),
     >,
     flags: Query<
         (
@@ -488,6 +532,8 @@ pub(crate) fn sync_inspector(
     };
     let shape = (
         target.node(),
+        // A row's heading is derived from its path, so a changed heading is a
+        // changed path and this signature already catches it.
         rows.iter()
             .map(|row| (row.label.clone(), row.root, row.path.clone()))
             .collect::<Vec<_>>(),

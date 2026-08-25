@@ -1391,6 +1391,32 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(back_inside_the_stamped_ship())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // The turret is the deepest config in the game - its fire rate lives on
+        // a muzzle, on a joint, inside `root.children` - so it is what proves
+        // both that the walk reaches into a list and that the panel can be
+        // scrolled down to what the walk found there.
+        .click_a_widget(
+            "editor: inspect the turret",
+            "Scene Row pdc_kinetic_turret_section_7",
+        )
+        .step("editor: aim at the inspector")
+        .on_enter(hover_named("Inspector List"))
+        .until(the_inspector_overflows())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: roll the wheel down the panel")
+        .on_enter(scroll_lines(-12.0))
+        .until(the_inspector_scrolled())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the turret's joint tree can be reached to the bottom")
+        .on_enter(|world: &mut World| {
+            info!(
+                "editor: the inspector scrolled {:.0}px down the turret's joint tree",
+                inspector_scroll(world)
+            );
+        })
+        .add()
         .step("editor: the ids survived the trip out and back")
         .on_enter(|world: &mut World| {
             let before = world.resource::<EditorWalk>().ids.clone();
@@ -1894,6 +1920,50 @@ fn aim_at_the_named(world: &mut World, name: &str) -> Option<Vec2> {
         .find(|(named, _)| named.as_str() == name)
         .map(|(_, pose)| pose.translation())?;
     aim_at_world(world, at)
+}
+
+/// Advance once the turret's rows are TALLER than the panel that holds them.
+///
+/// This is the reason the panel scrolls at all: a turret carries a joint list,
+/// and the fire rate sits at the bottom of it. If the rows ever fit, the beat
+/// that scrolls below has nothing to prove and says so here instead.
+#[cfg(feature = "debug")]
+fn the_inspector_overflows() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        inspector_list(world).is_some_and(|node| node.content_size().y > node.size().y + 1.0)
+    })
+}
+
+/// Advance once the panel has actually rolled down. Bevy clamps a scroll to the
+/// overflow it has, so a list that fits stays at zero however hard the wheel
+/// turns - which makes this the honest end of the gesture.
+#[cfg(feature = "debug")]
+fn the_inspector_scrolled() -> Wait {
+    std::sync::Arc::new(|world: &World| inspector_scroll(world) > 1.0)
+}
+
+/// How far down the inspector stands.
+#[cfg(feature = "debug")]
+fn inspector_scroll(world: &World) -> f32 {
+    named_entity(world, "Inspector List")
+        .and_then(|entity| world.get::<ScrollPosition>(entity))
+        .map_or(0.0, |scroll| scroll.y)
+}
+
+/// The laid-out box of the inspector's scrolling list.
+#[cfg(feature = "debug")]
+fn inspector_list(world: &World) -> Option<&ComputedNode> {
+    world.get::<ComputedNode>(named_entity(world, "Inspector List")?)
+}
+
+/// The one entity carrying `name`, or nothing.
+#[cfg(feature = "debug")]
+fn named_entity(world: &World, name: &str) -> Option<Entity> {
+    let mut named = world.try_query::<(Entity, &Name)>()?;
+    named
+        .iter(world)
+        .find(|(_, named)| named.as_str() == name)
+        .map(|(entity, _)| entity)
 }
 
 /// Advance once the pointer is over a gizmo handle rather than over the ship

@@ -8,8 +8,9 @@ use nova_scenario::prelude::{
     AnchorConfig, AsteroidConfig, BeaconConfig, LightConfig, ScenarioObjectKind, SectionSource,
 };
 use nova_ship::prelude::{
-    BaseSectionConfig, GameSections, SectionConfig, SectionKind, ThrusterExhaust,
-    ThrusterExhaustConfig, ThrusterExhaustShape, ThrusterSectionConfig,
+    BaseSectionConfig, GameSections, MuzzleConfig, SectionConfig, SectionKind, ThrusterExhaust,
+    ThrusterExhaustConfig, ThrusterExhaustShape, ThrusterSectionConfig, TurretJoint,
+    TurretSectionConfig,
 };
 
 use super::*;
@@ -72,6 +73,43 @@ fn thruster_with_exhaust(geometry: ThrusterExhaustShape) -> SectionNode {
                     },
                     ..default()
                 }),
+                ..default()
+            }),
+        }),
+        modifications: vec![],
+        binds: vec![],
+    }
+}
+
+/// A turret whose joint tree carries a muzzle, the way every shipped turret
+/// does: base -> yaw -> pitch -> barrel -> muzzle.
+fn turret_with_muzzle(fire_rate: f32) -> SectionNode {
+    let joint = |muzzle, children| TurretJoint {
+        offset: Vec3::ZERO,
+        axis: None,
+        speed: 0.0,
+        min: None,
+        max: None,
+        render_mesh: None,
+        render_mesh_transform: None,
+        muzzle,
+        children,
+    };
+    let muzzle = joint(
+        Some(MuzzleConfig {
+            fire_rate,
+            muzzle_effect: None,
+        }),
+        Vec::new(),
+    );
+    SectionNode {
+        source: SectionSource::Inline(SectionConfig {
+            base: BaseSectionConfig {
+                id: "turret".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Turret(TurretSectionConfig {
+                root: joint(None, vec![muzzle]),
                 ..default()
             }),
         }),
@@ -338,10 +376,10 @@ fn an_enum_of_bare_names_is_a_choice() {
     let node = thruster_with_exhaust(ThrusterExhaustShape::Cone);
     let rows = section_rows(&node, None);
 
-    let RowValue::Choice { options, chosen } = &row(&rows, "Exhaust Shape Geometry").value else {
+    let RowValue::Choice { options, chosen } = &row(&rows, "Geometry").value else {
         panic!(
             "the exhaust's geometry is a two-name enum; got {:?}",
-            row(&rows, "Exhaust Shape Geometry").value
+            row(&rows, "Geometry").value
         );
     };
     assert_eq!(options, &vec!["Cone".to_string(), "Rect".to_string()]);
@@ -353,14 +391,14 @@ fn an_enum_of_bare_names_is_a_choice() {
 fn choosing_a_name_switches_the_variant() {
     let mut node = thruster_with_exhaust(ThrusterExhaustShape::Cone);
     let rows = section_rows(&node, None);
-    let path = row(&rows, "Exhaust Shape Geometry").path.clone();
+    let path = row(&rows, "Geometry").path.clone();
 
     let mut config = node.resolve(None).expect("an inline section").clone();
     choose_field(section_config_mut(&mut config.kind), &path, "Rect").expect("a bare name");
     node.source = SectionSource::Inline(config);
 
     let rows = section_rows(&node, None);
-    let RowValue::Choice { options, chosen } = &row(&rows, "Exhaust Shape Geometry").value else {
+    let RowValue::Choice { options, chosen } = &row(&rows, "Geometry").value else {
         panic!("still a choice");
     };
     assert_eq!(options[*chosen], "Rect");
@@ -432,6 +470,127 @@ fn there_is_no_scale_row() {
         !rows.iter().any(|row| row.label.contains("Scale")),
         "found {:?}",
         rows.iter().map(|row| &row.label).collect::<Vec<_>>()
+    );
+}
+
+/// The row a turret was MISSING. Its fire rate lives on a muzzle, on a joint,
+/// inside `root.children` - a `Vec` the walk used to stop at, showing the whole
+/// joint tree as one line of debug text. A builder could not see the number,
+/// let alone change it.
+#[test]
+fn a_turrets_fire_rate_is_reachable_through_its_joint_tree() {
+    let node = turret_with_muzzle(4.0);
+    let rows = section_rows(&node, None);
+
+    let rate = rows
+        .iter()
+        .find(|row| row.label == "Fire Rate")
+        .expect("the muzzle's fire rate has a row of its own");
+    assert_eq!(rate.value, RowValue::Text("4".to_string()));
+    assert!(
+        rate.path.contains(&PathStep::Item(0)),
+        "and it is reached by stepping INTO the joint list: {:?}",
+        rate.path
+    );
+}
+
+/// And writing it lands on the muzzle rather than anywhere else.
+#[test]
+fn a_turrets_fire_rate_can_be_retuned() {
+    let mut node = turret_with_muzzle(4.0);
+    let rows = section_rows(&node, None);
+    let path = rows
+        .iter()
+        .find(|row| row.label == "Fire Rate")
+        .expect("a fire rate row")
+        .path
+        .clone();
+
+    let mut config = node.resolve(None).expect("an inline section").clone();
+    write_field(section_config_mut(&mut config.kind), &path, false, "9")
+        .expect("a number goes into a number");
+    node.source = SectionSource::Inline(config);
+
+    let rows = section_rows(&node, None);
+    assert_eq!(text_of(&rows, "Fire Rate"), "9");
+}
+
+/// A row deep in a tree is labelled by where it sits, not by its whole path:
+/// the heading says where you are and the row says what it is.
+#[test]
+fn a_nested_row_is_a_heading_and_a_short_label() {
+    let rows = section_rows(&turret_with_muzzle(4.0), None);
+    let rate = rows
+        .iter()
+        .find(|row| row.label == "Fire Rate")
+        .expect("a fire rate row");
+
+    let group = rate.group.as_deref().expect("a nested row sits under one");
+    assert!(
+        group.contains("Muzzle"),
+        "the heading has to say where the row is: {group:?}"
+    );
+    assert!(
+        group.contains('1'),
+        "and WHICH of the siblings, one-based: {group:?}"
+    );
+}
+
+/// A node's OWN fields have no heading - they are not nested in anything.
+#[test]
+fn a_top_level_row_has_no_heading() {
+    let rows = object_rows(&asteroid(stock_asteroid()), &Transform::default());
+
+    assert_eq!(row(&rows, "Position").group, None);
+    assert_eq!(row(&rows, "Name").group, None);
+}
+
+/// A rotation inside a config reads in the same degrees a node's own heading
+/// does. Walked as a plain struct it was four rows called X, Y, Z and W.
+#[test]
+fn a_rotation_inside_a_config_reads_in_degrees() {
+    let node = SectionNode {
+        source: SectionSource::Inline(SectionConfig {
+            base: BaseSectionConfig {
+                id: "thruster".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Thruster(ThrusterSectionConfig {
+                exhaust: Some(ThrusterExhaust {
+                    rotation: Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+                    ..default()
+                }),
+                ..default()
+            }),
+        }),
+        modifications: vec![],
+        binds: vec![],
+    };
+    let rows = section_rows(&node, None);
+
+    assert_eq!(text_of(&rows, "Rotation"), "90, 0, 0");
+    assert!(
+        !rows.iter().any(|row| row.label == "W"),
+        "a quat is not four rows: {:?}",
+        rows.iter().map(|row| &row.label).collect::<Vec<_>>()
+    );
+}
+
+/// A config may hold a bare `LinearRgba` rather than a `Color`. It is still a
+/// colour to the builder looking at it, and was four rows before this.
+#[test]
+fn a_linear_colour_is_still_a_colour() {
+    let rows = section_rows(&thruster_with_exhaust(ThrusterExhaustShape::Cone), None);
+
+    assert!(
+        rows.iter()
+            .any(|row| matches!(row.value, RowValue::Colour(_))),
+        "the exhaust's emissive colours are colours: {:?}",
+        rows.iter().map(|row| &row.label).collect::<Vec<_>>()
+    );
+    assert!(
+        !rows.iter().any(|row| row.label == "Red"),
+        "and not a row per channel"
     );
 }
 
