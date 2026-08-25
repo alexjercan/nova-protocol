@@ -54,9 +54,9 @@ use serde::{Deserialize, Serialize};
 /// asset types, their RON loaders, and [`NovaModdingPlugin`] into scope.
 pub mod prelude {
     pub use super::{
-        parse_content, pretty_config, serialize_content, BundleAsset, BundleAssetLoader,
-        BundleManifest, CatalogEntry, CatalogLoader, CatalogManifest, Content, ContentAsset,
-        ContentAssetLoader, InstalledCatalog, ModEntry, ModMeta, ModdingLoaderError,
+        parse_content, pretty_config, serialize_content, serialize_manifest, BundleAsset,
+        BundleAssetLoader, BundleManifest, CatalogEntry, CatalogLoader, CatalogManifest, Content,
+        ContentAsset, ContentAssetLoader, InstalledCatalog, ModEntry, ModMeta, ModdingLoaderError,
         NovaModdingPlugin, BASE_MOD_ID,
     };
 }
@@ -209,6 +209,12 @@ pub fn pretty_config() -> ron::ser::PrettyConfig {
 /// dialects of one format.
 pub fn serialize_content(content: &[Content]) -> Result<String, ron::Error> {
     let body = ron::ser::to_string_pretty(&content.to_vec(), pretty_config())?;
+    Ok(format!("{body}\n"))
+}
+
+/// One bundle manifest as a `*.bundle.ron` file body, in the same style.
+pub fn serialize_manifest(manifest: &BundleManifest) -> Result<String, ron::Error> {
+    let body = ron::ser::to_string_pretty(manifest, pretty_config())?;
     Ok(format!("{body}\n"))
 }
 

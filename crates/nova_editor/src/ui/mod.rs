@@ -32,9 +32,10 @@ use nova_ui::{
 };
 
 use crate::{
+    bundle::{ask_to_open, ask_to_save},
     config::{
-        AttitudeReadout, ContextBreadcrumb, EditorKeyLegend, EditorOverlays, LastClick,
-        PlacementStatus, PlayButton, RebindButton, SceneList, SceneRow, SectionChoice,
+        AttitudeReadout, ContextBreadcrumb, EditorKeyLegend, EditorOverlays, EditorStatus,
+        LastClick, PlacementStatus, PlayButton, RebindButton, SceneList, SceneRow, SectionChoice,
         SelectedNode, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList,
     },
     frame::{ask_for, on_frame_selection, FrameRequest, FrameSelectionItem},
@@ -67,9 +68,9 @@ use crate::{
 /// The whole menu bar in one place, so what the editor can do reads as a list
 /// rather than as four `with_children` blocks buried in the bar's layout.
 ///
-/// GREYED, NOT ABSENT, for the items that are not built: Save and Open are the
-/// save/load task's, and Undo and Redo are nobody's yet. A menu that only lists
-/// what already works cannot say what the editor is going to be.
+/// GREYED, NOT ABSENT, for the items that are not built: Save As needs a name
+/// field nothing offers yet, and Undo and Redo are nobody's. A menu that only
+/// lists what already works cannot say what the editor is going to be.
 fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: UiSkin) {
     match menu {
         MenuId::File => {
@@ -78,17 +79,23 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 menu_item_row("New Scenario", None, skin),
                 observe(reset_document),
             ));
-            for (label, shortcut) in [
-                ("Save", Some("Ctrl+S")),
-                ("Save As...", None),
-                ("Open...", None),
-            ] {
-                items.spawn((
-                    Name::new(format!("{label} Item")),
-                    menu_item_row(label, shortcut, skin),
-                    InteractionDisabled,
-                ));
-            }
+            items.spawn((
+                Name::new("Save Item"),
+                menu_item_row("Save", Some("Ctrl+S"), skin),
+                observe(ask_to_save),
+            ));
+            items.spawn((
+                Name::new("Open Item"),
+                menu_item_row("Open", None, skin),
+                observe(ask_to_open),
+            ));
+            // Still greyed: Save As needs a name to save under and a place to
+            // type it, and there is one save slot until it has both.
+            items.spawn((
+                Name::new("Save As... Item"),
+                menu_item_row("Save As...", None, skin),
+                InteractionDisabled,
+            ));
             items.spawn(separator());
             items.spawn((
                 Name::new("Back To Main Menu Item"),
@@ -1076,6 +1083,43 @@ pub(crate) fn on_scene_row(
     }
     selected.0 = Some(*node);
     ask_for(&mut request, Some(*node));
+}
+
+/// Paint whatever the editor is currently saying onto its one status line.
+///
+/// One WRITER, so the placement readout and a verb's answer cannot fight over
+/// the node: they both write [`EditorStatus`], and this is the only thing that
+/// touches the text.
+pub(crate) fn sync_status_line(
+    time: Res<Time>,
+    status: Res<EditorStatus>,
+    lines: Query<
+        (&mut Text, &mut TextColor, &mut BorderColor, &mut Visibility),
+        With<PlacementStatus>,
+    >,
+) {
+    let line = status.line(time.elapsed_secs_f64());
+    for (mut text, mut colour, mut border, mut visibility) in lines {
+        match line {
+            Some((message, tint)) => {
+                if text.0 != message {
+                    text.0 = message.to_string();
+                }
+                if colour.0 != tint {
+                    colour.0 = tint;
+                    *border = BorderColor::all(tint);
+                }
+                if *visibility != Visibility::Inherited {
+                    *visibility = Visibility::Inherited;
+                }
+            }
+            None => {
+                if *visibility != Visibility::Hidden {
+                    *visibility = Visibility::Hidden;
+                }
+            }
+        }
+    }
 }
 
 /// Disable Play anywhere but the scenario node.

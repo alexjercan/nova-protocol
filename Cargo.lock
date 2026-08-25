@@ -4630,6 +4630,7 @@ dependencies = [
  "bevy_enhanced_input",
  "nova_assets",
  "nova_gameplay",
+ "nova_modding",
  "nova_scenario",
  "nova_ship",
  "nova_ui",

@@ -656,6 +656,19 @@ pub(crate) fn ensure_document(mut commands: Commands, mut context: ResMut<EditCo
 /// document is created - a "the world looks empty, refill it" pass would
 /// resurrect everything the builder deleted on the next editor entry.
 pub(crate) fn found_document(commands: &mut Commands, context: &mut EditContext) -> Entity {
+    let scenario = found_empty_document(commands, context);
+    for object in default_world_objects() {
+        insert_object_node(commands, scenario, object);
+    }
+    scenario
+}
+
+/// Found a document with NOTHING in it, entered.
+///
+/// The seed is what [`found_document`] adds on top. A LOAD founds an empty one
+/// and fills it from the file: seeding the stock range first would leave every
+/// rock the builder deleted standing beside the ones they saved.
+pub(crate) fn found_empty_document(commands: &mut Commands, context: &mut EditContext) -> Entity {
     let scenario = commands
         .spawn((
             EditorNode,
@@ -667,9 +680,6 @@ pub(crate) fn found_document(commands: &mut Commands, context: &mut EditContext)
             Visibility::Visible,
         ))
         .id();
-    for object in default_world_objects() {
-        insert_object_node(commands, scenario, object);
-    }
     context.path = vec![scenario];
     scenario
 }
@@ -862,6 +872,80 @@ pub(crate) fn spawn_ship_node(
         .id();
     context.enter(ship);
     Some(ship)
+}
+
+/// Put a ship the document already named back under `scenario` - the load's
+/// counterpart to [`spawn_ship_node`], which mints.
+///
+/// The context is NOT entered: a load lands you at the scenario node looking at
+/// what you opened, not inside whichever ship the file listed last.
+pub(crate) fn insert_ship_node(
+    commands: &mut Commands,
+    scenario: Entity,
+    id: NodeId,
+    ship: ShipNode,
+    transform: Transform,
+) -> Entity {
+    commands
+        .spawn((
+            EditorNode,
+            Name::new(format!("Ship Node {}", id.0)),
+            ship,
+            id,
+            NextChildOrdinal::default(),
+            transform,
+            Visibility::Visible,
+            ChildOf(scenario),
+        ))
+        .id()
+}
+
+/// Put a section back on `ship` with the source the file wrote, and give it a
+/// view if its config can be resolved.
+///
+/// Unlike [`spawn_section_node`] this does not inline what it is handed: a
+/// saved section may name a catalog prototype, and re-inlining it would fork
+/// the design away from the catalog it was built against. A prototype the
+/// catalog has lost keeps its place in the document with nothing to show, which
+/// is what [`rebuild_node_views`] warns about.
+pub(crate) fn insert_lifted_section(
+    commands: &mut Commands,
+    sections: Option<&GameSections>,
+    ship: Entity,
+    id: NodeId,
+    section: SectionNode,
+    transform: Transform,
+) -> Entity {
+    let config = section.resolve(sections).cloned();
+    let node = commands
+        .spawn((
+            EditorNode,
+            Name::new(format!("Section Node {}", id.0)),
+            section,
+            id,
+            transform,
+            Visibility::Inherited,
+            ChildOf(ship),
+        ))
+        .id();
+    if let Some(config) = config {
+        spawn_node_view(commands, node, &config);
+    }
+    node
+}
+
+/// Set a node's id counter to `ordinal`, so the next mint under it is fresh.
+///
+/// The load's last step on every node it filled: the counter is what stops a
+/// newly placed part from taking an id the file already used.
+pub(crate) fn resume_ordinals(
+    ordinals: &mut Query<&mut NextChildOrdinal>,
+    node: Entity,
+    ordinal: u32,
+) {
+    if let Ok(mut next) = ordinals.get_mut(node) {
+        next.0 = ordinal;
+    }
 }
 
 /// Add a section to `ship` at `transform`, and give it a view to be seen by.

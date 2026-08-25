@@ -184,9 +184,50 @@ pub(crate) struct SectionGhost {
     pub(crate) ship: Entity,
 }
 
-/// The editor's placement status line: why the ghost is refused.
+/// The editor's status line: the one place it says something back.
 #[derive(Component)]
 pub(crate) struct PlacementStatus;
+
+/// What that line says.
+///
+/// TWO slots, because two kinds of thing want it. The READOUT is the placement
+/// preview's, rewritten every frame while a part is in hand and gone the moment
+/// it is put down. What a VERB SAID - a save wrote, a load failed - has to
+/// outlast the frame it happened in, or the builder never sees it, so it holds
+/// the line for [`SAID_HOLD_SECS`] and the readout waits.
+#[derive(Resource, Default)]
+pub(crate) struct EditorStatus {
+    /// The placement readout, or `None` when nothing is being placed.
+    readout: Option<(String, Color)>,
+    /// The last thing a verb said, and the moment it stops holding the line.
+    said: Option<(String, Color, f64)>,
+}
+
+/// How long a verb holds the line before the readout gets it back.
+const SAID_HOLD_SECS: f64 = 4.0;
+
+impl EditorStatus {
+    /// Write the placement readout, or clear it.
+    pub(crate) fn report(&mut self, line: Option<(String, Color)>) {
+        self.readout = line;
+    }
+
+    /// Say something that has to be read: it holds the line for a few seconds.
+    pub(crate) fn say(&mut self, message: impl Into<String>, tint: Color, now: f64) {
+        self.said = Some((message.into(), tint, now + SAID_HOLD_SECS));
+    }
+
+    /// What the line shows right now.
+    pub(crate) fn line(&self, now: f64) -> Option<(&str, Color)> {
+        match &self.said {
+            Some((message, tint, until)) if now < *until => Some((message.as_str(), *tint)),
+            _ => self
+                .readout
+                .as_ref()
+                .map(|(message, tint)| (message.as_str(), *tint)),
+        }
+    }
+}
 
 /// The rail's attitude readout: what the hull under construction would turn
 /// like, and which of the two ceilings says so. Repainted from the build state

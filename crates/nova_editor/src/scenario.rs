@@ -193,7 +193,7 @@ const SKY_BEACONS: [SkyBeacon; 2] = [
         position: Vec3::new(40.0, 0.0, 260.0),
         trip_radius: 70.0,
         color: Color::srgb(0.20, 0.90, 1.0),
-        cubemap: "base/textures/cubemap.png",
+        cubemap: DEFAULT_SKY,
         line: "Home relay - the old sky is back.",
     },
 ];
@@ -271,7 +271,10 @@ pub(crate) fn register_sandbox_scenario(
 /// deletes every rock gets an empty range, which is the whole point of the
 /// world being editable; an id registered before the editor has ever opened
 /// still has to name something, because an id nothing can fly is not content.
-fn world_objects(context: &EditContext, q_objects: &ObjectNodes) -> Vec<ScenarioObjectConfig> {
+pub(crate) fn world_objects(
+    context: &EditContext,
+    q_objects: &ObjectNodes,
+) -> Vec<ScenarioObjectConfig> {
     match context.scenario() {
         Some(scenario) => lower_objects(scenario, q_objects),
         None => default_world_objects(),
@@ -329,12 +332,14 @@ pub(crate) fn default_world_objects() -> Vec<ScenarioObjectConfig> {
 /// One ship, flattened out of its subtree.
 fn lower_ship(
     entity: Entity,
+    id: &NodeId,
     ship: &ShipNode,
     pose: Transform,
     nodes: &SectionNodes,
 ) -> LoweredShip {
     let placed = sections_of(entity, nodes);
     LoweredShip {
+        id: id.0.clone(),
         sections: placed
             .iter()
             .map(|(_, id, section, transform)| SpaceshipSectionConfig {
@@ -369,7 +374,7 @@ fn lower_ship(
 /// only ship in a document looked like it did nothing at all. A document with
 /// no player ship still produces the same empty hull an untouched editor
 /// always handed over.
-fn lower_fleet(
+pub(crate) fn lower_fleet(
     q_ships: &Query<(Entity, &NodeId, &ShipNode, &Transform)>,
     nodes: &SectionNodes,
 ) -> LoweredFleet {
@@ -377,10 +382,10 @@ fn lower_fleet(
     let mut ships: Vec<_> = q_ships.iter().collect();
     ships.sort_unstable_by(|a, b| a.1.cmp(b.1));
     for (entity, id, ship, transform) in ships {
-        let lowered = lower_ship(entity, ship, *transform, nodes);
+        let lowered = lower_ship(entity, id, ship, *transform, nodes);
         match ship.driver {
             ShipDriver::Player => fleet.player = lowered,
-            ShipDriver::Ai => fleet.ai.push((id.0.clone(), lowered)),
+            ShipDriver::Ai => fleet.ai.push(lowered),
         }
     }
     fleet
@@ -391,42 +396,133 @@ fn lower_fleet(
 /// on the range it spawns.
 #[derive(Default)]
 pub(crate) struct LoweredShip {
-    sections: Vec<SpaceshipSectionConfig>,
+    /// The SHIP NODE's id, which is also the prototype id a save writes this
+    /// design under. Empty only for the placeholder hull a document with no
+    /// player ship hands over - there is no node behind that one to name.
+    pub(crate) id: String,
+    pub(crate) sections: Vec<SpaceshipSectionConfig>,
     inputs: Vec<(SectionId, Vec<Binding>)>,
-    skin: bool,
-    style: Option<String>,
+    pub(crate) skin: bool,
+    pub(crate) style: Option<String>,
     position: Vec3,
     rotation: Quat,
 }
 
 /// The whole document, lowered: the player's ship and every AI design beside
-/// it, keyed by their document ids.
+/// it.
 #[derive(Default)]
 pub(crate) struct LoweredFleet {
     player: LoweredShip,
-    ai: Vec<(String, LoweredShip)>,
+    ai: Vec<LoweredShip>,
 }
 
-/// Build the sandbox: the world's objects, two rock belts, the wake script, and
+impl LoweredFleet {
+    /// Every design in the document that a node stands behind, in id order -
+    /// what a save writes one ship prototype per.
+    ///
+    /// The placeholder player hull is skipped: it names no node, so there is
+    /// nothing for an instance to reference and nothing to write.
+    pub(crate) fn designs(&self) -> impl Iterator<Item = &LoweredShip> {
+        std::iter::once(&self.player)
+            .chain(self.ai.iter())
+            .filter(|ship| !ship.id.is_empty())
+    }
+}
+
+/// How a lowered ship names its hull in the config it goes into.
+///
+/// The same document lowers both ways: Play hands the runtime a hull it can
+/// spawn with no catalog behind it, and a SAVE writes a reference to the ship
+/// prototype the same file carries - so editing a design changes every
+/// instance of it and the file never holds two copies of one hull.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HullForm {
+    /// The whole section list, written out where the ship is spawned.
+    Inline,
+    /// A reference to the ship prototype of the same id.
+    Prototype,
+}
+
+/// The hull a lowered ship spawns, in the form asked for.
+///
+/// A design with no node behind it falls back to `Inline` whatever was asked:
+/// a prototype reference to nothing spawns nothing, and the empty hull an
+/// untouched editor hands over has to stay an empty hull.
+fn hull_of(ship: &LoweredShip, form: HullForm) -> ShipSource {
+    match form {
+        HullForm::Prototype if !ship.id.is_empty() => ShipSource::Prototype(ship.id.clone()),
+        _ => ShipSource::Inline(ship_hull(ship)),
+    }
+}
+
+/// The design itself: what is intrinsic to the hull, apart from any one spawn.
+pub(crate) fn ship_hull(ship: &LoweredShip) -> ShipHull {
+    ShipHull {
+        sections: ship.sections.clone(),
+        skin: ship.skin,
+        style: ship.style.clone(),
+        ..default()
+    }
+}
+
+/// Build the range: the world's objects, two rock belts, the wake script, and
 /// the ships the editor just built.
-pub(crate) fn sandbox_scenario(
-    game_assets: &GameAssets,
+///
+/// One body for both readers of the document. `id` and `form` are what they
+/// disagree about: the Play hand-off builds the hidden sandbox with hulls
+/// written out inline, and a SAVE builds a scenario of its own id whose ships
+/// reference the prototypes the same file carries.
+pub(crate) fn range_scenario(
+    sky: AssetRef<Image>,
+    range: Range<'_>,
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
 ) -> ScenarioConfig {
     ScenarioConfig {
         description: "A free-flight range: rocks, target hulks, dormant pickets and a planetoid."
             .to_string(),
-        // Registered so Retry can find it (see `setup_scenario`), hidden so it
-        // never shows up in the Scenarios picker next to shipped content.
-        hidden: true,
-        events: sandbox_events(sandbox_objects(world, fleet)),
-        ..ScenarioConfig::new(
-            SANDBOX_ID.to_string(),
-            "Editor Sandbox".to_string(),
-            game_assets.cubemap.clone().into(),
-        )
+        hidden: range.hidden,
+        events: sandbox_events(range.id, sandbox_objects(world, fleet, range.form)),
+        ..ScenarioConfig::new(range.id.to_string(), range.name.to_string(), sky)
     }
+}
+
+/// The sky a saved range comes up under, as a PATH.
+///
+/// The Play hand-off passes the LOADED cubemap handle instead, which is faster
+/// and is all it needs. A save cannot: a handle has no authorable form, so a
+/// file written from one refuses to serialize. The path is the same sky the
+/// home beacon swaps back to.
+pub(crate) const DEFAULT_SKY: &str = "base/textures/cubemap.png";
+
+/// Which range a lowering is building: its id and name, whether the Scenarios
+/// picker lists it, and how its ships name their hulls.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Range<'a> {
+    pub(crate) id: &'a str,
+    pub(crate) name: &'a str,
+    /// Kept out of the Scenarios picker, which lists shipped content.
+    pub(crate) hidden: bool,
+    pub(crate) form: HullForm,
+}
+
+/// The range Play hands off to: registered so the DEFEAT overlay's Retry can
+/// find it by id, hidden so it never stands next to shipped content, and
+/// carrying its hulls inline because nothing has registered them as prototypes.
+pub(crate) const SANDBOX: Range<'static> = Range {
+    id: SANDBOX_ID,
+    name: "Editor Sandbox",
+    hidden: true,
+    form: HullForm::Inline,
+};
+
+/// Build the sandbox the editor plays: the range above, with the document in it.
+pub(crate) fn sandbox_scenario(
+    game_assets: &GameAssets,
+    world: Vec<ScenarioObjectConfig>,
+    fleet: &LoweredFleet,
+) -> ScenarioConfig {
+    range_scenario(game_assets.cubemap.clone().into(), SANDBOX, world, fleet)
 }
 
 /// Everything the range spawns on start: the world's own objects, then the
@@ -439,16 +535,17 @@ pub(crate) fn sandbox_scenario(
 fn sandbox_objects(
     mut objects: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
+    form: HullForm,
 ) -> Vec<ScenarioObjectConfig> {
-    objects.push(player_ship(&fleet.player));
+    objects.push(player_ship(&fleet.player, form));
     // An EMPTY design spawns nothing: a blank Add Ship left in the document
     // is a decision not yet made, not a zero-section spaceship to load.
     objects.extend(
         fleet
             .ai
             .iter()
-            .filter(|(_, ship)| !ship.sections.is_empty())
-            .map(|(id, ship)| ai_ship(id, ship)),
+            .filter(|ship| !ship.sections.is_empty())
+            .map(|ship| ai_ship(ship, form)),
     );
 
     objects
@@ -612,7 +709,7 @@ fn sky_beacon(beacon: &SkyBeacon) -> ScenarioObjectConfig {
 }
 
 /// The ship the editor just built, with the keybinds it was built with.
-fn player_ship(player: &LoweredShip) -> ScenarioObjectConfig {
+fn player_ship(player: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: PLAYER_ID.to_string(),
@@ -634,12 +731,7 @@ fn player_ship(player: &LoweredShip) -> ScenarioObjectConfig {
             // What the builder saw is what they fly. The editor shows the same
             // derived skin over the same structure, so the flown ship must not
             // come up bare (or clad) against it.
-            hull: ShipSource::Inline(ShipHull {
-                sections: player.sections.clone(),
-                skin: player.skin,
-                style: player.style.clone(),
-                ..default()
-            }),
+            hull: hull_of(player, form),
             ..default()
         }),
     }
@@ -652,23 +744,18 @@ fn player_ship(player: &LoweredShip) -> ScenarioObjectConfig {
 /// gets shot by the woken pickets. It flies (or sits) with exactly the
 /// sections it was built from - what you laid out on the stage is what the
 /// range holds.
-fn ai_ship(id: &str, ship: &LoweredShip) -> ScenarioObjectConfig {
+fn ai_ship(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
-            id: id.to_string(),
-            name: format!("Sandbox Ship {id}"),
+            id: ship.id.clone(),
+            name: format!("Sandbox Ship {}", ship.id),
             position: ship.position,
             rotation: ship.rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::AI(AIControllerConfig::default()),
-            hull: ShipSource::Inline(ShipHull {
-                sections: ship.sections.clone(),
-                skin: ship.skin,
-                style: ship.style.clone(),
-                ..default()
-            }),
+            hull: hull_of(ship, form),
             ..default()
         }),
     }
@@ -826,7 +913,7 @@ fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
 /// proximity, swap the sky at the beacons, and offer a retry when the player
 /// dies. No completion path: the standing objective is never completed and
 /// nothing chains anywhere but back here.
-fn sandbox_events(objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig> {
+fn sandbox_events(id: &str, objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig> {
     // The one outcome the sandbox has, and the retry it queues. `linger` holds
     // the switch until the overlay's Retry (or Enter) releases it.
     let retry = |message: &str| {
@@ -836,7 +923,9 @@ fn sandbox_events(objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig
                 message,
             )),
             EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: SANDBOX_ID.to_string(),
+                // ITS OWN id, not the sandbox's: a saved range's retry has to
+                // reload the range you died on.
+                scenario_id: id.to_string(),
                 linger: true,
                 delay: None,
             }),
@@ -944,11 +1033,15 @@ mod tests {
     const CAMERA_FAR: f32 = 1000.0;
 
     fn objects() -> Vec<ScenarioObjectConfig> {
-        sandbox_objects(default_world_objects(), &LoweredFleet::default())
+        sandbox_objects(
+            default_world_objects(),
+            &LoweredFleet::default(),
+            HullForm::Inline,
+        )
     }
 
     fn events() -> Vec<ScenarioEventConfig> {
-        sandbox_events(objects())
+        sandbox_events(SANDBOX_ID, objects())
     }
 
     fn find(objects: &[ScenarioObjectConfig], id: &str) -> ScenarioObjectConfig {
@@ -1450,21 +1543,22 @@ mod tests {
         let fleet = LoweredFleet {
             player: LoweredShip::default(),
             ai: vec![
-                (
-                    "ship_2".to_string(),
-                    LoweredShip {
-                        sections: vec![section],
-                        position: Vec3::new(24.0, 0.0, 0.0),
-                        ..default()
-                    },
-                ),
+                LoweredShip {
+                    id: "ship_2".to_string(),
+                    sections: vec![section],
+                    position: Vec3::new(24.0, 0.0, 0.0),
+                    ..default()
+                },
                 // A blank Add Ship left in the document: a decision not yet
                 // made, not a zero-section spaceship to load.
-                ("ship_3".to_string(), LoweredShip::default()),
+                LoweredShip {
+                    id: "ship_3".to_string(),
+                    ..default()
+                },
             ],
         };
 
-        let objects = sandbox_objects(default_world_objects(), &fleet);
+        let objects = sandbox_objects(default_world_objects(), &fleet, HullForm::Inline);
         let escort = find(&objects, "ship_2");
         assert_eq!(escort.base.position, Vec3::new(24.0, 0.0, 0.0));
         let ScenarioObjectKind::Spaceship(ship) = &escort.kind else {
@@ -1505,18 +1599,16 @@ mod tests {
                 rotation: heading,
                 ..default()
             },
-            ai: vec![(
-                "ship_2".to_string(),
-                LoweredShip {
-                    sections: vec![section],
-                    position: Vec3::new(24.0, 0.0, 0.0),
-                    rotation: listing,
-                    ..default()
-                },
-            )],
+            ai: vec![LoweredShip {
+                id: "ship_2".to_string(),
+                sections: vec![section],
+                position: Vec3::new(24.0, 0.0, 0.0),
+                rotation: listing,
+                ..default()
+            }],
         };
 
-        let objects = sandbox_objects(default_world_objects(), &fleet);
+        let objects = sandbox_objects(default_world_objects(), &fleet, HullForm::Inline);
         assert_eq!(
             find(&objects, PLAYER_ID).base.rotation,
             heading,
@@ -1566,7 +1658,7 @@ mod tests {
                         fleet
                             .ai
                             .iter()
-                            .map(|(_, ship)| ship.position)
+                            .map(|ship| ship.position)
                             .collect::<Vec<_>>(),
                     )
                 },
@@ -1597,7 +1689,7 @@ mod tests {
                 ..default()
             };
             let player = find(
-                &sandbox_objects(default_world_objects(), &lowered),
+                &sandbox_objects(default_world_objects(), &lowered, HullForm::Inline),
                 PLAYER_ID,
             );
             let ScenarioObjectKind::Spaceship(ship) = player.kind else {

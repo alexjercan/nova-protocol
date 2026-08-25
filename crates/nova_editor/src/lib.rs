@@ -16,6 +16,7 @@
 //! - `skin`      - the derived cladding, re-derived live while a part is dragged
 //! - `stage`     - the ground plane the range is laid out on
 //! - `scenario`  - the default world a document is seeded with, and the sandbox script
+//! - `bundle`    - the document as a saved mod bundle, and the read back out of one
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
 //! - `probe`     - the one public, read-only snapshot of all of the above
 #![warn(missing_docs)]
@@ -30,6 +31,7 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
 mod attitude;
+mod bundle;
 mod config;
 mod frame;
 mod gallery;
@@ -47,8 +49,10 @@ mod stage;
 mod ui;
 
 use attitude::sync_attitude_readout;
+use bundle::{apply_file_request, save_key, FileRequest};
 use config::{
-    EditorOverlays, LastClick, PlacementPose, PlacementPreview, SectionChoice, SelectedNode,
+    EditorOverlays, EditorStatus, LastClick, PlacementPose, PlacementPreview, SectionChoice,
+    SelectedNode,
 };
 use frame::{apply_frame_request, frame_key, sync_frame_item, FrameRequest};
 use gizmo::sync_gizmo;
@@ -81,7 +85,7 @@ use ui::{
     },
     rail::sync_scene_tooltip,
     setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
-    sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_style_list,
+    sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_status_line, sync_style_list,
     window::{on_colour_slider, sync_colour_windows},
 };
 
@@ -130,6 +134,23 @@ fn editor_plugin(app: &mut App) {
     app.init_resource::<SelectedNode>();
     app.init_resource::<EditorRebind>();
     app.init_resource::<EditorOverlays>();
+    // The one line the editor speaks through - the placement readout and every
+    // verb that has something to say both write it. See `EditorStatus`.
+    app.init_resource::<EditorStatus>();
+    // Save and open: what the File menu and Ctrl+S ask for, and the one worker
+    // that answers. Editor-only, because a document only exists in there.
+    app.init_resource::<FileRequest>();
+    app.add_systems(
+        Update,
+        (
+            // Ctrl+S is a modifier and a letter, and the letter is one a
+            // builder types into an inspector field. See `typing_into_a_field`.
+            save_key.run_if(not(typing_into_a_field)),
+            apply_file_request,
+        )
+            .chain()
+            .run_if(in_state(ExampleStates::Editor)),
+    );
     // The top bar's menus. Closed on entering the editor because the bar they
     // hang off is `DespawnOnExit(Editor)`: an "open" menu on the way back in
     // would be a dropdown with no button under it.
@@ -379,6 +400,7 @@ fn editor_plugin(app: &mut App) {
                 sync_breadcrumb,
                 sync_rebind_button,
                 sync_play_button,
+                sync_status_line,
                 sync_ship_focus,
                 sync_camera_focus,
                 // AFTER the context's own framing: both write the camera, and

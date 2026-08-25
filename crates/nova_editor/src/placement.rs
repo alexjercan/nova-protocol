@@ -19,7 +19,7 @@ use nova_ui::theme;
 
 use crate::{
     config::{
-        EditorOverlays, LastClick, Placement, PlacementPose, PlacementPreview, PlacementStatus,
+        EditorOverlays, EditorStatus, LastClick, Placement, PlacementPose, PlacementPreview,
         SectionChoice, SectionGhost, SectionPreviewMarker, SelectedNode,
     },
     frame::{ask_for, FrameRequest},
@@ -567,7 +567,7 @@ pub(crate) fn sync_placement_ghost(
     ghosts: Query<(Entity, &SectionGhost, &mut Transform)>,
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
     q_nodes: Query<&SectionNode>,
-    status: StatusQuery,
+    mut status: ResMut<EditorStatus>,
 ) {
     let edited = context.ship();
     let wanted = preview
@@ -604,44 +604,38 @@ pub(crate) fn sync_placement_ghost(
         // without it, a blank Add Ship reads as an editor that stopped placing.
         let founding = matches!(*selection, SectionChoice::Section(_))
             && edited.is_some_and(|ship| !q_owners.iter().any(|owner| owner.parent() == ship));
-        set_status(
-            status,
-            founding.then(|| {
-                (
-                    "click empty space - the first part founds the ship".to_string(),
-                    theme::PHOSPHOR_MUTED,
-                )
-            }),
-        );
+        status.report(founding.then(|| {
+            (
+                "click empty space - the first part founds the ship".to_string(),
+                theme::PHOSPHOR_MUTED,
+            )
+        }));
         return;
     };
-    set_status(
-        status,
-        Some(match placement.solve.refusal {
-            Some(refusal) => (refusal.message().to_string(), theme::RED),
-            // Naming the mate is the readout: which socket of the ship the part
-            // is about to take, and which of its own it takes it with. The keys
-            // that change that answer live in the legend now, so the line does
-            // not repeat them under the pointer every frame.
-            None => (
-                format!(
-                    "{} <- {}",
-                    socket_id(
-                        q_nodes
-                            .get(placement.target_section)
-                            .ok()
-                            .and_then(|section| section.resolve(Some(&sections))),
-                        placement.solve.target
-                    ),
-                    socket_id(
-                        sections.get_section(&placement.prototype),
-                        placement.solve.source
-                    ),
+    status.report(Some(match placement.solve.refusal {
+        Some(refusal) => (refusal.message().to_string(), theme::RED),
+        // Naming the mate is the readout: which socket of the ship the part
+        // is about to take, and which of its own it takes it with. The keys
+        // that change that answer live in the legend now, so the line does
+        // not repeat them under the pointer every frame.
+        None => (
+            format!(
+                "{} <- {}",
+                socket_id(
+                    q_nodes
+                        .get(placement.target_section)
+                        .ok()
+                        .and_then(|section| section.resolve(Some(&sections))),
+                    placement.solve.target
                 ),
-                theme::PHOSPHOR_MUTED,
+                socket_id(
+                    sections.get_section(&placement.prototype),
+                    placement.solve.source
+                ),
             ),
-        }),
-    );
+            theme::PHOSPHOR_MUTED,
+        ),
+    }));
 
     let Some(ship) = edited else {
         return;
@@ -706,43 +700,6 @@ fn socket_id(config: Option<&SectionConfig>, index: usize) -> String {
     config
         .and_then(|config| config.base.link_points.get(index))
         .map_or_else(String::new, |point| point.id.clone())
-}
-
-/// Write the placement readout, or hide it when nothing is being placed.
-type StatusQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        &'static mut Text,
-        &'static mut TextColor,
-        &'static mut BorderColor,
-        &'static mut Visibility,
-    ),
-    With<PlacementStatus>,
->;
-
-fn set_status(status: StatusQuery, line: Option<(String, Color)>) {
-    for (mut text, mut colour, mut border, mut visibility) in status {
-        match &line {
-            Some((message, tint)) => {
-                if text.0 != *message {
-                    text.0 = message.clone();
-                }
-                if colour.0 != *tint {
-                    colour.0 = *tint;
-                    *border = BorderColor::all(*tint);
-                }
-                if *visibility != Visibility::Inherited {
-                    *visibility = Visibility::Inherited;
-                }
-            }
-            None => {
-                if *visibility != Visibility::Hidden {
-                    *visibility = Visibility::Hidden;
-                }
-            }
-        }
-    }
 }
 
 /// Place, delete, or SELECT - depending on the armed tool and on what was
