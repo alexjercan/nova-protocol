@@ -334,7 +334,7 @@ pub(crate) fn default_world_objects() -> Vec<ScenarioObjectConfig> {
 fn lower_ship(
     entity: Entity,
     ship: &ShipNode,
-    position: Vec3,
+    pose: Transform,
     nodes: &SectionNodes,
 ) -> LoweredShip {
     let placed = sections_of(entity, nodes);
@@ -356,7 +356,8 @@ fn lower_ship(
             .collect(),
         skin: ship.skin,
         style: ship.style.clone(),
-        position,
+        position: pose.translation,
+        rotation: pose.rotation,
     }
 }
 
@@ -381,8 +382,12 @@ fn lower_fleet(
     let mut ships: Vec<_> = q_ships.iter().collect();
     ships.sort_unstable_by(|a, b| a.1.cmp(b.1));
     for (entity, id, ship, transform) in ships {
-        let position = PLAYER_SPAWN + transform.translation - anchor;
-        let lowered = lower_ship(entity, ship, position, nodes);
+        // The offset stays in WORLD axes and is not turned by the anchor's own
+        // rotation: what the builder laid out on the ground plane is the
+        // layout that flies, whichever way the player's ship happens to face.
+        let pose = Transform::from_translation(PLAYER_SPAWN + transform.translation - anchor)
+            .with_rotation(transform.rotation);
+        let lowered = lower_ship(entity, ship, pose, nodes);
         match ship.driver {
             ShipDriver::Player => fleet.player = lowered,
             ShipDriver::Ai => fleet.ai.push((id.0.clone(), lowered)),
@@ -401,6 +406,7 @@ pub(crate) struct LoweredShip {
     skin: bool,
     style: Option<String>,
     position: Vec3,
+    rotation: Quat,
 }
 
 /// The whole document, lowered: the player's ship and every AI design beside
@@ -621,8 +627,13 @@ fn player_ship(player: &LoweredShip) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: PLAYER_ID.to_string(),
             name: "Player's Spaceship".to_string(),
+            // The player ANCHORS the range - the belts, pickets and beacons are
+            // all authored around this point - so dragging the player's ship
+            // moves the fleet around it rather than moving the ship off the
+            // range. Its heading is its own, though: a ship turned on the stage
+            // is a ship that launches turned.
             position: PLAYER_SPAWN,
-            rotation: Quat::IDENTITY,
+            rotation: player.rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: None,
@@ -662,7 +673,7 @@ fn ai_ship(id: &str, ship: &LoweredShip) -> ScenarioObjectConfig {
             id: id.to_string(),
             name: format!("Sandbox Ship {id}"),
             position: ship.position,
-            rotation: Quat::IDENTITY,
+            rotation: ship.rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: Some(Allegiance::Neutral),
@@ -1480,6 +1491,52 @@ mod tests {
         assert!(
             !objects.iter().any(|object| object.base.id == "ship_3"),
             "an empty design spawns nothing"
+        );
+    }
+
+    /// A ship turned on the stage launches turned. The lowering used to hand
+    /// every ship `Quat::IDENTITY`, so the turn rings moved the hull in the
+    /// editor and nothing at all in flight.
+    #[test]
+    fn a_ships_heading_survives_the_hand_off() {
+        let section = SpaceshipSectionConfig {
+            id: "hull_1".to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Prototype(LIGHT_HULL_SECTION_ID.to_string()),
+            modifications: vec![],
+        };
+        let heading = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+        let listing = Quat::from_rotation_z(std::f32::consts::FRAC_PI_4);
+        let fleet = LoweredFleet {
+            player: LoweredShip {
+                sections: vec![section.clone()],
+                rotation: heading,
+                ..default()
+            },
+            ai: vec![(
+                "ship_2".to_string(),
+                LoweredShip {
+                    sections: vec![section],
+                    position: Vec3::new(24.0, 0.0, 0.0),
+                    rotation: listing,
+                    ..default()
+                },
+            )],
+        };
+
+        let objects = sandbox_objects(default_world_objects(), &fleet);
+        assert_eq!(
+            find(&objects, PLAYER_ID).base.rotation,
+            heading,
+            "the player's own heading is the player's own"
+        );
+        let escort = find(&objects, "ship_2");
+        assert_eq!(escort.base.rotation, listing);
+        assert_eq!(
+            escort.base.position,
+            Vec3::new(24.0, 0.0, 0.0),
+            "and turning a ship does not move it"
         );
     }
 

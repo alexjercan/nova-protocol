@@ -229,11 +229,59 @@ pub(crate) fn setup_gizmo(
 /// Hidden unless there is a node to work on AND the pointer is free to work on
 /// it: inside a ship placement owns the pointer, a part armed at the scenario
 /// node is about to be put down, and the gallery covers the stage entirely.
+/// How big the rig has to be for the node it is on, measured once.
+///
+/// Measured ONCE, and this is the whole point of the resource: a
+/// [`ColliderAabb`] is world-axis-aligned, so a long hull's box grows as the
+/// hull turns inside it - a corvette at 45 degrees measures half again as wide
+/// as the same corvette square on. Sizing the rig from that every frame made
+/// the handles swell and shrink under their own turn ring, which reads as the
+/// rig fighting the gesture.
+///
+/// The reach of a node cannot change while its rig is up: sections are only
+/// added from INSIDE a ship, and the rig is hidden in there. So the first
+/// measurement stands until the selection moves.
+#[derive(Resource, Default, Debug)]
+pub(crate) struct GizmoReach {
+    /// The node the standing measurement belongs to.
+    node: Option<Entity>,
+    /// Half the node's diagonal with clearance, or `None` while nothing under
+    /// the node has a collider to measure yet.
+    reach: Option<f32>,
+}
+
+impl GizmoReach {
+    /// The reach for `node`, measuring it if this is a node we have not
+    /// measured yet.
+    ///
+    /// A node placed THIS frame has no collider until the physics step runs,
+    /// and that measures as `None` rather than as zero - so the rig takes its
+    /// size from the camera for a frame and picks up the real one as soon as
+    /// there is a real one.
+    fn measure(
+        &mut self,
+        node: Entity,
+        q_children: &Query<&Children>,
+        q_bounds: &Query<&ColliderAabb, Without<Sensor>>,
+    ) -> f32 {
+        if self.node != Some(node) {
+            self.node = Some(node);
+            self.reach = None;
+        }
+        if self.reach.is_none() {
+            self.reach = node_bounds(node, q_children, q_bounds)
+                .map(|bounds| bounds.size().length() * 0.5 * CLEARANCE);
+        }
+        self.reach.unwrap_or_default()
+    }
+}
+
 pub(crate) fn sync_gizmo(
     context: Res<EditContext>,
     selection: Res<SectionChoice>,
     selected: Res<SelectedNode>,
     gallery: Res<GalleryState>,
+    mut reach: ResMut<GizmoReach>,
     q_children: Query<&Children>,
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
     q_staged: Query<&Transform, (Or<(With<ShipNode>, With<ObjectNode>)>, Without<GizmoRig>)>,
@@ -259,9 +307,7 @@ pub(crate) fn sync_gizmo(
         .unwrap_or_default();
     // The node's own extent, so the arms clear a corvette's hull, floored by a
     // fraction of the viewing distance so a lone beacon is not a speck.
-    let reach = node_bounds(node, &q_children, &q_bounds)
-        .map(|bounds| bounds.size().length() * 0.5 * CLEARANCE)
-        .unwrap_or_default();
+    let reach = reach.measure(node, &q_children, &q_bounds);
     let span = camera.translation().distance(at) * SCREEN_SPAN;
     let wanted = Transform::from_translation(at).with_scale(Vec3::splat(reach.max(span)));
 
@@ -471,6 +517,7 @@ pub(crate) fn register(app: &mut App) {
         app.add_plugins(MeshPickingPlugin);
     }
     app.init_resource::<GizmoDrag>();
+    app.init_resource::<GizmoReach>();
     app.add_observer(on_gizmo_grab);
     app.add_observer(on_gizmo_drag);
     app.add_observer(on_gizmo_release);
@@ -482,6 +529,7 @@ pub(crate) fn register(app: &mut App) {
                 .run_if(resource_exists::<Assets<StandardMaterial>>),
             // A gesture cannot survive its rig being rebuilt.
             |mut drag: ResMut<GizmoDrag>| *drag = GizmoDrag::default(),
+            |mut reach: ResMut<GizmoReach>| *reach = GizmoReach::default(),
         ),
     );
 }

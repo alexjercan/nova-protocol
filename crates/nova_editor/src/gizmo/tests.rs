@@ -156,6 +156,7 @@ fn gizmo_app() -> App {
     app.init_resource::<EditContext>();
     app.init_resource::<SelectedNode>();
     app.init_resource::<GalleryState>();
+    app.init_resource::<GizmoReach>();
     app.insert_resource(SectionChoice::None);
     app.world_mut().spawn((
         GizmoRig,
@@ -232,6 +233,52 @@ fn the_rig_clears_a_hull_it_would_otherwise_sit_inside() {
         "the arms have to reach past the hull to be pointed at: {:?}",
         pose.scale
     );
+}
+
+#[test]
+fn turning_a_node_does_not_resize_its_rig() {
+    let mut app = gizmo_app();
+    let node = ship(&mut app, Vec3::ZERO);
+    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    place(&mut app);
+    let before = rig(&app).0.scale;
+
+    // A world-axis box drawn around a TURNED hull is a bigger box - here half
+    // again as wide. Sizing the rig off that every frame is what made the
+    // handles swell under their own turn ring.
+    let turn = Quat::from_rotation_y(std::f32::consts::FRAC_PI_4);
+    let square_on = Collider::cuboid(4.0, 2.0, 8.0).aabb(Vec3::ZERO, Quat::IDENTITY);
+    let turned = Collider::cuboid(4.0, 2.0, 8.0).aabb(Vec3::ZERO, turn);
+    assert!(
+        turned.size().length() > square_on.size().length() * 1.1,
+        "the fixture has to actually grow, or this proves nothing"
+    );
+    heel_over(&mut app, node, turn, turned);
+
+    place(&mut app);
+
+    assert_eq!(
+        rig(&app).0.scale,
+        before,
+        "the rig is sized by the node it is on, not by the box the world draws round it"
+    );
+}
+
+/// Turn `node` and grow its view's world-axis box to match, the way a real
+/// turn does once the physics step has run.
+fn heel_over(app: &mut App, node: Entity, turn: Quat, bounds: ColliderAabb) {
+    app.world_mut()
+        .entity_mut(node)
+        .get_mut::<Transform>()
+        .expect("the node has a pose")
+        .rotation = turn;
+    let view = app
+        .world_mut()
+        .try_query_filtered::<Entity, With<NodeView>>()
+        .expect("the view is queryable")
+        .single(app.world())
+        .expect("one view");
+    app.world_mut().entity_mut(view).insert(bounds);
 }
 
 #[test]

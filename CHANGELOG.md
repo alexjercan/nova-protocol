@@ -34,8 +34,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The selected ship or object carries move and turn handles: drag an arrow to
   slide it along one axis, a ring to spin it about one - so a node can go
   somewhere other than the ground plane.
-- Play flies the whole document: every non-empty AI design spawns as a
-  neutral AI ship at its stage offset beside the player's.
+- Play flies the whole document: every non-empty AI design spawns as a neutral
+  AI ship at the pose the builder left it - stage offset and heading both -
+  beside the player's.
 - The stage camera snaps to what you edit - the entered ship, or the whole
   scenario back at the root.
 - F, View > Frame Selection and a click on a scene-tree row all put the camera
