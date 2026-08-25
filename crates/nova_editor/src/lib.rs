@@ -82,6 +82,7 @@ use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
 use stage::{draw_node_marks, draw_object_volumes, draw_world_grid};
 use ui::{
+    callout::sync_placement_callout,
     inspector::{
         apply_inspector_edits, hold_camera_while_typing, paint_field_reasons, sync_inspector,
         typing_into_a_field,
@@ -459,7 +460,9 @@ fn editor_plugin(app: &mut App) {
             // with an empty edited ship there is nothing to solve against, and
             // a click on clear space drops the first part at the ship origin.
             found_empty_ship,
-            sync_placement_ghost,
+            // The ghost, then the verdict said where the part is: one solve,
+            // drawn once as a box and once as words.
+            (sync_placement_ghost, sync_placement_callout).chain(),
             // AFTER the ghost: the cladding counts the part under the pointer
             // as structure, so it has to be derived from the same solve the
             // ghost on screen is showing.

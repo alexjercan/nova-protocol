@@ -10,6 +10,7 @@
 //! `gallery`, which replaced the component drawer that used to sit beside this
 //! rail.
 
+pub(crate) mod callout;
 pub(crate) mod inspector;
 pub(crate) mod menu;
 pub(crate) mod rail;
@@ -55,6 +56,7 @@ use crate::{
         deletable, delete_selected_node, put_armed_part_down, roll_armed_part,
     },
     ui::{
+        callout::placement_callout,
         inspector::{inspector_panel, PANEL_W as INSPECTOR_W},
         menu::{
             menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim, menu_z, on_menu_button,
@@ -725,6 +727,7 @@ pub(crate) fn setup_editor_scene(
             // - a window a panel could cover would be a window nobody opened -
             // and the hint stands above the windows.
             root.spawn(scene_tooltip(skin));
+            root.spawn(placement_callout(skin));
             root.spawn(window_layer());
 
             // The foot of the screen: the placement verdict, then the key

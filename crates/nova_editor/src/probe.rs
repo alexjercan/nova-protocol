@@ -708,7 +708,7 @@ mod tests {
             sync(&mut world).placement,
             EditorPlacement::Refused {
                 prototype: "hull".to_string(),
-                reason: "socket occupied",
+                reason: snap::Refusal::Occupied.message(),
             }
         );
     }

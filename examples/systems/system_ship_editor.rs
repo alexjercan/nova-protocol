@@ -885,15 +885,20 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("editor: the occupied socket says so")
         .on_enter(|world: &mut World| {
             let refusal = placement_refusal(world);
-            let status = subtree_text(world, "Placement Status");
-            info!("editor: the editor refuses with {refusal:?}, status reads {status:?}");
+            let callout = subtree_text(world, "Placement Callout");
+            info!("editor: the editor refuses with {refusal:?}, the callout reads {callout:?}");
             assert!(
                 refusal.is_some_and(|reason| reason.contains("occupied")),
                 "an occupied socket must be refused; the editor decided {refusal:?}"
             );
+            // BESIDE THE GHOST, and naming the key that clears it: the words
+            // are what a builder acts on, and a verdict alone is a compiler
+            // error.
             assert!(
-                status.iter().any(|line| line.contains("occupied")),
-                "and the builder must be told so in words; the status read {status:?}"
+                callout
+                    .iter()
+                    .any(|line| line.contains("occupied") && line.contains('F')),
+                "the callout must name the fault and its key; it read {callout:?}"
             );
             stamp_sections(world);
         })
@@ -970,16 +975,16 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("editor: a drive that cannot fire says so")
         .on_enter(|world: &mut World| {
             let refusal = placement_refusal(world);
-            let status = subtree_text(world, "Placement Status");
-            info!("editor: the editor refuses with {refusal:?}, status reads {status:?}");
+            let callout = subtree_text(world, "Placement Callout");
+            info!("editor: the editor refuses with {refusal:?}, the callout reads {callout:?}");
             assert!(
                 refusal.is_some_and(|reason| reason.contains("block")),
                 "a drive whose plume would fire into the ship's own plating must \
                  be refused; the editor decided {refusal:?}"
             );
             assert!(
-                status.iter().any(|line| line.contains("block")),
-                "and the builder must be told so in words; the status read {status:?}"
+                callout.iter().any(|line| line.contains("block")),
+                "and the builder must be told so in words; it read {callout:?}"
             );
             shoot(world, "editor-placement-blocked-exit.png");
         })

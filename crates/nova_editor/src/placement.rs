@@ -640,7 +640,6 @@ pub(crate) fn sync_placement_ghost(
     mut gizmos: Gizmos<EditorGizmos>,
     ghosts: Query<(Entity, &SectionGhost, &mut Transform)>,
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
-    q_nodes: Query<&SectionNode>,
     mut status: ResMut<EditorStatus>,
 ) {
     let edited = context.ship();
@@ -686,30 +685,10 @@ pub(crate) fn sync_placement_ghost(
         }));
         return;
     };
-    status.report(Some(match placement.solve.refusal {
-        Some(refusal) => (refusal.message().to_string(), theme::RED),
-        // Naming the mate is the readout: which socket of the ship the part
-        // is about to take, and which of its own it takes it with. The keys
-        // that change that answer live in the legend now, so the line does
-        // not repeat them under the pointer every frame.
-        None => (
-            format!(
-                "{} <- {}",
-                socket_id(
-                    q_nodes
-                        .get(placement.target_section)
-                        .ok()
-                        .and_then(|section| section.resolve(Some(&sections))),
-                    placement.solve.target
-                ),
-                socket_id(
-                    sections.get_section(&placement.prototype),
-                    placement.solve.source
-                ),
-            ),
-            theme::PHOSPHOR_MUTED,
-        ),
-    }));
+    // The verdict itself is NOT written here any more: it is said beside the
+    // ghost by `crate::ui::callout`, which is where a builder watching a part
+    // snap around a hull is looking.
+    status.report(None);
 
     let Some(ship) = edited else {
         return;
@@ -767,13 +746,6 @@ pub(crate) fn sync_placement_ghost(
 /// as standing at the origin, where the two spaces coincide.
 fn ship_local_hit(ship_pose: Option<&GlobalTransform>, hit: Vec3) -> Vec3 {
     ship_pose.map_or(hit, |pose| pose.affine().inverse().transform_point3(hit))
-}
-
-/// The diagnostic id of one socket on a section, for the readout.
-fn socket_id(config: Option<&SectionConfig>, index: usize) -> String {
-    config
-        .and_then(|config| config.base.link_points.get(index))
-        .map_or_else(String::new, |point| point.id.clone())
 }
 
 /// Place, delete, or SELECT - depending on the armed tool and on what was
