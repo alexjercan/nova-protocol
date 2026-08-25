@@ -942,6 +942,31 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
     rows
 }
 
+/// What the Player Ship row says when no ship of the document is flown.
+pub(crate) const NO_PLAYER_SHIP: &str = "none";
+
+/// The rows the scenario node shows: what the document HOLDS.
+///
+/// The root has no config of its own, so the panel used to go blank there -
+/// which reads as the panel breaking every time you leave a ship. These are
+/// the document's own facts, and every one of them is a thing a builder came
+/// to the root to check.
+pub(crate) fn scenario_rows(
+    ships: usize,
+    objects: usize,
+    flown: Option<String>,
+) -> Vec<InspectorRow> {
+    vec![
+        fixed(FieldRoot::Config, "Ships", ships.to_string()),
+        fixed(FieldRoot::Config, "Objects", objects.to_string()),
+        fixed(
+            FieldRoot::Config,
+            "Player Ship",
+            flown.unwrap_or_else(|| NO_PLAYER_SHIP.to_string()),
+        ),
+    ]
+}
+
 /// The rows a section shows: what it was built from, what it is bound to, and
 /// its kind config.
 pub(crate) fn section_rows(

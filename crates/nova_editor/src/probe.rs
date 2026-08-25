@@ -488,9 +488,14 @@ mod tests {
             .spawn((EditorNode, ScenarioNode, NodeId("scenario".to_string())))
             .id();
         world.resource_mut::<EditContext>().path = vec![scenario];
-        assert!(
-            sync(&mut world).inspector.is_empty(),
-            "the document root holds nodes, not fields of its own"
+        assert_eq!(
+            sync(&mut world).inspector,
+            vec![
+                ("Ships".to_string(), "0".to_string()),
+                ("Objects".to_string(), "0".to_string()),
+                ("Player Ship".to_string(), "none".to_string()),
+            ],
+            "the root holds nodes rather than fields, and says how many"
         );
 
         let rock = world

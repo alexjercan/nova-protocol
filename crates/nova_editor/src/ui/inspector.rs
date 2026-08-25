@@ -35,9 +35,9 @@ use crate::{
     gizmo::GizmoAxis,
     inspect::{
         axis_step, choose_field, driver_label, editable_config, inspected, object_config_mut,
-        object_rows, parse_colour, rotation_degrees, rotation_from_degrees, section_config_mut,
-        section_rows, ship_rows, toggle_field, write_field, FieldRoot, InspectTarget, InspectorRow,
-        NodeKinds, PathStep, RowValue,
+        object_rows, parse_colour, rotation_degrees, rotation_from_degrees, scenario_rows,
+        section_config_mut, section_rows, ship_rows, toggle_field, write_field, FieldRoot,
+        InspectTarget, InspectorRow, NodeKinds, PathStep, RowValue,
     },
     keybind::on_rebind_action,
     node::{EditContext, NodeId, ObjectNode, SectionNode, ShipDriver, ShipNode},
@@ -154,6 +154,7 @@ pub(crate) struct Document<'w, 's> {
     selected: Res<'w, SelectedNode>,
     kinds: NodeKinds<'w, 's>,
     ids: Query<'w, 's, &'static NodeId>,
+    children: Query<'w, 's, &'static Children>,
     ships: Query<'w, 's, (&'static ShipNode, &'static Transform)>,
     sections: Query<'w, 's, &'static SectionNode>,
     objects: Query<'w, 's, (&'static ObjectNode, &'static Transform)>,
@@ -168,7 +169,7 @@ impl Document<'_, '_> {
             // The document root holds ships and objects rather than fields of
             // its own. It gets a panel anyway: one that vanished at the root
             // would read as the inspector breaking every time you left a ship.
-            InspectTarget::Scenario(_) => Vec::new(),
+            InspectTarget::Scenario(scenario) => self.scenario_rows(scenario),
             InspectTarget::Ship(ship) => {
                 let (node, pose) = self.ships.get(ship).ok()?;
                 ship_rows(node, pose)
@@ -184,13 +185,37 @@ impl Document<'_, '_> {
         Some((target, rows))
     }
 
-    /// The title line: what kind of node, and which one.
+    /// What the document holds, counted off the root's own children.
     ///
-    /// The node wears the same name its tree row does, so the panel and the row
-    /// that opened it read alike - and so a minted section id fits the line
-    /// instead of wrapping mid-word.
-    fn title(&self, target: InspectTarget) -> String {
-        let node = target.node();
+    /// The CHILDREN rather than every ship in the world: a second document
+    /// cannot exist today, and counting by component would start lying the day
+    /// one can.
+    fn scenario_rows(&self, scenario: Entity) -> Vec<InspectorRow> {
+        let children: Vec<Entity> = self
+            .children
+            .get(scenario)
+            .map(|children| children.iter().collect())
+            .unwrap_or_default();
+        let ships: Vec<Entity> = children
+            .iter()
+            .copied()
+            .filter(|child| self.ships.contains(*child))
+            .collect();
+        let objects = children
+            .iter()
+            .filter(|child| self.objects.contains(**child))
+            .count();
+        let flown = ships.iter().copied().find(|ship| {
+            self.ships
+                .get(*ship)
+                .is_ok_and(|(node, _)| node.driver == ShipDriver::Player)
+        });
+        scenario_rows(ships.len(), objects, flown.map(|ship| self.name_of(ship)))
+    }
+
+    /// What a node is CALLED: the authored name, or the id it was minted under.
+    /// The same rule the tree row uses, so the panel and the rail agree.
+    fn name_of(&self, node: Entity) -> String {
         let id = self
             .ids
             .get(node)
@@ -206,12 +231,20 @@ impl Document<'_, '_> {
             })
             .unwrap_or_default();
         let (name, ordinal) = super::tree_text(&authored, &id);
-        let name = if ordinal.is_empty() {
+        if ordinal.is_empty() {
             name
         } else {
             format!("{name} {ordinal}")
-        };
-        format!("{}  {name}", target.tag())
+        }
+    }
+
+    /// The title line: what kind of node, and which one.
+    ///
+    /// The node wears the same name its tree row does, so the panel and the row
+    /// that opened it read alike - and so a minted section id fits the line
+    /// instead of wrapping mid-word.
+    fn title(&self, target: InspectTarget) -> String {
+        format!("{}  {}", target.tag(), self.name_of(target.node()))
     }
 }
 

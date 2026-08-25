@@ -1904,6 +1904,28 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // The root is a node like any other, and the panel on it used to be a
+        // titled empty box - which reads as the panel breaking every time you
+        // leave a ship.
+        .step("editor: the root says what the document holds")
+        .on_enter(|world: &mut World| {
+            let ships = inspector_reading(world, "Ships");
+            let objects = inspector_reading(world, "Objects");
+            let flown = inspector_reading(world, "Player Ship");
+            assert_eq!(ships, "2", "the run built two designs");
+            assert_ne!(objects, "0", "and stands them on a range with things on it");
+            assert_ne!(
+                flown, "none",
+                "and one of the two is the ship Play would hand over"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the scenario node reports the document",
+                serde_json::json!({}),
+            );
+            info!("editor: the root reads {ships} ship(s), {objects} object(s), flown by {flown}");
+        })
+        .add()
         // The round trip. The document the run built - two ships and the
         // range around them - goes to disk as a mod bundle, gets thrown away,
         // and comes back. Play then flies what came BACK, so every assert

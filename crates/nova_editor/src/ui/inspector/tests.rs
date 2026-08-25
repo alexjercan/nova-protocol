@@ -134,6 +134,17 @@ fn submit(app: &mut App, label: &str, text: &str) -> Entity {
     entity
 }
 
+/// What the readout of the row called `label` says.
+fn readout_of(app: &mut App, label: &str) -> String {
+    let wanted = format!("Inspector Readout {label}");
+    app.world_mut()
+        .query::<(&Name, &Text)>()
+        .iter(app.world())
+        .find(|(name, _)| name.as_str() == wanted)
+        .map(|(_, text)| text.0.clone())
+        .unwrap_or_else(|| panic!("no readout {label:?}"))
+}
+
 /// What the unit slot of the row called `label` says.
 fn unit_of(app: &mut App, label: &str) -> String {
     let wanted = format!("Inspector Unit {label}");
@@ -451,6 +462,39 @@ fn a_ship_hands_itself_to_the_ai_from_its_driver_row() {
         app.world().get::<ShipNode>(ship).expect("the ship").driver,
         ShipDriver::Ai,
         "entering a ship clears the selection, so the driver row is reached through the context"
+    );
+}
+
+/// The panel used to go blank at the root, which reads as the panel breaking
+/// every time you leave a ship. The root holds the document, so it says what
+/// the document holds.
+#[test]
+fn the_scenario_node_counts_what_the_document_holds() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    asteroid(&mut app, scenario, "asteroid_2", 3.0);
+    app.world_mut().spawn((
+        EditorNode,
+        ShipNode {
+            name: "Kestrel".to_string(),
+            driver: ShipDriver::Player,
+            ..default()
+        },
+        NodeId("ship_1".to_string()),
+        Transform::default(),
+        ChildOf(scenario),
+    ));
+    app.update();
+
+    let rows = row_names(&mut app);
+    assert_eq!(rows, ["Ships", "Objects", "Player Ship"], "{rows:?}");
+    assert_eq!(readout_of(&mut app, "Ships"), "1");
+    assert_eq!(readout_of(&mut app, "Objects"), "2");
+    assert_eq!(
+        readout_of(&mut app, "Player Ship"),
+        "Kestrel",
+        "and which one Play would hand over"
     );
 }
 
