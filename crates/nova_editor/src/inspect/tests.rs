@@ -120,6 +120,19 @@ fn turret_with_muzzle(fire_rate: f32) -> SectionNode {
     }
 }
 
+/// A section's Key row was dead text beside a live verb in the top bar: it
+/// named the binding and could not change it.
+#[test]
+fn a_bindable_section_offers_its_key_as_the_thing_you_press() {
+    let rows = section_rows(&turret_with_muzzle(1.0), None);
+
+    assert_eq!(
+        row(&rows, "Key").value,
+        RowValue::Key(UNBOUND.to_string()),
+        "a turret binds, and says so even when nothing is bound yet"
+    );
+}
+
 fn asteroid(config: AsteroidConfig) -> ObjectNode {
     ObjectNode {
         name: "rock".to_string(),
@@ -730,6 +743,24 @@ fn a_ship_reports_who_flies_it() {
     assert_eq!(
         row(&rows, "Driver").value,
         RowValue::Driver(ShipDriver::Player)
+    );
+}
+
+/// An object could be renamed and a ship could not, which made a fleet of
+/// designs a column of minted ids.
+#[test]
+fn a_ship_is_named_like_anything_else_in_the_document() {
+    let ship = ShipNode {
+        name: "Kestrel".to_string(),
+        ..default()
+    };
+    let rows = ship_rows(&ship, &Transform::default());
+
+    assert_eq!(text_of(&rows, "Name"), "Kestrel");
+    assert_eq!(
+        row(&rows, "Name").root,
+        FieldRoot::Label,
+        "the name is a field of the NODE, not of a kind config"
     );
 }
 

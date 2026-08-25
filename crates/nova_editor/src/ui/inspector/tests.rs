@@ -454,6 +454,94 @@ fn a_ship_hands_itself_to_the_ai_from_its_driver_row() {
     );
 }
 
+/// An object could be renamed and a ship could not, so a fleet of designs read
+/// as a column of minted ids.
+#[test]
+fn a_ship_takes_the_name_you_type_into_it() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let ship = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ShipNode::default(),
+            NodeId("ship_1".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    app.update();
+
+    submit(&mut app, "Name", "Kestrel");
+
+    assert_eq!(
+        app.world().get::<ShipNode>(ship).expect("the ship").name,
+        "Kestrel"
+    );
+}
+
+/// The Key row IS the rebind. The binding was named on one surface and armed
+/// from another, which left the row as text beside a verb in the top bar.
+#[test]
+fn pressing_the_key_row_arms_the_rebind() {
+    let mut app = inspector_app();
+    app.init_resource::<crate::keybind::EditorRebind>();
+    app.add_observer(on_rebind_action);
+    let scenario = document(&mut app);
+    let ship = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ShipNode::default(),
+            NodeId("ship_1".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    let thruster = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            SectionNode {
+                source: SectionSource::Inline(SectionConfig {
+                    base: BaseSectionConfig {
+                        id: "thruster".to_string(),
+                        ..default()
+                    },
+                    kind: SectionKind::Thruster(ThrusterSectionConfig {
+                        magnitude: 40.0,
+                        ..default()
+                    }),
+                }),
+                modifications: vec![],
+                binds: vec![],
+            },
+            NodeId("thruster_section_1".to_string()),
+            Transform::default(),
+            ChildOf(ship),
+        ))
+        .id();
+    select(&mut app, thruster);
+
+    let chip = app
+        .world_mut()
+        .query_filtered::<Entity, With<InspectorKey>>()
+        .single(app.world())
+        .expect("one key chip");
+    app.world_mut().trigger(Activate { entity: chip });
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .resource::<crate::keybind::EditorRebind>()
+            .target,
+        Some(thruster),
+        "the row a builder read the key off is the row that changes it"
+    );
+}
+
 /// The panel draws a group PATH as a tree: one line per level, and only the
 /// levels the row above did not already say. The flat version repeated the
 /// whole path over every handful of rows - "Root Children 1", then "Root

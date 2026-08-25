@@ -96,6 +96,10 @@ pub(crate) enum ShipDriver {
 /// A ship being built: everything about it that is not one of its sections.
 #[derive(Component, Debug, Clone)]
 pub(crate) struct ShipNode {
+    /// What the ship is CALLED: the name the tree, the breadcrumb and the
+    /// flown scenario all read. Empty where nothing named it, and every
+    /// surface falls back to the node's minted id.
+    pub(crate) name: String,
     /// Whether the ship wears its derived cladding - shown live in the build
     /// view (see [`crate::skin`]) and carried through to the flown ship, so what
     /// the builder sees is what they fly.
@@ -110,6 +114,7 @@ pub(crate) struct ShipNode {
 impl Default for ShipNode {
     fn default() -> Self {
         Self {
+            name: String::new(),
             // Off, as the build state's `skin` was: a new ship starts bare.
             skin: false,
             style: None,
@@ -742,7 +747,13 @@ pub(crate) fn spawn_object_node(
     transform: Transform,
 ) -> Entity {
     let id = mint_id(ordinals, scenario, choice.stem());
-    insert_object(commands, scenario, id, choice.stock(), transform)
+    // Named for the id it was minted under, so two rocks are two names in the
+    // tree rather than two rows both reading "Asteroid".
+    let object = ObjectNode {
+        name: minted_name(&id.0),
+        ..choice.stock()
+    };
+    insert_object(commands, scenario, id, object, transform)
 }
 
 /// The spawn itself, for callers that already know the id.
@@ -859,6 +870,7 @@ pub(crate) fn spawn_ship_node(
         .spawn((
             EditorNode,
             ShipNode {
+                name: minted_name(&id.0),
                 driver,
                 ..default()
             },
@@ -872,6 +884,24 @@ pub(crate) fn spawn_ship_node(
         .id();
     context.enter(ship);
     Some(ship)
+}
+
+/// A minted id, said the way a person would: `ship_1` reads "Ship 1".
+///
+/// A name a builder can then change. The id it came from does not change with
+/// it - the id is what the document, the walks and the save file key on, and a
+/// rename that moved it would break every one of them.
+fn minted_name(id: &str) -> String {
+    id.split('_')
+        .map(|word| {
+            let mut letters = word.chars();
+            match letters.next() {
+                Some(first) => first.to_uppercase().chain(letters).collect::<String>(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Put a ship the document already named back under `scenario` - the load's

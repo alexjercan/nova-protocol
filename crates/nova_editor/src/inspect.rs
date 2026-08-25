@@ -121,8 +121,8 @@ pub(crate) enum FieldRoot {
     /// screen is not the value in the component: a `Quat` has four numbers and
     /// no builder thinks in them. The routing converts around the edit.
     Rotation,
-    /// An object's display name, which is a field of the node and not of the
-    /// kind config.
+    /// The node's display name, which is a field of the node and not of the
+    /// kind config. Ships and objects both have one.
     Label,
 }
 
@@ -179,6 +179,12 @@ pub(crate) enum RowValue {
     Driver(ShipDriver),
     /// Shown but not editable here.
     Fixed(String),
+    /// The key a section fires on, and the button that arms a new one.
+    ///
+    /// Its own variant rather than a [`RowValue::Fixed`] beside the top bar's
+    /// Rebind action: the row NAMES the binding, so the row is the thing a
+    /// builder presses to change it.
+    Key(String),
 }
 
 impl RowValue {
@@ -188,7 +194,9 @@ impl RowValue {
     /// word they stand for.
     pub(crate) fn reading(&self) -> String {
         match self {
-            Self::Text(text) | Self::Colour(text) | Self::Fixed(text) => text.clone(),
+            Self::Text(text) | Self::Colour(text) | Self::Fixed(text) | Self::Key(text) => {
+                text.clone()
+            }
             // One line, the way the value reads on paper: three boxes are how
             // it is TYPED, not what it is.
             Self::Axes(axes) => axes.join(", "),
@@ -918,15 +926,18 @@ pub(crate) fn editable_config<'a>(
 
 /// The rows a ship shows: who flies it, and where it sits.
 pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> {
-    let mut rows = vec![InspectorRow {
-        root: FieldRoot::Config,
-        path: Vec::new(),
-        optional: false,
-        group: Vec::new(),
-        label: "Driver".to_string(),
-        unit: "",
-        value: RowValue::Driver(ship.driver),
-    }];
+    let mut rows = vec![
+        name_row(ship.name.clone()),
+        InspectorRow {
+            root: FieldRoot::Config,
+            path: Vec::new(),
+            optional: false,
+            group: Vec::new(),
+            label: "Driver".to_string(),
+            unit: "",
+            value: RowValue::Driver(ship.driver),
+        },
+    ];
     rows.extend(pose_rows(pose));
     rows
 }
@@ -939,7 +950,20 @@ pub(crate) fn section_rows(
 ) -> Vec<InspectorRow> {
     let mut rows = vec![fixed(FieldRoot::Config, "Part", node.prototype())];
     if node.bindable(catalog) {
-        rows.push(fixed(FieldRoot::Config, "Key", binding_label(&node.binds)));
+        let binding = binding_label(&node.binds);
+        rows.push(InspectorRow {
+            root: FieldRoot::Config,
+            path: Vec::new(),
+            optional: false,
+            group: Vec::new(),
+            label: "Key".to_string(),
+            unit: "",
+            value: RowValue::Key(if binding.is_empty() {
+                UNBOUND.to_string()
+            } else {
+                binding
+            }),
+        });
     }
     let Some(config) = node.resolve(catalog) else {
         return rows;
@@ -955,20 +979,29 @@ pub(crate) fn section_rows(
 
 /// The rows an object shows: its name, where it sits, and its kind config.
 pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<InspectorRow> {
-    let mut rows = vec![InspectorRow {
+    let mut rows = vec![name_row(object.name.clone())];
+    if let Some(config) = object_config(&object.kind) {
+        walk(config, FieldRoot::Config, Vec::new(), &mut rows);
+    }
+    rows.extend(pose_rows(pose));
+    rows
+}
+
+/// What the Key row reads when the section fires on nothing.
+pub(crate) const UNBOUND: &str = "unbound";
+
+/// The row a node is NAMED in. The one row a ship and an object share, and the
+/// one field of either that is not part of its kind config.
+fn name_row(name: String) -> InspectorRow {
+    InspectorRow {
         root: FieldRoot::Label,
         path: Vec::new(),
         optional: false,
         group: Vec::new(),
         label: "Name".to_string(),
         unit: "",
-        value: RowValue::Text(object.name.clone()),
-    }];
-    if let Some(config) = object_config(&object.kind) {
-        walk(config, FieldRoot::Config, Vec::new(), &mut rows);
+        value: RowValue::Text(name),
     }
-    rows.extend(pose_rows(pose));
-    rows
 }
 
 /// The heading the two pose rows stand under.

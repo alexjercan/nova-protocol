@@ -340,6 +340,7 @@ fn lower_ship(
     let placed = sections_of(entity, nodes);
     LoweredShip {
         id: id.0.clone(),
+        name: ship.name.clone(),
         sections: placed
             .iter()
             .map(|(_, id, section, transform)| SpaceshipSectionConfig {
@@ -400,6 +401,9 @@ pub(crate) struct LoweredShip {
     /// design under. Empty only for the placeholder hull a document with no
     /// player ship hands over - there is no node behind that one to name.
     pub(crate) id: String,
+    /// What the builder called it, or empty where nothing did. The flown
+    /// scenario shows it, which is the whole point of naming a ship.
+    pub(crate) name: String,
     pub(crate) sections: Vec<SpaceshipSectionConfig>,
     inputs: Vec<(SectionId, Vec<Binding>)>,
     pub(crate) skin: bool,
@@ -708,12 +712,22 @@ fn sky_beacon(beacon: &SkyBeacon) -> ScenarioObjectConfig {
     }
 }
 
+/// What the range calls a lowered ship: the name the builder gave it, or the
+/// one the sandbox used before ships could be named.
+fn ship_name(ship: &LoweredShip, fallback: &str) -> String {
+    if ship.name.is_empty() {
+        fallback.to_string()
+    } else {
+        ship.name.clone()
+    }
+}
+
 /// The ship the editor just built, with the keybinds it was built with.
 fn player_ship(player: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: PLAYER_ID.to_string(),
-            name: "Player's Spaceship".to_string(),
+            name: ship_name(player, "Player's Spaceship"),
             position: player.position,
             rotation: player.rotation,
         },
@@ -748,7 +762,7 @@ fn ai_ship(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ship.id.clone(),
-            name: format!("Sandbox Ship {}", ship.id),
+            name: ship_name(ship, &format!("Sandbox Ship {}", ship.id)),
             position: ship.position,
             rotation: ship.rotation,
         },

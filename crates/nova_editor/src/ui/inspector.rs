@@ -22,8 +22,8 @@ use nova_ship::prelude::{GameSections, WASDCameraController};
 use nova_ui::{
     prelude::{
         panel, panel_header, scroll_column, scroll_viewport, segmented_container, segmented_option,
-        text_field, Selected, TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted,
-        TextFieldValue, UiSkin,
+        text_field, ButtonLabel, ButtonVariant, Selected, TextFieldError, TextFieldFocused,
+        TextFieldSpec, TextFieldSubmitted, TextFieldValue, ThemedButton, UiSkin,
     },
     theme,
     widget::{checkbox, checkbox_colors, checkbox_glyph, swatch},
@@ -39,6 +39,7 @@ use crate::{
         section_rows, ship_rows, toggle_field, write_field, FieldRoot, InspectTarget, InspectorRow,
         NodeKinds, PathStep, RowValue,
     },
+    keybind::on_rebind_action,
     node::{EditContext, NodeId, ObjectNode, SectionNode, ShipDriver, ShipNode},
     ui::window::on_open_colour_window,
 };
@@ -95,6 +96,10 @@ pub(crate) struct InspectorUnit(&'static str);
 /// A checkbox standing for a `bool` field.
 #[derive(Component)]
 pub(crate) struct InspectorFlag;
+
+/// The Key row's chip: press it to arm the rebind.
+#[derive(Component)]
+pub(crate) struct InspectorKey;
 
 /// Which component of a vector row's value a box holds: 0, 1 or 2.
 ///
@@ -181,21 +186,32 @@ impl Document<'_, '_> {
 
     /// The title line: what kind of node, and which one.
     ///
-    /// The id wears the same shortening its tree row does, so the panel and
-    /// the row that opened it read alike - and so a minted section id fits the
-    /// line instead of wrapping mid-word.
+    /// The node wears the same name its tree row does, so the panel and the row
+    /// that opened it read alike - and so a minted section id fits the line
+    /// instead of wrapping mid-word.
     fn title(&self, target: InspectTarget) -> String {
+        let node = target.node();
         let id = self
             .ids
-            .get(target.node())
+            .get(node)
             .map_or_else(|_| String::new(), |id| id.0.clone());
-        let (name, ordinal) = super::tree_text(&id);
-        let id = if ordinal.is_empty() {
+        let authored = self
+            .ships
+            .get(node)
+            .map(|(ship, _)| ship.name.clone())
+            .or_else(|_| {
+                self.objects
+                    .get(node)
+                    .map(|(object, _)| object.name.clone())
+            })
+            .unwrap_or_default();
+        let (name, ordinal) = super::tree_text(&authored, &id);
+        let name = if ordinal.is_empty() {
             name
         } else {
             format!("{name} {ordinal}")
         };
-        format!("{}  {id}", target.tag())
+        format!("{}  {name}", target.tag())
     }
 }
 
@@ -674,6 +690,45 @@ fn build_rows(
                     }
                     // Spawned whole above, before the row shell exists.
                     RowValue::Axes(_) => {}
+                    RowValue::Key(binding) => {
+                        // The ROW is the button. A binding named on one surface
+                        // and armed from another - the top bar's Rebind - left
+                        // this row as text beside a verb, with no way to guess
+                        // the two were about the same thing.
+                        value.spawn((
+                            Name::new("Inspector Key"),
+                            InspectorKey,
+                            ThemedButton,
+                            ButtonVariant::Ghost,
+                            Button,
+                            Hovered::default(),
+                            Node {
+                                padding: UiRect::axes(px(8), px(3)),
+                                border: UiRect::all(px(theme::BORDER_W)),
+                                border_radius: BorderRadius::all(px(theme::RADIUS)),
+                                align_items: AlignItems::Center,
+                                ..default()
+                            },
+                            // The ghost face, spelled out: the button reconciler
+                            // repaints this on the frame it appears and on every
+                            // hover after, so these are the colours it lands on.
+                            BorderColor::all(theme::PHOSPHOR.with_alpha(0.25)),
+                            BackgroundColor(Color::NONE),
+                            observe(on_rebind_action),
+                            children![(
+                                Name::new("Inspector Key Text"),
+                                ButtonLabel,
+                                InspectorSlot(slot),
+                                InspectorFixed,
+                                Text::new(binding.clone()),
+                                TextFont {
+                                    font_size: FontSize::Px(11.0),
+                                    ..default()
+                                },
+                                TextColor(theme::PHOSPHOR),
+                            )],
+                        ));
+                    }
                     RowValue::Fixed(text) => {
                         value.spawn((
                             Name::new(format!("Inspector Readout {}", row.label)),
@@ -839,7 +894,9 @@ pub(crate) fn sync_inspector(
         }
     }
     for (slot, mut text) in &mut readouts {
-        let Some(RowValue::Fixed(wanted)) = rows.get(slot.0).map(|row| &row.value) else {
+        let Some(RowValue::Fixed(wanted) | RowValue::Key(wanted)) =
+            rows.get(slot.0).map(|row| &row.value)
+        else {
             continue;
         };
         if text.0 != *wanted {
@@ -933,6 +990,7 @@ pub(crate) fn paint_field_reasons(
 #[derive(SystemParam)]
 pub(crate) struct EditTargets<'w, 's> {
     catalog: Option<Res<'w, GameSections>>,
+    ships: Query<'w, 's, &'static mut ShipNode>,
     sections: Query<'w, 's, &'static mut SectionNode>,
     objects: Query<'w, 's, &'static mut ObjectNode>,
     poses: Query<'w, 's, &'static mut Transform>,
@@ -951,6 +1009,9 @@ impl EditTargets<'_, '_> {
     ) -> Result<(), String> {
         match field.root {
             FieldRoot::Label => {
+                if let Ok(mut ship) = self.ships.get_mut(field.node) {
+                    return edit(&mut ship.name, &field.path, field.optional);
+                }
                 let mut object = self
                     .objects
                     .get_mut(field.node)

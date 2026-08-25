@@ -820,6 +820,7 @@ fn rail_list_node() -> Node {
 }
 
 /// One row the Scene tree wants: the node it points at, and how it reads.
+#[derive(Clone, PartialEq, Eq)]
 struct WantedRow {
     node: Entity,
     /// How deep under the scenario root the node sits. The row spends it on
@@ -844,21 +845,38 @@ struct WantedRow {
     kind: String,
 }
 
-/// What a node id reads as in a 150px rail: (label, trail).
+/// What a node reads as in a 150px rail: (label, trail).
 ///
-/// Every shipped part is called `<something>_section_<n>`, so a section's
-/// minted id spends a third of the row on the one word its glyph and its place
-/// in the tree already say - and then clips off the number, which is the only
-/// thing telling six reinforced hulls apart. `pdc_kinetic_turret_section_7`
-/// reads "pdc_kinetic_turret" with a "7" in the row's own right-hand column,
-/// where the clip cannot reach it.
+/// The AUTHORED name leads where there is one - a name nobody could see was a
+/// name nobody could use. Where there is none the id stands in, minus the
+/// ordinal: every shipped part is called `<something>_section_<n>`, so a
+/// section's minted id spends a third of the row on the one word its glyph and
+/// its place in the tree already say, and then clips off the number, which is
+/// the only thing telling six reinforced hulls apart.
+///
+/// The ordinal goes to the row's own right-hand column, where the clip cannot
+/// reach it.
 ///
 /// Display only: the row is still named, selected and reported by its id.
-fn tree_text(id: &str) -> (String, String) {
-    match id.split_once("_section_") {
-        Some((part, ordinal)) => (part.to_string(), ordinal.to_string()),
-        None => (id.to_string(), String::new()),
+pub(crate) fn tree_text(name: &str, id: &str) -> (String, String) {
+    let (stem, ordinal) = match id.split_once("_section_") {
+        Some((part, ordinal)) => (part, ordinal),
+        None => match id.rsplit_once('_') {
+            Some((stem, tail))
+                if !tail.is_empty() && tail.chars().all(|digit| digit.is_ascii_digit()) =>
+            {
+                (stem, tail)
+            }
+            _ => (id, ""),
+        },
+    };
+    // An AUTHORED name stands alone: it is the thing that tells two nodes
+    // apart, so an ordinal after it is one number nobody asked for. The
+    // fallback keeps the ordinal, because there the id is all there is.
+    if !name.is_empty() {
+        return (name.to_string(), String::new());
     }
+    (stem.to_string(), ordinal.to_string())
 }
 
 /// What the Scene tree is showing, so a frame that changed nothing costs one
@@ -866,7 +884,7 @@ fn tree_text(id: &str) -> (String, String) {
 /// and selection survive a frame in which the document did not change.
 #[derive(Default)]
 pub(crate) struct ShownScene {
-    rows: Vec<(Entity, usize, String, String)>,
+    rows: Vec<WantedRow>,
 }
 
 /// The icon a section row wears, and what that icon MEANS: one match, so the
@@ -938,7 +956,7 @@ fn wanted_rows(
     let Ok(root_id) = q_scenarios.get(scenario) else {
         return Vec::new();
     };
-    let (root_label, root_trail) = tree_text(&root_id.0);
+    let (root_label, root_trail) = tree_text("", &root_id.0);
     let mut rows = vec![WantedRow {
         node: scenario,
         depth: 0,
@@ -969,7 +987,7 @@ fn wanted_rows(
                 ShipDriver::Ai => ("-", "SHIP - AI"),
             }
         };
-        let (label, trail) = tree_text(&id.0);
+        let (label, trail) = tree_text(&node.name, &id.0);
         rows.push(WantedRow {
             node: ship,
             depth: 1,
@@ -983,7 +1001,7 @@ fn wanted_rows(
             continue;
         }
         for (section, id, node, _) in sections_of(ship, nodes) {
-            let (label, trail) = tree_text(&id.0);
+            let (label, trail) = tree_text("", &id.0);
             let (glyph, kind) = section_mark(node, catalog);
             rows.push(WantedRow {
                 node: section,
@@ -1004,7 +1022,7 @@ fn wanted_rows(
         Vec::new()
     };
     for (object, id, node, _) in world {
-        let (label, trail) = tree_text(&id.0);
+        let (label, trail) = tree_text(&node.name, &id.0);
         let (glyph, kind) = object_mark(node);
         rows.push(WantedRow {
             node: object,
@@ -1069,11 +1087,10 @@ pub(crate) fn sync_scene_list(
         return;
     };
 
-    let signature: Vec<(Entity, usize, String, String)> = wanted
-        .iter()
-        .map(|row| (row.node, row.depth, row.lead.clone(), row.id.clone()))
-        .collect();
-    if shown.rows != signature {
+    // The WHOLE row is the signature, names included: a rename changes nothing
+    // about which nodes are listed, and a list that only compared ids would
+    // keep drawing the old name until something else moved.
+    if shown.rows != wanted {
         commands.entity(list).despawn_related::<Children>();
         commands.entity(list).with_children(|list| {
             for row in &wanted {
@@ -1116,7 +1133,7 @@ pub(crate) fn sync_scene_list(
                 }
             }
         });
-        shown.rows = signature;
+        shown.rows = wanted;
         // The rows just queued are not in `rows` yet, and the ones that are
         // have been queued for despawn. Marking either is a write to an entity
         // that is about to stop existing.
@@ -1347,7 +1364,7 @@ pub(crate) fn sync_context_panels(
 }
 
 /// Write the top bar's context readout: WHAT is being edited (the level, in
-/// capitals), the path to it in the document's own ids, and the selection.
+/// capitals), the path to it in the names the tree shows, and the selection.
 ///
 /// The level leads because it was the missing feedback: the bare path
 /// "scenario / ship_1" never said whether a click would select, enter or
@@ -1356,13 +1373,30 @@ pub(crate) fn sync_breadcrumb(
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
     ids: Query<&NodeId>,
+    ships: Query<&ShipNode>,
+    objects: Query<&ObjectNode>,
     mut crumbs: Query<&mut Text, With<ContextBreadcrumb>>,
 ) {
+    let named = |node: Entity| {
+        let id = ids
+            .get(node)
+            .map_or_else(|_| String::new(), |id| id.0.clone());
+        let authored = ships
+            .get(node)
+            .map(|ship| ship.name.clone())
+            .or_else(|_| objects.get(node).map(|object| object.name.clone()))
+            .unwrap_or_default();
+        let (label, ordinal) = tree_text(&authored, &id);
+        if ordinal.is_empty() {
+            label
+        } else {
+            format!("{label} {ordinal}")
+        }
+    };
     let path = context
         .path
         .iter()
-        .filter_map(|node| ids.get(*node).ok())
-        .map(|id| id.0.as_str())
+        .map(|node| named(*node))
         .collect::<Vec<_>>()
         .join(" / ");
     let level = match (context.scenario(), context.ship()) {
@@ -1371,8 +1405,8 @@ pub(crate) fn sync_breadcrumb(
         (Some(_), Some(_)) => "[SHIP] ",
     };
     let mut wanted = format!("{level}{path}");
-    if let Some(id) = selected.0.and_then(|node| ids.get(node).ok()) {
-        wanted.push_str(&format!("   selected {}", id.0));
+    if let Some(node) = selected.0 {
+        wanted.push_str(&format!("   selected {}", named(node)));
     }
     for mut text in &mut crumbs {
         if text.0 != wanted {
@@ -2367,7 +2401,7 @@ mod tests {
     }
 
     /// The readout says WHAT is being edited before it says where: the level
-    /// in capitals, the path in the document's own ids, and the selection.
+    /// in capitals, the path in the names the tree shows, and the selection.
     /// The bare path never answered "will this click select, enter or place".
     #[test]
     fn the_breadcrumb_names_the_level_the_path_and_the_selection() {
@@ -2380,7 +2414,13 @@ mod tests {
             .spawn((ScenarioNode, NodeId("scenario".to_string())))
             .id();
         let ship = world
-            .spawn((ShipNode::default(), NodeId("ship_1".to_string())))
+            .spawn((
+                ShipNode {
+                    name: "Kestrel".to_string(),
+                    ..default()
+                },
+                NodeId("ship_1".to_string()),
+            ))
             .id();
         let crumb = world.spawn((ContextBreadcrumb, Text::new(""))).id();
         world.resource_mut::<EditContext>().path = vec![scenario];
@@ -2392,14 +2432,14 @@ mod tests {
         world.run_system_once(sync_breadcrumb).unwrap();
         assert_eq!(
             world.get::<Text>(crumb).unwrap().0,
-            "[SHIP] scenario / ship_1"
+            "[SHIP] scenario / Kestrel"
         );
 
         world.resource_mut::<SelectedNode>().0 = Some(ship);
         world.run_system_once(sync_breadcrumb).unwrap();
         assert_eq!(
             world.get::<Text>(crumb).unwrap().0,
-            "[SHIP] scenario / ship_1   selected ship_1"
+            "[SHIP] scenario / Kestrel   selected Kestrel"
         );
     }
 
@@ -2597,18 +2637,66 @@ mod tests {
         );
     }
 
-    /// Only sections carry that word. A ship and a rock read exactly as they
-    /// are keyed.
+    /// A ship wears the name its builder gave it. The id it is keyed by is one
+    /// hover away, and nowhere else: a node that carried two names and showed
+    /// only the minted one was a rename nobody could see land.
     #[test]
-    fn a_ship_row_reads_as_its_id() {
+    fn a_ship_row_reads_as_its_name() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        app.world_mut().entity_mut(ship).insert(ShipNode {
+            name: "Kestrel".to_string(),
+            ..default()
+        });
+        app.update();
+
+        assert!(
+            row_columns(&mut app).contains(&("Kestrel".to_string(), String::new())),
+            "the authored name reads whole, with nothing in the trailing column: {:?}",
+            row_columns(&mut app)
+        );
+        assert!(
+            row_names(&mut app).contains(&"ship_1".to_string()),
+            "and the row is still NAMED by the id the document keys on: {:?}",
+            row_names(&mut app)
+        );
+    }
+
+    /// Nothing named it, so the id stands in - minus the ordinal, which goes to
+    /// the column a narrow rail cannot clip.
+    #[test]
+    fn an_unnamed_ship_row_falls_back_to_its_id() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
         app.update();
 
         assert!(
-            row_columns(&mut app).contains(&("ship_1".to_string(), String::new())),
-            "a row with no ordinal spends nothing on the trailing column: {:?}",
+            row_columns(&mut app).contains(&("ship".to_string(), "1".to_string())),
+            "{:?}",
+            row_columns(&mut app)
+        );
+    }
+
+    /// A rename is a change to what the tree SAYS and to nothing else it lists,
+    /// so a list that compared only ids would go on drawing the old name.
+    #[test]
+    fn a_renamed_ship_redraws_its_row() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        app.update();
+
+        app.world_mut().entity_mut(ship).insert(ShipNode {
+            name: "Kestrel".to_string(),
+            ..default()
+        });
+        app.update();
+
+        assert!(
+            row_columns(&mut app).contains(&("Kestrel".to_string(), String::new())),
+            "{:?}",
             row_columns(&mut app)
         );
     }

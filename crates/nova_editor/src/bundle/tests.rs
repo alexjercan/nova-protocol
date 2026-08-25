@@ -239,6 +239,7 @@ fn document(world: &mut World) -> Entity {
     let ship = world
         .spawn((
             ShipNode {
+                name: "Kestrel".to_string(),
                 skin: true,
                 style: Some("worn".to_string()),
                 driver: ShipDriver::Player,

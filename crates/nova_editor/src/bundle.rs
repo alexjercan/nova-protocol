@@ -119,6 +119,9 @@ pub(crate) fn save_manifest() -> BundleManifest {
 pub(crate) struct LiftedShip {
     /// The node id, which is the prototype id the file wrote the design under.
     pub(crate) id: String,
+    /// What the file called it. The name is display only, so a file that lost
+    /// it reloads with an empty one and every surface falls back to the id.
+    pub(crate) name: String,
     pub(crate) driver: ShipDriver,
     pub(crate) pose: Transform,
     pub(crate) skin: bool,
@@ -213,6 +216,7 @@ fn lift_ship(
     };
     Some(LiftedShip {
         id: id.clone(),
+        name: object.base.name.clone(),
         driver,
         pose: Transform::from_translation(object.base.position).with_rotation(object.base.rotation),
         skin: design.hull.skin,
@@ -421,6 +425,7 @@ fn fill_document(world: &mut World, scenario: Entity, document: LiftedDocument) 
                 scenario,
                 NodeId(ship.id.clone()),
                 ShipNode {
+                    name: ship.name.clone(),
                     skin: ship.skin,
                     style: ship.style.clone(),
                     driver: ship.driver,

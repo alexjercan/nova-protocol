@@ -1838,6 +1838,30 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             "editor: inspect the turret",
             "Scene Row pdc_kinetic_turret_section_7",
         )
+        // The Key row IS the rebind. It used to be dead text beside a verb in
+        // the top bar, which left a builder reading a binding on one surface
+        // and arming it on another.
+        .click_a_widget("editor: press the turret's Key row", "Inspector Key")
+        .step("editor: the turret waits for its key")
+        .until(a_section_awaits_its_key())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: give it J")
+        .on_enter(press_key(KeyCode::KeyJ))
+        .until(the_key_row_reads("J"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the binding landed on the section it was read off")
+        .on_enter(|world: &mut World| {
+            release_key(KeyCode::KeyJ)(world);
+            nova_probe::probe_marker(
+                world,
+                "outcome: the Key row arms the rebind and takes the key",
+                serde_json::json!({}),
+            );
+            info!("editor: the turret's Key row armed the capture and took J");
+        })
+        .add()
         .step("editor: aim at the inspector")
         .on_enter(hover_named("Inspector List"))
         .until(the_inspector_overflows())
@@ -2608,6 +2632,30 @@ fn text_of(world: &World, name: &str) -> String {
         .unwrap_or_default()
 }
 
+/// Advance once a section is waiting for its new key.
+///
+/// Read off the CHIP over the part rather than a resource: what the beat
+/// before it pressed was a row in the panel, and what proves the two are about
+/// the same section is the prompt appearing on that section.
+#[cfg(feature = "debug")]
+fn a_section_awaits_its_key() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query::<(&Name, &Text)>()
+            .is_some_and(|mut chips| {
+                chips.iter(world).any(|(name, text)| {
+                    name.as_str() == "Section Keybind Label" && text.0 == "press key"
+                })
+            })
+    })
+}
+
+/// Advance once the inspected section's Key row reads `wanted`.
+#[cfg(feature = "debug")]
+fn the_key_row_reads(wanted: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| inspector_reading(world, "Key") == wanted)
+}
+
 /// Advance once the rock's Position row reads `wanted` in its middle number.
 ///
 /// The MIDDLE one, because the beat that waits on this typed into the Y box:
@@ -2892,14 +2940,15 @@ fn the_flown_ship_is_whole() -> Wait {
 
 /// Advance once the AI design stands on the range: the sandbox lowers every
 /// non-empty ship of the document, not just the player's.
+///
+/// Found by the NAME the ship node carries - `ship_2` is minted "Ship 2" - so
+/// this also proves the name a builder can edit is the one the range shows.
 #[cfg(feature = "debug")]
 fn the_second_ship_flies() -> Wait {
     std::sync::Arc::new(|world: &World| {
-        world.try_query::<&Name>().is_some_and(|mut names| {
-            names
-                .iter(world)
-                .any(|name| name.as_str() == "Sandbox Ship ship_2")
-        })
+        world
+            .try_query::<&Name>()
+            .is_some_and(|mut names| names.iter(world).any(|name| name.as_str() == "Ship 2"))
     })
 }
 
