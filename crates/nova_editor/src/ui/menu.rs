@@ -293,8 +293,13 @@ pub(crate) fn toggle_link_points(_activate: On<Activate>, mut overlays: ResMut<E
     overlays.link_points = !overlays.link_points;
 }
 
-/// Repaint the two View toggles' labels, so the menu says what is on rather
-/// than only what can be turned on.
+/// View > World Grid: show or hide the ground plane the range is laid out on.
+pub(crate) fn toggle_world_grid(_activate: On<Activate>, mut overlays: ResMut<EditorOverlays>) {
+    overlays.world_grid = !overlays.world_grid;
+}
+
+/// Repaint the View toggles' labels, so the menu says what is on rather than
+/// only what can be turned on.
 pub(crate) fn sync_view_menu_marks(
     overlays: Res<EditorOverlays>,
     marks: Query<(&ViewToggle, &Children)>,
@@ -304,6 +309,7 @@ pub(crate) fn sync_view_menu_marks(
         let on = match toggle {
             ViewToggle::KeyLegend => overlays.key_legend,
             ViewToggle::LinkPoints => overlays.link_points,
+            ViewToggle::WorldGrid => overlays.world_grid,
         };
         let Some(mark) = children.iter().nth(1) else {
             continue;
@@ -325,6 +331,8 @@ pub(crate) enum ViewToggle {
     KeyLegend,
     /// The socket gizmos.
     LinkPoints,
+    /// The stage's ground plane.
+    WorldGrid,
 }
 
 /// A disabled row's text, and an enabled one's, for the label column and the

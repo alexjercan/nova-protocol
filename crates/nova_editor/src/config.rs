@@ -98,16 +98,21 @@ pub(crate) struct EditorOverlays {
     pub(crate) key_legend: bool,
     /// The socket rings a ship draws while a part is armed.
     pub(crate) link_points: bool,
+    /// The ground plane the range is laid out on, and the plumb line under the
+    /// selection.
+    pub(crate) world_grid: bool,
 }
 
 impl Default for EditorOverlays {
-    /// Both ON. The legend is how the editor teaches its keys, and the sockets
-    /// are the only thing placement snaps to - an editor that opened with them
-    /// off would be an editor whose first build is guesswork.
+    /// All ON. The legend is how the editor teaches its keys, the sockets are
+    /// the only thing placement snaps to - an editor that opened with them off
+    /// would be an editor whose first build is guesswork - and the grid is the
+    /// only thing on the stage that says how far apart two objects are.
     fn default() -> Self {
         Self {
             key_legend: true,
             link_points: true,
+            world_grid: true,
         }
     }
 }

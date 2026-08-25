@@ -160,3 +160,15 @@ Landed already this round (commits `5eb626b1`, `e0d9ddef`):
 5. **More per-object settings.** The tail of "an inspector for an object's own
    fields" owed by slice 1; folds into slice 1 of this list once the typed
    editors exist.
+6. **Keys for the verbs that have none.** Del deletes, and arms the delete
+   brush inside a ship the way the menu row does. Every verb the menus carry
+   either has a key or is deliberately mouse-only.
+7. **Add obeys the context.** "Add" offers what can go INSIDE the node you are
+   standing in: Ship and the object palette belong to the scenario node, and
+   inside a ship the menu offers that ship's parts instead of nodes that
+   cannot be its children.
+8. **Polish pass, from a review.** A paired review of the editor - one pass
+   from inside the codebase, one with fresh eyes against how Godot and other
+   scene editors read - written up as a findings list before any of it is
+   built. Known starters: icons where there is bare text, better wording, and
+   a `Vec3` field that is three boxes (x, y, z) rather than one.

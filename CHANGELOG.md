@@ -35,6 +35,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The selected ship or object carries move and turn handles: drag an arrow to
   slide it along one axis, a ring to spin it about one - so a node can go
   somewhere other than the ground plane.
+- The stage stands on a world grid: cells step by decades as the camera pulls
+  back, the origin carries its own X and Z lines, and the selection drops a
+  plumb line to the plane it flies over. View > World Grid turns it off.
 - Play flies the whole document: every ship stands where it was dragged and
   faces where it was turned, and every non-empty AI design spawns as a neutral
   AI ship beside the player's.

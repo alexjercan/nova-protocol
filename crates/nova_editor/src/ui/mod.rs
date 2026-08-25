@@ -53,7 +53,8 @@ use crate::{
         menu::{
             back_to_main_menu, menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim,
             menu_z, on_menu_button, on_menu_scrim, toggle_key_legend, toggle_link_points,
-            MenuDeleteItem, MenuDeletePartsItem, MenuDropdown, MenuId, ShipMenuItem, ViewToggle,
+            toggle_world_grid, MenuDeleteItem, MenuDeletePartsItem, MenuDropdown, MenuId,
+            ShipMenuItem, ViewToggle,
         },
         rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint},
         window::window_layer,
@@ -123,6 +124,12 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 ViewToggle::LinkPoints,
                 menu_item_row("Link Points", Some("on"), skin),
                 observe(toggle_link_points),
+            ));
+            items.spawn((
+                Name::new("World Grid Item"),
+                ViewToggle::WorldGrid,
+                menu_item_row("World Grid", Some("on"), skin),
+                observe(toggle_world_grid),
             ));
             items.spawn(separator());
             items.spawn((

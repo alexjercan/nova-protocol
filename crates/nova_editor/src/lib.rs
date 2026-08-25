@@ -14,6 +14,7 @@
 //! - `gallery`   - the full-screen parts browser that arms the placement tool
 //! - `snap`      - where the armed prototype would land, and why not
 //! - `skin`      - the derived cladding, re-derived live while a part is dragged
+//! - `stage`     - the ground plane the range is laid out on
 //! - `scenario`  - the default world a document is seeded with, and the sandbox script
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
 //! - `probe`     - the one public, read-only snapshot of all of the above
@@ -42,6 +43,7 @@ mod probe;
 mod scenario;
 mod skin;
 mod snap;
+mod stage;
 mod ui;
 
 use attitude::sync_attitude_readout;
@@ -68,6 +70,7 @@ use probe::sync_editor_probe;
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
+use stage::draw_world_grid;
 use ui::{
     inspector::{
         apply_inspector_edits, hold_camera_while_typing, sync_inspector, typing_into_a_field,
@@ -404,6 +407,7 @@ fn editor_plugin(app: &mut App) {
             draw_link_points,
             draw_ship_heading,
             draw_delete_target,
+            draw_world_grid,
         )
             .chain()
             // BEFORE the gallery's keyboard, which shares two keys with the
