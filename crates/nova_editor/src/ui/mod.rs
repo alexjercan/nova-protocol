@@ -688,51 +688,6 @@ pub(crate) fn setup_editor_scene(
                 content.spawn(inspector_panel(skin));
             });
 
-            // The placement verdict, along the bottom rather than in the rail:
-            // it is about the part under the pointer, so it belongs where the
-            // builder is looking. Hidden until there is a placement to report.
-            // A full-width row rather than an offset chip: the chip's width
-            // follows its text, so centring is the row's job.
-            root.spawn((
-                Name::new("Placement Status Row"),
-                Node {
-                    position_type: PositionType::Absolute,
-                    bottom: px(28),
-                    left: px(0),
-                    width: percent(100),
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                },
-                GlobalZIndex(10),
-                Pickable {
-                    should_block_lower: false,
-                    is_hoverable: false,
-                },
-                children![(
-                    Name::new("Placement Status"),
-                    PlacementStatus,
-                    Visibility::Hidden,
-                    Pickable {
-                        should_block_lower: false,
-                        is_hoverable: false,
-                    },
-                    Node {
-                        padding: UiRect::axes(px(10), px(4)),
-                        border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
-                        ..default()
-                    },
-                    BorderColor::all(theme::RED),
-                    BackgroundColor(theme::SPACE),
-                    Text::new(""),
-                    TextFont {
-                        font_size: FontSize::Px(13.0),
-                        ..default()
-                    },
-                    TextColor(theme::RED),
-                )],
-            ));
-
             // The hint a tree row reveals on hover, and the layer the floating
             // windows stand on. Both hang off the root rather than off the
             // rail that raises them, because both are positioned against the
@@ -742,18 +697,17 @@ pub(crate) fn setup_editor_scene(
             root.spawn(scene_tooltip(skin));
             root.spawn(window_layer());
 
-            // The key legend, along the bottom between the rail and the
-            // Inspector. Contextual (see `sync_key_legend`): a builder holding
-            // a part needs the pose keys, and one in select mode needs to be
-            // told the pipette exists.
+            // The foot of the screen: the placement verdict, then the key
+            // legend under it. ONE bottom-anchored column rather than two
+            // absolute rows, because the legend WRAPS - a status line pinned
+            // at a fixed height above the bottom edge sat on top of the second
+            // row of hints the moment the window was narrow enough to need one.
             //
-            // BOUNDED, not free-flowing: `right` pins it off the Inspector's
-            // border, and every hint is one fixed-width cell that clips its own
-            // overflow. A line that grew with its content used to run off the
-            // window and be cut mid-word.
+            // BOUNDED, not full width: `left` and `right` pin the column
+            // between the rail and the Inspector, which is also the span the
+            // verdict is about.
             root.spawn((
-                Name::new("Editor Key Legend"),
-                EditorKeyLegend,
+                Name::new("Editor Foot"),
                 Pickable {
                     should_block_lower: false,
                     is_hoverable: false,
@@ -763,20 +717,76 @@ pub(crate) fn setup_editor_scene(
                     bottom: px(8),
                     left: px(RAIL_W + 12.0),
                     right: px(INSPECTOR_W + 12.0),
-                    flex_direction: FlexDirection::Row,
-                    flex_wrap: FlexWrap::Wrap,
-                    align_items: AlignItems::Center,
-                    column_gap: px(10),
-                    row_gap: px(4),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Stretch,
+                    row_gap: px(6),
                     ..default()
                 },
                 GlobalZIndex(10),
-                Children::spawn(SpawnWith(move |cells: &mut RelatedSpawner<ChildOf>| {
-                    cells.spawn(legend_mode_cell());
-                    for index in 0..LEGEND_CELLS {
-                        cells.spawn(legend_cell(index));
-                    }
-                })),
+                children![
+                    // A full-width row rather than an offset chip: the chip's
+                    // width follows its text, so centring is the row's job.
+                    (
+                        Name::new("Placement Status Row"),
+                        Node {
+                            width: percent(100),
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        Pickable {
+                            should_block_lower: false,
+                            is_hoverable: false,
+                        },
+                        children![(
+                            Name::new("Placement Status"),
+                            PlacementStatus,
+                            Visibility::Hidden,
+                            Pickable {
+                                should_block_lower: false,
+                                is_hoverable: false,
+                            },
+                            Node {
+                                padding: UiRect::axes(px(10), px(4)),
+                                border: UiRect::all(px(theme::BORDER_W)),
+                                border_radius: BorderRadius::all(px(theme::RADIUS)),
+                                ..default()
+                            },
+                            BorderColor::all(theme::RED),
+                            BackgroundColor(theme::SPACE),
+                            Text::new(""),
+                            TextFont {
+                                font_size: FontSize::Px(13.0),
+                                ..default()
+                            },
+                            TextColor(theme::RED),
+                        )],
+                    ),
+                    // Contextual (see `sync_key_legend`): a builder holding a
+                    // part needs the pose keys, and one in select mode needs to
+                    // be told the pipette exists.
+                    (
+                        Name::new("Editor Key Legend"),
+                        EditorKeyLegend,
+                        Pickable {
+                            should_block_lower: false,
+                            is_hoverable: false,
+                        },
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            flex_wrap: FlexWrap::Wrap,
+                            align_items: AlignItems::Center,
+                            column_gap: px(10),
+                            row_gap: px(4),
+                            ..default()
+                        },
+                        Children::spawn(SpawnWith(move |cells: &mut RelatedSpawner<ChildOf>| {
+                            cells.spawn(legend_mode_cell());
+                            for index in 0..LEGEND_CELLS {
+                                cells.spawn(legend_cell(index));
+                            }
+                        })),
+                    ),
+                ],
             ));
         });
 }

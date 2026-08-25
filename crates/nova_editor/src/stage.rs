@@ -186,6 +186,45 @@ pub(crate) fn draw_world_grid(
     gizmos.circle(Isometry3d::new(foot, flat), ring, PLUMB);
 }
 
+/// The colour the mark is drawn in. The brightest phosphor on the stage: the
+/// selection is the one thing on screen every other panel is about.
+const MARK: Color = theme::PHOSPHOR;
+
+/// How far off the node's own skin the box stands, as a fraction of its
+/// longest side. Off the body rather than on it - an outline flush with a hull
+/// face reads as part of the hull.
+const MARK_MARGIN: f32 = 0.06;
+
+/// The box drawn around a node of these bounds.
+fn mark_box(bounds: ColliderAabb) -> Transform {
+    let size = Vec3::from(bounds.size());
+    let pad = size.max_element() * MARK_MARGIN;
+    Transform::from_translation(bounds.center()).with_scale(size + Vec3::splat(pad))
+}
+
+/// Draw a box around whatever is marked.
+///
+/// EVERY context, ship included. Out in the world the handle rig doubles as
+/// the mark, but inside a ship the rig is deliberately suppressed - a part's
+/// pose belongs to its socket - so a marked part was reported only by the
+/// tree row and the Inspector, both of them off at the edges of the screen.
+/// Rebinding a key, deleting a part or reading its stats all act on a thing
+/// the stage would not point at.
+pub(crate) fn draw_selection_mark(
+    selected: Res<SelectedNode>,
+    q_children: Query<&Children>,
+    q_bounds: Query<&ColliderAabb, Without<Sensor>>,
+    mut gizmos: Gizmos<EditorGizmos>,
+) {
+    let Some(node) = selected.0 else {
+        return;
+    };
+    let Some(bounds) = node_bounds(node, &q_children, &q_bounds) else {
+        return;
+    };
+    gizmos.cube(mark_box(bounds), MARK);
+}
+
 /// Draw what an object HAS but does not show.
 ///
 /// Every kind on the stage gets a schematic body from
@@ -485,5 +524,33 @@ mod tests {
         assert_eq!(centre, Vec3::new(100.0, 0.0, -100.0));
         let centre = grid_centre(Vec3::new(4.0, 0.0, -4.0), 1.0);
         assert_eq!(centre, Vec3::ZERO, "and it is flattened onto the plane");
+    }
+
+    /// The mark stands OFF the thing it marks. A box the same size as the hull
+    /// it outlines draws inside the hull's own faces and reads as plating.
+    #[test]
+    fn the_selection_mark_stands_clear_of_the_node_it_marks() {
+        let bounds = ColliderAabb::new(Vec3::new(2.0, 0.0, 0.0), Vec3::splat(0.5));
+        let box_of = mark_box(bounds);
+
+        assert_eq!(
+            box_of.translation,
+            Vec3::new(2.0, 0.0, 0.0),
+            "the box is centred on the node, wherever the node stands"
+        );
+        assert!(
+            box_of.scale.cmpgt(Vec3::ONE).all(),
+            "and every side clears the unit cube it is drawn around, got {:?}",
+            box_of.scale
+        );
+
+        // A long thin part pads by its LONGEST side, so the mark is the same
+        // weight on a hull as on a drive nozzle.
+        let long = ColliderAabb::new(Vec3::ZERO, Vec3::new(4.0, 0.25, 0.25));
+        let padded = mark_box(long).scale - Vec3::new(8.0, 0.5, 0.5);
+        assert!(
+            (padded.x - padded.y).abs() < 1e-5 && (padded.y - padded.z).abs() < 1e-5,
+            "the clearance is one number, not one per axis; got {padded:?}"
+        );
     }
 }

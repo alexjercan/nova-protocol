@@ -75,7 +75,7 @@ use probe::sync_editor_probe;
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
-use stage::{draw_object_volumes, draw_world_grid};
+use stage::{draw_object_volumes, draw_selection_mark, draw_world_grid};
 use ui::{
     inspector::{
         apply_inspector_edits, hold_camera_while_typing, sync_inspector, typing_into_a_field,
@@ -457,6 +457,7 @@ fn editor_plugin(app: &mut App) {
             draw_ship_heading,
             draw_world_grid,
             draw_object_volumes,
+            draw_selection_mark,
         )
             .chain()
             // BEFORE the gallery's keyboard, which shares two keys with the
