@@ -200,6 +200,10 @@ const CONTROLLER_PROTOTYPE: &str = "basic_controller_section";
 #[cfg(feature = "debug")]
 const MENU_ADD: &str = "Add Menu Button";
 
+/// The top bar's View menu, where the camera gestures are listed.
+#[cfg(feature = "debug")]
+const MENU_VIEW: &str = "View Menu Button";
+
 /// A viewport point (logical px) with neither the ship nor a rail panel under
 /// it, on the 1024x768 window the app opens. Pointing here is how a beat puts
 /// the ghost away without disarming the part it is holding.
@@ -230,6 +234,9 @@ struct EditorWalk {
     ids: Vec<String>,
     /// Where the first ship stood before the drag beat grabbed it.
     first_ship_at: Vec3,
+    /// Where the camera stood before a framing gesture, so the beat after can
+    /// say the gesture moved it.
+    camera_at: Vec3,
 }
 
 /// The whole driven run.
@@ -958,7 +965,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // Add > Ship is a scenario-context action, so the run steps out through
         // the tree's root row first - the same door a builder uses.
-        .click_a_widget("editor: leave to add a second ship", "Scene Row scenario")
+        .double_click_a_widget("editor: leave to add a second ship", "Scene Row scenario")
         .step("editor: back at the scenario node to add a ship")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
@@ -1044,7 +1051,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .add()
         // Out through the tree's root row.
-        .click_a_widget("editor: leave the second ship", "Scene Row scenario")
+        .double_click_a_widget("editor: leave the second ship", "Scene Row scenario")
         .step("editor: the scenario node holds both ships")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
@@ -1228,8 +1235,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: clicked ship_1 in the world - selected, not entered");
         })
         .add()
-        // The one transform gesture: grab the ship's body and slide it on the
-        // ground plane. The pointer is still over ship_1 from the select.
+        // Grab the ship's BODY and slide it on the ground plane - the gesture
+        // that predates the handles. The pointer is still over ship_1 from the
+        // select, and the rig leaves the middle of a node hollow so the body
+        // under it is still what a press there lands on.
         .step("editor: grab the first ship")
         .on_enter(|world: &mut World| {
             let at = first_ship_position(world);
@@ -1278,8 +1287,106 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: dragged ship_1 from {before:?} to {now:?}");
         })
         .add()
-        // And back in, with one click on the ship's tree row.
-        .click_a_widget("editor: enter through the tree", "Scene Row ship_1")
+        // The handles: the ground-plane drag has no way to say "up", and the
+        // gizmo's Y arrow is the whole of that answer. It is on the stage
+        // because ship_1 is selected - which is what the click above did.
+        .step("editor: the handles came up on the selected ship")
+        .until(editor_gizmo_on("ship_1"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: aim at the lift handle")
+        .on_enter(|world: &mut World| {
+            let at = aim_at_the_named(world, "Gizmo Tip Y")
+                .expect("the Y arrowhead is on screen beside the selected ship");
+            world.resource_mut::<EditorWalk>().first_ship_at = first_ship_position(world);
+            move_cursor(at)(world);
+        })
+        .until(the_pointer_is_on_a_handle())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: grab the lift handle")
+        .on_enter(press_mouse(MouseButton::Left))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: pull the handle up the screen")
+        .on_enter(|world: &mut World| {
+            let at =
+                aim_at_the_named(world, "Gizmo Tip Y").expect("the grabbed handle is on screen");
+            // Up the SCREEN is up the +Y axis from this camera, which looks
+            // slightly down at the stage.
+            move_cursor(at - Vec2::new(0.0, 110.0))(world);
+        })
+        .until(the_first_ship_rose())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: let the handle go")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the handle lifted the ship off the plane")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorWalk>().first_ship_at;
+            let now = first_ship_position(world);
+            assert!(
+                now.y - before.y > 0.5,
+                "the Y handle must lift the ship ({before:?} -> {now:?})"
+            );
+            assert!(
+                (now.x - before.x).abs() < 0.5 && (now.z - before.z).abs() < 0.5,
+                "and lift it ALONE - one handle is one axis ({before:?} -> {now:?})"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the Y handle moves the ship off the ground plane",
+                serde_json::json!({}),
+            );
+            info!("editor: lifted ship_1 from {before:?} to {now:?}");
+        })
+        .add()
+        // Framing: the ship has been dragged and lifted out from under the
+        // camera, so putting the camera back on it is a gesture with something
+        // to prove.
+        .step("editor: stamp where the camera stands")
+        .on_enter(|world: &mut World| {
+            let at = camera_position(world).expect("the editor camera is up");
+            world.resource_mut::<EditorWalk>().camera_at = at;
+        })
+        .add()
+        .click_a_menu_item(
+            "editor: frame the selection",
+            MENU_VIEW,
+            "Frame Selection Item",
+        )
+        .step("editor: the camera went to the ship")
+        .until(the_camera_frames_the_first_ship())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: View > Frame Selection put the camera on the marked node")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorWalk>().camera_at;
+            let now = camera_position(world).expect("the editor camera is up");
+            assert!(
+                now.distance(before) > 0.5,
+                "the menu row must move the camera ({before:?} -> {now:?})"
+            );
+            assert_eq!(
+                world.resource::<EditorProbe>().selected_node.as_deref(),
+                Some("ship_1"),
+                "framing looks at the selection; it does not change it"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: Frame Selection puts the camera on the marked node",
+                serde_json::json!({}),
+            );
+            info!("editor: framed ship_1, camera {before:?} -> {now:?}");
+        })
+        .add()
+        // And back in - two clicks on the ship's tree row, because entering is
+        // the gesture that hides the rest of the document.
+        .double_click_a_widget("editor: enter through the tree", "Scene Row ship_1")
         .step("editor: back inside the first ship")
         .until(back_inside_the_stamped_ship())
         .deadline(BEAT_DEADLINE_SECS)
@@ -1303,7 +1410,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // Play only from the scenario node, so the run steps back out to press
         // it. The button is greyed inside a ship and the observer refuses too.
-        .click_a_widget("editor: leave for the hand-off", "Scene Row scenario")
+        .double_click_a_widget("editor: leave for the hand-off", "Scene Row scenario")
         .step("editor: Play is reachable")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
@@ -1759,6 +1866,97 @@ fn the_first_ship_moved() -> Wait {
     })
 }
 
+/// Advance once the first ship stands ABOVE the stamp - the Y handle doing its
+/// work, and nothing else could have done it: the ground-plane drag holds
+/// altitude by construction.
+#[cfg(feature = "debug")]
+fn the_first_ship_rose() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let stamp = world.resource::<EditorWalk>().first_ship_at;
+        world
+            .resource::<EditorProbe>()
+            .node_positions
+            .iter()
+            .any(|(id, at)| id == "ship_1" && at.y - stamp.y > 0.5)
+    })
+}
+
+/// A viewport aim at a NAMED entity in the world - the gizmo's arrowheads,
+/// which are the only 3D things this walk points at by name.
+///
+/// The rig is `pub(crate)` to the editor, so the walk reaches its handles the
+/// way anything outside a crate reaches an entity: by the name they carry.
+#[cfg(feature = "debug")]
+fn aim_at_the_named(world: &mut World, name: &str) -> Option<Vec2> {
+    let at = world
+        .query::<(&Name, &GlobalTransform)>()
+        .iter(world)
+        .find(|(named, _)| named.as_str() == name)
+        .map(|(_, pose)| pose.translation())?;
+    aim_at_world(world, at)
+}
+
+/// Advance once the pointer is over a gizmo handle rather than over the ship
+/// behind it. Two picking backends answer this pointer - the stage's colliders
+/// and the handles' meshes - so a beat that means to drag an axis proves which
+/// one won before it presses.
+#[cfg(feature = "debug")]
+fn the_pointer_is_on_a_handle() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let Some(hit) = world
+            .try_query::<&bevy::picking::pointer::PointerInteraction>()
+            .and_then(|mut pointers| {
+                pointers
+                    .iter(world)
+                    .filter_map(|interaction| interaction.get_nearest_hit())
+                    .map(|(entity, _)| *entity)
+                    .next()
+            })
+        else {
+            return false;
+        };
+        world
+            .get::<Name>(hit)
+            .is_some_and(|name| name.as_str().starts_with("Gizmo "))
+    })
+}
+
+/// Where the editor camera stands.
+#[cfg(feature = "debug")]
+fn camera_position(world: &mut World) -> Option<Vec3> {
+    let camera = world
+        .query_filtered::<Entity, With<Camera3d>>()
+        .iter(world)
+        .next()?;
+    Some(world.get::<GlobalTransform>(camera)?.translation())
+}
+
+/// Advance once the camera is AIMED at the first ship, whatever route put it
+/// there. A pose comparison rather than a distance, because "framed" is about
+/// what is in the middle of the screen.
+#[cfg(feature = "debug")]
+fn the_camera_frames_the_first_ship() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let Some((_, at)) = world
+            .resource::<EditorProbe>()
+            .node_positions
+            .iter()
+            .find(|(id, _)| id == "ship_1")
+        else {
+            return false;
+        };
+        let Some(mut cameras) = world.try_query_filtered::<&GlobalTransform, With<Camera3d>>()
+        else {
+            return false;
+        };
+        cameras.iter(world).any(|pose| {
+            let towards = *at - pose.translation();
+            towards.length() > f32::EPSILON
+                && pose.forward().as_vec3().dot(towards.normalize()) > 0.98
+        })
+    })
+}
+
 /// A viewport aim at the FIRST ship on the stage.
 ///
 /// Reads the scene rather than the probe, because outside a ship the probe
@@ -1984,6 +2182,15 @@ trait EditorGestures {
     /// silently lost, and the run fails later somewhere else.
     fn click_a_widget(self, label: &str, name: &str) -> Self;
 
+    /// Press a widget TWICE, close enough together to read as one double click.
+    ///
+    /// Four beats rather than two presses in one frame: a widget's `Activate`
+    /// fires on the RELEASE, and the press that arms it is a command that does
+    /// not land until the frame ends - so a press and a release in the same
+    /// frame activate nothing at all. Four beats is about a tenth of a second,
+    /// well inside the editor's window.
+    fn double_click_a_widget(self, label: &str, name: &str) -> Self;
+
     /// Drop a top-bar menu, then press one of its rows.
     ///
     /// Two clicks because that is the real gesture: a dropdown is `Display::None`
@@ -2024,6 +2231,35 @@ impl EditorGestures for nova_protocol::nova_debug::harness::AutopilotPlugin<Game
     fn click_a_menu_item(self, label: &str, menu: &str, item: &str) -> Self {
         self.click_a_widget(&format!("{label}: open the menu"), menu)
             .click_a_widget(label, item)
+    }
+
+    fn double_click_a_widget(self, label: &str, name: &str) -> Self {
+        let first = name.to_string();
+        let second = name.to_string();
+        self.step(format!("{label}: the widget is up"))
+            .until(ui_node_present(name.to_string()))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: press"))
+            .on_enter(click_named(first))
+            .until(pointer_pressed())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: release"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(pointer_released())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: press again"))
+            .on_enter(click_named(second))
+            .until(pointer_pressed())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: release again"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(pointer_released())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
     }
 
     fn click_a_widget(self, label: &str, name: &str) -> Self {

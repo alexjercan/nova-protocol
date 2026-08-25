@@ -16,6 +16,7 @@ pub(crate) mod rail;
 
 use bevy::{
     ecs::relationship::RelatedSpawnerCommands,
+    picking::mesh_picking::MeshPickingCamera,
     prelude::*,
     ui::InteractionDisabled,
     ui_widgets::{observe, Activate},
@@ -32,10 +33,11 @@ use nova_ui::{
 use crate::{
     config::{
         AttitudeReadout, ContextBreadcrumb, DeleteNodeButton, EditorKeyLegend, EditorOverlays,
-        PlacementStatus, PlayButton, RebindButton, ScenarioActions, SceneList, SceneRow,
+        LastClick, PlacementStatus, PlayButton, RebindButton, ScenarioActions, SceneList, SceneRow,
         SectionChoice, SelectedNode, ShipActions, ShipSettings, SkinToggleCheckbox, StyleChoice,
         StyleList,
     },
+    frame::{ask_for, on_frame_selection, FrameRequest, FrameSelectionItem},
     gallery::{EditorCamera, EditorChrome, GalleryAction},
     keybind::on_rebind_action,
     node::{
@@ -63,9 +65,8 @@ use crate::{
 /// rather than as four `with_children` blocks buried in the bar's layout.
 ///
 /// GREYED, NOT ABSENT, for the items that are not built: Save and Open are the
-/// save/load task's, Undo and Redo are nobody's yet, and Frame Selection lands
-/// with the camera gestures. A menu that only lists what already works cannot
-/// say what the editor is going to be.
+/// save/load task's, and Undo and Redo are nobody's yet. A menu that only lists
+/// what already works cannot say what the editor is going to be.
 fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: UiSkin) {
     match menu {
         MenuId::File => {
@@ -124,8 +125,9 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn(separator());
             items.spawn((
                 Name::new("Frame Selection Item"),
+                FrameSelectionItem,
                 menu_item_row("Frame Selection", Some("F"), skin),
-                InteractionDisabled,
+                observe(on_frame_selection),
             ));
         }
         MenuId::Add => {
@@ -217,6 +219,11 @@ pub(crate) fn setup_editor_scene(
         Camera3d::default(),
         PostProcessingCamera,
         WASDCameraController,
+        // Opt in to mesh picking, which the transform gizmo rides on (see
+        // `crate::gizmo`). The stage itself is picked through avian's
+        // colliders, so this camera answers the pointer twice - once per
+        // backend - and the nearer hit wins.
+        MeshPickingCamera,
         // The gallery parks this camera on its own stage while it is open, so
         // it needs a handle that does not assume a single Camera3d.
         EditorCamera,
@@ -354,20 +361,30 @@ pub(crate) fn setup_editor_scene(
                     // Phosphor rather than muted: it is the one line that says
                     // what a click will act on, so it must not read as a
                     // caption.
+                    // A WRAPPER carries the clip and the text hangs inside it.
+                    // `Overflow::clip` bounds a node's CHILDREN, and a text
+                    // node draws its own glyphs - so the clip that used to sit
+                    // on the text bounded nothing, and a long crumb ran on
+                    // under the Play button.
+                    //
+                    // Here and not on the column, which is what holds the
+                    // dropdowns: an ancestor that clips also clips an
+                    // absolutely-positioned descendant, and a menu that hangs
+                    // below the bar is exactly that. The breadcrumb is the only
+                    // thing on the bar that grows without bound, so it is the
+                    // only thing that needs any of this.
                     left.spawn((
-                        Name::new("Context Breadcrumb"),
-                        ContextBreadcrumb,
-                        // The clip lives HERE and not on the column, which is
-                        // what holds the dropdowns: an ancestor that clips also
-                        // clips an absolutely-positioned descendant, and a menu
-                        // that hangs below the bar is exactly that. The
-                        // breadcrumb is the only thing on the bar that grows
-                        // without bound, so it is the only thing that needs it.
+                        Name::new("Context Breadcrumb Clip"),
                         Node {
                             min_width: px(0),
                             overflow: Overflow::clip(),
                             ..default()
                         },
+                    ))
+                    .with_child((
+                        Name::new("Context Breadcrumb"),
+                        ContextBreadcrumb,
+                        Node::default(),
                         Text::new(""),
                         TextLayout {
                             linebreak: LineBreak::NoWrap,
@@ -907,35 +924,56 @@ pub(crate) fn sync_scene_list(
     }
 }
 
-/// One click, and the row's kind says what it means: a ship row ENTERS the
-/// ship, the scenario root leaves it, and a section row SELECTS - the thing an
-/// inspector and the Rebind action hang off.
+/// One click SELECTS a row and puts the camera on it; two ENTER it.
 ///
-/// A container is entered and a leaf is selected, so one gesture covers both
-/// questions without a double-click - which the owner tried and read as "the
-/// first click did nothing".
+/// The single click is the cheap, reversible one, so it is the one that
+/// answers everywhere: every row selects, and the camera goes to whatever was
+/// named. Only the second click changes the CONTEXT - into a ship, or out of
+/// one from the root row - because that is the gesture that hides the rest of
+/// the document behind a breadcrumb.
+///
+/// An earlier version entered on the first click, so that a container never
+/// needed a double (owner: a double-click here had read as "the first click
+/// did nothing"). It does something now: it frames.
 pub(crate) fn on_scene_row(
     activate: On<Activate>,
     rows: Query<&SceneRow>,
     ships: Query<(), With<ShipNode>>,
     scenarios: Query<(), With<ScenarioNode>>,
+    time: Res<Time<Real>>,
+    mut last: ResMut<LastClick>,
     mut selected: ResMut<SelectedNode>,
     mut context: ResMut<EditContext>,
+    mut request: ResMut<FrameRequest>,
 ) {
     let Ok(SceneRow(node)) = rows.get(activate.entity) else {
         return;
     };
+    let double = last.press(*node, time.elapsed_secs());
+    // A click that CHANGES the context hands the camera to
+    // `crate::node::sync_camera_focus`, which frames whatever was entered - so
+    // the request the first half of the double raised steps aside rather than
+    // writing the camera a second time in the same frame.
     if scenarios.contains(*node) {
-        context.to_root();
-        selected.0 = None;
+        if double {
+            context.to_root();
+            selected.0 = None;
+            request.0 = None;
+        } else {
+            // The root is the whole stage: framing it is what "show me
+            // everything" means, and leaving a ship is the second click.
+            ask_for(&mut request, Some(*node));
+        }
         return;
     }
-    if ships.contains(*node) {
+    if double && ships.contains(*node) {
         context.enter(*node);
         selected.0 = None;
+        request.0 = None;
         return;
     }
     selected.0 = Some(*node);
+    ask_for(&mut request, Some(*node));
 }
 
 /// Disable Play anywhere but the scenario node.
@@ -1211,12 +1249,12 @@ pub(crate) fn sync_key_legend(
 ) {
     let line = match (&*selection, context.ship().is_some()) {
         (SectionChoice::None, false) => {
-            "LMB select a ship   LMB+drag move it   RMB+drag look   \
-             WASD/Space/Shift fly   Play flies the scenario   Esc pause"
+            "LMB select   LMB x2 enter   drag or a handle moves it   F frame   \
+             RMB+drag look   WASD/Space/Shift fly   Esc pause"
         }
         (SectionChoice::None, true) => {
-            "Tab parts   LMB select   Q pick its part   RMB+drag look   \
-             WASD/Space/Shift fly   Rebind acts on the selection   Esc leave the ship"
+            "Tab parts   LMB select   Q pick   F frame   RMB+drag look   \
+             WASD/Space/Shift fly   Rebind acts on the selection   Esc leave"
         }
         (SectionChoice::Section(_), _) => {
             "LMB place   wheel roll   Ctrl+wheel socket   R roll   F socket   Q pick   \
@@ -1241,6 +1279,8 @@ pub(crate) fn sync_key_legend(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use nova_scenario::prelude::SectionSource;
     use nova_ship::prelude::ShipStyleConfig;
 
@@ -1253,6 +1293,12 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(UiSkin::default());
         app.init_resource::<SelectedNode>();
+        app.init_resource::<LastClick>();
+        app.init_resource::<FrameRequest>();
+        // No `TimePlugin`: the clock is driven by hand below, so a "click" and
+        // a "double click" are a choice the test makes rather than a race with
+        // how fast the suite runs.
+        app.init_resource::<Time<Real>>();
         app.world_mut()
             .spawn((Name::new("Scene List"), SceneList, rail_list_node()));
         app.add_systems(Update, sync_scene_list);
@@ -1330,9 +1376,30 @@ mod tests {
             .collect()
     }
 
+    /// One click, a full second after whatever came before it.
     fn press(app: &mut App, row: Entity) {
+        app.world_mut()
+            .resource_mut::<Time<Real>>()
+            .advance_by(Duration::from_secs(1));
         app.world_mut().trigger(Activate { entity: row });
         app.update();
+    }
+
+    /// Two clicks close enough together to read as one double click.
+    fn double_press(app: &mut App, row: Entity) {
+        press(app, row);
+        app.world_mut()
+            .resource_mut::<Time<Real>>()
+            .advance_by(Duration::from_millis(80));
+        app.world_mut().trigger(Activate { entity: row });
+        app.update();
+    }
+
+    /// What the camera has been asked to look at, and clear the request.
+    fn framed(app: &mut App) -> Option<Entity> {
+        let asked = app.world().resource::<FrameRequest>().0;
+        app.world_mut().resource_mut::<FrameRequest>().0 = None;
+        asked
     }
 
     /// The row that points at `node`.
@@ -1465,10 +1532,11 @@ mod tests {
         );
     }
 
-    /// One click on a ship row ENTERS it - the owner tried double-click and
-    /// read the first click as a dropped input.
+    /// One click on a ship row marks it and puts the camera on it. The first
+    /// click of a double is never wasted, which is what made the owner read an
+    /// earlier double-click as a dropped input.
     #[test]
-    fn a_single_click_on_a_ship_row_enters_it() {
+    fn one_click_on_a_ship_row_selects_it_and_frames_it() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
@@ -1478,6 +1546,28 @@ mod tests {
         let row = row_for(&mut app, ship);
         press(&mut app, row);
 
+        assert_eq!(app.world().resource::<SelectedNode>().0, Some(ship));
+        assert_eq!(framed(&mut app), Some(ship));
+        assert_eq!(
+            app.world().resource::<EditContext>().ship(),
+            None,
+            "one click does not hide the rest of the document"
+        );
+    }
+
+    /// Two clicks ENTER: the gesture that changes what the tree is showing is
+    /// the deliberate one.
+    #[test]
+    fn two_clicks_on_a_ship_row_enter_it() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        section_node(&mut app, ship, "hull_1");
+        app.update();
+
+        let row = row_for(&mut app, ship);
+        double_press(&mut app, row);
+
         assert_eq!(app.world().resource::<EditContext>().ship(), Some(ship));
         assert_eq!(
             app.world().resource::<SelectedNode>().0,
@@ -1485,10 +1575,55 @@ mod tests {
             "a container is entered, not selected"
         );
         assert_eq!(
+            framed(&mut app),
+            None,
+            "entering frames the new context itself; two systems writing the \
+             camera in one frame is what `crate::frame` exists to avoid"
+        );
+        assert_eq!(
             row_names(&mut app),
             vec!["scenario", "ship_1", "hull_1"],
             "and its branch is open"
         );
+    }
+
+    /// Two clicks on DIFFERENT rows are two clicks: the count restarts, so a
+    /// quick pass down the tree never falls into a ship.
+    #[test]
+    fn a_click_on_another_row_is_not_the_second_half_of_a_double() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let first = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        let second = spawn_ship(&mut app, scenario, "ship_2", ShipDriver::Player);
+        app.update();
+
+        let row = row_for(&mut app, first);
+        press(&mut app, row);
+        let row = row_for(&mut app, second);
+        app.world_mut()
+            .resource_mut::<Time<Real>>()
+            .advance_by(Duration::from_millis(80));
+        app.world_mut().trigger(Activate { entity: row });
+        app.update();
+
+        assert_eq!(app.world().resource::<EditContext>().ship(), None);
+        assert_eq!(app.world().resource::<SelectedNode>().0, Some(second));
+    }
+
+    /// A slow second click is a second click, not the other half of a double.
+    #[test]
+    fn a_late_second_click_is_still_one_click() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        app.update();
+
+        let row = row_for(&mut app, ship);
+        press(&mut app, row);
+        press(&mut app, row);
+
+        assert_eq!(app.world().resource::<EditContext>().ship(), None);
+        assert_eq!(app.world().resource::<SelectedNode>().0, Some(ship));
     }
 
     /// A section row SELECTS: a leaf has nothing to enter yet, and the mark is
@@ -1514,9 +1649,10 @@ mod tests {
     }
 
     /// The root row is the way back, and it lands at the scenario node rather
-    /// than outside the document.
+    /// than outside the document. One click on it frames the whole stage, which
+    /// is what the scenario node's bounds ARE.
     #[test]
-    fn the_root_row_leaves_the_ship() {
+    fn the_root_row_leaves_the_ship_on_the_second_click() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
@@ -1525,6 +1661,15 @@ mod tests {
 
         let root = row_for(&mut app, scenario);
         press(&mut app, root);
+        assert_eq!(
+            app.world().resource::<EditContext>().ship(),
+            Some(ship),
+            "one click stays where it is"
+        );
+        assert_eq!(framed(&mut app), Some(scenario), "and shows the stage");
+
+        let root = row_for(&mut app, scenario);
+        double_press(&mut app, root);
 
         assert_eq!(app.world().resource::<EditContext>().ship(), None);
         assert_eq!(

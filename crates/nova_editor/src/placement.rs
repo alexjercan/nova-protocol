@@ -815,9 +815,15 @@ pub(crate) fn on_click_spaceship_section(
     };
 
     // A section of a ship you are NOT inside selects the SHIP: the world and
-    // the tree answer a click the same way, and the tree is the door - the
-    // solver only ever scans the edited ship, so such a click could never have
-    // been a placement anyway.
+    // the tree answer a click the same way, and the tree is the door.
+    //
+    // Entering stays the TREE's gesture, and deliberately: out here a second
+    // press on the same ship is far more often the start of a drag than a
+    // request to go inside it, and a press cannot yet know which. See
+    // `crate::ui::on_scene_row`.
+    //
+    // The solver only ever scans the edited ship, so such a click could never
+    // have been a placement anyway.
     let owner = owner.parent();
     if context.ship() != Some(owner) {
         selected.0 = Some(owner);

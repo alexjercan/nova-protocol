@@ -5,6 +5,8 @@
 //! - `attitude`  - what the hull under construction would turn like
 //! - `node`      - the document: the node tree and the edit context
 //! - `inspect`   - the reflected fields of the inspected node, and their write-back
+//! - `frame`     - putting the camera on a node, on demand
+//! - `gizmo`     - the handles that move and turn the selected node
 //! - `config`    - the placement state + screen furniture
 //! - `preview`   - the one place a section or object config becomes preview entities
 //! - `placement` - creating ships and objects + the pointer place/preview/delete observers
@@ -28,7 +30,9 @@ use nova_scenario::prelude::*;
 
 mod attitude;
 mod config;
+mod frame;
 mod gallery;
+mod gizmo;
 mod inspect;
 mod keybind;
 mod node;
@@ -41,7 +45,11 @@ mod snap;
 mod ui;
 
 use attitude::sync_attitude_readout;
-use config::{EditorOverlays, PlacementPose, PlacementPreview, SectionChoice, SelectedNode};
+use config::{
+    EditorOverlays, LastClick, PlacementPose, PlacementPreview, SectionChoice, SelectedNode,
+};
+use frame::{apply_frame_request, frame_key, sync_frame_item, FrameRequest};
+use gizmo::sync_gizmo;
 use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
     sync_section_keybind_labels, EditorRebind,
@@ -275,6 +283,9 @@ fn editor_plugin(app: &mut App) {
     // The rail tools set the placement tool via their ButtonValue.
     app.add_observer(button_on_setting::<SectionChoice>);
 
+    // One click selects, two enter - shared by the Scene tree and the stage so
+    // both count the same double.
+    app.init_resource::<LastClick>();
     app.add_observer(on_click_spaceship_section);
 
     // Dragging a ship or an object across the stage - the scenario node's one
@@ -288,6 +299,28 @@ fn editor_plugin(app: &mut App) {
         OnEnter(ExampleStates::Editor),
         |mut drag: ResMut<StageDrag>| *drag = StageDrag::default(),
     );
+
+    // Framing: a key, a menu row and (below) a click on the tree all raise one
+    // request, and one system serves it. The key is gated like the other single
+    // letters - an F typed into an inspector field is not a camera gesture.
+    app.init_resource::<FrameRequest>();
+    app.add_systems(
+        Update,
+        frame_key
+            .before(apply_frame_request)
+            .run_if(not(typing_into_a_field))
+            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
+    );
+    // A request cannot outlive the visit that raised it: the way in frames the
+    // context, and a stale request would move the camera straight back off it.
+    app.add_systems(
+        OnEnter(ExampleStates::Editor),
+        |mut request: ResMut<FrameRequest>| *request = FrameRequest::default(),
+    );
+
+    // The move/turn handles on the selected node, and the mesh picking backend
+    // that reaches them.
+    gizmo::register(app);
 
     // The placement ghost: solve once per frame, then show it. Both are gated
     // on the gallery being closed - it covers the build area, so nothing under
@@ -320,6 +353,7 @@ fn editor_plugin(app: &mut App) {
                 sync_menus,
                 sync_view_menu_marks,
                 sync_menu_delete,
+                sync_frame_item,
                 sync_menu_item_paint,
             )
                 .chain(),
@@ -340,6 +374,13 @@ fn editor_plugin(app: &mut App) {
                 sync_play_button,
                 sync_ship_focus,
                 sync_camera_focus,
+                // AFTER the context's own framing: both write the camera, and
+                // a gesture that named a node beats the context having
+                // changed in the same frame.
+                apply_frame_request,
+                // The gizmo rides the selection, so it is placed once the tree
+                // above has settled what the selection IS.
+                sync_gizmo,
             )
                 .chain(),
             // Both read single letters, which is also what a builder types

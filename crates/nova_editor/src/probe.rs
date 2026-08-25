@@ -14,6 +14,7 @@ use nova_ui::prelude::TextFieldFocused;
 use crate::{
     config::{PlacementPreview, SectionChoice, SelectedNode},
     gallery::GalleryState,
+    gizmo::GizmoRig,
     node::{
         context_nodes, inside_id, sections_of, EditContext, ObjectNodes, SectionNodes, ShipNodes,
     },
@@ -137,6 +138,13 @@ pub struct EditorProbe {
     /// took it, and a readout that agreed with a stale document would say yes
     /// either way.
     pub inspector: Vec<(String, String)>,
+    /// The id of the node the transform handles are ON, or `None` while they
+    /// are off screen.
+    ///
+    /// The handles are hidden wherever the pointer belongs to something else -
+    /// inside a ship, under an armed part, behind the gallery - so this is
+    /// also the answer to "can I drag an axis right now".
+    pub gizmo_node: Option<String>,
 }
 
 /// Refresh [`EditorProbe`] from the build state.
@@ -158,6 +166,7 @@ pub(crate) fn sync_editor_probe(
     poses: Query<&Transform>,
     document: Document,
     caret: Query<(), (With<TextFieldFocused>, With<InspectorField>)>,
+    rig: Query<&Visibility, With<GizmoRig>>,
     mut probe: ResMut<EditorProbe>,
 ) {
     let wanted = if *editor.get() == ExampleStates::Editor {
@@ -198,6 +207,13 @@ pub(crate) fn sync_editor_probe(
             })
             .collect();
         snapshot.context_nodes = listed.into_iter().map(|node| node.id.0.clone()).collect();
+        // The handles ride the selection, so the node they are on is the
+        // selected one - reported only while they are actually up.
+        snapshot.gizmo_node = rig
+            .iter()
+            .any(|visibility| *visibility != Visibility::Hidden)
+            .then(|| snapshot.selected_node.clone())
+            .flatten();
         snapshot.inspector_focused = !caret.is_empty();
         snapshot.inspector = document
             .inspection()
@@ -287,6 +303,7 @@ fn snapshot(
         node_positions: Vec::new(),
         inspector_focused: false,
         inspector: Vec::new(),
+        gizmo_node: None,
     }
 }
 

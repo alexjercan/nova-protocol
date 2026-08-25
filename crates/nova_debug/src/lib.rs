@@ -72,7 +72,7 @@ pub mod prelude {
         harness::{
             assert_scenario_loaded, capture_window, capturing, editor_field_focused,
             editor_filter_focused, editor_gallery_closed, editor_gallery_open,
-            editor_gallery_selected, editor_inspector_reads, editor_part_armed,
+            editor_gallery_selected, editor_gizmo_on, editor_inspector_reads, editor_part_armed,
             editor_placement_clear, editor_placement_refused, editor_placement_solved,
             editor_tool_is, force_capture_resolution, freeze_bodies, hide_dev_overlays, hide_hud,
             loop_end, loop_start, nova_autopilot, nova_screenshot, player_ship_present,

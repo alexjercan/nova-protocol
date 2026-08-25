@@ -17,9 +17,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Interface & HUD
 
-- The editor holds a scenario of ships under a real scene tree: one click
-  enters a ship or selects a section, entering shows only that ship, and Play
-  compiles the scenario root.
+- The editor holds a scenario of ships under a real scene tree: a click picks a
+  node and two enter a ship, entering shows only that ship, and Play compiles
+  the scenario root.
 - Add Ship starts a blank ship - a pad marker shows where the first armed
   part founds it - and dragging a ship at the scenario node slides it on the
   ground plane.
@@ -31,10 +31,15 @@ does NOT get an entry - and it is the only place they are written down.
   exactly as it does for a ship.
 - A click in the world selects: a section inside a ship, a ship outside.
   Rebinding a section's key is a top-bar action on the selection.
+- The selected ship or object carries move and turn handles: drag an arrow to
+  slide it along one axis, a ring to spin it about one - so a node can go
+  somewhere other than the ground plane.
 - Play flies the whole document: every non-empty AI design spawns as a
   neutral AI ship at its stage offset beside the player's.
 - The stage camera snaps to what you edit - the entered ship, or the whole
   scenario back at the root.
+- F, View > Frame Selection and a click on a scene-tree row all put the camera
+  on that node, framing its whole size rather than the point it was founded on.
 - The top bar reads the context back ([SCENARIO] or [SHIP], path, selection)
   and the footer legend matches the level.
 - File, Edit, View and Add drop real menus, with Play dead centre between

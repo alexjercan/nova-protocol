@@ -30,6 +30,43 @@ pub(crate) enum SectionChoice {
 #[derive(Resource, Default, Debug)]
 pub(crate) struct SelectedNode(pub(crate) Option<Entity>);
 
+/// How long after a click a second one on the same node still reads as a
+/// double.
+///
+/// The window desktops have used for decades, and generous on purpose: the
+/// gesture it guards is not destructive - the worst a late second click does
+/// is select what was already selected.
+pub(crate) const DOUBLE_CLICK_SECS: f32 = 0.5;
+
+/// The Scene row the last click landed on, and when.
+///
+/// Clicking a DIFFERENT row restarts the count: a fast click on one ship and
+/// then another is two selections, not an entry.
+///
+/// The TREE only. On the stage a second press on the same ship is far more
+/// often the start of a drag than a request to go inside it, and a press
+/// cannot yet know which - see `crate::placement::on_click_spaceship_section`.
+#[derive(Resource, Default, Debug)]
+pub(crate) struct LastClick {
+    node: Option<Entity>,
+    at: f32,
+}
+
+impl LastClick {
+    /// Record a click on `node` at `now` seconds, and say whether it completes
+    /// a double.
+    ///
+    /// A completed double is FORGOTTEN rather than kept: three fast clicks are
+    /// one double and one single, not two doubles, so a builder drumming on a
+    /// ship row enters it once.
+    pub(crate) fn press(&mut self, node: Entity, now: f32) -> bool {
+        let double = self.node == Some(node) && now - self.at <= DOUBLE_CLICK_SECS;
+        self.node = (!double).then_some(node);
+        self.at = now;
+        double
+    }
+}
+
 /// The Scene block's row container, emptied and refilled by
 /// `crate::ui::sync_scene_list`.
 #[derive(Component)]

@@ -578,7 +578,7 @@ pub(crate) fn sync_camera_focus(
 /// off by `spread` so a stage of several ships fits the frame. Zero spread IS
 /// the spawn pose, which is what keeps the driven walks' fixed screen points
 /// meaning what they measured.
-fn frame_stage(target: Vec3, spread: f32) -> Transform {
+pub(crate) fn frame_stage(target: Vec3, spread: f32) -> Transform {
     Transform::from_translation(target + Vec3::new(0.0, 5.0 + 0.75 * spread, 10.0 + 1.5 * spread))
         .looking_at(target, Vec3::Y)
 }

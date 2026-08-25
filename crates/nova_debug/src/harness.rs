@@ -295,6 +295,16 @@ pub fn editor_filter_focused() -> Arc<Predicate> {
     resource_where::<EditorProbe>(|editor| editor.filter_focused)
 }
 
+/// Advance once the transform handles are up on the node called `id`.
+///
+/// The handles are hidden wherever the pointer belongs to something else, so a
+/// beat that means to drag an axis waits for this rather than for the
+/// selection alone.
+pub fn editor_gizmo_on(id: impl Into<String>) -> Arc<Predicate> {
+    let id = id.into();
+    resource_where::<EditorProbe>(move |editor| editor.gizmo_node.as_deref() == Some(id.as_str()))
+}
+
 /// Advance once an inspector field holds the caret. Typing reaches the
 /// document only while one does, so a beat that types waits for this first.
 pub fn editor_field_focused() -> Arc<Predicate> {
