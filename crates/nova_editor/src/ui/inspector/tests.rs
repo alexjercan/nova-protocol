@@ -134,6 +134,17 @@ fn submit(app: &mut App, label: &str, text: &str) -> Entity {
     entity
 }
 
+/// What the unit slot of the row called `label` says.
+fn unit_of(app: &mut App, label: &str) -> String {
+    let wanted = format!("Inspector Unit {label}");
+    app.world_mut()
+        .query::<(&Name, &Text, &InspectorUnit)>()
+        .iter(app.world())
+        .find(|(name, ..)| name.as_str() == wanted)
+        .map(|(_, text, _)| text.0.clone())
+        .unwrap_or_else(|| panic!("no unit slot {label:?}"))
+}
+
 fn radius_of(app: &App, object: Entity) -> f32 {
     match &app
         .world()
@@ -272,6 +283,66 @@ fn a_refused_value_marks_the_field_and_leaves_the_document_alone() {
     assert!(
         app.world().get::<TextFieldError>(field).is_some(),
         "the builder typed it, so the builder is told"
+    );
+}
+
+/// A radius has a floor, and the floor is enforced where the number is TYPED.
+/// Until now a negative one was taken here and found out at spawn time, with
+/// the range already flying.
+#[test]
+fn a_negative_radius_is_refused_in_the_box_it_was_typed_in() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+
+    let field = submit(&mut app, "Radius", "-4");
+
+    assert!(
+        (radius_of(&app, rock) - 3.0).abs() < f32::EPSILON,
+        "the document keeps the radius it had"
+    );
+    let error = app
+        .world()
+        .get::<TextFieldError>(field)
+        .expect("the box says why")
+        .0
+        .clone();
+    assert_eq!(error, "min 0");
+}
+
+/// A red border says NO; it does not say why. The unit slot is the only space
+/// on the row that is not the next row's, so the reason takes it - and the
+/// refused number stays in the box, because a builder corrects a number they
+/// can still see.
+#[test]
+fn a_refusal_takes_the_unit_slot_and_the_box_keeps_what_was_typed() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+    app.world_mut()
+        .run_system_once(paint_field_reasons)
+        .expect("the reason paints");
+    assert_eq!(unit_of(&mut app, "Radius"), "u", "nothing is wrong yet");
+
+    let field = field_of(&mut app, "Radius");
+    app.world_mut()
+        .entity_mut(field)
+        .insert(TextFieldValue("-4".to_string()));
+    submit(&mut app, "Radius", "-4");
+    app.world_mut()
+        .run_system_once(paint_field_reasons)
+        .expect("the reason paints");
+
+    assert_eq!(unit_of(&mut app, "Radius"), "min 0");
+    assert_eq!(
+        app.world()
+            .get::<TextFieldValue>(field)
+            .expect("the field")
+            .0,
+        "-4",
+        "the refused number stays there to be corrected"
     );
 }
 

@@ -81,7 +81,8 @@ use skin::sync_editor_skin;
 use stage::{draw_node_marks, draw_object_volumes, draw_world_grid};
 use ui::{
     inspector::{
-        apply_inspector_edits, hold_camera_while_typing, sync_inspector, typing_into_a_field,
+        apply_inspector_edits, hold_camera_while_typing, paint_field_reasons, sync_inspector,
+        typing_into_a_field,
     },
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_armed_menu, sync_menu_delete,
@@ -429,7 +430,7 @@ fn editor_plugin(app: &mut App) {
                 // the row it was opened from shows, and closes when that row
                 // goes away. One element, because the group around it is
                 // already at Bevy's tuple arity.
-                (sync_inspector, sync_colour_windows).chain(),
+                (sync_inspector, sync_colour_windows, paint_field_reasons).chain(),
                 sync_context_panels,
                 sync_breadcrumb,
                 sync_rebind_button,

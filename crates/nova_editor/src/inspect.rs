@@ -226,6 +226,9 @@ pub(crate) struct InspectorRow {
     pub(crate) group: Vec<String>,
     /// The row's label, WITHIN its group.
     pub(crate) label: String,
+    /// What the number IS, where its name does not say it: the unit it is
+    /// typed in, or the empty string for a value that has none.
+    pub(crate) unit: &'static str,
     /// The value, and the widget it implies.
     pub(crate) value: RowValue,
 }
@@ -238,6 +241,7 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         optional: false,
         group: Vec::new(),
         label: label.to_string(),
+        unit: "",
         value: RowValue::Fixed(text.into()),
     }
 }
@@ -246,14 +250,87 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
 /// caller that has the path never has to name it twice.
 fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue) -> InspectorRow {
     let (group, label) = heading_and_label(&path);
+    // A unit belongs to a NUMBER. A checkbox or a variant name has none, and
+    // one drawn beside it would be a label for the wrong thing.
+    let unit = match value {
+        RowValue::Text(_) => number_rule(&path).map_or("", |rule| rule.unit),
+        _ => "",
+    };
     InspectorRow {
         root,
         path,
         optional,
         group,
         label,
+        unit,
         value,
     }
+}
+
+/// What a number is measured in, and the floor below which it is not that
+/// number at all.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct NumberRule {
+    /// The unit shown beside the box, or the empty string where the value has
+    /// no unit but still has a floor.
+    pub(crate) unit: &'static str,
+    /// The smallest value the field takes.
+    pub(crate) floor: f32,
+}
+
+/// The rule for the field `path` ends at, if that field has one.
+///
+/// Keyed on the config's OWN field names, and by suffix where a name is a
+/// family - every `*_radius` is a radius, whatever it hangs off. A field that
+/// is not listed is unlabelled and unbounded on purpose: a floor invented for a
+/// number nobody checked would refuse an edit the runtime accepts.
+///
+/// Lengths are `u` - the authored world unit. The HUD converts to metres for
+/// the player; content does not, and this box is content.
+fn number_rule(path: &[PathStep]) -> Option<NumberRule> {
+    let name = path.iter().rev().find_map(|step| match step {
+        PathStep::Field(name) => Some(name.as_str()),
+        _ => None,
+    })?;
+    let (unit, floor) = match name {
+        "illuminance" => ("lx", 0.0),
+        "health" => ("hp", 0.0),
+        "fire_rate" => ("/s", 0.0),
+        "size" | "width" | "range" => ("u", 0.0),
+        "steering_lag" | "delay" | "lifetime" | "cooldown" => ("s", 0.0),
+        // No unit anyone would recognise, but a floor all the same: negative
+        // mass and negative thrust are not values, they are typos.
+        "mass" | "magnitude" | "max_torque" => ("", 0.0),
+        name if name.ends_with("radius") || name.ends_with("height") => ("u", 0.0),
+        _ => return None,
+    };
+    Some(NumberRule { unit, floor })
+}
+
+/// Refuse a number under its field's floor, in the words the box will show.
+///
+/// Checked HERE rather than where a negative radius used to be found out - the
+/// spawn, at run time. The builder who typed it is the one who can fix it, and
+/// by then they are flying the range.
+///
+/// The reason is the RULE, in three characters, because it is shown where the
+/// unit stands: a sentence there would squeeze the box holding the number it
+/// is about down to four characters.
+fn check_floor(path: &[PathStep], value: &dyn PartialReflect) -> Result<(), String> {
+    let Some(rule) = number_rule(path) else {
+        return Ok(());
+    };
+    let number = value
+        .try_downcast_ref::<f32>()
+        .map(|number| f64::from(*number))
+        .or_else(|| value.try_downcast_ref::<f64>().copied());
+    let Some(number) = number else {
+        return Ok(());
+    };
+    if number >= f64::from(rule.floor) {
+        return Ok(());
+    }
+    Err(format!("min {}", number_text(f64::from(rule.floor))))
 }
 
 /// A path as the levels a builder reads it in: one segment per named step,
@@ -710,8 +787,10 @@ pub(crate) fn write_field(
         let wanted = if text.trim().is_empty() {
             DynamicEnum::new("None", DynamicVariant::Unit)
         } else {
+            let value = parse_leaf(&payload, text)?;
+            check_floor(path, value.as_ref())?;
             let mut fields = DynamicTuple::default();
-            fields.insert_boxed(parse_leaf(&payload, text)?);
+            fields.insert_boxed(value);
             DynamicEnum::new("Some", DynamicVariant::Tuple(fields))
         };
         return target
@@ -724,6 +803,7 @@ pub(crate) fn write_field(
         .type_path()
         .to_string();
     let value = parse_leaf(&type_path, text)?;
+    check_floor(path, value.as_ref())?;
     target
         .try_apply(value.as_ref())
         .map_err(|error| format!("refused: {error}"))
@@ -844,6 +924,7 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
         optional: false,
         group: Vec::new(),
         label: "Driver".to_string(),
+        unit: "",
         value: RowValue::Driver(ship.driver),
     }];
     rows.extend(pose_rows(pose));
@@ -880,6 +961,7 @@ pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<Inspecto
         optional: false,
         group: Vec::new(),
         label: "Name".to_string(),
+        unit: "",
         value: RowValue::Text(object.name.clone()),
     }];
     if let Some(config) = object_config(&object.kind) {
@@ -908,21 +990,28 @@ pub(crate) const TRANSFORM: &str = "Transform";
 /// mating snap, and a typed one would put a part where no socket is.
 fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
     vec![
-        axes_row(FieldRoot::Pose, "Position", pose.translation),
+        axes_row(FieldRoot::Pose, "Position", "u", pose.translation),
         // ROTATION, not heading: it is the node's rotation, and rotation is
-        // what every other editor calls that.
-        axes_row(FieldRoot::Rotation, "Rotation", rotation_degrees(pose)),
+        // what every other editor calls that. Both facts it used to keep in a
+        // doc comment - degrees, and which turn is which - are on screen.
+        axes_row(
+            FieldRoot::Rotation,
+            "Rotation",
+            "deg, yaw/pitch/roll",
+            rotation_degrees(pose),
+        ),
     ]
 }
 
 /// One vector row: three numbers, each in the form every other number wears.
-fn axes_row(root: FieldRoot, label: &str, value: Vec3) -> InspectorRow {
+fn axes_row(root: FieldRoot, label: &str, unit: &'static str, value: Vec3) -> InspectorRow {
     InspectorRow {
         root,
         path: Vec::new(),
         optional: false,
         group: vec![TRANSFORM.to_string()],
         label: label.to_string(),
+        unit,
         value: RowValue::Axes([value.x, value.y, value.z].map(|part| number_text(f64::from(part)))),
     }
 }

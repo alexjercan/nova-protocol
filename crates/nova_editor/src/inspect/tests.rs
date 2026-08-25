@@ -548,6 +548,68 @@ fn a_nested_row_is_a_group_path_and_a_short_label() {
     );
 }
 
+/// A bare number in a 64-character box says nothing about what it is. The
+/// rows that have a unit carry it; the rows that do not stay bare, rather than
+/// wearing a unit somebody guessed.
+#[test]
+fn a_number_carries_the_unit_it_is_typed_in() {
+    let rows = object_rows(&asteroid(stock_asteroid()), &Transform::default());
+
+    assert_eq!(row(&rows, "Radius").unit, "u", "a length is world units");
+    assert_eq!(
+        row(&rows, "Mass").unit,
+        "",
+        "a mass has a floor, not a unit"
+    );
+    assert_eq!(
+        row(&rows, "Invulnerable").unit,
+        "",
+        "a checkbox is not measured in anything"
+    );
+    assert_eq!(row(&rows, "Position").unit, "u");
+    assert_eq!(row(&rows, "Rotation").unit, "deg, yaw/pitch/roll");
+}
+
+/// The floor is refused at the box, and it is refused for an `Option` too - a
+/// mass that is authored-or-absent is still not authored NEGATIVE.
+#[test]
+fn a_number_under_its_floor_is_refused_with_the_reason() {
+    let mut config = stock_asteroid();
+
+    let refusal = write_field(
+        &mut config,
+        &[PathStep::Field("radius".to_string())],
+        false,
+        "-2",
+    )
+    .expect_err("a negative radius is not a radius");
+    assert_eq!(refusal, "min 0");
+    assert!(
+        (config.radius - stock_asteroid().radius).abs() < f32::EPSILON,
+        "and the config is left as it was"
+    );
+
+    let refusal = write_field(
+        &mut config,
+        &[PathStep::Field("mass".to_string())],
+        true,
+        "-1",
+    )
+    .expect_err("an optional number has the same floor");
+    assert_eq!(refusal, "min 0");
+
+    // The floor is a FLOOR, not a ban on the field: the same box takes a
+    // number above it.
+    write_field(
+        &mut config,
+        &[PathStep::Field("radius".to_string())],
+        false,
+        "9",
+    )
+    .expect("a radius above the floor is written");
+    assert!((config.radius - 9.0).abs() < f32::EPSILON);
+}
+
 /// A node's OWN fields sit in nothing, so there is no group over them.
 #[test]
 fn a_top_level_row_has_no_group() {

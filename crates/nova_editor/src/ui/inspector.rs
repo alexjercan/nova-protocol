@@ -84,6 +84,14 @@ pub(crate) struct InspectorField {
     optional: bool,
 }
 
+/// The unit beside a row's value, and what that slot says when the value is
+/// good.
+///
+/// A REFUSED edit borrows the slot for its reason. The panel has no line of its
+/// own to put a reason on, and the only other free space is the next row's.
+#[derive(Component)]
+pub(crate) struct InspectorUnit(&'static str);
+
 /// A checkbox standing for a `bool` field.
 #[derive(Component)]
 pub(crate) struct InspectorFlag;
@@ -336,16 +344,30 @@ fn axis_leads(root: FieldRoot) -> [(&'static str, Color); 3] {
     }
 }
 
-/// What a vector row's numbers ARE, where the letters cannot say it.
+/// The unit beside a value: what the number in the box is measured in.
 ///
-/// Both facts lived only in a doc comment: the numbers are degrees, and they
-/// are in yaw, pitch, roll order. A builder typing `90` into the first box was
-/// guessing at both.
-fn axes_unit(root: FieldRoot) -> &'static str {
-    match root {
-        FieldRoot::Rotation => "deg, yaw/pitch/roll",
-        _ => "",
-    }
+/// Muted and one step smaller than the value, because it is the same word on
+/// every row of its kind - it has to be readable without being read.
+fn unit_text(label: &str, unit: &'static str, slot: usize) -> impl Bundle {
+    (
+        Name::new(format!("Inspector Unit {label}")),
+        InspectorSlot(slot),
+        InspectorUnit(unit),
+        Text::new(unit),
+        TextLayout {
+            linebreak: LineBreak::NoWrap,
+            ..default()
+        },
+        TextFont {
+            font_size: FontSize::Px(10.0),
+            ..default()
+        },
+        TextColor(theme::PHOSPHOR_DIM),
+        Node {
+            flex_shrink: 0.0,
+            ..default()
+        },
+    )
 }
 
 /// One vector row: its name and unit on one line, then a box per axis.
@@ -362,7 +384,7 @@ fn spawn_axes_row(
     step: f32,
 ) {
     let leads = axis_leads(row.root);
-    let unit = axes_unit(row.root);
+    let unit = row.unit;
     let label = row.label.clone();
     list.spawn((
         Name::new(format!("Inspector Row {}", row.label)),
@@ -398,21 +420,7 @@ fn spawn_axes_row(
                     },
                     TextColor(theme::PHOSPHOR_MUTED),
                 ));
-                if !unit.is_empty() {
-                    line.spawn((
-                        Name::new(format!("Inspector Unit {label}")),
-                        Text::new(unit),
-                        TextLayout {
-                            linebreak: LineBreak::NoWrap,
-                            ..default()
-                        },
-                        TextFont {
-                            font_size: FontSize::Px(10.0),
-                            ..default()
-                        },
-                        TextColor(theme::PHOSPHOR_DIM),
-                    ));
-                }
+                line.spawn(unit_text(&label, unit, slot));
             });
         for (index, (lead, tint)) in leads.into_iter().enumerate() {
             let mut path = field.path.clone();
@@ -556,12 +564,25 @@ fn build_rows(
                         if row.optional {
                             spec = spec.placeholder("none");
                         }
-                        value.spawn((
-                            Name::new(format!("Inspector Field {}", row.label)),
-                            InspectorSlot(slot),
-                            field.clone(),
-                            text_field(spec),
-                        ));
+                        // The box sits in a slot of its own so the unit can
+                        // stand beside it: the field is `width: 100%`, and two
+                        // of those in one row is one of them off the panel.
+                        value
+                            .spawn(Node {
+                                flex_grow: 1.0,
+                                flex_basis: px(0),
+                                min_width: px(0),
+                                ..default()
+                            })
+                            .with_children(|box_slot| {
+                                box_slot.spawn((
+                                    Name::new(format!("Inspector Field {}", row.label)),
+                                    InspectorSlot(slot),
+                                    field.clone(),
+                                    text_field(spec),
+                                ));
+                            });
+                        value.spawn(unit_text(&row.label, row.unit, slot));
                     }
                     RowValue::Colour(text) => {
                         // The swatch comes FIRST so a column of them reads as a
@@ -700,9 +721,12 @@ pub(crate) fn sync_inspector(
     lists: Query<Entity, With<InspectorList>>,
     fresh: Query<(), Added<InspectorList>>,
     mut shown: Local<ShownInspector>,
+    // A field that is BEING typed into, or that refused what was typed, keeps
+    // its text: repainting the document value over a refusal would answer
+    // "min 0" with a number that is already fine.
     mut fields: Query<
         (&InspectorSlot, Option<&InspectorAxis>, &mut TextFieldValue),
-        Without<TextFieldFocused>,
+        (Without<TextFieldFocused>, Without<TextFieldError>),
     >,
     mut readouts: Query<
         (&InspectorSlot, &mut Text),
@@ -874,6 +898,33 @@ pub(crate) fn sync_inspector(
                 commands.entity(entity).remove::<Selected>();
             }
             _ => {}
+        }
+    }
+}
+
+/// Say WHY a box is red, in the slot the unit stands in.
+///
+/// Its own system rather than part of the repaint, because a refusal OUTLIVES
+/// the edit that caused it: the box keeps the refused text until it is
+/// corrected, and the reason has to keep with it.
+pub(crate) fn paint_field_reasons(
+    refused: Query<(&InspectorSlot, &TextFieldError)>,
+    mut units: Query<(&InspectorSlot, &InspectorUnit, &mut Text, &mut TextColor)>,
+) {
+    for (slot, unit, mut text, mut colour) in &mut units {
+        let reason = refused
+            .iter()
+            .find(|(refused, _)| refused.0 == slot.0)
+            .map(|(_, error)| error.0.as_str());
+        let (wanted, tint) = match reason {
+            Some(reason) => (reason, theme::semantic::THREAT),
+            None => (unit.0, theme::PHOSPHOR_DIM),
+        };
+        if text.0 != wanted {
+            text.0 = wanted.to_string();
+        }
+        if colour.0 != tint {
+            colour.0 = tint;
         }
     }
 }

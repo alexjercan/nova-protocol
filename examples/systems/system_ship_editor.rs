@@ -1320,6 +1320,54 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the rock's inspector reads {rows:?}");
         })
         .add()
+        // A radius has a floor, and the box is where it is enforced. A negative
+        // one used to be taken here and found out at spawn time, with the range
+        // already flying.
+        .click_a_widget(
+            "editor: reach for the radius again",
+            "Inspector Field Radius",
+        )
+        .step("editor: the radius field has the caret again")
+        .until(editor_field_focused())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: type a radius that is not one")
+        .on_enter(|world: &mut World| {
+            press_edit_key(Key::End)(world);
+            for _ in 0..8 {
+                press_edit_key(Key::Backspace)(world);
+            }
+            type_text("-5")(world);
+            press_edit_key(Key::Enter)(world);
+        })
+        .until(the_field_refuses("Inspector Field Radius", "min 0"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the refusal is on the box, and the rock is untouched")
+        .on_enter(|world: &mut World| {
+            assert_eq!(
+                inspector_reading(world, "Radius"),
+                "18",
+                "a refused number leaves the document as it was"
+            );
+            assert_eq!(
+                field_text(world, "Inspector Field Radius"),
+                "-5",
+                "the refused number stays in the box to be corrected"
+            );
+            assert_eq!(
+                text_of(world, "Inspector Unit Radius"),
+                "min 0",
+                "the reason stands where the unit does"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: a number under its floor is refused where it is typed",
+                serde_json::json!({}),
+            );
+            info!("editor: the radius box refused -5, kept it, and said why");
+        })
+        .add()
         // The pose is three boxes, and each one writes ONE number: this types
         // into the middle box and the beat after says the other two did not
         // move. A single `x, y, z` field could not make that claim.
@@ -2523,6 +2571,41 @@ fn aim_at_the_named(world: &mut World, name: &str) -> Option<Vec2> {
         .find(|(named, _)| named.as_str() == name)
         .map(|(_, pose)| pose.translation())?;
     aim_at_world(world, at)
+}
+
+/// Advance once the named box is showing `reason` as its refusal.
+///
+/// Read off the box's own `TextFieldError`, which is what the panel draws: the
+/// claim is that the builder who typed it is told, on the thing they typed
+/// into.
+#[cfg(feature = "debug")]
+fn the_field_refuses(name: &'static str, reason: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        let Some(entity) = named_entity(world, name) else {
+            return false;
+        };
+        world
+            .get::<nova_ui::prelude::TextFieldError>(entity)
+            .is_some_and(|error| error.0 == reason)
+    })
+}
+
+/// What the box named `name` is showing.
+#[cfg(feature = "debug")]
+fn field_text(world: &World, name: &str) -> String {
+    named_entity(world, name)
+        .and_then(|entity| world.get::<nova_ui::prelude::TextFieldValue>(entity))
+        .map(|value| value.0.clone())
+        .unwrap_or_default()
+}
+
+/// What the text node named `name` says.
+#[cfg(feature = "debug")]
+fn text_of(world: &World, name: &str) -> String {
+    named_entity(world, name)
+        .and_then(|entity| world.get::<Text>(entity))
+        .map(|text| text.0.clone())
+        .unwrap_or_default()
 }
 
 /// Advance once the rock's Position row reads `wanted` in its middle number.
