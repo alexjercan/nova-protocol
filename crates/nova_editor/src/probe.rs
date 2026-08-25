@@ -18,7 +18,10 @@ use crate::{
     node::{
         context_nodes, inside_id, sections_of, EditContext, ObjectNodes, SectionNodes, ShipNodes,
     },
-    ui::inspector::{Document, InspectorField},
+    ui::{
+        inspector::{Document, InspectorField},
+        menu::OpenMenu,
+    },
     ExampleStates,
 };
 
@@ -145,6 +148,12 @@ pub struct EditorProbe {
     /// Open - has no other visible outcome, so this is what a driven run waits
     /// on to know the verb ran and what it decided.
     pub status: String,
+    /// Which top-bar menu hangs open, or the empty string when none does.
+    ///
+    /// A menu is a MODE - it covers the stage, it takes the pointer, and
+    /// Escape's first rung is spent closing it - so a driven run that opens
+    /// one has to be able to see it close again.
+    pub open_menu: String,
     /// The id of the node the transform handles are ON, or `None` while they
     /// are off screen.
     ///
@@ -166,7 +175,9 @@ pub(crate) fn sync_editor_probe(
     sections: Option<Res<GameSections>>,
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
-    status: Res<EditorStatus>,
+    // Tupled for the same reason as `chrome` below: Bevy caps a system at 16
+    // params, and these two are one thing - what the chrome is saying.
+    readouts: (Res<EditorStatus>, Res<OpenMenu>),
     nodes: SectionNodes,
     q_ships: ShipNodes,
     q_objects: ObjectNodes,
@@ -180,6 +191,7 @@ pub(crate) fn sync_editor_probe(
     ),
     mut probe: ResMut<EditorProbe>,
 ) {
+    let (status, open_menu) = &readouts;
     let (caret, rig) = &chrome;
     let wanted = if *editor.get() == ExampleStates::Editor {
         let mut snapshot = snapshot(&choice, &preview, &gallery, sections.as_deref());
@@ -229,6 +241,10 @@ pub(crate) fn sync_editor_probe(
         snapshot.status = status
             .line()
             .map(|(line, _)| line.to_string())
+            .unwrap_or_default();
+        snapshot.open_menu = open_menu
+            .0
+            .map(|menu| menu.label().to_string())
             .unwrap_or_default();
         snapshot.inspector_focused = !caret.is_empty();
         snapshot.inspector = document
@@ -318,6 +334,7 @@ fn snapshot(
         visible_ships: Vec::new(),
         node_positions: Vec::new(),
         status: String::new(),
+        open_menu: String::new(),
         inspector_focused: false,
         inspector: Vec::new(),
         gizmo_node: None,
@@ -384,6 +401,7 @@ mod tests {
         // The line the snapshot reports. A fixture that never said anything
         // still has to have one for the sync to read.
         world.init_resource::<EditorStatus>();
+        world.init_resource::<OpenMenu>();
         world
             .run_system_once(sync_editor_probe)
             .expect("the probe sync runs");
@@ -781,6 +799,7 @@ mod tests {
         app.init_resource::<EditContext>();
         app.init_resource::<SelectedNode>();
         app.init_resource::<EditorStatus>();
+        app.init_resource::<OpenMenu>();
         app.init_resource::<EditorProbe>();
         app.add_systems(
             Update,

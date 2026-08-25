@@ -703,7 +703,12 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
 }
 
 /// The trailing amber key-chip span (`Enter`/`Esc`), bordered per the demo.
-fn key_chip(text: &str, font_size: f32) -> impl Bundle {
+///
+/// Public because a chip is how this UI draws A KEY, and buttons are not the
+/// only surface that names one: the editor's menu rows and its key legend say
+/// the same thing about the same keyboard, and a second drawing of a chip
+/// would be a second answer to what a key looks like.
+pub fn key_chip(text: &str, font_size: f32) -> impl Bundle {
     (
         Node {
             margin: UiRect::left(px(8)),

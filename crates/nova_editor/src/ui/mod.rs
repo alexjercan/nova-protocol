@@ -16,7 +16,10 @@ pub(crate) mod rail;
 pub(crate) mod window;
 
 use bevy::{
-    ecs::relationship::RelatedSpawnerCommands,
+    ecs::{
+        relationship::{RelatedSpawner, RelatedSpawnerCommands},
+        spawn::SpawnWith,
+    },
     picking::mesh_picking::MeshPickingCamera,
     prelude::*,
     ui::InteractionDisabled,
@@ -26,7 +29,7 @@ use nova_assets::prelude::*;
 use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{panel, panel_header, separator, themed_button, UiSkin},
+    prelude::{key_chip, panel, panel_header, separator, themed_button, UiSkin},
     theme,
     widget::{checkbox_colors, checkbox_glyph, Selected},
 };
@@ -40,22 +43,23 @@ use crate::{
     },
     frame::{ask_for, on_frame_selection, FrameRequest, FrameSelectionItem},
     gallery::{EditorCamera, EditorChrome, GalleryAction},
-    keybind::on_rebind_action,
+    keybind::{on_rebind_action, EditorRebind},
     node::{
         objects_of, reset_document, sections_of, EditContext, NodeId, ObjectChoice, ObjectNode,
         ObjectNodes, ScenarioNode, SectionNode, SectionNodes, ShipDriver, ShipNode, ShipNodes,
     },
     placement::{
-        continue_to_simulation, create_blank_ship, create_scenario_object, delete_selected_node,
-        toggle_delete_tool,
+        continue_to_simulation, create_blank_ship, create_scenario_object, cycle_armed_socket,
+        delete_selected_node, put_armed_part_down, roll_armed_part, toggle_delete_tool,
     },
     ui::{
-        inspector::inspector_panel,
+        inspector::{inspector_panel, PANEL_W as INSPECTOR_W},
         menu::{
             back_to_main_menu, menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim,
             menu_z, on_menu_button, on_menu_scrim, toggle_key_legend, toggle_link_points,
-            toggle_object_volumes, toggle_world_grid, MenuDeleteItem, MenuDeletePartsItem,
-            MenuDropdown, MenuId, ShipMenuItem, ViewToggle,
+            toggle_object_volumes, toggle_world_grid, ArmedMenuItem, MenuDeleteItem,
+            MenuDeletePartsItem, MenuDropdown, MenuId, MenuTail, OpenMenu, ShipMenuItem,
+            ViewToggle,
         },
         rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint},
         window::window_layer,
@@ -76,30 +80,30 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
         MenuId::File => {
             items.spawn((
                 Name::new("New Scenario Item"),
-                menu_item_row("New Scenario", None, skin),
+                menu_item_row("New Scenario", MenuTail::None, skin),
                 observe(reset_document),
             ));
             items.spawn((
                 Name::new("Save Item"),
-                menu_item_row("Save", Some("Ctrl+S"), skin),
+                menu_item_row("Save", MenuTail::Key("Ctrl+S"), skin),
                 observe(ask_to_save),
             ));
             items.spawn((
                 Name::new("Open Item"),
-                menu_item_row("Open", None, skin),
+                menu_item_row("Open", MenuTail::None, skin),
                 observe(ask_to_open),
             ));
             // Still greyed: Save As needs a name to save under and a place to
             // type it, and there is one save slot until it has both.
             items.spawn((
                 Name::new("Save As... Item"),
-                menu_item_row("Save As...", None, skin),
+                menu_item_row("Save As...", MenuTail::None, skin),
                 InteractionDisabled,
             ));
             items.spawn(separator());
             items.spawn((
                 Name::new("Back To Main Menu Item"),
-                menu_item_row("Back to Main Menu", None, skin),
+                menu_item_row("Back to Main Menu", MenuTail::None, skin),
                 observe(back_to_main_menu),
             ));
         }
@@ -107,7 +111,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             for label in ["Undo", "Redo"] {
                 items.spawn((
                     Name::new(format!("{label} Item")),
-                    menu_item_row(label, None, skin),
+                    menu_item_row(label, MenuTail::None, skin),
                     InteractionDisabled,
                 ));
             }
@@ -115,7 +119,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Delete Item"),
                 MenuDeleteItem,
-                menu_item_row("Delete", None, skin),
+                menu_item_row("Delete", MenuTail::None, skin),
                 observe(delete_selected_node),
             ));
         }
@@ -123,32 +127,32 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Key Legend Item"),
                 ViewToggle::KeyLegend,
-                menu_item_row("Key Legend", Some("on"), skin),
+                menu_item_row("Key Legend", MenuTail::Word("on"), skin),
                 observe(toggle_key_legend),
             ));
             items.spawn((
                 Name::new("Link Points Item"),
                 ViewToggle::LinkPoints,
-                menu_item_row("Link Points", Some("on"), skin),
+                menu_item_row("Link Points", MenuTail::Word("on"), skin),
                 observe(toggle_link_points),
             ));
             items.spawn((
                 Name::new("World Grid Item"),
                 ViewToggle::WorldGrid,
-                menu_item_row("World Grid", Some("on"), skin),
+                menu_item_row("World Grid", MenuTail::Word("on"), skin),
                 observe(toggle_world_grid),
             ));
             items.spawn((
                 Name::new("Object Volumes Item"),
                 ViewToggle::ObjectVolumes,
-                menu_item_row("Object Volumes", Some("on"), skin),
+                menu_item_row("Object Volumes", MenuTail::Word("on"), skin),
                 observe(toggle_object_volumes),
             ));
             items.spawn(separator());
             items.spawn((
                 Name::new("Frame Selection Item"),
                 FrameSelectionItem,
-                menu_item_row("Frame Selection", Some("F"), skin),
+                menu_item_row("Frame Selection", MenuTail::Key("F"), skin),
                 observe(on_frame_selection),
             ));
         }
@@ -160,7 +164,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 Name::new("Parts Item"),
                 ShipMenuItem,
                 GalleryAction::Open,
-                menu_item_row("Parts...", Some("Tab"), skin),
+                menu_item_row("Parts...", MenuTail::Key("Tab"), skin),
             ));
             items.spawn((
                 Name::new("Delete Parts Item"),
@@ -168,14 +172,36 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 MenuDeletePartsItem,
                 // The right-hand column is the tool's on/off mark, so this row
                 // takes no shortcut text: `sync_tool_menu_mark` writes it.
-                menu_item_row("Delete Parts", None, skin),
+                menu_item_row("Delete Parts", MenuTail::None, skin),
                 observe(toggle_delete_tool),
+            ));
+            items.spawn(separator());
+            // The pose verbs. They live only in a legend View can switch off,
+            // and R/F/wheel are named nowhere else in the editor - so they get
+            // rows, greyed until there is a part in hand for them to turn.
+            items.spawn((
+                Name::new("Roll The Part Item"),
+                ArmedMenuItem,
+                menu_item_row("Roll the Part (or wheel)", MenuTail::Key("R"), skin),
+                observe(roll_armed_part),
+            ));
+            items.spawn((
+                Name::new("Cycle The Socket Item"),
+                ArmedMenuItem,
+                menu_item_row("Cycle the Socket (or Ctrl+wheel)", MenuTail::Key("F"), skin),
+                observe(cycle_armed_socket),
+            ));
+            items.spawn((
+                Name::new("Put The Part Down Item"),
+                ArmedMenuItem,
+                menu_item_row("Put the Part Down", MenuTail::Key("Esc"), skin),
+                observe(put_armed_part_down),
             ));
             items.spawn(separator());
             items.spawn((
                 Name::new("Rebind Key Item"),
                 RebindButton,
-                menu_item_row("Rebind Key", None, skin),
+                menu_item_row("Rebind Key", MenuTail::None, skin),
                 observe(on_rebind_action),
             ));
         }
@@ -186,7 +212,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             // made two names for one question.
             items.spawn((
                 Name::new("Add Ship Button"),
-                menu_item_row("Ship", None, skin),
+                menu_item_row("Ship", MenuTail::None, skin),
                 observe(create_blank_ship),
             ));
             items.spawn(separator());
@@ -194,7 +220,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 items.spawn((
                     Name::new(format!("Add {}", choice.label())),
                     choice,
-                    menu_item_row(choice.label(), None, skin),
+                    menu_item_row(choice.label(), MenuTail::None, skin),
                     observe(create_scenario_object),
                 ));
             }
@@ -592,6 +618,24 @@ pub(crate) fn setup_editor_scene(
                                 skin_toggle_row(clad, skin),
                                 observe(on_skin_toggle),
                             ));
+                            // The sentence that used to hide in the key legend.
+                            // It is a fact about THIS setting - the cladding
+                            // reflows around the part in hand - so it belongs
+                            // under the row it is about, not in a line of keys
+                            // View can switch off.
+                            settings.spawn((
+                                Name::new("Ship Skin Note"),
+                                Text::new("reflows around the part in hand"),
+                                TextFont {
+                                    font_size: FontSize::Px(11.0),
+                                    ..default()
+                                },
+                                TextColor(theme::PHOSPHOR_MUTED),
+                                Node {
+                                    margin: UiRect::bottom(px(4)),
+                                    ..default()
+                                },
+                            ));
                             // Under the toggle, and shown only while it is on,
                             // because it answers the question the toggle
                             // raises: the skin is on, and this is which of the
@@ -675,9 +719,15 @@ pub(crate) fn setup_editor_scene(
             root.spawn(scene_tooltip(skin));
             root.spawn(window_layer());
 
-            // The key legend, bottom-left and out of the build area. Contextual
-            // (see `sync_key_legend`): a builder holding a part needs the pose
-            // keys, and one in select mode needs to be told the pipette exists.
+            // The key legend, along the bottom between the rail and the
+            // Inspector. Contextual (see `sync_key_legend`): a builder holding
+            // a part needs the pose keys, and one in select mode needs to be
+            // told the pipette exists.
+            //
+            // BOUNDED, not free-flowing: `right` pins it off the Inspector's
+            // border, and every hint is one fixed-width cell that clips its own
+            // overflow. A line that grew with its content used to run off the
+            // window and be cut mid-word.
             root.spawn((
                 Name::new("Editor Key Legend"),
                 EditorKeyLegend,
@@ -689,15 +739,21 @@ pub(crate) fn setup_editor_scene(
                     position_type: PositionType::Absolute,
                     bottom: px(8),
                     left: px(RAIL_W + 12.0),
+                    right: px(INSPECTOR_W + 12.0),
+                    flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::Wrap,
+                    align_items: AlignItems::Center,
+                    column_gap: px(10),
+                    row_gap: px(4),
                     ..default()
                 },
                 GlobalZIndex(10),
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(12.0),
-                    ..default()
-                },
-                TextColor(theme::PHOSPHOR_MUTED),
+                Children::spawn(SpawnWith(move |cells: &mut RelatedSpawner<ChildOf>| {
+                    cells.spawn(legend_mode_cell());
+                    for index in 0..LEGEND_CELLS {
+                        cells.spawn(legend_cell(index));
+                    }
+                })),
             ));
         });
 }
@@ -1344,52 +1400,257 @@ pub(crate) fn sync_skin_toggle(
     }
 }
 
+/// How many hint cells the legend carries.
+///
+/// Spawned once and written every frame rather than rebuilt per context: the
+/// longest line needs this many, the shorter ones hide the rest, and a legend
+/// that despawned and respawned its children would spend a frame empty every
+/// time a part was picked up.
+const LEGEND_CELLS: usize = 8;
+
+/// The width a hint cell holds even when its words are shorter, so the hints
+/// line up into columns rather than into a paragraph.
+///
+/// A FLOOR, not a fixed width: the line wraps inside the gap between the rail
+/// and the Inspector, so a hint too long for its column widens its own cell
+/// instead of pushing the line off the window.
+const LEGEND_CELL_W: f32 = 100.0;
+
+/// The legend's leading cell: which mode the keys below belong to.
+///
+/// Needed because one key means two things. `F` frames the selection in select
+/// mode and cycles the socket with a part in hand, and the legend that named
+/// only the key could not say which one this press would be.
+#[derive(Component)]
+pub(crate) struct LegendMode;
+
+/// One hint cell, found by its place in the line.
+#[derive(Component)]
+pub(crate) struct LegendCell(usize);
+
+/// The mode cell: an amber word, wider than a hint because it carries a phrase.
+fn legend_mode_cell() -> impl Bundle {
+    (
+        Name::new("Legend Mode"),
+        LegendMode,
+        Node {
+            margin: UiRect::right(px(4)),
+            ..default()
+        },
+        Text::new(""),
+        TextFont {
+            font_size: FontSize::Px(12.0),
+            ..default()
+        },
+        TextColor(theme::AMBER_NOVA),
+    )
+}
+
+/// One hint: the key as the chip every other surface draws a key as, and what
+/// it does beside it.
+fn legend_cell(index: usize) -> impl Bundle {
+    (
+        Name::new(format!("Legend Cell {index}")),
+        LegendCell(index),
+        Node {
+            min_width: px(LEGEND_CELL_W),
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(6),
+            ..default()
+        },
+        children![
+            (LegendChip, key_chip("", 12.0)),
+            (
+                LegendLabel,
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR_MUTED),
+            ),
+        ],
+    )
+}
+
+/// The chip half of a hint cell, and the words half.
+#[derive(Component)]
+pub(crate) struct LegendChip;
+#[derive(Component)]
+pub(crate) struct LegendLabel;
+
+/// One hint: a key and what it does, in the one grammar the whole editor uses -
+/// the key as it is typed, then a lowercase verb phrase.
+type Hint = (&'static str, &'static str);
+
+/// What the next Escape would take.
+///
+/// Escape has five rungs and the legend used to name one of them. It is a back
+/// key, so the only useful thing it can say is what THIS press does - which is
+/// a fact the ladder in `crate::escape_backs_out` already decides and nothing
+/// else on screen reports.
+fn escape_rung(rebinding: bool, menu_open: bool, armed: bool, inside_ship: bool) -> &'static str {
+    match (rebinding, menu_open, armed, inside_ship) {
+        (true, _, _, _) => "cancel the rebind",
+        (_, true, _, _) => "close the menu",
+        (_, _, true, _) => "put the part down",
+        (_, _, _, true) => "leave the ship",
+        _ => "pause",
+    }
+}
+
 /// Keep the key legend in step with the armed tool AND the edit context.
 ///
 /// Keyed on both because the same keys mean different things per level: at the
 /// scenario node there are no parts to arm and Escape falls through to pause,
-/// while inside a ship Tab browses parts and Escape backs out one rung. The
-/// old single line told a builder at the scenario node about a pipette that
-/// disarms instantly, and told one inside a ship that Escape would pause.
+/// while inside a ship Tab browses parts and Escape backs out one rung.
+///
+/// WHAT IS LEFT HERE is what no other surface can carry: the pointer gestures
+/// and the free-fly rig, which belong to no row and no menu, plus the rung the
+/// next Escape takes. Every verb a menu row can name now lives on that row
+/// with its key beside it.
 ///
 /// Compared before writing rather than gated on a change: the legend is
 /// spawned on entering the editor, which is not necessarily a frame the tool
 /// or the context changed on.
 ///
 /// View > Key Legend hides it. The line is still kept current while hidden -
-/// it costs one string compare, and turning the legend back on has to show
-/// what the editor is doing NOW, not what it was doing when it was switched
-/// off.
+/// it costs a few string compares, and turning the legend back on has to show
+/// what the editor is doing NOW.
 pub(crate) fn sync_key_legend(
     selection: Res<SectionChoice>,
     context: Res<EditContext>,
     overlays: Res<EditorOverlays>,
-    mut legend: Query<(&mut Text, &mut Node), With<EditorKeyLegend>>,
+    rebind: Res<EditorRebind>,
+    open_menu: Res<OpenMenu>,
+    legend: Query<(&mut Node, &Children), With<EditorKeyLegend>>,
+    mut modes: Query<&mut Text, With<LegendMode>>,
+    cells: Query<(&LegendCell, &Children)>,
+    chips: Query<&Children, With<LegendChip>>,
+    mut nodes: Query<&mut Node, Without<EditorKeyLegend>>,
+    mut texts: Query<&mut Text, Without<LegendMode>>,
 ) {
-    let line = match (&*selection, context.ship().is_some()) {
-        (SectionChoice::None, false) => {
-            "LMB select   LMB x2 enter   drag or a handle moves it   F frame   \
-             RMB+drag look   WASD/Space/Shift fly   Esc pause"
-        }
-        (SectionChoice::None, true) => {
-            "Tab parts   LMB select   Q pick   F frame   RMB+drag look   \
-             WASD/Space/Shift fly   Rebind acts on the selection   Esc leave"
-        }
-        (SectionChoice::Section(_), _) => {
-            "LMB place   wheel roll   Ctrl+wheel socket   R roll   F socket   Q pick   \
-             Tab parts   Ship Skin reflows as you aim   Esc put down"
-        }
-        (SectionChoice::Delete, _) => "LMB delete   Q pick a part   Tab parts   Esc put down",
+    let inside = context.ship().is_some();
+    let escape = escape_rung(
+        rebind.target.is_some(),
+        open_menu.0.is_some(),
+        *selection != SectionChoice::None,
+        inside,
+    );
+    // The pointer and the rig, then the one key that changes meaning with the
+    // rung it is on. Ordered so the gestures a builder is about to make come
+    // first and the way out comes last.
+    let (mode, hints): (&str, &[Hint]) = match (&*selection, inside) {
+        (SectionChoice::None, false) => (
+            "SELECT",
+            &[
+                ("LMB", "select"),
+                ("LMB x2", "enter"),
+                ("drag", "move it"),
+                ("RMB+drag", "look"),
+                ("WASD", "fly"),
+                ("Space/Shift", "up and down"),
+            ],
+        ),
+        (SectionChoice::None, true) => (
+            "IN A SHIP",
+            &[
+                ("LMB", "select"),
+                ("LMB x2", "leave"),
+                ("Q", "pick a part"),
+                ("RMB+drag", "look"),
+                ("WASD", "fly"),
+                ("Space/Shift", "up and down"),
+            ],
+        ),
+        (SectionChoice::Section(_), _) => (
+            "PART IN HAND",
+            &[
+                ("LMB", "place it"),
+                ("Q", "pick a part"),
+                ("RMB+drag", "look"),
+                ("WASD", "fly"),
+                ("Space/Shift", "up and down"),
+            ],
+        ),
+        (SectionChoice::Delete, _) => (
+            "DELETING PARTS",
+            &[
+                ("LMB", "delete it"),
+                ("Q", "pick a part"),
+                ("RMB+drag", "look"),
+                ("WASD", "fly"),
+                ("Space/Shift", "up and down"),
+            ],
+        ),
     };
+    for mut text in &mut modes {
+        if text.0 != mode {
+            text.0 = mode.to_string();
+        }
+    }
     let display = if overlays.key_legend {
         Display::Flex
     } else {
         Display::None
     };
-    for (mut text, mut node) in &mut legend {
-        if text.0 != line {
-            text.0 = line.to_string();
+    let Ok((mut root, children)) = legend.single_inner() else {
+        return;
+    };
+    if root.display != display {
+        root.display = display;
+    }
+    for &child in children {
+        let Ok((cell, parts)) = cells.get(child) else {
+            continue;
+        };
+        // Escape is always the LAST hint, whatever the mode: it is the way
+        // back, and a way back that moved along the line as the context
+        // changed would be a key you had to look for.
+        let hint = if cell.0 == hints.len() {
+            Some(("Esc", escape))
+        } else {
+            hints.get(cell.0).copied()
+        };
+        write_legend_cell(child, hint, parts, &chips, &mut nodes, &mut texts);
+    }
+}
+
+/// Write one cell, or hide it when this mode has no hint for it.
+fn write_legend_cell(
+    cell: Entity,
+    hint: Option<Hint>,
+    parts: &Children,
+    chips: &Query<&Children, With<LegendChip>>,
+    nodes: &mut Query<&mut Node, Without<EditorKeyLegend>>,
+    texts: &mut Query<&mut Text, Without<LegendMode>>,
+) {
+    for (place, part) in parts.iter().enumerate() {
+        let wanted = match (place, hint) {
+            (0, Some((key, _))) => key,
+            (_, Some((_, label))) => label,
+            (_, None) => "",
+        };
+        // A chip's word is one level down, inside the bordered box; the label
+        // beside it is the text itself.
+        let target = chips
+            .get(part)
+            .ok()
+            .and_then(|kids| kids.first().copied())
+            .unwrap_or(part);
+        if let Ok(mut text) = texts.get_mut(target) {
+            if text.0 != wanted {
+                text.0 = wanted.to_string();
+            }
         }
+    }
+    let display = if hint.is_some() {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    if let Ok(mut node) = nodes.get_mut(cell) {
         if node.display != display {
             node.display = display;
         }
@@ -2215,5 +2476,124 @@ mod tests {
             "a row with no ordinal spends nothing on the trailing column: {:?}",
             row_columns(&mut app)
         );
+    }
+
+    /// Escape is a back key with five rungs, so the only useful thing it can
+    /// say is which one this press takes.
+    #[test]
+    fn escape_names_the_rung_the_next_press_takes() {
+        assert_eq!(escape_rung(true, true, true, true), "cancel the rebind");
+        assert_eq!(escape_rung(false, true, true, true), "close the menu");
+        assert_eq!(escape_rung(false, false, true, true), "put the part down");
+        assert_eq!(escape_rung(false, false, false, true), "leave the ship");
+        assert_eq!(escape_rung(false, false, false, false), "pause");
+    }
+
+    /// The legend spawns one cell per hint the longest mode needs, and every
+    /// mode leaves room for Escape at the end of the line.
+    #[test]
+    fn every_mode_fits_in_the_cells_the_legend_has() {
+        let mut app = legend_app();
+        for (choice, inside) in [
+            (SectionChoice::None, false),
+            (SectionChoice::None, true),
+            (SectionChoice::Section("hull".to_string()), true),
+            (SectionChoice::Delete, true),
+        ] {
+            *app.world_mut().resource_mut::<SectionChoice>() = choice.clone();
+            enter_ship(app.world_mut(), inside);
+            app.update();
+            let shown = shown_hints(&mut app);
+            assert!(
+                shown.len() <= LEGEND_CELLS,
+                "{choice:?} inside={inside} wants {} cells, the legend has {LEGEND_CELLS}",
+                shown.len()
+            );
+            assert_eq!(
+                shown.last().map(|(key, _)| key.as_str()),
+                Some("Esc"),
+                "the way back is the last hint in every mode: {shown:?}"
+            );
+        }
+    }
+
+    /// The one key that means two things says which one it means now - not by
+    /// naming the key twice, but by naming the mode the keys belong to.
+    #[test]
+    fn the_legend_names_the_mode_its_keys_belong_to() {
+        let mut app = legend_app();
+        enter_ship(app.world_mut(), true);
+        app.update();
+        assert_eq!(legend_mode(&mut app), "IN A SHIP");
+
+        *app.world_mut().resource_mut::<SectionChoice>() = SectionChoice::Section("hull".into());
+        app.update();
+        assert_eq!(legend_mode(&mut app), "PART IN HAND");
+    }
+
+    /// A legend with the cells up and the sync running.
+    fn legend_app() -> App {
+        let mut app = App::new();
+        app.init_resource::<SectionChoice>();
+        app.init_resource::<EditContext>();
+        app.init_resource::<EditorOverlays>();
+        app.init_resource::<EditorRebind>();
+        app.init_resource::<OpenMenu>();
+        app.add_systems(Update, sync_key_legend);
+        app.world_mut()
+            .spawn((
+                EditorKeyLegend,
+                Node::default(),
+                Children::spawn(SpawnWith(move |cells: &mut RelatedSpawner<ChildOf>| {
+                    cells.spawn(legend_mode_cell());
+                    for index in 0..LEGEND_CELLS {
+                        cells.spawn(legend_cell(index));
+                    }
+                })),
+            ))
+            .id();
+        app
+    }
+
+    /// Put the context inside a ship, or out at the scenario node.
+    fn enter_ship(world: &mut World, inside: bool) {
+        let scenario = world.spawn(ScenarioNode).id();
+        let mut context = world.resource_mut::<EditContext>();
+        context.path = if inside {
+            vec![scenario, scenario]
+        } else {
+            vec![scenario]
+        };
+    }
+
+    /// Every hint the legend is showing, in the order the line reads.
+    fn shown_hints(app: &mut App) -> Vec<(String, String)> {
+        let world = app.world_mut();
+        let mut cells = world.query::<(&LegendCell, &Node, &Children)>();
+        let mut shown: Vec<(usize, (String, String))> = cells
+            .iter(world)
+            .filter(|(_, node, _)| node.display != Display::None)
+            .map(|(cell, _, parts)| {
+                let chip = world
+                    .get::<Children>(parts[0])
+                    .expect("the chip holds its word")[0];
+                (
+                    cell.0,
+                    (
+                        world.get::<Text>(chip).expect("the key").0.clone(),
+                        world.get::<Text>(parts[1]).expect("the label").0.clone(),
+                    ),
+                )
+            })
+            .collect();
+        shown.sort_by_key(|(index, _)| *index);
+        shown.into_iter().map(|(_, hint)| hint).collect()
+    }
+
+    /// The word over the keys.
+    fn legend_mode(app: &mut App) -> String {
+        let world = app.world_mut();
+        let mut modes = world.query_filtered::<&Text, With<LegendMode>>();
+        modes.single(world).expect("one mode cell").0.clone()
     }
 }

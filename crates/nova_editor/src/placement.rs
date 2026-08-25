@@ -249,6 +249,43 @@ pub(crate) fn toggle_delete_tool(_activate: On<Activate>, mut choice: ResMut<Sec
     };
 }
 
+/// Ship > Roll the Part: one step of the same roll the R key and the wheel take.
+///
+/// A menu row for a pose verb rather than only a key, because R, F and the
+/// wheel were named in one legend a builder can switch off. Inert with nothing
+/// in hand, which is also when [`crate::ui::menu::sync_armed_menu`] greys it.
+pub(crate) fn roll_armed_part(
+    _activate: On<Activate>,
+    selection: Res<SectionChoice>,
+    sections: Res<GameSections>,
+    mut pose: ResMut<PlacementPose>,
+) {
+    if armed_socket_count(&selection, &sections).is_none() {
+        return;
+    }
+    pose.roll = step_cycle(pose.roll as usize, 4, false) as u32;
+}
+
+/// Ship > Cycle the Socket: one step of what the F key and Ctrl+wheel take.
+pub(crate) fn cycle_armed_socket(
+    _activate: On<Activate>,
+    selection: Res<SectionChoice>,
+    sections: Res<GameSections>,
+    mut pose: ResMut<PlacementPose>,
+) {
+    let Some(sockets) = armed_socket_count(&selection, &sections) else {
+        return;
+    };
+    if sockets > 0 {
+        pose.source = step_cycle(pose.source % sockets, sockets, false);
+    }
+}
+
+/// Ship > Put the Part Down: the same rung Escape takes with a part in hand.
+pub(crate) fn put_armed_part_down(_activate: On<Activate>, mut choice: ResMut<SectionChoice>) {
+    *choice = SectionChoice::None;
+}
+
 /// FOUND an empty ship: with a part armed and nothing under the pointer, a
 /// click drops the first section at the ship's own origin.
 ///

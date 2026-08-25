@@ -261,13 +261,17 @@ pub(crate) fn rebuild_gallery(
                 UiText,
                 // Contextual: the focus card's controls are not the grid's, and
                 // a hint line that lists both is one nobody reads.
+                // One grammar with the editor's key legend: the key as it is
+                // typed, then a lowercase verb phrase. `Q` was "take it" here
+                // and "pick a part" on the stage, which is two names for one
+                // gesture.
                 Text::new(if state.focused {
-                    "drag: turn   wheel: zoom   arrows: next part   Enter: place   Esc: back"
+                    "drag turn it   wheel zoom   arrows next part   Enter place it   Esc back"
                 } else if state.filter_focused {
-                    "type: filter   Enter: the top hit   Esc: leave the field"
+                    "type filter   Enter the top hit   Esc leave the field"
                 } else {
-                    "hover + Q: take it   arrows: select   Enter: focus   /: filter   \
-                     Esc/Tab: close"
+                    "Q pick the hovered part   arrows select   Enter focus   / filter   \
+                     Esc/Tab close"
                 }),
                 TextFont {
                     font_size: FontSize::Px(12.0),

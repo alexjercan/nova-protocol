@@ -13,6 +13,7 @@
 //! nothing at all.
 
 use bevy::{
+    ecs::{hierarchy::ChildOf, relationship::RelatedSpawner, spawn::SpawnWith},
     picking::hover::Hovered,
     prelude::*,
     ui::InteractionDisabled,
@@ -22,7 +23,7 @@ use nova_gameplay::prelude::GameStates;
 use nova_ui::{
     prelude::UiSkin,
     theme,
-    widget::{list_row_colors, ListRow},
+    widget::{key_chip, list_row_colors, ListRow},
 };
 
 use crate::config::{EditorOverlays, SelectedNode};
@@ -120,12 +121,38 @@ pub(crate) fn menu_dropdown_node() -> Node {
     }
 }
 
+/// What a row's right-hand column carries.
+///
+/// One column, three things it could be, and until now no way to tell them
+/// apart: a key looked exactly like a toggle's state. A KEY is drawn as the
+/// chip every other surface in the game draws a key as; a WORD is the row's
+/// own state, in the muted tone a label wears.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) enum MenuTail<'a> {
+    /// Nothing to say.
+    #[default]
+    None,
+    /// The key that runs this row.
+    Key(&'a str),
+    /// A word about the row itself - a toggle's `on`/`off`, an unbuilt row's
+    /// `soon`.
+    Word(&'a str),
+}
+
+/// The chip half of a row's tail, so the paint pass can find it.
+#[derive(Component)]
+pub(crate) struct MenuKeyChip;
+
+/// The font size a row's tail is drawn at.
+const TAIL_FONT: f32 = 11.0;
+
 /// One item row: the same `ListRow` shape the rail's rows wear, so the shared
 /// reconciler paints the hover and this module owns no colour.
 ///
-/// `shortcut` is drawn muted on the right when there is one - the key that
-/// does the same thing, which is how a menu teaches its own keyboard.
-pub(crate) fn menu_item_row(label: &str, shortcut: Option<&str>, skin: UiSkin) -> impl Bundle {
+/// Every row has exactly two children - the label and the tail - so
+/// [`sync_menu_item_paint`] and [`sync_view_menu_marks`] can reach either by
+/// position rather than by search.
+pub(crate) fn menu_item_row(label: &str, tail: MenuTail, skin: UiSkin) -> impl Bundle {
     let (background, border) = list_row_colors(false, false, skin);
     (
         ListRow,
@@ -156,16 +183,54 @@ pub(crate) fn menu_item_row(label: &str, shortcut: Option<&str>, skin: UiSkin) -
                 },
                 TextColor(ITEM_LABEL),
             ),
-            (
-                Text::new(shortcut.unwrap_or_default().to_string()),
-                TextFont {
-                    font_size: FontSize::Px(11.0),
-                    ..default()
-                },
-                TextColor(ITEM_MARK),
-            )
+            menu_item_tail(tail),
         ],
     )
+}
+
+/// The row's right-hand column.
+///
+/// Always spawned, even when there is nothing to say: the paint pass and the
+/// toggle marks both reach the tail as the row's second child, and a row that
+/// sometimes has one child would make that a search.
+fn menu_item_tail(tail: MenuTail) -> impl Bundle {
+    let tail = tail.owned();
+    (
+        Node::default(),
+        Children::spawn(SpawnWith(
+            move |parent: &mut RelatedSpawner<ChildOf>| match &tail {
+                OwnedTail::Key(key) => {
+                    parent.spawn((MenuKeyChip, key_chip(key, TAIL_FONT + 2.0)));
+                }
+                OwnedTail::Word(word) => {
+                    parent.spawn((
+                        Text::new(word.clone()),
+                        TextFont {
+                            font_size: FontSize::Px(TAIL_FONT),
+                            ..default()
+                        },
+                        TextColor(ITEM_MARK),
+                    ));
+                }
+            },
+        )),
+    )
+}
+
+/// [`MenuTail`] with the string it borrowed, so the spawn closure can own it.
+enum OwnedTail {
+    Key(String),
+    Word(String),
+}
+
+impl MenuTail<'_> {
+    fn owned(self) -> OwnedTail {
+        match self {
+            MenuTail::Key(key) => OwnedTail::Key(key.to_string()),
+            MenuTail::Word(word) => OwnedTail::Word(word.to_string()),
+            MenuTail::None => OwnedTail::Word(String::new()),
+        }
+    }
 }
 
 /// Press a bar button: open its menu, or close it if it was already the open
@@ -309,6 +374,7 @@ pub(crate) fn toggle_object_volumes(_activate: On<Activate>, mut overlays: ResMu
 pub(crate) fn sync_view_menu_marks(
     overlays: Res<EditorOverlays>,
     marks: Query<(&ViewToggle, &Children)>,
+    tails: Query<&Children>,
     mut texts: Query<&mut Text>,
 ) {
     for (toggle, children) in &marks {
@@ -318,10 +384,10 @@ pub(crate) fn sync_view_menu_marks(
             ViewToggle::WorldGrid => overlays.world_grid,
             ViewToggle::ObjectVolumes => overlays.object_volumes,
         };
-        let Some(mark) = children.iter().nth(1) else {
+        let Some(word) = tail_word(children, &tails) else {
             continue;
         };
-        let Ok(mut text) = texts.get_mut(mark) else {
+        let Ok(mut text) = texts.get_mut(word) else {
             continue;
         };
         let wanted = if on { "on" } else { "off" };
@@ -356,25 +422,62 @@ const ITEM_MARK: Color = theme::PHOSPHOR_MUTED;
 const DISABLED_ALPHA: f32 = 0.35;
 
 /// Paint every menu row from whether it can be pressed.
+///
+/// The tail is reached through its wrapper rather than painted directly: a key
+/// chip is a bordered box around its own text, so a greyed row has to take the
+/// border down with the letter or the row reads as live from the one thing on
+/// it that is coloured.
 pub(crate) fn sync_menu_item_paint(
     items: Query<(Has<InteractionDisabled>, &Children), With<MenuItem>>,
+    tails: Query<&Children>,
+    chips: Query<Has<MenuKeyChip>>,
     mut texts: Query<&mut TextColor>,
+    mut borders: Query<&mut BorderColor>,
 ) {
     for (disabled, children) in &items {
-        for (index, child) in children.iter().enumerate().take(2) {
-            let base = if index == 0 { ITEM_LABEL } else { ITEM_MARK };
-            let wanted = if disabled {
-                base.with_alpha(DISABLED_ALPHA)
-            } else {
-                base
-            };
-            let Ok(mut colour) = texts.get_mut(child) else {
-                continue;
-            };
-            if colour.0 != wanted {
-                colour.0 = wanted;
-            }
+        let mut children = children.iter();
+        if let Some(label) = children.next() {
+            paint_text(&mut texts, label, ITEM_LABEL, disabled);
         }
+        let Some(tail) = children.next() else {
+            continue;
+        };
+        let Some(&tail) = tails.get(tail).ok().and_then(|kids| kids.first()) else {
+            continue;
+        };
+        if chips.get(tail).unwrap_or(false) {
+            for &text in tails.get(tail).map(|kids| &kids[..]).unwrap_or_default() {
+                paint_text(&mut texts, text, theme::AMBER_NOVA, disabled);
+            }
+            let edge = alpha_if(theme::AMBER_NOVA.with_alpha(0.5), disabled);
+            if let Ok(mut border) = borders.get_mut(tail) {
+                if border.left != edge {
+                    border.set_all(edge);
+                }
+            }
+        } else {
+            paint_text(&mut texts, tail, ITEM_MARK, disabled);
+        }
+    }
+}
+
+/// One text, at its colour or at the greyed fraction of it.
+fn paint_text(texts: &mut Query<&mut TextColor>, entity: Entity, base: Color, disabled: bool) {
+    let wanted = alpha_if(base, disabled);
+    let Ok(mut colour) = texts.get_mut(entity) else {
+        return;
+    };
+    if colour.0 != wanted {
+        colour.0 = wanted;
+    }
+}
+
+/// `colour`, faded to [`DISABLED_ALPHA`] of what it already had when greyed.
+fn alpha_if(colour: Color, disabled: bool) -> Color {
+    if disabled {
+        colour.with_alpha(colour.alpha() * DISABLED_ALPHA)
+    } else {
+        colour
     }
 }
 
@@ -439,6 +542,34 @@ pub(crate) fn sync_ship_menu(
     }
 }
 
+/// A Ship menu row that needs a part IN HAND, not just a ship - the pose verbs.
+#[derive(Component)]
+pub(crate) struct ArmedMenuItem;
+
+/// Grey the pose verbs unless there is a part in hand for them to turn.
+///
+/// A stricter rule than [`sync_ship_menu`]'s, and its own system rather than a
+/// branch inside it: these rows are live only in the one state R, F and the
+/// wheel do anything in, so the menu is also where that state is reported.
+pub(crate) fn sync_armed_menu(
+    mut commands: Commands,
+    choice: Res<crate::config::SectionChoice>,
+    items: Query<(Entity, Has<InteractionDisabled>), With<ArmedMenuItem>>,
+) {
+    let armed = matches!(*choice, crate::config::SectionChoice::Section(_));
+    for (entity, marked) in &items {
+        match (armed, marked) {
+            (false, false) => {
+                commands.entity(entity).insert(InteractionDisabled);
+            }
+            (true, true) => {
+                commands.entity(entity).remove::<InteractionDisabled>();
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Ship > Delete Parts' row, so [`sync_tool_menu_mark`] can report the tool.
 #[derive(Component)]
 pub(crate) struct MenuDeletePartsItem;
@@ -452,6 +583,7 @@ pub(crate) struct MenuDeletePartsItem;
 pub(crate) fn sync_tool_menu_mark(
     choice: Res<crate::config::SectionChoice>,
     marks: Query<&Children, With<MenuDeletePartsItem>>,
+    tails: Query<&Children>,
     mut texts: Query<&mut Text>,
 ) {
     let wanted = if matches!(*choice, crate::config::SectionChoice::Delete) {
@@ -460,16 +592,22 @@ pub(crate) fn sync_tool_menu_mark(
         ""
     };
     for children in &marks {
-        let Some(mark) = children.iter().nth(1) else {
+        let Some(word) = tail_word(children, &tails) else {
             continue;
         };
-        let Ok(mut text) = texts.get_mut(mark) else {
+        let Ok(mut text) = texts.get_mut(word) else {
             continue;
         };
         if text.0 != wanted {
             text.0 = wanted.to_string();
         }
     }
+}
+
+/// The text a row's tail carries, reached through the tail's wrapper.
+fn tail_word(row: &Children, tails: &Query<&Children>) -> Option<Entity> {
+    let tail = row.iter().nth(1)?;
+    tails.get(tail).ok()?.first().copied()
 }
 
 /// File > Back to Main Menu: end the session.
@@ -595,24 +733,36 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<EditorOverlays>();
         world.add_observer(toggle_link_points);
-        let mark = world.spawn(Text::new("")).id();
+        // The REAL row, so the test reads the mark where the widget puts it
+        // rather than where it once put it.
         let row = world
-            .spawn((ViewToggle::LinkPoints, children![Text::new("Link Points")]))
-            .add_child(mark)
+            .spawn((
+                ViewToggle::LinkPoints,
+                menu_item_row("Link Points", MenuTail::Word("on"), UiSkin::default()),
+            ))
             .id();
+        world.flush();
 
         world
             .run_system_once(sync_view_menu_marks)
             .expect("the sync runs");
-        assert_eq!(world.get::<Text>(mark).expect("the mark").0, "on");
+        assert_eq!(toggle_mark(&world, row), "on");
 
         world.trigger(Activate { entity: row });
         world.flush();
         world
             .run_system_once(sync_view_menu_marks)
             .expect("the sync runs");
-        assert_eq!(world.get::<Text>(mark).expect("the mark").0, "off");
+        assert_eq!(toggle_mark(&world, row), "off");
         assert!(!world.resource::<EditorOverlays>().link_points);
+    }
+
+    /// What a row's tail says, read the way the sync writes it: the row's
+    /// second child holds the tail, and the tail holds the word.
+    fn toggle_mark(world: &World, row: Entity) -> String {
+        let tail = world.get::<Children>(row).expect("the row has children")[1];
+        let word = world.get::<Children>(tail).expect("the tail has a child")[0];
+        world.get::<Text>(word).expect("the word").0.clone()
     }
 
     /// The Ship menu's rows need a ship. At the scenario node they are greyed
@@ -650,16 +800,18 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<SectionChoice>();
         world.add_observer(toggle_delete_tool);
-        let mark = world.spawn(Text::new("")).id();
         let row = world
-            .spawn((MenuDeletePartsItem, children![Text::new("Delete Parts")]))
-            .add_child(mark)
+            .spawn((
+                MenuDeletePartsItem,
+                menu_item_row("Delete Parts", MenuTail::None, UiSkin::default()),
+            ))
             .id();
+        world.flush();
 
         world
             .run_system_once(sync_tool_menu_mark)
             .expect("the sync runs");
-        assert_eq!(world.get::<Text>(mark).expect("the mark").0, "");
+        assert_eq!(toggle_mark(&world, row), "");
 
         world.trigger(Activate { entity: row });
         world.flush();
@@ -667,7 +819,7 @@ mod tests {
             .run_system_once(sync_tool_menu_mark)
             .expect("the sync runs");
         assert_eq!(*world.resource::<SectionChoice>(), SectionChoice::Delete);
-        assert_eq!(world.get::<Text>(mark).expect("the mark").0, "on");
+        assert_eq!(toggle_mark(&world, row), "on");
 
         world.trigger(Activate { entity: row });
         world.flush();
@@ -679,6 +831,6 @@ mod tests {
             SectionChoice::None,
             "a second press puts the tool down"
         );
-        assert_eq!(world.get::<Text>(mark).expect("the mark").0, "");
+        assert_eq!(toggle_mark(&world, row), "");
     }
 }

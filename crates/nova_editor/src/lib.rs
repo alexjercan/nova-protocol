@@ -22,6 +22,7 @@
 #![warn(missing_docs)]
 
 use bevy::{
+    gizmos::GizmoPlugin,
     input::mouse::MouseWheel,
     prelude::*,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
@@ -80,8 +81,9 @@ use ui::{
         apply_inspector_edits, hold_camera_while_typing, sync_inspector, typing_into_a_field,
     },
     menu::{
-        close_menu_on_item, close_menus, close_open_menu, sync_menu_delete, sync_menu_item_paint,
-        sync_menus, sync_ship_menu, sync_tool_menu_mark, sync_view_menu_marks, OpenMenu,
+        close_menu_on_item, close_menus, close_open_menu, sync_armed_menu, sync_menu_delete,
+        sync_menu_item_paint, sync_menus, sync_ship_menu, sync_tool_menu_mark,
+        sync_view_menu_marks, OpenMenu,
     },
     rail::sync_scene_tooltip,
     setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
@@ -130,8 +132,12 @@ pub(crate) enum ExampleStates {
 fn editor_plugin(app: &mut App) {
     app.init_state::<ExampleStates>();
     // Everything the editor draws in immediate mode, at one weight. See
-    // `EditorGizmos`.
-    app.insert_gizmo_config(EditorGizmos, editor_gizmo_config());
+    // `EditorGizmos`. Gated like the picking backend below: registering a
+    // group adds the render-side system that turns its storage into meshes,
+    // and a headless app has neither the plugin nor the assets it wants.
+    if app.is_plugin_added::<GizmoPlugin>() {
+        app.insert_gizmo_config(EditorGizmos, editor_gizmo_config());
+    }
     app.insert_resource(SectionChoice::None);
     app.init_resource::<EditContext>();
     app.init_resource::<SelectedNode>();
@@ -376,9 +382,15 @@ fn editor_plugin(app: &mut App) {
                 sync_menus,
                 sync_view_menu_marks,
                 sync_tool_menu_mark,
-                // The three greying passes, then the paint that reads their
-                // verdict off the rows.
-                (sync_menu_delete, sync_ship_menu, sync_frame_item).chain(),
+                // The greying passes, then the paint that reads their verdict
+                // off the rows.
+                (
+                    sync_menu_delete,
+                    sync_ship_menu,
+                    sync_armed_menu,
+                    sync_frame_item,
+                )
+                    .chain(),
                 sync_menu_item_paint,
             )
                 .chain(),

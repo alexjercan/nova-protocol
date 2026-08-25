@@ -596,6 +596,23 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             stamp_sections(world);
         })
         .add()
+        // The menu figure, taken with a part still in hand: the Ship menu is
+        // where the pose verbs live, and this is the one state that shows both
+        // halves of a menu row's tail - a live key chip and a greyed one.
+        .click_a_widget("editor: drop the Ship menu", MENU_SHIP)
+        .step("editor: shoot the Ship menu")
+        .on_enter(|world: &mut World| shoot(world, "editor-menu.png"))
+        .until(shot_written("editor-menu.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("editor: close the menu")
+        .on_enter(press_key(KeyCode::Escape))
+        .add()
+        .step("editor: release Escape")
+        .on_enter(release_key(KeyCode::Escape))
+        .until(no_menu_is_open())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         // Snapping: the roll is the one degree of freedom a mate leaves, so a
         // rolled part must still mate. R turns the ghost a quarter turn about
         // the mating axis before the click commits it. The pose is applied in
@@ -2195,6 +2212,15 @@ fn an_object_was_placed(stem: &'static str) -> Wait {
 /// a beat learns that Save or Open ran and what it decided. Matched by PREFIX:
 /// an Open reports the counts it read, and the counts are what the beat after
 /// checks properly.
+/// No top-bar menu hangs open.
+///
+/// A menu is what Escape's first rung is spent on, so a beat that opened one
+/// has to be able to see it closed before the next gesture is aimed anywhere.
+#[cfg(feature = "debug")]
+fn no_menu_is_open() -> Wait {
+    std::sync::Arc::new(|world: &World| world.resource::<EditorProbe>().open_menu.is_empty())
+}
+
 #[cfg(feature = "debug")]
 fn the_status_reads(opening: &'static str) -> Wait {
     std::sync::Arc::new(move |world: &World| {

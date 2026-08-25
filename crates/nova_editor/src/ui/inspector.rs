@@ -45,7 +45,7 @@ use crate::{
 /// Panel width. Wider than the 150px rail because every row is a name AND a
 /// value side by side; still narrow enough to leave the stage its centre,
 /// which is where the placement raycast goes.
-const PANEL_W: f32 = 240.0;
+pub(crate) const PANEL_W: f32 = 240.0;
 /// The name column. Fixed rather than proportional so the value boxes of every
 /// row line up, which is what makes a column of numbers readable.
 const LABEL_W: f32 = 92.0;
