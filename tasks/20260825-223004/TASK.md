@@ -1,21 +1,22 @@
-# Editor save/load: lower to a mod bundle, stamp prefab ships
+# Editor save/load: lower the document to a mod bundle, re-lift it
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 80
 - TAGS: v0.12.0,editor,scenario,modding
 
-Child of the v0.12.0 editor epic (`20260812-131912`), third in the spine
-after foundations. Absorbs closed `20260812-131901` (full-spaceship
-copy-paste palette) - nothing cancelled, the stamp/duplicate scope lives
-here. Research: `tasks/20260815-231945/EDITOR-STATE.md` sections 3b/3d,
+Child of the v0.12.0 editor epic (`20260812-131912`), third in the spine after
+foundations. Replaces `20260824-120524`, which also carried the prefab loop;
+that half is dropped from v0.12.0 (see the Resolution note there). Research:
+`tasks/20260815-231945/EDITOR-STATE.md` sections 3b/3d,
 `SCENARIO-PIPELINE.md` sections 1-2, `NODE-EDITOR-PRIOR-ART.md`
 recommendations 1-6.
 
 ## Goal
 
 Save = lower the editor document to a `*.content.ron` mod bundle on disk;
-load = re-lift it. Plus the prefab loop: browse complete ships in the
-gallery, stamp instances into the scene, duplicate an in-scene ship.
+load = re-lift it. Ships and world objects both. No gallery tab, no stamping,
+no duplicate - that loop is out of this release.
+
 
 ## The settled shape
 
@@ -23,7 +24,9 @@ gallery, stamp instances into the scene, duplicate an in-scene ship.
   `Content::Ship` prototypes, the world as `Content::Scenario` whose ships
   are `ShipSource::Prototype` references (crates/nova_modding/src/lib.rs:71-92).
   Editing a design propagates to every instance through the reference; the
-  RON never stores copies. "Export my ship" falls out for free.
+  RON never stores copies. "Export my ship" falls out for free. The prototype
+  reference is a FILE-FORMAT decision and stays; only the UI that browses and
+  stamps prototypes is dropped.
 - Instance ids are minted LITERALS at instance creation (`corvette_1`),
   stored in the document, never re-derived at save. Duplicate spawned ids in
   one handler are a lint Error (lint/scenario.rs:142-152).
@@ -55,23 +58,15 @@ gallery, stamp instances into the scene, duplicate an in-scene ship.
 - Test the diff (Godot #67884 lesson): lower, edit the source design,
   re-lower, assert only overridden fields survive on instances.
 
-## The prefab loop (ex-20260812-131901)
-
-- Ship gallery tab over `GameShips`: the parts-gallery stage, tiles, filter
-  and turntable are reusable, but `browsable` is section-typed
-  (gallery/catalog.rs:73) - generalise or sibling it. Assembled preview,
-  name + section-count/mass readout.
-- Stamp: place a `ScenarioObjectConfig` with a Prototype hull at
-  cursor/anchor; repeated stamping mints fresh instance ids.
-- In-scene duplicate: clone the config under a fresh minted id.
-
 ## Done when
 
-- Build a ship, save, restart the app, load: identical editor state,
-  entity-independent ids, byte-stable re-save.
-- Open the ship gallery, stamp two copies, duplicate an in-scene ship, save,
-  reload: all copies intact; play works.
-- A UI-harness walk covers the loop; probe green.
+- Build a ship, place world objects, save, restart the app, load: identical
+  editor state, entity-independent ids, byte-stable re-save.
+- A hand-written mod opens read-only and cannot be overwritten by a save.
+- The diff test holds (Godot #67884 lesson): lower, edit the source design,
+  re-lower, only overridden fields survive on instances.
+- A UI-harness walk covers save and reload; probe green.
+
 
 ## Note (2026-08-25): the world is already nodes
 
@@ -88,17 +83,3 @@ Two things that fall to this task rather than that one:
   come from the stock range (the sandbox's event handlers name
   `picket_warden`), and mint `{stem}_{n}` when placed. A save has to keep
   both, and a re-lift has to not re-mint.
-
-## Resolution (2026-08-25, split)
-
-Split rather than done. The save/load half is `20260825-223004`, which carries
-the settled file shape, the audit facts and the world-is-already-nodes note
-unchanged.
-
-The prefab half - a ship gallery tab over `GameShips`, stamping instances into
-the scene, duplicating an in-scene ship - is DROPPED from v0.12.0 by decision,
-not deferred into another task. The scope it absorbed from closed
-`20260812-131901` is dropped with it. Nothing about the file format changes:
-`Content::Ship` prototypes and `ShipSource::Prototype` references stay, because
-they are how a design propagates to its instances. Only the UI that browses and
-stamps prototypes is out. Re-open this note if the loop is wanted again.

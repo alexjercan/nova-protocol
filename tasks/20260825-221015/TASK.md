@@ -1,7 +1,7 @@
 # Editor polish: make the node editor feel finished
 
 - STATUS: OPEN
-- PRIORITY: 68
+- PRIORITY: 75
 - TAGS: v0.12.0,editor,ui,polish
 
 ## Why
@@ -110,7 +110,12 @@ Each number is one commit. Ids in brackets are the catalogue's.
 19. **The rest of the rail.** The attitude readout names its number and its fix
     and gains mass, thrust, hp and part count; an empty hull says "no parts yet";
     the look list stays visible and greyed with a swatch per row; `Placeholder`
-    goes behind a debug feature; the colour swatch paints its hover.
+    goes behind a debug feature; the colour swatch paints its hover. This step
+    also absorbs the engineer readout, closed as `20260824-120535`: that file
+    lists the rest of what the panel could hold - flip time, centre of mass,
+    per-axis thrust, weapon totals - and what is ruled out. Start with the four
+    numbers above and decide the rest once it can be seen; one panel, one
+    display rule, no stat inventing its own.
     C6, C7, 5.6, 7.3, C9, C10, 7.1. M
 20. **Navigation extras.** A clickable breadcrumb path; front / top / side / iso
     presets; an axis rose in the viewport corner, which is also the only spatial

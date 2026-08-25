@@ -9,7 +9,8 @@ afterwards. Sizes are the reviews' own: S under an
 hour, M half a day, L more.
 
 Nothing below is built. Slices 1-4 of the editor pass ARE built and are not
-repeated here.
+repeated here. Section 2 is gone and the numbering keeps its gap on purpose:
+every finding id above is `<section>.<n>`, so renumbering would break the plan.
 
 ## 0. The plan, in order
 
@@ -102,7 +103,12 @@ from either pass.
 19. **The rest of the rail.** The attitude readout names its number and its fix
     and gains mass, thrust, hp and part count; an empty hull says "no parts yet";
     the look list stays visible and greyed with a swatch per row; `Placeholder`
-    goes behind a debug feature; the colour swatch paints its hover.
+    goes behind a debug feature; the colour swatch paints its hover. This step
+    also absorbs the engineer readout, closed as `20260824-120535`: that file
+    lists the rest of what the panel could hold - flip time, centre of mass,
+    per-axis thrust, weapon totals - and what is ruled out. Start with the four
+    numbers above and decide the rest once it can be seen; one panel, one
+    display rule, no stat inventing its own.
     C6, C7, 5.6, 7.3, C9, C10, 7.1. M
 20. **Navigation extras.** A clickable breadcrumb path; front / top / side / iso
     presets; an axis rose in the viewport corner, which is also the only spatial
@@ -115,31 +121,21 @@ from either pass.
     part is. Investigate what earns it, on paper and in one screen, before
     building a window system. Nothing here is settled. c. M spike
 
-## 1. The task's own open spine
+## 1. Where the rest went (2026-08-25)
 
-Not editor polish - the scenario work this task was opened for.
+This task closed and split. Nothing below is lost; the sections after this one
+are the catalogue the polish task works from.
 
-- **Slice 1 tail: save and reload.** Lives in `20260824-120524`, which now has
-  world nodes to save. The rest of slice 1 landed; trigger-area gizmos are done
-  as of the stage pass.
-- **Slice 2: objectives and win/lose.** Attach a simple objective set (destroy
-  X, reach Y, survive T) with the posted-objective actions and play it through.
-  HELD until `Sequence` lands - see below.
-- **Slice 3: events surfacing.** Expose the event/handler list without drowning
-  the panel. HELD: it leans on `Sequence` (`20260820-223059`), and surfacing
-  nineteen handlers where a story beat should be one is the wrong panel to
-  build. Slices 2 and 3 stay OPEN and unstarted until that task lands.
-
-## 2. The editor pass: slices still open
-
-All four moved to `20260825-221015` (Editor polish), which carries the plan
-above.
-
-- **Slice 5. More per-object settings.** The tail of "an inspector for an
-  object's own fields" owed by slice 1. Step 9 and 10.
-- **Slice 6. Keys for the verbs that have none.** Steps 2, 3 and 4.
-- **Slice 7. Add obeys the context.** Step 5.
-- **Slice 8. Polish, from this review.** Everything else.
+- **Save and reload** - `20260825-223004`. The document already holds the whole
+  world; that task writes and re-lifts the RON.
+- **Objectives and win/lose** - `20260825-223024`. Blocked on `Sequence`
+  (`20260820-223059`).
+- **Events surfacing** - `20260825-223035`. Blocked on the same.
+- **Slices 5 to 8** - the typed inspector, keys for the verbs, Add obeying the
+  context, and everything the two reviews found - are `20260825-221015`, which
+  carries the plan above.
+- **The prefab loop** - a ship gallery tab, stamping, in-scene duplicate - is
+  dropped from v0.12.0. See the Resolution note in `20260824-120524`.
 
 ## 3. Keys, and the legend that teaches them
 

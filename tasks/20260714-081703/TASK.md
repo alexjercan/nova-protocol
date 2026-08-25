@@ -1,6 +1,6 @@
 # In-editor world editing: place scenario objects, wire objectives, save to RON
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.12.0,editor,scenario,modding
 
@@ -206,3 +206,22 @@ polish). This task keeps its own spine: save/reload (which lives in
 `20260824-120524`), objectives and win/lose, and events surfacing. The last two
 are HELD until `Sequence` lands in `20260820-223059`; surfacing nineteen
 handlers where a story beat should be one is the wrong panel to build.
+
+## Resolution (2026-08-25, split)
+
+Slice 1 landed on master: the sandbox range comes up as `ObjectNode`s under the
+scenario node, placed, moved, deleted and focused, with a world grid and volume
+gizmos for the objects that have no body to be seen by. Its save/reload tail is
+`20260825-223004`.
+
+The rest went to four places:
+
+- Slices 5 to 8 - the typed inspector, keys for the verbs, Add obeying the
+  context, and the review's 87 findings - are `20260825-221015` (Editor
+  polish), which carries the ordered plan.
+- Slice 2, objectives and win/lose, is `20260825-223024`.
+- Slice 3, events surfacing, is `20260825-223035`.
+- Both of those are blocked on `Sequence` (`20260820-223059`).
+
+`BACKLOG.md`, `REVIEW-INSIDE.md` and `REVIEW-OUTSIDE.md` stay in this folder and
+are referenced by path from the polish task.

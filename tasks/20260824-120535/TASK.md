@@ -1,6 +1,6 @@
 # Engineer readout: the ship's numbers on the build screen
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.12.0,editor,ui
 
@@ -59,3 +59,18 @@ build state. Do not let each stat invent its own display.
   place/delete.
 - A screenshot range covers it; the numbers agree with the physics for a
   pinned fixture ship.
+
+## Resolution (2026-08-25, folded)
+
+Folded into step 19 of the polish plan in `20260825-221015`, which owns the
+rail. This file stays as the record of what the panel was meant to hold: flip
+time (`2 * sqrt(pi / ceiling())`, pinned in attitude.rs tests), mass and centre
+of mass (computed and discarded in `preview_envelope` today), total thrust and
+its per-axis split, max acceleration, and weapon totals - plus the two lines
+explicitly ruled OUT, power and weapon coverage, which need gameplay stats that
+do not exist.
+
+Step 19 starts smaller than that on purpose: the rail gets mass, thrust, hp and
+part count beside the attitude line, and the rest is decided once it can be
+seen. The constraint survives the fold - one panel, one display rule, no stat
+inventing its own.
