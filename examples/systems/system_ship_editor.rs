@@ -237,6 +237,14 @@ struct EditorWalk {
     /// Where the camera stood before a framing gesture, so the beat after can
     /// say the gesture moved it.
     camera_at: Vec3,
+    /// The id of the object the picker beats placed. Stamped rather than
+    /// guessed from the stem: the sandbox range already stands two beacons of
+    /// its own, so "no beacon in the document" is never true.
+    placed: String,
+    /// What the beacon's colour row read before the picker touched it.
+    colour: String,
+    /// Where the floating picker stood before the beat that drags it.
+    window_at: Vec2,
 }
 
 /// The whole driven run.
@@ -1204,6 +1212,99 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: deleted the placed asteroid");
         })
         .add()
+        // A COLOUR is the one value in a config nobody can author by reading
+        // it, so it gets a window of its own. The beacon is the shipped object
+        // that has one.
+        .click_a_menu_item("editor: place a beacon", MENU_ADD, "Add Beacon")
+        .step("editor: the beacon is the marked node")
+        .until(an_object_was_placed("beacon"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: stamp the beacon's colour")
+        .on_enter(|world: &mut World| {
+            let reading = inspector_reading(world, "Color");
+            let placed = world
+                .resource::<EditorProbe>()
+                .selected_node
+                .clone()
+                .expect("placing an object marks it");
+            let mut walk = world.resource_mut::<EditorWalk>();
+            walk.colour = reading;
+            walk.placed = placed;
+        })
+        .add()
+        .click_a_widget("editor: press the colour swatch", "Inspector Swatch Color")
+        .step("editor: the picker floats over the stage")
+        .until(ui_node_present("Colour Window"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: stamp where the picker stands")
+        .on_enter(|world: &mut World| {
+            let at = window_position(world).expect("the picker is on screen");
+            world.resource_mut::<EditorWalk>().window_at = at;
+        })
+        .add()
+        // Dragged by its BAR, which is what makes it a window rather than a
+        // panel that happens to float.
+        .step("editor: aim at the picker's bar")
+        .on_enter(hover_named("Colour Window Bar"))
+        .until(the_pointer_is_on("Colour Window Bar"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: grab the bar")
+        .on_enter(press_mouse(MouseButton::Left))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: pull the window across the stage")
+        .on_enter(|world: &mut World| {
+            let at = ui_node_centre(world, "Colour Window Bar").expect("the bar is on screen");
+            move_cursor(at - Vec2::new(120.0, -40.0))(world);
+        })
+        .until(the_picker_moved())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: let the window go")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // And it EDITS. A click on the middle of a channel's track snaps that
+        // channel to half, which the row behind the window reads back as new
+        // hex - the window and the row are one edit made two ways.
+        .click_a_widget(
+            "editor: pull the green channel down",
+            "Colour Window Slider G",
+        )
+        .step("editor: the beacon's colour changed under the picker")
+        .until(the_colour_row_changed())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the picker wrote the beacon's own config")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorWalk>().colour.clone();
+            let now = inspector_reading(world, "Color");
+            let moved = world.resource::<EditorWalk>().window_at;
+            nova_probe::probe_marker(
+                world,
+                "outcome: a floating picker edits the colour of a scenario object",
+                serde_json::json!({}),
+            );
+            info!("editor: the beacon's colour went {before} -> {now}, picker at {moved:?}");
+        })
+        .add()
+        .click_a_widget("editor: close the picker", "Colour Window Close")
+        .step("editor: the picker is gone")
+        .until(nova_autopilot::predicate::not(ui_node_present(
+            "Colour Window",
+        )))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .click_a_widget("editor: delete the placed beacon", "Delete Node Button")
+        .step("editor: the beacon is off the stage")
+        .until(the_placed_node_is_gone())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         // A world click out here SELECTS: the viewport and the tree answer a
         // click the same way, and the tree is the door.
         .step("editor: aim at the first ship")
@@ -1920,6 +2021,98 @@ fn aim_at_the_named(world: &mut World, name: &str) -> Option<Vec2> {
         .find(|(named, _)| named.as_str() == name)
         .map(|(_, pose)| pose.translation())?;
     aim_at_world(world, at)
+}
+
+/// Advance once the object the picker beats placed is out of the document.
+#[cfg(feature = "debug")]
+fn the_placed_node_is_gone() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let placed = world.resource::<EditorWalk>().placed.clone();
+        !placed.is_empty()
+            && !world
+                .resource::<EditorProbe>()
+                .context_nodes
+                .iter()
+                .any(|node| *node == placed)
+    })
+}
+
+/// What the Inspector's row called `label` reads.
+#[cfg(feature = "debug")]
+fn inspector_reading(world: &World, label: &str) -> String {
+    world
+        .resource::<EditorProbe>()
+        .inspector
+        .iter()
+        .find(|(row, _)| row == label)
+        .map(|(_, reading)| reading.clone())
+        .unwrap_or_default()
+}
+
+/// Advance once the colour row reads something other than what was stamped.
+#[cfg(feature = "debug")]
+fn the_colour_row_changed() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let stamp = &world.resource::<EditorWalk>().colour;
+        let now = inspector_reading(world, "Color");
+        !now.is_empty() && now != *stamp
+    })
+}
+
+/// Where the floating picker's top-left corner sits, in the pixels its own
+/// `Node` is placed with.
+#[cfg(feature = "debug")]
+fn window_position(world: &mut World) -> Option<Vec2> {
+    let window = named_entity(world, "Colour Window")?;
+    let node = world.get::<Node>(window)?;
+    match (node.left, node.top) {
+        (Val::Px(left), Val::Px(top)) => Some(Vec2::new(left, top)),
+        _ => None,
+    }
+}
+
+/// Advance once the picker stands somewhere other than where it was stamped.
+#[cfg(feature = "debug")]
+fn the_picker_moved() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let stamp = world.resource::<EditorWalk>().window_at;
+        let Some(window) = named_entity(world, "Colour Window") else {
+            return false;
+        };
+        let Some(node) = world.get::<Node>(window) else {
+            return false;
+        };
+        match (node.left, node.top) {
+            (Val::Px(left), Val::Px(top)) => Vec2::new(left, top).distance(stamp) > 1.0,
+            _ => false,
+        }
+    })
+}
+
+/// Advance once the pointer is over the entity called `name`.
+///
+/// The UI answers a pointer through the same picking pipeline the stage does,
+/// so a beat that means to drag a window proves it has the window under the
+/// cursor before it presses - exactly as the gizmo beats do.
+#[cfg(feature = "debug")]
+fn the_pointer_is_on(name: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        let Some(hit) = world
+            .try_query::<&bevy::picking::pointer::PointerInteraction>()
+            .and_then(|mut pointers| {
+                pointers
+                    .iter(world)
+                    .filter_map(|interaction| interaction.get_nearest_hit())
+                    .map(|(entity, _)| *entity)
+                    .next()
+            })
+        else {
+            return false;
+        };
+        world
+            .get::<Name>(hit)
+            .is_some_and(|named| named.as_str() == name)
+    })
 }
 
 /// Advance once the turret's rows are TALLER than the panel that holds them.

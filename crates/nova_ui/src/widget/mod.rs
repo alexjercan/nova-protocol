@@ -96,6 +96,11 @@ pub(crate) fn build(app: &mut App) {
         .add_observer(button_on_interaction::<Add, Selected>)
         .add_observer(button_on_interaction::<Remove, Selected>);
 
+    // Bevy's own commit of a dragged slider onto its `SliderValue`. It belongs
+    // beside the track that SHOWS that value: every caller of `slider_track`
+    // needs it, and two callers registering it would run it twice per drag.
+    app.add_observer(bevy::ui_widgets::slider_self_update);
+
     app.add_observer(list_row_on_interaction::<Insert, Hovered>)
         .add_observer(list_row_on_interaction::<Add, Selected>)
         .add_observer(list_row_on_interaction::<Remove, Selected>)

@@ -16,7 +16,7 @@
 //! that supply their own game plugins never see the menu.
 #![warn(missing_docs)]
 
-use bevy::{prelude::*, ui_widgets::slider_self_update};
+use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
 use nova_os_ui::prelude::NovaOsMonitorSettings;
@@ -113,7 +113,6 @@ impl Plugin for NovaMenuPlugin {
         // so the invariant survives a future reorder.
         app.init_resource::<UiSkin>();
         app.init_resource::<NovaOsMonitorSettings>();
-        app.add_observer(slider_self_update);
         app.add_observer(on_volume_slider_change);
         app.add_observer(button_on_setting::<GraphicsQuality>);
         app.add_observer(button_on_setting::<UiSkin>);

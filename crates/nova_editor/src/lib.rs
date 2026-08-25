@@ -80,6 +80,7 @@ use ui::{
     },
     setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_delete_button, sync_key_legend,
     sync_play_button, sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_style_list,
+    window::{on_colour_slider, sync_colour_windows},
 };
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`],
@@ -366,7 +367,11 @@ fn editor_plugin(app: &mut App) {
             // only because a flat tuple would pass Bevy's arity limit.
             (
                 sync_scene_list,
-                sync_inspector,
+                // The panel, and then the floating windows: a window shows what
+                // the row it was opened from shows, and closes when that row
+                // goes away. One element, because the group around it is
+                // already at Bevy's tuple arity.
+                (sync_inspector, sync_colour_windows).chain(),
                 sync_context_panels,
                 sync_breadcrumb,
                 sync_rebind_button,
@@ -456,6 +461,11 @@ fn editor_plugin(app: &mut App) {
         )
             .run_if(in_state(ExampleStates::Editor)),
     );
+
+    // Floating windows. The picker's observer reads the dragged value out of
+    // the event rather than off the slider, so it does not care whether
+    // nova_ui's `slider_self_update` has committed it yet.
+    app.add_observer(on_colour_slider);
 
     // The inspector: what a typed field does to the document, and the camera
     // rig it borrows while the field has the keyboard. Ungated on the gallery

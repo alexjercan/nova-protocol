@@ -39,6 +39,7 @@ use crate::{
         RowValue,
     },
     node::{EditContext, NodeId, ObjectNode, SectionNode, ShipDriver, ShipNode},
+    ui::window::on_open_colour_window,
 };
 
 /// Panel width. Wider than the 150px rail because every row is a name AND a
@@ -71,7 +72,10 @@ pub(crate) struct InspectorList;
 pub(crate) struct InspectorSlot(usize);
 
 /// What a widget edits: the node, and where in it the value lives.
-#[derive(Component, Clone)]
+///
+/// Compared by VALUE, so a floating window opened from a row can find the row
+/// it belongs to again after the panel has repainted.
+#[derive(Component, Clone, PartialEq)]
 pub(crate) struct InspectorField {
     node: Entity,
     root: FieldRoot,
@@ -102,8 +106,13 @@ pub(crate) struct InspectorGroup;
 
 /// The colour block beside a colour field, so the repaint can find it and
 /// recolour it when the hex beside it is retyped.
+///
+/// It carries its row's LABEL because it is also the way into the colour
+/// picker, and a floating window has to be able to say which field it is on.
 #[derive(Component)]
-pub(crate) struct InspectorSwatch;
+pub(crate) struct InspectorSwatch {
+    pub(crate) label: String,
+}
 
 /// One option of a unit-enum row: the variant this segment selects.
 #[derive(Component, Clone)]
@@ -348,11 +357,21 @@ fn build_rows(
                         // The swatch comes FIRST so a column of them reads as a
                         // palette down the panel: the eye finds the colour it
                         // wants without parsing six hex digits a row.
+                        //
+                        // And it OPENS the picker. A colour is the one value in
+                        // a config that nobody can author by reading it, so the
+                        // block showing it is the natural thing to press.
                         value.spawn((
                             Name::new(format!("Inspector Swatch {}", row.label)),
                             InspectorSlot(slot),
-                            InspectorSwatch,
+                            InspectorSwatch {
+                                label: row.label.clone(),
+                            },
+                            field.clone(),
+                            Button,
+                            Hovered::default(),
                             swatch(parse_colour(text)),
+                            observe(on_open_colour_window),
                         ));
                         value.spawn((
                             Name::new(format!("Inspector Field {}", row.label)),
@@ -652,7 +671,7 @@ impl EditTargets<'_, '_> {
     /// The ROUTING is here and the operation is the caller's, so typing a
     /// number and ticking a checkbox reach a section, an object and a pose the
     /// same way - including the copy-on-write a catalog-backed section needs.
-    fn edit(
+    pub(crate) fn edit(
         &mut self,
         field: &InspectorField,
         edit: impl FnOnce(&mut dyn PartialReflect, &[PathStep], bool) -> Result<(), String>,

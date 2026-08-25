@@ -13,6 +13,7 @@
 pub(crate) mod inspector;
 pub(crate) mod menu;
 pub(crate) mod rail;
+pub(crate) mod window;
 
 use bevy::{
     ecs::relationship::RelatedSpawnerCommands,
@@ -55,6 +56,7 @@ use crate::{
             MenuDeleteItem, MenuDropdown, MenuId, ViewToggle,
         },
         rail::{scene_row, skin_toggle_row, style_row},
+        window::window_layer,
     },
     ExampleStates,
 };
@@ -658,6 +660,11 @@ pub(crate) fn setup_editor_scene(
                     TextColor(theme::RED),
                 )],
             ));
+
+            // The floating windows stand above everything else the editor
+            // draws, and below nothing: a window a panel could cover would be
+            // a window nobody opened.
+            root.spawn(window_layer());
 
             // The key legend, bottom-left and out of the build area. Contextual
             // (see `sync_key_legend`): a builder holding a part needs the pose

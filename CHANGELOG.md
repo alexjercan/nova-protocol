@@ -62,6 +62,9 @@ does NOT get an entry - and it is the only place they are written down.
   than showing one column of long paths.
 - The Inspector scrolls, so a config taller than the panel is rolled down to
   rather than running off the bottom of the screen.
+- Pressing a colour's swatch opens a floating picker: four channel sliders over
+  a live preview, dragged by its bar and closed by pressing the swatch again.
+  It belongs to that row and goes away with it.
 - Back to Main Menu ends the session and deletes the scenario draft; Play
   round-trips still return to it.
 

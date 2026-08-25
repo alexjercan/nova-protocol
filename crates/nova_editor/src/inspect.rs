@@ -602,7 +602,7 @@ fn any_colour(value: &dyn PartialReflect) -> Option<Color> {
 }
 
 /// `#rrggbb`, or `#rrggbbaa` when the colour is not opaque.
-fn colour_text(colour: Color) -> String {
+pub(crate) fn colour_text(colour: Color) -> String {
     let srgb = Srgba::from(colour);
     let channel = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u8;
     let (red, green, blue) = (channel(srgb.red), channel(srgb.green), channel(srgb.blue));
