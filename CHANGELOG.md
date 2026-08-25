@@ -30,7 +30,7 @@ does NOT get an entry - and it is the only place they are written down.
   lights in front of the camera, and dragging or deleting a world object works
   exactly as it does for a ship.
 - A click in the world selects: a section inside a ship, a ship outside.
-  Rebinding a section's key is a top-bar action on the selection.
+  Rebinding a section's key is Ship > Rebind Key, on the selection.
 - The selected ship or object carries move and turn handles: drag an arrow to
   slide it along one axis, a ring to spin it about one - so a node can go
   somewhere other than the ground plane.
@@ -41,11 +41,11 @@ does NOT get an entry - and it is the only place they are written down.
   scenario back at the root.
 - F, View > Frame Selection and a click on a scene-tree row all put the camera
   on that node, framing its whole size rather than the point it was founded on.
-- The top bar reads the context back ([SCENARIO] or [SHIP], path, selection)
-  and the footer legend matches the level.
-- File, Edit, View and Add drop real menus, with Play dead centre between
-  them: File starts a new scenario, View toggles the key legend and the
-  link-point gizmos, Escape closes an open menu.
+- The top bar reads the context back on its right ([SCENARIO] or [SHIP], path,
+  selection) and the footer legend matches the level.
+- File, Edit, View, Add and Ship drop real menus, with Play dead centre. Ship
+  holds what used to crowd the top right: the parts gallery, the delete tool
+  and Rebind Key. Escape closes an open menu.
 - Scene tree rows step in by depth and print a section as its part name, with
   the ordinal in a column the rail cannot clip, so six alike hulls stay apart.
 - The right-hand Inspector lists a node's own fields - a thruster's, a rock's,

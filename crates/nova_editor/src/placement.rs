@@ -15,10 +15,7 @@ use bevy::{
 };
 use bevy_enhanced_input::prelude::Binding;
 use nova_ship::prelude::*;
-use nova_ui::{
-    prelude::{ButtonValue, Selected},
-    theme,
-};
+use nova_ui::theme;
 
 use crate::{
     config::{
@@ -237,6 +234,20 @@ pub(crate) fn delete_selected_node(
     selected.0 = None;
 }
 
+/// Ship > Delete Parts: put the delete tool in hand, or put it down.
+///
+/// A TOGGLE, not an arm: the row is the only place the editor says the tool is
+/// held (`crate::ui::menu::sync_tool_menu_mark` marks it "on"), so pressing it
+/// again has to be how the tool goes back down. Escape does the same thing -
+/// this is the pointer's way to it.
+pub(crate) fn toggle_delete_tool(_activate: On<Activate>, mut choice: ResMut<SectionChoice>) {
+    *choice = if matches!(*choice, SectionChoice::Delete) {
+        SectionChoice::None
+    } else {
+        SectionChoice::Delete
+    };
+}
+
 /// FOUND an empty ship: with a part armed and nothing under the pointer, a
 /// click drops the first section at the ship's own origin.
 ///
@@ -292,33 +303,6 @@ pub(crate) fn found_empty_ship(
         Transform::default(),
         binds,
     );
-}
-
-/// Keep the rail and drawer selection in step with the armed tool, whoever set
-/// it.
-///
-/// A button moves its own `Selected` marker when IT is pressed, but the gallery
-/// arms a part by writing the resource - and a rail chip still lit for the
-/// previous tool shows the player a tool they are not holding.
-pub(crate) fn sync_tool_selection(
-    mut commands: Commands,
-    choice: Res<SectionChoice>,
-    buttons: Query<(Entity, &ButtonValue<SectionChoice>, Has<Selected>)>,
-) {
-    if !choice.is_changed() {
-        return;
-    }
-    for (entity, value, selected) in &buttons {
-        match (value.0 == *choice, selected) {
-            (true, false) => {
-                commands.entity(entity).insert(Selected);
-            }
-            (false, true) => {
-                commands.entity(entity).remove::<Selected>();
-            }
-            _ => {}
-        }
-    }
 }
 
 /// Compile the document and fly it.

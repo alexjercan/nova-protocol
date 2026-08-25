@@ -26,17 +26,16 @@ use nova_assets::prelude::*;
 use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{panel, panel_header, separator, themed_button, ButtonValue, UiSkin},
+    prelude::{panel, panel_header, separator, themed_button, UiSkin},
     theme,
     widget::{checkbox_colors, checkbox_glyph, Selected},
 };
 
 use crate::{
     config::{
-        AttitudeReadout, ContextBreadcrumb, DeleteNodeButton, EditorKeyLegend, EditorOverlays,
-        LastClick, PlacementStatus, PlayButton, RebindButton, ScenarioActions, SceneList, SceneRow,
-        SectionChoice, SelectedNode, ShipActions, ShipSettings, SkinToggleCheckbox, StyleChoice,
-        StyleList,
+        AttitudeReadout, ContextBreadcrumb, EditorKeyLegend, EditorOverlays, LastClick,
+        PlacementStatus, PlayButton, RebindButton, SceneList, SceneRow, SectionChoice,
+        SelectedNode, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList,
     },
     frame::{ask_for, on_frame_selection, FrameRequest, FrameSelectionItem},
     gallery::{EditorCamera, EditorChrome, GalleryAction},
@@ -47,13 +46,14 @@ use crate::{
     },
     placement::{
         continue_to_simulation, create_blank_ship, create_scenario_object, delete_selected_node,
+        toggle_delete_tool,
     },
     ui::{
         inspector::inspector_panel,
         menu::{
             back_to_main_menu, menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim,
             menu_z, on_menu_button, on_menu_scrim, toggle_key_legend, toggle_link_points,
-            MenuDeleteItem, MenuDropdown, MenuId, ViewToggle,
+            MenuDeleteItem, MenuDeletePartsItem, MenuDropdown, MenuId, ShipMenuItem, ViewToggle,
         },
         rail::{scene_row, skin_toggle_row, style_row},
         window::window_layer,
@@ -130,6 +130,33 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 FrameSelectionItem,
                 menu_item_row("Frame Selection", Some("F"), skin),
                 observe(on_frame_selection),
+            ));
+        }
+        MenuId::Ship => {
+            // The three verbs that used to sit in the top right. They belong
+            // to the ship you are inside, not to the screen, so they moved to
+            // the one menu that says so.
+            items.spawn((
+                Name::new("Parts Item"),
+                ShipMenuItem,
+                GalleryAction::Open,
+                menu_item_row("Parts...", Some("Tab"), skin),
+            ));
+            items.spawn((
+                Name::new("Delete Parts Item"),
+                ShipMenuItem,
+                MenuDeletePartsItem,
+                // The right-hand column is the tool's on/off mark, so this row
+                // takes no shortcut text: `sync_tool_menu_mark` writes it.
+                menu_item_row("Delete Parts", None, skin),
+                observe(toggle_delete_tool),
+            ));
+            items.spawn(separator());
+            items.spawn((
+                Name::new("Rebind Key Item"),
+                RebindButton,
+                menu_item_row("Rebind Key", None, skin),
+                observe(on_rebind_action),
             ));
         }
         MenuId::Add => {
@@ -334,7 +361,13 @@ pub(crate) fn setup_editor_scene(
                         },
                     ))
                     .with_children(|menus| {
-                        for menu in [MenuId::File, MenuId::Edit, MenuId::View, MenuId::Add] {
+                        for menu in [
+                            MenuId::File,
+                            MenuId::Edit,
+                            MenuId::View,
+                            MenuId::Add,
+                            MenuId::Ship,
+                        ] {
                             menus
                                 .spawn((
                                     Name::new(format!("{} Menu Slot", menu.label())),
@@ -359,47 +392,6 @@ pub(crate) fn setup_editor_scene(
                                 });
                         }
                     });
-                    // The breadcrumb doubles as the context readout: the tree
-                    // marks the entered node, this says the same thing as a
-                    // sentence - level, path, selection (see `sync_breadcrumb`).
-                    // Phosphor rather than muted: it is the one line that says
-                    // what a click will act on, so it must not read as a
-                    // caption.
-                    // A WRAPPER carries the clip and the text hangs inside it.
-                    // `Overflow::clip` bounds a node's CHILDREN, and a text
-                    // node draws its own glyphs - so the clip that used to sit
-                    // on the text bounded nothing, and a long crumb ran on
-                    // under the Play button.
-                    //
-                    // Here and not on the column, which is what holds the
-                    // dropdowns: an ancestor that clips also clips an
-                    // absolutely-positioned descendant, and a menu that hangs
-                    // below the bar is exactly that. The breadcrumb is the only
-                    // thing on the bar that grows without bound, so it is the
-                    // only thing that needs any of this.
-                    left.spawn((
-                        Name::new("Context Breadcrumb Clip"),
-                        Node {
-                            min_width: px(0),
-                            overflow: Overflow::clip(),
-                            ..default()
-                        },
-                    ))
-                    .with_child((
-                        Name::new("Context Breadcrumb"),
-                        ContextBreadcrumb,
-                        Node::default(),
-                        Text::new(""),
-                        TextLayout {
-                            linebreak: LineBreak::NoWrap,
-                            ..default()
-                        },
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(theme::PHOSPHOR),
-                    ));
                 });
                 // Dead centre, in every context, greyed inside a ship (see
                 // `sync_play_button`): a control that vanishes reads as a bug,
@@ -423,8 +415,14 @@ pub(crate) fn setup_editor_scene(
                         observe(continue_to_simulation),
                     ));
                 });
-                // NOTE: button names kept stable - the driven walks find these
-                // by Name and press them. Display text is free to change.
+                // The right column carries the context readout. The buttons
+                // that used to sit here - Parts, Delete, Rebind - are verbs of
+                // the ship you are inside and now hang under the Ship menu,
+                // beside the other menus, where the pointer already goes for
+                // File and Add. The crumb took their place rather than leaving
+                // half the bar blank, and it reads better for it: on the left
+                // it had to share a column with five menu buttons and was cut
+                // to "[SHIP] scenar".
                 bar.spawn((
                     Name::new("Top Bar Right"),
                     Node {
@@ -434,67 +432,52 @@ pub(crate) fn setup_editor_scene(
                         flex_direction: FlexDirection::Row,
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::FlexEnd,
-                        column_gap: px(8),
                         ..default()
                     },
                 ))
                 .with_children(|right| {
+                    // The breadcrumb doubles as the context readout: the tree
+                    // marks the entered node, this says the same thing as a
+                    // sentence - level, path, selection (see `sync_breadcrumb`).
+                    // Phosphor rather than muted: it is the one line that says
+                    // what a click will act on, so it must not read as a
+                    // caption.
+                    // A WRAPPER carries the clip and the text hangs inside it.
+                    // `Overflow::clip` bounds a node's CHILDREN, and a text
+                    // node draws its own glyphs - so the clip that used to sit
+                    // on the text bounded nothing, and a long crumb ran on
+                    // under the Play button.
+                    //
+                    // On the wrapper and not on the column: the column is a
+                    // flex parent of exactly this, and a clip that high would
+                    // also bound anything absolutely positioned inside it. The
+                    // breadcrumb is the only thing on the bar that grows
+                    // without bound, so it is the only thing that needs any of
+                    // this.
                     right
                         .spawn((
-                            Name::new("Scenario Actions"),
-                            ScenarioActions,
+                            Name::new("Context Breadcrumb Clip"),
                             Node {
-                                flex_direction: FlexDirection::Row,
-                                align_items: AlignItems::Center,
-                                column_gap: px(8),
+                                min_width: px(0),
+                                overflow: Overflow::clip(),
                                 ..default()
                             },
                         ))
-                        .with_children(|actions| {
-                            // Acts on the SELECTION, not on the pointer: out
-                            // here a click drags, so a delete TOOL would fight
-                            // the scenario node's one transform gesture.
-                            // `sync_delete_button` greys it while nothing
-                            // deletable is marked.
-                            actions.spawn((
-                                Name::new("Delete Node Button"),
-                                DeleteNodeButton,
-                                themed_button("Delete"),
-                                observe(delete_selected_node),
-                            ));
-                        });
-                    right
-                        .spawn((
-                            Name::new("Ship Actions"),
-                            ShipActions,
-                            Node {
-                                flex_direction: FlexDirection::Row,
-                                align_items: AlignItems::Center,
-                                column_gap: px(8),
+                        .with_child((
+                            Name::new("Context Breadcrumb"),
+                            ContextBreadcrumb,
+                            Node::default(),
+                            Text::new(""),
+                            TextLayout {
+                                linebreak: LineBreak::NoWrap,
                                 ..default()
                             },
-                        ))
-                        .with_children(|actions| {
-                            actions.spawn((
-                                Name::new("Parts Gallery Category"),
-                                themed_button("Parts"),
-                                GalleryAction::Open,
-                            ));
-                            actions.spawn((
-                                Name::new("Delete Section Button"),
-                                themed_button("Delete"),
-                                ButtonValue(SectionChoice::Delete),
-                            ));
-                            // Acts on the SELECTED section;
-                            // `sync_rebind_button` greys it while the selection
-                            // cannot take a binding.
-                            actions.spawn((
-                                Name::new("Rebind Section Button"),
-                                RebindButton,
-                                themed_button("Rebind"),
-                                observe(on_rebind_action),
-                            ));
-                        });
+                            TextFont {
+                                font_size: FontSize::Px(13.0),
+                                ..default()
+                            },
+                            TextColor(theme::PHOSPHOR),
+                        ));
                 });
             });
 
@@ -1059,54 +1042,25 @@ pub(crate) fn sync_play_button(
     }
 }
 
-/// Show each context its own verbs: the scenario node's action group at the
-/// scenario node, the ship's action group and settings block inside a ship.
+/// Show the rail's ship settings block only inside a ship.
 ///
-/// Hidden rather than disabled, unlike Play: a greyed Rebind at the scenario
-/// node would say "this exists here and is refused", and it does not exist
-/// there - rebinding is a thing a SHIP has.
+/// Hidden rather than disabled, unlike Play: a greyed skin toggle at the
+/// scenario node would say "this exists here and is refused", and it does not
+/// exist there - a skin is a thing a SHIP has. The ship's VERBS answer the same
+/// question in the Ship menu, where greyed rows say what entering a ship would
+/// unlock (see `crate::ui::menu::sync_ship_menu`).
 pub(crate) fn sync_context_panels(
     context: Res<EditContext>,
-    mut panels: Query<
-        (&mut Node, Has<ScenarioActions>),
-        Or<(With<ScenarioActions>, With<ShipActions>, With<ShipSettings>)>,
-    >,
+    mut panels: Query<&mut Node, With<ShipSettings>>,
 ) {
-    let inside = context.ship().is_some();
-    for (mut node, scenario_only) in &mut panels {
-        let display = if scenario_only != inside {
-            Display::Flex
-        } else {
-            Display::None
-        };
+    let display = if context.ship().is_some() {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    for mut node in &mut panels {
         if node.display != display {
             node.display = display;
-        }
-    }
-}
-
-/// Grey the scenario context's Delete unless the selection is something the
-/// world can lose: a ship or an object, and never the node the editor is
-/// standing in. The same guards `delete_selected_node` enforces, painted.
-pub(crate) fn sync_delete_button(
-    mut commands: Commands,
-    context: Res<EditContext>,
-    selected: Res<SelectedNode>,
-    deletable: Query<(), Or<(With<ShipNode>, With<ObjectNode>)>>,
-    buttons: Query<(Entity, Has<InteractionDisabled>), With<DeleteNodeButton>>,
-) {
-    let armable = selected
-        .0
-        .is_some_and(|node| deletable.contains(node) && !context.path.contains(&node));
-    for (entity, marked) in &buttons {
-        match (armable, marked) {
-            (false, false) => {
-                commands.entity(entity).insert(InteractionDisabled);
-            }
-            (true, true) => {
-                commands.entity(entity).remove::<InteractionDisabled>();
-            }
-            _ => {}
         }
     }
 }
@@ -1882,10 +1836,10 @@ mod tests {
         );
     }
 
-    /// Each context shows its own verbs: the scenario node's actions at the
-    /// scenario node, the ship actions and settings inside a ship - never both.
+    /// The rail's ship settings are a ship's own: there is no skin to toggle
+    /// at the scenario node, so the block is not there either.
     #[test]
-    fn each_context_shows_its_own_actions() {
+    fn the_ship_settings_block_belongs_to_the_entered_ship() {
         use bevy::ecs::system::RunSystemOnce;
 
         let mut world = World::new();
@@ -1893,21 +1847,15 @@ mod tests {
         let scenario = world.spawn(ScenarioNode).id();
         let ship = world.spawn(ShipNode::default()).id();
         world.resource_mut::<EditContext>().path = vec![scenario];
-        let stage = world.spawn((ScenarioActions, Node::default())).id();
-        let tools = world.spawn((ShipActions, Node::default())).id();
         let settings = world.spawn((ShipSettings, Node::default())).id();
 
         let display = |world: &World, entity: Entity| world.get::<Node>(entity).unwrap().display;
 
         world.run_system_once(sync_context_panels).unwrap();
-        assert_eq!(display(&world, stage), Display::Flex);
-        assert_eq!(display(&world, tools), Display::None);
         assert_eq!(display(&world, settings), Display::None);
 
         world.resource_mut::<EditContext>().enter(ship);
         world.run_system_once(sync_context_panels).unwrap();
-        assert_eq!(display(&world, stage), Display::None);
-        assert_eq!(display(&world, tools), Display::Flex);
         assert_eq!(display(&world, settings), Display::Flex);
     }
 

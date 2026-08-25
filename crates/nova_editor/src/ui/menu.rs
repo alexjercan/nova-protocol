@@ -41,6 +41,10 @@ pub(crate) enum MenuId {
     View,
     /// Everything that puts a new node in the document.
     Add,
+    /// The verbs of the ship you are inside: arm a part, arm the delete tool,
+    /// rebind a key. Greyed out at the scenario node, where there is no ship
+    /// for any of them to act on.
+    Ship,
 }
 
 impl MenuId {
@@ -51,6 +55,7 @@ impl MenuId {
             MenuId::Edit => "Edit",
             MenuId::View => "View",
             MenuId::Add => "Add",
+            MenuId::Ship => "Ship",
         }
     }
 }
@@ -385,6 +390,71 @@ pub(crate) fn sync_menu_delete(
 #[derive(Component)]
 pub(crate) struct MenuDeleteItem;
 
+/// A row of the Ship menu that needs a ship to act on, so [`sync_ship_menu`]
+/// can grey it at the scenario node.
+///
+/// Rebind is NOT one of these: it needs a bindable section as well, and
+/// `crate::ui::sync_rebind_button` already paints that stricter rule.
+#[derive(Component)]
+pub(crate) struct ShipMenuItem;
+
+/// Grey the Ship menu's rows at the scenario node.
+///
+/// Greyed rather than absent, the same as File > Save: the menu says what the
+/// editor can do INSIDE a ship even while you are standing outside one, which
+/// is also how a builder finds out that entering a ship is what unlocks it.
+pub(crate) fn sync_ship_menu(
+    mut commands: Commands,
+    context: Res<crate::node::EditContext>,
+    items: Query<(Entity, Has<InteractionDisabled>), With<ShipMenuItem>>,
+) {
+    let inside = context.ship().is_some();
+    for (entity, marked) in &items {
+        match (inside, marked) {
+            (false, false) => {
+                commands.entity(entity).insert(InteractionDisabled);
+            }
+            (true, true) => {
+                commands.entity(entity).remove::<InteractionDisabled>();
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Ship > Delete Parts' row, so [`sync_tool_menu_mark`] can report the tool.
+#[derive(Component)]
+pub(crate) struct MenuDeletePartsItem;
+
+/// Say in the menu whether the delete tool is in hand.
+///
+/// A tool is a MODE, and the row that arms it is the only place the menu can
+/// admit that: an armed delete tool that the builder has forgotten about turns
+/// the next click on the ship into a demolition. The same on/off column the
+/// View toggles wear.
+pub(crate) fn sync_tool_menu_mark(
+    choice: Res<crate::config::SectionChoice>,
+    marks: Query<&Children, With<MenuDeletePartsItem>>,
+    mut texts: Query<&mut Text>,
+) {
+    let wanted = if matches!(*choice, crate::config::SectionChoice::Delete) {
+        "on"
+    } else {
+        ""
+    };
+    for children in &marks {
+        let Some(mark) = children.iter().nth(1) else {
+            continue;
+        };
+        let Ok(mut text) = texts.get_mut(mark) else {
+            continue;
+        };
+        if text.0 != wanted {
+            text.0 = wanted.to_string();
+        }
+    }
+}
+
 /// File > Back to Main Menu: end the session.
 ///
 /// The document dies with it (`teardown_document` on leaving `Playing`), which
@@ -526,5 +596,72 @@ mod tests {
             .expect("the sync runs");
         assert_eq!(world.get::<Text>(mark).expect("the mark").0, "off");
         assert!(!world.resource::<EditorOverlays>().link_points);
+    }
+
+    /// The Ship menu's rows need a ship. At the scenario node they are greyed
+    /// rather than gone: the menu is where a builder reads what entering a
+    /// ship would unlock.
+    #[test]
+    fn the_ship_rows_are_greyed_outside_a_ship() {
+        use crate::node::{ScenarioNode, ShipNode};
+
+        let mut world = World::new();
+        world.init_resource::<crate::node::EditContext>();
+        let scenario = world.spawn(ScenarioNode).id();
+        let ship = world.spawn(ShipNode::default()).id();
+        world.resource_mut::<crate::node::EditContext>().path = vec![scenario];
+        let row = world.spawn(ShipMenuItem).id();
+
+        world
+            .run_system_once(sync_ship_menu)
+            .expect("the sync runs");
+        assert!(world.entity(row).contains::<InteractionDisabled>());
+
+        world.resource_mut::<crate::node::EditContext>().enter(ship);
+        world
+            .run_system_once(sync_ship_menu)
+            .expect("the sync runs");
+        assert!(!world.entity(row).contains::<InteractionDisabled>());
+    }
+
+    /// The delete tool is a MODE, so the row that arms it says so and the same
+    /// press puts it down again.
+    #[test]
+    fn the_delete_parts_row_arms_the_tool_and_reports_it() {
+        use crate::{config::SectionChoice, placement::toggle_delete_tool};
+
+        let mut world = World::new();
+        world.init_resource::<SectionChoice>();
+        world.add_observer(toggle_delete_tool);
+        let mark = world.spawn(Text::new("")).id();
+        let row = world
+            .spawn((MenuDeletePartsItem, children![Text::new("Delete Parts")]))
+            .add_child(mark)
+            .id();
+
+        world
+            .run_system_once(sync_tool_menu_mark)
+            .expect("the sync runs");
+        assert_eq!(world.get::<Text>(mark).expect("the mark").0, "");
+
+        world.trigger(Activate { entity: row });
+        world.flush();
+        world
+            .run_system_once(sync_tool_menu_mark)
+            .expect("the sync runs");
+        assert_eq!(*world.resource::<SectionChoice>(), SectionChoice::Delete);
+        assert_eq!(world.get::<Text>(mark).expect("the mark").0, "on");
+
+        world.trigger(Activate { entity: row });
+        world.flush();
+        world
+            .run_system_once(sync_tool_menu_mark)
+            .expect("the sync runs");
+        assert_eq!(
+            *world.resource::<SectionChoice>(),
+            SectionChoice::None,
+            "a second press puts the tool down"
+        );
+        assert_eq!(world.get::<Text>(mark).expect("the mark").0, "");
     }
 }

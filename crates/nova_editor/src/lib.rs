@@ -58,13 +58,11 @@ use node::{
     drop_edited_views, ensure_document, rebuild_node_views, sync_camera_focus, sync_object_views,
     sync_ship_focus, teardown_document, EditContext,
 };
-use nova_ui::widget::button_on_setting;
 use placement::{
     clear_placement_preview, cycle_placement_pose, disarm_outside_ship, draw_delete_target,
     draw_link_points, draw_ship_heading, found_empty_ship, on_click_spaceship_section,
     on_stage_drag, on_stage_drag_end, on_stage_drag_start, pick_section_under_pointer,
-    sync_placement_ghost, sync_tool_selection, update_placement_preview, wheel_placement_pose,
-    StageDrag,
+    sync_placement_ghost, update_placement_preview, wheel_placement_pose, StageDrag,
 };
 use probe::sync_editor_probe;
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
@@ -76,10 +74,10 @@ use ui::{
     },
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_menu_delete, sync_menu_item_paint,
-        sync_menus, sync_view_menu_marks, OpenMenu,
+        sync_menus, sync_ship_menu, sync_tool_menu_mark, sync_view_menu_marks, OpenMenu,
     },
-    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_delete_button, sync_key_legend,
-    sync_play_button, sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_style_list,
+    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
+    sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_style_list,
     window::{on_colour_slider, sync_colour_windows},
 };
 
@@ -281,9 +279,6 @@ fn editor_plugin(app: &mut App) {
     ui::register(app);
     // The parts browser: its own state, overlay and 3D stage.
     gallery::register(app);
-    // The rail tools set the placement tool via their ButtonValue.
-    app.add_observer(button_on_setting::<SectionChoice>);
-
     // One click selects, two enter - shared by the Scene tree and the stage so
     // both count the same double.
     app.init_resource::<LastClick>();
@@ -346,15 +341,16 @@ fn editor_plugin(app: &mut App) {
             // Before the tool-chip reconciler, so a tool put down by leaving
             // the ship repaints in the same frame.
             disarm_outside_ship,
-            sync_tool_selection,
             sync_key_legend,
             // The menus: which one hangs open, and what its rows report about
             // the state they toggle.
             (
                 sync_menus,
                 sync_view_menu_marks,
-                sync_menu_delete,
-                sync_frame_item,
+                sync_tool_menu_mark,
+                // The three greying passes, then the paint that reads their
+                // verdict off the rows.
+                (sync_menu_delete, sync_ship_menu, sync_frame_item).chain(),
                 sync_menu_item_paint,
             )
                 .chain(),
@@ -375,7 +371,6 @@ fn editor_plugin(app: &mut App) {
                 sync_context_panels,
                 sync_breadcrumb,
                 sync_rebind_button,
-                sync_delete_button,
                 sync_play_button,
                 sync_ship_focus,
                 sync_camera_focus,

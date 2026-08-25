@@ -204,6 +204,14 @@ const MENU_ADD: &str = "Add Menu Button";
 #[cfg(feature = "debug")]
 const MENU_VIEW: &str = "View Menu Button";
 
+/// The top bar's Edit menu: what can be done to the selection.
+#[cfg(feature = "debug")]
+const MENU_EDIT: &str = "Edit Menu Button";
+
+/// The top bar's Ship menu: the verbs of the ship the editor is inside.
+#[cfg(feature = "debug")]
+const MENU_SHIP: &str = "Ship Menu Button";
+
 /// A viewport point (logical px) with neither the ship nor a rail panel under
 /// it, on the 1024x768 window the app opens. Pointing here is how a beat puts
 /// the ghost away without disarming the part it is holding.
@@ -388,7 +396,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: select mode marked '{marked}' and placed nothing ({now} sections)");
         })
         .add()
-        .click_a_widget("editor: click Delete Section", "Delete Section Button")
+        .click_a_menu_item(
+            "editor: arm the delete tool",
+            MENU_SHIP,
+            "Delete Parts Item",
+        )
         .step("editor: the delete tool is armed")
         .until(editor_tool_is(EditorTool::Delete))
         .deadline(BEAT_DEADLINE_SECS)
@@ -421,7 +433,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // what it WAITS on is the gallery's own state, so a grid that never
         // narrowed fails at the filter rather than at whatever the next Enter
         // happened to arm.
-        .click_a_widget("editor: open the parts gallery", "Parts Gallery Category")
+        .click_a_menu_item("editor: open the parts gallery", MENU_SHIP, "Parts Item")
         .step("editor: the gallery is browsing the catalog")
         .until(and(editor_gallery_open(), some_gallery_tiles()))
         .deadline(BEAT_DEADLINE_SECS)
@@ -1186,7 +1198,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the rock's inspector reads {rows:?}");
         })
         .add()
-        .click_a_widget("editor: delete the placed rock", "Delete Node Button")
+        .click_a_menu_item("editor: delete the placed rock", MENU_EDIT, "Delete Item")
         .step("editor: the rock is gone and nothing is marked")
         .until(no_object_named("asteroid"))
         .deadline(BEAT_DEADLINE_SECS)
@@ -1300,7 +1312,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         )))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .click_a_widget("editor: delete the placed beacon", "Delete Node Button")
+        .click_a_menu_item("editor: delete the placed beacon", MENU_EDIT, "Delete Item")
         .step("editor: the beacon is off the stage")
         .until(the_placed_node_is_gone())
         .deadline(BEAT_DEADLINE_SECS)
@@ -2597,9 +2609,10 @@ impl EditorGestures for nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         let filter = prototype.to_string();
         let narrowed = prototype.to_string();
         let armed = prototype.to_string();
-        self.click_a_widget(
+        self.click_a_menu_item(
             &format!("{label}: open the gallery"),
-            "Parts Gallery Category",
+            MENU_SHIP,
+            "Parts Item",
         )
         .step(format!("{label}: the gallery is up"))
         .until(and(editor_gallery_open(), some_gallery_tiles()))

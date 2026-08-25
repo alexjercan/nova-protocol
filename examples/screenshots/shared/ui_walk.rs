@@ -375,10 +375,8 @@ impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
         self.step(format!("{label}: release the scripted build camera"))
             .on_enter(release_editor_camera_pose)
             .add()
-            .click(
-                &format!("{label}: open the gallery"),
-                "Parts Gallery Category",
-            )
+            .click(&format!("{label}: open the Ship menu"), "Ship Menu Button")
+            .click(&format!("{label}: open the gallery"), "Parts Item")
             .step(format!("{label}: the gallery parked the camera"))
             .until(and(editor_gallery_open(), the_gallery_camera_is_parked()))
             .deadline(STEP_DEADLINE_SECS)

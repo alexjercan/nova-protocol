@@ -7,8 +7,8 @@
 
 use bevy::prelude::*;
 
-/// The active placement tool, driven by the top bar's tool buttons and the
-/// gallery cards through `button_on_setting::<SectionChoice>`.
+/// The active placement tool: what the next click on the ship does. Set by the
+/// gallery when a part is armed and by Ship > Delete Parts.
 #[derive(Resource, Default, Debug, PartialEq, Eq, Clone, Reflect)]
 pub(crate) enum SectionChoice {
     /// Select mode: clicking a node in the world selects it, exactly as its
@@ -86,16 +86,6 @@ pub(crate) struct PlayButton;
 #[derive(Component)]
 pub(crate) struct ContextBreadcrumb;
 
-/// The top bar's scenario-context action group (Add Ship, Delete). Shown only
-/// at the scenario node; each context gets its own verbs.
-#[derive(Component)]
-pub(crate) struct ScenarioActions;
-
-/// The Delete action's button, greyed unless the selection is a node the
-/// scenario can lose.
-#[derive(Component)]
-pub(crate) struct DeleteNodeButton;
-
 /// What the editor stage DRAWS on top of the document, toggled from the View
 /// menu.
 ///
@@ -122,19 +112,14 @@ impl Default for EditorOverlays {
     }
 }
 
-/// The top bar's ship-context action group (Parts, Delete, Rebind). Shown only
-/// inside a ship.
-#[derive(Component)]
-pub(crate) struct ShipActions;
-
 /// The rail's ship settings block (skin, look, attitude). Shown only inside a
 /// ship: they are properties of the ship being edited, and there is none at
 /// the scenario node.
 #[derive(Component)]
 pub(crate) struct ShipSettings;
 
-/// The Rebind action's button, greyed unless the selection is a bindable
-/// section of the edited ship.
+/// The Rebind row (Ship > Rebind Key), greyed unless the selection is a
+/// bindable section of the edited ship.
 #[derive(Component)]
 pub(crate) struct RebindButton;
 
