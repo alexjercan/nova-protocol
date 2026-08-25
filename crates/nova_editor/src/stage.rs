@@ -25,7 +25,7 @@ use nova_scenario::prelude::{LightConfig, ScenarioObjectKind};
 use nova_ui::theme;
 
 use crate::{
-    config::{EditorGizmos, EditorOverlays, SelectedNode},
+    config::{EditorGizmos, EditorOverlays, HoveredNode, SelectedNode},
     frame::node_bounds,
     gallery::EditorCamera,
     node::{objects_of, EditContext, ObjectNodes},
@@ -190,6 +190,11 @@ pub(crate) fn draw_world_grid(
 /// selection is the one thing on screen every other panel is about.
 const MARK: Color = theme::PHOSPHOR;
 
+/// The colour a HOVER is drawn in. A step down from the selection, because the
+/// pointer answers "which one is this" and the selection answers "which one am
+/// I working on" - and the second must still be findable while the first moves.
+const HOVER_MARK: Color = theme::PHOSPHOR_DIM;
+
 /// How far off the node's own skin the box stands, as a fraction of its
 /// longest side. Off the body rather than on it - an outline flush with a hull
 /// face reads as part of the hull.
@@ -202,7 +207,8 @@ fn mark_box(bounds: ColliderAabb) -> Transform {
     Transform::from_translation(bounds.center()).with_scale(size + Vec3::splat(pad))
 }
 
-/// Draw a box around whatever is marked.
+/// Draw a box around whatever is marked, and a dimmer one around whatever the
+/// pointer is resting on.
 ///
 /// EVERY context, ship included. Out in the world the handle rig doubles as
 /// the mark, but inside a ship the rig is deliberately suppressed - a part's
@@ -210,19 +216,29 @@ fn mark_box(bounds: ColliderAabb) -> Transform {
 /// tree row and the Inspector, both of them off at the edges of the screen.
 /// Rebinding a key, deleting a part or reading its stats all act on a thing
 /// the stage would not point at.
-pub(crate) fn draw_selection_mark(
+///
+/// The hover is skipped when it IS the selection: two boxes a hair apart on
+/// the same hull read as a drawing fault, not as two facts.
+pub(crate) fn draw_node_marks(
     selected: Res<SelectedNode>,
+    hovered: Res<HoveredNode>,
     q_children: Query<&Children>,
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
     mut gizmos: Gizmos<EditorGizmos>,
 ) {
-    let Some(node) = selected.0 else {
-        return;
-    };
-    let Some(bounds) = node_bounds(node, &q_children, &q_bounds) else {
-        return;
-    };
-    gizmos.cube(mark_box(bounds), MARK);
+    let marks = [
+        (
+            hovered.0.filter(|node| Some(*node) != selected.0),
+            HOVER_MARK,
+        ),
+        (selected.0, MARK),
+    ];
+    for (node, colour) in marks {
+        let Some(bounds) = node.and_then(|node| node_bounds(node, &q_children, &q_bounds)) else {
+            continue;
+        };
+        gizmos.cube(mark_box(bounds), colour);
+    }
 }
 
 /// Draw what an object HAS but does not show.

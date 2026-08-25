@@ -15,6 +15,7 @@
 //! - `snap`      - where the armed prototype would land, and why not
 //! - `skin`      - the derived cladding, re-derived live while a part is dragged
 //! - `stage`     - the ground plane the range is laid out on
+//! - `highlight` - the node under the pointer, lit on the rail and on the stage
 //! - `scenario`  - the default world a document is seeded with, and the sandbox script
 //! - `bundle`    - the document as a saved mod bundle, and the read back out of one
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
@@ -37,6 +38,7 @@ mod config;
 mod frame;
 mod gallery;
 mod gizmo;
+mod highlight;
 mod inspect;
 mod keybind;
 mod node;
@@ -52,11 +54,12 @@ mod ui;
 use attitude::sync_attitude_readout;
 use bundle::{apply_file_request, save_key, FileRequest};
 use config::{
-    editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, LastClick, PlacementPose,
-    PlacementPreview, SectionChoice, SelectedNode,
+    editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, HoveredNode, LastClick,
+    PlacementPose, PlacementPreview, SectionChoice, SelectedNode,
 };
 use frame::{apply_frame_request, frame_key, sync_frame_item, FrameRequest};
 use gizmo::sync_gizmo;
+use highlight::{paint_hovered_rows, sync_hovered_node};
 use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
     sync_section_keybind_labels, EditorRebind,
@@ -75,7 +78,7 @@ use probe::sync_editor_probe;
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
-use stage::{draw_object_volumes, draw_selection_mark, draw_world_grid};
+use stage::{draw_node_marks, draw_object_volumes, draw_world_grid};
 use ui::{
     inspector::{
         apply_inspector_edits, hold_camera_while_typing, sync_inspector, typing_into_a_field,
@@ -142,6 +145,7 @@ fn editor_plugin(app: &mut App) {
     app.insert_resource(SectionChoice::None);
     app.init_resource::<EditContext>();
     app.init_resource::<SelectedNode>();
+    app.init_resource::<HoveredNode>();
     app.init_resource::<EditorRebind>();
     app.init_resource::<EditorOverlays>();
     // The one line the editor speaks through - the placement readout and every
@@ -385,6 +389,10 @@ fn editor_plugin(app: &mut App) {
             // the ship repaints in the same frame.
             disarm_outside_ship,
             sync_key_legend,
+            // The node under the pointer, ahead of everything that lights it:
+            // the rail's rows, and the mark the stage draws at the foot of
+            // this chain.
+            sync_hovered_node,
             // The menus: which one hangs open, and what its rows report about
             // the state they toggle.
             (
@@ -416,7 +424,7 @@ fn editor_plugin(app: &mut App) {
                 // describes, and a rebuilt list has no laid-out rows yet. The
                 // row's own delete is revealed by the same pass, for the same
                 // reason.
-                (sync_scene_tooltip, sync_row_trash),
+                (sync_scene_tooltip, sync_row_trash, paint_hovered_rows),
                 // The panel, and then the floating windows: a window shows what
                 // the row it was opened from shows, and closes when that row
                 // goes away. One element, because the group around it is
@@ -457,7 +465,7 @@ fn editor_plugin(app: &mut App) {
             draw_ship_heading,
             draw_world_grid,
             draw_object_volumes,
-            draw_selection_mark,
+            draw_node_marks,
         )
             .chain()
             // BEFORE the gallery's keyboard, which shares two keys with the

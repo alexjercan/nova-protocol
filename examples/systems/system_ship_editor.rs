@@ -1447,6 +1447,31 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(the_pointer_is_on_the_ship())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // The pointer carries the node across to the rail: resting on a hull
+        // out here lights the row that names it, so a tree of minted ids can be
+        // read against the stage without clicking anything.
+        .step("editor: the stage hover reaches the tree")
+        .until(the_hovered_node_is("ship_1"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: exactly the pointed-at ship's row is lit")
+        .on_enter(|world: &mut World| {
+            assert!(
+                world.resource::<EditorProbe>().selected_node.is_none(),
+                "the hover beats run on an unselected tree, or the tint proves nothing"
+            );
+            let lit = row_tint(world, "Scene Row ship_1");
+            let dark = row_tint(world, "Scene Row ship_2");
+            assert!(lit > 0.0, "the hovered ship's row is painted, got {lit}");
+            assert!(dark <= 0.0, "and its neighbour is not, got {dark}");
+            nova_probe::probe_marker(
+                world,
+                "outcome: pointing at a ship lights its row in the tree",
+                serde_json::json!({}),
+            );
+            info!("editor: ship_1's row is lit from the stage ({lit} against {dark})");
+        })
+        .add()
         .press_and_release(
             "editor: click the first ship's body",
             the_first_ship_is_selected(),
@@ -1686,6 +1711,13 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             let kind = named_text(world, "Scene Row Hint Kind");
             assert_eq!(kind.as_deref(), Some("TURRET"), "and what its icon meant");
+            // The other half of the cross-highlight: the row hands the node to
+            // the stage, which is what `draw_node_marks` boxes.
+            assert_eq!(
+                world.resource::<EditorProbe>().hovered_node.as_deref(),
+                Some("pdc_kinetic_turret_section_7"),
+                "resting on a row marks that part on the stage"
+            );
             nova_probe::probe_marker(
                 world,
                 "outcome: a tree row reveals its kind and its whole id on hover",
@@ -2442,6 +2474,29 @@ fn aim_at_the_named(world: &mut World, name: &str) -> Option<Vec2> {
         .find(|(named, _)| named.as_str() == name)
         .map(|(_, pose)| pose.translation())?;
     aim_at_world(world, at)
+}
+
+/// Advance once the editor reports `id` as the node under the pointer.
+///
+/// One resource behind both surfaces, so this is what proves a rail hover and
+/// a stage hover are the same fact rather than two highlights that agree by
+/// coincidence.
+#[cfg(feature = "debug")]
+fn the_hovered_node_is(id: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        world.resource::<EditorProbe>().hovered_node.as_deref() == Some(id)
+    })
+}
+
+/// How strongly a named Scene row is painted. A row lit by hover or by
+/// selection carries a tinted background; an untouched one is transparent, so
+/// the alpha alone says whether the tree answered.
+#[cfg(feature = "debug")]
+fn row_tint(world: &mut World, name: &str) -> f32 {
+    let row = named_entity(world, name).unwrap_or_else(|| panic!("the tree must list `{name}`"));
+    world
+        .get::<BackgroundColor>(row)
+        .map_or(0.0, |paint| paint.0.alpha())
 }
 
 /// Advance once the object the picker beats placed is out of the document.

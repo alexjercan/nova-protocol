@@ -59,6 +59,16 @@ pub(crate) enum SectionChoice {
 #[derive(Resource, Default, Debug)]
 pub(crate) struct SelectedNode(pub(crate) Option<Entity>);
 
+/// The node the pointer is resting on, wherever it rests.
+///
+/// HOVER IS NOT SELECTION. Nothing acts on this - it is what the rail and the
+/// stage light up so the same node can be found on both surfaces without
+/// clicking, which would move the camera and the selection to find out.
+/// Filled by [`crate::highlight::sync_hovered_node`] from whichever surface
+/// the pointer is over.
+#[derive(Resource, Default, Debug)]
+pub(crate) struct HoveredNode(pub(crate) Option<Entity>);
+
 /// How long after a click a second one on the same node still reads as a
 /// double.
 ///

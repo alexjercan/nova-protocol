@@ -12,7 +12,7 @@ use nova_ship::prelude::GameSections;
 use nova_ui::prelude::TextFieldFocused;
 
 use crate::{
-    config::{EditorStatus, PlacementPreview, SectionChoice, SelectedNode},
+    config::{EditorStatus, HoveredNode, PlacementPreview, SectionChoice, SelectedNode},
     gallery::GalleryState,
     gizmo::GizmoRig,
     node::{
@@ -114,6 +114,13 @@ pub struct EditorProbe {
     pub context_nodes: Vec<String>,
     /// The id of the node the Scene tree has marked, or `None`.
     pub selected_node: Option<String>,
+    /// The id of the node the pointer is resting on, or `None`.
+    ///
+    /// One answer for both surfaces: the rail and the stage feed the same
+    /// hover, which is what makes them cross-highlight. A driven run reads it
+    /// to prove that pointing at a hull lights its row, and that resting on a
+    /// row marks the hull.
+    pub hovered_node: Option<String>,
     /// Whether Play would hand off right now. False inside a ship, where the
     /// button is disabled.
     pub can_play: bool,
@@ -172,7 +179,9 @@ pub(crate) fn sync_editor_probe(
     gallery: Res<GalleryState>,
     sections: Option<Res<GameSections>>,
     context: Res<EditContext>,
-    selected: Res<SelectedNode>,
+    // Tupled for the arity cap below: both are "which node is the screen
+    // pointing at", one by click and one by pointer.
+    marks: (Res<SelectedNode>, Res<HoveredNode>),
     // Tupled for the same reason as `chrome` below: Bevy caps a system at 16
     // params, and these two are one thing - what the chrome is saying.
     readouts: (Res<EditorStatus>, Res<OpenMenu>),
@@ -189,6 +198,7 @@ pub(crate) fn sync_editor_probe(
     ),
     mut probe: ResMut<EditorProbe>,
 ) {
+    let (selected, hovered) = &marks;
     let (status, open_menu) = &readouts;
     let (caret, rig) = &chrome;
     let wanted = if *editor.get() == ExampleStates::Editor {
@@ -196,12 +206,16 @@ pub(crate) fn sync_editor_probe(
         let listed = context_nodes(&context, &q_ships, &q_objects, &nodes);
         snapshot.ship = edited_ship(&context, &nodes);
         snapshot.inside = inside_id(&context, &q_ships).map(|id| id.0.clone());
-        snapshot.selected_node = selected.0.and_then(|node| {
-            listed
-                .iter()
-                .find(|listed| listed.entity == node)
-                .map(|listed| listed.id.0.clone())
-        });
+        let id_of = |node: Option<Entity>| {
+            node.and_then(|node| {
+                listed
+                    .iter()
+                    .find(|listed| listed.entity == node)
+                    .map(|listed| listed.id.0.clone())
+            })
+        };
+        snapshot.selected_node = id_of(selected.0);
+        snapshot.hovered_node = id_of(hovered.0);
         // The same rule `continue_to_simulation` enforces, reported rather than
         // re-derived from the button's paint - a driven run asserts what Play
         // WOULD do, not what it looks like.
@@ -327,6 +341,7 @@ fn snapshot(
         inside: None,
         context_nodes: Vec::new(),
         selected_node: None,
+        hovered_node: None,
         can_play: false,
         visible_ships: Vec::new(),
         node_positions: Vec::new(),
@@ -390,6 +405,7 @@ mod tests {
         world.init_resource::<GalleryState>();
         world.init_resource::<EditContext>();
         world.init_resource::<SelectedNode>();
+        world.init_resource::<HoveredNode>();
         world.init_resource::<EditorProbe>();
         world
     }
@@ -786,6 +802,7 @@ mod tests {
         app.init_resource::<GalleryState>();
         app.init_resource::<EditContext>();
         app.init_resource::<SelectedNode>();
+        app.init_resource::<HoveredNode>();
         app.init_resource::<EditorStatus>();
         app.init_resource::<OpenMenu>();
         app.init_resource::<EditorProbe>();
