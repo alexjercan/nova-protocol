@@ -780,14 +780,21 @@ fn object_glyph(object: &ObjectNode) -> &'static str {
     }
 }
 
-/// The whole document as a tree: the scenario root, every ship under it, the
-/// ENTERED ship's sections nested under that ship, and then the rest of the
-/// world. Sibling ships stay collapsed - their sections are not what the builder
-/// is working on, and a 150px rail cannot hold three ships' worth of rows.
+/// The document as a tree, for the context the editor is standing in.
 ///
-/// Ships first and objects after, rather than one id-sorted list: a builder came
-/// here to build a ship, and the range it stands on is context. The same order
-/// `context_nodes` reports, so the tree and the probe agree.
+/// At the scenario node that is the whole world: the root, every ship under it,
+/// and then the objects. Ships first and objects after, rather than one
+/// id-sorted list, because a builder came here to build a ship and the range it
+/// stands on is context.
+///
+/// INSIDE A SHIP THE TREE ISOLATES IT: the root, that ship, and that ship's
+/// sections - nothing else. The stage already takes the rest of the world away
+/// when a ship is entered, and a row for a beacon you cannot see, whose
+/// selection the Inspector would then report from inside a ship, is a click
+/// that means nothing. The root row stays because it is the way back out.
+///
+/// The same nodes `context_nodes` reports, plus the two rungs of the path, so
+/// the tree and the probe agree.
 fn wanted_rows(
     context: &EditContext,
     q_scenarios: &Query<&NodeId, With<ScenarioNode>>,
@@ -819,6 +826,11 @@ fn wanted_rows(
         .collect();
     ships.sort_unstable_by(|a, b| a.2.cmp(b.2));
     for (ship, _, id, node) in ships {
+        // Isolation: a ship that is not the one being edited is not a rung of
+        // the path and not a thing to act on from in here.
+        if entered.is_some_and(|inside| inside != ship) {
+            continue;
+        }
         let glyph = if entered == Some(ship) {
             "@"
         } else {
@@ -851,7 +863,14 @@ fn wanted_rows(
             });
         }
     }
-    for (object, id, node, _) in objects_of(scenario, q_objects) {
+    // The world's objects belong to the scenario node, so they are listed
+    // there and only there.
+    let world = if entered.is_none() {
+        objects_of(scenario, q_objects)
+    } else {
+        Vec::new()
+    };
+    for (object, id, node, _) in world {
         let (label, trail) = tree_text(&id.0);
         rows.push(WantedRow {
             node: object,
@@ -1489,10 +1508,11 @@ mod tests {
             .collect()
     }
 
-    /// The tree is the DOCUMENT: the scenario root, every ship, and the
-    /// entered ship's sections nested under it. Sibling ships stay collapsed.
+    /// At the scenario node the tree is the whole DOCUMENT: the root and every
+    /// ship, each branch collapsed. Entering one ISOLATES it - the root, that
+    /// ship and its sections, and nothing a click in there could not mean.
     #[test]
-    fn the_scene_tree_opens_the_entered_branch_only() {
+    fn entering_a_ship_isolates_it_in_the_tree() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         let first = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
@@ -1511,16 +1531,16 @@ mod tests {
         app.update();
         assert_eq!(
             row_names(&mut app),
-            vec!["scenario", "ship_1", "hull_1", "ship_2"],
-            "the entered ship opens; its sibling does not"
+            vec!["scenario", "ship_1", "hull_1"],
+            "the entered ship opens, and its sibling is not in the tree at all"
         );
 
         app.world_mut().resource_mut::<EditContext>().enter(second);
         app.update();
         assert_eq!(
             row_names(&mut app),
-            vec!["scenario", "ship_1", "ship_2", "turret_1"],
-            "entering the sibling moves the open branch"
+            vec!["scenario", "ship_2", "turret_1"],
+            "entering the sibling moves the whole tree to it"
         );
     }
 
@@ -1542,7 +1562,7 @@ mod tests {
         app.update();
         assert_eq!(
             row_leads(&mut app),
-            vec!["*", "@", "=", "-"],
+            vec!["*", "@", "="],
             "the entered ship is marked, and its hull section shows its kind"
         );
     }

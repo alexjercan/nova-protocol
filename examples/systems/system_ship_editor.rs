@@ -204,6 +204,10 @@ const MENU_ADD: &str = "Add Menu Button";
 #[cfg(feature = "debug")]
 const MENU_VIEW: &str = "View Menu Button";
 
+/// The Scene tree's row names all start with this, then the node's own id.
+#[cfg(feature = "debug")]
+const SCENE_ROW: &str = "Scene Row ";
+
 /// The top bar's Edit menu: what can be done to the selection.
 #[cfg(feature = "debug")]
 const MENU_EDIT: &str = "Edit Menu Button";
@@ -1504,6 +1508,37 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(back_inside_the_stamped_ship())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // Entering ISOLATES: the tree holds the way out, this ship and its
+        // parts, and not one row of the range standing around it - a click on
+        // a beacon from inside a ship means nothing, so there is nothing to
+        // click.
+        .step("editor: the tree isolates the entered ship")
+        .on_enter(|world: &mut World| {
+            let rows = scene_row_names(world);
+            assert!(
+                rows.iter().any(|row| row == "Scene Row ship_1"),
+                "the entered ship is in the tree: {rows:?}"
+            );
+            assert!(
+                rows.iter().any(|row| row == "Scene Row scenario"),
+                "and so is the way back out: {rows:?}"
+            );
+            assert!(
+                !rows.iter().any(|row| {
+                    row.starts_with("Scene Row beacon")
+                        || row.starts_with("Scene Row hulk")
+                        || row == "Scene Row ship_2"
+                }),
+                "and nothing else: {rows:?}"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: entering a node isolates it in the tree",
+                serde_json::json!({}),
+            );
+            info!("editor: inside ship_1 the tree lists {rows:?}");
+        })
+        .add()
         // The turret is the deepest config in the game - its fire rate lives on
         // a muzzle, on a joint, inside `root.children` - so it is what proves
         // both that the walk reaches into a list and that the panel can be
@@ -1927,6 +1962,21 @@ fn back_inside_the_stamped_ship() -> Wait {
         let probe = world.resource::<EditorProbe>();
         probe.inside.is_some() && probe.ship.len() == world.resource::<EditorWalk>().ids.len()
     })
+}
+
+/// Every Scene tree row on screen, by name.
+#[cfg(feature = "debug")]
+fn scene_row_names(world: &mut World) -> Vec<String> {
+    let Some(mut query) = world.try_query::<(&Name, &InheritedVisibility)>() else {
+        return Vec::new();
+    };
+    let mut rows: Vec<String> = query
+        .iter(world)
+        .filter(|(name, visibility)| visibility.get() && name.as_str().starts_with(SCENE_ROW))
+        .map(|(name, _)| name.as_str().to_string())
+        .collect();
+    rows.sort();
+    rows
 }
 
 /// Advance once the editor is out at the scenario node, where Play lives.

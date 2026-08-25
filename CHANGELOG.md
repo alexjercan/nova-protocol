@@ -18,8 +18,8 @@ does NOT get an entry - and it is the only place they are written down.
 ### Interface & HUD
 
 - The editor holds a scenario of ships under a real scene tree: a click picks a
-  node and two enter a ship, entering shows only that ship, and Play compiles
-  the scenario root.
+  node and two enter one, entering isolates that ship in the tree and on the
+  stage, and Play compiles the scenario root.
 - Add Ship starts a blank ship - a pad marker shows where the first armed
   part founds it - and dragging a ship at the scenario node slides it on the
   ground plane.
@@ -29,8 +29,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The top bar's Add menu places anchors, asteroids, beacons, salvage crates and
   lights in front of the camera, and dragging or deleting a world object works
   exactly as it does for a ship.
-- A click in the world selects: a section inside a ship, a ship outside.
-  Rebinding a section's key is Ship > Rebind Key, on the selection.
+- A click in the world selects: a section inside a ship, a ship outside; two on
+  a world object frame it. Rebinding a section's key is Ship > Rebind Key, on
+  the selection.
 - The selected ship or object carries move and turn handles: drag an arrow to
   slide it along one axis, a ring to spin it about one - so a node can go
   somewhere other than the ground plane.

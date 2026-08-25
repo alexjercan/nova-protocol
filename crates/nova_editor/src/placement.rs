@@ -19,9 +19,10 @@ use nova_ui::theme;
 
 use crate::{
     config::{
-        EditorOverlays, Placement, PlacementPose, PlacementPreview, PlacementStatus, SectionChoice,
-        SectionGhost, SectionPreviewMarker, SelectedNode,
+        EditorOverlays, LastClick, Placement, PlacementPose, PlacementPreview, PlacementStatus,
+        SectionChoice, SectionGhost, SectionPreviewMarker, SelectedNode,
     },
+    frame::{ask_for, FrameRequest},
     keybind::EditorRebind,
     node::{
         node_of_view, sections_of, spawn_object_node, spawn_section_node, spawn_ship_node,
@@ -767,6 +768,9 @@ pub(crate) fn on_click_spaceship_section(
     preview: Res<PlacementPreview>,
     mut ordinals: Query<&mut NextChildOrdinal>,
     rebind: Res<EditorRebind>,
+    time: Res<Time<Real>>,
+    mut last: ResMut<LastClick>,
+    mut request: ResMut<FrameRequest>,
     mut selected: ResMut<SelectedNode>,
     q_views: Query<&ChildOf, With<NodeView>>,
     q_objects: Query<(), With<ObjectNode>>,
@@ -788,9 +792,15 @@ pub(crate) fn on_click_spaceship_section(
     }
 
     // An object has nothing to build on and nothing to enter: clicking one
-    // SELECTS it, which is the same answer its tree row gives.
+    // SELECTS it, which is the same answer its tree row gives. A SECOND click
+    // frames it - the gesture a ship spends on entering, spent on the one
+    // thing a rock can do with it. Without this a double-click out here was
+    // two selections of what was already selected.
     if q_objects.contains(node) {
         selected.0 = Some(node);
+        if last.press(node, time.elapsed_secs()) {
+            ask_for(&mut request, Some(node));
+        }
         return;
     }
 
@@ -1580,6 +1590,77 @@ mod tests {
             app.world().resource::<SelectedNode>().0,
             Some(placed[0].0),
             "what you just placed is what the tree has marked"
+        );
+    }
+
+    /// A second press on a world object FRAMES it. There is nothing inside a
+    /// rock to enter, so the gesture a ship spends on entering is spent on the
+    /// one thing a rock can do with it - and a double-click that did nothing
+    /// read as a dead spot on the stage.
+    #[test]
+    fn a_double_click_on_a_world_object_frames_it() {
+        use bevy::{
+            camera::NormalizedRenderTarget,
+            picking::{
+                backend::HitData,
+                pointer::{Location, PointerId},
+            },
+            window::{Window, WindowRef},
+        };
+
+        let mut app = document_app(vec![]);
+        app.init_resource::<SelectedNode>();
+        app.init_resource::<LastClick>();
+        app.init_resource::<FrameRequest>();
+        app.init_resource::<EditorRebind>();
+        app.init_resource::<SectionChoice>();
+        app.init_resource::<PlacementPreview>();
+        app.insert_resource(Time::<Real>::default());
+        app.add_observer(on_click_spaceship_section);
+
+        let rock = object_nodes(&mut app)[0];
+        // A hit lands on the VIEW; the document node is its parent.
+        let view = app.world_mut().spawn((NodeView, ChildOf(rock))).id();
+        let screen = app.world_mut().spawn(Window::default()).id();
+        let target = NormalizedRenderTarget::Window(
+            WindowRef::Entity(screen)
+                .normalize(None)
+                .expect("a named window normalizes"),
+        );
+        let mut press = |app: &mut App| {
+            app.world_mut().trigger(Pointer::new(
+                PointerId::Mouse,
+                Location {
+                    target: target.clone(),
+                    position: Vec2::ZERO,
+                },
+                Press {
+                    button: PointerButton::Primary,
+                    hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+                    count: 1,
+                },
+                view,
+            ));
+            app.update();
+        };
+
+        press(&mut app);
+        assert_eq!(
+            app.world().resource::<SelectedNode>().0,
+            Some(rock),
+            "one press marks the object"
+        );
+        assert_eq!(
+            app.world().resource::<FrameRequest>().0,
+            None,
+            "and leaves the camera where it is"
+        );
+
+        press(&mut app);
+        assert_eq!(
+            app.world().resource::<FrameRequest>().0,
+            Some(rock),
+            "the second press asks the camera for it"
         );
     }
 
