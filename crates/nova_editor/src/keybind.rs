@@ -8,7 +8,7 @@ use bevy_enhanced_input::prelude::Binding;
 use nova_ship::prelude::*;
 
 use crate::{
-    config::SelectedNode,
+    config::{EditorSays, SelectedNode},
     gallery::EditorCamera,
     node::{EditContext, SectionNode},
     ExampleStates,
@@ -242,6 +242,7 @@ pub(crate) fn apply_section_rebind(
     context: Res<EditContext>,
     mut rebind: ResMut<EditorRebind>,
     mut q_sections: Query<(&mut SectionNode, &ChildOf)>,
+    mut says: EditorSays,
 ) {
     let Some(section) = rebind.target else {
         return;
@@ -285,7 +286,10 @@ pub(crate) fn apply_section_rebind(
     // A conflicting key stays armed rather than being accepted: the chip keeps
     // prompting, so the player just presses another key.
     if let Some(taken_by) = binding_conflict(&new_binding) {
-        warn!("editor: {new_binding:?} is already driven by {taken_by} - pick another key");
+        says.refuse(format!(
+            "{} already drives {taken_by} - pick another key",
+            binding_label(std::slice::from_ref(&new_binding))
+        ));
         return;
     }
 
@@ -383,6 +387,9 @@ mod tests {
 
     fn armed(world: &mut World, section: Entity) {
         world.init_resource::<EditorRebind>();
+        // A refusal reaches for the status line and the clock behind it.
+        world.init_resource::<crate::config::EditorStatus>();
+        world.init_resource::<Time>();
         world.resource_mut::<EditorRebind>().target = Some(section);
     }
 
@@ -567,6 +574,15 @@ mod tests {
             world.resource::<EditorRebind>().target,
             Some(section),
             "the section stays armed for another try"
+        );
+        let (line, _) = world
+            .resource::<crate::config::EditorStatus>()
+            .line()
+            .expect("a refused key is answered on the line");
+        assert!(
+            line.contains('G') && line.contains("goto"),
+            "the chip prompts on forever unless the line names the KEY and \
+             what already holds it; it read {line:?}"
         );
     }
 

@@ -30,7 +30,7 @@ use nova_ui::{
 };
 
 use crate::{
-    config::SelectedNode,
+    config::{EditorSays, SelectedNode},
     gallery::EditorCamera,
     inspect::{
         choose_field, driver_label, editable_config, heading_of, heading_to, inspected,
@@ -806,6 +806,7 @@ pub(crate) fn on_inspector_flag(
     activate: On<Activate>,
     boxes: Query<&InspectorField, With<InspectorFlag>>,
     mut targets: EditTargets,
+    mut says: EditorSays,
 ) {
     let Ok(field) = boxes.get(activate.entity) else {
         return;
@@ -816,7 +817,7 @@ pub(crate) fn on_inspector_flag(
             .ok_or_else(|| "not a flag".to_string())
     });
     if let Err(reason) = flipped {
-        warn!("inspector: {reason}");
+        says.refuse(reason);
     }
 }
 
@@ -828,6 +829,7 @@ pub(crate) fn on_inspector_choice(
     activate: On<Activate>,
     options: Query<(&InspectorField, &InspectorChoice)>,
     mut targets: EditTargets,
+    mut says: EditorSays,
 ) {
     let Ok((field, option)) = options.get(activate.entity) else {
         return;
@@ -836,7 +838,7 @@ pub(crate) fn on_inspector_choice(
         choose_field(root, path, &option.variant)
     });
     if let Err(reason) = chosen {
-        warn!("inspector: {reason}");
+        says.refuse(reason);
     }
 }
 

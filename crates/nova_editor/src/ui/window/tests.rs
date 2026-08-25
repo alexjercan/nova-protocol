@@ -25,6 +25,9 @@ fn window_app() -> App {
     let mut app = App::new();
     app.insert_resource(UiSkin::default());
     app.init_resource::<SelectedNode>();
+    // A slider that cannot write says so on the status line.
+    app.init_resource::<crate::config::EditorStatus>();
+    app.init_resource::<Time>();
     app.add_message::<TextFieldSubmitted>();
     // A window entity, because a floating window is placed and clamped against
     // the screen it stands on.

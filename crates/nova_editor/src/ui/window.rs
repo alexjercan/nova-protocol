@@ -24,6 +24,7 @@ use nova_ui::{
 };
 
 use crate::{
+    config::EditorSays,
     inspect::{colour_text, write_field},
     ui::inspector::{EditTargets, InspectorField, InspectorSwatch},
 };
@@ -470,6 +471,7 @@ pub(crate) fn on_colour_slider(
     sliders: Query<(&ColourSlider, &SliderValue)>,
     windows: Query<&ColourWindow>,
     mut targets: EditTargets,
+    mut says: EditorSays,
 ) {
     let Ok((slider, _)) = sliders.get(change.source) else {
         return;
@@ -488,7 +490,7 @@ pub(crate) fn on_colour_slider(
         write_field(root, path, optional, &colour_text(colour))
     });
     if let Err(reason) = written {
-        warn!("colour picker: {reason}");
+        says.refuse(reason);
     }
 }
 

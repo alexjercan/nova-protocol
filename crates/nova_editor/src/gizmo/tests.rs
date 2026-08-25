@@ -157,7 +157,6 @@ fn gizmo_app() -> App {
     app.init_resource::<SelectedNode>();
     app.init_resource::<GalleryState>();
     app.init_resource::<GizmoReach>();
-    app.insert_resource(SectionChoice::None);
     app.world_mut().spawn((
         GizmoRig,
         Transform::default(),
@@ -338,12 +337,6 @@ fn the_rig_stays_off_inside_a_ship_and_under_an_armed_part() {
     assert_eq!(rig(&app).1, Visibility::Hidden, "inside a ship");
 
     app.world_mut().insert_resource(EditContext::default());
-    app.world_mut()
-        .insert_resource(SectionChoice::Section("thruster".to_string()));
-    place(&mut app);
-    assert_eq!(rig(&app).1, Visibility::Hidden, "with a part armed");
-
-    app.world_mut().insert_resource(SectionChoice::None);
     app.world_mut().resource_mut::<GalleryState>().open = true;
     place(&mut app);
     assert_eq!(rig(&app).1, Visibility::Hidden, "under the gallery");

@@ -62,8 +62,8 @@ use keybind::{
     sync_section_keybind_labels, EditorRebind,
 };
 use node::{
-    drop_edited_views, ensure_document, rebuild_node_views, sync_camera_focus, sync_object_views,
-    sync_ship_focus, teardown_document, EditContext,
+    drop_edited_views, ensure_document, rebuild_node_views, report_duplicate_ids,
+    sync_camera_focus, sync_object_views, sync_ship_focus, teardown_document, EditContext,
 };
 use placement::{
     clear_placement_preview, cycle_placement_pose, delete_key, disarm_outside_ship,
@@ -438,6 +438,7 @@ fn editor_plugin(app: &mut App) {
                 sync_gizmo,
             )
                 .chain(),
+            report_duplicate_ids,
             // Both read single letters, which is also what a builder types
             // into an inspector field. See `typing_into_a_field`.
             pick_section_under_pointer.run_if(not(typing_into_a_field)),

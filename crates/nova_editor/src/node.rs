@@ -24,7 +24,7 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::{
-    config::SelectedNode,
+    config::{EditorSays, SelectedNode},
     gallery::EditorCamera,
     preview::{insert_preview_object, insert_preview_section, PreviewArt, PreviewRole},
     scenario::default_world_objects,
@@ -1031,6 +1031,39 @@ pub(crate) fn rebuild_node_views(
     }
 }
 
+/// Say when two children of one node ended up wearing the same id.
+///
+/// An id is the document's own key: it is what a save writes, what a load reads
+/// back, and what the tree shows. Two rows with identical text are two rows
+/// nothing can tell apart - and the only sign used to be one `error!` line at
+/// the moment a counter was missing, which said nothing about the row that came
+/// out of it. Said once per clash, and cleared when the clash goes.
+pub(crate) fn report_duplicate_ids(
+    parents: Query<&Children>,
+    ids: Query<&NodeId>,
+    mut said: Local<Option<String>>,
+    mut says: EditorSays,
+) {
+    let clash = parents.iter().find_map(|children| {
+        let mut seen: Vec<&str> = Vec::new();
+        children.iter().find_map(|child| {
+            let id = ids.get(child).ok()?;
+            if seen.contains(&id.0.as_str()) {
+                return Some(id.0.clone());
+            }
+            seen.push(&id.0);
+            None
+        })
+    });
+    if clash == *said {
+        return;
+    }
+    if let Some(id) = &clash {
+        says.refuse(format!("two nodes are both called '{id}' - rename one"));
+    }
+    *said = clash;
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
@@ -1497,5 +1530,39 @@ mod tests {
             "the context stands on the new scenario node, not inside a dead ship"
         );
         assert_eq!(world.resource::<SelectedNode>().0, None);
+    }
+
+    /// Two rows with the same text are two rows nothing can tell apart, so the
+    /// editor names the id rather than leaving the builder to find the pair.
+    #[test]
+    fn two_children_wearing_one_id_are_reported_by_name() {
+        let mut world = World::new();
+        world.init_resource::<crate::config::EditorStatus>();
+        world.init_resource::<Time>();
+        let scenario = world.spawn(ScenarioNode).id();
+        world.spawn((NodeId("rock_1".to_string()), ChildOf(scenario)));
+        world.spawn((NodeId("rock_2".to_string()), ChildOf(scenario)));
+
+        world
+            .run_system_once(report_duplicate_ids)
+            .expect("the check runs");
+        assert_eq!(
+            world.resource::<crate::config::EditorStatus>().line(),
+            None,
+            "distinct ids are not worth saying anything about"
+        );
+
+        world.spawn((NodeId("rock_1".to_string()), ChildOf(scenario)));
+        world
+            .run_system_once(report_duplicate_ids)
+            .expect("the check runs");
+        let (line, _) = world
+            .resource::<crate::config::EditorStatus>()
+            .line()
+            .expect("a clash is said");
+        assert!(
+            line.contains("rock_1"),
+            "the line must NAME the id, not just report a clash; it read {line:?}"
+        );
     }
 }

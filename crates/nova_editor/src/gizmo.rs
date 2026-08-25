@@ -325,7 +325,6 @@ impl GizmoReach {
 
 pub(crate) fn sync_gizmo(
     context: Res<EditContext>,
-    selection: Res<SectionChoice>,
     selected: Res<SelectedNode>,
     gallery: Res<GalleryState>,
     mut reach: ResMut<GizmoReach>,
@@ -347,7 +346,7 @@ pub(crate) fn sync_gizmo(
     };
     let (mut pose, mut visibility) = rig.into_inner();
 
-    let node = shown_on(&context, &selection, &gallery, &selected, &q_staged);
+    let node = shown_on(&context, &gallery, &selected, &q_staged);
     let (Some(node), Some(camera)) = (node, camera) else {
         if *visibility != Visibility::Hidden {
             *visibility = Visibility::Hidden;
@@ -375,14 +374,23 @@ pub(crate) fn sync_gizmo(
 }
 
 /// The node the rig belongs on, if any.
+///
+/// TWO suppressions, both deliberate. Inside a ship a part's pose is decided by
+/// the socket it mates to, so an axis drag would break the mate the moment it
+/// moved - `on_stage_drag_start` says so to anyone who tries. With the gallery
+/// up the rig is behind a full-screen overlay anyway.
+///
+/// A third used to sit here: an armed part hid the handles too. It could only
+/// ever fire in the frame between arming a part and `disarm_outside_ship`
+/// clearing it, since a part is only armable inside a ship - so it explained
+/// nothing and hid the rig at random.
 fn shown_on(
     context: &EditContext,
-    selection: &SectionChoice,
     gallery: &GalleryState,
     selected: &SelectedNode,
     q_staged: &Query<&Transform, (Or<(With<ShipNode>, With<ObjectNode>)>, Without<GizmoRig>)>,
 ) -> Option<Entity> {
-    if context.ship().is_some() || *selection != SectionChoice::None || gallery.open {
+    if context.ship().is_some() || gallery.open {
         return None;
     }
     let node = selected.0?;

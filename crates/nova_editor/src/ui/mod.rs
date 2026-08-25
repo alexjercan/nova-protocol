@@ -2280,6 +2280,8 @@ mod tests {
             ))
             .id();
         app.add_systems(Update, sync_play_button);
+        app.init_resource::<EditorStatus>();
+        app.init_resource::<Time>();
         app.add_observer(continue_to_simulation);
 
         app.update();
@@ -2310,6 +2312,14 @@ mod tests {
                 NextState::Pending(ExampleStates::Scenario)
             ),
             "and pressing it anyway does not hand off"
+        );
+        assert!(
+            app.world()
+                .resource::<EditorStatus>()
+                .line()
+                .is_some_and(|(line, _)| line.contains("leave the ship")),
+            "and it says so on the one line the editor speaks through, rather \
+             than in a log nobody building a ship is reading"
         );
     }
 

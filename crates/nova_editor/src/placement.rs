@@ -19,8 +19,9 @@ use nova_ui::theme;
 
 use crate::{
     config::{
-        EditorGizmos, EditorOverlays, EditorStatus, LastClick, Placement, PlacementPose,
-        PlacementPreview, SectionChoice, SectionGhost, SectionPreviewMarker, SelectedNode,
+        EditorGizmos, EditorOverlays, EditorSays, EditorStatus, LastClick, Placement,
+        PlacementPose, PlacementPreview, SectionChoice, SectionGhost, SectionPreviewMarker,
+        SelectedNode,
     },
     frame::{ask_for, FrameRequest},
     keybind::EditorRebind,
@@ -144,6 +145,7 @@ pub(crate) fn create_blank_ship(
     mut ordinals: Query<&mut NextChildOrdinal>,
     q_ships: Query<(), With<ShipNode>>,
     mut context: ResMut<EditContext>,
+    mut says: EditorSays,
 ) {
     let ships = q_ships.iter().count();
     // The first ship of a document is the one the player flies; anything built
@@ -156,7 +158,7 @@ pub(crate) fn create_blank_ship(
         ShipDriver::Ai
     };
     if spawn_ship_node(&mut commands, &mut ordinals, &mut context, ships, driver).is_none() {
-        warn!("editor: no document to add a ship to - skipping");
+        says.refuse("there is no scenario to add a ship to");
     }
 }
 
@@ -183,12 +185,13 @@ pub(crate) fn create_scenario_object(
     mut ordinals: Query<&mut NextChildOrdinal>,
     context: Res<EditContext>,
     mut selected: ResMut<SelectedNode>,
+    mut says: EditorSays,
 ) {
     let Ok(choice) = choices.get(activate.entity) else {
         return;
     };
     let Some(scenario) = context.scenario() else {
-        warn!("editor: no document to add an object to - skipping");
+        says.refuse("there is no scenario to add an object to");
         return;
     };
     let at = camera
@@ -386,9 +389,10 @@ pub(crate) fn continue_to_simulation(
     _activate: On<Activate>,
     context: Res<EditContext>,
     mut game_state: ResMut<NextState<ExampleStates>>,
+    mut says: EditorSays,
 ) {
     if context.ship().is_some() {
-        warn!("editor: Play compiles the whole scenario - leave the ship first");
+        says.refuse("Play flies the whole scenario - leave the ship first");
         return;
     }
     game_state.set(ExampleStates::Scenario);
@@ -896,9 +900,14 @@ pub(crate) fn on_click_spaceship_section(
 /// group. Out at the scenario node the pointer selects and drags, and a part
 /// silently still in hand would refuse both while showing no tool anywhere on
 /// screen.
-pub(crate) fn disarm_outside_ship(context: Res<EditContext>, mut choice: ResMut<SectionChoice>) {
+pub(crate) fn disarm_outside_ship(
+    context: Res<EditContext>,
+    mut choice: ResMut<SectionChoice>,
+    mut says: EditorSays,
+) {
     if context.ship().is_none() && *choice != SectionChoice::None {
         *choice = SectionChoice::None;
+        says.note("the part went back on the rack - parts belong to a ship");
     }
 }
 
@@ -971,16 +980,21 @@ pub(crate) fn on_stage_drag_start(
     q_staged: Query<&Transform, Or<(With<ShipNode>, With<ObjectNode>)>>,
     mut selected: ResMut<SelectedNode>,
     mut state: ResMut<StageDrag>,
+    mut says: EditorSays,
 ) {
-    if drag.button != PointerButton::Primary {
-        return;
-    }
-    if context.ship().is_some() || *selection != SectionChoice::None {
+    if drag.button != PointerButton::Primary || *selection != SectionChoice::None {
         return;
     }
     let Some(node) = staged_node_of_view(drag.entity, &q_views, &q_sections) else {
         return;
     };
+    // Inside a ship the handles are gone and the drag does nothing, and until
+    // now neither said why. A part's pose is its socket's; dragging one off the
+    // mate would build a hull the runtime's integrity graph rejects.
+    if context.ship().is_some() {
+        says.refuse("a part moves by being placed again, not by being dragged");
+        return;
+    }
     let (Ok(transform), Some(camera)) = (q_staged.get(node), camera) else {
         return;
     };
@@ -1234,15 +1248,28 @@ mod tests {
         }
     }
 
-    /// An app with a document and the "Add Ship" observer armed.
-    fn document_app(catalog: Vec<SectionConfig>) -> App {
+    /// An app with a document and nothing observing `Activate`.
+    ///
+    /// A test that arms its OWN observer takes this one: a bare `Activate` is
+    /// answered by every observer in the app, so a fixture that also carries
+    /// "Add Ship" would build a ship and enter it on the same trigger.
+    fn document_only(catalog: Vec<SectionConfig>) -> App {
         let mut app = App::new();
         app.insert_resource(GameSections(catalog));
         app.init_resource::<EditContext>();
-        app.add_observer(create_blank_ship);
+        // Every verb here can refuse, and a refusal says so on the line.
+        app.init_resource::<EditorStatus>();
+        app.init_resource::<Time>();
         app.world_mut()
             .run_system_once(ensure_document)
             .expect("the document is created");
+        app
+    }
+
+    /// The same, with the "Add Ship" observer armed.
+    fn document_app(catalog: Vec<SectionConfig>) -> App {
+        let mut app = document_only(catalog);
+        app.add_observer(create_blank_ship);
         app
     }
 
@@ -1419,6 +1446,8 @@ mod tests {
     #[test]
     fn leaving_the_ship_puts_the_tool_down() {
         let mut world = World::new();
+        world.init_resource::<EditorStatus>();
+        world.init_resource::<Time>();
         world.insert_resource(SectionChoice::Section("hull".to_string()));
         let ship = world.spawn_empty().id();
         world.insert_resource(EditContext {
@@ -1435,6 +1464,14 @@ mod tests {
         world.resource_mut::<EditContext>().exit();
         world.run_system_once(disarm_outside_ship).unwrap();
         assert_eq!(*world.resource::<SectionChoice>(), SectionChoice::None);
+        assert!(
+            world
+                .resource::<EditorStatus>()
+                .line()
+                .is_some_and(|(line, _)| line.contains("part")),
+            "and it says so - an emptied hand used to be silent, so the next \
+             click on the hull simply did nothing"
+        );
     }
 
     /// The drag plane maths: a ray meets the ground where it says, and a ray
@@ -1656,7 +1693,7 @@ mod tests {
     /// the tree makes no distinction - and leaves nothing marked behind it.
     #[test]
     fn delete_removes_the_marked_node_and_clears_the_mark() {
-        let mut app = document_app(vec![]);
+        let mut app = document_only(vec![]);
         app.init_resource::<SelectedNode>();
         app.add_observer(delete_selected_node);
         let rock = object_nodes(&mut app)[0];
@@ -1672,12 +1709,89 @@ mod tests {
         assert_eq!(app.world().resource::<SelectedNode>().0, None);
     }
 
+    /// A drag on a part inside a ship does nothing, and the handles are not
+    /// there either. Both are deliberate - a part's pose is its socket's - so
+    /// the gesture that asks for it is where the editor answers.
+    #[test]
+    fn dragging_a_part_inside_a_ship_says_why_it_cannot_move() {
+        use bevy::{
+            camera::NormalizedRenderTarget,
+            picking::{
+                backend::HitData,
+                pointer::{Location, PointerId},
+            },
+            window::{Window, WindowRef},
+        };
+
+        let mut app = document_only(vec![]);
+        app.init_resource::<SelectedNode>();
+        app.init_resource::<SectionChoice>();
+        app.init_resource::<StageDrag>();
+        app.add_observer(on_stage_drag_start);
+        let scenario = app
+            .world()
+            .resource::<EditContext>()
+            .scenario()
+            .expect("the document exists");
+        let ship = app
+            .world_mut()
+            .spawn((ShipNode::default(), Transform::default(), ChildOf(scenario)))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((
+                SectionNode {
+                    source: SectionSource::Prototype("hull".to_string()),
+                    modifications: Vec::new(),
+                    binds: Vec::new(),
+                },
+                ChildOf(ship),
+            ))
+            .id();
+        let view = app.world_mut().spawn((NodeView, ChildOf(section))).id();
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+
+        let window = app.world_mut().spawn(Window::default()).id();
+        app.world_mut().trigger(Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target: NormalizedRenderTarget::Window(
+                    WindowRef::Entity(window)
+                        .normalize(None)
+                        .expect("a window target"),
+                ),
+                position: Vec2::ZERO,
+            },
+            DragStart {
+                button: PointerButton::Primary,
+                hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+            },
+            view,
+        ));
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<StageDrag>().node,
+            None,
+            "the drag itself is still refused"
+        );
+        let (line, _) = app
+            .world()
+            .resource::<EditorStatus>()
+            .line()
+            .expect("the editor answers the gesture");
+        assert!(
+            line.contains("placed"),
+            "and it names what to do instead; it read {line:?}"
+        );
+    }
+
     /// The same verb from the keyboard, at the depth the retired brush owned:
     /// a part inside the ship being edited. Nothing is under the pointer, and
     /// no mode is armed - the MARK is the target.
     #[test]
     fn del_takes_the_marked_section_off_the_ship_being_edited() {
-        let mut app = document_app(vec![]);
+        let mut app = document_only(vec![]);
         app.init_resource::<SelectedNode>();
         app.init_resource::<ButtonInput<KeyCode>>();
         app.add_systems(Update, delete_key);
@@ -1730,7 +1844,7 @@ mod tests {
     /// every panel keyed on it reads an empty ship instead of a missing one.
     #[test]
     fn delete_refuses_the_node_the_editor_is_inside() {
-        let mut app = document_app(vec![]);
+        let mut app = document_only(vec![]);
         app.init_resource::<SelectedNode>();
         app.add_observer(delete_selected_node);
         let scenario = app

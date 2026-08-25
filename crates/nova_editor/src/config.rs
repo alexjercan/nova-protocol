@@ -5,7 +5,8 @@
 //! The SHIP is not here. What the player is assembling lives in
 //! [`crate::node`] as a tree of node entities, one config component per node.
 
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
+use nova_ui::theme;
 
 /// The group every immediate-mode line in the editor draws in.
 ///
@@ -270,6 +271,34 @@ impl EditorStatus {
                     .as_ref()
                     .map(|(message, tint)| (message.as_str(), *tint))
             })
+    }
+}
+
+/// The editor speaking: the one line, and the clock a message is stamped with.
+///
+/// One `SystemParam` rather than two, because a refusal that has to reach for
+/// `Time` as well as [`EditorStatus`] is a refusal that gets written as a
+/// `warn!` instead. Every verb in the editor that can say no takes this.
+#[derive(SystemParam)]
+pub(crate) struct EditorSays<'w> {
+    status: ResMut<'w, EditorStatus>,
+    time: Res<'w, Time>,
+}
+
+impl EditorSays<'_> {
+    /// Say no, in red. The message is the REASON, phrased as the way out where
+    /// there is one - a builder who is told what to do next does not have to
+    /// work out what just happened.
+    pub(crate) fn refuse(&mut self, message: impl Into<String>) {
+        let now = self.time.elapsed_secs_f64();
+        self.status.say(message, theme::RED, now);
+    }
+
+    /// Say what happened, in phosphor. For a thing the editor did FOR you and
+    /// would otherwise do silently.
+    pub(crate) fn note(&mut self, message: impl Into<String>) {
+        let now = self.time.elapsed_secs_f64();
+        self.status.say(message, theme::PHOSPHOR, now);
     }
 }
 
