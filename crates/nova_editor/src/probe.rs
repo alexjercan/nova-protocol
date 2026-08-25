@@ -33,8 +33,6 @@ pub enum EditorTool {
     Select,
     /// Placing the section with this catalog id.
     Place(String),
-    /// Deleting the section clicked.
-    Delete,
 }
 
 /// What a click would build right now.
@@ -292,7 +290,6 @@ fn snapshot(
     let tool = match choice {
         SectionChoice::None => EditorTool::Select,
         SectionChoice::Section(id) => EditorTool::Place(id.clone()),
-        SectionChoice::Delete => EditorTool::Delete,
     };
     EditorProbe {
         // A placement is always FOR the tool in hand. The solver only ever
@@ -693,11 +690,6 @@ mod tests {
                 reason: "socket occupied",
             }
         );
-
-        // The other two tools are readable as themselves rather than as "not
-        // placing".
-        world.insert_resource(SectionChoice::Delete);
-        assert_eq!(sync(&mut world).tool, EditorTool::Delete);
     }
 
     /// What the gallery is showing is reported while it is up and gone once it
@@ -742,10 +734,6 @@ mod tests {
 
         // Escape put the part down after the solve.
         world.insert_resource(SectionChoice::None);
-        assert_eq!(sync(&mut world).placement, EditorPlacement::None);
-
-        // The delete tool is not a placing tool either.
-        world.insert_resource(SectionChoice::Delete);
         assert_eq!(sync(&mut world).placement, EditorPlacement::None);
 
         // A DIFFERENT part in hand: the solve belongs to the one just put down.

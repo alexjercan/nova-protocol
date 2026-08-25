@@ -66,7 +66,7 @@ use node::{
     sync_ship_focus, teardown_document, EditContext,
 };
 use placement::{
-    clear_placement_preview, cycle_placement_pose, disarm_outside_ship, draw_delete_target,
+    clear_placement_preview, cycle_placement_pose, delete_key, disarm_outside_ship,
     draw_link_points, draw_ship_heading, found_empty_ship, on_click_spaceship_section,
     on_stage_drag, on_stage_drag_end, on_stage_drag_start, pick_section_under_pointer,
     sync_placement_ghost, update_placement_preview, wheel_placement_pose, StageDrag,
@@ -82,12 +82,12 @@ use ui::{
     },
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_armed_menu, sync_menu_delete,
-        sync_menu_item_paint, sync_menus, sync_ship_menu, sync_tool_menu_mark,
-        sync_view_menu_marks, OpenMenu,
+        sync_menu_item_paint, sync_menus, sync_ship_menu, sync_view_menu_marks, OpenMenu,
     },
     rail::sync_scene_tooltip,
     setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
-    sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_status_line, sync_style_list,
+    sync_rebind_button, sync_row_trash, sync_scene_list, sync_skin_toggle, sync_status_line,
+    sync_style_list,
     window::{on_colour_slider, sync_colour_windows},
 };
 
@@ -158,6 +158,14 @@ fn editor_plugin(app: &mut App) {
             apply_file_request,
         )
             .chain()
+            .run_if(in_state(ExampleStates::Editor)),
+    );
+    // Del removes what is marked, at any depth. Same guard as Ctrl+S: a name
+    // being typed into an Inspector field takes Delete with it.
+    app.add_systems(
+        Update,
+        delete_key
+            .run_if(not(typing_into_a_field))
             .run_if(in_state(ExampleStates::Editor)),
     );
     // The top bar's menus. Closed on entering the editor because the bar they
@@ -381,7 +389,6 @@ fn editor_plugin(app: &mut App) {
             (
                 sync_menus,
                 sync_view_menu_marks,
-                sync_tool_menu_mark,
                 // The greying passes, then the paint that reads their verdict
                 // off the rows.
                 (
@@ -404,8 +411,10 @@ fn editor_plugin(app: &mut App) {
             (
                 sync_scene_list,
                 // After the rows: a hint is positioned from the row it
-                // describes, and a rebuilt list has no laid-out rows yet.
-                sync_scene_tooltip,
+                // describes, and a rebuilt list has no laid-out rows yet. The
+                // row's own delete is revealed by the same pass, for the same
+                // reason.
+                (sync_scene_tooltip, sync_row_trash),
                 // The panel, and then the floating windows: a window shows what
                 // the row it was opened from shows, and closes when that row
                 // goes away. One element, because the group around it is
@@ -443,7 +452,6 @@ fn editor_plugin(app: &mut App) {
             sync_editor_skin,
             draw_link_points,
             draw_ship_heading,
-            draw_delete_target,
             draw_world_grid,
             draw_object_volumes,
         )
@@ -691,13 +699,6 @@ mod tests {
                 ExampleStates::Editor,
                 false,
                 SectionChoice::Section("hull".to_string()),
-                false,
-                true,
-            ),
-            (
-                ExampleStates::Editor,
-                false,
-                SectionChoice::Delete,
                 false,
                 true,
             ),

@@ -210,43 +210,76 @@ fn in_front_of(camera: &GlobalTransform) -> Vec3 {
     camera.translation() + camera.forward() * NEW_OBJECT_DISTANCE
 }
 
-/// Delete the SELECTED node - the scenario context's delete.
+/// The key that deletes the selection.
+const DELETE_KEY: KeyCode = KeyCode::Delete;
+
+/// Can `node` be deleted?
 ///
-/// Acts on the selection rather than on a click, unlike the ship context's
-/// delete tool: out here a click drags, and a tool that armed the pointer to
-/// destroy whatever it touched would fight the one transform gesture the
-/// scenario node has. Refuses the ship the editor is inside for the same reason
-/// Play does - the context would be left pointing into rubble - which cannot
-/// happen from this button, since it is hidden inside a ship.
+/// Everything a context LISTS can go - a ship, an object, a part - except the
+/// containers the editor is currently standing inside: deleting one of those
+/// would leave the context pointing into rubble, the same reason Play refuses
+/// inside a ship.
+pub(crate) fn deletable(
+    node: Entity,
+    context: &EditContext,
+    nodes: &Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+) -> bool {
+    nodes.contains(node) && !context.path.contains(&node)
+}
+
+/// Delete the SELECTED node, at whatever depth the selection is.
+///
+/// ONE gesture with one name. Deleting a part used to be a brush the pointer
+/// wore: armed from a menu row, disarmed by Escape, reported in three places,
+/// and invisible over empty space - while out at the scenario node the same
+/// word meant an immediate verb on the selection. What is marked is what goes,
+/// in both contexts.
 pub(crate) fn delete_selected_node(
     _activate: On<Activate>,
+    commands: Commands,
+    selected: ResMut<SelectedNode>,
+    context: Res<EditContext>,
+    nodes: Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+) {
+    delete_selection(commands, selected, &context, &nodes);
+}
+
+/// The same verb from the keyboard.
+///
+/// Del is what every editor binds this to, and until now the editor answered
+/// no key at all: Edit > Delete was the only way to remove anything.
+pub(crate) fn delete_key(
+    keys: Res<ButtonInput<KeyCode>>,
+    commands: Commands,
+    selected: ResMut<SelectedNode>,
+    context: Res<EditContext>,
+    nodes: Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+) {
+    if !keys.just_pressed(DELETE_KEY) {
+        return;
+    }
+    delete_selection(commands, selected, &context, &nodes);
+}
+
+/// Despawn the marked node and clear the mark.
+///
+/// The node goes and takes its view with it. Its binds are part of the node,
+/// so there is no second map left holding a key bound to a section that no
+/// longer exists.
+fn delete_selection(
     mut commands: Commands,
     mut selected: ResMut<SelectedNode>,
-    context: Res<EditContext>,
-    deletable: Query<(), Or<(With<ShipNode>, With<ObjectNode>)>>,
+    context: &EditContext,
+    nodes: &Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
 ) {
     let Some(node) = selected.0 else {
         return;
     };
-    if !deletable.contains(node) || context.path.contains(&node) {
+    if !deletable(node, context, nodes) {
         return;
     }
     commands.entity(node).despawn();
     selected.0 = None;
-}
-
-/// Ship > Delete Parts: put the delete tool in hand, or put it down.
-///
-/// A TOGGLE, not an arm: the row is the only place the editor says the tool is
-/// held (`crate::ui::menu::sync_tool_menu_mark` marks it "on"), so pressing it
-/// again has to be how the tool goes back down. Escape does the same thing -
-/// this is the pointer's way to it.
-pub(crate) fn toggle_delete_tool(_activate: On<Activate>, mut choice: ResMut<SectionChoice>) {
-    *choice = if matches!(*choice, SectionChoice::Delete) {
-        SectionChoice::None
-    } else {
-        SectionChoice::Delete
-    };
 }
 
 /// Ship > Roll the Part: one step of the same roll the R key and the wheel take.
@@ -853,12 +886,6 @@ pub(crate) fn on_click_spaceship_section(
                 binds,
             );
         }
-        SectionChoice::Delete => {
-            // The node goes and takes its view with it. Its binds are part of
-            // the node, so there is no second map left holding a key bound to a
-            // section that no longer exists.
-            commands.entity(node).despawn();
-        }
     }
 }
 
@@ -1188,43 +1215,10 @@ pub(crate) fn draw_ship_heading(
     gizmos.arrow(origin, nose, theme::AMBER_NOVA);
 }
 
-/// Outline the section a delete click would remove.
-pub(crate) fn draw_delete_target(
-    q_pointer: Query<&PointerInteraction>,
-    q_views: Query<&ChildOf, With<NodeView>>,
-    q_nodes: Query<(&SectionNode, &GlobalTransform)>,
-    sections: Res<GameSections>,
-    selection: Res<SectionChoice>,
-    mut gizmos: Gizmos<EditorGizmos>,
-) {
-    if !matches!(*selection, SectionChoice::Delete) {
-        return;
-    }
-    let Some((entity, _)) = q_pointer
-        .iter()
-        .filter_map(|interaction| interaction.get_nearest_hit())
-        .next()
-    else {
-        return;
-    };
-    let Some((section, pose)) = node_of_view(*entity, &q_views)
-        .and_then(|node| q_nodes.get(node).ok())
-        .map(|(section, pose)| (section, pose.compute_transform()))
-    else {
-        return;
-    };
-    let Some(config) = section.resolve(Some(&sections)) else {
-        return;
-    };
-    gizmos.cube(
-        pose.with_scale(config.base.collider.unwrap_or_default().aabb_half_extents() * 2.0),
-        theme::RED,
-    );
-}
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
-    use nova_scenario::prelude::ScenarioObjectKind;
+    use nova_scenario::prelude::{ScenarioObjectKind, SectionSource};
 
     use super::*;
     use crate::node::{ensure_document, NodeId, ScenarioNode};
@@ -1676,6 +1670,59 @@ mod tests {
         assert_eq!(object_nodes(&mut app).len(), before - 1);
         assert!(app.world().get_entity(rock).is_err());
         assert_eq!(app.world().resource::<SelectedNode>().0, None);
+    }
+
+    /// The same verb from the keyboard, at the depth the retired brush owned:
+    /// a part inside the ship being edited. Nothing is under the pointer, and
+    /// no mode is armed - the MARK is the target.
+    #[test]
+    fn del_takes_the_marked_section_off_the_ship_being_edited() {
+        let mut app = document_app(vec![]);
+        app.init_resource::<SelectedNode>();
+        app.init_resource::<ButtonInput<KeyCode>>();
+        app.add_systems(Update, delete_key);
+        let scenario = app
+            .world()
+            .resource::<EditContext>()
+            .scenario()
+            .expect("the document exists");
+        let ship = app
+            .world_mut()
+            .spawn((
+                ShipNode::default(),
+                NodeId("ship_1".to_string()),
+                ChildOf(scenario),
+            ))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((
+                SectionNode {
+                    source: SectionSource::Prototype("hull".to_string()),
+                    modifications: Vec::new(),
+                    binds: Vec::new(),
+                },
+                NodeId("part_1".to_string()),
+                ChildOf(ship),
+            ))
+            .id();
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(section);
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(DELETE_KEY);
+        app.update();
+
+        assert!(
+            section_nodes(&mut app).is_empty(),
+            "Del takes the marked part off"
+        );
+        assert_eq!(app.world().resource::<SelectedNode>().0, None);
+        assert!(
+            app.world().get_entity(ship).is_ok(),
+            "and takes nothing else with it"
+        );
     }
 
     /// Delete refuses the node the editor is STANDING IN. Deleting the ship

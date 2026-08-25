@@ -196,10 +196,43 @@ pub(crate) fn scene_row(
                 one_line,
                 row_font,
                 TextColor(theme::PHOSPHOR_MUTED),
-            )
+            ),
+            row_trash(),
         ],
     )
 }
+
+/// The row's own delete, revealed by hover or by selection.
+///
+/// The pointer's way to the verb Del takes from the keyboard, on the surface
+/// that already lists everything the document holds. Hidden until the row is
+/// under the pointer or marked, so a 150px rail is not fifteen delete buttons
+/// waiting to be misclicked.
+fn row_trash() -> impl Bundle {
+    (
+        SceneRowTrash,
+        Button,
+        Hovered::default(),
+        Node {
+            display: Display::None,
+            padding: UiRect::axes(px(4), px(0)),
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        children![(
+            Text::new("x"),
+            TextFont {
+                font_size: FontSize::Px(ROW_TEXT),
+                ..default()
+            },
+            TextColor(theme::RED),
+        )],
+    )
+}
+
+/// A Scene row's delete affordance.
+#[derive(Component)]
+pub(crate) struct SceneRowTrash;
 
 /// What a Scene row's hover reveals: the word its icon stands for, and the id
 /// the row itself had to clip.

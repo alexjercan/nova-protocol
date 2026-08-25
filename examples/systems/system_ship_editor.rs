@@ -244,6 +244,9 @@ struct EditorWalk {
     /// Skin plates on the build, stamped before the beat that drags a part
     /// through them.
     plates: usize,
+    /// The id a select-mode click marked, so the beat that presses Del can say
+    /// the tree lost THAT node rather than merely one fewer.
+    marked: String,
     /// The edited ship's section ids, stamped before the run leaves it. Ids are
     /// the document's own key, so coming back to the same ones is what says the
     /// tree survived the trip.
@@ -402,6 +405,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             let marked = world.resource::<EditorProbe>().selected_node.clone();
             let marked =
                 marked.expect("a click in select mode marks the section under the pointer");
+            world.resource_mut::<EditorWalk>().marked = marked.clone();
             nova_probe::probe_marker(
                 world,
                 "outcome: select mode selects, and places nothing",
@@ -410,36 +414,42 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: select mode marked '{marked}' and placed nothing ({now} sections)");
         })
         .add()
-        .click_a_menu_item(
-            "editor: arm the delete tool",
-            MENU_SHIP,
-            "Delete Parts Item",
-        )
-        .step("editor: the delete tool is armed")
-        .until(editor_tool_is(EditorTool::Delete))
+        // Delete acts on the SELECTION now, not on a brush: what the click
+        // above marked is what Del takes off, and it takes it off at whatever
+        // depth the mark sits.
+        .step("editor: press Del to delete the marked section")
+        .on_enter(press_key(KeyCode::Delete))
+        .until(sections_shrank_by(1))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .click_the_ship(
-            "editor: click the ship in delete mode",
-            the_pointer_is_on_the_ship(),
-            sections_shrank_by(1),
-        )
-        .step("editor: the count dropped back")
+        .step("editor: release Del")
+        .on_enter(release_key(KeyCode::Delete))
+        .add()
+        .step("editor: the marked section is the one that went")
         .on_enter(|world: &mut World| {
             let before = world.resource::<EditorWalk>().sections;
+            let marked = world.resource::<EditorWalk>().marked.clone();
             let now = count_sections(world);
             assert_eq!(
                 now,
                 before - 1,
-                "a click in delete mode must remove exactly the section under \
-                 the pointer"
+                "Del must remove exactly the section the click marked"
+            );
+            assert!(
+                !edited_section_ids(world).contains(&marked),
+                "the tree still carries '{marked}', the id Del was aimed at"
+            );
+            assert_eq!(
+                world.resource::<EditorProbe>().selected_node,
+                None,
+                "deleting the marked node must leave nothing marked"
             );
             nova_probe::probe_marker(
                 world,
-                "outcome: delete removes the section clicked",
+                "outcome: Del removes the marked section",
                 serde_json::json!({}),
             );
-            info!("editor: deleted a section ({before} -> {now})");
+            info!("editor: Del removed '{marked}' ({before} -> {now})");
         })
         .add()
         // The parts gallery, walked the way a player walks it: browse, filter,

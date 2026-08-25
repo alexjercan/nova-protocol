@@ -481,18 +481,28 @@ fn alpha_if(colour: Color, disabled: bool) -> Color {
     }
 }
 
-/// Grey Edit > Delete unless the selection is something that can be deleted -
-/// the same rule the top bar's Delete is painted by.
+/// Grey Edit > Delete unless the selection is something that can be deleted.
+///
+/// A PART counts. The row used to grey the moment a section was selected and
+/// say nothing about where the verb had gone - it had gone to a brush in
+/// another menu, under another name.
 pub(crate) fn sync_menu_delete(
     mut commands: Commands,
     selected: Res<SelectedNode>,
     context: Res<crate::node::EditContext>,
-    deletable: Query<(), Or<(With<crate::node::ShipNode>, With<crate::node::ObjectNode>)>>,
+    nodes: Query<
+        (),
+        Or<(
+            With<crate::node::ShipNode>,
+            With<crate::node::ObjectNode>,
+            With<crate::node::SectionNode>,
+        )>,
+    >,
     items: Query<(Entity, Has<InteractionDisabled>), With<MenuDeleteItem>>,
 ) {
     let armable = selected
         .0
-        .is_some_and(|node| deletable.contains(node) && !context.path.contains(&node));
+        .is_some_and(|node| crate::placement::deletable(node, &context, &nodes));
     for (entity, marked) in &items {
         match (armable, marked) {
             (false, false) => {
@@ -566,40 +576,6 @@ pub(crate) fn sync_armed_menu(
                 commands.entity(entity).remove::<InteractionDisabled>();
             }
             _ => {}
-        }
-    }
-}
-
-/// Ship > Delete Parts' row, so [`sync_tool_menu_mark`] can report the tool.
-#[derive(Component)]
-pub(crate) struct MenuDeletePartsItem;
-
-/// Say in the menu whether the delete tool is in hand.
-///
-/// A tool is a MODE, and the row that arms it is the only place the menu can
-/// admit that: an armed delete tool that the builder has forgotten about turns
-/// the next click on the ship into a demolition. The same on/off column the
-/// View toggles wear.
-pub(crate) fn sync_tool_menu_mark(
-    choice: Res<crate::config::SectionChoice>,
-    marks: Query<&Children, With<MenuDeletePartsItem>>,
-    tails: Query<&Children>,
-    mut texts: Query<&mut Text>,
-) {
-    let wanted = if matches!(*choice, crate::config::SectionChoice::Delete) {
-        "on"
-    } else {
-        ""
-    };
-    for children in &marks {
-        let Some(word) = tail_word(children, &tails) else {
-            continue;
-        };
-        let Ok(mut text) = texts.get_mut(word) else {
-            continue;
-        };
-        if text.0 != wanted {
-            text.0 = wanted.to_string();
         }
     }
 }
@@ -789,48 +765,5 @@ mod tests {
             .run_system_once(sync_ship_menu)
             .expect("the sync runs");
         assert!(!world.entity(row).contains::<InteractionDisabled>());
-    }
-
-    /// The delete tool is a MODE, so the row that arms it says so and the same
-    /// press puts it down again.
-    #[test]
-    fn the_delete_parts_row_arms_the_tool_and_reports_it() {
-        use crate::{config::SectionChoice, placement::toggle_delete_tool};
-
-        let mut world = World::new();
-        world.init_resource::<SectionChoice>();
-        world.add_observer(toggle_delete_tool);
-        let row = world
-            .spawn((
-                MenuDeletePartsItem,
-                menu_item_row("Delete Parts", MenuTail::None, UiSkin::default()),
-            ))
-            .id();
-        world.flush();
-
-        world
-            .run_system_once(sync_tool_menu_mark)
-            .expect("the sync runs");
-        assert_eq!(toggle_mark(&world, row), "");
-
-        world.trigger(Activate { entity: row });
-        world.flush();
-        world
-            .run_system_once(sync_tool_menu_mark)
-            .expect("the sync runs");
-        assert_eq!(*world.resource::<SectionChoice>(), SectionChoice::Delete);
-        assert_eq!(toggle_mark(&world, row), "on");
-
-        world.trigger(Activate { entity: row });
-        world.flush();
-        world
-            .run_system_once(sync_tool_menu_mark)
-            .expect("the sync runs");
-        assert_eq!(
-            *world.resource::<SectionChoice>(),
-            SectionChoice::None,
-            "a second press puts the tool down"
-        );
-        assert_eq!(toggle_mark(&world, row), "");
     }
 }

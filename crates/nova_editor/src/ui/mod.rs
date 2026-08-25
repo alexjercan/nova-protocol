@@ -20,7 +20,7 @@ use bevy::{
         relationship::{RelatedSpawner, RelatedSpawnerCommands},
         spawn::SpawnWith,
     },
-    picking::mesh_picking::MeshPickingCamera,
+    picking::{hover::Hovered, mesh_picking::MeshPickingCamera},
     prelude::*,
     ui::InteractionDisabled,
     ui_widgets::{observe, Activate},
@@ -50,18 +50,17 @@ use crate::{
     },
     placement::{
         continue_to_simulation, create_blank_ship, create_scenario_object, cycle_armed_socket,
-        delete_selected_node, put_armed_part_down, roll_armed_part, toggle_delete_tool,
+        deletable, delete_selected_node, put_armed_part_down, roll_armed_part,
     },
     ui::{
         inspector::{inspector_panel, PANEL_W as INSPECTOR_W},
         menu::{
             back_to_main_menu, menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim,
             menu_z, on_menu_button, on_menu_scrim, toggle_key_legend, toggle_link_points,
-            toggle_object_volumes, toggle_world_grid, ArmedMenuItem, MenuDeleteItem,
-            MenuDeletePartsItem, MenuDropdown, MenuId, MenuTail, OpenMenu, ShipMenuItem,
-            ViewToggle,
+            toggle_object_volumes, toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown,
+            MenuId, MenuTail, OpenMenu, ShipMenuItem, ViewToggle,
         },
-        rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint},
+        rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint, SceneRowTrash},
         window::window_layer,
     },
     ExampleStates,
@@ -121,7 +120,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Delete Item"),
                 MenuDeleteItem,
-                menu_item_row("Delete", MenuTail::None, skin),
+                menu_item_row("Delete", MenuTail::Key("Del"), skin),
                 observe(delete_selected_node),
             ));
         }
@@ -167,15 +166,6 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 ShipMenuItem,
                 GalleryAction::Open,
                 menu_item_row("Parts...", MenuTail::Key("Tab"), skin),
-            ));
-            items.spawn((
-                Name::new("Delete Parts Item"),
-                ShipMenuItem,
-                MenuDeletePartsItem,
-                // The right-hand column is the tool's on/off mark, so this row
-                // takes no shortcut text: `sync_tool_menu_mark` writes it.
-                menu_item_row("Delete Parts", MenuTail::None, skin),
-                observe(toggle_delete_tool),
             ));
             items.spawn(separator());
             // The pose verbs. They live only in a legend View can switch off,
@@ -1074,6 +1064,20 @@ pub(crate) fn sync_scene_list(
                     },
                     observe(on_scene_row),
                 ));
+                // The row's own delete, on the child that draws it: a press on
+                // the trash must not read as a press on the row it sits in.
+                let trash = entity.id();
+                entity.commands().queue(move |world: &mut World| {
+                    let Some(children) = world.get::<Children>(trash).map(|kids| kids.to_vec())
+                    else {
+                        return;
+                    };
+                    for child in children {
+                        if world.get::<SceneRowTrash>(child).is_some() {
+                            world.entity_mut(child).observe(on_row_trash);
+                        }
+                    }
+                });
                 if marked {
                     entity.insert(Selected);
                 }
@@ -1097,6 +1101,60 @@ pub(crate) fn sync_scene_list(
             _ => {}
         }
     }
+}
+
+/// Show a row's delete on hover or on selection, and only where it would work.
+///
+/// Both, rather than hover alone: the pointer is not the only way a row gets
+/// marked - the stage marks one too - and a marked row is the one the keyboard
+/// Del is aimed at, so it should be showing the same affordance.
+pub(crate) fn sync_row_trash(
+    context: Res<EditContext>,
+    selected: Res<SelectedNode>,
+    nodes: Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+    rows: Query<(&SceneRow, &Hovered, &Children)>,
+    mut trash: Query<&mut Node, With<SceneRowTrash>>,
+) {
+    for (row, hovered, children) in &rows {
+        let show =
+            (hovered.get() || selected.0 == Some(row.0)) && deletable(row.0, &context, &nodes);
+        let display = if show { Display::Flex } else { Display::None };
+        for &child in children {
+            let Ok(mut node) = trash.get_mut(child) else {
+                continue;
+            };
+            if node.display != display {
+                node.display = display;
+            }
+        }
+    }
+}
+
+/// A row's delete: remove the node that row stands for.
+///
+/// Marks it first, so the one place the editor says what it is about to
+/// destroy - the selection - agrees with what it destroys.
+pub(crate) fn on_row_trash(
+    activate: On<Activate>,
+    mut commands: Commands,
+    mut selected: ResMut<SelectedNode>,
+    context: Res<EditContext>,
+    nodes: Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+    parents: Query<&ChildOf>,
+    rows: Query<&SceneRow>,
+) {
+    let Some(row) = parents
+        .get(activate.entity)
+        .ok()
+        .and_then(|parent| rows.get(parent.parent()).ok())
+    else {
+        return;
+    };
+    if !deletable(row.0, &context, &nodes) {
+        return;
+    }
+    commands.entity(row.0).despawn();
+    selected.0 = None;
 }
 
 /// One click SELECTS a row and puts the camera on it; two ENTER it.
@@ -1592,16 +1650,6 @@ pub(crate) fn sync_key_legend(
             "PART IN HAND",
             &[
                 ("LMB", "place it"),
-                ("Q", "pick a part"),
-                ("RMB+drag", "look"),
-                ("WASD", "fly"),
-                ("Space/Shift", "up and down"),
-            ],
-        ),
-        (SectionChoice::Delete, _) => (
-            "DELETING PARTS",
-            &[
-                ("LMB", "delete it"),
                 ("Q", "pick a part"),
                 ("RMB+drag", "look"),
                 ("WASD", "fly"),
@@ -2542,7 +2590,6 @@ mod tests {
             (SectionChoice::None, false),
             (SectionChoice::None, true),
             (SectionChoice::Section("hull".to_string()), true),
-            (SectionChoice::Delete, true),
         ] {
             *app.world_mut().resource_mut::<SectionChoice>() = choice.clone();
             enter_ship(app.world_mut(), inside);
