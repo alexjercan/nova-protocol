@@ -4,25 +4,92 @@ Merged from `REVIEW-INSIDE.md` (43 findings, read off the code) and
 `REVIEW-OUTSIDE.md` (44 findings, read off the screens), plus the queued slices
 and the task's own open spine. Ten findings are the same defect seen twice and
 are collapsed here; those carry **[both]**. The rest carry **[code]** or
-**[eyes]** for which pass found them. Sizes are the reviews' own: S under an
+**[eyes]** for which pass found them, and **[owner]** for items added by hand
+afterwards. Sizes are the reviews' own: S under an
 hour, M half a day, L more.
 
 Nothing below is built. Slices 1-4 of the editor pass ARE built and are not
 repeated here.
 
-## 0. Do these first
+## 0. The plan, in order
 
-Worst-per-effort, from both passes:
+Each number is one commit-sized step. Findings are named by their id in the
+catalogue below.
 
-1. The key legend runs off the right edge and is cut mid-word (F1, S).
-2. Add offers the world palette inside a ship, and placing one gives you a
-   selection you cannot see (3.1/F7, S).
-3. Nothing on the keyboard deletes (1.1, S).
-4. Position and Heading are each three numbers in one text box (4.1/C1, M).
-5. A selection inside a ship is invisible on the stage (D1, M).
-6. One status line exists and only placement writes to it (2.1, M).
-7. Play and Save grey silently and read as broken (2.8/F4, 1.3/F5, S each).
-8. Tree glyphs are 11px ASCII and two kinds share one (6.2/B1, M).
+1. **The key legend, whole.** Bound it between the rail and the Inspector and
+   wrap instead of truncating; draw keys as the chips the gallery already has;
+   make Escape name the rung the next press takes; give `F` one meaning or make
+   the legend name the mode; move `Ship Skin reflows as you aim` onto the skin
+   row; one grammar and one verb per gesture across the legend, the gallery
+   footer and the hints. F1, F2, F3, F8, 1.6, 7.4/G6. S-M
+2. **Greyed rows stop lying.** Drop `Ctrl+S` from a row bound to nothing; mark
+   the unbuilt rows `soon` in the column they already have; Play says why on
+   hover instead of only in a log line. 1.3/F5, 2.8/F4. S
+3. **Del deletes (slice 6).** Del runs `delete_selected_node` at the scenario
+   node and arms the delete brush inside a ship; Edit > Delete arms the brush
+   when the selection is a section rather than greying with no forwarding; the
+   rows carry the key. 1.1, 1.2, 3.4. S
+4. **Add obeys the context (slice 7).** Grey the world palette and Add > Ship
+   inside a ship - the greying machinery already exists in `sync_ship_menu`.
+   Then the second half: inside a ship, Add offers that ship's parts.
+   3.1/F7, 3.2. S then M
+5. **One line the editor speaks through.** `set_status` becomes shared and every
+   refusal calls it: Play inside a ship, a rebind conflict and which action
+   holds the key, a refused checkbox or segment, a colour slider that will not
+   write, Add with no document, an id clash, the name of the armed tool, the
+   hand emptied on the way out of a ship, the handles suppressed by an armed
+   part. 2.1, 2.3, 2.4, 2.5, 2.6, 2.7, 2.9. M
+6. **Nothing destroys a document without asking.** A confirm on File > New
+   Scenario and on Back to Main Menu, in the window host that already exists.
+   3.6. M
+7. **A selection you can see.** A phosphor outline on the selected node in every
+   context, including inside a ship where the handle rig is deliberately
+   suppressed. Then cross-highlight both ways: hover a tree row and the thing
+   lights on the stage, hover the stage and the row lights. D1, D2. M each
+8. **Transform in three boxes (slice 5).** Position and rotation each become
+   three axis-tinted boxes matching the handle colours; the row called `Heading`
+   is renamed `Rotation`, which is what it is; degrees and yaw/pitch/roll stated
+   on screen; a `TRANSFORM` heading over the pair. 4.1/C1, 4.2/C2, 4.7, C3. M
+9. **Numbers that know what they are.** A unit per field and a floor on the ones
+   that have one, so a negative radius is refused where it is typed rather than
+   at run time. 4.6. M
+10. **Names that agree.** A name row for ships; the tree shows the authored name
+    with the id on hover; the Key row becomes the button that arms the rebind.
+    4.3, 4.4, 4.5. M
+11. **The scenario node stops being an empty box.** Ships, objects, and which
+    one the player flies. 3.3/C4. M
+12. **One icon per kind, everywhere a mark is drawn.** Kill the shared `o` and
+    `!`; line-art phosphor glyphs; the same glyph on the Add rows; a lead icon
+    column in the menus, which lets the toggles use the checkbox glyph and frees
+    the tail column for shortcuts alone; `@` and the driver mark stop competing
+    for one column. 6.2/B1, 6.1, 6.4, 6.5, 2.2/6.3/C11, 5.5. M
+13. **A tree you can read.** An ellipsis instead of a cut glyph; a stable
+    ordinal order; a mark for a row that holds children; names rather than raw
+    ids. B2, B3, B4, 5.3. M
+14. **Placement that says what to do.** The refusal beside the ghost instead of
+    at the window edge; every refusal names the key that resolves it; the
+    neutral mate readout labelled and out of the error's slot. E1, E2, E3. S-M
+15. **Sockets you can see.** Link points brighter and screen-space sized, with
+    the one the ghost would take marked apart from the rest; keybind chips off
+    the part they name, with a leader. E4, E5. M
+16. **The gallery pass.** `1 part`; the filter visible when it is set;
+    thumbnails framed to the part's bounds; sockets drawn on the focus preview;
+    one case rule for stat keys; the focus card's empty half; plural chips
+    against singular subtitles; and one look at the stray pixel.
+    G1-G5, G7, G9, G10. M
+17. **The wording pass.** One noun per thing: scenario (not SCENE / scenario /
+    [SCENARIO]), skin (not look / style / cladding), Ship Settings against the
+    Ship menu, `Add > New Ship`; Delete Parts named as the mode it is; Rebind
+    Key takes its ellipsis; one treatment for the kind tag.
+    B5, 5.4/F6, C8, 5.1, 5.7, C5. S each
+18. **The rest of the rail.** The attitude readout names its number and its fix
+    and gains mass, thrust, hp and part count; an empty hull says "no parts yet";
+    the look list stays visible and greyed with a swatch per row; `Placeholder`
+    goes behind a debug feature; the colour swatch paints its hover.
+    C6, C7, 5.6, 7.3, C9, C10, 7.1. M
+19. **Navigation extras.** A clickable breadcrumb path; front / top / side / iso
+    presets; an axis rose in the viewport corner; a double-click on a world
+    object doing something. F9, D4, D3, 3.5. M
 
 ## 1. The task's own open spine
 
@@ -33,8 +100,11 @@ Not editor polish - the scenario work this task was opened for.
   as of the stage pass.
 - **Slice 2: objectives and win/lose.** Attach a simple objective set (destroy
   X, reach Y, survive T) with the posted-objective actions and play it through.
+  HELD until `Sequence` lands - see below.
 - **Slice 3: events surfacing.** Expose the event/handler list without drowning
-  the panel. Leans on `Sequence` (`20260820-223059`).
+  the panel. HELD: it leans on `Sequence` (`20260820-223059`), and surfacing
+  nineteen handlers where a story beat should be one is the wrong panel to
+  build. Slices 2 and 3 stay OPEN and unstarted until that task lands.
 
 ## 2. The editor pass: slices still open
 
@@ -143,6 +213,9 @@ Not editor polish - the scenario work this task was opened for.
   Blender habit and is nearly free once the boxes exist. M
 - **[both] 4.2/C2 Heading states no unit and no order.** Degrees, yaw/pitch/roll
   - both facts live only in a doc comment. S
+- **[owner] 4.7 `Heading` is the wrong word - rename it `Rotation`.** It is the
+  node's world rotation, and every other editor calls that rotation. Folds into
+  4.1. S
 - **[code] 4.3 A section's Key row is dead text beside a live verb.** The row
   should be the button that arms the rebind; every guard is already written. S
 - **[code] 4.4 An object can be renamed and a ship cannot.** S
