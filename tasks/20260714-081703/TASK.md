@@ -57,3 +57,50 @@ the world. Instance ids are minted literals (see `20260824-120524`).
 - The editor and hand-written mods still share one representation: the saved
   bundle loads through the ordinary mod pipeline, `content lint` clean.
 - A UI-harness walk covers place -> save -> reload -> play; probe green.
+
+## Progress: slice 1, first half (2026-08-25)
+
+Landed on master in one commit. Objects are placeable and the sandbox range
+IS the document now; the round-trip half of slice 1 (save/reload) is not
+here - it belongs to `20260824-120524`, which now has world nodes to save.
+
+What landed:
+
+- `ObjectNode` beside `ShipNode` under the scenario node, carrying a whole
+  `ScenarioObjectKind`. `ObjectChoice` is the five-kind palette with the
+  stock config per kind.
+- `insert_preview_object` in `preview.rs` - schematic bodies (sphere, cuboid,
+  textured rock, emissive bulb, a Spaceship's own sections) plus ONE bounds
+  collider per view root, which is what makes a world object pickable and
+  keeps `node_of_view` pointing at the node.
+- `ensure_document` seeds `default_world_objects()` under their AUTHORED ids
+  (`picket_warden`, `beacon_veil`, ...), because the sandbox's own event
+  handlers name them.
+- `sandbox_scenario` takes the world as an argument; `world_objects` lowers
+  the document when there is one and falls back to the stock range when
+  there is not (registration runs at asset-load, before any document).
+  Keyed on the document EXISTING, never on it being non-empty, so an emptied
+  range stays empty.
+- Rail: an "Add Object" palette above the Scene tree (the tree is the block
+  that grows, so the actions cannot be pushed off a 768px screen). Top bar:
+  Delete, greyed unless the selection is a ship or an object the scenario
+  can lose.
+- Drag and click-to-select generalised from ships to any staged node;
+  entering a ship now takes the whole WORLD off the stage, not just the
+  sibling ships.
+
+Proof, from the driven range at 1024x768:
+
+- `editor: back at the scenario node, listing ["ship_1", "ship_2",
+  "beacon_home", "beacon_veil", "hulk_0", ... "sandbox_rim"]`
+- `editor: placed asteroid_3 at Vec3(12.0, 0.58, 1.17)` then
+  `editor: deleted the placed asteroid`
+- `on_load_scenario: loaded scenario 'editor_sandbox' with 12 handler(s) and
+  16 object(s)`, `autopilot: cycle complete, no panic`, EXIT=0
+
+118 unit tests in `nova_editor` (9 new); `cargo check -p nova_editor --tests`
+and `cargo check --examples --features debug` clean.
+
+What is left in slice 1: save/reload (in `20260824-120524`), an inspector for
+an object's own fields (radius, colour, mass - today a placed object keeps its
+stock config), and gizmos for trigger areas.

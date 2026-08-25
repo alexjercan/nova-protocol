@@ -49,10 +49,21 @@ pub(crate) struct PlayButton;
 #[derive(Component)]
 pub(crate) struct ContextBreadcrumb;
 
-/// The top bar's scenario-context action group (Add Ship). Shown only at the
-/// scenario node; each context gets its own verbs.
+/// The top bar's scenario-context action group (Add Ship, Delete). Shown only
+/// at the scenario node; each context gets its own verbs.
 #[derive(Component)]
 pub(crate) struct ScenarioActions;
+
+/// The Delete action's button, greyed unless the selection is a node the
+/// scenario can lose.
+#[derive(Component)]
+pub(crate) struct DeleteNodeButton;
+
+/// The rail's world block: the object palette. Shown only at the scenario node,
+/// because placing a rock is something the SCENARIO does - the mirror of
+/// [`ShipSettings`], which is only meaningful inside a ship.
+#[derive(Component)]
+pub(crate) struct ScenarioSettings;
 
 /// The top bar's ship-context action group (Parts, Delete, Rebind). Shown only
 /// inside a ship.

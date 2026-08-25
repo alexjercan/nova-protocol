@@ -9,7 +9,10 @@ use nova_ui::{
     widget::{checkbox, list_row_colors, ListRow},
 };
 
-use crate::config::{SkinToggleCheckbox, StyleChoice};
+use crate::{
+    config::{SkinToggleCheckbox, StyleChoice},
+    node::ObjectChoice,
+};
 
 /// The cladding toggle: a tool row that is a SETTING rather than a mode, so it
 /// carries the shared `checkbox` widget instead of a `ButtonValue`.
@@ -83,6 +86,42 @@ pub(crate) fn style_row(id: &str, name: &str, selected: bool, skin: UiSkin) -> i
         BackgroundColor(background),
         children![(
             Text::new(name.to_string()),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(theme::PHOSPHOR),
+        )],
+    )
+}
+
+/// One kind in the world block's object palette.
+///
+/// A `ListRow` like the looks above rather than a tool chip, and for the same
+/// reason: five kinds at tool height would push the tree off a 150px rail. It
+/// is an ACTION, not a mode - pressing it places an object and nothing stays
+/// armed - so nothing here is ever marked `Selected`.
+pub(crate) fn object_row(choice: ObjectChoice, skin: UiSkin) -> impl Bundle {
+    let (background, border) = list_row_colors(false, false, skin);
+    (
+        ListRow,
+        choice,
+        Button,
+        Hovered::default(),
+        Node {
+            width: percent(100),
+            min_height: px(22),
+            margin: UiRect::bottom(px(2)),
+            padding: UiRect::axes(px(10), px(2)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            align_items: AlignItems::Center,
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        BorderColor::all(border),
+        BackgroundColor(background),
+        children![(
+            Text::new(choice.label().to_string()),
             TextFont {
                 font_size: FontSize::Px(12.0),
                 ..default()

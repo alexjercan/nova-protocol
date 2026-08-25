@@ -1,9 +1,11 @@
 //! The editor's document: a tree of NODES, and the context you are inside.
 //!
 //! Everything the editor edits is a node entity. A [`ScenarioNode`] holds
-//! [`ShipNode`]s, a ship holds [`SectionNode`]s, and each node carries its own
-//! config as a component - so "the ship being built" is not a resource anywhere,
-//! it is a subtree. Two ships cost nothing but two subtrees.
+//! [`ShipNode`]s and [`ObjectNode`]s, a ship holds [`SectionNode`]s, and each
+//! node carries its own config as a component - so "the ship being built" is not
+//! a resource anywhere, it is a subtree. Two ships cost nothing but two
+//! subtrees, and the rocks, beacons and lights standing around them are the
+//! same kind of thing one level up.
 //!
 //! MODEL AND VIEW ARE SEPARATE ENTITIES. A node is data and persists across
 //! [`ExampleStates`]; its [`NodeView`] child carries the mesh, the collider and
@@ -17,19 +19,34 @@
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::Binding;
+use nova_gameplay::prelude::AssetRef;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::{
     config::SelectedNode,
     gallery::EditorCamera,
-    preview::{insert_preview_section, PreviewRole},
+    preview::{insert_preview_object, insert_preview_section, PreviewArt, PreviewRole},
+    scenario::default_world_objects,
     ExampleStates,
 };
 
 /// How far apart two ship nodes sit on the stage. Wide enough that the biggest
 /// hull anyone builds by hand does not reach its neighbour.
 const SHIP_NODE_SPACING: f32 = 24.0;
+
+/// The asset paths an object node's config points at.
+///
+/// DIRECT paths, not `self://` or `dep://`: the editor's document is built at
+/// runtime outside the mod merge, so a scheme ref placed here would never be
+/// rewritten and would resolve to nothing.
+pub(crate) const ASTEROID_TEXTURE: &str = "base/textures/asteroid.png";
+/// The sound a hit on a placed rock plays.
+pub(crate) const IMPACT_SOUND: &str = "base/sounds/impact.wav";
+/// The sound a placed rock's destruction plays.
+pub(crate) const DESTROY_SOUND: &str = "base/sounds/explosion.wav";
+/// The ding a placed salvage crate is picked up with.
+pub(crate) const SALVAGE_SOUND: &str = "base/sounds/salvage_pickup.wav";
 
 /// Marker on every node of the document tree, at every depth.
 #[derive(Component, Debug)]
@@ -154,6 +171,124 @@ impl SectionNode {
     }
 }
 
+/// One non-ship thing the world holds: a rock, a beacon, a salvage crate, an
+/// anchor, a light - or a fixed hull the editor does not design.
+///
+/// A sibling of the ships under the scenario node, because that is what it is:
+/// one more object the range spawns on start. Its ID is the node's [`NodeId`]
+/// and its POSE is the node's `Transform`, so the lowering reads both from
+/// where a drag and a mint already wrote them, and the kind config carries only
+/// what is left.
+#[derive(Component, Debug, Clone)]
+pub(crate) struct ObjectNode {
+    /// The display name the spawned object wears.
+    pub(crate) name: String,
+    /// Which kind it is, and that kind's own config.
+    pub(crate) kind: ScenarioObjectKind,
+}
+
+/// The object kinds the palette can place, in the order the rail lists them.
+///
+/// `Spaceship` is deliberately absent: a ship is added with Add Ship and built
+/// out of sections, and the fixed hulls the default world stands on are seeded
+/// rather than authored here.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ObjectChoice {
+    /// An invisible gravity/framing point.
+    Anchor,
+    /// A destructible rock.
+    Asteroid,
+    /// A nav waypoint with a HUD chip.
+    Beacon,
+    /// A proximity pickup.
+    SalvageCrate,
+    /// One of the scene's own lights.
+    Light,
+}
+
+impl ObjectChoice {
+    /// Every kind the palette offers.
+    pub(crate) const ALL: [ObjectChoice; 5] = [
+        ObjectChoice::Anchor,
+        ObjectChoice::Asteroid,
+        ObjectChoice::Beacon,
+        ObjectChoice::SalvageCrate,
+        ObjectChoice::Light,
+    ];
+
+    /// The row label.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            ObjectChoice::Anchor => "Anchor",
+            ObjectChoice::Asteroid => "Asteroid",
+            ObjectChoice::Beacon => "Beacon",
+            ObjectChoice::SalvageCrate => "Salvage",
+            ObjectChoice::Light => "Light",
+        }
+    }
+
+    /// The stem a minted id is named after, so `asteroid_3` says what it is the
+    /// same way `thruster_3` does.
+    pub(crate) fn stem(self) -> &'static str {
+        match self {
+            ObjectChoice::Anchor => "anchor",
+            ObjectChoice::Asteroid => "asteroid",
+            ObjectChoice::Beacon => "beacon",
+            ObjectChoice::SalvageCrate => "salvage",
+            ObjectChoice::Light => "light",
+        }
+    }
+
+    /// A fresh object of this kind: the smallest config that reads as the thing
+    /// it is. Every number here is a starting point the builder retunes, not a
+    /// tuned value - a placed rock is a rock you can see, not the right rock.
+    pub(crate) fn stock(self) -> ObjectNode {
+        let kind = match self {
+            // Inert: the well exists at zero strength, so a placed anchor frames
+            // and anchors without pulling the player into something invisible.
+            ObjectChoice::Anchor => ScenarioObjectKind::Anchor(AnchorConfig {
+                body_radius: 5.0,
+                mass: None,
+            }),
+            ObjectChoice::Asteroid => ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius: 3.0,
+                texture: AssetRef::from(ASTEROID_TEXTURE),
+                impact_sound: Some(AssetRef::from(IMPACT_SOUND)),
+                destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
+                mass: None,
+                invulnerable: false,
+                seed: None,
+                lock_signature: None,
+            }),
+            ObjectChoice::Beacon => ScenarioObjectKind::Beacon(BeaconConfig {
+                label: "BEACON".to_string(),
+                radius: 3.0,
+                color: Color::srgb(0.20, 0.90, 1.0),
+                area_radius: None,
+                lock_signature: None,
+            }),
+            ObjectChoice::SalvageCrate => ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
+                size: 2.0,
+                area_radius: 12.0,
+                pickup_sound: Some(AssetRef::from(SALVAGE_SOUND)),
+            }),
+            // Aimed by the NODE's rotation, not by `aim`: the pose lives on the
+            // node like every other node's does, and a second aim point in the
+            // config would be a copy to keep in step with it.
+            ObjectChoice::Light => ScenarioObjectKind::Light(LightConfig::Directional {
+                illuminance: 9_000.0,
+                color: Color::WHITE,
+                shadows: false,
+                aim: None,
+            }),
+        };
+        ObjectNode {
+            name: self.label().to_string(),
+            kind,
+        }
+    }
+}
+
 /// The render half of a node: mesh, collider and picking. Spawned on entering
 /// the editor and despawned on leaving it, so the flown scenario never contains
 /// one.
@@ -253,6 +388,37 @@ pub(crate) type SectionNodes<'w, 's> = Query<
 pub(crate) type ShipNodes<'w, 's> =
     Query<'w, 's, (Entity, &'static ChildOf, &'static NodeId, &'static ShipNode)>;
 
+/// Read-only access to every object node and its pose.
+pub(crate) type ObjectNodes<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static ChildOf,
+        &'static NodeId,
+        &'static ObjectNode,
+        &'static Transform,
+    ),
+>;
+
+/// Every object node of `scenario`, in id order.
+///
+/// SORTED for the same reason [`sections_of`] is: the output is a scenario's
+/// object list, and a file that reordered itself on every save would diff
+/// against itself.
+pub(crate) fn objects_of<'a>(
+    scenario: Entity,
+    nodes: &'a ObjectNodes,
+) -> Vec<(Entity, &'a NodeId, &'a ObjectNode, &'a Transform)> {
+    let mut found: Vec<_> = nodes
+        .iter()
+        .filter(|(_, child_of, ..)| child_of.parent() == scenario)
+        .map(|(entity, _, id, object, transform)| (entity, id, object, transform))
+        .collect();
+    found.sort_unstable_by(|a, b| a.1.cmp(b.1));
+    found
+}
+
 /// One node the current edit context contains.
 pub(crate) struct ContextNode<'a> {
     pub(crate) entity: Entity,
@@ -269,18 +435,27 @@ pub(crate) struct ContextNode<'a> {
 pub(crate) fn context_nodes<'a>(
     context: &EditContext,
     q_ships: &'a ShipNodes,
+    q_objects: &'a ObjectNodes,
     nodes: &'a SectionNodes,
 ) -> Vec<ContextNode<'a>> {
     let Some(scenario) = context.scenario() else {
         return Vec::new();
     };
     let Some(ship) = context.ship() else {
+        // Ships first, then the rest of the world - the order the tree draws
+        // them in, because the ships are what a builder came here for and the
+        // world is what stands around them.
         let mut ships: Vec<_> = q_ships
             .iter()
             .filter(|(_, owner, ..)| owner.parent() == scenario)
             .map(|(entity, _, id, _)| ContextNode { entity, id })
             .collect();
         ships.sort_unstable_by(|a, b| a.id.cmp(b.id));
+        ships.extend(
+            objects_of(scenario, q_objects)
+                .into_iter()
+                .map(|(entity, id, ..)| ContextNode { entity, id }),
+        );
         return ships;
     };
     sections_of(ship, nodes)
@@ -295,24 +470,28 @@ pub(crate) fn inside_id<'a>(context: &EditContext, q_ships: &'a ShipNodes) -> Op
     q_ships.get(ship).ok().map(|(_, _, id, _)| id)
 }
 
-/// FOCUS the entered ship: inside one, every other ship leaves the stage;
-/// at the scenario node everything is back.
+/// FOCUS the entered ship: inside one, every other ship AND the whole world
+/// around it leaves the stage; at the scenario node everything is back.
+///
+/// The world goes with the sibling ships because focus means one thing: what
+/// you are working on is what is on screen. Leaving the rocks up would also
+/// take the founding click away - "nothing under the pointer" is how an empty
+/// ship gets its first part, and a range full of scenery is never nothing.
 ///
 /// Two writes because hiding is two facts. `Visibility` takes the meshes off
 /// screen, and the views' `Pickable` follows it because the picking ray does
-/// not care what renders - an invisible collider would still eat clicks, and
-/// the founding click ("nothing under the pointer") most of all.
+/// not care what renders - an invisible collider would still eat clicks.
 pub(crate) fn sync_ship_focus(
     mut commands: Commands,
     context: Res<EditContext>,
-    mut ships: Query<(Entity, &mut Visibility), With<ShipNode>>,
+    mut staged: Query<(Entity, &mut Visibility), Or<(With<ShipNode>, With<ObjectNode>)>>,
     q_sections: Query<&ChildOf, With<SectionNode>>,
     views: Query<(Entity, &ChildOf, Has<Pickable>), With<NodeView>>,
 ) {
     let entered = context.ship();
-    let hidden = |ship: Entity| entered.is_some_and(|edited| edited != ship);
-    for (ship, mut visibility) in &mut ships {
-        let wanted = if hidden(ship) {
+    let hidden = |node: Entity| entered.is_some_and(|edited| edited != node);
+    for (node, mut visibility) in &mut staged {
+        let wanted = if hidden(node) {
             Visibility::Hidden
         } else {
             Visibility::Visible
@@ -322,12 +501,14 @@ pub(crate) fn sync_ship_focus(
         }
     }
     // Views carry no `Pickable` of their own, so its presence IS the "this
-    // ship is off the stage" mark and removal restores the default.
+    // node is off the stage" mark and removal restores the default. A section's
+    // view answers for its SHIP; an object's view answers for itself.
     for (view, owner, ignored) in &views {
-        let Ok(section_owner) = q_sections.get(owner.parent()) else {
-            continue;
-        };
-        match (hidden(section_owner.parent()), ignored) {
+        let owner = owner.parent();
+        let staged_node = q_sections
+            .get(owner)
+            .map_or(owner, |section_owner| section_owner.parent());
+        match (hidden(staged_node), ignored) {
             (true, false) => {
                 commands.entity(view).insert(Pickable::IGNORE);
             }
@@ -474,7 +655,123 @@ pub(crate) fn ensure_document(mut commands: Commands, mut context: ResMut<EditCo
             Visibility::Visible,
         ))
         .id();
+    // A new document opens on the stock range rather than on the void: the
+    // sandbox's rocks, hulks, pickets, beacons and lights are the DEFAULT WORLD
+    // now, not constants baked into the hand-off. Seeded HERE, once, when the
+    // document is created - a "the world looks empty, refill it" pass would
+    // resurrect everything the builder deleted on the next editor entry.
+    for object in default_world_objects() {
+        insert_object_node(&mut commands, scenario, object);
+    }
     context.path = vec![scenario];
+}
+
+/// Put one authored scenario object into the document under `scenario`, keeping
+/// the id, name and pose the config carries.
+///
+/// The id is taken as WRITTEN rather than minted: the default world's objects
+/// are named by the sandbox's own events (`picket_warden` is what the wake
+/// handler flips, `beacon_veil` is what swaps the sky), so a re-minted id would
+/// leave the script pointing at nothing.
+pub(crate) fn insert_object_node(
+    commands: &mut Commands,
+    scenario: Entity,
+    config: ScenarioObjectConfig,
+) -> Entity {
+    let id = NodeId(config.base.id);
+    let transform =
+        Transform::from_translation(config.base.position).with_rotation(config.base.rotation);
+    insert_object(
+        commands,
+        scenario,
+        id,
+        ObjectNode {
+            name: config.base.name,
+            kind: config.kind,
+        },
+        transform,
+    )
+}
+
+/// Add a fresh object of `choice` to the world at `transform`, under a minted
+/// id.
+pub(crate) fn spawn_object_node(
+    commands: &mut Commands,
+    ordinals: &mut Query<&mut NextChildOrdinal>,
+    scenario: Entity,
+    choice: ObjectChoice,
+    transform: Transform,
+) -> Entity {
+    let id = mint_id(ordinals, scenario, choice.stem());
+    insert_object(commands, scenario, id, choice.stock(), transform)
+}
+
+/// The spawn itself, for callers that already know the id.
+///
+/// No view: an object's body is a mesh the editor BUILDS, which needs asset
+/// stores a `Commands`-only path cannot reach, so [`sync_object_views`] gives it
+/// one. That also covers the two other ways an object node appears - the
+/// document seed, and a second visit to the editor after its views were
+/// despawned.
+fn insert_object(
+    commands: &mut Commands,
+    scenario: Entity,
+    id: NodeId,
+    object: ObjectNode,
+    transform: Transform,
+) -> Entity {
+    commands
+        .spawn((
+            EditorNode,
+            Name::new(format!("Object Node {}", id.0)),
+            id,
+            object,
+            transform,
+            // INHERITED for the same reason a section is: an explicit `Visible`
+            // overrides the hidden ancestor `sync_ship_focus` is relying on.
+            Visibility::Inherited,
+            ChildOf(scenario),
+        ))
+        .id()
+}
+
+/// Give every object node a view, and only one.
+///
+/// A reconciler rather than an eager spawn beside the node, unlike a section:
+/// three different things create object nodes (the document seed, the palette,
+/// and a second editor visit that found the nodes without bodies), and all
+/// three would otherwise have to carry the asset stores the mesh is built from.
+pub(crate) fn sync_object_views(
+    mut commands: Commands,
+    mut art: PreviewArt,
+    sections: Option<Res<GameSections>>,
+    ships: Option<Res<GameShips>>,
+    nodes: Query<(Entity, &ObjectNode, Option<&Children>)>,
+    views: Query<(), With<NodeView>>,
+) {
+    for (node, object, children) in &nodes {
+        let bodied =
+            children.is_some_and(|children| children.iter().any(|child| views.contains(child)));
+        if bodied {
+            continue;
+        }
+        commands.entity(node).with_children(|parent| {
+            let mut view = parent.spawn((
+                DespawnOnExit(ExampleStates::Editor),
+                NodeView,
+                Name::new("Object View"),
+                Transform::default(),
+                Visibility::Inherited,
+            ));
+            insert_preview_object(
+                &mut view,
+                object,
+                &mut art,
+                sections.as_deref(),
+                ships.as_deref(),
+            );
+        });
+    }
 }
 
 /// Add a BLANK ship to the document and go inside it.
@@ -852,6 +1149,128 @@ mod tests {
             Some(scenario),
             "a later Sandbox entry founds a new scenario"
         );
+    }
+
+    /// The sandbox range is a DOCUMENT now, not a table the hand-off reads:
+    /// founding one stands the whole world up as nodes.
+    ///
+    /// Under the AUTHORED ids, not minted ones. The scenario's own events name
+    /// `picket_warden` and `beacon_veil`; re-keying the world on placement
+    /// order would leave every one of them pointing at nothing.
+    #[test]
+    fn a_new_document_stands_the_default_world_up_under_its_authored_ids() {
+        let mut world = World::new();
+        world.init_resource::<EditContext>();
+        world.init_resource::<SelectedNode>();
+
+        world
+            .run_system_once(ensure_document)
+            .expect("the document is created");
+
+        let mut standing: Vec<String> = world
+            .query::<(&NodeId, &ObjectNode)>()
+            .iter(&world)
+            .map(|(id, _)| id.0.clone())
+            .collect();
+        standing.sort();
+        let mut authored: Vec<String> = default_world_objects()
+            .iter()
+            .map(|object| object.base.id.clone())
+            .collect();
+        authored.sort();
+        assert_eq!(standing, authored, "the whole range came up as nodes");
+
+        // And once only: a second entry into the editor finds the world it
+        // left rather than standing a second copy of it up beside the first.
+        world
+            .run_system_once(ensure_document)
+            .expect("the document check runs");
+        assert_eq!(
+            world.query::<&ObjectNode>().iter(&world).count(),
+            authored.len()
+        );
+    }
+
+    /// Entering a ship takes the WORLD off the stage, not just the sibling
+    /// ships. A ship is edited in clear space: the builder's founding click
+    /// needs empty space under the pointer, and a rock parked between the
+    /// camera and the build plane would eat it.
+    #[test]
+    fn entering_a_ship_takes_the_world_off_the_stage() {
+        let mut world = World::new();
+        let (ship, _) = document(&mut world, SectionSource::Inline(hull("hull")));
+        let rock = world
+            .spawn((
+                EditorNode,
+                ObjectChoice::Asteroid.stock(),
+                NodeId("asteroid_1".to_string()),
+                Transform::default(),
+                Visibility::Inherited,
+            ))
+            .id();
+        world.insert_resource(EditContext {
+            path: vec![Entity::PLACEHOLDER, ship],
+        });
+
+        world
+            .run_system_once(sync_ship_focus)
+            .expect("the focus sync runs");
+        assert_eq!(
+            world.get::<Visibility>(rock),
+            Some(&Visibility::Hidden),
+            "the world leaves the stage with the sibling ships"
+        );
+
+        world.resource_mut::<EditContext>().exit();
+        world
+            .run_system_once(sync_ship_focus)
+            .expect("the focus sync runs");
+        assert_eq!(
+            world.get::<Visibility>(rock),
+            Some(&Visibility::Visible),
+            "and comes back when the editor does"
+        );
+    }
+
+    /// An object node is model-only; the body under it is a view like any
+    /// other, spawned once and reconciled rather than respawned - a view per
+    /// frame would flicker the whole range.
+    #[test]
+    fn an_object_node_grows_one_view_and_keeps_it() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        let node = app
+            .world_mut()
+            .spawn((
+                EditorNode,
+                // The anchor: the one stock kind that reaches for no texture,
+                // so the test needs no asset directory behind it.
+                ObjectChoice::Anchor.stock(),
+                NodeId("anchor_1".to_string()),
+                Transform::default(),
+                Visibility::Inherited,
+            ))
+            .id();
+
+        let views = |app: &mut App| {
+            app.world_mut()
+                .query_filtered::<&ChildOf, With<NodeView>>()
+                .iter(app.world())
+                .filter(|owner| owner.parent() == node)
+                .count()
+        };
+
+        app.world_mut()
+            .run_system_once(sync_object_views)
+            .expect("the object view sync runs");
+        assert_eq!(views(&mut app), 1, "the node got a body");
+
+        app.world_mut()
+            .run_system_once(sync_object_views)
+            .expect("the object view sync runs");
+        assert_eq!(views(&mut app), 1, "and not a second one on the next pass");
     }
 
     /// Enter/exit is a path, so exiting has somewhere to return to - and the

@@ -5,13 +5,13 @@
 //! - `attitude`  - what the hull under construction would turn like
 //! - `node`      - the document: the node tree and the edit context
 //! - `config`    - the placement state + screen furniture
-//! - `preview`   - the one place a section config becomes preview entities
-//! - `placement` - creating a ship + the pointer place/preview/delete observers
+//! - `preview`   - the one place a section or object config becomes preview entities
+//! - `placement` - creating ships and objects + the pointer place/preview/delete observers
 //! - `keybind`   - section keybind chips + click-to-rebind
 //! - `gallery`   - the full-screen parts browser that arms the placement tool
 //! - `snap`      - where the armed prototype would land, and why not
 //! - `skin`      - the derived cladding, re-derived live while a part is dragged
-//! - `scenario`  - the player-only asteroid+planetoid scene handed off on Play
+//! - `scenario`  - the default world a document is seeded with, and the sandbox script
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
 //! - `probe`     - the one public, read-only snapshot of all of the above
 #![warn(missing_docs)]
@@ -45,24 +45,24 @@ use keybind::{
     sync_section_keybind_labels, EditorRebind,
 };
 use node::{
-    ensure_document, rebuild_node_views, sync_camera_focus, sync_ship_focus, teardown_document,
-    EditContext,
+    ensure_document, rebuild_node_views, sync_camera_focus, sync_object_views, sync_ship_focus,
+    teardown_document, EditContext,
 };
 use nova_ui::widget::button_on_setting;
 use placement::{
     clear_placement_preview, cycle_placement_pose, disarm_outside_ship, draw_delete_target,
     draw_link_points, draw_ship_heading, found_empty_ship, on_click_spaceship_section,
-    on_ship_drag, on_ship_drag_end, on_ship_drag_start, pick_section_under_pointer,
+    on_stage_drag, on_stage_drag_end, on_stage_drag_start, pick_section_under_pointer,
     sync_placement_ghost, sync_tool_selection, update_placement_preview, wheel_placement_pose,
-    ShipDrag,
+    StageDrag,
 };
 use probe::sync_editor_probe;
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
 use ui::{
-    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
-    sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_style_list,
+    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_delete_button, sync_key_legend,
+    sync_play_button, sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_style_list,
 };
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`],
@@ -228,6 +228,20 @@ fn editor_plugin(app: &mut App) {
         ),
     );
 
+    // Object nodes get their bodies here rather than beside the spawn, because
+    // an object's body is a mesh the editor builds out of the asset stores (see
+    // `sync_object_views`). Gated on those stores existing so a headless rig
+    // with no pbr plugin is skipped rather than panicked, and NOT gated on the
+    // gallery, so an object placed in one frame is on the stage in that frame.
+    app.add_systems(
+        Update,
+        sync_object_views
+            .before(sync_ship_focus)
+            .run_if(in_state(ExampleStates::Editor))
+            .run_if(resource_exists::<Assets<Mesh>>)
+            .run_if(resource_exists::<Assets<StandardMaterial>>),
+    );
+
     // The outward snapshot of everything below. `PostUpdate` so it reports the
     // frame that has just finished whichever system decided it, and ungated so
     // leaving the editor CLEARS it rather than freezing the last build.
@@ -243,16 +257,16 @@ fn editor_plugin(app: &mut App) {
 
     app.add_observer(on_click_spaceship_section);
 
-    // Dragging a ship across the stage - the scenario node's one transform
-    // gesture. The grab state is reset on entering the editor for the same
-    // reason the rebind is: a drag cannot survive its views being rebuilt.
-    app.init_resource::<ShipDrag>();
-    app.add_observer(on_ship_drag_start);
-    app.add_observer(on_ship_drag);
-    app.add_observer(on_ship_drag_end);
+    // Dragging a ship or an object across the stage - the scenario node's one
+    // transform gesture. The grab state is reset on entering the editor for the
+    // same reason the rebind is: a drag cannot survive its views being rebuilt.
+    app.init_resource::<StageDrag>();
+    app.add_observer(on_stage_drag_start);
+    app.add_observer(on_stage_drag);
+    app.add_observer(on_stage_drag_end);
     app.add_systems(
         OnEnter(ExampleStates::Editor),
-        |mut drag: ResMut<ShipDrag>| *drag = ShipDrag::default(),
+        |mut drag: ResMut<StageDrag>| *drag = StageDrag::default(),
     );
 
     // The placement ghost: solve once per frame, then show it. Both are gated
@@ -292,6 +306,7 @@ fn editor_plugin(app: &mut App) {
                 sync_context_panels,
                 sync_breadcrumb,
                 sync_rebind_button,
+                sync_delete_button,
                 sync_play_button,
                 sync_ship_focus,
                 sync_camera_focus,

@@ -23,6 +23,12 @@ does NOT get an entry - and it is the only place they are written down.
 - Add Ship starts a blank ship - a pad marker shows where the first armed
   part founds it - and dragging a ship at the scenario node slides it on the
   ground plane.
+- The sandbox range is part of the document: its planetoid, hulks, pickets,
+  beacons and lights come up as scene-tree nodes, and Play flies the range the
+  tree holds rather than a fixed one.
+- An Add Object palette places anchors, asteroids, beacons, salvage crates and
+  lights in front of the camera, and dragging or deleting a world object works
+  exactly as it does for a ship.
 - A click in the world selects: a section inside a ship, a ship outside.
   Rebinding a section's key is a top-bar action on the selection.
 - Play flies the whole document: every non-empty AI design spawns as a

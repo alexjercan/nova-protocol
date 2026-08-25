@@ -27,7 +27,9 @@
 //! 8. meet both placement REFUSALS in words and in pixels - an occupied socket, and a drive
 //!    aimed up a lane the hull already stands beside, which is `nova_ship`'s clearance rule and
 //!    the same one the ship generator collapses under;
-//! 9. turn the SKIN on and watch it follow the build - the bare ship, the same ship clad from
+//! 9. place a WORLD object from the rail's palette and delete it again - the scenario node edits
+//!    the range it stands on, not just the ships parked on it;
+//! 10. turn the SKIN on and watch it follow the build - the bare ship, the same ship clad from
 //!    its own structure, and the cladding reflowing around a hull that is still in the
 //!    builder's hand. Play then proves the toggle rode the hand-off: the flown ship wears it.
 //!
@@ -1041,10 +1043,20 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("editor: both ships are listed and Play is live again")
         .on_enter(|world: &mut World| {
             let probe = world.resource::<EditorProbe>();
-            assert_eq!(
-                probe.context_nodes.len(),
-                2,
-                "the document holds the ship that was built and the one beside it"
+            for ship in ["ship_1", "ship_2"] {
+                assert!(
+                    probe.context_nodes.iter().any(|node| node == ship),
+                    "the document holds the ship that was built and the one \
+                     beside it: {:?}",
+                    probe.context_nodes
+                );
+            }
+            // And the world they stand in: the sandbox's objects are document
+            // nodes now, not constants baked into the hand-off.
+            assert!(
+                probe.context_nodes.iter().any(|node| node == "planetoid"),
+                "the scenario node lists the world too: {:?}",
+                probe.context_nodes
             );
             assert!(
                 probe.ship.is_empty(),
@@ -1063,6 +1075,66 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 serde_json::json!({}),
             );
             info!("editor: back at the scenario node, listing {listed:?}");
+        })
+        .add()
+        // The world is a document too, not just the ships in it. The rail's
+        // object palette places a rock in front of the camera, the tree lists
+        // it beside the ships, and the scenario's Delete takes it back off.
+        .click_a_widget("editor: place an asteroid", "Add Asteroid")
+        .step("editor: the placed rock is a marked node in the tree")
+        .until(an_object_was_placed("asteroid"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the rock stands out in front of the camera")
+        .on_enter(|world: &mut World| {
+            let probe = world.resource::<EditorProbe>();
+            let placed = probe
+                .selected_node
+                .clone()
+                .expect("placing an object marks it");
+            let at = probe
+                .node_positions
+                .iter()
+                .find(|(id, _)| *id == placed)
+                .map(|(_, at)| *at)
+                .unwrap_or_else(|| panic!("the placed object stands somewhere: {placed}"));
+            assert!(
+                at.length() > 1.0,
+                "a placed object lands where the camera was looking, not on \
+                 the origin ({at:?})"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the palette places a world object",
+                serde_json::json!({}),
+            );
+            info!("editor: placed {placed} at {at:?}");
+        })
+        .add()
+        .click_a_widget("editor: delete the placed rock", "Delete Node Button")
+        .step("editor: the rock is gone and nothing is marked")
+        .until(no_object_named("asteroid"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: deleting the rock left the rest of the world standing")
+        .on_enter(|world: &mut World| {
+            let probe = world.resource::<EditorProbe>();
+            assert!(
+                probe.selected_node.is_none(),
+                "the deleted node cannot stay marked: {:?}",
+                probe.selected_node
+            );
+            assert!(
+                probe.context_nodes.iter().any(|node| node == "planetoid"),
+                "Delete takes the selection, not the document: {:?}",
+                probe.context_nodes
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: Delete removes a world object",
+                serde_json::json!({}),
+            );
+            info!("editor: deleted the placed asteroid");
         })
         .add()
         // A world click out here SELECTS: the viewport and the tree answer a
@@ -1557,6 +1629,38 @@ fn at_the_scenario_node() -> Wait {
     std::sync::Arc::new(|world: &World| {
         let probe = world.resource::<EditorProbe>();
         probe.inside.is_none() && probe.can_play
+    })
+}
+
+/// Advance once an object of `stem` is in the document AND marked.
+///
+/// Matched by PREFIX, not by a whole id: the scenario node mints one ordinal
+/// across all of its children, so which number the first placed rock gets
+/// depends on how many ships the walk built before it.
+#[cfg(feature = "debug")]
+fn an_object_was_placed(stem: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        let probe = world.resource::<EditorProbe>();
+        probe
+            .selected_node
+            .as_deref()
+            .is_some_and(|node| node.starts_with(stem))
+            && probe
+                .context_nodes
+                .iter()
+                .any(|node| node.starts_with(stem))
+    })
+}
+
+/// Advance once no object of `stem` is left in the document.
+#[cfg(feature = "debug")]
+fn no_object_named(stem: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        !world
+            .resource::<EditorProbe>()
+            .context_nodes
+            .iter()
+            .any(|node| node.starts_with(stem))
     })
 }
 

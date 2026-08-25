@@ -27,8 +27,9 @@ use crate::{
     },
     keybind::EditorRebind,
     node::{
-        node_of_view, sections_of, spawn_section_node, spawn_ship_node, EditContext,
-        NextChildOrdinal, NodeView, SectionNode, SectionNodes, ShipDriver, ShipNode,
+        node_of_view, sections_of, spawn_object_node, spawn_section_node, spawn_ship_node,
+        EditContext, NextChildOrdinal, NodeView, ObjectChoice, ObjectNode, SectionNode,
+        SectionNodes, ShipDriver, ShipNode,
     },
     preview::{insert_preview_section, PreviewRole},
     snap::{self, PlacedSection},
@@ -159,6 +160,81 @@ pub(crate) fn create_blank_ship(
     if spawn_ship_node(&mut commands, &mut ordinals, &mut context, ships, driver).is_none() {
         warn!("editor: no document to add a ship to - skipping");
     }
+}
+
+/// How far out in front of the stage camera a freshly placed object lands.
+///
+/// In front of the CAMERA rather than at a spaced-out slot, unlike a new ship:
+/// a ship is a workbench the editor then flies you to, an object is scenery you
+/// are pointing at a gap for. It arrives where you are looking, and the drag
+/// gesture moves it from there.
+const NEW_OBJECT_DISTANCE: f32 = 30.0;
+
+/// Place one scenario object of the clicked kind - the scenario context's
+/// object palette.
+///
+/// The world is not only ships: a rock, a beacon, a crate, an anchor or a light
+/// is one more node under the scenario, placed and dragged the same way a ship
+/// is. Selected on arrival, so the tree marks the thing that just appeared
+/// rather than leaving the builder to find it.
+pub(crate) fn create_scenario_object(
+    activate: On<Activate>,
+    mut commands: Commands,
+    choices: Query<&ObjectChoice>,
+    camera: Query<&GlobalTransform, With<crate::gallery::EditorCamera>>,
+    mut ordinals: Query<&mut NextChildOrdinal>,
+    context: Res<EditContext>,
+    mut selected: ResMut<SelectedNode>,
+) {
+    let Ok(choice) = choices.get(activate.entity) else {
+        return;
+    };
+    let Some(scenario) = context.scenario() else {
+        warn!("editor: no document to add an object to - skipping");
+        return;
+    };
+    let at = camera
+        .iter()
+        .next()
+        .map_or(Vec3::ZERO, |pose| in_front_of(pose));
+    let object = spawn_object_node(
+        &mut commands,
+        &mut ordinals,
+        scenario,
+        *choice,
+        Transform::from_translation(at),
+    );
+    selected.0 = Some(object);
+}
+
+/// The point a placed object lands on, out in front of `camera`.
+fn in_front_of(camera: &GlobalTransform) -> Vec3 {
+    camera.translation() + camera.forward() * NEW_OBJECT_DISTANCE
+}
+
+/// Delete the SELECTED node - the scenario context's delete.
+///
+/// Acts on the selection rather than on a click, unlike the ship context's
+/// delete tool: out here a click drags, and a tool that armed the pointer to
+/// destroy whatever it touched would fight the one transform gesture the
+/// scenario node has. Refuses the ship the editor is inside for the same reason
+/// Play does - the context would be left pointing into rubble - which cannot
+/// happen from this button, since it is hidden inside a ship.
+pub(crate) fn delete_selected_node(
+    _activate: On<Activate>,
+    mut commands: Commands,
+    mut selected: ResMut<SelectedNode>,
+    context: Res<EditContext>,
+    deletable: Query<(), Or<(With<ShipNode>, With<ObjectNode>)>>,
+) {
+    let Some(node) = selected.0 else {
+        return;
+    };
+    if !deletable.contains(node) || context.path.contains(&node) {
+        return;
+    }
+    commands.entity(node).despawn();
+    selected.0 = None;
 }
 
 /// FOUND an empty ship: with a part armed and nothing under the pointer, a
@@ -684,8 +760,8 @@ fn set_status(status: StatusQuery, line: Option<(String, Color)>) {
     }
 }
 
-/// Place, delete, or SELECT - depending on the armed tool and on which ship
-/// was clicked.
+/// Place, delete, or SELECT - depending on the armed tool and on what was
+/// clicked.
 ///
 /// Placement itself commits [`PlacementPreview`] - the pose the ghost is
 /// already showing - rather than re-deriving anything from this click.
@@ -709,6 +785,7 @@ pub(crate) fn on_click_spaceship_section(
     rebind: Res<EditorRebind>,
     mut selected: ResMut<SelectedNode>,
     q_views: Query<&ChildOf, With<NodeView>>,
+    q_objects: Query<(), With<ObjectNode>>,
     q_nodes: Query<(&SectionNode, &ChildOf)>,
 ) {
     if click.button != PointerButton::Primary {
@@ -718,9 +795,6 @@ pub(crate) fn on_click_spaceship_section(
     let Some(node) = node_of_view(click.entity, &q_views) else {
         return;
     };
-    let Ok((_, owner)) = q_nodes.get(node) else {
-        return;
-    };
 
     // While a rebind is pending, the next click is the user PICKING a
     // mouse-button binding (e.g. LMB), so it must not also move the selection
@@ -728,6 +802,17 @@ pub(crate) fn on_click_spaceship_section(
     if rebind.target.is_some() {
         return;
     }
+
+    // An object has nothing to build on and nothing to enter: clicking one
+    // SELECTS it, which is the same answer its tree row gives.
+    if q_objects.contains(node) {
+        selected.0 = Some(node);
+        return;
+    }
+
+    let Ok((_, owner)) = q_nodes.get(node) else {
+        return;
+    };
 
     // A section of a ship you are NOT inside selects the SHIP: the world and
     // the tree answer a click the same way, and the tree is the door - the
@@ -796,15 +881,16 @@ pub(crate) fn disarm_outside_ship(context: Res<EditContext>, mut choice: ResMut<
     }
 }
 
-/// The ship being dragged across the stage, and how it was grabbed.
+/// The node being dragged across the stage, and how it was grabbed.
 ///
 /// A resource rather than drag-event state because the grab OFFSET has to
-/// survive from `DragStart` to every `Drag`: without it the ship would jump to
+/// survive from `DragStart` to every `Drag`: without it the node would jump to
 /// put its origin under the pointer the moment the drag began.
 #[derive(Resource, Default, Debug)]
-pub(crate) struct ShipDrag {
-    pub(crate) ship: Option<Entity>,
-    /// Ship translation minus the grab point on the ground plane.
+pub(crate) struct StageDrag {
+    /// The ship or object node under the grab.
+    pub(crate) node: Option<Entity>,
+    /// Node translation minus the grab point on the ground plane.
     pub(crate) offset: Vec3,
 }
 
@@ -830,22 +916,40 @@ fn pointer_ground_hit(
     ray_to_ground(ray, height)
 }
 
-/// Grab a ship at the scenario node: dragging its body slides it on the ground
+/// The staged node a picking hit belongs to: a section's view answers for its
+/// SHIP, and an object's view answers for itself.
+///
+/// One rule, because the scenario node holds one kind of thing - something you
+/// can move - however it is built underneath.
+fn staged_node_of_view(
+    view: Entity,
+    q_views: &Query<&ChildOf, With<NodeView>>,
+    q_sections: &Query<&ChildOf, With<SectionNode>>,
+) -> Option<Entity> {
+    let node = node_of_view(view, q_views)?;
+    Some(
+        q_sections
+            .get(node)
+            .map_or(node, |section_owner| section_owner.parent()),
+    )
+}
+
+/// Grab a node at the scenario node: dragging its body slides it on the ground
 /// plane. The first transform gesture, and deliberately the only one for now.
 ///
 /// Scenario-node only, and only in select mode: inside a ship the pointer
 /// belongs to the build tools, and mating is the rule in there - free-dragging
 /// parts would build hulls the runtime's integrity graph rejects.
-pub(crate) fn on_ship_drag_start(
+pub(crate) fn on_stage_drag_start(
     drag: On<Pointer<DragStart>>,
     context: Res<EditContext>,
     selection: Res<SectionChoice>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<crate::gallery::EditorCamera>>>,
     q_views: Query<&ChildOf, With<NodeView>>,
     q_sections: Query<&ChildOf, With<SectionNode>>,
-    q_ships: Query<&Transform, With<ShipNode>>,
+    q_staged: Query<&Transform, Or<(With<ShipNode>, With<ObjectNode>)>>,
     mut selected: ResMut<SelectedNode>,
-    mut state: ResMut<ShipDrag>,
+    mut state: ResMut<StageDrag>,
 ) {
     if drag.button != PointerButton::Primary {
         return;
@@ -853,14 +957,10 @@ pub(crate) fn on_ship_drag_start(
     if context.ship().is_some() || *selection != SectionChoice::None {
         return;
     }
-    let Some(section) = node_of_view(drag.entity, &q_views) else {
+    let Some(node) = staged_node_of_view(drag.entity, &q_views, &q_sections) else {
         return;
     };
-    let Ok(owner) = q_sections.get(section) else {
-        return;
-    };
-    let ship = owner.parent();
-    let (Ok(transform), Some(camera)) = (q_ships.get(ship), camera) else {
+    let (Ok(transform), Some(camera)) = (q_staged.get(node), camera) else {
         return;
     };
     let (camera, camera_pose) = *camera;
@@ -872,29 +972,29 @@ pub(crate) fn on_ship_drag_start(
     ) else {
         return;
     };
-    state.ship = Some(ship);
+    state.node = Some(node);
     state.offset = transform.translation - grab;
-    // Grabbing is also pointing at: the tree marks the ship being moved.
-    selected.0 = Some(ship);
+    // Grabbing is also pointing at: the tree marks the node being moved.
+    selected.0 = Some(node);
 }
 
-/// Slide the grabbed ship to keep its grab point under the pointer.
+/// Slide the grabbed node to keep its grab point under the pointer.
 ///
-/// The plane height is the ship's own, so the drag never changes altitude:
+/// The plane height is the node's own, so the drag never changes altitude:
 /// position on the stage is a layout choice, the Y axis is not.
-pub(crate) fn on_ship_drag(
+pub(crate) fn on_stage_drag(
     drag: On<Pointer<Drag>>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<crate::gallery::EditorCamera>>>,
-    state: Res<ShipDrag>,
-    mut q_ships: Query<&mut Transform, With<ShipNode>>,
+    state: Res<StageDrag>,
+    mut q_staged: Query<&mut Transform, Or<(With<ShipNode>, With<ObjectNode>)>>,
 ) {
     if drag.button != PointerButton::Primary {
         return;
     }
-    let Some(ship) = state.ship else {
+    let Some(node) = state.node else {
         return;
     };
-    let (Ok(mut transform), Some(camera)) = (q_ships.get_mut(ship), camera) else {
+    let (Ok(mut transform), Some(camera)) = (q_staged.get_mut(node), camera) else {
         return;
     };
     let (camera, camera_pose) = *camera;
@@ -914,12 +1014,12 @@ pub(crate) fn on_ship_drag(
 
 /// Let go - of the button that grabbed. Any-button matching here let an RMB
 /// camera-orbit release drop an LMB drag mid-gesture.
-pub(crate) fn on_ship_drag_end(drag: On<Pointer<DragEnd>>, mut state: ResMut<ShipDrag>) {
+pub(crate) fn on_stage_drag_end(drag: On<Pointer<DragEnd>>, mut state: ResMut<StageDrag>) {
     if drag.button != PointerButton::Primary {
         return;
     }
-    if state.ship.is_some() {
-        state.ship = None;
+    if state.node.is_some() {
+        state.node = None;
     }
 }
 
@@ -1123,6 +1223,7 @@ pub(crate) fn draw_delete_target(
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_scenario::prelude::ScenarioObjectKind;
 
     use super::*;
     use crate::node::{ensure_document, NodeId, ScenarioNode};
@@ -1163,6 +1264,13 @@ mod tests {
             .collect()
     }
 
+    fn object_nodes(app: &mut App) -> Vec<Entity> {
+        app.world_mut()
+            .query_filtered::<Entity, With<ObjectNode>>()
+            .iter(app.world())
+            .collect()
+    }
+
     fn section_nodes(app: &mut App) -> Vec<Entity> {
         app.world_mut()
             .query_filtered::<Entity, With<SectionNode>>()
@@ -1172,9 +1280,10 @@ mod tests {
 
     /// The document is one scenario node, created once, and the editor opens
     /// OUTSIDE any ship - the "Add Ship" action still owns creation, exactly as
-    /// the buttons did when an empty build state rebuilt nothing.
+    /// the buttons did when an empty build state rebuilt nothing. The world it
+    /// opens onto is seeded; the SHIPS on it are not.
     #[test]
-    fn a_fresh_document_is_one_empty_scenario_node() {
+    fn a_fresh_document_is_one_scenario_node_with_no_ships_on_it() {
         let mut app = document_app(vec![]);
 
         assert_eq!(
@@ -1185,6 +1294,10 @@ mod tests {
             1
         );
         assert!(ship_nodes(&mut app).is_empty());
+        assert!(
+            !object_nodes(&mut app).is_empty(),
+            "the editor opens onto the sandbox range, not onto nothing"
+        );
         let context = app.world().resource::<EditContext>();
         assert!(context.scenario().is_some());
         assert_eq!(context.ship(), None);
@@ -1433,6 +1546,103 @@ mod tests {
         for _ in 0..16 {
             assert_eq!(capture_binding(&input, &EDITOR_CAMERA_KEYS), first);
         }
+    }
+
+    /// The object palette PLACES; it does not arm. One press puts the kind it
+    /// names in the document and marks it, so the next press places another
+    /// rather than re-interpreting a click somewhere on the stage.
+    #[test]
+    fn the_object_palette_places_the_kind_it_names_and_marks_it() {
+        let mut app = document_app(vec![]);
+        app.init_resource::<SelectedNode>();
+        app.add_observer(create_scenario_object);
+        let before = object_nodes(&mut app).len();
+
+        let button = app.world_mut().spawn(ObjectChoice::Beacon).id();
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+
+        let placed: Vec<(Entity, String, ScenarioObjectKind)> = app
+            .world_mut()
+            .query::<(Entity, &NodeId, &ObjectNode)>()
+            .iter(app.world())
+            .map(|(entity, id, object)| (entity, id.0.clone(), object.kind.clone()))
+            .filter(|(_, id, _)| {
+                id.starts_with("beacon_") && id != "beacon_veil" && id != "beacon_home"
+            })
+            .collect();
+        assert_eq!(
+            placed.len(),
+            1,
+            "one press places one object: {:?}",
+            object_nodes(&mut app).len()
+        );
+        assert_eq!(object_nodes(&mut app).len(), before + 1);
+        assert!(matches!(placed[0].2, ScenarioObjectKind::Beacon(_)));
+        assert_eq!(
+            app.world().resource::<SelectedNode>().0,
+            Some(placed[0].0),
+            "what you just placed is what the tree has marked"
+        );
+    }
+
+    /// Delete takes the SELECTION off the document - a ship or a world object,
+    /// the tree makes no distinction - and leaves nothing marked behind it.
+    #[test]
+    fn delete_removes_the_marked_node_and_clears_the_mark() {
+        let mut app = document_app(vec![]);
+        app.init_resource::<SelectedNode>();
+        app.add_observer(delete_selected_node);
+        let rock = object_nodes(&mut app)[0];
+        let before = object_nodes(&mut app).len();
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(rock);
+
+        let button = app.world_mut().spawn_empty().id();
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+
+        assert_eq!(object_nodes(&mut app).len(), before - 1);
+        assert!(app.world().get_entity(rock).is_err());
+        assert_eq!(app.world().resource::<SelectedNode>().0, None);
+    }
+
+    /// Delete refuses the node the editor is STANDING IN. Deleting the ship
+    /// you are inside leaves the context pointing at a despawned entity, and
+    /// every panel keyed on it reads an empty ship instead of a missing one.
+    #[test]
+    fn delete_refuses_the_node_the_editor_is_inside() {
+        let mut app = document_app(vec![]);
+        app.init_resource::<SelectedNode>();
+        app.add_observer(delete_selected_node);
+        let scenario = app
+            .world()
+            .resource::<EditContext>()
+            .scenario()
+            .expect("the document exists");
+        let ship = app
+            .world_mut()
+            .spawn((
+                ShipNode::default(),
+                NodeId("ship_1".to_string()),
+                ChildOf(scenario),
+            ))
+            .id();
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
+
+        let button = app.world_mut().spawn_empty().id();
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+
+        assert!(
+            app.world().get_entity(ship).is_ok(),
+            "the ship the editor is inside survives its own Delete"
+        );
+        assert_eq!(
+            app.world().resource::<SelectedNode>().0,
+            Some(ship),
+            "and stays marked, because nothing happened"
+        );
     }
 
     /// F29: placing a turret while a camera key is held falls back to the

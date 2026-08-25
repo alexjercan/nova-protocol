@@ -17,6 +17,7 @@ use bevy::{
     ui_widgets::{observe, Activate},
 };
 use nova_assets::prelude::*;
+use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{panel, panel_header, separator, themed_button, ButtonValue, UiSkin},
@@ -26,18 +27,21 @@ use nova_ui::{
 
 use crate::{
     config::{
-        AttitudeReadout, ContextBreadcrumb, EditorKeyLegend, PlacementStatus, PlayButton,
-        RebindButton, ScenarioActions, SceneList, SceneRow, SectionChoice, SelectedNode,
-        ShipActions, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList,
+        AttitudeReadout, ContextBreadcrumb, DeleteNodeButton, EditorKeyLegend, PlacementStatus,
+        PlayButton, RebindButton, ScenarioActions, ScenarioSettings, SceneList, SceneRow,
+        SectionChoice, SelectedNode, ShipActions, ShipSettings, SkinToggleCheckbox, StyleChoice,
+        StyleList,
     },
     gallery::{EditorCamera, EditorChrome, GalleryAction},
     keybind::on_rebind_action,
     node::{
-        sections_of, EditContext, NodeId, ScenarioNode, SectionNode, SectionNodes, ShipDriver,
-        ShipNode, ShipNodes,
+        objects_of, sections_of, EditContext, NodeId, ObjectChoice, ObjectNode, ObjectNodes,
+        ScenarioNode, SectionNode, SectionNodes, ShipDriver, ShipNode, ShipNodes,
     },
-    placement::{continue_to_simulation, create_blank_ship},
-    ui::rail::{scene_row, skin_toggle_row, style_row},
+    placement::{
+        continue_to_simulation, create_blank_ship, create_scenario_object, delete_selected_node,
+    },
+    ui::rail::{object_row, scene_row, skin_toggle_row, style_row},
     ExampleStates,
 };
 
@@ -251,6 +255,16 @@ pub(crate) fn setup_editor_scene(
                         themed_button("Add Ship"),
                         observe(create_blank_ship),
                     ));
+                    // Acts on the SELECTION, not on the pointer: out here a
+                    // click drags, so a delete TOOL would fight the scenario
+                    // node's one transform gesture. `sync_delete_button` greys
+                    // it while nothing deletable is marked.
+                    actions.spawn((
+                        Name::new("Delete Node Button"),
+                        DeleteNodeButton,
+                        themed_button("Delete"),
+                        observe(delete_selected_node),
+                    ));
                 });
                 bar.spawn((
                     Name::new("Ship Actions"),
@@ -337,6 +351,42 @@ pub(crate) fn setup_editor_scene(
                         panel(skin),
                     ))
                     .with_children(|rail| {
+                        // The world block: the object palette. Scenario-context
+                        // only, and hidden inside a ship by
+                        // `sync_context_panels` for the same reason Add Ship is
+                        // - placing a rock is not a thing a ship does.
+                        //
+                        // ABOVE the tree, unlike the ship's settings below it.
+                        // The tree is the one block in this rail that grows
+                        // without a bound - a world of rocks is a row each - and
+                        // an action pushed off the bottom of a 768px screen by
+                        // the document it acts on is an action nobody can reach.
+                        rail.spawn((
+                            Name::new("World Settings"),
+                            ScenarioSettings,
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                align_items: AlignItems::Stretch,
+                                ..default()
+                            },
+                        ))
+                        .with_children(|settings| {
+                            settings.spawn(panel_header("Add Object"));
+                            settings
+                                .spawn((Name::new("Object Palette"), rail_list_node()))
+                                .with_children(|list| {
+                                    for choice in ObjectChoice::ALL {
+                                        list.spawn((
+                                            Name::new(format!("Add {}", choice.label())),
+                                            object_row(choice, skin),
+                                            observe(create_scenario_object),
+                                        ));
+                                    }
+                                });
+                            settings.spawn(separator());
+                        });
+
                         // The document, as a tree. The rows are built by
                         // `sync_scene_list`, because what is expanded depends
                         // on which node the editor is inside.
@@ -542,14 +592,33 @@ fn section_glyph(section: &SectionNode, catalog: Option<&GameSections>) -> &'sta
     }
 }
 
-/// The whole document as a tree: the scenario root, every ship under it, and
-/// the ENTERED ship's sections nested under that ship. Sibling ships stay
-/// collapsed - their sections are not what the builder is working on, and a
-/// 150px rail cannot hold three ships' worth of rows.
+/// The glyph an object row wears. Distinct from the ship glyphs (`@`, `>`, `-`)
+/// because object rows sit at the SAME depth as ships: the world holds both, and
+/// the lead column is what says which is which.
+fn object_glyph(object: &ObjectNode) -> &'static str {
+    match object.kind {
+        ScenarioObjectKind::Anchor(_) => "x",
+        ScenarioObjectKind::Asteroid(_) => "*",
+        ScenarioObjectKind::Spaceship(_) => "#",
+        ScenarioObjectKind::Beacon(_) => "!",
+        ScenarioObjectKind::SalvageCrate(_) => "%",
+        ScenarioObjectKind::Light(_) => "~",
+    }
+}
+
+/// The whole document as a tree: the scenario root, every ship under it, the
+/// ENTERED ship's sections nested under that ship, and then the rest of the
+/// world. Sibling ships stay collapsed - their sections are not what the builder
+/// is working on, and a 150px rail cannot hold three ships' worth of rows.
+///
+/// Ships first and objects after, rather than one id-sorted list: a builder came
+/// here to build a ship, and the range it stands on is context. The same order
+/// `context_nodes` reports, so the tree and the probe agree.
 fn wanted_rows(
     context: &EditContext,
     q_scenarios: &Query<&NodeId, With<ScenarioNode>>,
     q_ships: &ShipNodes,
+    q_objects: &ObjectNodes,
     nodes: &SectionNodes,
     catalog: Option<&GameSections>,
 ) -> Vec<WantedRow> {
@@ -596,6 +665,13 @@ fn wanted_rows(
             });
         }
     }
+    for (object, id, node, _) in objects_of(scenario, q_objects) {
+        rows.push(WantedRow {
+            node: object,
+            lead: format!("|- {}", object_glyph(node)),
+            label: id.0.clone(),
+        });
+    }
     rows
 }
 
@@ -615,6 +691,7 @@ pub(crate) fn sync_scene_list(
     mut selected: ResMut<SelectedNode>,
     q_scenarios: Query<&NodeId, With<ScenarioNode>>,
     q_ships: ShipNodes,
+    q_objects: ObjectNodes,
     nodes: SectionNodes,
     lists: Query<Entity, With<SceneList>>,
     fresh: Query<(), Added<SceneList>>,
@@ -628,7 +705,14 @@ pub(crate) fn sync_scene_list(
     if !fresh.is_empty() {
         shown.rows.clear();
     }
-    let wanted = wanted_rows(&context, &q_scenarios, &q_ships, &nodes, catalog.as_deref());
+    let wanted = wanted_rows(
+        &context,
+        &q_scenarios,
+        &q_ships,
+        &q_objects,
+        &nodes,
+        catalog.as_deref(),
+    );
     // A selection cannot outlive its row: a section of a ship that was left is
     // not in the tree, so there is nothing left to carry the mark.
     if selected
@@ -744,28 +828,60 @@ pub(crate) fn sync_play_button(
     }
 }
 
-/// Show each context its own verbs: the scenario node's action group at the
-/// scenario node, the ship's action group and settings block inside a ship.
+/// Show each context its own verbs: the scenario node's action group and object
+/// palette at the scenario node, the ship's action group and settings block
+/// inside a ship.
 ///
 /// Hidden rather than disabled, unlike Play: a greyed Add Ship inside a ship
 /// would say "this exists here and is refused", and it does not exist there -
-/// adding a ship is a thing the SCENARIO does.
+/// adding a ship, or a rock, is a thing the SCENARIO does.
 pub(crate) fn sync_context_panels(
     context: Res<EditContext>,
     mut panels: Query<
-        (&mut Node, Has<ScenarioActions>),
-        Or<(With<ScenarioActions>, With<ShipActions>, With<ShipSettings>)>,
+        (&mut Node, Has<ScenarioActions>, Has<ScenarioSettings>),
+        Or<(
+            With<ScenarioActions>,
+            With<ScenarioSettings>,
+            With<ShipActions>,
+            With<ShipSettings>,
+        )>,
     >,
 ) {
     let inside = context.ship().is_some();
-    for (mut node, scenario_only) in &mut panels {
-        let display = if scenario_only != inside {
+    for (mut node, actions, settings) in &mut panels {
+        let display = if (actions || settings) != inside {
             Display::Flex
         } else {
             Display::None
         };
         if node.display != display {
             node.display = display;
+        }
+    }
+}
+
+/// Grey the scenario context's Delete unless the selection is something the
+/// world can lose: a ship or an object, and never the node the editor is
+/// standing in. The same guards `delete_selected_node` enforces, painted.
+pub(crate) fn sync_delete_button(
+    mut commands: Commands,
+    context: Res<EditContext>,
+    selected: Res<SelectedNode>,
+    deletable: Query<(), Or<(With<ShipNode>, With<ObjectNode>)>>,
+    buttons: Query<(Entity, Has<InteractionDisabled>), With<DeleteNodeButton>>,
+) {
+    let armable = selected
+        .0
+        .is_some_and(|node| deletable.contains(node) && !context.path.contains(&node));
+    for (entity, marked) in &buttons {
+        match (armable, marked) {
+            (false, false) => {
+                commands.entity(entity).insert(InteractionDisabled);
+            }
+            (true, true) => {
+                commands.entity(entity).remove::<InteractionDisabled>();
+            }
+            _ => {}
         }
     }
 }

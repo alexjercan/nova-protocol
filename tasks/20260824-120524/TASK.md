@@ -72,3 +72,19 @@ gallery, stamp instances into the scene, duplicate an in-scene ship.
 - Open the ship gallery, stamp two copies, duplicate an in-scene ship, save,
   reload: all copies intact; play works.
 - A UI-harness walk covers the loop; probe green.
+
+## Note (2026-08-25): the world is already nodes
+
+`20260714-081703`'s first half landed on master: the sandbox range comes up
+as `ObjectNode`s under the scenario node, seeded by `ensure_document` and
+lowered back by `nova_editor/src/scenario.rs::lower_objects`. So the save
+side has a document that already holds the whole world, not just the ships,
+and "lower the context to a config" is written once for objects.
+
+Two things that fall to this task rather than that one:
+
+- The RON write/read itself, for ships AND objects.
+- Instance ids: object nodes keep the id they were AUTHORED with when they
+  come from the stock range (the sandbox's event handlers name
+  `picket_warden`), and mint `{stem}_{n}` when placed. A save has to keep
+  both, and a re-lift has to not re-mint.

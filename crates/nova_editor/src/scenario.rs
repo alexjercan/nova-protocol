@@ -1,5 +1,5 @@
 //! The scenario the editor hands off to on Play: an open range for the ship
-//! you just built.
+//! you just built, and the DEFAULT WORLD a new document is seeded with.
 //!
 //! It is a SANDBOX, so it deliberately has no win: one standing objective that
 //! never completes, no chapter to chain into, and the only outcome is your own
@@ -7,8 +7,16 @@
 //!
 //! What is out there: two seeded rock belts, a corridor of inert target hulks
 //! to shoot, three DORMANT pickets that only fight once you paint or crowd
-//! them, two beacons that swap the sky, and one planetoid parked far enough
-//! away to be scenery rather than a wall (see [`PLANETOID_POSITION`]).
+//! them, two beacons that swap the sky, one planetoid parked far enough away to
+//! be scenery rather than a wall (see [`PLANETOID_POSITION`]), and the light
+//! rig that makes any of it visible.
+//!
+//! The split down the middle of this file is the LOWERING CONVENTION: the
+//! objects are LAYOUT and become editor nodes ([`default_world_objects`] seeds
+//! them, [`lower_objects`] reads them back), while the belts, the trip spheres,
+//! the wake handlers and the outcome are LOGIC and stay authored here. Move an
+//! object and you edited the world; the script is not something the editor
+//! edits yet.
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::Binding;
@@ -20,7 +28,10 @@ use nova_ship::prelude::{
     PDC_KINETIC_TURRET_SECTION_ID, REINFORCED_HULL_SECTION_ID,
 };
 
-use crate::node::{sections_of, NodeId, SectionNodes, ShipDriver, ShipNode};
+use crate::node::{
+    objects_of, sections_of, EditContext, NodeId, ObjectNodes, SectionNodes, ShipDriver, ShipNode,
+    ASTEROID_TEXTURE, DESTROY_SOUND, IMPACT_SOUND,
+};
 
 /// The sandbox's scenario id. Registered in [`GameScenarios`] on hand-off so
 /// the DEFEAT overlay's Retry can reload it by id like any other scenario;
@@ -199,14 +210,20 @@ const BEACON_LOCK_SIGNATURE: f32 = 30.0;
 pub(crate) fn setup_scenario(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
+    context: Res<EditContext>,
     nodes: SectionNodes,
+    q_objects: ObjectNodes,
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
     // Optional: the registry is written by the bundle merge, and a rig that
     // never merged content must still be able to fly the sandbox - it just
     // does not get the retry.
     scenarios: Option<ResMut<GameScenarios>>,
 ) {
-    let scenario = sandbox_scenario(&game_assets, &lower_fleet(&q_ships, &nodes));
+    let scenario = sandbox_scenario(
+        &game_assets,
+        world_objects(&context, &q_objects),
+        &lower_fleet(&q_ships, &nodes),
+    );
 
     // Re-register with the ship the editor just built: the boot-time entry
     // (`register_sandbox_scenario`) carries the DEFAULT hull, and the DEFEAT
@@ -237,12 +254,80 @@ pub(crate) fn sandbox_unregistered(scenarios: Option<Res<GameScenarios>>) -> boo
 /// [`setup_scenario`] overwrites the entry with the built ship on hand-off.
 pub(crate) fn register_sandbox_scenario(
     game_assets: Res<GameAssets>,
+    context: Res<EditContext>,
     nodes: SectionNodes,
+    q_objects: ObjectNodes,
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
     mut scenarios: ResMut<GameScenarios>,
 ) {
-    let scenario = sandbox_scenario(&game_assets, &lower_fleet(&q_ships, &nodes));
+    let scenario = sandbox_scenario(
+        &game_assets,
+        world_objects(&context, &q_objects),
+        &lower_fleet(&q_ships, &nodes),
+    );
     scenarios.insert(scenario.id.clone(), scenario);
+}
+
+/// The world the sandbox spawns: the DOCUMENT's objects once a document exists,
+/// and the stock range before one does.
+///
+/// Keyed on the document existing, never on it being empty. A builder who
+/// deletes every rock gets an empty range, which is the whole point of the
+/// world being editable; an id registered before the editor has ever opened
+/// still has to name something, because an id nothing can fly is not content.
+fn world_objects(context: &EditContext, q_objects: &ObjectNodes) -> Vec<ScenarioObjectConfig> {
+    match context.scenario() {
+        Some(scenario) => lower_objects(scenario, q_objects),
+        None => default_world_objects(),
+    }
+}
+
+/// Every object node of the document, flattened back into the config it was
+/// lifted from.
+///
+/// The node's `NodeId` is the scenario object id and the node's `Transform` is
+/// the pose - the two facts the editor moves - so this is the whole of the
+/// lowering. In id order, because the output is a file.
+fn lower_objects(scenario: Entity, q_objects: &ObjectNodes) -> Vec<ScenarioObjectConfig> {
+    objects_of(scenario, q_objects)
+        .into_iter()
+        .map(|(_, id, object, transform)| ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: id.0.clone(),
+                name: object.name.clone(),
+                position: transform.translation,
+                rotation: transform.rotation,
+            },
+            kind: object.kind.clone(),
+        })
+        .collect()
+}
+
+/// The stock sandbox world, as authored objects: the planetoid, the hulk
+/// corridor, the pickets, the beacons and the light rig.
+///
+/// What a new document is SEEDED with (see `crate::node::ensure_document`), and
+/// what the registry advertises before one exists. These were constants baked
+/// into the hand-off; they are the default world now, and everything about them
+/// is editable once the editor opens.
+///
+/// The rock belts are NOT here - they are seeded scatter actions (see
+/// [`belt_scatter`]), so the field is the same field on every load and on every
+/// retry, and one node per rock would be sixty-four rows in the tree.
+pub(crate) fn default_world_objects() -> Vec<ScenarioObjectConfig> {
+    let mut objects = vec![planetoid()];
+    objects.extend(
+        HULK_POSITIONS
+            .iter()
+            .enumerate()
+            .map(|(index, position)| target_hulk(index, *position)),
+    );
+    objects.extend(PICKETS.iter().map(picket_ship));
+    objects.extend(SKY_BEACONS.iter().map(sky_beacon));
+    // The sandbox lights itself: the engine spawns no light, so a scenario that
+    // authors none renders black.
+    objects.extend(ThreePointRig::around("sandbox", Vec3::ZERO, 10.0).objects());
+    objects
 }
 
 /// One ship, flattened out of its subtree.
@@ -326,19 +411,20 @@ pub(crate) struct LoweredFleet {
     ai: Vec<(String, LoweredShip)>,
 }
 
-/// Build the sandbox: two rock belts, a hulk corridor, three dormant pickets,
-/// two sky beacons, one distant planetoid, and the ships the editor just built.
-pub(crate) fn sandbox_scenario(game_assets: &GameAssets, fleet: &LoweredFleet) -> ScenarioConfig {
-    let asteroid_texture = game_assets.asteroid_texture.clone();
-    let objects = sandbox_objects(fleet, asteroid_texture.clone());
-
+/// Build the sandbox: the world's objects, two rock belts, the wake script, and
+/// the ships the editor just built.
+pub(crate) fn sandbox_scenario(
+    game_assets: &GameAssets,
+    world: Vec<ScenarioObjectConfig>,
+    fleet: &LoweredFleet,
+) -> ScenarioConfig {
     ScenarioConfig {
         description: "A free-flight range: rocks, target hulks, dormant pickets and a planetoid."
             .to_string(),
         // Registered so Retry can find it (see `setup_scenario`), hidden so it
         // never shows up in the Scenarios picker next to shipped content.
         hidden: true,
-        events: sandbox_events(objects, asteroid_texture),
+        events: sandbox_events(sandbox_objects(world, fleet)),
         ..ScenarioConfig::new(
             SANDBOX_ID.to_string(),
             "Editor Sandbox".to_string(),
@@ -347,24 +433,17 @@ pub(crate) fn sandbox_scenario(game_assets: &GameAssets, fleet: &LoweredFleet) -
     }
 }
 
-/// The hand-placed objects: the planetoid, the hulk corridor, the pickets, the
-/// beacons and the builder's whole fleet. The rock belts are NOT here - they
-/// are seeded scatter actions (see [`belt_scatter`]), so the field is the same
-/// field on every load and on every retry.
+/// Everything the range spawns on start: the world's own objects, then the
+/// builder's whole fleet.
+///
+/// The fleet is NOT in the world list because it is not one: a ship node is
+/// designed section by section and lowers through [`lower_fleet`], while an
+/// object node is placed and lowers verbatim. Both end up in the same OnStart
+/// handler, which is what makes them one saved scenario.
 fn sandbox_objects(
+    mut objects: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
-    asteroid_texture: Handle<Image>,
 ) -> Vec<ScenarioObjectConfig> {
-    let mut objects = vec![planetoid(asteroid_texture)];
-
-    objects.extend(
-        HULK_POSITIONS
-            .iter()
-            .enumerate()
-            .map(|(index, position)| target_hulk(index, *position)),
-    );
-    objects.extend(PICKETS.iter().map(picket_ship));
-    objects.extend(SKY_BEACONS.iter().map(sky_beacon));
     objects.push(player_ship(&fleet.player));
     // An EMPTY design spawns nothing: a blank Add Ship left in the document
     // is a decision not yet made, not a zero-section spaceship to load.
@@ -381,7 +460,7 @@ fn sandbox_objects(
 
 /// The planetoid: a large, invulnerable, PINNED rock with an explicit mass, so
 /// it reads as a proper well and as scenery rather than a target.
-fn planetoid(asteroid_texture: Handle<Image>) -> ScenarioObjectConfig {
+fn planetoid() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "planetoid".to_string(),
@@ -390,13 +469,12 @@ fn planetoid(asteroid_texture: Handle<Image>) -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            // DIRECT paths, not dep://: the editor sandbox is built at
-            // runtime outside the mod merge (its texture is a raw
-            // GameAssets handle), so scheme refs would never rewrite.
-            impact_sound: Some(AssetRef::from("base/sounds/impact.wav")),
-            destroy_sound: Some(AssetRef::from("base/sounds/explosion.wav")),
+            // DIRECT paths, not dep://: the editor's world is built at runtime
+            // outside the mod merge, so scheme refs would never rewrite.
+            impact_sound: Some(AssetRef::from(IMPACT_SOUND)),
+            destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
             radius: PLANETOID_RADIUS,
-            texture: AssetRef::from(asteroid_texture),
+            texture: AssetRef::from(ASTEROID_TEXTURE),
             mass: Some(PLANETOID_MASS),
             invulnerable: true,
             seed: Some(PLANETOID_SEED),
@@ -601,7 +679,7 @@ fn ai_ship(id: &str, ship: &LoweredShip) -> ScenarioObjectConfig {
 }
 
 /// One belt as a seeded scatter action.
-fn belt_scatter(belt: &Belt, asteroid_texture: Handle<Image>) -> EventActionConfig {
+fn belt_scatter(belt: &Belt) -> EventActionConfig {
     EventActionConfig::ScatterObjects(ScatterObjectsConfig {
         id_prefix: belt.id_prefix.to_string(),
         count: belt.count,
@@ -619,10 +697,10 @@ fn belt_scatter(belt: &Belt, asteroid_texture: Handle<Image>) -> EventActionConf
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 // DIRECT paths, not dep:// - see `planetoid`.
-                impact_sound: Some(AssetRef::from("base/sounds/impact.wav")),
-                destroy_sound: Some(AssetRef::from("base/sounds/explosion.wav")),
+                impact_sound: Some(AssetRef::from(IMPACT_SOUND)),
+                destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 radius: belt.radius.0,
-                texture: AssetRef::from(asteroid_texture),
+                texture: AssetRef::from(ASTEROID_TEXTURE),
                 mass: None,
                 invulnerable: false,
                 seed: None,
@@ -752,10 +830,7 @@ fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
 /// proximity, swap the sky at the beacons, and offer a retry when the player
 /// dies. No completion path: the standing objective is never completed and
 /// nothing chains anywhere but back here.
-fn sandbox_events(
-    objects: Vec<ScenarioObjectConfig>,
-    asteroid_texture: Handle<Image>,
-) -> Vec<ScenarioEventConfig> {
+fn sandbox_events(objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig> {
     // The one outcome the sandbox has, and the retry it queues. `linger` holds
     // the switch until the overlay's Retry (or Enter) releases it.
     let retry = |message: &str| {
@@ -783,17 +858,14 @@ fn sandbox_events(
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
-            // The sandbox lights itself: the engine spawns no light, so a
-            // scenario that authors none renders black. (The editor VIEW has
-            // its own light - `ui/mod.rs` - which is a different surface.)
+            // The world's own lights come through `objects` - the engine spawns
+            // none, so a scenario that authors none renders black. (The editor
+            // VIEW has its own light - `ui/mod.rs` - which is a different
+            // surface.)
             actions: objects
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
-                .chain(
-                    BELTS
-                        .iter()
-                        .map(|belt| belt_scatter(belt, asteroid_texture.clone())),
-                )
+                .chain(BELTS.iter().map(belt_scatter))
                 .chain(PICKETS.iter().map(trip_area))
                 // Every picket starts asleep, and its guard variable has to
                 // exist before the first filter reads it.
@@ -803,7 +875,6 @@ fn sandbox_events(
                         expression: boolean(false),
                     })
                 }))
-                .chain(ThreePointRig::around("sandbox", Vec3::ZERO, 10.0).actions())
                 .collect::<_>(),
         },
         // The standing objective. It is never completed - there is nothing to
@@ -860,6 +931,10 @@ mod tests {
     use nova_gameplay::prelude::{GravitySettings, GravityWell};
 
     use super::*;
+    use crate::{
+        config::SelectedNode,
+        node::{ensure_document, ObjectNode},
+    };
 
     /// The camera's far plane (bevy's `PerspectiveProjection` default, which
     /// nothing in the game overrides). A body authored past this is simply not
@@ -867,11 +942,11 @@ mod tests {
     const CAMERA_FAR: f32 = 1000.0;
 
     fn objects() -> Vec<ScenarioObjectConfig> {
-        sandbox_objects(&LoweredFleet::default(), Handle::default())
+        sandbox_objects(default_world_objects(), &LoweredFleet::default())
     }
 
     fn events() -> Vec<ScenarioEventConfig> {
-        sandbox_events(objects(), Handle::default())
+        sandbox_events(objects())
     }
 
     fn find(objects: &[ScenarioObjectConfig], id: &str) -> ScenarioObjectConfig {
@@ -880,6 +955,87 @@ mod tests {
             .find(|object| object.base.id == id)
             .unwrap_or_else(|| panic!("the sandbox spawns '{id}'"))
             .clone()
+    }
+
+    /// Lower whatever world stands in `world`, through the same path the
+    /// hand-off takes.
+    fn lower(world: &mut World) -> Vec<ScenarioObjectConfig> {
+        world
+            .run_system_once(|context: Res<EditContext>, q_objects: ObjectNodes| {
+                world_objects(&context, &q_objects)
+            })
+            .expect("the lowering runs")
+    }
+
+    /// Stand the default range up in `world` as document nodes.
+    fn stand_up_document(world: &mut World) {
+        world.init_resource::<EditContext>();
+        world.init_resource::<SelectedNode>();
+        world
+            .run_system_once(ensure_document)
+            .expect("the document is created");
+    }
+
+    /// The hand-off reads the DOCUMENT, and the document says the same thing
+    /// the constants used to. This is what makes the editor's tree the source
+    /// of the range rather than a view onto a table beside it.
+    #[test]
+    fn the_seeded_document_lowers_to_the_range_it_stood_up() {
+        let mut world = World::new();
+        stand_up_document(&mut world);
+
+        let lowered = lower(&mut world);
+
+        let mut got: Vec<String> = lowered
+            .iter()
+            .map(|object| object.base.id.clone())
+            .collect();
+        got.sort();
+        let mut want: Vec<String> = default_world_objects()
+            .iter()
+            .map(|object| object.base.id.clone())
+            .collect();
+        want.sort();
+        assert_eq!(got, want);
+
+        // The pose comes off the node's transform, so dragging a rock moves
+        // the rock the scenario spawns.
+        let planetoid = find(&lowered, "planetoid");
+        assert_eq!(planetoid.base.position, PLANETOID_POSITION);
+    }
+
+    /// An emptied range is an EMPTY range. The lowering keys on the document
+    /// existing, never on it holding anything: "empty means refill" would
+    /// resurrect every rock the player deleted the moment they pressed Play.
+    #[test]
+    fn a_world_the_player_emptied_stays_empty() {
+        let mut world = World::new();
+        stand_up_document(&mut world);
+        let objects: Vec<Entity> = world
+            .query_filtered::<Entity, With<ObjectNode>>()
+            .iter(&world)
+            .collect();
+        for object in objects {
+            world.despawn(object);
+        }
+
+        assert!(
+            lower(&mut world).is_empty(),
+            "the document is the range, including when it is bare"
+        );
+    }
+
+    /// Before there is a document there is still a scenario to register: the
+    /// hand-off is wired at asset-load, long before the editor is entered, and
+    /// the Scenario path can be taken without opening the editor at all.
+    #[test]
+    fn without_a_document_the_stock_range_stands_in() {
+        let mut world = World::new();
+        world.init_resource::<EditContext>();
+
+        let lowered = lower(&mut world);
+
+        assert_eq!(lowered.len(), default_world_objects().len());
     }
 
     /// The planetoid's WORST-CASE drawn radius and its well, recomputed from
@@ -1306,7 +1462,7 @@ mod tests {
             ],
         };
 
-        let objects = sandbox_objects(&fleet, Handle::default());
+        let objects = sandbox_objects(default_world_objects(), &fleet);
         let escort = find(&objects, "ship_2");
         assert_eq!(escort.base.position, Vec3::new(24.0, 0.0, 0.0));
         let ScenarioObjectKind::Spaceship(ship) = &escort.kind else {
@@ -1339,7 +1495,10 @@ mod tests {
                 },
                 ..default()
             };
-            let player = find(&sandbox_objects(&lowered, Handle::default()), PLAYER_ID);
+            let player = find(
+                &sandbox_objects(default_world_objects(), &lowered),
+                PLAYER_ID,
+            );
             let ScenarioObjectKind::Spaceship(ship) = player.kind else {
                 panic!("the player object is a spaceship");
             };

@@ -13,7 +13,9 @@ use nova_ship::prelude::GameSections;
 use crate::{
     config::{PlacementPreview, SectionChoice, SelectedNode},
     gallery::GalleryState,
-    node::{context_nodes, inside_id, sections_of, EditContext, SectionNodes, ShipNodes},
+    node::{
+        context_nodes, inside_id, sections_of, EditContext, ObjectNodes, SectionNodes, ShipNodes,
+    },
     ExampleStates,
 };
 
@@ -100,10 +102,11 @@ pub struct EditorProbe {
     /// to, and the only way a driven run can tell "entered ship_2" from "still
     /// looking at ship_1 from outside".
     pub inside: Option<String>,
-    /// The node ids the current context CONTAINS, in id order: ships at the
-    /// scenario node, sections inside a ship. The Scene tree draws more than
-    /// this (the root row, collapsed sibling ships), but this is the list every
-    /// editor system is scoped to.
+    /// The node ids the current context CONTAINS: at the scenario node its
+    /// ships in id order and then the world's objects in id order, inside a
+    /// ship that ship's sections. The Scene tree draws more than this (the root
+    /// row, collapsed sibling ships), but this is the list every editor system
+    /// is scoped to.
     pub context_nodes: Vec<String>,
     /// The id of the node the Scene tree has marked, or `None`.
     pub selected_node: Option<String>,
@@ -134,13 +137,14 @@ pub(crate) fn sync_editor_probe(
     selected: Res<SelectedNode>,
     nodes: SectionNodes,
     q_ships: ShipNodes,
+    q_objects: ObjectNodes,
     q_visibility: Query<&Visibility>,
     poses: Query<&Transform>,
     mut probe: ResMut<EditorProbe>,
 ) {
     let wanted = if *editor.get() == ExampleStates::Editor {
         let mut snapshot = snapshot(&choice, &preview, &gallery, sections.as_deref());
-        let listed = context_nodes(&context, &q_ships, &nodes);
+        let listed = context_nodes(&context, &q_ships, &q_objects, &nodes);
         snapshot.ship = edited_ship(&context, &nodes);
         snapshot.inside = inside_id(&context, &q_ships).map(|id| id.0.clone());
         snapshot.selected_node = selected.0.and_then(|node| {
