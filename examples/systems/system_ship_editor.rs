@@ -990,6 +990,48 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
         })
         .add()
+        // The second ship is BUILT ON, in its own space. Founding drops a
+        // controller at ship_2's origin (x=24 in the WORLD), and the next
+        // placement must mate the socket under the pointer - the world-space
+        // hit against ship-local sockets used to make an offset ship accept
+        // exactly one link point, wherever the pointer was.
+        .arm_from_the_gallery("editor: arm the second controller", CONTROLLER_PROTOTYPE)
+        .step("editor: point at empty space beside the second ship")
+        .on_enter(|world: &mut World| {
+            move_cursor(EMPTY_SPACE)(world);
+            stamp_sections(world);
+        })
+        .add()
+        .press_and_release("editor: found the second ship", sections_grew_by(1))
+        .arm_from_the_gallery("editor: arm a hull for the second ship", HULL_PROTOTYPE)
+        .place_on_the_face(
+            "editor: roof a hull onto the second ship",
+            Vec3::new(24.0, 0.49, 0.0),
+        )
+        .step("editor: the second ship built in its own space")
+        .on_enter(|world: &mut World| {
+            let probe = world.resource::<EditorProbe>();
+            assert_eq!(probe.inside.as_deref(), Some("ship_2"));
+            let roof = probe
+                .ship
+                .iter()
+                .find(|section| section.prototype == HULL_PROTOTYPE)
+                .expect("the roof landed on the second ship")
+                .clone();
+            assert_eq!(
+                roof.position,
+                Vec3::Y,
+                "the mate solves in the ship's OWN space, on the socket the \
+                 pointer aimed at"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: an offset ship builds in its own space",
+                serde_json::json!({}),
+            );
+            info!("editor: ship_2 took a roof at {:?}", roof.position);
+        })
+        .add()
         // Out through the tree's root row.
         .click_a_widget("editor: leave the second ship", "Scene Row scenario")
         .step("editor: the scenario node holds both ships")
@@ -1146,6 +1188,12 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // the derived plates are back.
         .step("editor: the flown ship is whole and clad")
         .until(and(the_flown_ship_is_whole(), the_skin_is_on()))
+        .deadline(PLAY_DEADLINE_SECS)
+        .add()
+        // The DOCUMENT flies, not just the player's design: the AI ship built
+        // beside it stands on the range too, whole.
+        .step("editor: the second ship stands on the range")
+        .until(the_second_ship_flies())
         .deadline(PLAY_DEADLINE_SECS)
         .add()
         .step("editor: the flown ship derives the same mate graph")
@@ -1569,7 +1617,9 @@ fn aim_at_the_first_ship(world: &mut World) -> Option<Vec2> {
     aim_at_world(world, nearest)
 }
 
-/// Advance once the flown ship carries every section the editor built.
+/// Advance once the flown PLAYER ship carries every section of the design the
+/// run stamped - the ids taken before leaving the first ship, because the
+/// world-wide section count now includes the second ship built beside it.
 ///
 /// The hand-off, waited on rather than settled for: Play tears the preview down
 /// and the scenario spawns the real ship a while later, and "a while" is a
@@ -1577,7 +1627,7 @@ fn aim_at_the_first_ship(world: &mut World) -> Option<Vec2> {
 #[cfg(feature = "debug")]
 fn the_flown_ship_is_whole() -> Wait {
     std::sync::Arc::new(|world: &World| {
-        let built = world.resource::<EditorWalk>().sections;
+        let built = world.resource::<EditorWalk>().ids.len();
         let Some(root) = world
             .try_query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
             .and_then(|mut roots| roots.iter(world).next())
@@ -1593,6 +1643,19 @@ fn the_flown_ship_is_whole() -> Wait {
                     .count()
                     == built
             })
+    })
+}
+
+/// Advance once the AI design stands on the range: the sandbox lowers every
+/// non-empty ship of the document, not just the player's.
+#[cfg(feature = "debug")]
+fn the_second_ship_flies() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        world.try_query::<&Name>().is_some_and(|mut names| {
+            names
+                .iter(world)
+                .any(|name| name.as_str() == "Sandbox Ship ship_2")
+        })
     })
 }
 

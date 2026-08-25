@@ -21,6 +21,8 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::{
+    config::SelectedNode,
+    gallery::EditorCamera,
     preview::{insert_preview_section, PreviewRole},
     ExampleStates,
 };
@@ -337,6 +339,93 @@ pub(crate) fn sync_ship_focus(
     }
 }
 
+/// Snap the stage camera to the edit context: entering a ship frames that
+/// ship, and the scenario node frames everything the document holds.
+///
+/// The free-fly rig rewrites the camera `Transform` every frame from private
+/// state, so a bare pose write is gone by the next frame. The controller is
+/// therefore removed and re-inserted around the write - the same move the
+/// gallery's camera parking makes - and its setup re-reads the transform this
+/// system just set. Keyed on the PATH (compared, not change-ticked: `exit()`
+/// at the floor marks the resource changed without moving it) plus a fresh
+/// camera, because a second editor visit spawns a new camera at the stock pose
+/// while the context still points wherever it pointed.
+pub(crate) fn sync_camera_focus(
+    mut commands: Commands,
+    context: Res<EditContext>,
+    fresh: Query<(), Added<EditorCamera>>,
+    ships: Query<&Transform, (With<ShipNode>, Without<EditorCamera>)>,
+    camera: Option<Single<(Entity, &mut Transform), (With<EditorCamera>, Without<ShipNode>)>>,
+    mut shown: Local<Option<Vec<Entity>>>,
+) {
+    if fresh.is_empty() && shown.as_ref() == Some(&context.path) {
+        return;
+    }
+    // The move is recorded only once it lands: an entered ship or the camera
+    // can be a frame away (both are spawned through commands), and a change
+    // swallowed while they settle would leave the camera wherever it was.
+    let Some(camera) = camera else {
+        return;
+    };
+    let (entity, mut transform) = camera.into_inner();
+    let pose = match context.ship() {
+        Some(ship) => {
+            let Ok(target) = ships.get(ship) else {
+                return;
+            };
+            frame_stage(target.translation, 0.0)
+        }
+        None => {
+            let positions: Vec<Vec3> = ships.iter().map(|ship| ship.translation).collect();
+            let centre = positions.iter().sum::<Vec3>() / positions.len().max(1) as f32;
+            let spread = positions
+                .iter()
+                .map(|position| position.distance(centre))
+                .fold(0.0, f32::max);
+            frame_stage(centre, spread)
+        }
+    };
+    *shown = Some(context.path.clone());
+    *transform = pose;
+    commands
+        .entity(entity)
+        .remove::<WASDCameraController>()
+        .insert(WASDCameraController);
+}
+
+/// The stock editor view over `target`: the spawn pose slid onto it, backed
+/// off by `spread` so a stage of several ships fits the frame. Zero spread IS
+/// the spawn pose, which is what keeps the driven walks' fixed screen points
+/// meaning what they measured.
+fn frame_stage(target: Vec3, spread: f32) -> Transform {
+    Transform::from_translation(target + Vec3::new(0.0, 5.0 + 0.75 * spread, 10.0 + 1.5 * spread))
+        .looking_at(target, Vec3::Y)
+}
+
+/// Delete the document on the way out of the session (Back to Main Menu).
+///
+/// The nodes survive every INNER state change on purpose - Play leaves and
+/// returns to the same ships - but a session ends at the main menu, and a
+/// document that outlived it read as the editor never resetting (owner,
+/// 2026-08-25). Despawning the scenario node takes the whole tree with it;
+/// the context and selection are cleared so nothing points into the rubble.
+pub(crate) fn teardown_document(
+    mut commands: Commands,
+    mut context: ResMut<EditContext>,
+    mut selected: ResMut<SelectedNode>,
+    roots: Query<Entity, With<ScenarioNode>>,
+) {
+    for root in &roots {
+        commands.entity(root).despawn();
+    }
+    if !context.path.is_empty() {
+        context.path.clear();
+    }
+    if selected.0.is_some() {
+        selected.0 = None;
+    }
+}
+
 /// The node a picking hit belongs to: hits land on views, and the document is
 /// the parent.
 pub(crate) fn node_of_view(
@@ -366,9 +455,10 @@ fn mint_id(ordinals: &mut Query<&mut NextChildOrdinal>, parent: Entity, prototyp
 /// Create the document if there is none: one empty scenario node, entered.
 ///
 /// Lazily rather than at plugin build so a headless rig that never opens the
-/// editor never grows a tree. The document is NOT `DespawnOnExit` of anything:
-/// leaving for the main menu and coming back finds the ship you left, exactly as
-/// the old build-state resource did by surviving the whole process.
+/// editor never grows a tree. The document is NOT `DespawnOnExit` of any inner
+/// state: Play and F1 round-trip it. It dies with the SESSION instead - Back
+/// to Main Menu runs [`teardown_document`] (owner decision, 2026-08-25), so a
+/// later Sandbox entry starts on a fresh scenario.
 pub(crate) fn ensure_document(mut commands: Commands, mut context: ResMut<EditContext>) {
     if context.scenario().is_some() {
         return;
@@ -455,7 +545,10 @@ fn insert_section_node(
             Name::new(format!("Section Node {}", id.0)),
             id,
             transform,
-            Visibility::Visible,
+            // INHERITED, never `Visible`: an explicit `Visible` overrides a
+            // hidden ancestor, so every section of a ship `sync_ship_focus`
+            // hid would stay on screen while its picking was off.
+            Visibility::Inherited,
             ChildOf(ship),
         ))
         .id();
@@ -541,7 +634,7 @@ mod tests {
                 },
                 NodeId("hull_1".to_string()),
                 Transform::from_xyz(1.0, 2.0, 3.0),
-                Visibility::Visible,
+                Visibility::Inherited,
                 ChildOf(ship),
             ))
             .id();
@@ -679,6 +772,85 @@ mod tests {
             world.get::<Pickable>(hidden_view),
             None,
             "back at the scenario node the default picking is restored"
+        );
+    }
+
+    /// A placed section INHERITS its ship's visibility. `Visibility::Visible`
+    /// overrides a hidden ancestor in bevy, so sections spawned with it stayed
+    /// on screen after `sync_ship_focus` hid their ship - the focus tests all
+    /// passed by reading the ship's own component while the live stage showed
+    /// every ship at once.
+    #[test]
+    fn a_placed_section_inherits_its_ships_visibility() {
+        let mut world = World::new();
+        let ship = world
+            .spawn((ShipNode::default(), NextChildOrdinal::default()))
+            .id();
+        let section = world
+            .run_system_once(move |mut commands: Commands| {
+                insert_section_node(
+                    &mut commands,
+                    ship,
+                    NodeId("hull_1".to_string()),
+                    &hull("hull"),
+                    Transform::default(),
+                    vec![],
+                )
+            })
+            .expect("the section spawner runs");
+
+        assert_eq!(
+            world.get::<Visibility>(section),
+            Some(&Visibility::Inherited),
+            "an explicit Visible would override the hidden ship above it"
+        );
+    }
+
+    /// Back to Main Menu ends the session, and the session owns the document:
+    /// the whole tree goes, and nothing keeps pointing into it.
+    #[test]
+    fn leaving_the_session_deletes_the_document() {
+        let mut world = World::new();
+        world.init_resource::<EditContext>();
+        world.init_resource::<SelectedNode>();
+        world
+            .run_system_once(ensure_document)
+            .expect("the document is created");
+        let scenario = world
+            .resource::<EditContext>()
+            .scenario()
+            .expect("the document exists");
+        let ship = world
+            .spawn((
+                ShipNode::default(),
+                NodeId("ship_1".to_string()),
+                NextChildOrdinal::default(),
+                ChildOf(scenario),
+            ))
+            .id();
+        world.resource_mut::<EditContext>().enter(ship);
+        world.resource_mut::<SelectedNode>().0 = Some(ship);
+
+        world
+            .run_system_once(teardown_document)
+            .expect("the teardown runs");
+
+        assert_eq!(
+            world.query::<&EditorNode>().iter(&world).count(),
+            0,
+            "the scenario node takes its whole subtree with it"
+        );
+        assert!(world.resource::<EditContext>().path.is_empty());
+        assert_eq!(world.resource::<SelectedNode>().0, None);
+
+        // And the next entry starts a fresh document rather than resuming.
+        world
+            .run_system_once(ensure_document)
+            .expect("the document check runs");
+        assert_ne!(
+            world.resource::<EditContext>().scenario(),
+            Some(scenario),
+            "a later Sandbox entry founds a new scenario"
         );
     }
 

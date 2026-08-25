@@ -416,6 +416,7 @@ pub(crate) fn update_placement_preview(
     selection: Res<SectionChoice>,
     pose: Res<PlacementPose>,
     sections: Res<GameSections>,
+    q_ships: Query<&GlobalTransform, With<ShipNode>>,
     mut preview: ResMut<PlacementPreview>,
 ) {
     preview.placement = None;
@@ -458,6 +459,12 @@ pub(crate) fn update_placement_preview(
     else {
         return;
     };
+    // The solver works in SHIP-LOCAL space while the picking hit arrives in
+    // WORLD space. The first ship sits at the origin, where the two spaces
+    // coincide - which is how a ship standing anywhere else ended up mating
+    // every part onto whichever socket happened to sit nearest a point 24
+    // units away.
+    let hit = ship_local_hit(q_ships.get(edited).ok(), hit);
 
     preview.placement = Some(Placement {
         prototype: id.clone(),
@@ -623,6 +630,14 @@ pub(crate) fn sync_placement_ghost(
             .compute_transform();
         gizmos.cube(pose.with_scale(half * 2.0), colour);
     }
+}
+
+/// A world-space picking hit in the edited ship's own space - the space the
+/// solver, the ghost and the section node it would become are all posed in.
+/// A ship with no `GlobalTransform` yet (a headless rig's first frame) reads
+/// as standing at the origin, where the two spaces coincide.
+fn ship_local_hit(ship_pose: Option<&GlobalTransform>, hit: Vec3) -> Vec3 {
+    ship_pose.map_or(hit, |pose| pose.affine().inverse().transform_point3(hit))
 }
 
 /// The diagnostic id of one socket on a section, for the readout.
@@ -873,6 +888,9 @@ pub(crate) fn on_ship_drag(
     state: Res<ShipDrag>,
     mut q_ships: Query<&mut Transform, With<ShipNode>>,
 ) {
+    if drag.button != PointerButton::Primary {
+        return;
+    }
     let Some(ship) = state.ship else {
         return;
     };
@@ -894,8 +912,12 @@ pub(crate) fn on_ship_drag(
     }
 }
 
-/// Let go.
-pub(crate) fn on_ship_drag_end(_drag: On<Pointer<DragEnd>>, mut state: ResMut<ShipDrag>) {
+/// Let go - of the button that grabbed. Any-button matching here let an RMB
+/// camera-orbit release drop an LMB drag mid-gesture.
+pub(crate) fn on_ship_drag_end(drag: On<Pointer<DragEnd>>, mut state: ResMut<ShipDrag>) {
+    if drag.button != PointerButton::Primary {
+        return;
+    }
     if state.ship.is_some() {
         state.ship = None;
     }
@@ -919,7 +941,7 @@ pub(crate) fn draw_link_points(
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
     mut gizmos: Gizmos,
 ) {
-    let (SectionChoice::Section(_), Some(edited)) = (&*selection, context.ship()) else {
+    let (SectionChoice::Section(armed), Some(edited)) = (&*selection, context.ship()) else {
         return;
     };
     // Sockets are solved in ship-local space and drawn in world space.
@@ -939,6 +961,28 @@ pub(crate) fn draw_link_points(
             rotation: transform.rotation,
             link_points: config.base.link_points.as_slice(),
         });
+    }
+
+    // An empty ship has no socket to draw, so the FOUNDING pose gets the
+    // marker instead: a pad at the ship origin, with the armed part's bounds
+    // over it - where the founding click will put it. Without this the first
+    // part landed somewhere the builder was never shown.
+    if ship.is_empty() {
+        let origin = ship_pose.translation();
+        draw_socket(
+            &mut gizmos,
+            origin,
+            (ship_pose.rotation() * Vec3::Y).normalize_or(Vec3::Y),
+            theme::PHOSPHOR,
+        );
+        if let Some(part) = sections.get_section(armed) {
+            let half = part.base.collider.unwrap_or_default().aabb_half_extents();
+            gizmos.cube(
+                ship_pose.compute_transform().with_scale(half * 2.0),
+                theme::PHOSPHOR_MUTED,
+            );
+        }
+        return;
     }
 
     // A socket that already carries a neighbour is not somewhere a part can go,
@@ -1312,6 +1356,30 @@ mod tests {
             None,
             "a plane behind the camera is not a place to drag to"
         );
+    }
+
+    /// The picking hit is mapped INTO the ship's space, not out of it. The
+    /// first ship stands at the origin where either direction reads the same,
+    /// which is exactly how the second ship - 24 units along +X - ended up
+    /// only ever mating one socket: every world hit was nearest the same
+    /// ship-local point.
+    #[test]
+    fn a_picking_hit_lands_in_the_edited_ships_own_space() {
+        let pose = GlobalTransform::from(
+            Transform::from_xyz(24.0, 0.0, 0.0)
+                .with_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
+        );
+        // A hit on what the WORLD sees at one unit -Z of the ship: the ship is
+        // yawed a quarter turn, so its own +X face is what stands there.
+        let local = ship_local_hit(Some(&pose), Vec3::new(24.0, 0.0, -1.0));
+        assert!(
+            local.abs_diff_eq(Vec3::X, 1e-5),
+            "the hit must come home through the INVERSE of the ship pose, got {local:?}"
+        );
+
+        // No pose yet (a headless rig's first frame) reads as the origin.
+        let hit = Vec3::new(0.5, 0.1, 0.0);
+        assert_eq!(ship_local_hit(None, hit), hit);
     }
 
     /// With no part armed the click is a select, and founding stays out of it.

@@ -44,7 +44,10 @@ use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
     sync_section_keybind_labels, EditorRebind,
 };
-use node::{ensure_document, rebuild_node_views, sync_ship_focus, EditContext};
+use node::{
+    ensure_document, rebuild_node_views, sync_camera_focus, sync_ship_focus, teardown_document,
+    EditContext,
+};
 use nova_ui::widget::button_on_setting;
 use placement::{
     clear_placement_preview, cycle_placement_pose, disarm_outside_ship, draw_delete_target,
@@ -173,12 +176,17 @@ fn editor_plugin(app: &mut App) {
     // Leaving Playing (the pause menu's Back to Main Menu) must tear the
     // editor scene down: DespawnOnExit(ExampleStates::...) entities only
     // despawn when the inner state actually changes, and a later Sandbox
-    // entry must start fresh in Editor, not resume a stale Scenario.
+    // entry must start fresh in Editor, not resume a stale Scenario. The
+    // DOCUMENT goes with it - it survives every inner state change so Play
+    // can round-trip, but the session ends here (owner, 2026-08-25).
     app.add_systems(
         OnExit(GameStates::Playing),
-        |mut game_state: ResMut<NextState<ExampleStates>>| {
-            game_state.set(ExampleStates::Loading);
-        },
+        (
+            |mut game_state: ResMut<NextState<ExampleStates>>| {
+                game_state.set(ExampleStates::Loading);
+            },
+            teardown_document,
+        ),
     );
 
     app.add_systems(
@@ -286,6 +294,7 @@ fn editor_plugin(app: &mut App) {
                 sync_rebind_button,
                 sync_play_button,
                 sync_ship_focus,
+                sync_camera_focus,
             )
                 .chain(),
             pick_section_under_pointer,
@@ -707,6 +716,45 @@ mod tests {
             *app.world().resource::<State<ExampleStates>>().get(),
             ExampleStates::Loading,
             "inner state must reset when Playing is left"
+        );
+    }
+
+    /// Back to Main Menu ends the SESSION, and the document dies with it: the
+    /// nodes survive every inner state change (Play round-trips them), so the
+    /// one exit that must delete them is leaving Playing itself.
+    #[test]
+    fn leaving_playing_deletes_the_document() {
+        let mut app = app();
+        // NewGame routes to Scenario, which applies safely headless; the
+        // document is fabricated directly, as an editor session leaves it.
+        app.insert_resource(GameMode::NewGame);
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+        app.update();
+        app.world_mut()
+            .run_system_once(ensure_document)
+            .expect("the document is created");
+        assert!(app.world().resource::<EditContext>().scenario().is_some());
+
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
+        app.update();
+        app.update();
+
+        assert_eq!(
+            app.world_mut()
+                .query::<&node::EditorNode>()
+                .iter(app.world())
+                .count(),
+            0,
+            "the document must not outlive the session"
+        );
+        assert!(
+            app.world().resource::<EditContext>().path.is_empty(),
+            "and nothing may keep pointing into it"
         );
     }
 

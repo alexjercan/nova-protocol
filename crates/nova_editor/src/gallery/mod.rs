@@ -78,6 +78,15 @@ pub(crate) fn gallery_open(state: Res<GalleryState>) -> bool {
     state.open
 }
 
+/// Whether Tab has a gallery to talk to: parts are ship-context verbs (the
+/// Parts button lives in the ship's action group, and a part armed at the
+/// scenario node is put straight back down), so the toggle only OPENS inside
+/// a ship - while staying answerable wherever it is already open, so Tab can
+/// always close what Tab opened.
+fn gallery_reachable(context: Res<crate::node::EditContext>, state: Res<GalleryState>) -> bool {
+    state.open || context.ship().is_some()
+}
+
 /// Wire the gallery into the editor plugin.
 pub(crate) fn register(app: &mut App) {
     app.init_resource::<GalleryState>();
@@ -96,7 +105,7 @@ pub(crate) fn register(app: &mut App) {
             // Ahead of the rest: Tab is the only gallery key that acts while
             // the gallery is CLOSED, and the frame it opens on is a frame the
             // browse keys must already see as open.
-            input::toggle_gallery,
+            input::toggle_gallery.run_if(gallery_reachable),
             input::gallery_keyboard,
             ui::rebuild_gallery,
             ui::paint_gallery_cells,

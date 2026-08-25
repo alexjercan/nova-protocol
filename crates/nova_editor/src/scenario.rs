@@ -20,7 +20,7 @@ use nova_ship::prelude::{
     PDC_KINETIC_TURRET_SECTION_ID, REINFORCED_HULL_SECTION_ID,
 };
 
-use crate::node::{sections_of, SectionNodes, ShipDriver, ShipNode};
+use crate::node::{sections_of, NodeId, SectionNodes, ShipDriver, ShipNode};
 
 /// The sandbox's scenario id. Registered in [`GameScenarios`] on hand-off so
 /// the DEFEAT overlay's Retry can reload it by id like any other scenario;
@@ -200,13 +200,13 @@ pub(crate) fn setup_scenario(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     nodes: SectionNodes,
-    q_ships: Query<(Entity, &ShipNode)>,
+    q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
     // Optional: the registry is written by the bundle merge, and a rig that
     // never merged content must still be able to fly the sandbox - it just
     // does not get the retry.
     scenarios: Option<ResMut<GameScenarios>>,
 ) {
-    let scenario = sandbox_scenario(&game_assets, &lower_player_ship(&q_ships, &nodes));
+    let scenario = sandbox_scenario(&game_assets, &lower_fleet(&q_ships, &nodes));
 
     // Re-register with the ship the editor just built: the boot-time entry
     // (`register_sandbox_scenario`) carries the DEFAULT hull, and the DEFEAT
@@ -238,28 +238,20 @@ pub(crate) fn sandbox_unregistered(scenarios: Option<Res<GameScenarios>>) -> boo
 pub(crate) fn register_sandbox_scenario(
     game_assets: Res<GameAssets>,
     nodes: SectionNodes,
-    q_ships: Query<(Entity, &ShipNode)>,
+    q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
     mut scenarios: ResMut<GameScenarios>,
 ) {
-    let scenario = sandbox_scenario(&game_assets, &lower_player_ship(&q_ships, &nodes));
+    let scenario = sandbox_scenario(&game_assets, &lower_fleet(&q_ships, &nodes));
     scenarios.insert(scenario.id.clone(), scenario);
 }
 
-/// The player's ship, lowered out of the document.
-///
-/// A query WALK, not a resource read: the ship is a subtree, and this is the
-/// step that flattens it into the shape the scenario loader consumes. Ships
-/// whose driver is not [`ShipDriver::Player`] are not lowered yet - stamping
-/// designs into a scenario as instances is `20260824-120524`'s job - so a
-/// document with none produces the same empty hull an untouched editor always
-/// handed over.
-fn lower_player_ship(q_ships: &Query<(Entity, &ShipNode)>, nodes: &SectionNodes) -> LoweredShip {
-    let Some((entity, ship)) = q_ships
-        .iter()
-        .find(|(_, ship)| ship.driver == ShipDriver::Player)
-    else {
-        return LoweredShip::default();
-    };
+/// One ship, flattened out of its subtree.
+fn lower_ship(
+    entity: Entity,
+    ship: &ShipNode,
+    position: Vec3,
+    nodes: &SectionNodes,
+) -> LoweredShip {
     let placed = sections_of(entity, nodes);
     LoweredShip {
         sections: placed
@@ -279,24 +271,66 @@ fn lower_player_ship(q_ships: &Query<(Entity, &ShipNode)>, nodes: &SectionNodes)
             .collect(),
         skin: ship.skin,
         style: ship.style.clone(),
+        position,
     }
 }
 
-/// The player's ship as the scenario wants it: a flat section list, the input
-/// mapping keyed by those sections' STABLE ids, and the cladding choice.
+/// EVERY ship of the document, lowered out of it.
+///
+/// A query WALK, not a resource read: a ship is a subtree, and this is the
+/// step that flattens each into the shape the scenario loader consumes. The
+/// [`ShipDriver::Player`] ship anchors the range at [`PLAYER_SPAWN`]; every
+/// AI ship keeps its stage offset FROM the player, so the layout the builder
+/// dragged out on the ground plane is the layout that flies. A document with
+/// no player ship produces the same empty hull an untouched editor always
+/// handed over.
+fn lower_fleet(
+    q_ships: &Query<(Entity, &NodeId, &ShipNode, &Transform)>,
+    nodes: &SectionNodes,
+) -> LoweredFleet {
+    let anchor = q_ships
+        .iter()
+        .find(|(_, _, ship, _)| ship.driver == ShipDriver::Player)
+        .map_or(Vec3::ZERO, |(_, _, _, transform)| transform.translation);
+    let mut fleet = LoweredFleet::default();
+    let mut ships: Vec<_> = q_ships.iter().collect();
+    ships.sort_unstable_by(|a, b| a.1.cmp(b.1));
+    for (entity, id, ship, transform) in ships {
+        let position = PLAYER_SPAWN + transform.translation - anchor;
+        let lowered = lower_ship(entity, ship, position, nodes);
+        match ship.driver {
+            ShipDriver::Player => fleet.player = lowered,
+            ShipDriver::Ai => fleet.ai.push((id.0.clone(), lowered)),
+        }
+    }
+    fleet
+}
+
+/// One lowered ship as the scenario wants it: a flat section list, the input
+/// mapping keyed by those sections' STABLE ids, the cladding choice and where
+/// on the range it spawns.
 #[derive(Default)]
 pub(crate) struct LoweredShip {
     sections: Vec<SpaceshipSectionConfig>,
     inputs: Vec<(SectionId, Vec<Binding>)>,
     skin: bool,
     style: Option<String>,
+    position: Vec3,
+}
+
+/// The whole document, lowered: the player's ship and every AI design beside
+/// it, keyed by their document ids.
+#[derive(Default)]
+pub(crate) struct LoweredFleet {
+    player: LoweredShip,
+    ai: Vec<(String, LoweredShip)>,
 }
 
 /// Build the sandbox: two rock belts, a hulk corridor, three dormant pickets,
-/// two sky beacons, one distant planetoid, and the ship the editor just built.
-pub(crate) fn sandbox_scenario(game_assets: &GameAssets, player: &LoweredShip) -> ScenarioConfig {
+/// two sky beacons, one distant planetoid, and the ships the editor just built.
+pub(crate) fn sandbox_scenario(game_assets: &GameAssets, fleet: &LoweredFleet) -> ScenarioConfig {
     let asteroid_texture = game_assets.asteroid_texture.clone();
-    let objects = sandbox_objects(player, asteroid_texture.clone());
+    let objects = sandbox_objects(fleet, asteroid_texture.clone());
 
     ScenarioConfig {
         description: "A free-flight range: rocks, target hulks, dormant pickets and a planetoid."
@@ -314,11 +348,11 @@ pub(crate) fn sandbox_scenario(game_assets: &GameAssets, player: &LoweredShip) -
 }
 
 /// The hand-placed objects: the planetoid, the hulk corridor, the pickets, the
-/// beacons and the player. The rock belts are NOT here - they are seeded
-/// scatter actions (see [`belt_scatter`]), so the field is the same field on
-/// every load and on every retry.
+/// beacons and the builder's whole fleet. The rock belts are NOT here - they
+/// are seeded scatter actions (see [`belt_scatter`]), so the field is the same
+/// field on every load and on every retry.
 fn sandbox_objects(
-    player: &LoweredShip,
+    fleet: &LoweredFleet,
     asteroid_texture: Handle<Image>,
 ) -> Vec<ScenarioObjectConfig> {
     let mut objects = vec![planetoid(asteroid_texture)];
@@ -331,7 +365,16 @@ fn sandbox_objects(
     );
     objects.extend(PICKETS.iter().map(picket_ship));
     objects.extend(SKY_BEACONS.iter().map(sky_beacon));
-    objects.push(player_ship(player));
+    objects.push(player_ship(&fleet.player));
+    // An EMPTY design spawns nothing: a blank Add Ship left in the document
+    // is a decision not yet made, not a zero-section spaceship to load.
+    objects.extend(
+        fleet
+            .ai
+            .iter()
+            .filter(|(_, ship)| !ship.sections.is_empty())
+            .map(|(id, ship)| ai_ship(id, ship)),
+    );
 
     objects
 }
@@ -521,6 +564,35 @@ fn player_ship(player: &LoweredShip) -> ScenarioObjectConfig {
                 sections: player.sections.clone(),
                 skin: player.skin,
                 style: player.style.clone(),
+                ..default()
+            }),
+            ..default()
+        }),
+    }
+}
+
+/// One AI-driver ship of the document, standing where the builder dragged it.
+///
+/// NEUTRAL, like the pickets: a live AI pilot with no hostile contact holds
+/// station, so a scenery ship neither attacks the player off the line nor
+/// gets shot by the woken pickets. It flies (or sits) with exactly the
+/// sections it was built from - what you laid out on the stage is what the
+/// range holds.
+fn ai_ship(id: &str, ship: &LoweredShip) -> ScenarioObjectConfig {
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: format!("Sandbox Ship {id}"),
+            position: ship.position,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            allegiance: Some(Allegiance::Neutral),
+            controller: SpaceshipController::AI(AIControllerConfig::default()),
+            hull: ShipSource::Inline(ShipHull {
+                sections: ship.sections.clone(),
+                skin: ship.skin,
+                style: ship.style.clone(),
                 ..default()
             }),
             ..default()
@@ -795,7 +867,7 @@ mod tests {
     const CAMERA_FAR: f32 = 1000.0;
 
     fn objects() -> Vec<ScenarioObjectConfig> {
-        sandbox_objects(&LoweredShip::default(), Handle::default())
+        sandbox_objects(&LoweredFleet::default(), Handle::default())
     }
 
     fn events() -> Vec<ScenarioEventConfig> {
@@ -1205,13 +1277,66 @@ mod tests {
         );
     }
 
+    /// Every non-empty AI design in the document flies beside the player, at
+    /// the stage offset the builder dragged it to. Before this only the
+    /// player's ship was lowered, so a second ship simply never spawned.
+    #[test]
+    fn ai_ships_spawn_at_their_stage_offset_neutral_and_whole() {
+        let section = SpaceshipSectionConfig {
+            id: "hull_1".to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Prototype(LIGHT_HULL_SECTION_ID.to_string()),
+            modifications: vec![],
+        };
+        let fleet = LoweredFleet {
+            player: LoweredShip::default(),
+            ai: vec![
+                (
+                    "ship_2".to_string(),
+                    LoweredShip {
+                        sections: vec![section],
+                        position: Vec3::new(24.0, 0.0, 0.0),
+                        ..default()
+                    },
+                ),
+                // A blank Add Ship left in the document: a decision not yet
+                // made, not a zero-section spaceship to load.
+                ("ship_3".to_string(), LoweredShip::default()),
+            ],
+        };
+
+        let objects = sandbox_objects(&fleet, Handle::default());
+        let escort = find(&objects, "ship_2");
+        assert_eq!(escort.base.position, Vec3::new(24.0, 0.0, 0.0));
+        let ScenarioObjectKind::Spaceship(ship) = &escort.kind else {
+            panic!("'ship_2' should be a spaceship");
+        };
+        assert_eq!(
+            ship.allegiance,
+            Some(Allegiance::Neutral),
+            "a scenery ship takes no side until something says otherwise"
+        );
+        assert!(
+            matches!(ship.controller, SpaceshipController::AI(_)),
+            "an AI-driver design is driven by the AI, as its node says"
+        );
+        assert!(
+            !objects.iter().any(|object| object.base.id == "ship_3"),
+            "an empty design spawns nothing"
+        );
+    }
+
     /// What you see in the editor is what you fly: the cladding toggle rides
     /// the hand-off, so a ship built clad does not come up bare.
     #[test]
     fn the_cladding_toggle_reaches_the_flown_ship() {
         for clad in [false, true] {
-            let lowered = LoweredShip {
-                skin: clad,
+            let lowered = LoweredFleet {
+                player: LoweredShip {
+                    skin: clad,
+                    ..default()
+                },
                 ..default()
             };
             let player = find(&sandbox_objects(&lowered, Handle::default()), PLAYER_ID);

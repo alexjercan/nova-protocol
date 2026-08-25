@@ -180,8 +180,38 @@ pub(crate) fn setup_editor_scene(
                     },
                     TextColor(theme::SCREEN_TEXT),
                 ));
+                // The menu bar every editor grows into: placeholders for now,
+                // greyed rather than absent so the layout does not reflow when
+                // they gain their menus. Slots for the same reason Play has
+                // one - `themed_button` is percent(100) wide, built for the
+                // rail, and a bare one on the bar swallows the row.
+                bar.spawn((
+                    Name::new("Editor Menu Bar"),
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        column_gap: px(6),
+                        ..default()
+                    },
+                ))
+                .with_children(|menus| {
+                    for menu in ["File", "Edit", "View"] {
+                        menus
+                            .spawn((Name::new(format!("{menu} Menu Slot")), Node::default()))
+                            .with_children(|slot| {
+                                slot.spawn((
+                                    Name::new(format!("{menu} Menu Button")),
+                                    themed_button(menu),
+                                    InteractionDisabled,
+                                ));
+                            });
+                    }
+                });
                 // The breadcrumb doubles as the context readout: the tree marks
-                // the entered node, this says the same thing as a path.
+                // the entered node, this says the same thing as a sentence -
+                // level, path, selection (see `sync_breadcrumb`). Phosphor
+                // rather than muted: it is the one line that says what a click
+                // will act on, so it must not read as a caption.
                 bar.spawn((
                     Name::new("Context Breadcrumb"),
                     ContextBreadcrumb,
@@ -194,7 +224,7 @@ pub(crate) fn setup_editor_scene(
                         font_size: FontSize::Px(13.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(theme::PHOSPHOR),
                 ));
                 bar.spawn((
                     Name::new("Top Bar Spacer"),
@@ -587,9 +617,17 @@ pub(crate) fn sync_scene_list(
     q_ships: ShipNodes,
     nodes: SectionNodes,
     lists: Query<Entity, With<SceneList>>,
+    fresh: Query<(), Added<SceneList>>,
     rows: Query<(Entity, &SceneRow, Has<Selected>)>,
     mut shown: Local<ShownScene>,
 ) {
+    // A fresh list holds no rows whatever this Local remembers: the list dies
+    // with the editor scene (DespawnOnExit) while a `Local` survives the
+    // state round-trip, so a Play-and-return handed an unchanged document to
+    // an empty list the signature compare would never refill.
+    if !fresh.is_empty() {
+        shown.rows.clear();
+    }
     let wanted = wanted_rows(&context, &q_scenarios, &q_ships, &nodes, catalog.as_deref());
     // A selection cannot outlive its row: a section of a ship that was left is
     // not in the tree, so there is nothing left to carry the mark.
@@ -732,20 +770,34 @@ pub(crate) fn sync_context_panels(
     }
 }
 
-/// Write the top bar's breadcrumb: the context path, in the document's own
-/// ids. The same fact the tree's `@` mark shows, said as a sentence.
+/// Write the top bar's context readout: WHAT is being edited (the level, in
+/// capitals), the path to it in the document's own ids, and the selection.
+///
+/// The level leads because it was the missing feedback: the bare path
+/// "scenario / ship_1" never said whether a click would select, enter or
+/// place. The same fact the tree's `@` mark shows, said as a sentence.
 pub(crate) fn sync_breadcrumb(
     context: Res<EditContext>,
+    selected: Res<SelectedNode>,
     ids: Query<&NodeId>,
     mut crumbs: Query<&mut Text, With<ContextBreadcrumb>>,
 ) {
-    let wanted = context
+    let path = context
         .path
         .iter()
         .filter_map(|node| ids.get(*node).ok())
         .map(|id| id.0.as_str())
         .collect::<Vec<_>>()
         .join(" / ");
+    let level = match (context.scenario(), context.ship()) {
+        (None, _) => "",
+        (Some(_), None) => "[SCENARIO] ",
+        (Some(_), Some(_)) => "[SHIP] ",
+    };
+    let mut wanted = format!("{level}{path}");
+    if let Some(id) = selected.0.and_then(|node| ids.get(node).ok()) {
+        wanted.push_str(&format!("   selected {}", id.0));
+    }
     for mut text in &mut crumbs {
         if text.0 != wanted {
             text.0 = wanted.clone();
@@ -887,26 +939,36 @@ pub(crate) fn sync_skin_toggle(
     }
 }
 
-/// Keep the key legend in step with the armed tool.
+/// Keep the key legend in step with the armed tool AND the edit context.
 ///
-/// Compared before writing rather than gated on `SectionChoice` changing: the
-/// legend is spawned on entering the editor, which is not necessarily a frame
-/// the tool changed on, and an empty legend is worse than a redundant compare
-/// across three text nodes.
+/// Keyed on both because the same keys mean different things per level: at the
+/// scenario node there are no parts to arm and Escape falls through to pause,
+/// while inside a ship Tab browses parts and Escape backs out one rung. The
+/// old single line told a builder at the scenario node about a pipette that
+/// disarms instantly, and told one inside a ship that Escape would pause.
+///
+/// Compared before writing rather than gated on a change: the legend is
+/// spawned on entering the editor, which is not necessarily a frame the tool
+/// or the context changed on.
 pub(crate) fn sync_key_legend(
     selection: Res<SectionChoice>,
+    context: Res<EditContext>,
     mut legend: Query<&mut Text, With<EditorKeyLegend>>,
 ) {
-    let line = match *selection {
-        SectionChoice::None => {
-            "Tab parts   LMB select   Q pick its part   RMB+drag look   \
-             WASD/Space/Shift fly   Rebind acts on the selection   Esc pause"
+    let line = match (&*selection, context.ship().is_some()) {
+        (SectionChoice::None, false) => {
+            "LMB select a ship   LMB+drag move it   RMB+drag look   \
+             WASD/Space/Shift fly   Play flies the scenario   Esc pause"
         }
-        SectionChoice::Section(_) => {
+        (SectionChoice::None, true) => {
+            "Tab parts   LMB select   Q pick its part   RMB+drag look   \
+             WASD/Space/Shift fly   Rebind acts on the selection   Esc leave the ship"
+        }
+        (SectionChoice::Section(_), _) => {
             "LMB place   wheel roll   Ctrl+wheel socket   R roll   F socket   Q pick   \
              Tab parts   Ship Skin reflows as you aim   Esc put down"
         }
-        SectionChoice::Delete => "LMB delete   Q pick a part   Tab parts   Esc put down",
+        (SectionChoice::Delete, _) => "LMB delete   Q pick a part   Tab parts   Esc put down",
     };
     for mut text in &mut legend {
         if text.0 != line {
@@ -1215,6 +1277,41 @@ mod tests {
         assert_eq!(before, after, "the same row entities, not new ones");
     }
 
+    /// A RESPAWNED list is refilled for the same document. The list dies with
+    /// the editor scene while both the document and the reconciler's `Local`
+    /// survive the Play round-trip, so without the `Added` override the
+    /// signature compare saw "unchanged" and the fresh list stayed empty -
+    /// and with world-click-enter gone, an empty tree left no door into any
+    /// ship.
+    #[test]
+    fn a_respawned_scene_list_is_refilled_for_the_same_document() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        app.update();
+        assert_eq!(row_names(&mut app), vec!["scenario", "ship_1"]);
+
+        // What leaving for Play and coming back does to the UI: the old list
+        // (rows included) is despawned and a fresh empty one is spawned, while
+        // the document and the system's Local both persist.
+        let list = app
+            .world_mut()
+            .query_filtered::<Entity, With<SceneList>>()
+            .single(app.world())
+            .expect("one scene list");
+        app.world_mut().entity_mut(list).despawn();
+        app.world_mut()
+            .spawn((Name::new("Scene List"), SceneList, rail_list_node()));
+
+        app.update();
+        app.update();
+        assert_eq!(
+            row_names(&mut app),
+            vec!["scenario", "ship_1"],
+            "the unchanged document must refill the fresh list"
+        );
+    }
+
     /// Play is the scenario node's gesture. Inside a ship the button is greyed
     /// and the observer refuses, so the keyboard and the autopilot hit the same
     /// rule the pointer does.
@@ -1285,13 +1382,16 @@ mod tests {
         assert_eq!(display(&world, settings), Display::Flex);
     }
 
-    /// The breadcrumb is the context path in the document's own ids.
+    /// The readout says WHAT is being edited before it says where: the level
+    /// in capitals, the path in the document's own ids, and the selection.
+    /// The bare path never answered "will this click select, enter or place".
     #[test]
-    fn the_breadcrumb_spells_the_context_path() {
+    fn the_breadcrumb_names_the_level_the_path_and_the_selection() {
         use bevy::ecs::system::RunSystemOnce;
 
         let mut world = World::new();
         world.init_resource::<EditContext>();
+        world.init_resource::<SelectedNode>();
         let scenario = world
             .spawn((ScenarioNode, NodeId("scenario".to_string())))
             .id();
@@ -1302,11 +1402,21 @@ mod tests {
         world.resource_mut::<EditContext>().path = vec![scenario];
 
         world.run_system_once(sync_breadcrumb).unwrap();
-        assert_eq!(world.get::<Text>(crumb).unwrap().0, "scenario");
+        assert_eq!(world.get::<Text>(crumb).unwrap().0, "[SCENARIO] scenario");
 
         world.resource_mut::<EditContext>().enter(ship);
         world.run_system_once(sync_breadcrumb).unwrap();
-        assert_eq!(world.get::<Text>(crumb).unwrap().0, "scenario / ship_1");
+        assert_eq!(
+            world.get::<Text>(crumb).unwrap().0,
+            "[SHIP] scenario / ship_1"
+        );
+
+        world.resource_mut::<SelectedNode>().0 = Some(ship);
+        world.run_system_once(sync_breadcrumb).unwrap();
+        assert_eq!(
+            world.get::<Text>(crumb).unwrap().0,
+            "[SHIP] scenario / ship_1   selected ship_1"
+        );
     }
 
     /// Rebind is greyed until the selection can actually take a binding - the

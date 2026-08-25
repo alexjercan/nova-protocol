@@ -20,11 +20,20 @@ does NOT get an entry - and it is the only place they are written down.
 - The editor holds a scenario of ships under a real scene tree and a top bar
   of per-context actions: one click enters a ship or selects a section,
   entering shows only that ship, and Play compiles the scenario root.
-- Add Ship starts a blank ship - the first armed part founds it at the ship
-  origin - and dragging a ship at the scenario node slides it on the ground
-  plane.
+- Add Ship starts a blank ship - a pad marker shows where the first armed
+  part founds it - and dragging a ship at the scenario node slides it on the
+  ground plane.
 - A click in the world selects: a section inside a ship, a ship outside.
   Rebinding a section's key is a top-bar action on the selection.
+- Play flies the whole document: every non-empty AI design spawns as a
+  neutral AI ship at its stage offset beside the player's.
+- The stage camera snaps to what you edit - the entered ship, or the whole
+  scenario back at the root.
+- The top bar reads the context back ([SCENARIO] or [SHIP], path, selection),
+  the footer legend matches the level, and a greyed File/Edit/View menu bar
+  marks the chrome to come.
+- Back to Main Menu ends the session and deletes the scenario draft; Play
+  round-trips still return to it.
 
 ### Ships & Sections
 

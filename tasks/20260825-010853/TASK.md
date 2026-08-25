@@ -1,6 +1,6 @@
 # Editor UX: hierarchy tree, context actions, focused editing
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 82
 - TAGS: v0.12.0,editor,ui
 
@@ -88,10 +88,53 @@ Decisions taken in flight:
   `Pickable::IGNORE` on the hidden views - the picking ray does not care
   what renders, and an invisible collider still eats clicks.
 
+## Owner feedback round (2026-08-25, after the first half)
+
+The first half landed clunky. Fixed in one revision on master (the commit
+after `c462de5e`); proof: all three driven ranges green under Xvfb EXIT=0
+(system_ship_editor now founds ship_2 at x=24 and roofs a hull onto its top
+socket at ship-local (0,1,0), and finds "Sandbox Ship ship_2" on the range
+after Play), 109 unit tests. The defects, as found:
+
+- Focus isolation DID NOT WORK live: section nodes spawned with
+  `Visibility::Visible`, which overrides a hidden ancestor, so hiding the
+  ship node hid nothing. The unit tests and the probe read the ship's own
+  component and stayed green. Fixed: sections are `Inherited`; regression
+  test pins the component.
+- The second ship could only mate one link point: the solver got the picking
+  hit in WORLD space against ship-LOCAL sockets. Ship_1 at the origin masked
+  it. Fixed: `ship_local_hit` maps the hit through the inverse ship pose.
+- The second ship never spawned on Play: only the Player-driver ship was
+  lowered. Fixed: `lower_fleet` lowers every non-empty design; AI ships spawn
+  neutral under AI at their stage offset from the player.
+- The Scene tree came back EMPTY after Play (the quick-review critical):
+  `Local<ShownScene>` outlived the DespawnOnExit list. Fixed with the
+  `Added<SceneList>` override, live-tree test first.
+- The footer legend was wrong per level (told the scenario node about the
+  pipette, told the ship that Esc pauses). Now keyed on context + tool.
+- Zero context feedback. The breadcrumb now reads `[SHIP] scenario / ship_1
+  selected hull_3` in phosphor.
+- The camera never moved: entering ship_2 at x=24 showed empty space. Now
+  the stage camera snaps on context change (enter/exit/re-entry), via the
+  gallery's remove/re-insert `WASDCameraController` move. NOT on selection:
+  a selection snap breaks grab-after-select (the drag walk holds the pointer
+  over the ship it just selected).
+- The founding pose was invisible. An empty ship with a part armed now draws
+  a pad at the origin: socket ring + the armed part's bounds.
+- Back to Main Menu now DELETES the document (owner decision) - a session
+  ends at the menu; Play round-trips still keep it.
+- RMB release no longer drops an LMB ship drag (DragEnd filters by button).
+- Tab only opens the gallery inside a ship (still closes anywhere): parts
+  are ship verbs, and a part armed at the scenario node disarmed instantly.
+- File / Edit / View placeholder menu bar on the top bar, greyed.
+
 ## Second half (not started)
 
 - Node settings and the section inspector; enter at section level.
 - The add-object menu beyond the one Ship entry, and non-ship kinds.
-- Rotation (and any further transform) gizmos with real handles.
+- Rotation and XYZ gizmos with real handles; camera snap on SELECTION once
+  it cannot fight the drag gesture.
+- The owner wants the Blender/Godot/Unity look and feel in NovaOS theme;
+  the bevy `jackdaw` editor is the inspiration to study.
 - Long ids clip at the rail edge; the rail's width wants a look when the
   inspector lands.
