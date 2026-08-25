@@ -29,7 +29,7 @@ use nova_assets::prelude::*;
 use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{key_chip, panel, panel_header, separator, themed_button, UiSkin},
+    prelude::{key_chip, panel, panel_header, separator, themed_button, ButtonLabel, UiSkin},
     theme,
     widget::{checkbox_colors, checkbox_glyph, Selected},
 };
@@ -94,10 +94,12 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 observe(ask_to_open),
             ));
             // Still greyed: Save As needs a name to save under and a place to
-            // type it, and there is one save slot until it has both.
+            // type it, and there is one save slot until it has both. It says
+            // `soon` rather than nothing - a greyed row with a blank tail reads
+            // as "you cannot save", which is the opposite of what it means.
             items.spawn((
                 Name::new("Save As... Item"),
-                menu_item_row("Save As...", MenuTail::None, skin),
+                menu_item_row("Save As...", MenuTail::Word("soon"), skin),
                 InteractionDisabled,
             ));
             items.spawn(separator());
@@ -111,7 +113,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             for label in ["Undo", "Redo"] {
                 items.spawn((
                     Name::new(format!("{label} Item")),
-                    menu_item_row(label, MenuTail::None, skin),
+                    menu_item_row(label, MenuTail::Word("soon"), skin),
                     InteractionDisabled,
                 ));
             }
@@ -232,6 +234,14 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
 fn edited_ship<'a>(context: &EditContext, ships: &'a Query<&ShipNode>) -> Option<&'a ShipNode> {
     ships.get(context.ship()?).ok()
 }
+
+/// What the Play button says when it can be pressed, and when it cannot.
+///
+/// The greyed form names the way out rather than only the refusal: Play
+/// compiles the WHOLE document, and the one thing that stops it is standing
+/// inside a ship.
+const PLAY_LABEL: &str = "Play";
+const PLAY_BLOCKED: &str = "Play (leave the ship)";
 
 /// Left rail width (px). Kept narrow so the rail stays clear of screen centre
 /// on the 1024-wide window, where the editor preview ship projects - a UI panel
@@ -1192,10 +1202,24 @@ pub(crate) fn sync_status_line(
 pub(crate) fn sync_play_button(
     mut commands: Commands,
     context: Res<EditContext>,
-    buttons: Query<(Entity, Has<InteractionDisabled>), With<PlayButton>>,
+    buttons: Query<(Entity, Has<InteractionDisabled>, &Children), With<PlayButton>>,
+    mut labels: Query<&mut Text, With<ButtonLabel>>,
 ) {
     let disabled = context.ship().is_some();
-    for (entity, marked) in &buttons {
+    for (entity, marked, children) in &buttons {
+        // The button carries its own reason. Greying it says only that the
+        // verb is gone; the sentence that said where it went lived in an
+        // observer `InteractionDisabled` makes unreachable, so it was written
+        // to a log nobody reading the screen can see.
+        let wanted = if disabled { PLAY_BLOCKED } else { PLAY_LABEL };
+        for &child in children {
+            let Ok(mut text) = labels.get_mut(child) else {
+                continue;
+            };
+            if text.0 != wanted {
+                text.0 = wanted.to_string();
+            }
+        }
         match (disabled, marked) {
             (true, false) => {
                 commands.entity(entity).insert(InteractionDisabled);
@@ -2177,9 +2201,15 @@ mod tests {
         app.init_state::<ExampleStates>();
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        // The REAL button: its label is half of what this system writes, and a
+        // bare marker entity has no label to write.
         let button = app
             .world_mut()
-            .spawn((PlayButton, Name::new("Play Button")))
+            .spawn((
+                PlayButton,
+                Name::new("Play Button"),
+                themed_button(PLAY_LABEL),
+            ))
             .id();
         app.add_systems(Update, sync_play_button);
         app.add_observer(continue_to_simulation);
@@ -2189,12 +2219,19 @@ mod tests {
             !app.world().entity(button).contains::<InteractionDisabled>(),
             "at the scenario node Play is live"
         );
+        assert_eq!(play_label(&mut app), PLAY_LABEL);
 
         app.world_mut().resource_mut::<EditContext>().enter(ship);
         app.update();
         assert!(
             app.world().entity(button).contains::<InteractionDisabled>(),
             "inside a ship it is greyed"
+        );
+        assert_eq!(
+            play_label(&mut app),
+            PLAY_BLOCKED,
+            "a greyed verb has to say where it went - the reason used to live \
+             in an observer the greying makes unreachable"
         );
 
         app.world_mut().trigger(Activate { entity: button });
@@ -2206,6 +2243,13 @@ mod tests {
             ),
             "and pressing it anyway does not hand off"
         );
+    }
+
+    /// What the Play button reads.
+    fn play_label(app: &mut App) -> String {
+        let world = app.world_mut();
+        let mut labels = world.query_filtered::<&Text, With<ButtonLabel>>();
+        labels.single(world).expect("one label").0.clone()
     }
 
     /// The rail's ship settings are a ship's own: there is no skin to toggle
