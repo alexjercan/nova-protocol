@@ -101,6 +101,9 @@ pub(crate) struct EditorOverlays {
     /// The ground plane the range is laid out on, and the plumb line under the
     /// selection.
     pub(crate) world_grid: bool,
+    /// The volumes and aims an object carries but has no body to show: a
+    /// trigger sphere, a lamp's reach, a sun's direction.
+    pub(crate) object_volumes: bool,
 }
 
 impl Default for EditorOverlays {
@@ -113,6 +116,7 @@ impl Default for EditorOverlays {
             key_legend: true,
             link_points: true,
             world_grid: true,
+            object_volumes: true,
         }
     }
 }

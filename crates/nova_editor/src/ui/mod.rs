@@ -53,8 +53,8 @@ use crate::{
         menu::{
             back_to_main_menu, menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim,
             menu_z, on_menu_button, on_menu_scrim, toggle_key_legend, toggle_link_points,
-            toggle_world_grid, MenuDeleteItem, MenuDeletePartsItem, MenuDropdown, MenuId,
-            ShipMenuItem, ViewToggle,
+            toggle_object_volumes, toggle_world_grid, MenuDeleteItem, MenuDeletePartsItem,
+            MenuDropdown, MenuId, ShipMenuItem, ViewToggle,
         },
         rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint},
         window::window_layer,
@@ -130,6 +130,12 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 ViewToggle::WorldGrid,
                 menu_item_row("World Grid", Some("on"), skin),
                 observe(toggle_world_grid),
+            ));
+            items.spawn((
+                Name::new("Object Volumes Item"),
+                ViewToggle::ObjectVolumes,
+                menu_item_row("Object Volumes", Some("on"), skin),
+                observe(toggle_object_volumes),
             ));
             items.spawn(separator());
             items.spawn((

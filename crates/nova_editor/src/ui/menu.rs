@@ -298,6 +298,12 @@ pub(crate) fn toggle_world_grid(_activate: On<Activate>, mut overlays: ResMut<Ed
     overlays.world_grid = !overlays.world_grid;
 }
 
+/// View > Object Volumes: show or hide the trigger spheres, lamp ranges and sun
+/// directions the objects on the stage have no body to show.
+pub(crate) fn toggle_object_volumes(_activate: On<Activate>, mut overlays: ResMut<EditorOverlays>) {
+    overlays.object_volumes = !overlays.object_volumes;
+}
+
 /// Repaint the View toggles' labels, so the menu says what is on rather than
 /// only what can be turned on.
 pub(crate) fn sync_view_menu_marks(
@@ -310,6 +316,7 @@ pub(crate) fn sync_view_menu_marks(
             ViewToggle::KeyLegend => overlays.key_legend,
             ViewToggle::LinkPoints => overlays.link_points,
             ViewToggle::WorldGrid => overlays.world_grid,
+            ViewToggle::ObjectVolumes => overlays.object_volumes,
         };
         let Some(mark) = children.iter().nth(1) else {
             continue;
@@ -333,6 +340,8 @@ pub(crate) enum ViewToggle {
     LinkPoints,
     /// The stage's ground plane.
     WorldGrid,
+    /// The volumes and aims an object has no body to show.
+    ObjectVolumes,
 }
 
 /// A disabled row's text, and an enabled one's, for the label column and the

@@ -1,5 +1,5 @@
-//! What the stage draws UNDER the document: the ground plane the range is laid
-//! out on, and where the selected node stands on it.
+//! What the stage draws AROUND the document: the ground plane the range is laid
+//! out on, and the parts of an object that have no body to be seen by.
 //!
 //! The stage is one open space with nothing in it but the objects themselves,
 //! so until now there was no way to answer "how big is that gap" or "which way
@@ -13,19 +13,22 @@
 //!
 //! Immediate-mode [`Gizmos`] rather than [`crate::gizmo`]'s rig of meshes:
 //! nothing drawn here is ever pointed at, so none of it has to be geometry the
-//! picking ray can hit.
+//! picking ray can hit. That is also what keeps these off the object itself -
+//! a trigger sphere made of collider would be tens of units of pickable
+//! nothing sitting over the beacon it belongs to.
 
 use std::f32::consts::FRAC_PI_2;
 
 use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::prelude::*;
+use nova_scenario::prelude::{LightConfig, ScenarioObjectKind};
 use nova_ui::theme;
 
 use crate::{
     config::{EditorOverlays, SelectedNode},
     frame::node_bounds,
     gallery::EditorCamera,
-    node::EditContext,
+    node::{objects_of, EditContext, ObjectNodes},
 };
 
 /// Cells across the fine grid, and so how far it reaches: half of them each way
@@ -65,6 +68,25 @@ const GRID_DECADE: Color = theme::PHOSPHOR_DIM;
 /// The drop line from the selected node to the plane, and the footprint ring
 /// where it lands.
 const PLUMB: Color = theme::AMBER_NOVA;
+
+/// A trigger volume - the sphere a beacon or a crate fires `OnEnter` from. One
+/// colour for all of them, because what they have in common is the thing worth
+/// seeing: fly in here and the scenario hears about it.
+const TRIGGER: Color = theme::BLUE;
+
+/// How much of the distance to the camera a sun's arrow spans, and the disc its
+/// parallel rays leave from as a fraction of that arrow.
+///
+/// Screen-sized rather than world-sized, the same rule
+/// [`crate::gizmo`]'s handles are sized by: a directional light has no size and
+/// no reach, so there is nothing about it for the drawing to be a picture OF -
+/// only which way it shines. A fixed world length is a few pixels across a
+/// range and a wall across a crate.
+const SUN_SPAN: f32 = 0.10;
+const SUN_DISC: f32 = 0.18;
+/// The shortest that arrow gets, so a sun the camera is sitting on still points
+/// somewhere.
+const SUN_MIN: f32 = 3.0;
 
 /// Draw the ground plane the range is laid out on.
 ///
@@ -158,6 +180,112 @@ pub(crate) fn draw_world_grid(
     gizmos.circle(Isometry3d::new(foot, flat), ring, PLUMB);
 }
 
+/// Draw what an object HAS but does not show.
+///
+/// Every kind on the stage gets a schematic body from
+/// [`crate::preview::insert_preview_object`], so a rock is a rock and a crate
+/// is a crate. What none of them get is the part with no body at all: the
+/// sphere a crate is collected inside, the sphere a beacon fires from, the
+/// distance a lamp reaches, the direction a sun shines. Those are authored
+/// numbers with real consequences for the scenario, and until now the only way
+/// to see one was to fly the range and find out.
+///
+/// A light draws in its OWN colour, so a warm key and a cold rim are told apart
+/// without selecting either; a trigger draws in one colour for all kinds,
+/// because what a trigger is matters more than which object owns it.
+///
+/// Scenario-node only, like the grid: inside a ship the whole world is off the
+/// stage ([`crate::node::sync_ship_focus`]), and a volume drawn around a hidden
+/// object would be a sphere around nothing.
+pub(crate) fn draw_object_volumes(
+    overlays: Res<EditorOverlays>,
+    context: Res<EditContext>,
+    q_objects: ObjectNodes,
+    camera: Option<Single<&GlobalTransform, With<EditorCamera>>>,
+    mut gizmos: Gizmos,
+) {
+    if !overlays.object_volumes || context.ship().is_some() {
+        return;
+    }
+    let (Some(scenario), Some(camera)) = (context.scenario(), camera) else {
+        return;
+    };
+    let eye = camera.translation();
+    for (_, _, object, pose) in objects_of(scenario, &q_objects) {
+        if let ScenarioObjectKind::Light(light) = &object.kind {
+            draw_light(&mut gizmos, pose, light, eye);
+        }
+        if let Some(radius) = trigger_radius(&object.kind) {
+            gizmos.sphere(
+                Isometry3d::from_translation(pose.translation),
+                radius,
+                TRIGGER,
+            );
+        }
+    }
+}
+
+/// The radius of the sphere this kind fires `OnEnter` from, if it fires at all.
+///
+/// AUTHORED-OR-ABSENT for a beacon: it is its own trigger area only when a
+/// radius says so, and a beacon that fires nothing must not draw a sphere
+/// claiming it does. Not optional for a crate - the pickup volume IS how a
+/// crate is collected, and it is always wider than the box you can see.
+///
+/// The rest are their own picture: a rock, a hull and an anchor's published
+/// radius are all drawn as bodies by [`crate::preview::insert_preview_object`].
+fn trigger_radius(kind: &ScenarioObjectKind) -> Option<f32> {
+    match kind {
+        ScenarioObjectKind::Beacon(beacon) => beacon.area_radius,
+        ScenarioObjectKind::SalvageCrate(salvage) => Some(salvage.area_radius),
+        ScenarioObjectKind::Anchor(_)
+        | ScenarioObjectKind::Asteroid(_)
+        | ScenarioObjectKind::Spaceship(_)
+        | ScenarioObjectKind::Light(_) => None,
+    }
+}
+
+/// One light's own gizmo: which way a sun shines, or how far a lamp reaches.
+fn draw_light(gizmos: &mut Gizmos, pose: &Transform, light: &LightConfig, eye: Vec3) {
+    match light {
+        LightConfig::Directional { color, aim, .. } => {
+            let toward = sun_direction(pose, *aim);
+            let reach = (pose.translation.distance(eye) * SUN_SPAN).max(SUN_MIN);
+            gizmos.arrow(pose.translation, pose.translation + toward * reach, *color);
+            // The disc the parallel rays leave from, square to the beam: an
+            // arrow alone reads as a point light with an opinion.
+            gizmos.circle(
+                Isometry3d::new(pose.translation, Quat::from_rotation_arc(Vec3::Z, toward)),
+                reach * SUN_DISC,
+                *color,
+            );
+        }
+        // The RANGE, not the source radius: range is where the light stops
+        // reaching, which is the number that decides what is lit.
+        LightConfig::Point { color, range, .. } => {
+            gizmos.sphere(
+                Isometry3d::from_translation(pose.translation),
+                *range,
+                *color,
+            );
+        }
+    }
+}
+
+/// Which way a sun shines.
+///
+/// The node's rotation aims it unless the config names a point, which is the
+/// rule the SPAWN follows: an authored `aim` is re-aimed there with the same
+/// `looking_at`. A light drawn shining the other way would be a light that
+/// turned as the range was flown. It is also why a placed light is aimed with
+/// the ordinary turn handles.
+fn sun_direction(pose: &Transform, aim: Option<Vec3>) -> Vec3 {
+    match aim {
+        Some(at) => (at - pose.translation).normalize_or(Vec3::NEG_Z),
+        None => pose.rotation * Vec3::NEG_Z,
+    }
+}
+
 /// The point on the ground plane the camera is looking at.
 ///
 /// `None` when the view is level, turned away from the plane, or grazing it so
@@ -203,7 +331,94 @@ fn grid_centre(point: Vec3, step: f32) -> Vec3 {
 
 #[cfg(test)]
 mod tests {
+    use nova_gameplay::prelude::AssetRef;
+    use nova_scenario::prelude::{
+        aimed_light_base, AnchorConfig, AsteroidConfig, BeaconConfig, SalvageCrateConfig,
+    };
+
     use super::*;
+
+    fn beacon(area_radius: Option<f32>) -> ScenarioObjectKind {
+        ScenarioObjectKind::Beacon(BeaconConfig {
+            label: "BEACON".to_string(),
+            radius: 3.0,
+            color: Color::WHITE,
+            area_radius,
+            lock_signature: None,
+        })
+    }
+
+    /// A trigger sphere is drawn for exactly the kinds that fire `OnEnter`, and
+    /// a beacon that was never given an area is not one of them: it would be a
+    /// sphere promising a scenario event that never comes.
+    #[test]
+    fn only_the_kinds_that_fire_on_enter_get_a_trigger_sphere() {
+        assert_eq!(trigger_radius(&beacon(Some(40.0))), Some(40.0));
+        assert_eq!(trigger_radius(&beacon(None)), None);
+        assert_eq!(
+            trigger_radius(&ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
+                size: 2.0,
+                area_radius: 12.0,
+                pickup_sound: None,
+            })),
+            Some(12.0),
+            "a crate's pickup volume is not optional"
+        );
+        assert_eq!(
+            trigger_radius(&ScenarioObjectKind::Anchor(AnchorConfig {
+                body_radius: 5.0,
+                mass: None,
+            })),
+            None,
+            "an anchor publishes a radius, but nothing enters it"
+        );
+        assert_eq!(
+            trigger_radius(&ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius: 3.0,
+                texture: AssetRef::from("self://textures/rock.png"),
+                impact_sound: None,
+                destroy_sound: None,
+                mass: None,
+                invulnerable: false,
+                seed: None,
+                lock_signature: None,
+            })),
+            None,
+            "a rock is its own picture"
+        );
+    }
+
+    /// A sun with no aim point shines the way the node faces - and "the way the
+    /// node faces" has to mean what the SPAWN means by it, or the arrow points
+    /// somewhere the flown range does not light.
+    #[test]
+    fn a_sun_shines_the_way_its_node_faces() {
+        let from = Vec3::new(30.0, 40.0, 0.0);
+        let target = Vec3::ZERO;
+        let base = aimed_light_base("key", "Key", from, target);
+        let pose = Transform::from_translation(base.position).with_rotation(base.rotation);
+
+        let toward = sun_direction(&pose, None);
+        let wanted = (target - from).normalize();
+        assert!(
+            toward.distance(wanted) < 1.0e-4,
+            "an aimed light base shines at its target: {toward:?} vs {wanted:?}"
+        );
+    }
+
+    /// An authored aim point beats the node's rotation, because the spawn
+    /// re-aims the light at that point and ignores the rotation too.
+    #[test]
+    fn an_aim_point_beats_the_nodes_rotation() {
+        let pose = Transform::from_translation(Vec3::new(0.0, 10.0, 0.0));
+        let toward = sun_direction(&pose, Some(Vec3::new(0.0, 10.0, -5.0)));
+        assert!(toward.distance(Vec3::NEG_Z) < 1.0e-4, "{toward:?}");
+
+        // A degenerate aim - the light's own position - has no direction in it.
+        // The fallback is the node's own forward, not a NaN pointed nowhere.
+        let toward = sun_direction(&pose, Some(pose.translation));
+        assert!(toward.is_finite(), "{toward:?}");
+    }
 
     /// Looking down at the plane finds the point ahead of the camera, not the
     /// one under it: that point is what the grid is sized and centred on.

@@ -38,6 +38,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The stage stands on a world grid: cells step by decades as the camera pulls
   back, the origin carries its own X and Z lines, and the selection drops a
   plumb line to the plane it flies over. View > World Grid turns it off.
+- Objects draw what they have no body to show: the sphere a beacon or a crate
+  fires OnEnter from, how far a lamp reaches, and which way a sun shines - each
+  light in its own colour. View > Object Volumes turns them off.
 - Play flies the whole document: every ship stands where it was dragged and
   faces where it was turned, and every non-empty AI design spawns as a neutral
   AI ship beside the player's.
