@@ -4,12 +4,12 @@
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
 use nova_ui::{
-    prelude::{ThemedButton, UiSkin},
+    prelude::{panel, ThemedButton, UiSkin},
     theme,
     widget::{checkbox, list_row_colors, ListRow},
 };
 
-use crate::config::{SkinToggleCheckbox, StyleChoice};
+use crate::config::{SceneRow, SkinToggleCheckbox, StyleChoice};
 
 /// The cladding toggle: a tool row that is a SETTING rather than a mode, so it
 /// carries the shared `checkbox` widget instead of a `ButtonValue`.
@@ -199,4 +199,213 @@ pub(crate) fn scene_row(
             )
         ],
     )
+}
+
+/// What a Scene row's hover reveals: the word its icon stands for, and the id
+/// the row itself had to clip.
+///
+/// Carried by the ROW rather than looked up from the node, so the hint and the
+/// icon come out of the same pass over the document and cannot disagree.
+#[derive(Component, Clone)]
+pub(crate) struct SceneRowHint {
+    /// One word: HULL, BEACON, SHIP - PLAYER.
+    pub(crate) kind: String,
+    /// The node's whole id.
+    pub(crate) id: String,
+}
+
+/// The one hint panel, parked off-screen until a row is hovered.
+#[derive(Component)]
+pub(crate) struct SceneRowTooltip;
+
+/// The hint's own layer. Above the floating windows (30), because a hint is
+/// the frontmost thing on screen for as long as the pointer rests.
+const TOOLTIP_Z: i32 = 40;
+/// Gap between the rail's right edge and the hint.
+const TOOLTIP_GAP: f32 = 8.0;
+
+/// The hint panel: two lines, the kind over the id, absolutely positioned by
+/// [`sync_scene_tooltip`].
+///
+/// Deaf to the pointer: it stands beside the row it describes, over the stage,
+/// and a hint that blocked the placement raycast would make the rail's own
+/// tree unusable to build beside.
+pub(crate) fn scene_tooltip(skin: UiSkin) -> impl Bundle {
+    (
+        Name::new("Scene Row Hint"),
+        SceneRowTooltip,
+        GlobalZIndex(TOOLTIP_Z),
+        Pickable::IGNORE,
+        Node {
+            display: Display::None,
+            position_type: PositionType::Absolute,
+            left: px(0),
+            top: px(0),
+            max_width: px(280),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::FlexStart,
+            padding: UiRect::axes(px(8), px(5)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        panel(skin),
+        children![
+            (
+                Name::new("Scene Row Hint Kind"),
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(10.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR_MUTED),
+            ),
+            (
+                Name::new("Scene Row Hint Id"),
+                Text::new(""),
+                TextLayout {
+                    linebreak: LineBreak::AnyCharacter,
+                    ..default()
+                },
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR),
+            )
+        ],
+    )
+}
+
+/// Put the hint beside the row under the pointer, and take it away again when
+/// the pointer leaves.
+///
+/// Positioned from the ROW's own laid-out box rather than from the pointer, so
+/// the hint sits still while the pointer moves inside a row - a hint that
+/// chased the cursor is one more thing moving on a screen whose whole point is
+/// the model standing in the middle of it.
+pub(crate) fn sync_scene_tooltip(
+    rows: Query<(&Hovered, &SceneRowHint, &ComputedNode, &UiGlobalTransform), With<SceneRow>>,
+    mut tooltips: Query<(&mut Node, &Children), With<SceneRowTooltip>>,
+    mut texts: Query<&mut Text>,
+) {
+    let hovered = rows
+        .iter()
+        .find(|(hovered, _, computed, _)| hovered.get() && computed.size().x > 0.0);
+    for (mut node, children) in &mut tooltips {
+        let Some((_, hint, computed, transform)) = hovered else {
+            if node.display != Display::None {
+                node.display = Display::None;
+            }
+            continue;
+        };
+        // Logical pixels: `Node` is written in them and the computed box is
+        // not (see `ComputedNode::inverse_scale_factor`).
+        let scale = computed.inverse_scale_factor();
+        let row = Rect::from_center_size(transform.translation * scale, computed.size() * scale);
+        let left = px(row.max.x + TOOLTIP_GAP);
+        let top = px(row.min.y);
+        if node.display != Display::Flex {
+            node.display = Display::Flex;
+        }
+        if node.left != left {
+            node.left = left;
+        }
+        if node.top != top {
+            node.top = top;
+        }
+        for (index, wanted) in [hint.kind.as_str(), hint.id.as_str()]
+            .into_iter()
+            .enumerate()
+        {
+            let Some(line) = children.iter().nth(index) else {
+                continue;
+            };
+            let Ok(mut text) = texts.get_mut(line) else {
+                continue;
+            };
+            if text.0 != wanted {
+                text.0 = wanted.to_string();
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::{ecs::system::RunSystemOnce, math::Affine2};
+
+    use super::*;
+
+    /// A row with a laid-out box, hovered or not, plus the one hint panel.
+    /// Returns the panel and its two text lines.
+    fn tree(world: &mut World, hovered: bool) -> (Entity, Entity, Entity) {
+        world.spawn((
+            SceneRow(Entity::PLACEHOLDER),
+            SceneRowHint {
+                kind: "BEACON".to_string(),
+                id: "beacon_home".to_string(),
+            },
+            Hovered(hovered),
+            ComputedNode {
+                size: Vec2::new(140.0, 22.0),
+                inverse_scale_factor: 1.0,
+                ..default()
+            },
+            UiGlobalTransform::from(Affine2::from_translation(Vec2::new(80.0, 100.0))),
+        ));
+        let kind = world.spawn(Text::new("")).id();
+        let id = world.spawn(Text::new("")).id();
+        let tooltip = world
+            .spawn((
+                SceneRowTooltip,
+                Node {
+                    display: Display::None,
+                    ..default()
+                },
+            ))
+            .add_children(&[kind, id])
+            .id();
+        (tooltip, kind, id)
+    }
+
+    /// A 150px row clips its id, so resting on one reveals what it says in
+    /// full - and what its icon stood for.
+    #[test]
+    fn hovering_a_row_reveals_its_kind_and_its_whole_id() {
+        let mut world = World::new();
+        let (tooltip, kind, id) = tree(&mut world, true);
+
+        world
+            .run_system_once(sync_scene_tooltip)
+            .expect("the sync runs");
+
+        let node = world.get::<Node>(tooltip).expect("a node");
+        assert_eq!(node.display, Display::Flex);
+        assert_eq!(
+            node.left,
+            px(150.0 + TOOLTIP_GAP),
+            "beside the row, clear of the rail"
+        );
+        assert_eq!(node.top, px(89.0), "level with the row");
+        assert_eq!(world.get::<Text>(kind).expect("the kind").0, "BEACON");
+        assert_eq!(world.get::<Text>(id).expect("the id").0, "beacon_home");
+    }
+
+    /// The pointer leaving takes the hint with it: a hint left standing over
+    /// the stage is a hint about a row nobody is looking at.
+    #[test]
+    fn the_hint_goes_away_with_the_pointer() {
+        let mut world = World::new();
+        let (tooltip, _, _) = tree(&mut world, false);
+
+        world
+            .run_system_once(sync_scene_tooltip)
+            .expect("the sync runs");
+
+        assert_eq!(
+            world.get::<Node>(tooltip).expect("a node").display,
+            Display::None
+        );
+    }
 }

@@ -55,7 +55,7 @@ use crate::{
             menu_z, on_menu_button, on_menu_scrim, toggle_key_legend, toggle_link_points,
             MenuDeleteItem, MenuDeletePartsItem, MenuDropdown, MenuId, ShipMenuItem, ViewToggle,
         },
-        rail::{scene_row, skin_toggle_row, style_row},
+        rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint},
         window::window_layer,
     },
     ExampleStates,
@@ -646,9 +646,13 @@ pub(crate) fn setup_editor_scene(
                 )],
             ));
 
-            // The floating windows stand above everything else the editor
-            // draws, and below nothing: a window a panel could cover would be
-            // a window nobody opened.
+            // The hint a tree row reveals on hover, and the layer the floating
+            // windows stand on. Both hang off the root rather than off the
+            // rail that raises them, because both are positioned against the
+            // SCREEN: the windows stand above everything else the editor draws
+            // - a window a panel could cover would be a window nobody opened -
+            // and the hint stands above the windows.
+            root.spawn(scene_tooltip(skin));
             root.spawn(window_layer());
 
             // The key legend, bottom-left and out of the build area. Contextual
@@ -726,6 +730,9 @@ struct WantedRow {
     /// ordinal. Held apart from the label because it is the half that must
     /// survive a narrow rail (see [`tree_text`]).
     trail: String,
+    /// What the row's icon MEANS, in one word. Read back by the hover hint,
+    /// which is where a builder finds out what `%` was.
+    kind: String,
 }
 
 /// What a node id reads as in a 150px rail: (label, trail).
@@ -753,30 +760,43 @@ pub(crate) struct ShownScene {
     rows: Vec<(Entity, usize, String, String)>,
 }
 
-/// The glyph a section row wears: its kind, so the tree says what a ship is
-/// made of without a second column.
-fn section_glyph(section: &SectionNode, catalog: Option<&GameSections>) -> &'static str {
+/// The icon a section row wears, and what that icon MEANS: one match, so the
+/// glyph in the rail and the word the hover reveals can never drift apart.
+///
+/// Glyphs rather than image assets, because the rail is a terminal and a
+/// one-character column costs nothing to lay out. A row is 150px wide and its
+/// id clips - the icon is what a builder actually reads down the list, so it
+/// has to carry the kind on its own.
+fn section_mark(
+    section: &SectionNode,
+    catalog: Option<&GameSections>,
+) -> (&'static str, &'static str) {
     match section.resolve(catalog).map(|config| &config.kind) {
-        Some(SectionKind::Hull(_)) => "=",
-        Some(SectionKind::Controller(_)) => "o",
-        Some(SectionKind::Thruster(_)) => "^",
-        Some(SectionKind::Turret(_)) => "+",
-        Some(SectionKind::Torpedo(_)) => "!",
-        None => "?",
+        Some(SectionKind::Hull(_)) => ("=", "HULL"),
+        Some(SectionKind::Controller(_)) => ("o", "CONTROLLER"),
+        Some(SectionKind::Thruster(_)) => ("^", "THRUSTER"),
+        Some(SectionKind::Turret(_)) => ("+", "TURRET"),
+        Some(SectionKind::Torpedo(_)) => ("!", "TORPEDO"),
+        None => ("?", "PART"),
     }
 }
 
-/// The glyph an object row wears. Distinct from the ship glyphs (`@`, `>`, `-`)
-/// because object rows sit at the SAME depth as ships: the world holds both, and
-/// the lead column is what says which is which.
-fn object_glyph(object: &ObjectNode) -> &'static str {
+/// The icon a world object wears, and its kind. Distinct from the ship glyphs
+/// (`@`, `>`, `-`) because object rows sit at the SAME depth as ships: the world
+/// holds both, and the lead column is what says which is which.
+///
+/// Free to reuse a SECTION's glyph - a rock and a controller are both `o` -
+/// because the two never share a tree: entering a ship takes the world out of
+/// the rail, and the sections only appear once it has.
+fn object_mark(object: &ObjectNode) -> (&'static str, &'static str) {
     match object.kind {
-        ScenarioObjectKind::Anchor(_) => "x",
-        ScenarioObjectKind::Asteroid(_) => "*",
-        ScenarioObjectKind::Spaceship(_) => "#",
-        ScenarioObjectKind::Beacon(_) => "!",
-        ScenarioObjectKind::SalvageCrate(_) => "%",
-        ScenarioObjectKind::Light(_) => "~",
+        ScenarioObjectKind::Anchor(_) => ("x", "ANCHOR"),
+        // Not `*`: that is the scenario root, one row above it.
+        ScenarioObjectKind::Asteroid(_) => ("o", "ASTEROID"),
+        ScenarioObjectKind::Spaceship(_) => ("#", "SPACESHIP"),
+        ScenarioObjectKind::Beacon(_) => ("!", "BEACON"),
+        ScenarioObjectKind::SalvageCrate(_) => ("%", "SALVAGE"),
+        ScenarioObjectKind::Light(_) => ("~", "LIGHT"),
     }
 }
 
@@ -817,6 +837,7 @@ fn wanted_rows(
         id: root_id.0.clone(),
         label: root_label,
         trail: root_trail,
+        kind: "SCENARIO".to_string(),
     }];
 
     let entered = context.ship();
@@ -831,12 +852,12 @@ fn wanted_rows(
         if entered.is_some_and(|inside| inside != ship) {
             continue;
         }
-        let glyph = if entered == Some(ship) {
-            "@"
+        let (glyph, kind) = if entered == Some(ship) {
+            ("@", "SHIP - EDITING")
         } else {
             match node.driver {
-                ShipDriver::Player => ">",
-                ShipDriver::Ai => "-",
+                ShipDriver::Player => (">", "SHIP - PLAYER"),
+                ShipDriver::Ai => ("-", "SHIP - AI"),
             }
         };
         let (label, trail) = tree_text(&id.0);
@@ -847,19 +868,22 @@ fn wanted_rows(
             id: id.0.clone(),
             label,
             trail,
+            kind: kind.to_string(),
         });
         if entered != Some(ship) {
             continue;
         }
         for (section, id, node, _) in sections_of(ship, nodes) {
             let (label, trail) = tree_text(&id.0);
+            let (glyph, kind) = section_mark(node, catalog);
             rows.push(WantedRow {
                 node: section,
                 depth: 2,
-                lead: section_glyph(node, catalog).to_string(),
+                lead: glyph.to_string(),
                 id: id.0.clone(),
                 label,
                 trail,
+                kind: kind.to_string(),
             });
         }
     }
@@ -872,13 +896,15 @@ fn wanted_rows(
     };
     for (object, id, node, _) in world {
         let (label, trail) = tree_text(&id.0);
+        let (glyph, kind) = object_mark(node);
         rows.push(WantedRow {
             node: object,
             depth: 1,
-            lead: object_glyph(node).to_string(),
+            lead: glyph.to_string(),
             id: id.0.clone(),
             label,
             trail,
+            kind: kind.to_string(),
         });
     }
     rows
@@ -954,6 +980,12 @@ pub(crate) fn sync_scene_list(
                     Name::new(format!("Scene Row {}", row.id)),
                     scene_row(row.depth, &row.lead, &row.label, &row.trail, marked, *skin),
                     SceneRow(row.node),
+                    // What a hover reveals: the kind the icon stands for, and
+                    // the id the 150px row had to clip.
+                    SceneRowHint {
+                        kind: row.kind.clone(),
+                        id: row.id.clone(),
+                    },
                     observe(on_scene_row),
                 ));
                 if marked {

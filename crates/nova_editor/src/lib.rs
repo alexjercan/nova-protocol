@@ -76,6 +76,7 @@ use ui::{
         close_menu_on_item, close_menus, close_open_menu, sync_menu_delete, sync_menu_item_paint,
         sync_menus, sync_ship_menu, sync_tool_menu_mark, sync_view_menu_marks, OpenMenu,
     },
+    rail::sync_scene_tooltip,
     setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
     sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_style_list,
     window::{on_colour_slider, sync_colour_windows},
@@ -363,6 +364,9 @@ fn editor_plugin(app: &mut App) {
             // only because a flat tuple would pass Bevy's arity limit.
             (
                 sync_scene_list,
+                // After the rows: a hint is positioned from the row it
+                // describes, and a rebuilt list has no laid-out rows yet.
+                sync_scene_tooltip,
                 // The panel, and then the floating windows: a window shows what
                 // the row it was opened from shows, and closes when that row
                 // goes away. One element, because the group around it is

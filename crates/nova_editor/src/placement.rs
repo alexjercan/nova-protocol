@@ -1627,7 +1627,7 @@ mod tests {
                 .normalize(None)
                 .expect("a named window normalizes"),
         );
-        let mut press = |app: &mut App| {
+        let press = |app: &mut App| {
             app.world_mut().trigger(Pointer::new(
                 PointerId::Mouse,
                 Location {

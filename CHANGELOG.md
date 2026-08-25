@@ -49,6 +49,8 @@ does NOT get an entry - and it is the only place they are written down.
   and Rebind Key. Escape closes an open menu.
 - Scene tree rows step in by depth and print a section as its part name, with
   the ordinal in a column the rail cannot clip, so six alike hulls stay apart.
+- Every tree row wears an icon for what it is, and resting on one reveals the
+  kind that icon stands for and the whole id the row had to clip.
 - The right-hand Inspector lists a node's own fields - a thruster's, a rock's,
   a ship's driver - read off its config by reflection; typing into one writes
   it back, so a placed object keeps what you set.

@@ -1539,6 +1539,38 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: inside ship_1 the tree lists {rows:?}");
         })
         .add()
+        // A 150px row clips its id, so resting on one reveals the whole thing
+        // and the word its icon stands for.
+        .step("editor: rest on the turret's row")
+        .on_enter(hover_named("Scene Row pdc_kinetic_turret_section_7"))
+        .until(ui_node_present("Scene Row Hint"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the hint says what the row could not")
+        .on_enter(|world: &mut World| {
+            let hint = named_text(world, "Scene Row Hint Id");
+            assert_eq!(
+                hint.as_deref(),
+                Some("pdc_kinetic_turret_section_7"),
+                "the hint reveals the id the row clipped"
+            );
+            let kind = named_text(world, "Scene Row Hint Kind");
+            assert_eq!(kind.as_deref(), Some("TURRET"), "and what its icon meant");
+            nova_probe::probe_marker(
+                world,
+                "outcome: a tree row reveals its kind and its whole id on hover",
+                serde_json::json!({}),
+            );
+            info!("editor: the row hint reads {kind:?} {hint:?}");
+        })
+        .add()
+        .step("editor: leave the row")
+        .on_enter(hover_named("Editor Inspector"))
+        .until(nova_autopilot::predicate::not(ui_node_present(
+            "Scene Row Hint",
+        )))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         // The turret is the deepest config in the game - its fire rate lives on
         // a muzzle, on a joint, inside `root.children` - so it is what proves
         // both that the walk reaches into a list and that the panel can be
@@ -1962,6 +1994,16 @@ fn back_inside_the_stamped_ship() -> Wait {
         let probe = world.resource::<EditorProbe>();
         probe.inside.is_some() && probe.ship.len() == world.resource::<EditorWalk>().ids.len()
     })
+}
+
+/// The text of the UI node called `name`, if it is on screen.
+#[cfg(feature = "debug")]
+fn named_text(world: &mut World, name: &str) -> Option<String> {
+    let mut query = world.try_query::<(&Name, &Text)>()?;
+    query
+        .iter(world)
+        .find(|(node_name, _)| node_name.as_str() == name)
+        .map(|(_, text)| text.0.clone())
 }
 
 /// Every Scene tree row on screen, by name.
