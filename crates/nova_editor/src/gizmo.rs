@@ -53,6 +53,7 @@ const RING_THICKNESS: f32 = 0.035;
 /// How much of the distance to the camera one arm spans, so the rig keeps
 /// roughly the same size on screen however far the stage is being watched from.
 const SCREEN_SPAN: f32 = 0.13;
+
 /// How far past the node's own bounds the arms must reach. A rig sized only by
 /// camera distance would be buried inside a corvette's hull at close range.
 const CLEARANCE: f32 = 1.3;
@@ -285,7 +286,14 @@ pub(crate) fn sync_gizmo(
     q_children: Query<&Children>,
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
     q_staged: Query<&Transform, (Or<(With<ShipNode>, With<ObjectNode>)>, Without<GizmoRig>)>,
-    camera: Option<Single<&GlobalTransform, (With<EditorCamera>, Without<GizmoRig>)>>,
+    // The camera's `Transform`, NOT its `GlobalTransform`: propagation runs in
+    // `PostUpdate`, so the global pose this system can see is the one from
+    // before framing moved the camera. Sizing against that made every frame
+    // gesture flash one giant rig - a jump from an arm of 36 to an arm of 4 in
+    // consecutive frames, which is what "the handles resize weirdly" looked
+    // like. The editor camera is a root entity, so the two are the same value
+    // one propagation apart.
+    camera: Option<Single<&Transform, (With<EditorCamera>, Without<GizmoRig>)>>,
     rig: Option<Single<(&mut Transform, &mut Visibility), With<GizmoRig>>>,
 ) {
     let Some(rig) = rig else {
@@ -308,8 +316,9 @@ pub(crate) fn sync_gizmo(
     // The node's own extent, so the arms clear a corvette's hull, floored by a
     // fraction of the viewing distance so a lone beacon is not a speck.
     let reach = reach.measure(node, &q_children, &q_bounds);
-    let span = camera.translation().distance(at) * SCREEN_SPAN;
-    let wanted = Transform::from_translation(at).with_scale(Vec3::splat(reach.max(span)));
+    let watched = camera.translation.distance(at);
+    let arm = reach.max(watched * SCREEN_SPAN);
+    let wanted = Transform::from_translation(at).with_scale(Vec3::splat(arm));
 
     if *pose != wanted {
         *pose = wanted;

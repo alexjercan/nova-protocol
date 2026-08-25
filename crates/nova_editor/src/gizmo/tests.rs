@@ -164,10 +164,14 @@ fn gizmo_app() -> App {
         Visibility::Hidden,
         GlobalTransform::default(),
     ));
+    // The GLOBAL pose is deliberately stale here - a frame behind the local
+    // one, the way it is in a real app between `Update` and propagation. A rig
+    // that sizes itself off it would read 300 units of distance the moment the
+    // camera is framed somewhere, and flash one giant arm.
     app.world_mut().spawn((
         EditorCamera,
         Transform::from_xyz(0.0, 5.0, 30.0),
-        GlobalTransform::from_xyz(0.0, 5.0, 30.0),
+        GlobalTransform::from_xyz(0.0, 5.0, 900.0),
     ));
     app
 }
@@ -232,6 +236,30 @@ fn the_rig_clears_a_hull_it_would_otherwise_sit_inside() {
         pose.scale.x > 4.0,
         "the arms have to reach past the hull to be pointed at: {:?}",
         pose.scale
+    );
+}
+
+/// The rig sizes itself against where the camera IS, not where propagation
+/// last saw it. Framing a node writes the camera's `Transform` and the global
+/// pose catches up a stage later, so a rig reading the global one flashes an
+/// arm sized for the distance it just left.
+#[test]
+fn the_rig_is_sized_from_where_the_camera_is_now() {
+    let mut app = gizmo_app();
+    // Small enough that the camera-distance floor decides the size, which is
+    // the term the stale pose would poison.
+    let node = app
+        .world_mut()
+        .spawn((EditorNode, ShipNode::default(), Transform::default()))
+        .id();
+    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+
+    place(&mut app);
+
+    let arm = rig(&app).0.scale.x;
+    assert!(
+        arm < 10.0,
+        "the camera is 30 units out, not 900: {arm} is the stale pose talking"
     );
 }
 

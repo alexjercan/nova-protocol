@@ -8,7 +8,8 @@ use nova_scenario::prelude::{
     AnchorConfig, AsteroidConfig, BeaconConfig, LightConfig, ScenarioObjectKind, SectionSource,
 };
 use nova_ship::prelude::{
-    BaseSectionConfig, GameSections, SectionConfig, SectionKind, ThrusterSectionConfig,
+    BaseSectionConfig, GameSections, SectionConfig, SectionKind, ThrusterExhaust,
+    ThrusterExhaustConfig, ThrusterExhaustShape, ThrusterSectionConfig,
 };
 
 use super::*;
@@ -27,9 +28,12 @@ fn row<'a>(rows: &'a [InspectorRow], label: &str) -> &'a InspectorRow {
         })
 }
 
+/// The text a row is edited through. A colour row is typed into like any other
+/// leaf - the swatch beside it is a readout, not a second source of truth - so
+/// it answers here too.
 fn text_of(rows: &[InspectorRow], label: &str) -> String {
     match &row(rows, label).value {
-        RowValue::Text(text) => text.clone(),
+        RowValue::Text(text) | RowValue::Colour(text) => text.clone(),
         other => panic!("row {label:?} is {other:?}, not text"),
     }
 }
@@ -43,6 +47,31 @@ fn thruster_node(magnitude: f32) -> SectionNode {
             },
             kind: SectionKind::Thruster(ThrusterSectionConfig {
                 magnitude,
+                ..default()
+            }),
+        }),
+        modifications: vec![],
+        binds: vec![],
+    }
+}
+
+/// A thruster whose exhaust is authored, so the walk reaches the two-name enum
+/// inside it. The stock thruster has `exhaust: None` and stops short of it.
+fn thruster_with_exhaust(geometry: ThrusterExhaustShape) -> SectionNode {
+    SectionNode {
+        source: SectionSource::Inline(SectionConfig {
+            base: BaseSectionConfig {
+                id: "thruster".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Thruster(ThrusterSectionConfig {
+                exhaust: Some(ThrusterExhaust {
+                    shape: ThrusterExhaustConfig {
+                        geometry,
+                        ..default()
+                    },
+                    ..default()
+                }),
                 ..default()
             }),
         }),
@@ -263,6 +292,147 @@ fn an_enums_variant_is_shown_and_its_own_fields_are_walked() {
     );
     assert_eq!(text_of(&rows, "Illuminance"), "9000");
     assert_eq!(row(&rows, "Shadows").value, RowValue::Flag(false));
+}
+
+/// A colour is its own kind of row, so the panel can paint the colour beside
+/// the hex. It is still typed into like any other leaf.
+#[test]
+fn a_colour_row_carries_the_colour_and_not_just_its_name() {
+    let object = ObjectNode {
+        name: "beacon".to_string(),
+        kind: ScenarioObjectKind::Beacon(BeaconConfig {
+            label: "BEACON".to_string(),
+            radius: 3.0,
+            color: Color::srgb(0.0, 0.5, 1.0),
+            area_radius: None,
+            lock_signature: None,
+        }),
+    };
+    let rows = object_rows(&object, &Transform::default());
+
+    assert_eq!(
+        row(&rows, "Color").value,
+        RowValue::Colour("#0080ff".to_string())
+    );
+    assert_eq!(
+        parse_colour("#0080ff")
+            .map(Srgba::from)
+            .map(|srgba| srgba.blue),
+        Some(1.0),
+        "and the panel can turn that back into a colour to paint"
+    );
+}
+
+/// Half-typed hex is not a colour yet. The swatch paints nothing rather than
+/// guessing, which is why this returns an `Option`.
+#[test]
+fn text_that_is_not_a_colour_yet_paints_nothing() {
+    assert_eq!(parse_colour("#00"), None);
+    assert_eq!(parse_colour(""), None);
+}
+
+/// An enum whose variants are all bare NAMES has nothing to invent, so it is
+/// offered as a choice rather than shown as a readout.
+#[test]
+fn an_enum_of_bare_names_is_a_choice() {
+    let node = thruster_with_exhaust(ThrusterExhaustShape::Cone);
+    let rows = section_rows(&node, None);
+
+    let RowValue::Choice { options, chosen } = &row(&rows, "Exhaust Shape Geometry").value else {
+        panic!(
+            "the exhaust's geometry is a two-name enum; got {:?}",
+            row(&rows, "Exhaust Shape Geometry").value
+        );
+    };
+    assert_eq!(options, &vec!["Cone".to_string(), "Rect".to_string()]);
+    assert_eq!(*chosen, 0);
+}
+
+/// And choosing one writes it, which is the half a readout could never do.
+#[test]
+fn choosing_a_name_switches_the_variant() {
+    let mut node = thruster_with_exhaust(ThrusterExhaustShape::Cone);
+    let rows = section_rows(&node, None);
+    let path = row(&rows, "Exhaust Shape Geometry").path.clone();
+
+    let mut config = node.resolve(None).expect("an inline section").clone();
+    choose_field(section_config_mut(&mut config.kind), &path, "Rect").expect("a bare name");
+    node.source = SectionSource::Inline(config);
+
+    let rows = section_rows(&node, None);
+    let RowValue::Choice { options, chosen } = &row(&rows, "Exhaust Shape Geometry").value else {
+        panic!("still a choice");
+    };
+    assert_eq!(options[*chosen], "Rect");
+}
+
+/// A variant that CARRIES something stays a readout: switching to it would
+/// mean inventing every field of it.
+#[test]
+fn a_variant_with_fields_is_not_offered_as_a_choice() {
+    let object = ObjectNode {
+        name: "sun".to_string(),
+        kind: ScenarioObjectKind::Light(LightConfig::Directional {
+            illuminance: 9_000.0,
+            color: Color::WHITE,
+            shadows: false,
+            aim: None,
+        }),
+    };
+    let rows = object_rows(&object, &Transform::default());
+
+    assert_eq!(
+        row(&rows, "Kind").value,
+        RowValue::Fixed("Directional".to_string())
+    );
+}
+
+/// Which way a node faces, in the three numbers a builder means by it. A
+/// `Quat`'s four are not a thing anyone types.
+#[test]
+fn a_node_reports_which_way_it_faces_in_degrees() {
+    let object = asteroid(stock_asteroid());
+    let quarter_to_port =
+        Transform::from_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
+    let rows = object_rows(&object, &quarter_to_port);
+
+    assert_eq!(text_of(&rows, "Heading"), "90, 0, 0");
+    assert_eq!(row(&rows, "Heading").root, FieldRoot::Heading);
+}
+
+/// Degrees out, degrees back. The row is the only place the conversion
+/// happens, so a heading that survives the trip is the whole contract.
+#[test]
+fn a_heading_survives_the_round_trip() {
+    // The ROTATION round-trips, which is the contract. The degrees need not
+    // come back identical: a half turn to port and a half turn to starboard
+    // are the same heading, and `to_euler` picks one of them.
+    for degrees in [
+        Vec3::ZERO,
+        Vec3::new(90.0, 0.0, 0.0),
+        Vec3::new(-45.0, 30.0, 0.0),
+        Vec3::new(180.0, 0.0, 0.0),
+    ] {
+        let wanted = heading_to(degrees);
+        let back = heading_to(heading_of(&Transform::from_rotation(wanted)));
+        assert!(
+            (back.dot(wanted).abs() - 1.0).abs() < 1e-4,
+            "{degrees:?} came back as a different heading: {back:?} vs {wanted:?}"
+        );
+    }
+}
+
+/// Nova sections MATE, they do not stretch - so there is no scale row, and a
+/// test says so rather than leaving its absence to be read as an oversight.
+#[test]
+fn there_is_no_scale_row() {
+    let rows = object_rows(&asteroid(stock_asteroid()), &Transform::default());
+
+    assert!(
+        !rows.iter().any(|row| row.label.contains("Scale")),
+        "found {:?}",
+        rows.iter().map(|row| &row.label).collect::<Vec<_>>()
+    );
 }
 
 #[test]

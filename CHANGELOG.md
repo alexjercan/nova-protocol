@@ -51,6 +51,12 @@ does NOT get an entry - and it is the only place they are written down.
 - The right-hand Inspector lists a node's own fields - a thruster's, a rock's,
   a ship's driver - read off its config by reflection; typing into one writes
   it back, so a placed object keeps what you set.
+- Inspector rows are typed to what they hold: a colour paints a swatch beside
+  its hex, and an enum of bare names becomes a row of choices you can switch
+  rather than a readout you cannot.
+- Every placed node reports its heading in degrees beside its position, and
+  typing one turns it. There is no scale row: Nova sections mate, they do not
+  stretch.
 - Back to Main Menu ends the session and deletes the scenario draft; Play
   round-trips still return to it.
 

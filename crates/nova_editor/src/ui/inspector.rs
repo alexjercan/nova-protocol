@@ -26,16 +26,17 @@ use nova_ui::{
         UiSkin,
     },
     theme,
-    widget::{checkbox, checkbox_colors, checkbox_glyph},
+    widget::{checkbox, checkbox_colors, checkbox_glyph, swatch},
 };
 
 use crate::{
     config::SelectedNode,
     gallery::EditorCamera,
     inspect::{
-        driver_label, editable_config, inspected, object_config_mut, object_rows,
-        section_config_mut, section_rows, ship_rows, toggle_field, write_field, FieldRoot,
-        InspectTarget, InspectorRow, NodeKinds, PathStep, RowValue,
+        choose_field, driver_label, editable_config, heading_of, heading_to, inspected,
+        object_config_mut, object_rows, parse_colour, section_config_mut, section_rows, ship_rows,
+        toggle_field, write_field, FieldRoot, InspectTarget, InspectorRow, NodeKinds, PathStep,
+        RowValue,
     },
     node::{EditContext, NodeId, ObjectNode, SectionNode, ShipDriver, ShipNode},
 };
@@ -92,6 +93,17 @@ pub(crate) struct InspectorFixed;
 pub(crate) struct InspectorDriver {
     ship: Entity,
     driver: ShipDriver,
+}
+
+/// The colour block beside a colour field, so the repaint can find it and
+/// recolour it when the hex beside it is retyped.
+#[derive(Component)]
+pub(crate) struct InspectorSwatch;
+
+/// One option of a unit-enum row: the variant this segment selects.
+#[derive(Component, Clone)]
+pub(crate) struct InspectorChoice {
+    variant: String,
 }
 
 /// Marks the camera whose free-fly rig this module took away, so putting it
@@ -292,6 +304,50 @@ fn build_rows(
                             text_field(spec),
                         ));
                     }
+                    RowValue::Colour(text) => {
+                        // The swatch comes FIRST so a column of them reads as a
+                        // palette down the panel: the eye finds the colour it
+                        // wants without parsing six hex digits a row.
+                        value.spawn((
+                            Name::new(format!("Inspector Swatch {}", row.label)),
+                            InspectorSlot(slot),
+                            InspectorSwatch,
+                            swatch(parse_colour(text)),
+                        ));
+                        value.spawn((
+                            Name::new(format!("Inspector Field {}", row.label)),
+                            InspectorSlot(slot),
+                            field.clone(),
+                            text_field(TextFieldSpec::new(text.clone()).max_chars(9)),
+                        ));
+                    }
+                    RowValue::Choice { options, chosen } => {
+                        value
+                            .spawn((
+                                Name::new(format!("Inspector Choice {}", row.label)),
+                                segmented_container(skin),
+                            ))
+                            .with_children(|segments| {
+                                for (index, option) in options.iter().enumerate() {
+                                    let mut entity = segments.spawn((
+                                        Name::new(format!(
+                                            "Inspector Choice {} {option}",
+                                            row.label
+                                        )),
+                                        InspectorSlot(slot),
+                                        InspectorChoice {
+                                            variant: option.clone(),
+                                        },
+                                        field.clone(),
+                                        segmented_option(option),
+                                        observe(on_inspector_choice),
+                                    ));
+                                    if index == *chosen {
+                                        entity.insert(Selected);
+                                    }
+                                }
+                            });
+                    }
                     RowValue::Flag(on) => {
                         value.spawn((
                             Name::new(format!("Inspector Flag {}", row.label)),
@@ -385,13 +441,20 @@ pub(crate) fn sync_inspector(
             &mut BackgroundColor,
             &mut BorderColor,
         ),
-        With<InspectorFlag>,
+        (With<InspectorFlag>, Without<InspectorSwatch>),
     >,
     mut glyphs: Query<
         (&mut Text, &mut TextColor),
         (Without<InspectorFixed>, Without<InspectorTitle>),
     >,
     drivers: Query<(Entity, &InspectorSlot, &InspectorDriver, Has<Selected>)>,
+    // `Without` the checkbox, so the two mutable `BackgroundColor` queries are
+    // provably disjoint - a filter Bevy cannot prove is a panic at system init.
+    mut swatches: Query<
+        (&InspectorSlot, &mut BackgroundColor),
+        (With<InspectorSwatch>, Without<InspectorFlag>),
+    >,
+    choices: Query<(Entity, &InspectorSlot, &InspectorChoice, Has<Selected>)>,
 ) {
     // A fresh list holds no rows whatever this `Local` remembers - it survives
     // the state round-trip that despawned the panel. The same trap
@@ -446,11 +509,22 @@ pub(crate) fn sync_inspector(
     // it held before Enter. Overwriting it would delete the edit one character
     // in.
     for (slot, mut value) in &mut fields {
-        let Some(RowValue::Text(text)) = rows.get(slot.0).map(|row| &row.value) else {
+        let Some(RowValue::Text(text) | RowValue::Colour(text)) =
+            rows.get(slot.0).map(|row| &row.value)
+        else {
             continue;
         };
         if value.0 != *text {
             value.0.clone_from(text);
+        }
+    }
+    for (slot, mut block) in &mut swatches {
+        let Some(RowValue::Colour(text)) = rows.get(slot.0).map(|row| &row.value) else {
+            continue;
+        };
+        let wanted = parse_colour(text).unwrap_or(Color::NONE);
+        if block.0 != wanted {
+            *block = wanted.into();
         }
     }
     for (slot, mut text) in &mut readouts {
@@ -481,6 +555,24 @@ pub(crate) fn sync_inspector(
             if colour.0 != glyph_colour {
                 colour.0 = glyph_colour;
             }
+        }
+    }
+    for (entity, slot, option, marked) in &choices {
+        let Some(RowValue::Choice { options, chosen }) = rows.get(slot.0).map(|row| &row.value)
+        else {
+            continue;
+        };
+        let wanted = options
+            .get(*chosen)
+            .is_some_and(|name| *name == option.variant);
+        match (wanted, marked) {
+            (true, false) => {
+                commands.entity(entity).insert(Selected);
+            }
+            (false, true) => {
+                commands.entity(entity).remove::<Selected>();
+            }
+            _ => {}
         }
     }
     for (entity, slot, option, marked) in &drivers {
@@ -533,6 +625,19 @@ impl EditTargets<'_, '_> {
                     .get_mut(field.node)
                     .map_err(|_| "gone".to_string())?;
                 edit(&mut pose.translation, &field.path, field.optional)
+            }
+            FieldRoot::Heading => {
+                let mut pose = self
+                    .poses
+                    .get_mut(field.node)
+                    .map_err(|_| "gone".to_string())?;
+                // Degrees on the way out, degrees on the way back: the edit
+                // never sees the quat. A refusal leaves the pose alone, which
+                // is why the rotation is only rebuilt once the edit took.
+                let mut degrees = heading_of(&pose);
+                edit(&mut degrees, &field.path, field.optional)?;
+                pose.rotation = heading_to(degrees);
+                Ok(())
             }
             FieldRoot::Config => {
                 if let Ok(mut section) = self.sections.get_mut(field.node) {
@@ -601,6 +706,26 @@ pub(crate) fn on_inspector_flag(
             .ok_or_else(|| "not a flag".to_string())
     });
     if let Err(reason) = flipped {
+        warn!("inspector: {reason}");
+    }
+}
+
+/// Switch a unit-enum field to the variant this segment names.
+///
+/// Its own entry point rather than a `write_field` of the variant name: the
+/// value is not parsed out of text, it is one of a set the row already knows.
+pub(crate) fn on_inspector_choice(
+    activate: On<Activate>,
+    options: Query<(&InspectorField, &InspectorChoice)>,
+    mut targets: EditTargets,
+) {
+    let Ok((field, option)) = options.get(activate.entity) else {
+        return;
+    };
+    let chosen = targets.edit(field, |root, path, _| {
+        choose_field(root, path, &option.variant)
+    });
+    if let Err(reason) = chosen {
         warn!("inspector: {reason}");
     }
 }

@@ -143,6 +143,26 @@ pub fn checkbox(on: bool, skin: UiSkin) -> impl Bundle {
     )
 }
 
+/// A 22px block of one colour, for a row that edits a colour.
+///
+/// `None` - text that is not a colour yet, because it is half typed - paints
+/// the empty case rather than black: a swatch showing a colour nobody chose
+/// would be a lie, and black is a colour somebody might have.
+pub fn swatch(colour: Option<Color>) -> impl Bundle {
+    (
+        Node {
+            width: px(22),
+            height: px(22),
+            flex_shrink: 0.0,
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
+        BackgroundColor(colour.unwrap_or(Color::NONE)),
+    )
+}
+
 /// The `(background, border, glyph)` colours of a checkbox in `(on, skin)` - the
 /// single source both [`checkbox`] and an in-place restyle (the mods screen's
 /// enable-checkbox sync) paint from.

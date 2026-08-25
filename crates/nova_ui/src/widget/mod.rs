@@ -25,7 +25,7 @@ pub mod prelude {
     pub use super::{
         badge, button, button_on_setting, checkbox, checkbox_colors, checkbox_glyph, list_row,
         list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, segmented,
-        segmented_container, segmented_option, separator, slider_meter_color, slider_track,
+        segmented_container, segmented_option, separator, slider_meter_color, slider_track, swatch,
         text_field, themed_button, toggle, BadgeKind, ButtonSpec, ButtonValue, ButtonVariant,
         ListRow, PanelSkin, SegmentedSkin, Selected, SliderBlock, SliderFill, SliderTrackSkin,
         TextField, TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted,

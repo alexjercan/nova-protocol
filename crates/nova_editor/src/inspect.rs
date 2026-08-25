@@ -115,6 +115,12 @@ pub(crate) enum FieldRoot {
     Config,
     /// The node's pose - `Transform::translation`.
     Pose,
+    /// The node's heading, in DEGREES, as yaw/pitch/roll.
+    ///
+    /// Its own root rather than a path into the pose because the value on
+    /// screen is not the value in the component: a `Quat` has four numbers and
+    /// no builder thinks in them. The routing converts around the edit.
+    Heading,
     /// An object's display name, which is a field of the node and not of the
     /// kind config.
     Label,
@@ -139,8 +145,23 @@ pub(crate) enum PathStep {
 pub(crate) enum RowValue {
     /// Editable as text. The string is the value in its canonical form.
     Text(String),
+    /// A colour, as `#rrggbb`. Editable as text like any other leaf, but the
+    /// panel paints the colour beside the field - a builder picking a beacon's
+    /// light should not have to read hex to know what they picked.
+    Colour(String),
     /// A checkbox.
     Flag(bool),
+    /// One of a fixed set of names, and which is chosen.
+    ///
+    /// Only ever built for an enum whose variants ALL carry no fields. A
+    /// variant with fields cannot be offered as a choice: switching to it would
+    /// mean inventing values nobody authored. See the enum arm of [`walk`].
+    Choice {
+        /// Every variant, in declaration order.
+        options: Vec<String>,
+        /// Which one the value currently holds.
+        chosen: usize,
+    },
     /// Who flies this ship.
     Driver(ShipDriver),
     /// Shown but not editable here.
@@ -154,8 +175,9 @@ impl RowValue {
     /// word they stand for.
     pub(crate) fn reading(&self) -> String {
         match self {
-            Self::Text(text) | Self::Fixed(text) => text.clone(),
+            Self::Text(text) | Self::Colour(text) | Self::Fixed(text) => text.clone(),
             Self::Flag(flag) => flag.to_string(),
+            Self::Choice { options, chosen } => options.get(*chosen).cloned().unwrap_or_default(),
             Self::Driver(driver) => driver_label(*driver).to_string(),
         }
     }
@@ -270,6 +292,16 @@ fn walk(
         });
         return;
     }
+    if let Some(colour) = value.try_downcast_ref::<Color>() {
+        out.push(InspectorRow {
+            root,
+            label: label_of(&path),
+            path,
+            optional: false,
+            value: RowValue::Colour(colour_text(*colour)),
+        });
+        return;
+    }
     if let Some(text) = leaf_text(value) {
         out.push(InspectorRow {
             root,
@@ -308,14 +340,29 @@ fn walk(
             }
         }
         ReflectRef::Enum(chosen) => {
-            // The variant is a readout, not a choice: switching one means
-            // inventing every field of the variant nobody has authored yet.
+            // A variant that carries FIELDS is a readout, not a choice:
+            // switching to one would mean inventing every field of it that
+            // nobody has authored. An enum whose variants are all bare names
+            // has nothing to invent, so it is offered as a choice.
+            let value = match unit_variants(value) {
+                Some(options) => {
+                    let name = chosen.variant_name();
+                    RowValue::Choice {
+                        chosen: options
+                            .iter()
+                            .position(|option| option == name)
+                            .unwrap_or(0),
+                        options,
+                    }
+                }
+                None => RowValue::Fixed(chosen.variant_name().to_string()),
+            };
             out.push(InspectorRow {
                 root,
                 label: label_of(&path),
                 path: path.clone(),
                 optional: false,
-                value: RowValue::Fixed(chosen.variant_name().to_string()),
+                value,
             });
             for index in 0..chosen.field_len() {
                 let Some(field) = chosen.field_at(index) else {
@@ -384,6 +431,24 @@ fn walk_option(
         return;
     };
     walk(inner, root, step(&path, PathStep::Slot(0)), out);
+}
+
+/// Every variant name of `value`, but ONLY when the enum is a plain set of
+/// names.
+///
+/// `None` the moment one variant carries a field, which is what keeps the
+/// choice honest: a dropdown that could switch to `Prototype(String)` would
+/// have to invent the string.
+fn unit_variants(value: &dyn PartialReflect) -> Option<Vec<String>> {
+    let TypeInfo::Enum(info) = value.get_represented_type_info()? else {
+        return None;
+    };
+    info.iter()
+        .map(|variant| match variant {
+            VariantInfo::Unit(unit) => Some(unit.name().to_string()),
+            _ => None,
+        })
+        .collect()
 }
 
 /// `path` with one more step on the end.
@@ -462,7 +527,10 @@ fn leaf_text(value: &dyn PartialReflect) -> Option<String> {
 fn number_text(value: f64) -> String {
     let rounded = format!("{value:.3}");
     let trimmed = rounded.trim_end_matches('0').trim_end_matches('.');
-    if trimmed.is_empty() || trimmed == "-" {
+    // `-0` is the sign of a value that rounded away, not a number anyone
+    // authored. A pose row reading "3.039, -0, -0" says the two zeros are
+    // somehow different from each other, and they are not.
+    if trimmed.is_empty() || trimmed == "-" || trimmed == "-0" {
         "0".to_string()
     } else {
         trimmed.to_string()
@@ -577,6 +645,32 @@ pub(crate) fn write_field(
     target
         .try_apply(value.as_ref())
         .map_err(|error| format!("refused: {error}"))
+}
+
+/// Switch the enum at `path` to its `variant`.
+///
+/// Unit variants only, which is the same rule that decides whether the row is
+/// a choice at all: there is nothing to carry across, so the whole switch is
+/// one `try_apply` of a bare name.
+pub(crate) fn choose_field(
+    root: &mut dyn PartialReflect,
+    path: &[PathStep],
+    variant: &str,
+) -> Result<(), String> {
+    let target = resolve(root, path).ok_or_else(|| "gone".to_string())?;
+    let ReflectMut::Enum(_) = target.reflect_mut() else {
+        return Err("not a choice".to_string());
+    };
+    let wanted = DynamicEnum::new(variant, DynamicVariant::Unit);
+    target
+        .try_apply(&wanted)
+        .map_err(|error| format!("refused: {error}"))
+}
+
+/// The colour a `#rrggbb` or `#rrggbbaa` row is showing, for the swatch beside
+/// it. Unparseable text paints nothing rather than guessing.
+pub(crate) fn parse_colour(text: &str) -> Option<Color> {
+    Srgba::hex(text.trim()).ok().map(Color::from)
 }
 
 /// Flip the `bool` at `path`, and say what it became.
@@ -711,20 +805,56 @@ pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<Inspecto
     rows
 }
 
-/// Where a node stands: ONE row of three comma-separated numbers, not three
-/// rows. A pose is read and typed as a point, and three boxes in a 260px panel
-/// cost three labels to say what one already says.
+/// Where a node stands and which way it faces: two rows of three
+/// comma-separated numbers, not six boxes. A pose is read and typed as a point
+/// and a heading, and three boxes each in a 260px panel would cost six labels
+/// to say what two already say.
+///
+/// There is no SCALE row and there will not be one: Nova sections mate, they
+/// do not stretch, and a scaled hull would put every socket somewhere the
+/// solver did not leave it.
 ///
 /// Sections are deliberately not given this: a section's pose is SOLVED by the
 /// mating snap, and a typed one would put a part where no socket is.
 fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
-    vec![InspectorRow {
-        root: FieldRoot::Pose,
-        path: Vec::new(),
-        optional: false,
-        label: "Position".to_string(),
-        value: RowValue::Text(leaf_text(&pose.translation).unwrap_or_default()),
-    }]
+    vec![
+        InspectorRow {
+            root: FieldRoot::Pose,
+            path: Vec::new(),
+            optional: false,
+            label: "Position".to_string(),
+            value: RowValue::Text(leaf_text(&pose.translation).unwrap_or_default()),
+        },
+        InspectorRow {
+            root: FieldRoot::Heading,
+            path: Vec::new(),
+            optional: false,
+            label: "Heading".to_string(),
+            value: RowValue::Text(leaf_text(&heading_of(pose)).unwrap_or_default()),
+        },
+    ]
+}
+
+/// A pose's rotation as DEGREES of yaw, pitch and roll - the three numbers a
+/// builder means by "turn it a quarter to port".
+///
+/// `YXZ` because yaw is the turn that matters on a stage laid out on the
+/// ground plane, and taking it first keeps the other two small and readable
+/// for a ship that is mostly level.
+pub(crate) fn heading_of(pose: &Transform) -> Vec3 {
+    let (yaw, pitch, roll) = pose.rotation.to_euler(EulerRot::YXZ);
+    Vec3::new(yaw.to_degrees(), pitch.to_degrees(), roll.to_degrees())
+}
+
+/// The rotation `degrees` of yaw, pitch and roll name. The inverse of
+/// [`heading_of`].
+pub(crate) fn heading_to(degrees: Vec3) -> Quat {
+    Quat::from_euler(
+        EulerRot::YXZ,
+        degrees.x.to_radians(),
+        degrees.y.to_radians(),
+        degrees.z.to_radians(),
+    )
 }
 
 #[cfg(test)]
