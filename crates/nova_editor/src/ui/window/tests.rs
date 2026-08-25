@@ -347,3 +347,62 @@ fn a_picker_needs_the_panel_that_opened_it() {
 
     assert!(picker(&mut app).is_none());
 }
+
+/// A verb with no undo asks first. The document is still standing while the
+/// question is up: the row does nothing at all, and the window's own button is
+/// what carries the verb out.
+#[test]
+fn a_destructive_verb_asks_before_it_runs() {
+    let mut app = window_app();
+    app.add_observer(on_destructive_item);
+    app.add_observer(close_confirm_window);
+    // NOT a global observer: the verb rides the window's own button, which is
+    // the whole point - a bare `Activate` must not reset anything.
+    app.init_resource::<EditContext>();
+    app.world_mut()
+        .run_system_once(crate::node::ensure_document)
+        .expect("the document is founded");
+    let document = app.world().resource::<EditContext>().scenario();
+    let row = app.world_mut().spawn(DestructiveVerb::NewScenario).id();
+
+    app.world_mut().trigger(Activate { entity: row });
+    app.update();
+    assert!(
+        named(&mut app, "Confirm Window").is_some(),
+        "the row puts the question up"
+    );
+    assert_eq!(
+        app.world().resource::<EditContext>().scenario(),
+        document,
+        "and the document it would throw away is still standing"
+    );
+
+    let keep = named(&mut app, "Confirm Keep Button").expect("the safe answer is on the window");
+    app.world_mut().trigger(Activate { entity: keep });
+    app.update();
+    assert!(
+        named(&mut app, "Confirm Window").is_none(),
+        "answering takes the question down"
+    );
+    assert_eq!(
+        app.world().resource::<EditContext>().scenario(),
+        document,
+        "and Keep editing kept it"
+    );
+
+    app.world_mut().trigger(Activate { entity: row });
+    app.update();
+    let discard =
+        named(&mut app, "Confirm Discard Button").expect("the other answer is on the window");
+    app.world_mut().trigger(Activate { entity: discard });
+    app.update();
+    assert!(
+        named(&mut app, "Confirm Window").is_none(),
+        "and this answer takes it down too"
+    );
+    let now = app.world().resource::<EditContext>().scenario();
+    assert!(
+        now.is_some() && now != document,
+        "the verb ran: the old root is gone and a fresh one stands in its place"
+    );
+}

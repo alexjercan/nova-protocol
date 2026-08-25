@@ -1778,12 +1778,38 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // Scenario is what stands in for one. It reseeds the stock range, which
         // has no `ship_2` in it - so a `ship_2` after the Open can only have
         // come off disk.
+        // Neither of these two verbs acts on the row any more: a document has
+        // no undo, so the row asks and the window's own button is what goes
+        // through with it. The first press proves the ASK - the ship is still
+        // there while the question is up.
         .click_a_menu_item("editor: start over", MENU_FILE, "New Scenario Item")
+        .step("editor: the question is up and nothing is gone yet")
+        .on_enter(|world: &mut World| {
+            assert!(
+                ui_node_rect(world, "Confirm Window").is_some(),
+                "a verb with no undo must ask before it runs"
+            );
+            let nodes = world.resource::<EditorProbe>().context_nodes.clone();
+            assert!(
+                nodes.iter().any(|node| node == "ship_2"),
+                "and the document must still be standing while it asks; the \
+                 stage held {nodes:?}"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: a destructive verb asks first",
+                serde_json::json!({}),
+            );
+            info!("editor: New Scenario asked before throwing the document away");
+        })
+        .add()
+        .click_a_widget("editor: confirm the discard", "Confirm Discard Button")
         .step("editor: the built document is gone")
         .until(no_object_named("ship_2"))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .click_a_menu_item("editor: open the saved document", MENU_FILE, "Open Item")
+        .click_a_widget("editor: confirm the open", "Confirm Discard Button")
         .step("editor: the saved document came back")
         .until(the_status_reads("opened"))
         .deadline(BEAT_DEADLINE_SECS)

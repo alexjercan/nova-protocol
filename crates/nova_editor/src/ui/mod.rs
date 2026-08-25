@@ -35,7 +35,7 @@ use nova_ui::{
 };
 
 use crate::{
-    bundle::{ask_to_open, ask_to_save},
+    bundle::ask_to_save,
     config::{
         AttitudeReadout, ContextBreadcrumb, EditorKeyLegend, EditorOverlays, EditorStatus,
         LastClick, PlacementStatus, PlayButton, RebindButton, SceneList, SceneRow, SectionChoice,
@@ -45,8 +45,8 @@ use crate::{
     gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
     keybind::{on_rebind_action, EditorRebind},
     node::{
-        objects_of, reset_document, sections_of, EditContext, NodeId, ObjectChoice, ObjectNode,
-        ObjectNodes, ScenarioNode, SectionNode, SectionNodes, ShipDriver, ShipNode, ShipNodes,
+        objects_of, sections_of, EditContext, NodeId, ObjectChoice, ObjectNode, ObjectNodes,
+        ScenarioNode, SectionNode, SectionNodes, ShipDriver, ShipNode, ShipNodes,
     },
     placement::{
         continue_to_simulation, create_blank_ship, create_scenario_object, cycle_armed_socket,
@@ -55,13 +55,13 @@ use crate::{
     ui::{
         inspector::{inspector_panel, PANEL_W as INSPECTOR_W},
         menu::{
-            back_to_main_menu, menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim,
-            menu_z, on_menu_button, on_menu_scrim, toggle_key_legend, toggle_link_points,
-            toggle_object_volumes, toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown,
-            MenuId, MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
+            menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim, menu_z, on_menu_button,
+            on_menu_scrim, toggle_key_legend, toggle_link_points, toggle_object_volumes,
+            toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown, MenuId, MenuTail,
+            OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
         },
         rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint, SceneRowTrash},
-        window::window_layer,
+        window::{window_layer, DestructiveVerb},
     },
     ExampleStates,
 };
@@ -77,10 +77,13 @@ use crate::{
 fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: UiSkin) {
     match menu {
         MenuId::File => {
+            // The three rows that can lose work do not DO anything: they put
+            // the question up (see `crate::ui::window::DestructiveVerb`), and
+            // the window's own button carries the verb.
             items.spawn((
                 Name::new("New Scenario Item"),
+                DestructiveVerb::NewScenario,
                 menu_item_row("New Scenario", MenuTail::None, skin),
-                observe(reset_document),
             ));
             items.spawn((
                 Name::new("Save Item"),
@@ -89,8 +92,8 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             ));
             items.spawn((
                 Name::new("Open Item"),
+                DestructiveVerb::Open,
                 menu_item_row("Open", MenuTail::None, skin),
-                observe(ask_to_open),
             ));
             // Still greyed: Save As needs a name to save under and a place to
             // type it, and there is one save slot until it has both. It says
@@ -104,8 +107,8 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn(separator());
             items.spawn((
                 Name::new("Back To Main Menu Item"),
+                DestructiveVerb::MainMenu,
                 menu_item_row("Back to Main Menu", MenuTail::None, skin),
-                observe(back_to_main_menu),
             ));
         }
         MenuId::Edit => {

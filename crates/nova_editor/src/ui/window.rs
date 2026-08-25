@@ -19,14 +19,19 @@ use bevy::{
     },
 };
 use nova_ui::{
-    prelude::{panel, slider_track, UiSkin, UiText},
+    prelude::{panel, slider_track, themed_button, UiSkin, UiText},
     theme,
 };
 
 use crate::{
+    bundle::ask_to_open,
     config::EditorSays,
     inspect::{colour_text, write_field},
-    ui::inspector::{EditTargets, InspectorField, InspectorSwatch},
+    node::reset_document,
+    ui::{
+        inspector::{EditTargets, InspectorField, InspectorSwatch},
+        menu::back_to_main_menu,
+    },
 };
 
 /// Window width. The inspector's own width, so a picker reads as the row it
@@ -168,7 +173,239 @@ pub(crate) fn window_layer() -> impl Bundle {
     )
 }
 
-/// Open the colour picker on the swatch that was clicked.
+/// A verb that throws the document away, held back until the builder says yes.
+///
+/// On the menu ROW, not on the button that carries it out: the row asks, the
+/// window's own button is what actually runs the verb.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum DestructiveVerb {
+    /// File > New Scenario.
+    NewScenario,
+    /// File > Open, which replaces what is on the stage with what is on disk.
+    Open,
+    /// File > Back to Main Menu, which ends the session and the document.
+    MainMenu,
+}
+
+impl DestructiveVerb {
+    /// The window's title.
+    fn title(self) -> &'static str {
+        match self {
+            Self::NewScenario => "NEW SCENARIO",
+            Self::Open => "OPEN",
+            Self::MainMenu => "BACK TO MAIN MENU",
+        }
+    }
+
+    /// What is about to be lost, said plainly. There is no undo and no
+    /// autosave, so the sentence has to carry the whole warning.
+    fn question(self) -> &'static str {
+        match self {
+            Self::NewScenario => "This throws away everything on the stage and starts an empty scenario. There is no undo.",
+            Self::Open => "This replaces everything on the stage with the saved scenario. There is no undo.",
+            Self::MainMenu => "Leaving ends the session. Anything not saved goes with it.",
+        }
+    }
+
+    /// The label on the button that goes through with it. It names the VERB
+    /// rather than saying "OK", so a builder reading only the buttons still
+    /// knows which one is the destructive one.
+    fn confirm(self) -> &'static str {
+        match self {
+            Self::NewScenario => "Discard and start over",
+            Self::Open => "Discard and open",
+            Self::MainMenu => "Discard and leave",
+        }
+    }
+}
+
+/// The window standing in front of a destructive verb.
+#[derive(Component)]
+pub(crate) struct ConfirmWindow;
+
+/// Either of the confirm window's two answers: both close it.
+#[derive(Component)]
+pub(crate) struct ConfirmAnswer;
+
+/// Confirm window width. Wider than the picker: this one is a sentence, and a
+/// warning that wraps four times reads as fine print.
+const CONFIRM_W: f32 = 360.0;
+
+/// Put the question up instead of doing it.
+///
+/// One observer for all three verbs, keyed on the row's own
+/// [`DestructiveVerb`]. The button inside the window carries the real verb's
+/// observer, so there is no second copy of what any of them do.
+pub(crate) fn on_destructive_item(
+    activate: On<Activate>,
+    rows: Query<&DestructiveVerb>,
+    mut commands: Commands,
+    skin: Res<UiSkin>,
+    layer: Option<Single<Entity, With<EditorWindowLayer>>>,
+    open: Query<(), With<ConfirmWindow>>,
+    screen: Option<Single<&Window>>,
+) {
+    let Ok(verb) = rows.get(activate.entity) else {
+        return;
+    };
+    let Some(layer) = layer else {
+        return;
+    };
+    if !open.is_empty() {
+        return;
+    }
+    let size = screen.map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
+    let at = Vec2::new(((size.x - CONFIRM_W) * 0.5).max(8.0), TOP_MARGIN);
+    commands
+        .entity(*layer)
+        .with_children(|layer| spawn_confirm_window(layer, *verb, at, *skin));
+}
+
+/// The question, its two answers, and the bar you can drag it by.
+fn spawn_confirm_window(
+    layer: &mut RelatedSpawnerCommands<ChildOf>,
+    verb: DestructiveVerb,
+    at: Vec2,
+    skin: UiSkin,
+) {
+    let mut frame = layer.spawn((
+        Name::new("Confirm Window"),
+        EditorWindow,
+        ConfirmWindow,
+        Node {
+            position_type: PositionType::Absolute,
+            left: px(at.x),
+            top: px(at.y),
+            width: px(CONFIRM_W),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Stretch,
+            border: UiRect::all(px(theme::BORDER_W)),
+            ..default()
+        },
+        panel(skin),
+    ));
+    let window = frame.id();
+    frame.with_children(|frame| {
+        frame
+            .spawn((
+                Name::new("Confirm Window Bar"),
+                WindowTitleBar { window },
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::SpaceBetween,
+                    column_gap: px(8),
+                    padding: UiRect::axes(px(10), px(6)),
+                    border: UiRect::bottom(px(theme::BORDER_W)),
+                    ..default()
+                },
+                BorderColor::all(theme::PHOSPHOR.with_alpha(0.16)),
+                observe(on_window_drag),
+            ))
+            .with_children(|bar| {
+                bar.spawn((
+                    Name::new("Confirm Window Title"),
+                    UiText,
+                    Text::new(verb.title()),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextColor(theme::AMBER_NOVA),
+                ));
+            });
+        frame
+            .spawn((
+                Name::new("Confirm Window Body"),
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Stretch,
+                    row_gap: px(10),
+                    padding: UiRect::all(px(10)),
+                    ..default()
+                },
+            ))
+            .with_children(|body| {
+                body.spawn((
+                    Name::new("Confirm Window Question"),
+                    UiText,
+                    Text::new(verb.question()),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextColor(theme::PHOSPHOR),
+                ));
+                body.spawn((
+                    Name::new("Confirm Window Answers"),
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        column_gap: px(8),
+                        ..default()
+                    },
+                ))
+                .with_children(|answers| {
+                    // Keep editing FIRST and named for what it does. The safe
+                    // answer is the one a builder should be able to reach
+                    // without reading, and "Cancel" against a warning is
+                    // ambiguous about which thing it cancels.
+                    // A slot each, because `themed_button` is percent(100)
+                    // wide - the growing is the slot's job, and the marker and
+                    // the observer belong on the BUTTON, which is what emits
+                    // the press.
+                    answers
+                        .spawn(Node {
+                            flex_grow: 1.0,
+                            ..default()
+                        })
+                        .with_children(|slot| {
+                            slot.spawn((
+                                Name::new("Confirm Keep Button"),
+                                ConfirmAnswer,
+                                themed_button("Keep editing"),
+                            ));
+                        });
+                    answers
+                        .spawn(Node {
+                            flex_grow: 1.0,
+                            ..default()
+                        })
+                        .with_children(|slot| {
+                            let mut go = slot.spawn((
+                                Name::new("Confirm Discard Button"),
+                                ConfirmAnswer,
+                                themed_button(verb.confirm()),
+                            ));
+                            match verb {
+                                DestructiveVerb::NewScenario => go.observe(reset_document),
+                                DestructiveVerb::Open => go.observe(ask_to_open),
+                                DestructiveVerb::MainMenu => go.observe(back_to_main_menu),
+                            };
+                        });
+                });
+            });
+    });
+}
+
+/// Take the question down, whichever answer was pressed.
+///
+/// Central, so the verb's own observer never has to know it was asked about.
+pub(crate) fn close_confirm_window(
+    activate: On<Activate>,
+    answers: Query<(), With<ConfirmAnswer>>,
+    windows: Query<Entity, With<ConfirmWindow>>,
+    mut commands: Commands,
+) {
+    if !answers.contains(activate.entity) {
+        return;
+    }
+    for window in &windows {
+        commands.entity(window).despawn();
+    }
+}
+
+/// Open the colour picker on the swatch that was clicked./// Open the colour picker on the swatch that was clicked.
 ///
 /// The colour it opens on is the one the SWATCH is painted, which is the value
 /// the Inspector last read off the document - so the picker never has to walk

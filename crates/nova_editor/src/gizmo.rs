@@ -27,7 +27,7 @@ use bevy::{
 use nova_ui::theme;
 
 use crate::{
-    config::{SectionChoice, SelectedNode},
+    config::SelectedNode,
     frame::node_bounds,
     gallery::{EditorCamera, GalleryState},
     node::{EditContext, ObjectNode, ShipNode},

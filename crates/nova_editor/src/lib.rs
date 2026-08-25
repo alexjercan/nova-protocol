@@ -89,7 +89,7 @@ use ui::{
     setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
     sync_rebind_button, sync_row_trash, sync_scene_list, sync_skin_toggle, sync_status_line,
     sync_style_list,
-    window::{on_colour_slider, sync_colour_windows},
+    window::{close_confirm_window, on_colour_slider, on_destructive_item, sync_colour_windows},
 };
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`],
@@ -518,6 +518,10 @@ fn editor_plugin(app: &mut App) {
     // the event rather than off the slider, so it does not care whether
     // nova_ui's `slider_self_update` has committed it yet.
     app.add_observer(on_colour_slider);
+    // The question goes up before the verb runs, and comes down whichever way
+    // it is answered. See `ui::window::DestructiveVerb`.
+    app.add_observer(on_destructive_item);
+    app.add_observer(close_confirm_window);
 
     // The inspector: what a typed field does to the document, and the camera
     // rig it borrows while the field has the keyboard. Ungated on the gallery
