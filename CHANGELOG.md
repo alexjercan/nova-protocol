@@ -17,16 +17,16 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Interface & HUD
 
-- The editor holds a scenario of ships under a real scene tree and a top bar
-  of per-context actions: one click enters a ship or selects a section,
-  entering shows only that ship, and Play compiles the scenario root.
+- The editor holds a scenario of ships under a real scene tree: one click
+  enters a ship or selects a section, entering shows only that ship, and Play
+  compiles the scenario root.
 - Add Ship starts a blank ship - a pad marker shows where the first armed
   part founds it - and dragging a ship at the scenario node slides it on the
   ground plane.
 - The sandbox range is part of the document: its planetoid, hulks, pickets,
   beacons and lights come up as scene-tree nodes, and Play flies the range the
   tree holds rather than a fixed one.
-- An Add Object palette places anchors, asteroids, beacons, salvage crates and
+- The top bar's Add menu places anchors, asteroids, beacons, salvage crates and
   lights in front of the camera, and dragging or deleting a world object works
   exactly as it does for a ship.
 - A click in the world selects: a section inside a ship, a ship outside.
@@ -35,9 +35,13 @@ does NOT get an entry - and it is the only place they are written down.
   neutral AI ship at its stage offset beside the player's.
 - The stage camera snaps to what you edit - the entered ship, or the whole
   scenario back at the root.
-- The top bar reads the context back ([SCENARIO] or [SHIP], path, selection),
-  the footer legend matches the level, and a greyed File/Edit/View menu bar
-  marks the chrome to come.
+- The top bar reads the context back ([SCENARIO] or [SHIP], path, selection)
+  and the footer legend matches the level.
+- File, Edit, View and Add drop real menus, with Play dead centre between
+  them: File starts a new scenario, View toggles the key legend and the
+  link-point gizmos, Escape closes an open menu.
+- Scene tree rows step in by depth, so a ship's sections read as its own
+  branch rather than as more entries in one flat list.
 - Back to Main Menu ends the session and deletes the scenario draft; Play
   round-trips still return to it.
 

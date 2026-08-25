@@ -17,7 +17,7 @@
 //! Picking therefore lands on a VIEW. Every pointer path maps it back with
 //! [`node_of_view`].
 
-use bevy::prelude::*;
+use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
 use nova_gameplay::prelude::AssetRef;
 use nova_scenario::prelude::*;
@@ -644,6 +644,18 @@ pub(crate) fn ensure_document(mut commands: Commands, mut context: ResMut<EditCo
     if context.scenario().is_some() {
         return;
     }
+    found_document(&mut commands, &mut context);
+}
+
+/// Found a document: one scenario node, seeded with the stock range, and the
+/// context standing on it.
+///
+/// A new document opens on the stock range rather than on the void: the
+/// sandbox's rocks, hulks, pickets, beacons and lights are the DEFAULT WORLD
+/// now, not constants baked into the hand-off. Seeded HERE, once, when the
+/// document is created - a "the world looks empty, refill it" pass would
+/// resurrect everything the builder deleted on the next editor entry.
+pub(crate) fn found_document(commands: &mut Commands, context: &mut EditContext) -> Entity {
     let scenario = commands
         .spawn((
             EditorNode,
@@ -655,15 +667,32 @@ pub(crate) fn ensure_document(mut commands: Commands, mut context: ResMut<EditCo
             Visibility::Visible,
         ))
         .id();
-    // A new document opens on the stock range rather than on the void: the
-    // sandbox's rocks, hulks, pickets, beacons and lights are the DEFAULT WORLD
-    // now, not constants baked into the hand-off. Seeded HERE, once, when the
-    // document is created - a "the world looks empty, refill it" pass would
-    // resurrect everything the builder deleted on the next editor entry.
     for object in default_world_objects() {
-        insert_object_node(&mut commands, scenario, object);
+        insert_object_node(commands, scenario, object);
     }
     context.path = vec![scenario];
+    scenario
+}
+
+/// Throw the document away and found a new one - File > New Scenario.
+///
+/// Torn down and re-founded in ONE go rather than by clearing the context and
+/// letting `ensure_document` notice: that system runs on entering the editor,
+/// and a "no document, make one" pass in `Update` would also undo the teardown
+/// that ends the session (the state change lands a frame later than the
+/// despawn).
+pub(crate) fn reset_document(
+    _activate: On<Activate>,
+    mut commands: Commands,
+    mut context: ResMut<EditContext>,
+    mut selected: ResMut<SelectedNode>,
+    roots: Query<Entity, With<ScenarioNode>>,
+) {
+    for root in &roots {
+        commands.entity(root).despawn();
+    }
+    selected.0 = None;
+    found_document(&mut commands, &mut context);
 }
 
 /// Put one authored scenario object into the document under `scenario`, keeping
@@ -1308,5 +1337,55 @@ mod tests {
             vec![scenario],
             "the scenario node is the floor"
         );
+    }
+
+    /// File > New throws the whole document away and stands the context on a
+    /// fresh one. Everything the builder added has to go with it - a "New" that
+    /// left the old ships parented to a dead root would keep them in the world
+    /// with no row in the tree pointing at them.
+    #[test]
+    fn file_new_replaces_the_whole_document() {
+        let mut world = World::new();
+        world.init_resource::<EditContext>();
+        world.init_resource::<SelectedNode>();
+        world.add_observer(reset_document);
+
+        world
+            .run_system_once(ensure_document)
+            .expect("the founding system runs");
+        let first = world
+            .resource::<EditContext>()
+            .scenario()
+            .expect("a document was founded");
+        let ship = world
+            .spawn((EditorNode, ShipNode::default(), ChildOf(first)))
+            .id();
+        world.resource_mut::<EditContext>().enter(ship);
+        world.resource_mut::<SelectedNode>().0 = Some(ship);
+
+        world.trigger(Activate {
+            entity: Entity::PLACEHOLDER,
+        });
+        world.flush();
+
+        let second = world
+            .resource::<EditContext>()
+            .scenario()
+            .expect("a new document was founded");
+        assert_ne!(second, first, "the old root is gone, not reused");
+        assert!(
+            world.get_entity(first).is_err(),
+            "the old root was despawned"
+        );
+        assert!(
+            world.get_entity(ship).is_err(),
+            "and took its ships with it"
+        );
+        assert_eq!(
+            world.resource::<EditContext>().ship(),
+            None,
+            "the context stands on the new scenario node, not inside a dead ship"
+        );
+        assert_eq!(world.resource::<SelectedNode>().0, None);
     }
 }

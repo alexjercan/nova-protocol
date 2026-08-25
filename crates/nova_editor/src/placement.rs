@@ -22,8 +22,8 @@ use nova_ui::{
 
 use crate::{
     config::{
-        Placement, PlacementPose, PlacementPreview, PlacementStatus, SectionChoice, SectionGhost,
-        SectionPreviewMarker, SelectedNode,
+        EditorOverlays, Placement, PlacementPose, PlacementPreview, PlacementStatus, SectionChoice,
+        SectionGhost, SectionPreviewMarker, SelectedNode,
     },
     keybind::EditorRebind,
     node::{
@@ -1032,8 +1032,12 @@ pub(crate) fn on_stage_drag_end(drag: On<Pointer<DragEnd>>, mut state: ResMut<St
 /// a stub along its normal, the socket under the pointer draws bright, and the
 /// armed part's own mating socket draws on the ghost - so "which link point"
 /// becomes something you point at rather than something you count presses to.
+///
+/// View > Link Points turns them off, for a builder who knows where the sockets
+/// are and wants to look at the ship instead.
 pub(crate) fn draw_link_points(
     preview: Res<PlacementPreview>,
+    overlays: Res<EditorOverlays>,
     selection: Res<SectionChoice>,
     sections: Res<GameSections>,
     context: Res<EditContext>,
@@ -1041,6 +1045,9 @@ pub(crate) fn draw_link_points(
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
     mut gizmos: Gizmos,
 ) {
+    if !overlays.link_points {
+        return;
+    }
     let (SectionChoice::Section(armed), Some(edited)) = (&*selection, context.ship()) else {
         return;
     };

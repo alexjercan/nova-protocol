@@ -39,7 +39,7 @@ mod snap;
 mod ui;
 
 use attitude::sync_attitude_readout;
-use config::{PlacementPose, PlacementPreview, SectionChoice, SelectedNode};
+use config::{EditorOverlays, PlacementPose, PlacementPreview, SectionChoice, SelectedNode};
 use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
     sync_section_keybind_labels, EditorRebind,
@@ -61,6 +61,10 @@ pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
 use ui::{
+    menu::{
+        close_menu_on_item, close_menus, close_open_menu, sync_menu_delete, sync_menu_item_paint,
+        sync_menus, sync_view_menu_marks, OpenMenu,
+    },
     setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_delete_button, sync_key_legend,
     sync_play_button, sync_rebind_button, sync_scene_list, sync_skin_toggle, sync_style_list,
 };
@@ -109,6 +113,13 @@ fn editor_plugin(app: &mut App) {
     app.init_resource::<EditContext>();
     app.init_resource::<SelectedNode>();
     app.init_resource::<EditorRebind>();
+    app.init_resource::<EditorOverlays>();
+    // The top bar's menus. Closed on entering the editor because the bar they
+    // hang off is `DespawnOnExit(Editor)`: an "open" menu on the way back in
+    // would be a dropdown with no button under it.
+    app.init_resource::<OpenMenu>();
+    app.add_observer(close_menu_on_item);
+    app.add_systems(OnEnter(ExampleStates::Editor), close_menus);
     // Normally the gameplay plugin's; init'd here too so a menu-less rig (and
     // the tests below) still has one to write.
     app.init_resource::<EscapeOwner>();
@@ -294,6 +305,15 @@ fn editor_plugin(app: &mut App) {
             disarm_outside_ship,
             sync_tool_selection,
             sync_key_legend,
+            // The menus: which one hangs open, and what its rows report about
+            // the state they toggle.
+            (
+                sync_menus,
+                sync_view_menu_marks,
+                sync_menu_delete,
+                sync_menu_item_paint,
+            )
+                .chain(),
             sync_attitude_readout,
             sync_skin_toggle,
             sync_style_list,
@@ -406,9 +426,9 @@ fn editor_plugin(app: &mut App) {
 /// Say whether the editor answers Escape itself this frame (see
 /// [`EscapeOwner`]).
 ///
-/// It does while there is something to back OUT of: the parts gallery is up, a
-/// part is armed, a rebind is waiting for a key, or the editor is INSIDE a ship
-/// and can step back out to the scenario. With none of those the key falls
+/// It does while there is something to back OUT of: a menu is open, the parts
+/// gallery is up, a part is armed, a rebind is waiting for a key, or the editor
+/// is INSIDE a ship and can step back out to the scenario. With none of those the key falls
 /// through to the pause menu, which stays the sanctioned way out of the editor.
 /// Written every frame, including the `false`: whoever claims the key also has
 /// to release it.
@@ -418,10 +438,12 @@ fn declare_editor_escape_owner(
     choice: Res<SectionChoice>,
     rebind: Res<EditorRebind>,
     context: Res<EditContext>,
+    menu: Res<OpenMenu>,
     mut owner: ResMut<EscapeOwner>,
 ) {
     let owned = *editor.get() == ExampleStates::Editor
-        && (gallery.open
+        && (menu.0.is_some()
+            || gallery.open
             || rebind.target.is_some()
             || *choice != SectionChoice::None
             || context.ship().is_some());
@@ -433,23 +455,29 @@ fn declare_editor_escape_owner(
 /// Escape backs out one step: it puts the armed part down, and with nothing in
 /// hand it leaves the ship you are inside.
 ///
-/// ONE RUNG PER PRESS. The full ladder is: the gallery (which answers its own
-/// Escape while it is up, see `gallery::input`), then a pending rebind (which
-/// `keybind::apply_section_rebind` cancels), then the armed part, then the edit
-/// context, then the pause menu. The two rungs this system does not own are the
-/// two it has to check for itself - the gallery through a run condition, the
-/// rebind here - because both of those cancel in the SAME frame this reads the
-/// key, not before it.
+/// ONE RUNG PER PRESS. The full ladder is: an open top-bar menu, then the
+/// gallery (which answers its own Escape while it is up, see `gallery::input`),
+/// then a pending rebind (which `keybind::apply_section_rebind` cancels), then
+/// the armed part, then the edit context, then the pause menu. The two rungs
+/// this system does not own are the two it has to check for itself - the
+/// gallery through a run condition, the rebind here - because both of those
+/// cancel in the SAME frame this reads the key, not before it.
 fn escape_backs_out(
     keys: Res<ButtonInput<KeyCode>>,
     // Read before `apply_section_rebind` consumes it - see the ordering at the
     // registration. A rebind cancelled and a ship left on one press is two rungs
     // of context thrown away for one gesture.
     rebind: Res<EditorRebind>,
+    mut menu: ResMut<OpenMenu>,
     mut choice: ResMut<SectionChoice>,
     mut context: ResMut<EditContext>,
 ) {
     if !keys.just_pressed(KeyCode::Escape) || rebind.target.is_some() {
+        return;
+    }
+    // The menu is drawn over everything else, so it is what the press is aimed
+    // at while it is open.
+    if close_open_menu(&mut menu) {
         return;
     }
     if *choice != SectionChoice::None {
@@ -516,6 +544,7 @@ mod tests {
     use bevy::{ecs::system::RunSystemOnce, state::app::StatesPlugin};
 
     use super::*;
+    use crate::ui::menu::MenuId;
 
     /// Escape is the editor's only while it HAS a back step. With nothing armed
     /// and no gallery up the key falls through to the pause menu, which is the
@@ -586,6 +615,7 @@ mod tests {
             // things this case varies rather than by having a ship to leave.
             world.init_resource::<EditContext>();
             world.init_resource::<EscapeOwner>();
+            world.init_resource::<OpenMenu>();
 
             world
                 .run_system_once(declare_editor_escape_owner)
@@ -597,6 +627,35 @@ mod tests {
                 "{state:?} / gallery {gallery_open} / {choice:?} / rebinding {rebinding}"
             );
         }
+    }
+
+    /// An open top-bar menu is a back step of its own, and the topmost one: it
+    /// is drawn over everything else, so Escape has to close it rather than
+    /// fall through to the pause menu behind it.
+    #[test]
+    fn an_open_menu_claims_escape() {
+        let mut world = World::new();
+        world.insert_resource(State::new(ExampleStates::Editor));
+        world.init_resource::<gallery::GalleryState>();
+        world.insert_resource(SectionChoice::None);
+        world.init_resource::<EditorRebind>();
+        world.init_resource::<EditContext>();
+        world.init_resource::<EscapeOwner>();
+        world.init_resource::<OpenMenu>();
+
+        world
+            .run_system_once(declare_editor_escape_owner)
+            .expect("the claim system runs");
+        assert!(
+            !world.resource::<EscapeOwner>().0,
+            "an idle editor lets the key through"
+        );
+
+        world.resource_mut::<OpenMenu>().0 = Some(MenuId::File);
+        world
+            .run_system_once(declare_editor_escape_owner)
+            .expect("the claim system runs");
+        assert!(world.resource::<EscapeOwner>().0);
     }
 
     /// The back gesture is a LADDER, one rung per press: a pending rebind owns
@@ -614,6 +673,7 @@ mod tests {
         world.insert_resource(keys);
         world.insert_resource(SectionChoice::Section("hull".to_string()));
         world.init_resource::<EditorRebind>();
+        world.insert_resource(OpenMenu(Some(MenuId::File)));
         world.insert_resource(EditContext {
             path: vec![scenario, ship],
         });
@@ -632,6 +692,17 @@ mod tests {
         );
         assert_eq!(world.resource::<EditContext>().ship(), Some(ship));
         world.resource_mut::<EditorRebind>().target = None;
+
+        // Then the open menu, which is drawn over the part in hand.
+        world
+            .run_system_once(escape_backs_out)
+            .expect("the back-out system runs");
+        assert_eq!(world.resource::<OpenMenu>().0, None);
+        assert_eq!(
+            *world.resource::<SectionChoice>(),
+            SectionChoice::Section("hull".to_string()),
+            "closing the menu did not also put the part down"
+        );
 
         world
             .run_system_once(escape_backs_out)

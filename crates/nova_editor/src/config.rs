@@ -59,11 +59,31 @@ pub(crate) struct ScenarioActions;
 #[derive(Component)]
 pub(crate) struct DeleteNodeButton;
 
-/// The rail's world block: the object palette. Shown only at the scenario node,
-/// because placing a rock is something the SCENARIO does - the mirror of
-/// [`ShipSettings`], which is only meaningful inside a ship.
-#[derive(Component)]
-pub(crate) struct ScenarioSettings;
+/// What the editor stage DRAWS on top of the document, toggled from the View
+/// menu.
+///
+/// Overlays rather than settings: none of this is saved with the scenario and
+/// none of it changes what Play spawns. They live in one resource so the menu
+/// has one thing to read back and the gizmo systems have one thing to check.
+#[derive(Resource, Debug, Clone, Copy)]
+pub(crate) struct EditorOverlays {
+    /// The footer's key line.
+    pub(crate) key_legend: bool,
+    /// The socket rings a ship draws while a part is armed.
+    pub(crate) link_points: bool,
+}
+
+impl Default for EditorOverlays {
+    /// Both ON. The legend is how the editor teaches its keys, and the sockets
+    /// are the only thing placement snaps to - an editor that opened with them
+    /// off would be an editor whose first build is guesswork.
+    fn default() -> Self {
+        Self {
+            key_legend: true,
+            link_points: true,
+        }
+    }
+}
 
 /// The top bar's ship-context action group (Parts, Delete, Rebind). Shown only
 /// inside a ship.

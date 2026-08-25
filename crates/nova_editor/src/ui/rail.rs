@@ -9,10 +9,7 @@ use nova_ui::{
     widget::{checkbox, list_row_colors, ListRow},
 };
 
-use crate::{
-    config::{SkinToggleCheckbox, StyleChoice},
-    node::ObjectChoice,
-};
+use crate::config::{SkinToggleCheckbox, StyleChoice};
 
 /// The cladding toggle: a tool row that is a SETTING rather than a mode, so it
 /// carries the shared `checkbox` widget instead of a `ButtonValue`.
@@ -95,53 +92,38 @@ pub(crate) fn style_row(id: &str, name: &str, selected: bool, skin: UiSkin) -> i
     )
 }
 
-/// One kind in the world block's object palette.
-///
-/// A `ListRow` like the looks above rather than a tool chip, and for the same
-/// reason: five kinds at tool height would push the tree off a 150px rail. It
-/// is an ACTION, not a mode - pressing it places an object and nothing stays
-/// armed - so nothing here is ever marked `Selected`.
-pub(crate) fn object_row(choice: ObjectChoice, skin: UiSkin) -> impl Bundle {
-    let (background, border) = list_row_colors(false, false, skin);
-    (
-        ListRow,
-        choice,
-        Button,
-        Hovered::default(),
-        Node {
-            width: percent(100),
-            min_height: px(22),
-            margin: UiRect::bottom(px(2)),
-            padding: UiRect::axes(px(10), px(2)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            align_items: AlignItems::Center,
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
-            ..default()
-        },
-        BorderColor::all(border),
-        BackgroundColor(background),
-        children![(
-            Text::new(choice.label().to_string()),
-            TextFont {
-                font_size: FontSize::Px(12.0),
-                ..default()
-            },
-            TextColor(theme::PHOSPHOR),
-        )],
-    )
-}
+/// A root row's left padding, matching the other rails rows' `10px`-ish inset.
+const INDENT_BASE: f32 = 8.0;
+/// What one level of nesting is worth. Wide enough to read as a step, narrow
+/// enough that a section (depth 2) still shows most of its id.
+const INDENT_STEP: f32 = 12.0;
 
 /// One row of the Scene tree: the scenario root, a ship, or a section of the
 /// entered ship.
 ///
 /// The same `ListRow` shape the look rows use, so the shared reconciler paints
 /// the selection and the hover and this module owns no colour. `lead` is the
-/// tree furniture in front of the label - ASCII connectors for the depth plus
-/// a glyph for the node's kind - one muted text node instead of an icon asset,
+/// glyph in front of the label - one muted text node instead of an icon asset,
 /// which is also what keeps the tree in the terminal look the rest of the
 /// screen wears.
-pub(crate) fn scene_row(lead: &str, label: &str, selected: bool, skin: UiSkin) -> impl Bundle {
+///
+/// `depth` is spent on the row's LEFT PADDING rather than on drawn connectors.
+/// Indentation is what the eye reads a tree by, and it costs no width in a
+/// 150px rail: `|- ` in front of every child ate 18px of the label on every
+/// row, and a minted id is exactly the thing that then ran out of room.
+pub(crate) fn scene_row(
+    depth: usize,
+    lead: &str,
+    label: &str,
+    selected: bool,
+    skin: UiSkin,
+) -> impl Bundle {
     let (background, border) = list_row_colors(selected, false, skin);
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "tree depth is single digits, not a precision question"
+    )]
+    let indent = px(INDENT_BASE + INDENT_STEP * depth as f32);
     // A minted id can outgrow the 150px rail. NoWrap + clip keeps every row
     // one line tall - a wrapped lead column stacked its glyphs vertically and
     // the tree stopped reading as a tree.
@@ -157,7 +139,12 @@ pub(crate) fn scene_row(lead: &str, label: &str, selected: bool, skin: UiSkin) -
             width: percent(100),
             min_height: px(22),
             margin: UiRect::bottom(px(2)),
-            padding: UiRect::axes(px(8), px(2)),
+            padding: UiRect {
+                left: indent,
+                right: px(8),
+                top: px(2),
+                bottom: px(2),
+            },
             border: UiRect::all(px(theme::BORDER_W)),
             align_items: AlignItems::Center,
             column_gap: px(6),

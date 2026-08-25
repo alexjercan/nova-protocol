@@ -195,6 +195,10 @@ const HULL_PROTOTYPE: &str = "reinforced_hull_section";
 #[cfg(feature = "debug")]
 const CONTROLLER_PROTOTYPE: &str = "basic_controller_section";
 
+/// The top bar's Add menu, the door every "one more node" gesture goes through.
+#[cfg(feature = "debug")]
+const MENU_ADD: &str = "Add Menu Button";
+
 /// A viewport point (logical px) with neither the ship nor a rail panel under
 /// it, on the 1024x768 window the app opens. Pointing here is how a beat puts
 /// the ghost away without disarming the part it is holding.
@@ -251,7 +255,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(state_is(GameStates::Playing))
         .deadline(BOOT_DEADLINE_SECS)
         .add()
-        .click_a_widget("editor: click Add Ship", "Add Ship Button")
+        .click_a_menu_item("editor: click Add > Ship", MENU_ADD, "Add Ship Button")
         .step("editor: the blank ship is up and entered")
         .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
@@ -951,14 +955,18 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             world.resource_mut::<EditorWalk>().ids = ids;
         })
         .add()
-        // Add Ship is a scenario-context action, so the run steps out through
+        // Add > Ship is a scenario-context action, so the run steps out through
         // the tree's root row first - the same door a builder uses.
         .click_a_widget("editor: leave to add a second ship", "Scene Row scenario")
         .step("editor: back at the scenario node to add a ship")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .click_a_widget("editor: click Add Ship again", "Add Ship Button")
+        .click_a_menu_item(
+            "editor: click Add > Ship again",
+            MENU_ADD,
+            "Add Ship Button",
+        )
         .step("editor: the second ship is up and entered")
         .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
@@ -1077,10 +1085,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: back at the scenario node, listing {listed:?}");
         })
         .add()
-        // The world is a document too, not just the ships in it. The rail's
-        // object palette places a rock in front of the camera, the tree lists
-        // it beside the ships, and the scenario's Delete takes it back off.
-        .click_a_widget("editor: place an asteroid", "Add Asteroid")
+        // The world is a document too, not just the ships in it. The Add menu
+        // places a rock in front of the camera, the tree lists it beside the
+        // ships, and Delete takes it back off.
+        .click_a_menu_item("editor: place an asteroid", MENU_ADD, "Add Asteroid")
         .step("editor: the placed rock is a marked node in the tree")
         .until(an_object_was_placed("asteroid"))
         .deadline(BEAT_DEADLINE_SECS)
@@ -1924,6 +1932,14 @@ trait EditorGestures {
     /// silently lost, and the run fails later somewhere else.
     fn click_a_widget(self, label: &str, name: &str) -> Self;
 
+    /// Drop a top-bar menu, then press one of its rows.
+    ///
+    /// Two clicks because that is the real gesture: a dropdown is `Display::None`
+    /// until its button opens it, and a hidden node has no laid-out centre for
+    /// the pointer to aim at. A walk that reached the item without opening the
+    /// menu would pass over a menu that never drops.
+    fn click_a_menu_item(self, label: &str, menu: &str, item: &str) -> Self;
+
     /// Press and release the pointer where it already is, then hold until
     /// `landed` - what the click was supposed to change.
     fn press_and_release(self, label: &str, landed: Wait) -> Self;
@@ -1953,6 +1969,11 @@ trait EditorGestures {
 
 #[cfg(feature = "debug")]
 impl EditorGestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    fn click_a_menu_item(self, label: &str, menu: &str, item: &str) -> Self {
+        self.click_a_widget(&format!("{label}: open the menu"), menu)
+            .click_a_widget(label, item)
+    }
+
     fn click_a_widget(self, label: &str, name: &str) -> Self {
         let target = name.to_string();
         self.step(format!("{label}: the widget is up"))

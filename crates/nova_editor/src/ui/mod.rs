@@ -9,9 +9,11 @@
 //! are picked in the `gallery`, which replaced the component drawer that used
 //! to sit beside this rail.
 
+pub(crate) mod menu;
 pub(crate) mod rail;
 
 use bevy::{
+    ecs::relationship::RelatedSpawnerCommands,
     prelude::*,
     ui::InteractionDisabled,
     ui_widgets::{observe, Activate},
@@ -27,23 +29,124 @@ use nova_ui::{
 
 use crate::{
     config::{
-        AttitudeReadout, ContextBreadcrumb, DeleteNodeButton, EditorKeyLegend, PlacementStatus,
-        PlayButton, RebindButton, ScenarioActions, ScenarioSettings, SceneList, SceneRow,
+        AttitudeReadout, ContextBreadcrumb, DeleteNodeButton, EditorKeyLegend, EditorOverlays,
+        PlacementStatus, PlayButton, RebindButton, ScenarioActions, SceneList, SceneRow,
         SectionChoice, SelectedNode, ShipActions, ShipSettings, SkinToggleCheckbox, StyleChoice,
         StyleList,
     },
     gallery::{EditorCamera, EditorChrome, GalleryAction},
     keybind::on_rebind_action,
     node::{
-        objects_of, sections_of, EditContext, NodeId, ObjectChoice, ObjectNode, ObjectNodes,
-        ScenarioNode, SectionNode, SectionNodes, ShipDriver, ShipNode, ShipNodes,
+        objects_of, reset_document, sections_of, EditContext, NodeId, ObjectChoice, ObjectNode,
+        ObjectNodes, ScenarioNode, SectionNode, SectionNodes, ShipDriver, ShipNode, ShipNodes,
     },
     placement::{
         continue_to_simulation, create_blank_ship, create_scenario_object, delete_selected_node,
     },
-    ui::rail::{object_row, scene_row, skin_toggle_row, style_row},
+    ui::{
+        menu::{
+            back_to_main_menu, menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim,
+            menu_z, on_menu_button, on_menu_scrim, toggle_key_legend, toggle_link_points,
+            MenuDeleteItem, MenuDropdown, MenuId, ViewToggle,
+        },
+        rail::{scene_row, skin_toggle_row, style_row},
+    },
     ExampleStates,
 };
+
+/// Fill one dropdown.
+///
+/// The whole menu bar in one place, so what the editor can do reads as a list
+/// rather than as four `with_children` blocks buried in the bar's layout.
+///
+/// GREYED, NOT ABSENT, for the items that are not built: Save and Open are the
+/// save/load task's, Undo and Redo are nobody's yet, and Frame Selection lands
+/// with the camera gestures. A menu that only lists what already works cannot
+/// say what the editor is going to be.
+fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: UiSkin) {
+    match menu {
+        MenuId::File => {
+            items.spawn((
+                Name::new("New Scenario Item"),
+                menu_item_row("New Scenario", None, skin),
+                observe(reset_document),
+            ));
+            for (label, shortcut) in [
+                ("Save", Some("Ctrl+S")),
+                ("Save As...", None),
+                ("Open...", None),
+            ] {
+                items.spawn((
+                    Name::new(format!("{label} Item")),
+                    menu_item_row(label, shortcut, skin),
+                    InteractionDisabled,
+                ));
+            }
+            items.spawn(separator());
+            items.spawn((
+                Name::new("Back To Main Menu Item"),
+                menu_item_row("Back to Main Menu", None, skin),
+                observe(back_to_main_menu),
+            ));
+        }
+        MenuId::Edit => {
+            for label in ["Undo", "Redo"] {
+                items.spawn((
+                    Name::new(format!("{label} Item")),
+                    menu_item_row(label, None, skin),
+                    InteractionDisabled,
+                ));
+            }
+            items.spawn(separator());
+            items.spawn((
+                Name::new("Delete Item"),
+                MenuDeleteItem,
+                menu_item_row("Delete", None, skin),
+                observe(delete_selected_node),
+            ));
+        }
+        MenuId::View => {
+            items.spawn((
+                Name::new("Key Legend Item"),
+                ViewToggle::KeyLegend,
+                menu_item_row("Key Legend", Some("on"), skin),
+                observe(toggle_key_legend),
+            ));
+            items.spawn((
+                Name::new("Link Points Item"),
+                ViewToggle::LinkPoints,
+                menu_item_row("Link Points", Some("on"), skin),
+                observe(toggle_link_points),
+            ));
+            items.spawn(separator());
+            items.spawn((
+                Name::new("Frame Selection Item"),
+                menu_item_row("Frame Selection", Some("F"), skin),
+                InteractionDisabled,
+            ));
+        }
+        MenuId::Add => {
+            // A ship and a rock are both "one more node under the scenario",
+            // so they are one menu: the rail used to answer Add Ship on the
+            // top bar and Add Object in a block halfway down the left, which
+            // made two names for one question.
+            items.spawn((
+                Name::new("Add Ship Button"),
+                menu_item_row("Ship", None, skin),
+                observe(create_blank_ship),
+            ));
+            items.spawn(separator());
+            for choice in ObjectChoice::ALL {
+                items.spawn((
+                    Name::new(format!("Add {}", choice.label())),
+                    choice,
+                    menu_item_row(choice.label(), None, skin),
+                    observe(create_scenario_object),
+                ));
+            }
+        }
+    }
+}
 
 /// The ship the rail is reporting on, or `None` out in the scenario context.
 fn edited_ship<'a>(context: &EditContext, ships: &'a Query<&ShipNode>) -> Option<&'a ShipNode> {
@@ -175,128 +278,106 @@ pub(crate) fn setup_editor_scene(
                 panel(skin),
             ))
             .with_children(|bar| {
+                // THREE COLUMNS, not a row with a spacer: Play sits in the
+                // middle of the SCREEN the way it does in Godot and Unity, and
+                // it only stays there if the two sides are equal-weight boxes.
+                // A spacer would centre it between the menus and the actions
+                // instead, which moves every time the breadcrumb grows a word.
                 bar.spawn((
-                    Name::new("Editor Title"),
-                    Text::new("EDITOR"),
-                    TextFont {
-                        font_size: FontSize::Px(16.0),
-                        ..default()
-                    },
-                    TextColor(theme::SCREEN_TEXT),
-                ));
-                // The menu bar every editor grows into: placeholders for now,
-                // greyed rather than absent so the layout does not reflow when
-                // they gain their menus. Slots for the same reason Play has
-                // one - `themed_button` is percent(100) wide, built for the
-                // rail, and a bare one on the bar swallows the row.
-                bar.spawn((
-                    Name::new("Editor Menu Bar"),
+                    Name::new("Top Bar Left"),
                     Node {
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        column_gap: px(6),
-                        ..default()
-                    },
-                ))
-                .with_children(|menus| {
-                    for menu in ["File", "Edit", "View"] {
-                        menus
-                            .spawn((Name::new(format!("{menu} Menu Slot")), Node::default()))
-                            .with_children(|slot| {
-                                slot.spawn((
-                                    Name::new(format!("{menu} Menu Button")),
-                                    themed_button(menu),
-                                    InteractionDisabled,
-                                ));
-                            });
-                    }
-                });
-                // The breadcrumb doubles as the context readout: the tree marks
-                // the entered node, this says the same thing as a sentence -
-                // level, path, selection (see `sync_breadcrumb`). Phosphor
-                // rather than muted: it is the one line that says what a click
-                // will act on, so it must not read as a caption.
-                bar.spawn((
-                    Name::new("Context Breadcrumb"),
-                    ContextBreadcrumb,
-                    Text::new(""),
-                    TextLayout {
-                        linebreak: LineBreak::NoWrap,
-                        ..default()
-                    },
-                    TextFont {
-                        font_size: FontSize::Px(13.0),
-                        ..default()
-                    },
-                    TextColor(theme::PHOSPHOR),
-                ));
-                bar.spawn((
-                    Name::new("Top Bar Spacer"),
-                    Node {
+                        flex_basis: px(0),
                         flex_grow: 1.0,
-                        ..default()
-                    },
-                ));
-                // NOTE: button names kept stable - the driven walks find these
-                // by Name and press them. Display text is free to change.
-                bar.spawn((
-                    Name::new("Scenario Actions"),
-                    ScenarioActions,
-                    Node {
+                        // Without this a long breadcrumb wins the row and
+                        // shoulders Play off centre.
+                        min_width: px(0),
                         flex_direction: FlexDirection::Row,
                         align_items: AlignItems::Center,
-                        column_gap: px(8),
+                        column_gap: px(10),
                         ..default()
                     },
                 ))
-                .with_children(|actions| {
-                    actions.spawn((
-                        Name::new("Add Ship Button"),
-                        themed_button("Add Ship"),
-                        observe(create_blank_ship),
+                .with_children(|left| {
+                    left.spawn((
+                        Name::new("Editor Title"),
+                        Text::new("EDITOR"),
+                        TextFont {
+                            font_size: FontSize::Px(16.0),
+                            ..default()
+                        },
+                        TextColor(theme::SCREEN_TEXT),
                     ));
-                    // Acts on the SELECTION, not on the pointer: out here a
-                    // click drags, so a delete TOOL would fight the scenario
-                    // node's one transform gesture. `sync_delete_button` greys
-                    // it while nothing deletable is marked.
-                    actions.spawn((
-                        Name::new("Delete Node Button"),
-                        DeleteNodeButton,
-                        themed_button("Delete"),
-                        observe(delete_selected_node),
+                    // The menu bar. Every entry drops a real list - the greyed
+                    // File/Edit/View placeholders that used to sit here said
+                    // the editor had menus while answering no press at all.
+                    left.spawn((
+                        Name::new("Editor Menu Bar"),
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            column_gap: px(6),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|menus| {
+                        for menu in [MenuId::File, MenuId::Edit, MenuId::View, MenuId::Add] {
+                            menus
+                                .spawn((
+                                    Name::new(format!("{} Menu Slot", menu.label())),
+                                    menu_bar_slot(),
+                                ))
+                                .with_children(|slot| {
+                                    slot.spawn((
+                                        Name::new(format!("{} Menu Button", menu.label())),
+                                        menu,
+                                        themed_button(menu.label()),
+                                        observe(on_menu_button),
+                                    ));
+                                    slot.spawn((
+                                        Name::new(format!("{} Menu", menu.label())),
+                                        MenuDropdown,
+                                        menu,
+                                        menu_z(),
+                                        menu_dropdown_node(),
+                                        panel(skin),
+                                    ))
+                                    .with_children(|items| build_menu(items, menu, skin));
+                                });
+                        }
+                    });
+                    // The breadcrumb doubles as the context readout: the tree
+                    // marks the entered node, this says the same thing as a
+                    // sentence - level, path, selection (see `sync_breadcrumb`).
+                    // Phosphor rather than muted: it is the one line that says
+                    // what a click will act on, so it must not read as a
+                    // caption.
+                    left.spawn((
+                        Name::new("Context Breadcrumb"),
+                        ContextBreadcrumb,
+                        // The clip lives HERE and not on the column, which is
+                        // what holds the dropdowns: an ancestor that clips also
+                        // clips an absolutely-positioned descendant, and a menu
+                        // that hangs below the bar is exactly that. The
+                        // breadcrumb is the only thing on the bar that grows
+                        // without bound, so it is the only thing that needs it.
+                        Node {
+                            min_width: px(0),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                        Text::new(""),
+                        TextLayout {
+                            linebreak: LineBreak::NoWrap,
+                            ..default()
+                        },
+                        TextFont {
+                            font_size: FontSize::Px(13.0),
+                            ..default()
+                        },
+                        TextColor(theme::PHOSPHOR),
                     ));
                 });
-                bar.spawn((
-                    Name::new("Ship Actions"),
-                    ShipActions,
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        column_gap: px(8),
-                        ..default()
-                    },
-                ))
-                .with_children(|actions| {
-                    actions.spawn((
-                        Name::new("Parts Gallery Category"),
-                        themed_button("Parts"),
-                        GalleryAction::Open,
-                    ));
-                    actions.spawn((
-                        Name::new("Delete Section Button"),
-                        themed_button("Delete"),
-                        ButtonValue(SectionChoice::Delete),
-                    ));
-                    // Acts on the SELECTED section; `sync_rebind_button` greys
-                    // it while the selection cannot take a binding.
-                    actions.spawn((
-                        Name::new("Rebind Section Button"),
-                        RebindButton,
-                        themed_button("Rebind"),
-                        observe(on_rebind_action),
-                    ));
-                });
-                // On the bar in EVERY context, greyed inside a ship (see
+                // Dead centre, in every context, greyed inside a ship (see
                 // `sync_play_button`): a control that vanishes reads as a bug,
                 // and the greyed button says where Play went. In its own slot
                 // because `themed_button` is percent(100) wide - built for the
@@ -306,6 +387,7 @@ pub(crate) fn setup_editor_scene(
                     Node {
                         flex_direction: FlexDirection::Row,
                         align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
                         ..default()
                     },
                 ))
@@ -317,7 +399,85 @@ pub(crate) fn setup_editor_scene(
                         observe(continue_to_simulation),
                     ));
                 });
+                // NOTE: button names kept stable - the driven walks find these
+                // by Name and press them. Display text is free to change.
+                bar.spawn((
+                    Name::new("Top Bar Right"),
+                    Node {
+                        flex_basis: px(0),
+                        flex_grow: 1.0,
+                        min_width: px(0),
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::FlexEnd,
+                        column_gap: px(8),
+                        ..default()
+                    },
+                ))
+                .with_children(|right| {
+                    right
+                        .spawn((
+                            Name::new("Scenario Actions"),
+                            ScenarioActions,
+                            Node {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                                column_gap: px(8),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|actions| {
+                            // Acts on the SELECTION, not on the pointer: out
+                            // here a click drags, so a delete TOOL would fight
+                            // the scenario node's one transform gesture.
+                            // `sync_delete_button` greys it while nothing
+                            // deletable is marked.
+                            actions.spawn((
+                                Name::new("Delete Node Button"),
+                                DeleteNodeButton,
+                                themed_button("Delete"),
+                                observe(delete_selected_node),
+                            ));
+                        });
+                    right
+                        .spawn((
+                            Name::new("Ship Actions"),
+                            ShipActions,
+                            Node {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                                column_gap: px(8),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|actions| {
+                            actions.spawn((
+                                Name::new("Parts Gallery Category"),
+                                themed_button("Parts"),
+                                GalleryAction::Open,
+                            ));
+                            actions.spawn((
+                                Name::new("Delete Section Button"),
+                                themed_button("Delete"),
+                                ButtonValue(SectionChoice::Delete),
+                            ));
+                            // Acts on the SELECTED section;
+                            // `sync_rebind_button` greys it while the selection
+                            // cannot take a binding.
+                            actions.spawn((
+                                Name::new("Rebind Section Button"),
+                                RebindButton,
+                                themed_button("Rebind"),
+                                observe(on_rebind_action),
+                            ));
+                        });
+                });
             });
+
+            // The catcher an open menu drops behind itself. A sibling of the
+            // bar rather than a child of it, because "anywhere else" includes
+            // the rail and the viewport.
+            root.spawn((menu_scrim(), observe(on_menu_scrim)));
 
             // Everything under the bar: the rail on the left, the 3D viewport
             // behind the rest.
@@ -351,42 +511,6 @@ pub(crate) fn setup_editor_scene(
                         panel(skin),
                     ))
                     .with_children(|rail| {
-                        // The world block: the object palette. Scenario-context
-                        // only, and hidden inside a ship by
-                        // `sync_context_panels` for the same reason Add Ship is
-                        // - placing a rock is not a thing a ship does.
-                        //
-                        // ABOVE the tree, unlike the ship's settings below it.
-                        // The tree is the one block in this rail that grows
-                        // without a bound - a world of rocks is a row each - and
-                        // an action pushed off the bottom of a 768px screen by
-                        // the document it acts on is an action nobody can reach.
-                        rail.spawn((
-                            Name::new("World Settings"),
-                            ScenarioSettings,
-                            Node {
-                                width: percent(100),
-                                flex_direction: FlexDirection::Column,
-                                align_items: AlignItems::Stretch,
-                                ..default()
-                            },
-                        ))
-                        .with_children(|settings| {
-                            settings.spawn(panel_header("Add Object"));
-                            settings
-                                .spawn((Name::new("Object Palette"), rail_list_node()))
-                                .with_children(|list| {
-                                    for choice in ObjectChoice::ALL {
-                                        list.spawn((
-                                            Name::new(format!("Add {}", choice.label())),
-                                            object_row(choice, skin),
-                                            observe(create_scenario_object),
-                                        ));
-                                    }
-                                });
-                            settings.spawn(separator());
-                        });
-
                         // The document, as a tree. The rows are built by
                         // `sync_scene_list`, because what is expanded depends
                         // on which node the editor is inside.
@@ -563,10 +687,12 @@ fn rail_list_node() -> Node {
 /// One row the Scene tree wants: the node it points at, and how it reads.
 struct WantedRow {
     node: Entity,
-    /// The tree furniture in front of the label: ASCII connectors for the
-    /// depth, then a glyph for what the node is. `@` marks the node the editor
-    /// is inside, `>` the ship Play hands to the player, `-` a design beside
-    /// it, and a section wears its kind.
+    /// How deep under the scenario root the node sits. The row spends it on
+    /// left padding, which is what makes the list read as a tree.
+    depth: usize,
+    /// The glyph in front of the label, saying what the node is. `@` marks the
+    /// node the editor is inside, `>` the ship Play hands to the player, `-` a
+    /// design beside it, and a section wears its kind.
     lead: String,
     label: String,
 }
@@ -576,7 +702,7 @@ struct WantedRow {
 /// and selection survive a frame in which the document did not change.
 #[derive(Default)]
 pub(crate) struct ShownScene {
-    rows: Vec<(Entity, String, String)>,
+    rows: Vec<(Entity, usize, String, String)>,
 }
 
 /// The glyph a section row wears: its kind, so the tree says what a ship is
@@ -630,6 +756,7 @@ fn wanted_rows(
     };
     let mut rows = vec![WantedRow {
         node: scenario,
+        depth: 0,
         lead: "*".to_string(),
         label: root_id.0.clone(),
     }];
@@ -651,7 +778,8 @@ fn wanted_rows(
         };
         rows.push(WantedRow {
             node: ship,
-            lead: format!("|- {glyph}"),
+            depth: 1,
+            lead: glyph.to_string(),
             label: id.0.clone(),
         });
         if entered != Some(ship) {
@@ -660,7 +788,8 @@ fn wanted_rows(
         for (section, id, node, _) in sections_of(ship, nodes) {
             rows.push(WantedRow {
                 node: section,
-                lead: format!("|  |- {}", section_glyph(node, catalog)),
+                depth: 2,
+                lead: section_glyph(node, catalog).to_string(),
                 label: id.0.clone(),
             });
         }
@@ -668,7 +797,8 @@ fn wanted_rows(
     for (object, id, node, _) in objects_of(scenario, q_objects) {
         rows.push(WantedRow {
             node: object,
-            lead: format!("|- {}", object_glyph(node)),
+            depth: 1,
+            lead: object_glyph(node).to_string(),
             label: id.0.clone(),
         });
     }
@@ -725,9 +855,9 @@ pub(crate) fn sync_scene_list(
         return;
     };
 
-    let signature: Vec<(Entity, String, String)> = wanted
+    let signature: Vec<(Entity, usize, String, String)> = wanted
         .iter()
-        .map(|row| (row.node, row.lead.clone(), row.label.clone()))
+        .map(|row| (row.node, row.depth, row.lead.clone(), row.label.clone()))
         .collect();
     if shown.rows != signature {
         commands.entity(list).despawn_related::<Children>();
@@ -740,7 +870,7 @@ pub(crate) fn sync_scene_list(
                 let marked = Some(row.node) == selected.0;
                 let mut entity = list.spawn((
                     Name::new(format!("Scene Row {}", row.label)),
-                    scene_row(&row.lead, &row.label, marked, *skin),
+                    scene_row(row.depth, &row.lead, &row.label, marked, *skin),
                     SceneRow(row.node),
                     observe(on_scene_row),
                 ));
@@ -828,28 +958,22 @@ pub(crate) fn sync_play_button(
     }
 }
 
-/// Show each context its own verbs: the scenario node's action group and object
-/// palette at the scenario node, the ship's action group and settings block
-/// inside a ship.
+/// Show each context its own verbs: the scenario node's action group at the
+/// scenario node, the ship's action group and settings block inside a ship.
 ///
-/// Hidden rather than disabled, unlike Play: a greyed Add Ship inside a ship
-/// would say "this exists here and is refused", and it does not exist there -
-/// adding a ship, or a rock, is a thing the SCENARIO does.
+/// Hidden rather than disabled, unlike Play: a greyed Rebind at the scenario
+/// node would say "this exists here and is refused", and it does not exist
+/// there - rebinding is a thing a SHIP has.
 pub(crate) fn sync_context_panels(
     context: Res<EditContext>,
     mut panels: Query<
-        (&mut Node, Has<ScenarioActions>, Has<ScenarioSettings>),
-        Or<(
-            With<ScenarioActions>,
-            With<ScenarioSettings>,
-            With<ShipActions>,
-            With<ShipSettings>,
-        )>,
+        (&mut Node, Has<ScenarioActions>),
+        Or<(With<ScenarioActions>, With<ShipActions>, With<ShipSettings>)>,
     >,
 ) {
     let inside = context.ship().is_some();
-    for (mut node, actions, settings) in &mut panels {
-        let display = if (actions || settings) != inside {
+    for (mut node, scenario_only) in &mut panels {
+        let display = if scenario_only != inside {
             Display::Flex
         } else {
             Display::None
@@ -1066,10 +1190,16 @@ pub(crate) fn sync_skin_toggle(
 /// Compared before writing rather than gated on a change: the legend is
 /// spawned on entering the editor, which is not necessarily a frame the tool
 /// or the context changed on.
+///
+/// View > Key Legend hides it. The line is still kept current while hidden -
+/// it costs one string compare, and turning the legend back on has to show
+/// what the editor is doing NOW, not what it was doing when it was switched
+/// off.
 pub(crate) fn sync_key_legend(
     selection: Res<SectionChoice>,
     context: Res<EditContext>,
-    mut legend: Query<&mut Text, With<EditorKeyLegend>>,
+    overlays: Res<EditorOverlays>,
+    mut legend: Query<(&mut Text, &mut Node), With<EditorKeyLegend>>,
 ) {
     let line = match (&*selection, context.ship().is_some()) {
         (SectionChoice::None, false) => {
@@ -1086,9 +1216,17 @@ pub(crate) fn sync_key_legend(
         }
         (SectionChoice::Delete, _) => "LMB delete   Q pick a part   Tab parts   Esc put down",
     };
-    for mut text in &mut legend {
+    let display = if overlays.key_legend {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    for (mut text, mut node) in &mut legend {
         if text.0 != line {
             text.0 = line.to_string();
+        }
+        if node.display != display {
+            node.display = display;
         }
     }
 }
@@ -1199,8 +1337,8 @@ mod tests {
             .expect("a row for that node")
     }
 
-    /// The lead texts of the rows, in draw order - the tree furniture the
-    /// glyph assertions read.
+    /// The lead texts of the rows, in draw order - the kind glyphs the
+    /// assertions read.
     fn row_leads(app: &mut App) -> Vec<String> {
         let list = app
             .world_mut()
@@ -1216,6 +1354,27 @@ mod tests {
             .filter_map(|row| {
                 let first = app.world().get::<Children>(row)?.iter().next()?;
                 Some(app.world().get::<Text>(first)?.0.clone())
+            })
+            .collect()
+    }
+
+    /// Each row's left padding, in draw order - what the indentation assertion
+    /// reads.
+    fn row_indents(app: &mut App) -> Vec<f32> {
+        let list = app
+            .world_mut()
+            .query_filtered::<Entity, With<SceneList>>()
+            .single(app.world())
+            .expect("one scene list");
+        let rows: Vec<Entity> = app
+            .world()
+            .get::<Children>(list)
+            .map(|children| children.iter().collect())
+            .unwrap_or_default();
+        rows.into_iter()
+            .filter_map(|row| match app.world().get::<Node>(row)?.padding.left {
+                Val::Px(left) => Some(left),
+                _ => None,
             })
             .collect()
     }
@@ -1267,14 +1426,34 @@ mod tests {
         section_node(&mut app, first, "hull_1");
 
         app.update();
-        assert_eq!(row_leads(&mut app), vec!["*", "|- >", "|- -"]);
+        assert_eq!(row_leads(&mut app), vec!["*", ">", "-"]);
 
         app.world_mut().resource_mut::<EditContext>().enter(first);
         app.update();
         assert_eq!(
             row_leads(&mut app),
-            vec!["*", "|- @", "|  |- =", "|- -"],
+            vec!["*", "@", "=", "-"],
             "the entered ship is marked, and its hull section shows its kind"
+        );
+    }
+
+    /// The tree reads as a tree because the rows step right, not because they
+    /// draw connectors: a section sits one step further in than the ship that
+    /// owns it, and the ship one step in from the root.
+    #[test]
+    fn nesting_steps_the_rows_right() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        section_node(&mut app, ship, "hull_1");
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.update();
+
+        let indents = row_indents(&mut app);
+        assert_eq!(indents.len(), 3, "root, ship, section");
+        assert!(
+            indents[0] < indents[1] && indents[1] < indents[2],
+            "each level steps further right, got {indents:?}"
         );
     }
 
@@ -1469,8 +1648,8 @@ mod tests {
         );
     }
 
-    /// Each context shows its own verbs: Add Ship at the scenario node, the
-    /// ship actions and settings inside a ship - never both.
+    /// Each context shows its own verbs: the scenario node's actions at the
+    /// scenario node, the ship actions and settings inside a ship - never both.
     #[test]
     fn each_context_shows_its_own_actions() {
         use bevy::ecs::system::RunSystemOnce;
@@ -1480,20 +1659,20 @@ mod tests {
         let scenario = world.spawn(ScenarioNode).id();
         let ship = world.spawn(ShipNode::default()).id();
         world.resource_mut::<EditContext>().path = vec![scenario];
-        let add = world.spawn((ScenarioActions, Node::default())).id();
+        let stage = world.spawn((ScenarioActions, Node::default())).id();
         let tools = world.spawn((ShipActions, Node::default())).id();
         let settings = world.spawn((ShipSettings, Node::default())).id();
 
         let display = |world: &World, entity: Entity| world.get::<Node>(entity).unwrap().display;
 
         world.run_system_once(sync_context_panels).unwrap();
-        assert_eq!(display(&world, add), Display::Flex);
+        assert_eq!(display(&world, stage), Display::Flex);
         assert_eq!(display(&world, tools), Display::None);
         assert_eq!(display(&world, settings), Display::None);
 
         world.resource_mut::<EditContext>().enter(ship);
         world.run_system_once(sync_context_panels).unwrap();
-        assert_eq!(display(&world, add), Display::None);
+        assert_eq!(display(&world, stage), Display::None);
         assert_eq!(display(&world, tools), Display::Flex);
         assert_eq!(display(&world, settings), Display::Flex);
     }
