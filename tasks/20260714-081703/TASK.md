@@ -196,6 +196,13 @@ back by eye - the decade pass, the origin's Z line, both sky beacons' trip
 spheres and the three-point rig's suns all draw where the document says.
 
 The review asked for in slice 8 is done and lives beside this file:
-`REVIEW-INSIDE.md` (33 findings from the code) and `REVIEW-OUTSIDE.md` (33
-findings from the screens, against Godot/Blender/Unity habits). Nothing from
-either is built yet.
+`REVIEW-INSIDE.md` (43 findings from the code) and `REVIEW-OUTSIDE.md` (44
+findings from the screens, against Godot/Blender/Unity habits). `BACKLOG.md`
+merges the two, tags the 10 duplicates, and holds the ordered plan.
+
+Slices 5 to 8 - the typed inspector, keys for the verbs, Add obeying the
+context, and everything the review found - moved to `20260825-221015` (Editor
+polish). This task keeps its own spine: save/reload (which lives in
+`20260824-120524`), objectives and win/lose, and events surfacing. The last two
+are HELD until `Sequence` lands in `20260820-223059`; surfacing nineteen
+handlers where a story beat should be one is the wrong panel to build.
