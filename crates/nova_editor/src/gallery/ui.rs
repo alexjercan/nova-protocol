@@ -82,6 +82,10 @@ pub(crate) enum GalleryAction {
     Focus(usize),
     /// Narrow the list to one section kind.
     Category(GalleryCategory),
+    /// Open the gallery ALREADY narrowed to one kind - what an Add menu row
+    /// that names a kind promises. [`GalleryAction::Open`] keeps whichever
+    /// category the last browse left behind, which a named row must not.
+    Browse(GalleryCategory),
     /// Step the selection by whole pages.
     Page(isize),
     /// Put the caret in the filter field.
@@ -691,6 +695,14 @@ pub(crate) fn on_gallery_action(
             state.selected = 0;
             state.focused = false;
             state.filter_focused = false;
+        }
+        GalleryAction::Browse(category) => {
+            state.filter.clear();
+            state.filter_focused = false;
+            state.category = *category;
+            state.selected = 0;
+            state.focused = false;
+            state.open = true;
         }
         GalleryAction::Page(step) => {
             let listed = catalog::browsable(&sections, state.category, &state.filter);

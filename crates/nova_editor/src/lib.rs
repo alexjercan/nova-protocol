@@ -82,7 +82,8 @@ use ui::{
     },
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_armed_menu, sync_menu_delete,
-        sync_menu_item_paint, sync_menus, sync_ship_menu, sync_view_menu_marks, OpenMenu,
+        sync_menu_item_paint, sync_menus, sync_scenario_menu, sync_ship_menu, sync_view_menu_marks,
+        OpenMenu,
     },
     rail::sync_scene_tooltip,
     setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
@@ -394,6 +395,7 @@ fn editor_plugin(app: &mut App) {
                 (
                     sync_menu_delete,
                     sync_ship_menu,
+                    sync_scenario_menu,
                     sync_armed_menu,
                     sync_frame_item,
                 )

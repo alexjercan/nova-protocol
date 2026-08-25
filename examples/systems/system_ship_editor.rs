@@ -20,7 +20,8 @@
 //!    `on_click_spaceship_section` observer places the section);
 //! 5. Escape puts the part down, and a click on the ship in select mode places NOTHING - it
 //!    SELECTS the section under the pointer, the same mark its tree row would take;
-//! 6. click Delete (top bar) and click the ship again - the count drops back;
+//! 6. press Del - what the select click MARKED is what goes, at whatever depth it sits, and the
+//!    count drops back;
 //! 7. walk the gallery end to end - browse (the tiles are up), filter (typing narrows the grid to
 //!    one part), focus (the card names that part), select (Place arms the tool and closes the
 //!    gallery) and place (a click on the ship builds the part the gallery picked);
@@ -1008,6 +1009,83 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the finished ship derives {mates} mates over {now} sections");
             stamp_sections(world);
         })
+        .add()
+        // Add means "one more node HERE", and here changes. Inside a ship the
+        // world palette is greyed - it used to answer Asteroid by putting a
+        // rock in a world the stage had stopped showing - and the same menu
+        // offers the ship's parts instead.
+        .click_a_widget("editor: drop the Add menu inside a ship", MENU_ADD)
+        .step("editor: Add offers parts, not rocks, inside a ship")
+        .on_enter(|world: &mut World| {
+            assert!(
+                widget_is_disabled(world, "Add Asteroid"),
+                "the world palette must be greyed inside a ship"
+            );
+            assert!(
+                widget_is_disabled(world, "Add Ship Button"),
+                "Add > Ship inside a ship used to move the builder to a \
+                 different ship without saying so"
+            );
+            assert!(
+                !widget_is_disabled(world, "Add Structure Item"),
+                "and the parts palette must be live in the same menu"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: Add obeys the context",
+                serde_json::json!({}),
+            );
+            info!("editor: inside a ship, Add offers parts and greys the world");
+        })
+        .add()
+        // The menu is already down from the beat above, so this clicks the ROW
+        // rather than reopening the menu - a second press on the bar button
+        // would close it.
+        .click_a_widget("editor: browse Add > Structure", "Add Structure Item")
+        .step("editor: the gallery opened narrowed to one kind")
+        .on_enter(|world: &mut World| {
+            // The grid shows one PAGE, so a count says nothing about the
+            // filter. WHAT is listed does: every tile up must be a hull.
+            let hulls: Vec<String> = world
+                .resource::<GameSections>()
+                .iter()
+                .filter(|section| matches!(section.kind, SectionKind::Hull(_)))
+                .map(|section| section.base.name.clone())
+                .collect();
+            let listed = visible_names_with_prefix(world, GALLERY_TILE);
+            assert!(!listed.is_empty(), "a named kind must still list something");
+            let strays: Vec<&String> = listed.iter().filter(|name| !hulls.contains(name)).collect();
+            assert!(
+                strays.is_empty(),
+                "a row that names a kind must open the gallery ON that kind; \
+                 the grid also listed {strays:?}"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: an Add row opens the gallery on its kind",
+                serde_json::json!({}),
+            );
+            info!(
+                "editor: Add > Structure opened the gallery on {} hull tiles",
+                listed.len()
+            );
+        })
+        .until(and(editor_gallery_open(), some_gallery_tiles()))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // Widen it again before leaving: the category is what the NEXT browse
+        // opens on, by design, and the beats after this one want the catalog.
+        .click_a_widget(
+            "editor: widen the gallery back to All",
+            "Gallery Category All",
+        )
+        .step("editor: close the gallery")
+        .on_enter(press_key(KeyCode::Escape))
+        .until(editor_gallery_closed())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: release Escape")
+        .on_enter(release_key(KeyCode::Escape))
         .add()
         // Two ships in one session, which is the whole reason the editor keeps
         // a document rather than a build state. The run leaves the ship it
@@ -2068,6 +2146,31 @@ fn count_named_with_prefix(world: &World, prefix: &str) -> usize {
                 .filter(|(name, visibility)| visibility.get() && name.as_str().starts_with(prefix))
                 .count()
         })
+}
+
+/// The visible names carrying `prefix`, with the prefix stripped - what a beat
+/// asserting on WHICH tiles are up needs, where a count only says how many.
+#[cfg(feature = "debug")]
+fn visible_names_with_prefix(world: &mut World, prefix: &str) -> Vec<String> {
+    world
+        .query::<(&Name, &InheritedVisibility)>()
+        .iter(world)
+        .filter(|(name, visibility)| visibility.get() && name.as_str().starts_with(prefix))
+        .map(|(name, _)| name.as_str()[prefix.len()..].to_string())
+        .collect()
+}
+
+/// Whether a named widget is currently greyed out. The menus say what the
+/// editor CAN do here by greying what it cannot, so a beat asserting context
+/// reads the same component the paint does.
+#[cfg(feature = "debug")]
+fn widget_is_disabled(world: &mut World, name: &str) -> bool {
+    world
+        .query::<(&Name, Has<bevy::ui::InteractionDisabled>)>()
+        .iter(world)
+        .find(|(node_name, _)| node_name.as_str() == name)
+        .map(|(_, disabled)| disabled)
+        .unwrap_or_else(|| panic!("the editor must have a widget named `{name}`"))
 }
 
 /// The display name of any hull section in the catalog (the section the run places).

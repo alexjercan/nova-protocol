@@ -552,6 +552,37 @@ pub(crate) fn sync_ship_menu(
     }
 }
 
+/// An Add menu row that acts on the SCENARIO - a ship, a rock, a beacon - so
+/// [`sync_scenario_menu`] can grey it while the editor stands inside a ship.
+#[derive(Component)]
+pub(crate) struct ScenarioMenuItem;
+
+/// Grey the world palette while the editor is inside a ship.
+///
+/// The exact mirror of [`sync_ship_menu`], and for the same reason: Add used to
+/// answer "Asteroid" inside a ship by putting a rock under the scenario, then
+/// marking it - handing back a selection the stage had hidden, the tree did not
+/// list, and the handles would not touch. Add > Ship was worse: it built a ship
+/// and silently moved you into it.
+pub(crate) fn sync_scenario_menu(
+    mut commands: Commands,
+    context: Res<crate::node::EditContext>,
+    items: Query<(Entity, Has<InteractionDisabled>), With<ScenarioMenuItem>>,
+) {
+    let inside = context.ship().is_some();
+    for (entity, marked) in &items {
+        match (inside, marked) {
+            (true, false) => {
+                commands.entity(entity).insert(InteractionDisabled);
+            }
+            (false, true) => {
+                commands.entity(entity).remove::<InteractionDisabled>();
+            }
+            _ => {}
+        }
+    }
+}
+
 /// A Ship menu row that needs a part IN HAND, not just a ship - the pose verbs.
 #[derive(Component)]
 pub(crate) struct ArmedMenuItem;
@@ -765,5 +796,34 @@ mod tests {
             .run_system_once(sync_ship_menu)
             .expect("the sync runs");
         assert!(!world.entity(row).contains::<InteractionDisabled>());
+    }
+
+    /// And the mirror: the world palette needs the scenario node. Inside a
+    /// ship, Add > Asteroid used to build a rock out in a world the stage was
+    /// no longer showing and then mark it.
+    #[test]
+    fn the_world_palette_is_greyed_inside_a_ship() {
+        use crate::node::{ScenarioNode, ShipNode};
+
+        let mut world = World::new();
+        world.init_resource::<crate::node::EditContext>();
+        let scenario = world.spawn(ScenarioNode).id();
+        let ship = world.spawn(ShipNode::default()).id();
+        world.resource_mut::<crate::node::EditContext>().path = vec![scenario];
+        let row = world.spawn(ScenarioMenuItem).id();
+
+        world
+            .run_system_once(sync_scenario_menu)
+            .expect("the sync runs");
+        assert!(
+            !world.entity(row).contains::<InteractionDisabled>(),
+            "at the scenario node the world palette is what Add is for"
+        );
+
+        world.resource_mut::<crate::node::EditContext>().enter(ship);
+        world
+            .run_system_once(sync_scenario_menu)
+            .expect("the sync runs");
+        assert!(world.entity(row).contains::<InteractionDisabled>());
     }
 }

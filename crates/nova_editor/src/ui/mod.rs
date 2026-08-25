@@ -42,7 +42,7 @@ use crate::{
         SelectedNode, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList,
     },
     frame::{ask_for, on_frame_selection, FrameRequest, FrameSelectionItem},
-    gallery::{EditorCamera, EditorChrome, GalleryAction},
+    gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
     keybind::{on_rebind_action, EditorRebind},
     node::{
         objects_of, reset_document, sections_of, EditContext, NodeId, ObjectChoice, ObjectNode,
@@ -58,7 +58,7 @@ use crate::{
             back_to_main_menu, menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim,
             menu_z, on_menu_button, on_menu_scrim, toggle_key_legend, toggle_link_points,
             toggle_object_volumes, toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown,
-            MenuId, MenuTail, OpenMenu, ShipMenuItem, ViewToggle,
+            MenuId, MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
         },
         rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint, SceneRowTrash},
         window::window_layer,
@@ -202,8 +202,15 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             // so they are one menu: the rail used to answer Add Ship on the
             // top bar and Add Object in a block halfway down the left, which
             // made two names for one question.
+            //
+            // Add means "one more node HERE", and here changes. The world
+            // palette is live at the scenario node; the parts palette is live
+            // inside a ship. Both blocks stay on show either way, greyed,
+            // because the menu is also where a builder reads what entering a
+            // ship changes.
             items.spawn((
                 Name::new("Add Ship Button"),
+                ScenarioMenuItem,
                 menu_item_row("Ship", MenuTail::None, skin),
                 observe(create_blank_ship),
             ));
@@ -212,8 +219,21 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 items.spawn((
                     Name::new(format!("Add {}", choice.label())),
                     choice,
+                    ScenarioMenuItem,
                     menu_item_row(choice.label(), MenuTail::None, skin),
                     observe(create_scenario_object),
+                ));
+            }
+            items.spawn(separator());
+            for category in GalleryCategory::ROW {
+                if category == GalleryCategory::All {
+                    continue;
+                }
+                items.spawn((
+                    Name::new(format!("Add {} Item", category.label())),
+                    ShipMenuItem,
+                    GalleryAction::Browse(category),
+                    menu_item_row(&format!("{}...", category.label()), MenuTail::None, skin),
                 ));
             }
         }

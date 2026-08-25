@@ -17,12 +17,13 @@ use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
 };
+pub(crate) use catalog::GalleryCategory;
 pub(crate) use input::gallery_keyboard;
 use nova_ship::prelude::*;
 pub(crate) use scene::EditorCamera;
 pub(crate) use ui::{EditorChrome, GalleryAction};
 
-use crate::{gallery::catalog::GalleryCategory, ExampleStates};
+use crate::ExampleStates;
 
 /// Tile grid of one page.
 pub(crate) const COLS: usize = 4;
@@ -139,7 +140,10 @@ pub(crate) fn register(app: &mut App) {
 
 #[cfg(test)]
 mod tests {
+    use bevy::ui_widgets::Activate;
+
     use super::*;
+    use crate::config::SectionChoice;
 
     fn catalog_of(ids: &[&str]) -> GameSections {
         GameSections(
@@ -186,5 +190,36 @@ mod tests {
         // than to a neighbour.
         state.selected = 7;
         assert_eq!(state.selected_id(&sections), None);
+    }
+
+    /// An Add row that NAMES a kind opens the gallery on that kind, and on a
+    /// clean filter. Plain Open keeps the last browse's category, which would
+    /// make "Add > Weapons" show hulls.
+    #[test]
+    fn browsing_a_kind_opens_the_gallery_on_that_kind() {
+        let mut world = World::new();
+        world.insert_resource(catalog_of(&["hull_a"]));
+        world.insert_resource(SectionChoice::default());
+        world.insert_resource(GalleryState {
+            category: GalleryCategory::Structure,
+            filter: "racer".to_string(),
+            selected: 4,
+            focused: true,
+            ..default()
+        });
+        world.add_observer(ui::on_gallery_action);
+        let row = world
+            .spawn(GalleryAction::Browse(GalleryCategory::Weapons))
+            .id();
+
+        world.trigger(Activate { entity: row });
+        world.flush();
+
+        let state = world.resource::<GalleryState>();
+        assert!(state.open);
+        assert_eq!(state.category, GalleryCategory::Weapons);
+        assert!(state.filter.is_empty(), "a named row opens unfiltered");
+        assert_eq!(state.selected, 0);
+        assert!(!state.focused, "on the grid, not on a leftover focus card");
     }
 }
