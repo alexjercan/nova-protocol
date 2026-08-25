@@ -15,6 +15,11 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Modding & Mod Portal
+
+- A range saved in the editor is an ordinary mod: each built ship a design, the
+  range a scenario naming them. Editing a design moves every instance of it.
+
 ### Interface & HUD
 
 - The editor holds a scenario of ships under a real scene tree: a click picks a
@@ -76,6 +81,9 @@ does NOT get an entry - and it is the only place they are written down.
   It belongs to that row and goes away with it.
 - Back to Main Menu ends the session and deletes the scenario draft; Play
   round-trips still return to it.
+- File > Save writes the whole document, ships and range together, and File >
+  Open reads it back on the same ids and poses. Ctrl+S saves; the rail's line
+  reports what happened.
 
 ### Ships & Sections
 
@@ -85,8 +93,8 @@ does NOT get an entry - and it is the only place they are written down.
 ### Internals & Tooling
 
 - The editor publishes its build state - armed tool, placement, gallery, edited
-  ship, the node you are inside, inspector rows - as read-only data the driven
-  ranges wait on instead of counting frames.
+  ship, the node you are inside, inspector rows, the status line - as read-only
+  data the driven ranges wait on instead of counting frames.
 - Editor previews carry mesh and collider only: the behaviour half of a ship
   section is no longer inserted on something that will never fly.
 - Autopilot scripts can wait on a UI node laying out, on the picking pointer

@@ -52,7 +52,9 @@ The dependency spine; each unblocks the next:
 2. `20260824-120520` (p85) - foundations: per-root build state, edit
    contexts, stable section ids.
 3. `20260825-223004` (p80) - save/load: lower the document to a mod bundle
-   and re-lift it, ships and world objects both.
+   and re-lift it, ships and world objects both. CLOSED 2026-08-25: File >
+   Save writes `editor_save.content.ron`, File > Open reads it back on the
+   same ids and poses, driven end to end.
 4. `20260825-221015` (p75) - editor polish: the pass that makes the editor
    feel finished, from two reviews of the built thing. Absorbs the engineer
    readout (step 19) and world editing's later slices.
