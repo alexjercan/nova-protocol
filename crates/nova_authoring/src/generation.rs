@@ -26,8 +26,7 @@ pub mod prelude {
     pub use super::{
         build_campaign_contents, build_campaigns, build_scenario_contents, build_scenarios,
         build_section_catalog, build_section_content, build_ship_content, build_ships,
-        build_style_content, build_styles, content_files, pretty_config, serialize_content,
-        spawned_ship_sections,
+        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
     };
 }
 
@@ -135,23 +134,15 @@ pub fn build_campaign_contents() -> Vec<(String, Vec<Content>)> {
         .collect()
 }
 
-/// The deterministic pretty-printer for the built-in content RON. Matches
-/// the hand-authored mod content style (e.g. `assets/mods/example/example.content.ron`):
-/// struct names omitted, indented, so the data files stay diff-friendly and
-/// reviewable.
-pub fn pretty_config() -> ron::ser::PrettyConfig {
-    ron::ser::PrettyConfig::default()
-        .struct_names(false)
-        .separate_tuple_members(true)
-        .enumerate_arrays(false)
-}
-
-/// Serialize one content `Vec` the way the committed files are authored:
-/// the deterministic pretty config plus a trailing newline (POSIX-clean).
+/// Serialize one content `Vec` the way the committed files are authored.
+///
+/// The formatter itself lives in `nova_modding` beside the format, because the
+/// in-game editor writes content files too and two writers with two formatters
+/// would produce two dialects of one format. This wrapper is the offline
+/// tool's: a failed serialize of code-built content is a bug in the builders,
+/// not a condition the CLI recovers from.
 pub fn serialize_content(content: &[Content]) -> String {
-    let body = ron::ser::to_string_pretty(&content.to_vec(), pretty_config())
-        .expect("serialize content Vec");
-    format!("{body}\n")
+    nova_modding::serialize_content(content).expect("serialize content Vec")
 }
 
 /// Every builder-backed content file as (assets-root-relative path,

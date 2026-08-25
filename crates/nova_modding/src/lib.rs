@@ -54,9 +54,10 @@ use serde::{Deserialize, Serialize};
 /// asset types, their RON loaders, and [`NovaModdingPlugin`] into scope.
 pub mod prelude {
     pub use super::{
-        BundleAsset, BundleAssetLoader, BundleManifest, CatalogEntry, CatalogLoader,
-        CatalogManifest, Content, ContentAsset, ContentAssetLoader, InstalledCatalog, ModEntry,
-        ModMeta, ModdingLoaderError, NovaModdingPlugin, BASE_MOD_ID,
+        parse_content, pretty_config, serialize_content, BundleAsset, BundleAssetLoader,
+        BundleManifest, CatalogEntry, CatalogLoader, CatalogManifest, Content, ContentAsset,
+        ContentAssetLoader, InstalledCatalog, ModEntry, ModMeta, ModdingLoaderError,
+        NovaModdingPlugin, BASE_MOD_ID,
     };
 }
 
@@ -184,6 +185,37 @@ impl From<ron::error::SpannedError> for ModdingLoaderError {
     fn from(err: ron::error::SpannedError) -> Self {
         ModdingLoaderError::Ron(err)
     }
+}
+
+/// The deterministic pretty-printer every writer of a content file shares.
+///
+/// Struct names omitted, indented, tuple members on their own lines - the
+/// style the hand-authored mods are written in
+/// (`assets/mods/example/example.content.ron`), so a generated file and an
+/// authored one read the same and a regenerated file diffs against itself
+/// rather than against its own formatting.
+pub fn pretty_config() -> ron::ser::PrettyConfig {
+    ron::ser::PrettyConfig::default()
+        .struct_names(false)
+        .separate_tuple_members(true)
+        .enumerate_arrays(false)
+}
+
+/// One content `Vec` as a `*.content.ron` file body: the pretty config above
+/// plus a trailing newline (POSIX-clean).
+///
+/// Here rather than in the offline authoring tool because the editor writes
+/// content files too, and two writers with two formatters would produce two
+/// dialects of one format.
+pub fn serialize_content(content: &[Content]) -> Result<String, ron::Error> {
+    let body = ron::ser::to_string_pretty(&content.to_vec(), pretty_config())?;
+    Ok(format!("{body}\n"))
+}
+
+/// Decode a `*.content.ron` file body - the same read [`ContentAssetLoader`]
+/// does, for callers that hold the bytes rather than an asset path.
+pub fn parse_content(bytes: &[u8]) -> Result<Vec<Content>, ron::error::SpannedError> {
+    ron::de::from_bytes(bytes)
 }
 
 /// Bevy [`AssetLoader`] for `*.content.ron` files (a RON `Vec<`[`Content`]`>`).
@@ -446,5 +478,29 @@ mod tests {
             }
             other => panic!("expected a Campaign, got {other:?}"),
         }
+    }
+
+    /// What [`serialize_content`] writes is what [`parse_content`] reads, and
+    /// it writes the same bytes twice. The editor saves through this pair, so a
+    /// file it cannot read back is a lost document and a file that differs from
+    /// itself is a save that diffs on every write.
+    #[test]
+    fn a_written_content_file_reads_back_and_writes_the_same_twice() {
+        let written = vec![Content::Scenario(ScenarioConfig::new(
+            "demo".to_string(),
+            "Demo".to_string(),
+            "scenarios/space.cube.png".into(),
+        ))];
+
+        let body = serialize_content(&written).expect("serialize");
+        let read = parse_content(body.as_bytes()).expect("parse back");
+
+        assert_eq!(read.len(), 1);
+        match &read[0] {
+            Content::Scenario(scenario) => assert_eq!(scenario.id, "demo"),
+            other => panic!("expected a Scenario, got {other:?}"),
+        }
+        assert_eq!(serialize_content(&read).expect("re-serialize"), body);
+        assert!(body.ends_with('\n'), "content files end in a newline");
     }
 }
