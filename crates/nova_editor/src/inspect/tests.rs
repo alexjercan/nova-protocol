@@ -35,6 +35,8 @@ fn row<'a>(rows: &'a [InspectorRow], label: &str) -> &'a InspectorRow {
 fn text_of(rows: &[InspectorRow], label: &str) -> String {
     match &row(rows, label).value {
         RowValue::Text(text) | RowValue::Colour(text) => text.clone(),
+        // A vector row reads as one line however many boxes it is typed in.
+        RowValue::Axes(axes) => axes.join(", "),
         other => panic!("row {label:?} is {other:?}, not text"),
     }
 }
@@ -434,8 +436,8 @@ fn a_node_reports_which_way_it_faces_in_degrees() {
         Transform::from_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
     let rows = object_rows(&object, &quarter_to_port);
 
-    assert_eq!(text_of(&rows, "Heading"), "90, 0, 0");
-    assert_eq!(row(&rows, "Heading").root, FieldRoot::Heading);
+    assert_eq!(text_of(&rows, "Rotation"), "90, 0, 0");
+    assert_eq!(row(&rows, "Rotation").root, FieldRoot::Rotation);
 }
 
 /// Degrees out, degrees back. The row is the only place the conversion
@@ -451,8 +453,8 @@ fn a_heading_survives_the_round_trip() {
         Vec3::new(-45.0, 30.0, 0.0),
         Vec3::new(180.0, 0.0, 0.0),
     ] {
-        let wanted = heading_to(degrees);
-        let back = heading_to(heading_of(&Transform::from_rotation(wanted)));
+        let wanted = rotation_from_degrees(degrees);
+        let back = rotation_from_degrees(rotation_degrees(&Transform::from_rotation(wanted)));
         assert!(
             (back.dot(wanted).abs() - 1.0).abs() < 1e-4,
             "{degrees:?} came back as a different heading: {back:?} vs {wanted:?}"
@@ -551,8 +553,54 @@ fn a_nested_row_is_a_group_path_and_a_short_label() {
 fn a_top_level_row_has_no_group() {
     let rows = object_rows(&asteroid(stock_asteroid()), &Transform::default());
 
-    assert!(row(&rows, "Position").group.is_empty());
+    assert!(row(&rows, "Radius").group.is_empty());
     assert!(row(&rows, "Name").group.is_empty());
+}
+
+/// Where a node stands and which way it faces are one thing with two halves,
+/// so they stand under one heading - and they stand LAST, because the config's
+/// own top-level rows carry no heading to take the reader back out of it.
+#[test]
+fn the_pose_rows_close_the_panel_under_one_heading() {
+    let rows = object_rows(&asteroid(stock_asteroid()), &Transform::default());
+
+    for label in ["Position", "Rotation"] {
+        assert_eq!(
+            row(&rows, label).group,
+            vec![TRANSFORM.to_string()],
+            "{label} stands under the transform heading"
+        );
+    }
+    let labels: Vec<&str> = rows.iter().map(|row| row.label.as_str()).collect();
+    assert_eq!(
+        &labels[labels.len() - 2..],
+        &["Position", "Rotation"],
+        "and nothing follows them: {labels:?}"
+    );
+}
+
+/// Three numbers, three boxes, each written on its own. The box's path is what
+/// makes that possible: it names one component of the vector the row is on.
+#[test]
+fn a_vector_row_hands_each_box_its_own_component() {
+    let rows = object_rows(
+        &asteroid(stock_asteroid()),
+        &Transform::from_xyz(1.0, 2.0, 3.0),
+    );
+
+    assert_eq!(
+        row(&rows, "Position").value,
+        RowValue::Axes(["1".to_string(), "2".to_string(), "3".to_string()])
+    );
+    assert_eq!(axis_step(0), PathStep::Field("x".to_string()));
+    assert_eq!(axis_step(1), PathStep::Field("y".to_string()));
+    assert_eq!(axis_step(2), PathStep::Field("z".to_string()));
+
+    // And the write-back takes one component through that path, leaving the
+    // other two where they were - which is the whole point of three boxes.
+    let mut position = Vec3::new(1.0, 2.0, 3.0);
+    write_field(&mut position, &[axis_step(1)], false, "8").expect("the box writes");
+    assert_eq!(position, Vec3::new(1.0, 8.0, 3.0));
 }
 
 /// A rotation inside a config reads in the same degrees a node's own heading

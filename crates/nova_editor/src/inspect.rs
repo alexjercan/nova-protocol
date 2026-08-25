@@ -115,12 +115,12 @@ pub(crate) enum FieldRoot {
     Config,
     /// The node's pose - `Transform::translation`.
     Pose,
-    /// The node's heading, in DEGREES, as yaw/pitch/roll.
+    /// The node's rotation, in DEGREES, as yaw/pitch/roll.
     ///
     /// Its own root rather than a path into the pose because the value on
     /// screen is not the value in the component: a `Quat` has four numbers and
     /// no builder thinks in them. The routing converts around the edit.
-    Heading,
+    Rotation,
     /// An object's display name, which is a field of the node and not of the
     /// kind config.
     Label,
@@ -169,6 +169,12 @@ pub(crate) enum RowValue {
         /// Which one the value currently holds.
         chosen: usize,
     },
+    /// Three numbers of one vector, each typed on its own.
+    ///
+    /// The rows a builder reads most, so they are the rows that get their own
+    /// shape: one box per axis instead of `x, y, z` in a single field, where a
+    /// real position wrapped to two lines and broke the column's rhythm.
+    Axes([String; 3]),
     /// Who flies this ship.
     Driver(ShipDriver),
     /// Shown but not editable here.
@@ -183,6 +189,9 @@ impl RowValue {
     pub(crate) fn reading(&self) -> String {
         match self {
             Self::Text(text) | Self::Colour(text) | Self::Fixed(text) => text.clone(),
+            // One line, the way the value reads on paper: three boxes are how
+            // it is TYPED, not what it is.
+            Self::Axes(axes) => axes.join(", "),
             Self::Flag(flag) => flag.to_string(),
             Self::Choice { options, chosen } => options.get(*chosen).cloned().unwrap_or_default(),
             Self::Driver(driver) => driver_label(*driver).to_string(),
@@ -546,7 +555,7 @@ fn leaf_text(value: &dyn PartialReflect) -> Option<String> {
         // Degrees, for the same reason the pose's heading row is degrees: a
         // walked `Quat` is four rows called X, Y, Z and W, and nobody authors a
         // rotation that way.
-        return leaf_text(&heading_of(&Transform::from_rotation(*turn)));
+        return leaf_text(&rotation_degrees(&Transform::from_rotation(*turn)));
     }
     if let Some(vector) = value.try_downcast_ref::<Vec3>() {
         return Some(format!(
@@ -650,7 +659,7 @@ fn parse_leaf(type_path: &str, text: &str) -> Result<Box<dyn PartialReflect>, St
             let degrees = degrees
                 .try_downcast_ref::<Vec3>()
                 .ok_or_else(|| "wants yaw, pitch, roll".to_string())?;
-            Ok(Box::new(heading_to(*degrees)))
+            Ok(Box::new(rotation_from_degrees(*degrees)))
         }
         "glam::Vec3" => {
             let parts: Vec<&str> = text.split(',').map(str::trim).collect();
@@ -873,17 +882,23 @@ pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<Inspecto
         label: "Name".to_string(),
         value: RowValue::Text(object.name.clone()),
     }];
-    rows.extend(pose_rows(pose));
     if let Some(config) = object_config(&object.kind) {
         walk(config, FieldRoot::Config, Vec::new(), &mut rows);
     }
+    rows.extend(pose_rows(pose));
     rows
 }
 
-/// Where a node stands and which way it faces: two rows of three
-/// comma-separated numbers, not six boxes. A pose is read and typed as a point
-/// and a heading, and three boxes each in a 260px panel would cost six labels
-/// to say what two already say.
+/// The heading the two pose rows stand under.
+pub(crate) const TRANSFORM: &str = "Transform";
+
+/// Where a node stands and which way it faces.
+///
+/// One box per axis rather than `x, y, z` in one field: a real position
+/// wrapped to two lines in the panel's value column, on the two rows a builder
+/// reads most. They stand together under one heading, and LAST, so the group
+/// runs to the end of the panel - a row with no group of its own drawn after a
+/// heading would read as belonging to it.
 ///
 /// There is no SCALE row and there will not be one: Nova sections mate, they
 /// do not stretch, and a scaled hull would put every socket somewhere the
@@ -893,23 +908,32 @@ pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<Inspecto
 /// mating snap, and a typed one would put a part where no socket is.
 fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
     vec![
-        InspectorRow {
-            root: FieldRoot::Pose,
-            path: Vec::new(),
-            optional: false,
-            group: Vec::new(),
-            label: "Position".to_string(),
-            value: RowValue::Text(leaf_text(&pose.translation).unwrap_or_default()),
-        },
-        InspectorRow {
-            root: FieldRoot::Heading,
-            path: Vec::new(),
-            optional: false,
-            group: Vec::new(),
-            label: "Heading".to_string(),
-            value: RowValue::Text(leaf_text(&heading_of(pose)).unwrap_or_default()),
-        },
+        axes_row(FieldRoot::Pose, "Position", pose.translation),
+        // ROTATION, not heading: it is the node's rotation, and rotation is
+        // what every other editor calls that.
+        axes_row(FieldRoot::Rotation, "Rotation", rotation_degrees(pose)),
     ]
+}
+
+/// One vector row: three numbers, each in the form every other number wears.
+fn axes_row(root: FieldRoot, label: &str, value: Vec3) -> InspectorRow {
+    InspectorRow {
+        root,
+        path: Vec::new(),
+        optional: false,
+        group: vec![TRANSFORM.to_string()],
+        label: label.to_string(),
+        value: RowValue::Axes([value.x, value.y, value.z].map(|part| number_text(f64::from(part)))),
+    }
+}
+
+/// Which field of a `Vec3` the box for `axis` writes.
+///
+/// A step rather than three rows: the panel draws one row per vector and hands
+/// each box the path of its own component, so the write-back is the same
+/// reflection walk every other field takes.
+pub(crate) fn axis_step(axis: usize) -> PathStep {
+    PathStep::Field(["x", "y", "z"][axis.min(2)].to_string())
 }
 
 /// A pose's rotation as DEGREES of yaw, pitch and roll - the three numbers a
@@ -918,14 +942,14 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
 /// `YXZ` because yaw is the turn that matters on a stage laid out on the
 /// ground plane, and taking it first keeps the other two small and readable
 /// for a ship that is mostly level.
-pub(crate) fn heading_of(pose: &Transform) -> Vec3 {
+pub(crate) fn rotation_degrees(pose: &Transform) -> Vec3 {
     let (yaw, pitch, roll) = pose.rotation.to_euler(EulerRot::YXZ);
     Vec3::new(yaw.to_degrees(), pitch.to_degrees(), roll.to_degrees())
 }
 
 /// The rotation `degrees` of yaw, pitch and roll name. The inverse of
-/// [`heading_of`].
-pub(crate) fn heading_to(degrees: Vec3) -> Quat {
+/// [`rotation_degrees`].
+pub(crate) fn rotation_from_degrees(degrees: Vec3) -> Quat {
     Quat::from_euler(
         EulerRot::YXZ,
         degrees.x.to_radians(),

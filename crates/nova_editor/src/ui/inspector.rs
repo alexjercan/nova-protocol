@@ -32,11 +32,12 @@ use nova_ui::{
 use crate::{
     config::{EditorSays, SelectedNode},
     gallery::EditorCamera,
+    gizmo::GizmoAxis,
     inspect::{
-        choose_field, driver_label, editable_config, heading_of, heading_to, inspected,
-        object_config_mut, object_rows, parse_colour, section_config_mut, section_rows, ship_rows,
-        toggle_field, write_field, FieldRoot, InspectTarget, InspectorRow, NodeKinds, PathStep,
-        RowValue,
+        axis_step, choose_field, driver_label, editable_config, inspected, object_config_mut,
+        object_rows, parse_colour, rotation_degrees, rotation_from_degrees, section_config_mut,
+        section_rows, ship_rows, toggle_field, write_field, FieldRoot, InspectTarget, InspectorRow,
+        NodeKinds, PathStep, RowValue,
     },
     node::{EditContext, NodeId, ObjectNode, SectionNode, ShipDriver, ShipNode},
     ui::window::on_open_colour_window,
@@ -86,6 +87,13 @@ pub(crate) struct InspectorField {
 /// A checkbox standing for a `bool` field.
 #[derive(Component)]
 pub(crate) struct InspectorFlag;
+
+/// Which component of a vector row's value a box holds: 0, 1 or 2.
+///
+/// The three boxes share one [`InspectorSlot`] - they are one row - so this is
+/// what tells the repaint which of the three numbers belongs in which box.
+#[derive(Component, Clone, Copy)]
+pub(crate) struct InspectorAxis(usize);
 
 /// A read-only row's text, so the repaint can tell it from the title and from
 /// a checkbox's glyph.
@@ -310,6 +318,155 @@ fn value_column() -> Node {
     }
 }
 
+/// The lead letter and colour of each box of a vector row.
+///
+/// The colours are the HANDLES' own, read off `crate::gizmo`: the number and
+/// the arrow that drags it are the same axis, and a builder should not have to
+/// learn that twice. A rotation's three numbers are yaw, pitch and roll - their
+/// own initials - tinted by the axis each one turns ABOUT, so the letters and
+/// the colours say the same thing.
+fn axis_leads(root: FieldRoot) -> [(&'static str, Color); 3] {
+    match root {
+        FieldRoot::Rotation => [
+            ("Y", GizmoAxis::Y.colour()),
+            ("P", GizmoAxis::X.colour()),
+            ("R", GizmoAxis::Z.colour()),
+        ],
+        _ => GizmoAxis::ALL.map(|axis| (axis.label(), axis.colour())),
+    }
+}
+
+/// What a vector row's numbers ARE, where the letters cannot say it.
+///
+/// Both facts lived only in a doc comment: the numbers are degrees, and they
+/// are in yaw, pitch, roll order. A builder typing `90` into the first box was
+/// guessing at both.
+fn axes_unit(root: FieldRoot) -> &'static str {
+    match root {
+        FieldRoot::Rotation => "deg, yaw/pitch/roll",
+        _ => "",
+    }
+}
+
+/// One vector row: its name and unit on one line, then a box per axis.
+///
+/// Stacked rather than three boxes across, because the panel is 240px wide: a
+/// third of its value column is four characters, and a position of `-1234.567`
+/// would be read four characters at a time.
+fn spawn_axes_row(
+    list: &mut RelatedSpawnerCommands<ChildOf>,
+    row: &InspectorRow,
+    field: &InspectorField,
+    slot: usize,
+    axes: &[String; 3],
+    step: f32,
+) {
+    let leads = axis_leads(row.root);
+    let unit = axes_unit(row.root);
+    let label = row.label.clone();
+    list.spawn((
+        Name::new(format!("Inspector Row {}", row.label)),
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::left(px(step)),
+            margin: UiRect::bottom(px(6)),
+            row_gap: px(3),
+            ..default()
+        },
+    ))
+    .with_children(|block| {
+        block
+            .spawn(Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::Center,
+                column_gap: px(6),
+                ..default()
+            })
+            .with_children(|line| {
+                line.spawn((
+                    Text::new(label.clone()),
+                    TextLayout {
+                        linebreak: LineBreak::NoWrap,
+                        ..default()
+                    },
+                    TextFont {
+                        font_size: FontSize::Px(11.0),
+                        ..default()
+                    },
+                    TextColor(theme::PHOSPHOR_MUTED),
+                ));
+                if !unit.is_empty() {
+                    line.spawn((
+                        Name::new(format!("Inspector Unit {label}")),
+                        Text::new(unit),
+                        TextLayout {
+                            linebreak: LineBreak::NoWrap,
+                            ..default()
+                        },
+                        TextFont {
+                            font_size: FontSize::Px(10.0),
+                            ..default()
+                        },
+                        TextColor(theme::PHOSPHOR_DIM),
+                    ));
+                }
+            });
+        for (index, (lead, tint)) in leads.into_iter().enumerate() {
+            let mut path = field.path.clone();
+            path.push(axis_step(index));
+            let axis_field = InspectorField {
+                path,
+                ..field.clone()
+            };
+            block
+                .spawn(Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: px(5),
+                    ..default()
+                })
+                .with_children(|line| {
+                    line.spawn((
+                        Text::new(lead),
+                        TextFont {
+                            font_size: FontSize::Px(11.0),
+                            ..default()
+                        },
+                        TextColor(tint),
+                        Node {
+                            width: px(9),
+                            flex_shrink: 0.0,
+                            ..default()
+                        },
+                    ));
+                    line.spawn(Node {
+                        flex_grow: 1.0,
+                        flex_basis: px(0),
+                        min_width: px(0),
+                        ..default()
+                    })
+                    .with_children(|box_slot| {
+                        box_slot.spawn((
+                            Name::new(format!("Inspector Field {label} {lead}")),
+                            InspectorSlot(slot),
+                            InspectorAxis(index),
+                            axis_field.clone(),
+                            text_field(
+                                TextFieldSpec::new(axes[index].clone())
+                                    .max_chars(12)
+                                    .dense(),
+                            ),
+                        ));
+                    });
+                });
+        }
+    });
+}
+
 /// Fill the list with one widget per row.
 ///
 /// NOTE: the widget names are stable - the driven walks find these by name and
@@ -371,6 +528,14 @@ fn build_rows(
         // exactly what the step took: the value boxes stay in one column down
         // the whole panel however deep the tree goes.
         let step = indent(row.group.len());
+        // A vector row has its own SHAPE - a name line over one box per axis -
+        // so it is spawned whole rather than as a name column and a value
+        // column: three boxes in the 140px value column would each hold four
+        // characters.
+        if let RowValue::Axes(axes) = &row.value {
+            spawn_axes_row(list, row, &field, slot, axes, step);
+            continue;
+        }
         list.spawn((
             Name::new(format!("Inspector Row {}", row.label)),
             Node {
@@ -486,6 +651,8 @@ fn build_rows(
                                 }
                             });
                     }
+                    // Spawned whole above, before the row shell exists.
+                    RowValue::Axes(_) => {}
                     RowValue::Fixed(text) => {
                         value.spawn((
                             Name::new(format!("Inspector Readout {}", row.label)),
@@ -533,7 +700,10 @@ pub(crate) fn sync_inspector(
     lists: Query<Entity, With<InspectorList>>,
     fresh: Query<(), Added<InspectorList>>,
     mut shown: Local<ShownInspector>,
-    mut fields: Query<(&InspectorSlot, &mut TextFieldValue), Without<TextFieldFocused>>,
+    mut fields: Query<
+        (&InspectorSlot, Option<&InspectorAxis>, &mut TextFieldValue),
+        Without<TextFieldFocused>,
+    >,
     mut readouts: Query<
         (&InspectorSlot, &mut Text),
         (
@@ -618,11 +788,18 @@ pub(crate) fn sync_inspector(
     // it holds what the builder is typing, and the document still holds what
     // it held before Enter. Overwriting it would delete the edit one character
     // in.
-    for (slot, mut value) in &mut fields {
-        let Some(RowValue::Text(text) | RowValue::Colour(text)) =
-            rows.get(slot.0).map(|row| &row.value)
-        else {
-            continue;
+    for (slot, axis, mut value) in &mut fields {
+        let text = match (rows.get(slot.0).map(|row| &row.value), axis) {
+            (Some(RowValue::Text(text) | RowValue::Colour(text)), None) => text,
+            // One row, three boxes: the box says which of the three numbers it
+            // is holding.
+            (Some(RowValue::Axes(axes)), Some(axis)) => {
+                let Some(text) = axes.get(axis.0) else {
+                    continue;
+                };
+                text
+            }
+            _ => continue,
         };
         if value.0 != *text {
             value.0.clone_from(text);
@@ -736,7 +913,7 @@ impl EditTargets<'_, '_> {
                     .map_err(|_| "gone".to_string())?;
                 edit(&mut pose.translation, &field.path, field.optional)
             }
-            FieldRoot::Heading => {
+            FieldRoot::Rotation => {
                 let mut pose = self
                     .poses
                     .get_mut(field.node)
@@ -744,9 +921,9 @@ impl EditTargets<'_, '_> {
                 // Degrees on the way out, degrees on the way back: the edit
                 // never sees the quat. A refusal leaves the pose alone, which
                 // is why the rotation is only rebuilt once the edit took.
-                let mut degrees = heading_of(&pose);
+                let mut degrees = rotation_degrees(&pose);
                 edit(&mut degrees, &field.path, field.optional)?;
-                pose.rotation = heading_to(degrees);
+                pose.rotation = rotation_from_degrees(degrees);
                 Ok(())
             }
             FieldRoot::Config => {

@@ -84,14 +84,14 @@ pub(crate) struct GizmoHandle {
 /// rotation - so "X" means the same direction whatever is selected, and a turn
 /// that went wrong is undone by dragging the same ring back.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum GizmoAxis {
+pub(crate) enum GizmoAxis {
     X,
     Y,
     Z,
 }
 
 impl GizmoAxis {
-    const ALL: [Self; 3] = [Self::X, Self::Y, Self::Z];
+    pub(crate) const ALL: [Self; 3] = [Self::X, Self::Y, Self::Z];
 
     fn unit(self) -> Vec3 {
         match self {
@@ -103,7 +103,10 @@ impl GizmoAxis {
 
     /// Red/green/blue for X/Y/Z, in the console's own palette rather than pure
     /// channel colours: the rig has to sit on the same screen as the rail.
-    fn colour(self) -> Color {
+    ///
+    /// Read by the Inspector too: a number and the handle that drags it are the
+    /// same axis, so they are the same colour.
+    pub(crate) fn colour(self) -> Color {
         match self {
             Self::X => theme::RED,
             Self::Y => theme::PHOSPHOR,
@@ -111,7 +114,7 @@ impl GizmoAxis {
         }
     }
 
-    fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Self::X => "X",
             Self::Y => "Y",

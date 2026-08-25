@@ -261,6 +261,9 @@ struct EditorWalk {
     /// guessed from the stem: the sandbox range already stands two beacons of
     /// its own, so "no beacon in the document" is never true.
     placed: String,
+    /// What the rock's Position row read before one of its three boxes was
+    /// retyped, so the beat after can say the other two stood still.
+    position: String,
     /// What the beacon's colour row read before the picker touched it.
     colour: String,
     /// Where the floating picker stood before the beat that drags it.
@@ -1315,6 +1318,52 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 serde_json::json!({}),
             );
             info!("editor: the rock's inspector reads {rows:?}");
+        })
+        .add()
+        // The pose is three boxes, and each one writes ONE number: this types
+        // into the middle box and the beat after says the other two did not
+        // move. A single `x, y, z` field could not make that claim.
+        .step("editor: stamp the rock's position")
+        .on_enter(|world: &mut World| {
+            let reading = inspector_reading(world, "Position");
+            world.resource_mut::<EditorWalk>().position = reading;
+        })
+        .add()
+        .click_a_widget(
+            "editor: reach for the rock's height",
+            "Inspector Field Position Y",
+        )
+        .step("editor: the height box has the caret")
+        .until(editor_field_focused())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: retype the height")
+        .on_enter(|world: &mut World| {
+            press_edit_key(Key::End)(world);
+            for _ in 0..12 {
+                press_edit_key(Key::Backspace)(world);
+            }
+            type_text("12")(world);
+            press_edit_key(Key::Enter)(world);
+        })
+        .until(the_rocks_height_reads("12"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: only the height moved")
+        .on_enter(|world: &mut World| {
+            let before = world.resource::<EditorWalk>().position.clone();
+            let now = inspector_reading(world, "Position");
+            let parts: Vec<&str> = now.split(", ").collect();
+            let was: Vec<&str> = before.split(", ").collect();
+            assert_eq!(parts.len(), 3, "a position reads as three numbers: {now}");
+            assert_eq!(parts[0], was[0], "X stood still: {before} -> {now}");
+            assert_eq!(parts[2], was[2], "Z stood still: {before} -> {now}");
+            nova_probe::probe_marker(
+                world,
+                "outcome: one axis box writes one number",
+                serde_json::json!({}),
+            );
+            info!("editor: the rock's position went {before} -> {now}");
         })
         .add()
         .click_a_menu_item("editor: delete the placed rock", MENU_EDIT, "Delete Item")
@@ -2474,6 +2523,17 @@ fn aim_at_the_named(world: &mut World, name: &str) -> Option<Vec2> {
         .find(|(named, _)| named.as_str() == name)
         .map(|(_, pose)| pose.translation())?;
     aim_at_world(world, at)
+}
+
+/// Advance once the rock's Position row reads `wanted` in its middle number.
+///
+/// The MIDDLE one, because the beat that waits on this typed into the Y box:
+/// what it is proving is that the box wrote its own component and no other.
+#[cfg(feature = "debug")]
+fn the_rocks_height_reads(wanted: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        inspector_reading(world, "Position").split(", ").nth(1) == Some(wanted)
+    })
 }
 
 /// Advance once the editor reports `id` as the node under the pointer.

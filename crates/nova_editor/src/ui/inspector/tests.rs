@@ -288,13 +288,40 @@ fn a_moved_node_repaints_its_own_position_row() {
         .insert(Transform::from_xyz(4.0, 0.0, -6.0));
     app.update();
 
-    let position = field_of(&mut app, "Position");
+    for (axis, wanted) in [("X", "4"), ("Y", "0"), ("Z", "-6")] {
+        let box_of = field_of(&mut app, &format!("Position {axis}"));
+        assert_eq!(
+            app.world()
+                .get::<TextFieldValue>(box_of)
+                .expect("the field")
+                .0,
+            wanted,
+            "the {axis} box repaints from the pose"
+        );
+    }
+}
+
+/// Each box writes ONE number. Typing into Y must not disturb X and Z, which
+/// is the whole difference between three boxes and one comma-separated field.
+#[test]
+fn typing_into_one_axis_box_leaves_the_others_alone() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+    app.world_mut()
+        .entity_mut(rock)
+        .insert(Transform::from_xyz(4.0, 0.0, -6.0));
+    app.update();
+
+    submit(&mut app, "Position Y", "9");
+
     assert_eq!(
         app.world()
-            .get::<TextFieldValue>(position)
-            .expect("the field")
-            .0,
-        "4, 0, -6"
+            .get::<Transform>(rock)
+            .expect("the rock")
+            .translation,
+        Vec3::new(4.0, 9.0, -6.0)
     );
 }
 
