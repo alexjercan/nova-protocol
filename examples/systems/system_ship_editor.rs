@@ -200,6 +200,10 @@ const CONTROLLER_PROTOTYPE: &str = "basic_controller_section";
 #[cfg(feature = "debug")]
 const MENU_ADD: &str = "Add Menu Button";
 
+/// The top bar's File menu: the verbs that touch the saved file.
+#[cfg(feature = "debug")]
+const MENU_FILE: &str = "File Menu Button";
+
 /// The top bar's View menu, where the camera gestures are listed.
 #[cfg(feature = "debug")]
 const MENU_VIEW: &str = "View Menu Button";
@@ -257,6 +261,12 @@ struct EditorWalk {
     colour: String,
     /// Where the floating picker stood before the beat that drags it.
     window_at: Vec2,
+    /// The scenario node's whole listing, stamped before the run saves it. The
+    /// document that comes back off disk has to be this one, id for id.
+    document: Vec<String>,
+    /// The same listing's poses, so the round trip is proved on WHERE each node
+    /// stands as well as on which nodes there are.
+    document_at: Vec<(String, Vec3)>,
 }
 
 /// The whole driven run.
@@ -1621,6 +1631,120 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // The round trip. The document the run built - two ships and the
+        // range around them - goes to disk as a mod bundle, gets thrown away,
+        // and comes back. Play then flies what came BACK, so every assert
+        // after this point is an assert about the reloaded document.
+        .step("editor: stamp the document before it is saved")
+        .on_enter(|world: &mut World| {
+            let probe = world.resource::<EditorProbe>();
+            let (nodes, poses) = (probe.context_nodes.clone(), probe.node_positions.clone());
+            assert!(
+                nodes.iter().any(|node| node == "ship_2"),
+                "the run built a second ship, so the document to save holds one"
+            );
+            let walk = &mut world.resource_mut::<EditorWalk>();
+            walk.document = nodes.clone();
+            walk.document_at = poses;
+            info!("editor: about to save {} node(s): {nodes:?}", nodes.len());
+        })
+        .add()
+        .click_a_menu_item("editor: save the document", MENU_FILE, "Save Item")
+        .step("editor: the save reported itself")
+        .until(the_status_reads("saved"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // Thrown away on purpose: a walk cannot restart the process, so New
+        // Scenario is what stands in for one. It reseeds the stock range, which
+        // has no `ship_2` in it - so a `ship_2` after the Open can only have
+        // come off disk.
+        .click_a_menu_item("editor: start over", MENU_FILE, "New Scenario Item")
+        .step("editor: the built document is gone")
+        .until(no_object_named("ship_2"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .click_a_menu_item("editor: open the saved document", MENU_FILE, "Open Item")
+        .step("editor: the saved document came back")
+        .until(the_status_reads("opened"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the document came back node for node, pose for pose")
+        .on_enter(|world: &mut World| {
+            let walk = world.resource::<EditorWalk>();
+            let (before, before_at) = (walk.document.clone(), walk.document_at.clone());
+            let probe = world.resource::<EditorProbe>();
+            assert_eq!(
+                probe.context_nodes, before,
+                "a saved document is its ids: what was written is what opens, \
+                 in the same order, owing nothing to the entities it left on"
+            );
+            for (id, was) in &before_at {
+                let now = probe
+                    .node_positions
+                    .iter()
+                    .find(|(node, _)| node == id)
+                    .map(|(_, at)| *at)
+                    .unwrap_or_else(|| panic!("the reopened document must still hold {id}"));
+                assert!(
+                    now.distance(*was) < 1e-3,
+                    "{id} stood at {was:?} when it was saved and at {now:?} after \
+                     the round trip"
+                );
+            }
+            nova_probe::probe_marker(
+                world,
+                "outcome: the document survives a save and an open",
+                serde_json::json!({}),
+            );
+            info!(
+                "editor: reopened {} node(s) on the same ids and poses",
+                before.len()
+            );
+        })
+        .add()
+        // An id minted AFTER the load must clear the ones that came off disk.
+        // The ordinal is the editor's own counter, and a fresh document starts
+        // it at zero - so a rock placed now colliding with a loaded id is the
+        // whole failure this beat is here to catch.
+        .click_a_menu_item(
+            "editor: place a rock after the load",
+            MENU_ADD,
+            "Add Asteroid",
+        )
+        .step("editor: the id minted after a load clears the loaded ones")
+        .until(an_object_was_placed("asteroid"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: nothing was minted twice")
+        .on_enter(|world: &mut World| {
+            let nodes = world.resource::<EditorProbe>().context_nodes.clone();
+            let mut seen: Vec<&String> = nodes.iter().collect();
+            seen.sort();
+            let before = seen.len();
+            seen.dedup();
+            assert_eq!(
+                before,
+                seen.len(),
+                "every node id in a document is unique, loaded or minted: {nodes:?}"
+            );
+            let placed = nodes
+                .iter()
+                .find(|node| node.starts_with("asteroid"))
+                .cloned()
+                .unwrap_or_default();
+            nova_probe::probe_marker(
+                world,
+                "outcome: ids minted after a load do not collide",
+                serde_json::json!({}),
+            );
+            info!("editor: minted {placed} beside the loaded ids");
+        })
+        .add()
+        .click_a_menu_item("editor: take the rock back off", MENU_EDIT, "Delete Item")
+        .step("editor: the document is the saved one again")
+        .until(no_object_named("asteroid"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         // Play: the ship the editor assembled becomes the ship that flies, and
         // the runtime derives the SAME graph from the flat saved poses.
         .click_a_widget("editor: press Play", "Play Button")
@@ -2047,6 +2171,19 @@ fn an_object_was_placed(stem: &'static str) -> Wait {
                 .context_nodes
                 .iter()
                 .any(|node| node.starts_with(stem))
+    })
+}
+
+/// Advance once the status line starts with `opening`.
+///
+/// The rail's line is the only visible outcome a file verb has, so this is how
+/// a beat learns that Save or Open ran and what it decided. Matched by PREFIX:
+/// an Open reports the counts it read, and the counts are what the beat after
+/// checks properly.
+#[cfg(feature = "debug")]
+fn the_status_reads(opening: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        world.resource::<EditorProbe>().status.starts_with(opening)
     })
 }
 

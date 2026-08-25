@@ -1089,16 +1089,18 @@ pub(crate) fn on_scene_row(
 ///
 /// One WRITER, so the placement readout and a verb's answer cannot fight over
 /// the node: they both write [`EditorStatus`], and this is the only thing that
-/// touches the text.
+/// touches the text. It also holds the clock: a verb's message is dropped here
+/// once its hold is over, so every other reader sees the line as it reads.
 pub(crate) fn sync_status_line(
     time: Res<Time>,
-    status: Res<EditorStatus>,
+    mut status: ResMut<EditorStatus>,
     lines: Query<
         (&mut Text, &mut TextColor, &mut BorderColor, &mut Visibility),
         With<PlacementStatus>,
     >,
 ) {
-    let line = status.line(time.elapsed_secs_f64());
+    status.expire(time.elapsed_secs_f64());
+    let line = status.line();
     for (mut text, mut colour, mut border, mut visibility) in lines {
         match line {
             Some((message, tint)) => {

@@ -456,3 +456,58 @@ fn a_loaded_document_mints_ids_above_the_ones_it_read() {
         "and the ship's resumes above 'hull_1'"
     );
 }
+
+/// Editing a design does not touch the instances that stand on it (the Godot
+/// #67884 lesson, in the shape this format takes).
+///
+/// The lesson there was inherited scenes drifting: an instance quietly kept a
+/// copy of a field the source had moved on from. This format has no room for
+/// that drift, and the test says so by diffing two lowerings of the same
+/// document: the DESIGN changed, and the instance's bytes did not, because an
+/// instance holds a reference, a pose and its controller - never a copy.
+#[test]
+fn editing_a_design_leaves_its_instances_untouched() {
+    let mut world = world_with_document();
+    let before = lower(&mut world);
+
+    let mut sections = world.query::<&mut SectionNode>();
+    for mut section in sections.query_mut(&mut world) {
+        section.source = SectionSource::Prototype("reinforced_hull_section".to_string());
+    }
+    let after = lower(&mut world);
+
+    let design = |items: &[Content]| {
+        items
+            .iter()
+            .find_map(|item| match item {
+                Content::Ship(ship) => Some(serialize_content(&[Content::Ship(ship.clone())])),
+                _ => None,
+            })
+            .expect("the file carries the design")
+            .expect("a design serialises")
+    };
+    let range = |items: &[Content]| {
+        items
+            .iter()
+            .find_map(|item| match item {
+                Content::Scenario(range) => {
+                    Some(serialize_content(&[Content::Scenario(range.clone())]))
+                }
+                _ => None,
+            })
+            .expect("the file carries the range")
+            .expect("a range serialises")
+    };
+
+    assert_ne!(
+        design(&before),
+        design(&after),
+        "the edit landed on the design"
+    );
+    assert_eq!(
+        range(&before),
+        range(&after),
+        "an instance names its design and carries no copy of it, so the range \
+         is byte-identical across an edit to the design it points at"
+    );
+}

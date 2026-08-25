@@ -12,7 +12,7 @@ use nova_ship::prelude::GameSections;
 use nova_ui::prelude::TextFieldFocused;
 
 use crate::{
-    config::{PlacementPreview, SectionChoice, SelectedNode},
+    config::{EditorStatus, PlacementPreview, SectionChoice, SelectedNode},
     gallery::GalleryState,
     gizmo::GizmoRig,
     node::{
@@ -138,6 +138,13 @@ pub struct EditorProbe {
     /// took it, and a readout that agreed with a stale document would say yes
     /// either way.
     pub inspector: Vec<(String, String)>,
+    /// What the status line reads right now, or the empty string while it is
+    /// blank.
+    ///
+    /// The rail's one line of feedback. A verb that touches a file - Save,
+    /// Open - has no other visible outcome, so this is what a driven run waits
+    /// on to know the verb ran and what it decided.
+    pub status: String,
     /// The id of the node the transform handles are ON, or `None` while they
     /// are off screen.
     ///
@@ -159,16 +166,21 @@ pub(crate) fn sync_editor_probe(
     sections: Option<Res<GameSections>>,
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
+    status: Res<EditorStatus>,
     nodes: SectionNodes,
     q_ships: ShipNodes,
     q_objects: ObjectNodes,
     q_visibility: Query<&Visibility>,
     poses: Query<&Transform>,
     document: Document,
-    caret: Query<(), (With<TextFieldFocused>, With<InspectorField>)>,
-    rig: Query<&Visibility, With<GizmoRig>>,
+    // Tupled with the caret for the same reason as `feedback` above.
+    chrome: (
+        Query<(), (With<TextFieldFocused>, With<InspectorField>)>,
+        Query<&Visibility, With<GizmoRig>>,
+    ),
     mut probe: ResMut<EditorProbe>,
 ) {
+    let (caret, rig) = &chrome;
     let wanted = if *editor.get() == ExampleStates::Editor {
         let mut snapshot = snapshot(&choice, &preview, &gallery, sections.as_deref());
         let listed = context_nodes(&context, &q_ships, &q_objects, &nodes);
@@ -214,6 +226,10 @@ pub(crate) fn sync_editor_probe(
             .any(|visibility| *visibility != Visibility::Hidden)
             .then(|| snapshot.selected_node.clone())
             .flatten();
+        snapshot.status = status
+            .line()
+            .map(|(line, _)| line.to_string())
+            .unwrap_or_default();
         snapshot.inspector_focused = !caret.is_empty();
         snapshot.inspector = document
             .inspection()
@@ -301,6 +317,7 @@ fn snapshot(
         can_play: false,
         visible_ships: Vec::new(),
         node_positions: Vec::new(),
+        status: String::new(),
         inspector_focused: false,
         inspector: Vec::new(),
         gizmo_node: None,
@@ -364,6 +381,9 @@ mod tests {
     }
 
     fn sync(world: &mut World) -> EditorProbe {
+        // The line the snapshot reports. A fixture that never said anything
+        // still has to have one for the sync to read.
+        world.init_resource::<EditorStatus>();
         world
             .run_system_once(sync_editor_probe)
             .expect("the probe sync runs");
@@ -760,6 +780,7 @@ mod tests {
         app.init_resource::<GalleryState>();
         app.init_resource::<EditContext>();
         app.init_resource::<SelectedNode>();
+        app.init_resource::<EditorStatus>();
         app.init_resource::<EditorProbe>();
         app.add_systems(
             Update,

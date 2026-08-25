@@ -217,15 +217,31 @@ impl EditorStatus {
         self.said = Some((message.into(), tint, now + SAID_HOLD_SECS));
     }
 
-    /// What the line shows right now.
-    pub(crate) fn line(&self, now: f64) -> Option<(&str, Color)> {
-        match &self.said {
-            Some((message, tint, until)) if now < *until => Some((message.as_str(), *tint)),
-            _ => self
-                .readout
-                .as_ref()
-                .map(|(message, tint)| (message.as_str(), *tint)),
+    /// Drop what a verb said once its hold is over.
+    ///
+    /// The clock lives HERE rather than in the readers, so the line, the probe
+    /// and anything else that comes along all see one answer to "is this still
+    /// being said" - and so a reader needs no `Time` of its own.
+    pub(crate) fn expire(&mut self, now: f64) {
+        if self
+            .said
+            .as_ref()
+            .is_some_and(|(_, _, until)| now >= *until)
+        {
+            self.said = None;
         }
+    }
+
+    /// What the line shows right now.
+    pub(crate) fn line(&self) -> Option<(&str, Color)> {
+        self.said
+            .as_ref()
+            .map(|(message, tint, _)| (message.as_str(), *tint))
+            .or_else(|| {
+                self.readout
+                    .as_ref()
+                    .map(|(message, tint)| (message.as_str(), *tint))
+            })
     }
 }
 
