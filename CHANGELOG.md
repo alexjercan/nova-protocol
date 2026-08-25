@@ -42,6 +42,9 @@ does NOT get an entry - and it is the only place they are written down.
   link-point gizmos, Escape closes an open menu.
 - Scene tree rows step in by depth, so a ship's sections read as its own
   branch rather than as more entries in one flat list.
+- The right-hand Inspector lists a node's own fields - a thruster's, a rock's,
+  a ship's driver - read off its config by reflection; typing into one writes
+  it back, so a placed object keeps what you set.
 - Back to Main Menu ends the session and deletes the scenario draft; Play
   round-trips still return to it.
 
@@ -52,10 +55,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
-- The editor publishes its build state - armed tool, solved or refused
-  placement, parts gallery, the edited ship and the node you are inside - as
-  read-only data, and the driven editor ranges wait on it instead of counting
-  frames.
+- The editor publishes its build state - armed tool, placement, gallery, edited
+  ship, the node you are inside, inspector rows - as read-only data the driven
+  ranges wait on instead of counting frames.
 - Editor previews carry mesh and collider only: the behaviour half of a ship
   section is no longer inserted on something that will never fly.
 - Autopilot scripts can wait on a UI node laying out, on the picking pointer

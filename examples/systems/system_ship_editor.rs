@@ -27,8 +27,9 @@
 //! 8. meet both placement REFUSALS in words and in pixels - an occupied socket, and a drive
 //!    aimed up a lane the hull already stands beside, which is `nova_ship`'s clearance rule and
 //!    the same one the ship generator collapses under;
-//! 9. place a WORLD object from the rail's palette and delete it again - the scenario node edits
-//!    the range it stands on, not just the ships parked on it;
+//! 9. place a WORLD object from the rail's palette, TYPE A NEW RADIUS INTO ITS INSPECTOR and
+//!    delete it again - the scenario node edits the range it stands on, not just the ships parked
+//!    on it, and a placed object is authorable rather than stuck with what the palette handed it;
 //! 10. turn the SKIN on and watch it follow the build - the bare ship, the same ship clad from
 //!    its own structure, and the cladding reflowing around a hull that is still in the
 //!    builder's hand. Play then proves the toggle rode the hand-off: the flown ship wears it.
@@ -1117,6 +1118,57 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 serde_json::json!({}),
             );
             info!("editor: placed {placed} at {at:?}");
+        })
+        .add()
+        // And the Inspector edits it. The rows are read off the rock's OWN
+        // config by reflection - no editor code names `radius` - so typing into
+        // one is the proof that a placed object is authorable and not just
+        // stock. The caret is put at the end and the old value cleared, because
+        // the click lands the caret wherever the pixels fell.
+        .click_a_widget(
+            "editor: reach for the rock's radius",
+            "Inspector Field Radius",
+        )
+        .step("editor: the radius field has the caret")
+        .until(editor_field_focused())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: retype the radius")
+        .on_enter(|world: &mut World| {
+            press_edit_key(Key::End)(world);
+            for _ in 0..8 {
+                press_edit_key(Key::Backspace)(world);
+            }
+            type_text("18")(world);
+            press_edit_key(Key::Enter)(world);
+        })
+        .until(editor_inspector_reads("Radius", "18"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the typed radius is the rock's own config now")
+        .on_enter(|world: &mut World| {
+            let probe = world.resource::<EditorProbe>();
+            assert!(
+                !probe.inspector_focused,
+                "committing the field gives the caret - and the editor's \
+                 single-letter keys - back"
+            );
+            let rows = probe.inspector.clone();
+            // The rest of the config is still listed beside it: the panel walks
+            // the WHOLE config, not the one field that was typed - `Mass` is
+            // there and empty, which is an `Option` the rock never set.
+            for label in ["Name", "Position", "Radius", "Mass"] {
+                assert!(
+                    rows.iter().any(|(row, _)| row == label),
+                    "the rock's panel lists {label}: {rows:?}"
+                );
+            }
+            nova_probe::probe_marker(
+                world,
+                "outcome: the inspector writes a placed object's config",
+                serde_json::json!({}),
+            );
+            info!("editor: the rock's inspector reads {rows:?}");
         })
         .add()
         .click_a_widget("editor: delete the placed rock", "Delete Node Button")

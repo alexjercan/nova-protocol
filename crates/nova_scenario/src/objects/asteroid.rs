@@ -36,13 +36,14 @@ pub mod prelude {
 /// rock with geometry-owned durability, textures, sounds, and optional gravity and
 /// lock-signature overrides. Passed to [`asteroid_scenario_object`] to build the
 /// asteroid-root bundle.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AsteroidConfig {
     /// Nominal radius (world units); drives well qualification and mesh scale.
     pub radius: f32,
     /// Surface texture. Authored as an asset path; resolved to a live handle
     /// at spawn time (see `insert_asteroid_render`).
+    #[reflect(ignore)]
     pub texture: AssetRef<Image>,
     /// The sound a hit on this rock plays. Authorable asset ref;
     /// AUTHORED-OR-SILENT. Snapshotted into [`ImpactDestroySounds`] on the
@@ -51,12 +52,14 @@ pub struct AsteroidConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
+    #[reflect(ignore)]
     pub impact_sound: Option<AssetRef<AudioSource>>,
     /// The sound this rock's destruction plays; same rules.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
+    #[reflect(ignore)]
     pub destroy_sound: Option<AssetRef<AudioSource>>,
     /// Mass parameter (`mu`, u^3/s^2) making this body a gravity well:
     /// `a = mu / r^2`, and the sphere of influence is where that decays to

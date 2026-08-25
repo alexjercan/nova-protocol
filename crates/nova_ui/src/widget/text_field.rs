@@ -28,6 +28,21 @@ pub struct TextFieldFocused {
     caret: usize,
 }
 
+impl TextFieldFocused {
+    /// Focus a field holding `value`, caret at the end - what a screen that
+    /// opens with its field ready inserts, and what Escape restores to.
+    ///
+    /// The fields stay private because the caret is a BYTE index into the
+    /// value: one set from outside to a position that is not a character
+    /// boundary would panic the next edit.
+    pub fn at_end(value: &str) -> Self {
+        Self {
+            original: value.to_string(),
+            caret: value.len(),
+        }
+    }
+}
+
 /// Marks invalid text and supplies the message rendered below the field.
 #[derive(Component, Clone, Debug, Deref, DerefMut, PartialEq, Eq)]
 pub struct TextFieldError(pub String);

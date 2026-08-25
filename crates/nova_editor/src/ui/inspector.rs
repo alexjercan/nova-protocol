@@ -1,0 +1,668 @@
+//! The right-hand Inspector: what the selected node IS, and the fields you
+//! change it by.
+//!
+//! The rows come from [`crate::inspect`], which reads them off the node's own
+//! config by reflection. This module only turns a row into a widget and a
+//! widget back into an edit, which is why there is no field name anywhere in
+//! it: a config that grows a field grows a row here without a line changing.
+//!
+//! THE SHAPE IS REBUILT, THE VALUES ARE NOT. A frame that changed a number
+//! repaints the box that holds it; only a frame that changed which ROWS exist -
+//! another node inspected, an optional struct appearing - respawns the list.
+//! That is what lets a builder type into a field at all: a list rebuilt every
+//! frame would despawn the box under the caret.
+
+use bevy::{
+    ecs::{relationship::RelatedSpawnerCommands, system::SystemParam},
+    picking::hover::Hovered,
+    prelude::*,
+    ui_widgets::{observe, Activate, Button},
+};
+use nova_ship::prelude::{GameSections, WASDCameraController};
+use nova_ui::{
+    prelude::{
+        panel, panel_header, segmented_container, segmented_option, text_field, Selected,
+        TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldValue,
+        UiSkin,
+    },
+    theme,
+    widget::{checkbox, checkbox_colors, checkbox_glyph},
+};
+
+use crate::{
+    config::SelectedNode,
+    gallery::EditorCamera,
+    inspect::{
+        driver_label, editable_config, inspected, object_config_mut, object_rows,
+        section_config_mut, section_rows, ship_rows, toggle_field, write_field, FieldRoot,
+        InspectTarget, InspectorRow, NodeKinds, PathStep, RowValue,
+    },
+    node::{EditContext, NodeId, ObjectNode, SectionNode, ShipDriver, ShipNode},
+};
+
+/// Panel width. Wider than the 150px rail because every row is a name AND a
+/// value side by side; still narrow enough to leave the stage its centre,
+/// which is where the placement raycast goes.
+const PANEL_W: f32 = 240.0;
+/// The name column. Fixed rather than proportional so the value boxes of every
+/// row line up, which is what makes a column of numbers readable.
+const LABEL_W: f32 = 92.0;
+
+/// The right-hand panel's root, hidden when there is nothing to inspect.
+#[derive(Component)]
+pub(crate) struct InspectorPanel;
+
+/// The line under the header saying WHAT is being inspected.
+#[derive(Component)]
+pub(crate) struct InspectorTitle;
+
+/// The row container, refilled when the row shape changes.
+#[derive(Component)]
+pub(crate) struct InspectorList;
+
+/// Which row a widget belongs to.
+///
+/// An INDEX rather than the field it edits, because two rows of one node can
+/// name the same path (an `Option` and the struct inside it) and the repaint
+/// has to tell them apart. Safe because any change to the row list rebuilds
+/// the whole list.
+#[derive(Component, Clone, Copy)]
+pub(crate) struct InspectorSlot(usize);
+
+/// What a widget edits: the node, and where in it the value lives.
+#[derive(Component, Clone)]
+pub(crate) struct InspectorField {
+    node: Entity,
+    root: FieldRoot,
+    path: Vec<PathStep>,
+    optional: bool,
+}
+
+/// A checkbox standing for a `bool` field.
+#[derive(Component)]
+pub(crate) struct InspectorFlag;
+
+/// A read-only row's text, so the repaint can tell it from the title and from
+/// a checkbox's glyph.
+#[derive(Component)]
+pub(crate) struct InspectorFixed;
+
+/// One option of the ship's driver row.
+#[derive(Component, Clone, Copy)]
+pub(crate) struct InspectorDriver {
+    ship: Entity,
+    driver: ShipDriver,
+}
+
+/// Marks the camera whose free-fly rig this module took away, so putting it
+/// back is not a guess. The same shape the gallery parks with.
+#[derive(Component)]
+pub(crate) struct TypingHold;
+
+/// Everything the panel reads to decide what it is showing.
+#[derive(SystemParam)]
+pub(crate) struct Document<'w, 's> {
+    catalog: Option<Res<'w, GameSections>>,
+    context: Res<'w, EditContext>,
+    selected: Res<'w, SelectedNode>,
+    kinds: NodeKinds<'w, 's>,
+    ids: Query<'w, 's, &'static NodeId>,
+    ships: Query<'w, 's, (&'static ShipNode, &'static Transform)>,
+    sections: Query<'w, 's, &'static SectionNode>,
+    objects: Query<'w, 's, (&'static ObjectNode, &'static Transform)>,
+}
+
+impl Document<'_, '_> {
+    /// The node the panel is on and the rows it wants, or `None` with nothing
+    /// to inspect.
+    pub(crate) fn inspection(&self) -> Option<(InspectTarget, Vec<InspectorRow>)> {
+        let target = inspected(&self.selected, &self.context, &self.kinds)?;
+        let rows = match target {
+            // The document root holds ships and objects rather than fields of
+            // its own. It gets a panel anyway: one that vanished at the root
+            // would read as the inspector breaking every time you left a ship.
+            InspectTarget::Scenario(_) => Vec::new(),
+            InspectTarget::Ship(ship) => {
+                let (node, pose) = self.ships.get(ship).ok()?;
+                ship_rows(node, pose)
+            }
+            InspectTarget::Section(section) => {
+                section_rows(self.sections.get(section).ok()?, self.catalog.as_deref())
+            }
+            InspectTarget::Object(object) => {
+                let (node, pose) = self.objects.get(object).ok()?;
+                object_rows(node, pose)
+            }
+        };
+        Some((target, rows))
+    }
+
+    /// The title line: what kind of node, and which one.
+    fn title(&self, target: InspectTarget) -> String {
+        let id = self
+            .ids
+            .get(target.node())
+            .map_or_else(|_| String::new(), |id| id.0.clone());
+        format!("{}  {id}", target.tag())
+    }
+}
+
+/// The panel, built empty. Its rows are [`sync_inspector`]'s, because which
+/// rows exist is a question about the document rather than about the scene.
+pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
+    (
+        Name::new("Editor Inspector"),
+        InspectorPanel,
+        Node {
+            width: px(PANEL_W),
+            // Pushed to the right edge by its own margin rather than by a
+            // spacer sibling: what lies between it and the rail is the 3D
+            // stage, and a spacer there would be one more thing to pick
+            // through.
+            margin: UiRect::left(Val::Auto),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Stretch,
+            padding: UiRect::all(px(10)),
+            border: UiRect::left(px(theme::BORDER_W)),
+            overflow: Overflow::clip(),
+            ..default()
+        },
+        panel(skin),
+        children![
+            panel_header("Inspector"),
+            (
+                Name::new("Inspector Title"),
+                InspectorTitle,
+                Text::new(""),
+                TextLayout {
+                    linebreak: LineBreak::NoWrap,
+                    ..default()
+                },
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(theme::AMBER_NOVA),
+                Node {
+                    margin: UiRect::vertical(px(6)),
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+            ),
+            (
+                Name::new("Inspector List"),
+                InspectorList,
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Stretch,
+                    ..default()
+                },
+            ),
+        ],
+    )
+}
+
+/// One row's shell: the name on the left, the value on the right.
+fn row_shell() -> Node {
+    Node {
+        width: percent(100),
+        flex_direction: FlexDirection::Row,
+        align_items: AlignItems::Center,
+        column_gap: px(6),
+        margin: UiRect::bottom(px(4)),
+        ..default()
+    }
+}
+
+/// The name column. Clipped rather than wrapped: a two-line name would push
+/// its own value box out of the column the row above lined up with.
+fn row_label(label: &str) -> impl Bundle {
+    (
+        Node {
+            width: px(LABEL_W),
+            flex_shrink: 0.0,
+            overflow: Overflow::clip(),
+            ..default()
+        },
+        Text::new(label.to_string()),
+        TextLayout {
+            linebreak: LineBreak::NoWrap,
+            ..default()
+        },
+        TextFont {
+            font_size: FontSize::Px(11.0),
+            ..default()
+        },
+        TextColor(theme::PHOSPHOR_MUTED),
+    )
+}
+
+/// The value column, which takes whatever width the name leaves.
+fn value_column() -> Node {
+    Node {
+        flex_basis: px(0),
+        flex_grow: 1.0,
+        min_width: px(0),
+        flex_direction: FlexDirection::Row,
+        align_items: AlignItems::Center,
+        overflow: Overflow::clip(),
+        ..default()
+    }
+}
+
+/// Fill the list with one widget per row.
+///
+/// NOTE: the widget names are stable - the driven walks find these by name and
+/// type into them.
+fn build_rows(
+    list: &mut RelatedSpawnerCommands<ChildOf>,
+    node: Entity,
+    rows: &[InspectorRow],
+    skin: UiSkin,
+) {
+    for (slot, row) in rows.iter().enumerate() {
+        let field = InspectorField {
+            node,
+            root: row.root,
+            path: row.path.clone(),
+            optional: row.optional,
+        };
+        list.spawn((
+            Name::new(format!("Inspector Row {}", row.label)),
+            row_shell(),
+        ))
+        .with_children(|shell| {
+            shell.spawn(row_label(&row.label));
+            shell
+                .spawn(value_column())
+                .with_children(|value| match &row.value {
+                    RowValue::Text(text) => {
+                        // The placeholder is the OPTIONAL row's whole affordance:
+                        // an empty box that says "none" is what tells a builder
+                        // that emptying it is allowed.
+                        let mut spec = TextFieldSpec::new(text.clone()).max_chars(64);
+                        if row.optional {
+                            spec = spec.placeholder("none");
+                        }
+                        value.spawn((
+                            Name::new(format!("Inspector Field {}", row.label)),
+                            InspectorSlot(slot),
+                            field.clone(),
+                            text_field(spec),
+                        ));
+                    }
+                    RowValue::Flag(on) => {
+                        value.spawn((
+                            Name::new(format!("Inspector Flag {}", row.label)),
+                            InspectorSlot(slot),
+                            InspectorFlag,
+                            field.clone(),
+                            Button,
+                            Hovered::default(),
+                            checkbox(*on, skin),
+                            observe(on_inspector_flag),
+                        ));
+                    }
+                    RowValue::Driver(driver) => {
+                        value
+                            .spawn((Name::new("Inspector Driver"), segmented_container(skin)))
+                            .with_children(|options| {
+                                for option in [ShipDriver::Player, ShipDriver::Ai] {
+                                    let label = driver_label(option);
+                                    let mut entity = options.spawn((
+                                        Name::new(format!("Inspector Driver {label}")),
+                                        InspectorSlot(slot),
+                                        InspectorDriver {
+                                            ship: node,
+                                            driver: option,
+                                        },
+                                        segmented_option(label),
+                                        observe(on_inspector_driver),
+                                    ));
+                                    if option == *driver {
+                                        entity.insert(Selected);
+                                    }
+                                }
+                            });
+                    }
+                    RowValue::Fixed(text) => {
+                        value.spawn((
+                            Name::new(format!("Inspector Readout {}", row.label)),
+                            InspectorSlot(slot),
+                            InspectorFixed,
+                            Text::new(text.clone()),
+                            TextLayout {
+                                linebreak: LineBreak::NoWrap,
+                                ..default()
+                            },
+                            TextFont {
+                                font_size: FontSize::Px(12.0),
+                                ..default()
+                            },
+                            TextColor(theme::PHOSPHOR_MUTED),
+                        ));
+                    }
+                });
+        });
+    }
+}
+
+/// What the list is showing, so a frame that changed a number does not respawn
+/// the box that holds it.
+///
+/// The NODE is part of the signature: two asteroids have the same rows, and
+/// switching between them still has to rebuild - the widgets carry the entity
+/// they write to.
+#[derive(Default)]
+pub(crate) struct ShownInspector {
+    shape: Option<(Entity, Vec<(String, FieldRoot, Vec<PathStep>)>)>,
+}
+
+/// Show the inspected node: rebuild the rows when WHICH rows exist changes,
+/// and repaint their values otherwise.
+///
+/// One system rather than two because both halves need the same rows, and a
+/// reflection walk is the expensive part of either.
+pub(crate) fn sync_inspector(
+    mut commands: Commands,
+    skin: Res<UiSkin>,
+    document: Document,
+    mut panels: Query<&mut Node, With<InspectorPanel>>,
+    mut titles: Query<&mut Text, With<InspectorTitle>>,
+    lists: Query<Entity, With<InspectorList>>,
+    fresh: Query<(), Added<InspectorList>>,
+    mut shown: Local<ShownInspector>,
+    mut fields: Query<(&InspectorSlot, &mut TextFieldValue), Without<TextFieldFocused>>,
+    mut readouts: Query<
+        (&InspectorSlot, &mut Text),
+        (With<InspectorFixed>, Without<InspectorTitle>),
+    >,
+    flags: Query<
+        (
+            &InspectorSlot,
+            &Children,
+            &mut BackgroundColor,
+            &mut BorderColor,
+        ),
+        With<InspectorFlag>,
+    >,
+    mut glyphs: Query<
+        (&mut Text, &mut TextColor),
+        (Without<InspectorFixed>, Without<InspectorTitle>),
+    >,
+    drivers: Query<(Entity, &InspectorSlot, &InspectorDriver, Has<Selected>)>,
+) {
+    // A fresh list holds no rows whatever this `Local` remembers - it survives
+    // the state round-trip that despawned the panel. The same trap
+    // `sync_scene_list` documents.
+    if !fresh.is_empty() {
+        shown.shape = None;
+    }
+    let inspection = document.inspection();
+    for mut node in &mut panels {
+        let display = if inspection.is_some() {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+    let Some((target, rows)) = inspection else {
+        shown.shape = None;
+        return;
+    };
+    let title = document.title(target);
+    for mut text in &mut titles {
+        if text.0 != title {
+            text.0.clone_from(&title);
+        }
+    }
+    let Ok(list) = lists.single() else {
+        return;
+    };
+    let shape = (
+        target.node(),
+        rows.iter()
+            .map(|row| (row.label.clone(), row.root, row.path.clone()))
+            .collect::<Vec<_>>(),
+    );
+    if shown.shape.as_ref() != Some(&shape) {
+        commands.entity(list).despawn_related::<Children>();
+        commands.entity(list).with_children(|list| {
+            build_rows(list, target.node(), &rows, *skin);
+        });
+        shown.shape = Some(shape);
+        // The widgets just queued do not exist yet, and the ones that do have
+        // been queued for despawn. Painting either is a write to an entity
+        // that is about to stop existing - and they are built with the values
+        // this pass would have written.
+        return;
+    }
+    // Repaint in place. A FOCUSED field is skipped by its own query filter:
+    // it holds what the builder is typing, and the document still holds what
+    // it held before Enter. Overwriting it would delete the edit one character
+    // in.
+    for (slot, mut value) in &mut fields {
+        let Some(RowValue::Text(text)) = rows.get(slot.0).map(|row| &row.value) else {
+            continue;
+        };
+        if value.0 != *text {
+            value.0.clone_from(text);
+        }
+    }
+    for (slot, mut text) in &mut readouts {
+        let Some(RowValue::Fixed(wanted)) = rows.get(slot.0).map(|row| &row.value) else {
+            continue;
+        };
+        if text.0 != *wanted {
+            text.0.clone_from(wanted);
+        }
+    }
+    for (slot, children, mut background, mut border) in flags {
+        let Some(RowValue::Flag(on)) = rows.get(slot.0).map(|row| &row.value) else {
+            continue;
+        };
+        let (fill, edge, glyph_colour) = checkbox_colors(*on, *skin);
+        if background.0 != fill {
+            *background = fill.into();
+            border.set_all(edge);
+        }
+        let mark = checkbox_glyph(*on);
+        for &child in children {
+            let Ok((mut text, mut colour)) = glyphs.get_mut(child) else {
+                continue;
+            };
+            if text.0 != mark {
+                text.0 = mark.to_string();
+            }
+            if colour.0 != glyph_colour {
+                colour.0 = glyph_colour;
+            }
+        }
+    }
+    for (entity, slot, option, marked) in &drivers {
+        let Some(RowValue::Driver(driver)) = rows.get(slot.0).map(|row| &row.value) else {
+            continue;
+        };
+        match (*driver == option.driver, marked) {
+            (true, false) => {
+                commands.entity(entity).insert(Selected);
+            }
+            (false, true) => {
+                commands.entity(entity).remove::<Selected>();
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Where an edit lands on the node.
+#[derive(SystemParam)]
+pub(crate) struct EditTargets<'w, 's> {
+    catalog: Option<Res<'w, GameSections>>,
+    sections: Query<'w, 's, &'static mut SectionNode>,
+    objects: Query<'w, 's, &'static mut ObjectNode>,
+    poses: Query<'w, 's, &'static mut Transform>,
+}
+
+impl EditTargets<'_, '_> {
+    /// Hand `edit` the value `field` points at.
+    ///
+    /// The ROUTING is here and the operation is the caller's, so typing a
+    /// number and ticking a checkbox reach a section, an object and a pose the
+    /// same way - including the copy-on-write a catalog-backed section needs.
+    fn edit(
+        &mut self,
+        field: &InspectorField,
+        edit: impl FnOnce(&mut dyn PartialReflect, &[PathStep], bool) -> Result<(), String>,
+    ) -> Result<(), String> {
+        match field.root {
+            FieldRoot::Label => {
+                let mut object = self
+                    .objects
+                    .get_mut(field.node)
+                    .map_err(|_| "gone".to_string())?;
+                edit(&mut object.name, &field.path, field.optional)
+            }
+            FieldRoot::Pose => {
+                let mut pose = self
+                    .poses
+                    .get_mut(field.node)
+                    .map_err(|_| "gone".to_string())?;
+                edit(&mut pose.translation, &field.path, field.optional)
+            }
+            FieldRoot::Config => {
+                if let Ok(mut section) = self.sections.get_mut(field.node) {
+                    let config = editable_config(&mut section, self.catalog.as_deref())
+                        .ok_or_else(|| "no catalog entry".to_string())?;
+                    return edit(
+                        section_config_mut(&mut config.kind),
+                        &field.path,
+                        field.optional,
+                    );
+                }
+                let mut object = self
+                    .objects
+                    .get_mut(field.node)
+                    .map_err(|_| "gone".to_string())?;
+                let config = object_config_mut(&mut object.kind)
+                    .ok_or_else(|| "not authored here".to_string())?;
+                edit(config, &field.path, field.optional)
+            }
+        }
+    }
+}
+
+/// Commit a typed field to the document on Enter, or when the pointer leaves
+/// it.
+///
+/// A refusal is written back ONTO THE FIELD as its error rather than logged:
+/// the builder typed it, so the builder is who has to be told. The text stays
+/// on screen so it can be corrected instead of retyped.
+pub(crate) fn apply_inspector_edits(
+    mut commands: Commands,
+    mut submitted: MessageReader<TextFieldSubmitted>,
+    fields: Query<&InspectorField>,
+    mut targets: EditTargets,
+) {
+    for TextFieldSubmitted { entity, value } in submitted.read() {
+        let Ok(field) = fields.get(*entity) else {
+            continue;
+        };
+        let written = targets.edit(field, |root, path, optional| {
+            write_field(root, path, optional, value)
+        });
+        match written {
+            Ok(()) => {
+                commands.entity(*entity).remove::<TextFieldError>();
+            }
+            Err(reason) => {
+                commands.entity(*entity).insert(TextFieldError(reason));
+            }
+        }
+    }
+}
+
+/// Flip a `bool` field.
+pub(crate) fn on_inspector_flag(
+    activate: On<Activate>,
+    boxes: Query<&InspectorField, With<InspectorFlag>>,
+    mut targets: EditTargets,
+) {
+    let Ok(field) = boxes.get(activate.entity) else {
+        return;
+    };
+    let flipped = targets.edit(field, |root, path, _| {
+        toggle_field(root, path)
+            .map(|_| ())
+            .ok_or_else(|| "not a flag".to_string())
+    });
+    if let Err(reason) = flipped {
+        warn!("inspector: {reason}");
+    }
+}
+
+/// Hand a ship to the player or to the AI.
+pub(crate) fn on_inspector_driver(
+    activate: On<Activate>,
+    options: Query<&InspectorDriver>,
+    mut ships: Query<&mut ShipNode>,
+) {
+    let Ok(option) = options.get(activate.entity) else {
+        return;
+    };
+    let Ok(mut ship) = ships.get_mut(option.ship) else {
+        return;
+    };
+    if ship.driver != option.driver {
+        ship.driver = option.driver;
+    }
+}
+
+/// Whether a field has the keyboard.
+///
+/// The editor's keys are single letters - W flies the camera, Q takes a part,
+/// Tab browses - so every one of them is also a character somebody is trying
+/// to type into a name. This is the condition that keeps them apart.
+pub(crate) fn typing_into_a_field(fields: Query<(), With<TextFieldFocused>>) -> bool {
+    !fields.is_empty()
+}
+
+/// Take the free-fly rig off the camera while a field is being typed into, and
+/// give it back afterwards.
+///
+/// The rig is `bevy_enhanced_input`'s and answers WASD wherever the keystrokes
+/// came from, so a run condition on the editor's own systems is not enough:
+/// typing "wasp" into a beacon label would fly the camera four ways. The
+/// marker says the hold is OURS, so the gallery's park - which removes the
+/// same component for its own reasons - cannot be undone by this.
+pub(crate) fn hold_camera_while_typing(
+    mut commands: Commands,
+    fields: Query<(), With<TextFieldFocused>>,
+    camera: Option<
+        Single<(Entity, Has<WASDCameraController>, Has<TypingHold>), With<EditorCamera>>,
+    >,
+) {
+    let Some(camera) = camera else {
+        return;
+    };
+    let (entity, driving, held) = *camera;
+    let typing = !fields.is_empty();
+    if typing && driving {
+        commands
+            .entity(entity)
+            .insert(TypingHold)
+            .remove::<WASDCameraController>();
+    } else if !typing && held {
+        commands
+            .entity(entity)
+            .remove::<TypingHold>()
+            .insert(WASDCameraController);
+    }
+}
+
+#[cfg(test)]
+mod tests;

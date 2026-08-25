@@ -36,7 +36,7 @@ const CRATE_EMISSIVE_MAX: f32 = 6.0;
 /// The scenario/modding RON surface for a salvage crate object: its visible
 /// size, pickup radius, and optional pickup sound. Passed to
 /// [`salvage_crate_scenario_object`] to build the crate bundle.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SalvageCrateConfig {
     /// Edge length of the crate's visible box (world units).
@@ -51,6 +51,7 @@ pub struct SalvageCrateConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
+    #[reflect(ignore)]
     pub pickup_sound: Option<AssetRef<AudioSource>>,
 }
 

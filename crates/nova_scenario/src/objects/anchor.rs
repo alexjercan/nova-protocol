@@ -20,7 +20,7 @@ pub mod prelude {
 
 /// The scenario/modding RON surface for an anchor: the well geometry it
 /// publishes and the optional pull. Passed to [`anchor_scenario_object`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AnchorConfig {
     /// The well's published body radius, world units. Authored, so every

@@ -803,6 +803,32 @@ pub(crate) fn sync_object_views(
     }
 }
 
+/// Take the body off an object whose config just changed, so the pair above
+/// builds it again from what the config now says.
+///
+/// A node's view is built ONCE - by [`sync_object_views`] when the node has
+/// none, or by [`rebuild_node_views`] on the way into the editor - because
+/// until the inspector existed nothing could change a config that already had
+/// a body. Dropping the body is the whole mechanism: a rock typed from radius
+/// 3 to radius 12 has to be a bigger rock on the stage, not a bigger rock the
+/// next time you visit.
+///
+/// SECTIONS are deliberately not here. What an editable section field changes
+/// (thrust, health) is not what its mesh is built from, and rebuilding a
+/// section view would drop the cladding derivation and the placement solve
+/// that read it in the same frame.
+pub(crate) fn drop_edited_views(
+    mut commands: Commands,
+    edited: Query<&Children, Changed<ObjectNode>>,
+    views: Query<(), With<NodeView>>,
+) {
+    for children in &edited {
+        for view in children.iter().filter(|child| views.contains(*child)) {
+            commands.entity(view).despawn();
+        }
+    }
+}
+
 /// Add a BLANK ship to the document and go inside it.
 ///
 /// Additive: a second "Add Ship" is one more subtree standing beside the first

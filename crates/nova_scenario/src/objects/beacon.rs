@@ -35,7 +35,7 @@ const BEACON_EMISSIVE_MIN: f32 = 8.0;
 /// The scenario/modding RON surface for a nav beacon object: its HUD label,
 /// visual radius and color, and optional trigger-area and lock-signature
 /// overrides. Passed to [`beacon_scenario_object`] to build the beacon bundle.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BeaconConfig {
     /// The short name the HUD chip shows ("BEACON 1").

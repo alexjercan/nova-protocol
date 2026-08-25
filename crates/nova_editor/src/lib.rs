@@ -4,6 +4,7 @@
 //! Structure:
 //! - `attitude`  - what the hull under construction would turn like
 //! - `node`      - the document: the node tree and the edit context
+//! - `inspect`   - the reflected fields of the inspected node, and their write-back
 //! - `config`    - the placement state + screen furniture
 //! - `preview`   - the one place a section or object config becomes preview entities
 //! - `placement` - creating ships and objects + the pointer place/preview/delete observers
@@ -28,6 +29,7 @@ use nova_scenario::prelude::*;
 mod attitude;
 mod config;
 mod gallery;
+mod inspect;
 mod keybind;
 mod node;
 mod placement;
@@ -45,8 +47,8 @@ use keybind::{
     sync_section_keybind_labels, EditorRebind,
 };
 use node::{
-    ensure_document, rebuild_node_views, sync_camera_focus, sync_object_views, sync_ship_focus,
-    teardown_document, EditContext,
+    drop_edited_views, ensure_document, rebuild_node_views, sync_camera_focus, sync_object_views,
+    sync_ship_focus, teardown_document, EditContext,
 };
 use nova_ui::widget::button_on_setting;
 use placement::{
@@ -61,6 +63,9 @@ pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
 use ui::{
+    inspector::{
+        apply_inspector_edits, hold_camera_while_typing, sync_inspector, typing_into_a_field,
+    },
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_menu_delete, sync_menu_item_paint,
         sync_menus, sync_view_menu_marks, OpenMenu,
@@ -161,6 +166,9 @@ fn editor_plugin(app: &mut App) {
             // Explicit, because this reads the target that system clears: run
             // the other way round and the guard sees a rebind already gone.
             .before(apply_section_rebind)
+            // And Escape in a field is the field's: it puts back what was
+            // there, which is one rung of its own.
+            .run_if(not(typing_into_a_field))
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
     );
 
@@ -246,7 +254,8 @@ fn editor_plugin(app: &mut App) {
     // gallery, so an object placed in one frame is on the stage in that frame.
     app.add_systems(
         Update,
-        sync_object_views
+        (drop_edited_views, sync_object_views)
+            .chain()
             .before(sync_ship_focus)
             .run_if(in_state(ExampleStates::Editor))
             .run_if(resource_exists::<Assets<Mesh>>)
@@ -323,6 +332,7 @@ fn editor_plugin(app: &mut App) {
             // only because a flat tuple would pass Bevy's arity limit.
             (
                 sync_scene_list,
+                sync_inspector,
                 sync_context_panels,
                 sync_breadcrumb,
                 sync_rebind_button,
@@ -332,8 +342,10 @@ fn editor_plugin(app: &mut App) {
                 sync_camera_focus,
             )
                 .chain(),
-            pick_section_under_pointer,
-            cycle_placement_pose,
+            // Both read single letters, which is also what a builder types
+            // into an inspector field. See `typing_into_a_field`.
+            pick_section_under_pointer.run_if(not(typing_into_a_field)),
+            cycle_placement_pose.run_if(not(typing_into_a_field)),
             update_placement_preview,
             // The founding click reads the same pointer state the solver does:
             // with an empty edited ship there is nothing to solve against, and
@@ -365,6 +377,7 @@ fn editor_plugin(app: &mut App) {
         Update,
         wheel_placement_pose
             .before(update_placement_preview)
+            .run_if(not(typing_into_a_field))
             .run_if(resource_exists::<Messages<MouseWheel>>)
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
     );
@@ -392,13 +405,25 @@ fn editor_plugin(app: &mut App) {
         Update,
         (
             sync_section_keybind_labels,
-            apply_section_rebind.run_if(not(gallery::gallery_open)),
+            apply_section_rebind
+                .run_if(not(gallery::gallery_open))
+                .run_if(not(typing_into_a_field)),
             position_section_keybind_labels.run_if(not(gallery::gallery_open)),
             // The gallery covers the ship the chips label, so they go off with
             // the rest of the editor's chrome while it is up.
             hide_section_keybind_labels.run_if(gallery::gallery_open),
         )
             .run_if(in_state(ExampleStates::Editor)),
+    );
+
+    // The inspector: what a typed field does to the document, and the camera
+    // rig it borrows while the field has the keyboard. Ungated on the gallery
+    // because opening one drops the focus anyway (the click that opens it
+    // submits the field), and a hold that outlived its trigger would leave the
+    // camera dead.
+    app.add_systems(
+        Update,
+        (apply_inspector_edits, hold_camera_while_typing).run_if(in_state(ExampleStates::Editor)),
     );
 
     app.add_systems(
@@ -426,10 +451,11 @@ fn editor_plugin(app: &mut App) {
 /// Say whether the editor answers Escape itself this frame (see
 /// [`EscapeOwner`]).
 ///
-/// It does while there is something to back OUT of: a menu is open, the parts
-/// gallery is up, a part is armed, a rebind is waiting for a key, or the editor
-/// is INSIDE a ship and can step back out to the scenario. With none of those the key falls
-/// through to the pause menu, which stays the sanctioned way out of the editor.
+/// It does while there is something to back OUT of: an inspector field has the
+/// keyboard, a menu is open, the parts gallery is up, a part is armed, a rebind
+/// is waiting for a key, or the editor is INSIDE a ship and can step back out to
+/// the scenario. With none of those the key falls through to the pause menu,
+/// which stays the sanctioned way out of the editor.
 /// Written every frame, including the `false`: whoever claims the key also has
 /// to release it.
 fn declare_editor_escape_owner(
@@ -439,10 +465,12 @@ fn declare_editor_escape_owner(
     rebind: Res<EditorRebind>,
     context: Res<EditContext>,
     menu: Res<OpenMenu>,
+    typing: Query<(), With<nova_ui::prelude::TextFieldFocused>>,
     mut owner: ResMut<EscapeOwner>,
 ) {
     let owned = *editor.get() == ExampleStates::Editor
-        && (menu.0.is_some()
+        && (!typing.is_empty()
+            || menu.0.is_some()
             || gallery.open
             || rebind.target.is_some()
             || *choice != SectionChoice::None

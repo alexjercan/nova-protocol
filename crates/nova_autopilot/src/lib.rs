@@ -108,6 +108,10 @@ pub mod predicate;
 ///   `in_state` is called [`state_is`](predicate::state_is) for the same
 ///   reason - that clash is used everywhere, so it is spelled apart instead.)
 pub mod prelude {
+    /// The key a text field reads, for [`press_edit_key`](crate::input::press_edit_key).
+    /// Bevy's own prelude carries `KeyCode` - the PHYSICAL key - but not this.
+    pub use bevy::input::keyboard::Key;
+
     pub use crate::{
         autopilot::{AutopilotLoop, AutopilotPlugin, StepBuilder, AUTOPILOT_ENV},
         capture::{
@@ -115,9 +119,9 @@ pub mod prelude {
         },
         completion::{register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS},
         input::{
-            assert_named_visible, click_at, click_named, hover_named, move_cursor, press_key,
-            press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels, type_text,
-            ui_node_centre, ui_node_rect,
+            assert_named_visible, click_at, click_named, hover_named, move_cursor, press_edit_key,
+            press_key, press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels,
+            type_text, ui_node_centre, ui_node_rect,
         },
         loops::{
             loop_end, loop_file_name, loop_start, LoopCapturePlugin, LOOP_CAPTURE, LOOP_CRF,

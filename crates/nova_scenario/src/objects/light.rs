@@ -23,7 +23,7 @@ pub mod prelude {
 /// A directional light is infinitely far away, so only its rotation matters -
 /// `aim` exists because authoring "shine at this point" by hand is possible and
 /// authoring the equivalent quaternion by hand is not.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum LightConfig {
     /// A sun: parallel rays, direction only. The key/rim/fill workhorse.

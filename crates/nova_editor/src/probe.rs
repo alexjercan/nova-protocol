@@ -9,6 +9,7 @@
 
 use bevy::prelude::*;
 use nova_ship::prelude::GameSections;
+use nova_ui::prelude::TextFieldFocused;
 
 use crate::{
     config::{PlacementPreview, SectionChoice, SelectedNode},
@@ -16,6 +17,7 @@ use crate::{
     node::{
         context_nodes, inside_id, sections_of, EditContext, ObjectNodes, SectionNodes, ShipNodes,
     },
+    ui::inspector::{Document, InspectorField},
     ExampleStates,
 };
 
@@ -121,6 +123,20 @@ pub struct EditorProbe {
     /// the scenario node, sections in ship-local space inside one. What a drag
     /// beat asserts against.
     pub node_positions: Vec<(String, Vec3)>,
+    /// Whether an inspector field holds the caret.
+    ///
+    /// Typing reaches the document only while one does, and while one does the
+    /// editor's own single-letter keys stand down. A run that means to type a
+    /// value waits for this the same way it waits on the gallery's filter.
+    pub inspector_focused: bool,
+    /// The inspector's rows for the node it is on, label then value, in the
+    /// order the panel draws them.
+    ///
+    /// Read off the DOCUMENT through the same walk the panel uses, not off the
+    /// panel's text nodes: a run that typed a radius wants to know the config
+    /// took it, and a readout that agreed with a stale document would say yes
+    /// either way.
+    pub inspector: Vec<(String, String)>,
 }
 
 /// Refresh [`EditorProbe`] from the build state.
@@ -140,6 +156,8 @@ pub(crate) fn sync_editor_probe(
     q_objects: ObjectNodes,
     q_visibility: Query<&Visibility>,
     poses: Query<&Transform>,
+    document: Document,
+    caret: Query<(), (With<TextFieldFocused>, With<InspectorField>)>,
     mut probe: ResMut<EditorProbe>,
 ) {
     let wanted = if *editor.get() == ExampleStates::Editor {
@@ -180,6 +198,15 @@ pub(crate) fn sync_editor_probe(
             })
             .collect();
         snapshot.context_nodes = listed.into_iter().map(|node| node.id.0.clone()).collect();
+        snapshot.inspector_focused = !caret.is_empty();
+        snapshot.inspector = document
+            .inspection()
+            .map(|(_, rows)| {
+                rows.into_iter()
+                    .map(|row| (row.label, row.value.reading()))
+                    .collect()
+            })
+            .unwrap_or_default();
         snapshot
     } else {
         EditorProbe::default()
@@ -258,6 +285,8 @@ fn snapshot(
         can_play: false,
         visible_ships: Vec::new(),
         node_positions: Vec::new(),
+        inspector_focused: false,
+        inspector: Vec::new(),
     }
 }
 
@@ -372,6 +401,61 @@ mod tests {
         );
         assert_eq!(reported[0].prototype, "hull");
         assert_eq!(reported[1].position, Vec3::new(0.0, 0.0, 1.0));
+    }
+
+    /// The marked node's inspector rows travel with the snapshot.
+    ///
+    /// A driven run types a number into the panel and then has to ask whether
+    /// the DOCUMENT took it. Reading the panel's own text back would answer
+    /// yes for a repaint that never reached the config, so the rows are walked
+    /// off the document here, the same way the panel walks them.
+    #[test]
+    fn the_probe_reports_the_rows_the_inspector_is_showing() {
+        use nova_scenario::prelude::{AsteroidConfig, ScenarioObjectKind};
+
+        use crate::node::{EditorNode, NodeId, ObjectNode, ScenarioNode};
+
+        let mut world = world(ExampleStates::Editor);
+        let scenario = world
+            .spawn((EditorNode, ScenarioNode, NodeId("scenario".to_string())))
+            .id();
+        world.resource_mut::<EditContext>().path = vec![scenario];
+        assert!(
+            sync(&mut world).inspector.is_empty(),
+            "the document root holds nodes, not fields of its own"
+        );
+
+        let rock = world
+            .spawn((
+                EditorNode,
+                ObjectNode {
+                    name: "rock".to_string(),
+                    kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                        radius: 7.0,
+                        texture: default(),
+                        impact_sound: None,
+                        destroy_sound: None,
+                        mass: None,
+                        invulnerable: false,
+                        seed: None,
+                        lock_signature: None,
+                    }),
+                },
+                NodeId("asteroid_1".to_string()),
+                Transform::from_xyz(0.0, 0.0, 0.0),
+                ChildOf(scenario),
+            ))
+            .id();
+        world.resource_mut::<SelectedNode>().0 = Some(rock);
+
+        let rows = sync(&mut world).inspector;
+        assert_eq!(
+            rows.iter()
+                .find(|(label, _)| label == "Radius")
+                .map(|(_, value)| value.as_str()),
+            Some("7"),
+            "the rock's own config is what the panel is showing: {rows:?}"
+        );
     }
 
     /// The context, as data. A driven run has to be able to tell "entered

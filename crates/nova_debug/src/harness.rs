@@ -295,6 +295,31 @@ pub fn editor_filter_focused() -> Arc<Predicate> {
     resource_where::<EditorProbe>(|editor| editor.filter_focused)
 }
 
+/// Advance once an inspector field holds the caret. Typing reaches the
+/// document only while one does, so a beat that types waits for this first.
+pub fn editor_field_focused() -> Arc<Predicate> {
+    resource_where::<EditorProbe>(|editor| editor.inspector_focused)
+}
+
+/// Advance once the inspector's row `label` reads `value`.
+///
+/// Read off the DOCUMENT rather than off the panel's text, so this is the
+/// honest end of "type a number into a field": the config took it, not just
+/// the widget. The value is the row's canonical form - `3`, not `3.000`.
+pub fn editor_inspector_reads(
+    label: impl Into<String>,
+    value: impl Into<String>,
+) -> Arc<Predicate> {
+    let label = label.into();
+    let value = value.into();
+    resource_where::<EditorProbe>(move |editor| {
+        editor
+            .inspector
+            .iter()
+            .any(|(row, reading)| *row == label && *reading == value)
+    })
+}
+
 /// Advance once the gallery's selection resolves to `prototype` through the
 /// active filter - the honest end of "type enough of the id to leave one tile",
 /// where a frame count only guessed at how long the grid takes to narrow.

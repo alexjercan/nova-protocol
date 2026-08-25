@@ -120,6 +120,36 @@ pub fn type_text(text: impl Into<String>) -> impl Fn(&mut World) + Send + Sync +
     }
 }
 
+/// Send one EDITING key - Backspace, End, Enter - as the logical key a text
+/// field reads.
+///
+/// [`type_text`] carries characters, which is what a field APPENDS. The keys
+/// that move the caret, delete, and commit carry no text, so a field reads them
+/// off `logical_key` instead. Driving a field to a known value needs both: the
+/// caret lands wherever the click fell, so a run that means to REPLACE a value
+/// ends the caret, clears back over what is there, types, and commits.
+///
+/// A warn-and-continue no-op without a primary window, like [`type_text`].
+pub fn press_edit_key(key: Key) -> impl Fn(&mut World) + Send + Sync + 'static {
+    move |world: &mut World| {
+        let Ok(window) = world
+            .query_filtered::<Entity, With<PrimaryWindow>>()
+            .single(world)
+        else {
+            warn!("autopilot: pressing `{key:?}` has no primary window");
+            return;
+        };
+        world.write_message(KeyboardInput {
+            key_code: KeyCode::Unidentified(NativeKeyCode::Unidentified),
+            logical_key: key.clone(),
+            state: ButtonState::Pressed,
+            text: None,
+            repeat: false,
+            window,
+        });
+    }
+}
+
 /// Press mouse `button`, and keep it pressed until [`release_mouse`].
 pub fn press_mouse(button: MouseButton) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| set_mouse_button(world, button, ButtonState::Pressed)

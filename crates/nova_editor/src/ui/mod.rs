@@ -5,10 +5,12 @@
 //!
 //! The layout is split by QUESTION: the top bar answers "where am I and what
 //! can I do here" (breadcrumb + per-context actions), the rail answers "what
-//! does the document hold" (the tree, and the edited ship's settings). Parts
-//! are picked in the `gallery`, which replaced the component drawer that used
-//! to sit beside this rail.
+//! does the document hold" (the tree, and the edited ship's settings), and the
+//! `inspector` on the right answers "what is THIS one". Parts are picked in the
+//! `gallery`, which replaced the component drawer that used to sit beside this
+//! rail.
 
+pub(crate) mod inspector;
 pub(crate) mod menu;
 pub(crate) mod rail;
 
@@ -44,6 +46,7 @@ use crate::{
         continue_to_simulation, create_blank_ship, create_scenario_object, delete_selected_node,
     },
     ui::{
+        inspector::inspector_panel,
         menu::{
             back_to_main_menu, menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim,
             menu_z, on_menu_button, on_menu_scrim, toggle_key_legend, toggle_link_points,
@@ -582,6 +585,11 @@ pub(crate) fn setup_editor_scene(
                                 });
                         });
                     });
+                // The Inspector, on the OTHER side of the stage from the tree:
+                // the rail says what the document holds and this says what one
+                // of those things is, and putting both in one column is what
+                // ran the old all-in-one rail out of screen.
+                content.spawn(inspector_panel(skin));
             });
 
             // The placement verdict, along the bottom rather than in the rail:

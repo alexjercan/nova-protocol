@@ -52,14 +52,17 @@ pub mod prelude {
     // so a caller that wants it names `nova_autopilot::predicate::not`.
     pub use nova_autopilot::{
         input::{
-            assert_named_visible, click_at, click_named, hover_named, move_cursor, press_key,
-            press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels, type_text,
-            ui_node_centre, ui_node_rect,
+            assert_named_visible, click_at, click_named, hover_named, move_cursor, press_edit_key,
+            press_key, press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels,
+            type_text, ui_node_centre, ui_node_rect,
         },
         predicate::{
             and, any_entity, elapsed, frames, loop_written, or, pointer_pressed, pointer_released,
             resource_where, shot_written, state_is, ui_node_present,
         },
+        // The logical key `press_edit_key` takes. Bevy's prelude carries
+        // `KeyCode` - the PHYSICAL key - but not this one.
+        prelude::Key,
     };
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -67,8 +70,9 @@ pub mod prelude {
     pub use super::{
         debugdump,
         harness::{
-            assert_scenario_loaded, capture_window, capturing, editor_filter_focused,
-            editor_gallery_closed, editor_gallery_open, editor_gallery_selected, editor_part_armed,
+            assert_scenario_loaded, capture_window, capturing, editor_field_focused,
+            editor_filter_focused, editor_gallery_closed, editor_gallery_open,
+            editor_gallery_selected, editor_inspector_reads, editor_part_armed,
             editor_placement_clear, editor_placement_refused, editor_placement_solved,
             editor_tool_is, force_capture_resolution, freeze_bodies, hide_dev_overlays, hide_hud,
             loop_end, loop_start, nova_autopilot, nova_screenshot, player_ship_present,
