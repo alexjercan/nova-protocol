@@ -356,6 +356,38 @@ impl EditContext {
     }
 }
 
+/// A minted id split into WHAT it is and WHICH one it is: `thruster_section_3`
+/// is `("thruster", "3")` and `asteroid_7` is `("asteroid", "7")`. An id nobody
+/// minted is all stem and no ordinal.
+///
+/// One rule, so the order a list is drawn in and the two columns a row is drawn
+/// with agree about where an id ends and its number begins.
+pub(crate) fn split_ordinal(id: &str) -> (&str, &str) {
+    match id.split_once("_section_") {
+        Some((stem, ordinal)) => (stem, ordinal),
+        None => match id.rsplit_once('_') {
+            Some((stem, tail))
+                if !tail.is_empty() && tail.chars().all(|digit| digit.is_ascii_digit()) =>
+            {
+                (stem, tail)
+            }
+            _ => (id, ""),
+        },
+    }
+}
+
+/// The order minted ids take in a list: the stem, then the ordinal as a NUMBER.
+///
+/// Sorted as TEXT, `thruster_section_10` landed between `_1` and `_2`, so the
+/// ordinal column - the only thing telling six reinforced hulls apart - read
+/// `1, 10, 2`. The whole id breaks a tie, so the order is total.
+pub(crate) fn id_order(id: &str) -> (&str, u64, &str) {
+    let (stem, ordinal) = split_ordinal(id);
+    // An ordinal too big for a `u64` sorts last rather than first: it is a
+    // number nobody minted, and `unwrap_or_default` would file it under 0.
+    (stem, ordinal.parse().unwrap_or(u64::MAX), id)
+}
+
 /// Every section node on `ship`, in id order.
 ///
 /// SORTED rather than in query order: an archetype walk hands the same ship over
@@ -372,7 +404,7 @@ pub(crate) fn sections_of<'a>(
         .filter(|(_, child_of, ..)| child_of.parent() == ship)
         .map(|(entity, _, id, section, transform)| (entity, id, section, transform))
         .collect();
-    found.sort_unstable_by(|a, b| a.1.cmp(b.1));
+    found.sort_unstable_by(|a, b| id_order(&a.1 .0).cmp(&id_order(&b.1 .0)));
     found
 }
 
@@ -420,7 +452,7 @@ pub(crate) fn objects_of<'a>(
         .filter(|(_, child_of, ..)| child_of.parent() == scenario)
         .map(|(entity, _, id, object, transform)| (entity, id, object, transform))
         .collect();
-    found.sort_unstable_by(|a, b| a.1.cmp(b.1));
+    found.sort_unstable_by(|a, b| id_order(&a.1 .0).cmp(&id_order(&b.1 .0)));
     found
 }
 
@@ -455,7 +487,7 @@ pub(crate) fn context_nodes<'a>(
             .filter(|(_, owner, ..)| owner.parent() == scenario)
             .map(|(entity, _, id, _)| ContextNode { entity, id })
             .collect();
-        ships.sort_unstable_by(|a, b| a.id.cmp(b.id));
+        ships.sort_unstable_by(|a, b| id_order(&a.id.0).cmp(&id_order(&b.id.0)));
         ships.extend(
             objects_of(scenario, q_objects)
                 .into_iter()

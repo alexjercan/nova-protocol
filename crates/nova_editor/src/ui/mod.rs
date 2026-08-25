@@ -47,8 +47,8 @@ use crate::{
     },
     keybind::{on_rebind_action, EditorRebind},
     node::{
-        objects_of, sections_of, EditContext, NodeId, ObjectChoice, ObjectNode, ObjectNodes,
-        ScenarioNode, SectionNode, SectionNodes, ShipNode, ShipNodes,
+        id_order, objects_of, sections_of, split_ordinal, EditContext, NodeId, ObjectChoice,
+        ObjectNode, ObjectNodes, ScenarioNode, SectionNode, SectionNodes, ShipNode, ShipNodes,
     },
     placement::{
         continue_to_simulation, create_blank_ship, create_scenario_object, cycle_armed_socket,
@@ -889,17 +889,7 @@ struct WantedRow {
 ///
 /// Display only: the row is still named, selected and reported by its id.
 pub(crate) fn tree_text(name: &str, id: &str) -> (String, String) {
-    let (stem, ordinal) = match id.split_once("_section_") {
-        Some((part, ordinal)) => (part, ordinal),
-        None => match id.rsplit_once('_') {
-            Some((stem, tail))
-                if !tail.is_empty() && tail.chars().all(|digit| digit.is_ascii_digit()) =>
-            {
-                (stem, tail)
-            }
-            _ => (id, ""),
-        },
-    };
+    let (stem, ordinal) = split_ordinal(id);
     // An AUTHORED name stands alone: it is the thing that tells two nodes
     // apart, so an ordinal after it is one number nobody asked for. The
     // fallback keeps the ordinal, because there the id is all there is.
@@ -907,6 +897,61 @@ pub(crate) fn tree_text(name: &str, id: &str) -> (String, String) {
         return (name.to_string(), String::new());
     }
     (stem.to_string(), ordinal.to_string())
+}
+
+/// The one character that says "there is more of this name than the rail can
+/// show". In the shipped face; the row's own clip is the backstop.
+const ELLIPSIS: &str = "\u{2026}";
+
+/// How many characters of label a row of `depth` can draw.
+///
+/// Character arithmetic rather than pixels: every face in the editor is
+/// Iosevka, a monospace, so a column of the rail IS a column of text. The
+/// indent takes a step out of the budget at every depth.
+fn label_budget(depth: usize) -> usize {
+    /// What a root row fits beside its mark and its trail.
+    const AT_ROOT: usize = 15;
+    /// What one step of indent costs, rounded to the character it eats.
+    const PER_STEP: usize = 1;
+
+    AT_ROOT.saturating_sub(depth * PER_STEP)
+}
+
+/// `label` shortened to fit, with the cut marked.
+///
+/// The cut is in the MIDDLE, because both ends carry: the head says what the
+/// thing is and the tail is the half that differs between two rows of the same
+/// family - `reinforced_hull` against `reinforced_hull_heavy`. Clipping at the
+/// right edge, which is what the row did before, threw away the only half that
+/// told them apart, and did it mid-glyph with nothing to say it had happened.
+fn elide(label: &str, budget: usize) -> String {
+    let letters: Vec<char> = label.chars().collect();
+    if letters.len() <= budget {
+        return label.to_string();
+    }
+    // Under three characters there is no room for a head, a tail and a mark,
+    // so the mark alone is the honest answer.
+    let Some(keep) = budget.checked_sub(1).filter(|keep| *keep >= 2) else {
+        return ELLIPSIS.to_string();
+    };
+    let head: String = letters.iter().take(keep.div_ceil(2)).collect();
+    let tail: String = letters[letters.len() - keep / 2..].iter().collect();
+    // The space beside the mark goes with it: `Basic ...roller` spends a column
+    // on a gap that the mark already is.
+    format!("{}{ELLIPSIS}{}", head.trim_end(), tail.trim_start())
+}
+
+/// What a part is CALLED, from the config its row resolves to.
+///
+/// Minus a trailing `Section`: every part in the catalog is called one, the
+/// tree is a tree of parts, and the word is a third of a 150px row spent
+/// saying so. `None` where nothing named it - an inline part, or a prototype
+/// the catalog has not got - and the row falls back to its id.
+fn section_name(section: &SectionNode, catalog: Option<&GameSections>) -> Option<String> {
+    let config = section.resolve(catalog)?;
+    let name = config.base.name.trim();
+    let name = name.strip_suffix("Section").unwrap_or(name).trim_end();
+    (!name.is_empty()).then(|| name.to_string())
 }
 
 /// What the Scene tree is showing, so a frame that changed nothing costs one
@@ -952,7 +997,7 @@ fn wanted_rows(
         depth: 0,
         lead: SCENARIO.to_string(),
         id: root_id.0.clone(),
-        label: root_label,
+        label: elide(&root_label, label_budget(0)),
         trail: root_trail,
         kind: "SCENARIO".to_string(),
     }];
@@ -962,7 +1007,7 @@ fn wanted_rows(
         .iter()
         .filter(|(_, owner, ..)| owner.parent() == scenario)
         .collect();
-    ships.sort_unstable_by(|a, b| a.2.cmp(b.2));
+    ships.sort_unstable_by(|a, b| id_order(&a.2 .0).cmp(&id_order(&b.2 .0)));
     for (ship, _, id, node) in ships {
         // Isolation: a ship that is not the one being edited is not a rung of
         // the path and not a thing to act on from in here.
@@ -975,37 +1020,46 @@ fn wanted_rows(
         let (glyph, kind) = ship_mark(node.driver);
         let (label, ordinal) = tree_text(&node.name, &id.0);
         let inside = entered == Some(ship);
+        let parts = sections_of(ship, nodes).len();
         rows.push(WantedRow {
             node: ship,
             depth: 1,
             lead: glyph.to_string(),
             id: id.0.clone(),
-            label,
-            // The ordinal and the mark share the trail, because a named ship
-            // has no ordinal to draw and only one ship at a time is entered.
-            trail: match (ordinal.as_str(), inside) {
-                ("", true) => INSIDE.to_string(),
-                (ordinal, true) => format!("{ordinal} {INSIDE}"),
-                (ordinal, false) => ordinal.to_string(),
+            label: elide(&label, label_budget(1)),
+            // ONE fact, chosen in this order: where the editor is standing,
+            // then how much is folded up inside this row, then which ship it
+            // is. A ship you are already in lists its parts one row below, and
+            // a named ship - which every minted ship is - has no ordinal to
+            // draw.
+            trail: match (inside, parts) {
+                (true, _) => INSIDE.to_string(),
+                (false, 0) => ordinal,
+                (false, parts) => parts.to_string(),
             },
-            kind: if inside {
-                format!("{kind} - EDITING")
-            } else {
-                kind.to_string()
+            kind: match (inside, parts) {
+                (true, _) => format!("{kind} - EDITING"),
+                (false, 0) => format!("{kind} - EMPTY"),
+                (false, 1) => format!("{kind} - 1 PART"),
+                (false, parts) => format!("{kind} - {parts} PARTS"),
             },
         });
         if entered != Some(ship) {
             continue;
         }
         for (section, id, node, _) in sections_of(ship, nodes) {
-            let (label, trail) = tree_text("", &id.0);
+            // The ORDINAL comes off the id even where the part is named,
+            // unlike a ship: six reinforced hulls share one name, and the
+            // number is the only thing telling them apart.
+            let (stem, trail) = tree_text("", &id.0);
+            let label = section_name(node, catalog).unwrap_or(stem);
             let (glyph, kind) = section_mark(node, catalog);
             rows.push(WantedRow {
                 node: section,
                 depth: 2,
                 lead: glyph.to_string(),
                 id: id.0.clone(),
-                label,
+                label: elide(&label, label_budget(2)),
                 trail,
                 kind: kind.to_string(),
             });
@@ -1026,7 +1080,7 @@ fn wanted_rows(
             depth: 1,
             lead: glyph.to_string(),
             id: id.0.clone(),
-            label,
+            label: elide(&label, label_budget(1)),
             trail,
             kind: kind.to_string(),
         });
@@ -1959,6 +2013,15 @@ mod tests {
 
     /// The lead texts of the rows, in draw order - the kind glyphs the
     /// assertions read.
+    /// What each row's hover hint would say about its kind.
+    fn row_hints(app: &mut App) -> Vec<String> {
+        app.world_mut()
+            .query::<&SceneRowHint>()
+            .iter(app.world())
+            .map(|hint| hint.kind.clone())
+            .collect()
+    }
+
     fn row_leads(app: &mut App) -> Vec<String> {
         let list = app
             .world_mut()
@@ -2087,10 +2150,88 @@ mod tests {
         app.world_mut().resource_mut::<EditContext>().enter(ship);
         app.update();
 
+        assert_eq!(row_leads(&mut app), vec![SCENARIO, SHIP_PLAYER]);
         assert!(
-            row_columns(&mut app).contains(&("ship".to_string(), format!("1 {INSIDE}"))),
+            row_columns(&mut app).contains(&("ship".to_string(), INSIDE.to_string())),
             "{:?}",
             row_columns(&mut app)
+        );
+    }
+
+    /// A ship folded shut looked exactly like a ship with nothing in it. The
+    /// trail says how much is inside, and the hover hint says what the number
+    /// counts.
+    #[test]
+    fn a_ship_row_says_how_many_parts_are_folded_up_inside_it() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        section_node(&mut app, ship, "hull_section_1");
+        section_node(&mut app, ship, "hull_section_2");
+        app.update();
+
+        assert!(
+            row_columns(&mut app).contains(&("ship".to_string(), "2".to_string())),
+            "{:?}",
+            row_columns(&mut app)
+        );
+        assert!(
+            row_hints(&mut app)
+                .iter()
+                .any(|hint| hint == "SHIP - PLAYER - 2 PARTS"),
+            "{:?}",
+            row_hints(&mut app)
+        );
+    }
+
+    /// The one thing telling six reinforced hulls apart is the ordinal, and
+    /// read as text `10` sorted between `1` and `2`.
+    #[test]
+    fn the_rows_of_one_family_climb_by_their_ordinals() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        for ordinal in [10, 2, 1] {
+            section_node(&mut app, ship, &format!("hull_section_{ordinal}"));
+        }
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.update();
+
+        let trails: Vec<String> = row_columns(&mut app)
+            .into_iter()
+            .map(|(_, trail)| trail)
+            .collect();
+        assert_eq!(
+            trails,
+            vec![
+                String::new(),
+                INSIDE.to_string(),
+                "1".into(),
+                "2".into(),
+                "10".into()
+            ],
+        );
+    }
+
+    /// A name too long for the rail keeps BOTH ends: the head says what the
+    /// thing is, the tail is the half that differs between two of a family.
+    #[test]
+    fn a_label_too_long_for_the_rail_is_cut_in_the_middle() {
+        assert_eq!(elide("hull", 15), "hull", "a short name is left alone");
+        assert_eq!(
+            elide("reinforced_hull_heavy", 13),
+            format!("reinfo{ELLIPSIS}_heavy"),
+            "the cut is marked, and the tail survives it"
+        );
+        assert_eq!(
+            elide("Basic Controller", 13),
+            format!("Basic{ELLIPSIS}roller"),
+            "a space beside the cut goes with it"
+        );
+        assert_eq!(
+            elide("reinforced", 2),
+            ELLIPSIS,
+            "under three characters there is no room for a head and a tail"
         );
     }
 
@@ -2648,10 +2789,10 @@ mod tests {
     }
 
     /// A 150px rail cannot hold `pdc_kinetic_turret_section_7`, and clipping it
-    /// dropped the digit that says which turret. The word the tree already
-    /// says with its glyph goes instead.
+    /// dropped the digit that says which turret. The part's NAME goes in the
+    /// label, and the ordinal in the column the clip cannot reach.
     #[test]
-    fn a_section_row_reads_without_the_word_every_part_id_carries() {
+    fn a_section_row_reads_its_name_with_the_ordinal_beside_it() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
@@ -2662,7 +2803,7 @@ mod tests {
         app.update();
 
         assert!(
-            row_columns(&mut app).contains(&("pdc_kinetic_turret".to_string(), "7".to_string())),
+            row_columns(&mut app).contains(&("hull".to_string(), "7".to_string())),
             "the row reads short, with the ordinal in its own column: {:?}",
             row_columns(&mut app)
         );
