@@ -208,10 +208,14 @@ pub(crate) struct InspectorRow {
     pub(crate) path: Vec<PathStep>,
     /// Set when the target is an `Option`: an empty field clears it.
     pub(crate) optional: bool,
-    /// The heading the row sits under, when its value is nested inside the
-    /// config rather than one of its own top-level fields.
-    pub(crate) group: Option<String>,
-    /// The row's label, WITHIN its heading.
+    /// Where the row sits in the config, one segment per level, outermost
+    /// first. Empty for a node's own top-level fields.
+    ///
+    /// A LIST rather than one joined string because the panel draws it as a
+    /// tree: a row eight levels down repeats what the row above it already
+    /// said, and only the panel can see which levels those are.
+    pub(crate) group: Vec<String>,
+    /// The row's label, WITHIN its group.
     pub(crate) label: String,
     /// The value, and the widget it implies.
     pub(crate) value: RowValue,
@@ -223,7 +227,7 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         root,
         path: Vec::new(),
         optional: false,
-        group: None,
+        group: Vec::new(),
         label: label.to_string(),
         value: RowValue::Fixed(text.into()),
     }
@@ -243,56 +247,44 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
     }
 }
 
-/// The label a path reads as: every named step, prettied and joined, so
-/// `exhaust.offset` says "Exhaust Offset" and cannot be confused with the
-/// `offset` of something else.
+/// A path as the levels a builder reads it in: one segment per named step,
+/// prettied, with a list INDEX folded into the name it indexes.
 ///
-/// List INDICES are part of the name - `children[1].offset` says "Children 2
-/// Offset" - because two siblings' offsets are two different values and a panel
-/// that called them both "Offset" would be lying about one of them.
-fn label_of(path: &[PathStep]) -> String {
+/// `children[1].muzzle.fire_rate` is three segments - "Children 2", "Muzzle",
+/// "Fire Rate" - because that is what it is: the second joint, its muzzle, and
+/// the number on it. The index rides its own name rather than standing alone,
+/// so no level of the tree is ever called "2".
+fn segments(path: &[PathStep]) -> Vec<String> {
     let mut named: Vec<String> = Vec::new();
     for step in path {
         match step {
             PathStep::Field(name) => named.push(pretty(name)),
             // One-based: the second joint is "2" to everyone who is not a
             // programmer, and this label is read by a builder.
-            PathStep::Item(index) => named.push((index + 1).to_string()),
+            PathStep::Item(index) => match named.last_mut() {
+                Some(last) => last.push_str(&format!(" {}", index + 1)),
+                None => named.push((index + 1).to_string()),
+            },
             PathStep::Slot(_) => {}
         }
     }
-    if named.is_empty() {
-        // The only path with no named step is the config's own root, which is
-        // an enum: the row says WHICH KIND it is.
-        "Kind".to_string()
-    } else {
-        named.join(" ")
-    }
+    named
 }
 
-/// A row's heading and its short label: everything but the last named step,
-/// and the last named step.
+/// Where a row sits, and what it is called there.
 ///
 /// The split is what keeps a deep config readable. A turret's fire rate is
 /// eight steps down its joint tree, and one flat row called "Root Children 2
-/// Children 2 Muzzle Fire Rate" is a path, not a label. Under a heading that
-/// says where you are, the row is just "Fire Rate".
-fn heading_and_label(path: &[PathStep]) -> (Option<String>, String) {
-    // Split on the last named STEP, never on the last space: `fire_rate` is
-    // already two words, and cutting there would leave a row called "Rate"
-    // under a heading ending "Fire".
-    let last = path
-        .iter()
-        .rposition(|step| matches!(step, PathStep::Field(_)));
-    let Some(last) = last else {
-        return (None, label_of(path));
-    };
-    let group = label_of(&path[..last]);
-    let leaf = label_of(&path[last..]);
-    (
-        (!group.is_empty() && group != "Kind").then_some(group),
-        leaf,
-    )
+/// Children 2 Muzzle Fire Rate" is a path, not a label. The panel draws the
+/// path once, as a tree, and the row under it is just "Fire Rate".
+fn heading_and_label(path: &[PathStep]) -> (Vec<String>, String) {
+    let mut named = segments(path);
+    match named.pop() {
+        Some(leaf) => (named, leaf),
+        // The only path with no named step is the config's own root, which is
+        // an enum: the row says WHICH KIND it is.
+        None => (Vec::new(), "Kind".to_string()),
+    }
 }
 
 /// `lock_signature` -> `Lock Signature`.
@@ -841,7 +833,7 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
         root: FieldRoot::Config,
         path: Vec::new(),
         optional: false,
-        group: None,
+        group: Vec::new(),
         label: "Driver".to_string(),
         value: RowValue::Driver(ship.driver),
     }];
@@ -877,7 +869,7 @@ pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<Inspecto
         root: FieldRoot::Label,
         path: Vec::new(),
         optional: false,
-        group: None,
+        group: Vec::new(),
         label: "Name".to_string(),
         value: RowValue::Text(object.name.clone()),
     }];
@@ -905,7 +897,7 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             root: FieldRoot::Pose,
             path: Vec::new(),
             optional: false,
-            group: None,
+            group: Vec::new(),
             label: "Position".to_string(),
             value: RowValue::Text(leaf_text(&pose.translation).unwrap_or_default()),
         },
@@ -913,7 +905,7 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             root: FieldRoot::Heading,
             path: Vec::new(),
             optional: false,
-            group: None,
+            group: Vec::new(),
             label: "Heading".to_string(),
             value: RowValue::Text(leaf_text(&heading_of(pose)).unwrap_or_default()),
         },

@@ -65,6 +65,10 @@ pub struct TextFieldSpec {
     pub placeholder: String,
     /// Maximum Unicode scalar count.
     pub max_chars: usize,
+    /// Draw it SHORT: a field in a column of fields, rather than one control
+    /// on a menu. Same face and the same padding either side - the caret is
+    /// found by character width, so only the height gives way.
+    pub dense: bool,
 }
 
 impl TextFieldSpec {
@@ -74,6 +78,7 @@ impl TextFieldSpec {
             value: value.into(),
             placeholder: String::new(),
             max_chars: 256,
+            dense: false,
         }
     }
 
@@ -86,6 +91,12 @@ impl TextFieldSpec {
     /// Set the character limit.
     pub fn max_chars(mut self, max_chars: usize) -> Self {
         self.max_chars = max_chars;
+        self
+    }
+
+    /// Draw it short, for a panel that is a column of these.
+    pub fn dense(mut self) -> Self {
+        self.dense = true;
         self
     }
 }
@@ -108,6 +119,14 @@ pub(super) struct TextFieldErrorDisplay;
 
 /// Build a themed single-line text field.
 pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
+    // A dense field gives up HEIGHT only. The horizontal padding is what
+    // `caret_for_pointer` measures a click against, and the face is what
+    // `CHARACTER_WIDTH` is derived from, so neither may move.
+    let (min_height, vertical_pad) = if spec.dense {
+        (px(26), px(2))
+    } else {
+        (px(36), px(7))
+    };
     (
         TextField,
         TextFieldValue(spec.value),
@@ -119,8 +138,9 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
         Hovered::default(),
         Node {
             width: percent(100),
-            min_height: px(36),
-            padding: UiRect::axes(px(10), px(7)),
+            min_height,
+            align_items: AlignItems::Center,
+            padding: UiRect::axes(px(10), vertical_pad),
             border: UiRect::all(px(theme::BORDER_W)),
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             position_type: PositionType::Relative,

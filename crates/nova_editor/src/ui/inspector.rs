@@ -164,11 +164,21 @@ impl Document<'_, '_> {
     }
 
     /// The title line: what kind of node, and which one.
+    ///
+    /// The id wears the same shortening its tree row does, so the panel and
+    /// the row that opened it read alike - and so a minted section id fits the
+    /// line instead of wrapping mid-word.
     fn title(&self, target: InspectTarget) -> String {
         let id = self
             .ids
             .get(target.node())
             .map_or_else(|_| String::new(), |id| id.0.clone());
+        let (name, ordinal) = super::tree_text(&id);
+        let id = if ordinal.is_empty() {
+            name
+        } else {
+            format!("{name} {ordinal}")
+        };
         format!("{}  {id}", target.tag())
     }
 }
@@ -205,8 +215,13 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
                 Name::new("Inspector Title"),
                 InspectorTitle,
                 Text::new(""),
+                // WRAPS, on any character. A node id is one word with
+                // underscores in it, so a word-boundary break never fires and
+                // `pdc_kinetic_turret_section_7` used to run off the panel
+                // edge and be cut - which loses the digit that says WHICH
+                // turret is on screen.
                 TextLayout {
-                    linebreak: LineBreak::NoWrap,
+                    linebreak: LineBreak::AnyCharacter,
                     ..default()
                 },
                 TextFont {
@@ -215,8 +230,8 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
                 },
                 TextColor(theme::AMBER_NOVA),
                 Node {
+                    width: percent(100),
                     margin: UiRect::vertical(px(6)),
-                    overflow: Overflow::clip(),
                     ..default()
                 },
             ),
@@ -249,12 +264,22 @@ fn row_shell() -> Node {
     }
 }
 
+/// How far in a row or heading at `depth` stands. Capped, because a config
+/// deep enough to run out of panel is a config the tree is already carrying:
+/// past four levels the indent stops earning its pixels.
+fn indent(depth: usize) -> f32 {
+    depth.min(4) as f32 * 7.0
+}
+
 /// The name column. Clipped rather than wrapped: a two-line name would push
 /// its own value box out of the column the row above lined up with.
-fn row_label(label: &str) -> impl Bundle {
+///
+/// `taken` is what the row's own indent has already eaten, so the column ends
+/// where every other row's does.
+fn row_label(label: &str, taken: f32) -> impl Bundle {
     (
         Node {
-            width: px(LABEL_W),
+            width: px(LABEL_W - taken),
             flex_shrink: 0.0,
             overflow: Overflow::clip(),
             ..default()
@@ -295,46 +320,66 @@ fn build_rows(
     rows: &[InspectorRow],
     skin: UiSkin,
 ) {
-    let mut heading: Option<&str> = None;
+    let mut heading: Vec<String> = Vec::new();
     for (slot, row) in rows.iter().enumerate() {
-        // A heading whenever the group CHANGES, so a turret's joint tree reads
-        // as a handful of short rows under where they are rather than as one
-        // column of eight-word paths.
-        if row.group.as_deref() != heading {
-            heading = row.group.as_deref();
-            if let Some(group) = heading {
-                list.spawn((
-                    Name::new(format!("Inspector Group {group}")),
-                    InspectorGroup,
-                    Text::new(group.to_uppercase()),
-                    TextLayout {
-                        linebreak: LineBreak::NoWrap,
-                        ..default()
-                    },
-                    TextFont {
-                        font_size: FontSize::Px(11.0),
-                        ..default()
-                    },
-                    TextColor(theme::PHOSPHOR_MUTED),
-                    Node {
-                        margin: UiRect::top(px(6)),
-                        ..default()
-                    },
-                ));
-            }
+        // The group as a TREE: only the levels this row does not share with
+        // the one above it are drawn, each one step further in. A turret's
+        // joint tree used to repeat its whole path over every handful of rows
+        // - "Root Children 2", then "Root Children 2 Muzzle" - which is the
+        // same eight words the split was supposed to get rid of.
+        let shared = row
+            .group
+            .iter()
+            .zip(&heading)
+            .take_while(|(now, before)| now == before)
+            .count();
+        for (depth, level) in row.group.iter().enumerate().skip(shared) {
+            list.spawn((
+                Name::new(format!("Inspector Group {level}")),
+                InspectorGroup,
+                Text::new(level.to_uppercase()),
+                TextLayout {
+                    linebreak: LineBreak::NoWrap,
+                    ..default()
+                },
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR_DIM),
+                // A rule under each level, so the eye can see where one part
+                // of the config ends and the next begins without reading the
+                // headings at all.
+                Node {
+                    width: percent(100),
+                    margin: UiRect::top(px(8)),
+                    padding: UiRect::left(px(indent(depth))),
+                    border: UiRect::bottom(px(theme::BORDER_W)),
+                    ..default()
+                },
+                BorderColor::all(theme::PHOSPHOR.with_alpha(0.16)),
+            ));
         }
+        row.group.clone_into(&mut heading);
         let field = InspectorField {
             node,
             root: row.root,
             path: row.path.clone(),
             optional: row.optional,
         };
+        // The row steps in with its group, and its NAME COLUMN gives up
+        // exactly what the step took: the value boxes stay in one column down
+        // the whole panel however deep the tree goes.
+        let step = indent(row.group.len());
         list.spawn((
             Name::new(format!("Inspector Row {}", row.label)),
-            row_shell(),
+            Node {
+                padding: UiRect::left(px(step)),
+                ..row_shell()
+            },
         ))
         .with_children(|shell| {
-            shell.spawn(row_label(&row.label));
+            shell.spawn(row_label(&row.label, step));
             shell
                 .spawn(value_column())
                 .with_children(|value| match &row.value {
@@ -342,7 +387,7 @@ fn build_rows(
                         // The placeholder is the OPTIONAL row's whole affordance:
                         // an empty box that says "none" is what tells a builder
                         // that emptying it is allowed.
-                        let mut spec = TextFieldSpec::new(text.clone()).max_chars(64);
+                        let mut spec = TextFieldSpec::new(text.clone()).max_chars(64).dense();
                         if row.optional {
                             spec = spec.placeholder("none");
                         }
@@ -377,7 +422,7 @@ fn build_rows(
                             Name::new(format!("Inspector Field {}", row.label)),
                             InspectorSlot(slot),
                             field.clone(),
-                            text_field(TextFieldSpec::new(text.clone()).max_chars(9)),
+                            text_field(TextFieldSpec::new(text.clone()).max_chars(9).dense()),
                         ));
                     }
                     RowValue::Choice { options, chosen } => {

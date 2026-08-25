@@ -5,7 +5,8 @@
 use bevy::ecs::system::RunSystemOnce;
 use nova_scenario::prelude::{AsteroidConfig, BeaconConfig, ScenarioObjectKind, SectionSource};
 use nova_ship::prelude::{
-    BaseSectionConfig, SectionConfig, SectionKind, ThrusterSectionConfig, WASDCameraController,
+    BaseSectionConfig, MuzzleConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
+    TurretJoint, TurretSectionConfig, WASDCameraController,
 };
 
 use super::*;
@@ -352,6 +353,89 @@ fn a_ship_hands_itself_to_the_ai_from_its_driver_row() {
         app.world().get::<ShipNode>(ship).expect("the ship").driver,
         ShipDriver::Ai,
         "entering a ship clears the selection, so the driver row is reached through the context"
+    );
+}
+
+/// The panel draws a group PATH as a tree: one line per level, and only the
+/// levels the row above did not already say. The flat version repeated the
+/// whole path over every handful of rows - "Root Children 1", then "Root
+/// Children 1 Muzzle" - which is the wall of words the split was meant to
+/// remove.
+#[test]
+fn a_nested_group_is_drawn_one_level_at_a_time() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let ship = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ShipNode::default(),
+            NodeId("ship_1".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+    let joint = |muzzle, children| TurretJoint {
+        offset: Vec3::ZERO,
+        axis: None,
+        speed: 0.0,
+        min: None,
+        max: None,
+        render_mesh: None,
+        render_mesh_transform: None,
+        muzzle,
+        children,
+    };
+    let section = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            SectionNode {
+                source: SectionSource::Inline(SectionConfig {
+                    base: BaseSectionConfig {
+                        id: "turret".to_string(),
+                        ..default()
+                    },
+                    kind: SectionKind::Turret(TurretSectionConfig {
+                        root: joint(
+                            None,
+                            vec![joint(
+                                Some(MuzzleConfig {
+                                    fire_rate: 4.0,
+                                    muzzle_effect: None,
+                                }),
+                                Vec::new(),
+                            )],
+                        ),
+                        ..default()
+                    }),
+                }),
+                modifications: vec![],
+                binds: vec![],
+            },
+            NodeId("turret_1".to_string()),
+            Transform::default(),
+            ChildOf(ship),
+        ))
+        .id();
+    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    select(&mut app, section);
+
+    let headings: Vec<String> = app
+        .world_mut()
+        .query_filtered::<&Text, With<InspectorGroup>>()
+        .iter(app.world())
+        .map(|text| text.0.clone())
+        .collect();
+    assert!(
+        headings.iter().any(|level| level == "MUZZLE"),
+        "the muzzle is a level of its own: {headings:?}"
+    );
+    assert!(
+        headings
+            .iter()
+            .all(|level| level == "ROOT" || !level.starts_with("ROOT ")),
+        "no heading repeats the level above it: {headings:?}"
     );
 }
 

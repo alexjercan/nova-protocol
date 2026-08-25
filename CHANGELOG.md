@@ -46,8 +46,8 @@ does NOT get an entry - and it is the only place they are written down.
 - File, Edit, View and Add drop real menus, with Play dead centre between
   them: File starts a new scenario, View toggles the key legend and the
   link-point gizmos, Escape closes an open menu.
-- Scene tree rows step in by depth, so a ship's sections read as its own
-  branch rather than as more entries in one flat list.
+- Scene tree rows step in by depth and print a section as its part name, with
+  the ordinal in a column the rail cannot clip, so six alike hulls stay apart.
 - The right-hand Inspector lists a node's own fields - a thruster's, a rock's,
   a ship's driver - read off its config by reflection; typing into one writes
   it back, so a placed object keeps what you set.
@@ -58,8 +58,8 @@ does NOT get an entry - and it is the only place they are written down.
   typing one turns it. There is no scale row: Nova sections mate, they do not
   stretch.
 - The Inspector reaches into a node's lists - a turret's fire rate lives on a
-  muzzle inside its joint tree - and groups deep rows under a heading rather
-  than showing one column of long paths.
+  muzzle inside its joint tree - and draws them as an indented tree of ruled
+  headings, not a column of long paths.
 - The Inspector scrolls, so a config taller than the panel is rolled down to
   rather than running off the bottom of the screen.
 - Pressing a colour's swatch opens a floating picker: four channel sliders over

@@ -516,33 +516,43 @@ fn a_turrets_fire_rate_can_be_retuned() {
 }
 
 /// A row deep in a tree is labelled by where it sits, not by its whole path:
-/// the heading says where you are and the row says what it is.
+/// the group says where you are, one segment per level, and the row says what
+/// it is.
 #[test]
-fn a_nested_row_is_a_heading_and_a_short_label() {
+fn a_nested_row_is_a_group_path_and_a_short_label() {
     let rows = section_rows(&turret_with_muzzle(4.0), None);
     let rate = rows
         .iter()
         .find(|row| row.label == "Fire Rate")
         .expect("a fire rate row");
 
-    let group = rate.group.as_deref().expect("a nested row sits under one");
+    let group = &rate.group;
     assert!(
-        group.contains("Muzzle"),
-        "the heading has to say where the row is: {group:?}"
+        group.len() > 1,
+        "a value inside a joint tree sits several levels down: {group:?}"
+    );
+    assert_eq!(
+        group.last().map(String::as_str),
+        Some("Muzzle"),
+        "the level a row sits in is the one nearest it: {group:?}"
     );
     assert!(
-        group.contains('1'),
-        "and WHICH of the siblings, one-based: {group:?}"
+        group.iter().any(|level| level == "Children 1"),
+        "and the index rides the name it indexes, one-based: {group:?}"
+    );
+    assert!(
+        !group.iter().any(|level| level == "1"),
+        "no level of the tree is called just a number: {group:?}"
     );
 }
 
-/// A node's OWN fields have no heading - they are not nested in anything.
+/// A node's OWN fields sit in nothing, so there is no group over them.
 #[test]
-fn a_top_level_row_has_no_heading() {
+fn a_top_level_row_has_no_group() {
     let rows = object_rows(&asteroid(stock_asteroid()), &Transform::default());
 
-    assert_eq!(row(&rows, "Position").group, None);
-    assert_eq!(row(&rows, "Name").group, None);
+    assert!(row(&rows, "Position").group.is_empty());
+    assert!(row(&rows, "Name").group.is_empty());
 }
 
 /// A rotation inside a config reads in the same degrees a node's own heading

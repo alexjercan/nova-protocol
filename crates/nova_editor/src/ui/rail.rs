@@ -96,7 +96,12 @@ pub(crate) fn style_row(id: &str, name: &str, selected: bool, skin: UiSkin) -> i
 const INDENT_BASE: f32 = 8.0;
 /// What one level of nesting is worth. Wide enough to read as a step, narrow
 /// enough that a section (depth 2) still shows most of its id.
-const INDENT_STEP: f32 = 12.0;
+const INDENT_STEP: f32 = 9.0;
+
+/// Row type size (px). One step under the panel type: the rail is a tree of
+/// minted ids in 150px, and every point of size is a character of id the row
+/// can show before it clips.
+const ROW_TEXT: f32 = 11.0;
 
 /// One row of the Scene tree: the scenario root, a ship, or a section of the
 /// entered ship.
@@ -115,6 +120,7 @@ pub(crate) fn scene_row(
     depth: usize,
     lead: &str,
     label: &str,
+    trail: &str,
     selected: bool,
     skin: UiSkin,
 ) -> impl Bundle {
@@ -131,6 +137,10 @@ pub(crate) fn scene_row(
         linebreak: LineBreak::NoWrap,
         ..default()
     };
+    let row_font = TextFont {
+        font_size: FontSize::Px(ROW_TEXT),
+        ..default()
+    };
     (
         ListRow,
         Button,
@@ -141,7 +151,7 @@ pub(crate) fn scene_row(
             margin: UiRect::bottom(px(2)),
             padding: UiRect {
                 left: indent,
-                right: px(8),
+                right: px(6),
                 top: px(2),
                 bottom: px(2),
             },
@@ -158,20 +168,34 @@ pub(crate) fn scene_row(
             (
                 Text::new(lead.to_string()),
                 one_line,
-                TextFont {
-                    font_size: FontSize::Px(12.0),
-                    ..default()
-                },
+                row_font.clone(),
                 TextColor(theme::PHOSPHOR_MUTED),
             ),
+            // The label is the half that may clip, so it sits in the shrinking
+            // column: `flex_basis` 0 plus `min_width` 0 is what lets a long id
+            // give its width back instead of pushing the trail out of the row.
             (
-                Text::new(label.to_string()),
-                one_line,
-                TextFont {
-                    font_size: FontSize::Px(12.0),
+                Node {
+                    flex_grow: 1.0,
+                    flex_basis: px(0),
+                    min_width: px(0),
+                    overflow: Overflow::clip(),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR),
+                children![(
+                    Text::new(label.to_string()),
+                    one_line,
+                    row_font.clone(),
+                    TextColor(theme::PHOSPHOR),
+                )],
+            ),
+            // Which one this is. Fixed at the row's right edge, because it is
+            // the only thing telling a run of same-part rows apart.
+            (
+                Text::new(trail.to_string()),
+                one_line,
+                row_font,
+                TextColor(theme::PHOSPHOR_MUTED),
             )
         ],
     )

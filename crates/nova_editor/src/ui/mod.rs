@@ -162,7 +162,9 @@ fn edited_ship<'a>(context: &EditContext, ships: &'a Query<&ShipNode>) -> Option
 
 /// Left rail width (px). Kept narrow so the rail stays clear of screen centre
 /// on the 1024-wide window, where the editor preview ship projects - a UI panel
-/// over that point would block the placement raycast.
+/// over that point would block the placement raycast. A wider rail buys the
+/// tree a few characters and costs the walk its aim at the ship: the rows buy
+/// their width back from the type and the indent instead (see [`scene_row`]).
 const RAIL_W: f32 = 150.0;
 
 /// Register the UI's observers (button colours, selection). The per-state
@@ -731,7 +733,33 @@ struct WantedRow {
     /// node the editor is inside, `>` the ship Play hands to the player, `-` a
     /// design beside it, and a section wears its kind.
     lead: String,
+    /// The node's id: what the row is CALLED, and what the driven walks find
+    /// it by.
+    id: String,
+    /// What the row READS as. The id, shortened where the id repeats what the
+    /// tree already says (see [`tree_text`]).
     label: String,
+    /// The row's right-hand column: which one this is, when the id ends in an
+    /// ordinal. Held apart from the label because it is the half that must
+    /// survive a narrow rail (see [`tree_text`]).
+    trail: String,
+}
+
+/// What a node id reads as in a 150px rail: (label, trail).
+///
+/// Every shipped part is called `<something>_section_<n>`, so a section's
+/// minted id spends a third of the row on the one word its glyph and its place
+/// in the tree already say - and then clips off the number, which is the only
+/// thing telling six reinforced hulls apart. `pdc_kinetic_turret_section_7`
+/// reads "pdc_kinetic_turret" with a "7" in the row's own right-hand column,
+/// where the clip cannot reach it.
+///
+/// Display only: the row is still named, selected and reported by its id.
+fn tree_text(id: &str) -> (String, String) {
+    match id.split_once("_section_") {
+        Some((part, ordinal)) => (part.to_string(), ordinal.to_string()),
+        None => (id.to_string(), String::new()),
+    }
 }
 
 /// What the Scene tree is showing, so a frame that changed nothing costs one
@@ -791,11 +819,14 @@ fn wanted_rows(
     let Ok(root_id) = q_scenarios.get(scenario) else {
         return Vec::new();
     };
+    let (root_label, root_trail) = tree_text(&root_id.0);
     let mut rows = vec![WantedRow {
         node: scenario,
         depth: 0,
         lead: "*".to_string(),
-        label: root_id.0.clone(),
+        id: root_id.0.clone(),
+        label: root_label,
+        trail: root_trail,
     }];
 
     let entered = context.ship();
@@ -813,30 +844,39 @@ fn wanted_rows(
                 ShipDriver::Ai => "-",
             }
         };
+        let (label, trail) = tree_text(&id.0);
         rows.push(WantedRow {
             node: ship,
             depth: 1,
             lead: glyph.to_string(),
-            label: id.0.clone(),
+            id: id.0.clone(),
+            label,
+            trail,
         });
         if entered != Some(ship) {
             continue;
         }
         for (section, id, node, _) in sections_of(ship, nodes) {
+            let (label, trail) = tree_text(&id.0);
             rows.push(WantedRow {
                 node: section,
                 depth: 2,
                 lead: section_glyph(node, catalog).to_string(),
-                label: id.0.clone(),
+                id: id.0.clone(),
+                label,
+                trail,
             });
         }
     }
     for (object, id, node, _) in objects_of(scenario, q_objects) {
+        let (label, trail) = tree_text(&id.0);
         rows.push(WantedRow {
             node: object,
             depth: 1,
             lead: object_glyph(node).to_string(),
-            label: id.0.clone(),
+            id: id.0.clone(),
+            label,
+            trail,
         });
     }
     rows
@@ -894,7 +934,7 @@ pub(crate) fn sync_scene_list(
 
     let signature: Vec<(Entity, usize, String, String)> = wanted
         .iter()
-        .map(|row| (row.node, row.depth, row.lead.clone(), row.label.clone()))
+        .map(|row| (row.node, row.depth, row.lead.clone(), row.id.clone()))
         .collect();
     if shown.rows != signature {
         commands.entity(list).despawn_related::<Children>();
@@ -906,8 +946,11 @@ pub(crate) fn sync_scene_list(
                 // that made it reads as a dropped input.
                 let marked = Some(row.node) == selected.0;
                 let mut entity = list.spawn((
-                    Name::new(format!("Scene Row {}", row.label)),
-                    scene_row(row.depth, &row.lead, &row.label, marked, *skin),
+                    // Named by ID, drawn by LABEL: the walks and the probe
+                    // find a row by the node's own key, whatever the rail has
+                    // room to print.
+                    Name::new(format!("Scene Row {}", row.id)),
+                    scene_row(row.depth, &row.lead, &row.label, &row.trail, marked, *skin),
                     SceneRow(row.node),
                     observe(on_scene_row),
                 ));
@@ -1385,6 +1428,32 @@ mod tests {
             .into_iter()
             .filter_map(|child| app.world().get::<Name>(child))
             .map(|name| name.as_str().replace("Scene Row ", ""))
+            .collect()
+    }
+
+    /// The TEXT of each row, which is not the same as its name: a section's
+    /// row is drawn shorter than its id.
+    fn row_columns(app: &mut App) -> Vec<(String, String)> {
+        let list = app
+            .world_mut()
+            .query_filtered::<Entity, With<SceneList>>()
+            .single(app.world())
+            .expect("one scene list");
+        let rows: Vec<Entity> = app
+            .world()
+            .get::<Children>(list)
+            .map(|children| children.iter().collect())
+            .unwrap_or_default();
+        rows.into_iter()
+            .filter_map(|row| {
+                let children = app.world().get::<Children>(row)?;
+                let (wrapper, trail) = (children.iter().nth(1)?, children.iter().nth(2)?);
+                let label = app.world().get::<Children>(wrapper)?.iter().next()?;
+                Some((
+                    app.world().get::<Text>(label)?.0.clone(),
+                    app.world().get::<Text>(trail)?.0.clone(),
+                ))
+            })
             .collect()
     }
 
@@ -2045,5 +2114,47 @@ mod tests {
         set_skin(&mut app, true);
         app.update();
         assert_eq!(display(&mut app), Display::Flex);
+    }
+
+    /// A 150px rail cannot hold `pdc_kinetic_turret_section_7`, and clipping it
+    /// dropped the digit that says which turret. The word the tree already
+    /// says with its glyph goes instead.
+    #[test]
+    fn a_section_row_reads_without_the_word_every_part_id_carries() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        section_node(&mut app, ship, "pdc_kinetic_turret_section_7");
+        app.world_mut().insert_resource(EditContext {
+            path: vec![scenario, ship],
+        });
+        app.update();
+
+        assert!(
+            row_columns(&mut app).contains(&("pdc_kinetic_turret".to_string(), "7".to_string())),
+            "the row reads short, with the ordinal in its own column: {:?}",
+            row_columns(&mut app)
+        );
+        assert!(
+            row_names(&mut app).contains(&"pdc_kinetic_turret_section_7".to_string()),
+            "and is still NAMED by the node's own id: {:?}",
+            row_names(&mut app)
+        );
+    }
+
+    /// Only sections carry that word. A ship and a rock read exactly as they
+    /// are keyed.
+    #[test]
+    fn a_ship_row_reads_as_its_id() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        app.update();
+
+        assert!(
+            row_columns(&mut app).contains(&("ship_1".to_string(), String::new())),
+            "a row with no ordinal spends nothing on the trailing column: {:?}",
+            row_columns(&mut app)
+        );
     }
 }
