@@ -172,3 +172,30 @@ Landed already this round (commits `5eb626b1`, `e0d9ddef`):
    scene editors read - written up as a findings list before any of it is
    built. Known starters: icons where there is bare text, better wording, and
    a `Vec3` field that is three boxes (x, y, z) rather than one.
+
+## Progress: the editor pass, slices 1-4 (2026-08-25)
+
+Slices 1 to 4 of the list above are on master. Slice 4 is two commits:
+
+- `38c8d28b` the world grid. Cells step by decades sized from what the camera
+  LOOKS at, not from where it is; the centre snaps to a whole decade so the
+  lines hold still; the origin carries its X and Z lines in the handle colours;
+  the selection drops a plumb line and a footprint ring onto the plane.
+  Scenario-node only, like the drag it explains.
+- `320fc390` the volumes an object has no body to show: a beacon's or a crate's
+  trigger sphere, a lamp's reach, a sun's direction. Lights draw in their own
+  colour; a sun's arrow is screen-sized like the move handles, because a
+  directional light has no size to be a picture of.
+
+Both hang off `EditorOverlays` and off one new module, `nova_editor::stage`.
+View > World Grid and View > Object Volumes turn them off.
+
+Proof: 216 `nova_editor` unit tests (7 new across the two commits), the driven
+`system_ship_editor` walk clean at 388 beats with no stall, and captures read
+back by eye - the decade pass, the origin's Z line, both sky beacons' trip
+spheres and the three-point rig's suns all draw where the document says.
+
+The review asked for in slice 8 is done and lives beside this file:
+`REVIEW-INSIDE.md` (33 findings from the code) and `REVIEW-OUTSIDE.md` (33
+findings from the screens, against Godot/Blender/Unity habits). Nothing from
+either is built yet.
