@@ -42,10 +42,23 @@ const PLACEMENT_SOCKET_KEY: KeyCode = KeyCode::KeyF;
 /// Arms whatever section is under the pointer, Factorio-pipette style.
 const PLACEMENT_PICK_KEY: KeyCode = KeyCode::KeyQ;
 
-/// How far a socket marker is drawn, and how long its normal stub runs.
-const SOCKET_MARKER_RADIUS: f32 = 0.07;
-/// Length of the stub that shows which way a socket faces.
-const SOCKET_NORMAL_LENGTH: f32 = 0.4;
+/// A socket ring's radius as a fraction of its distance from the eye.
+///
+/// An ANGLE rather than a length: a world-space ring shrank to nothing the
+/// moment the camera pulled back far enough to see the whole ship, which is
+/// exactly when a builder is looking for somewhere to put a part.
+const SOCKET_SCREEN_SIZE: f32 = 0.018;
+/// The smallest and largest a ring is allowed to get in world units, so a
+/// socket under the nose does not swallow the ship and one across the range is
+/// still a mark rather than a pixel.
+const SOCKET_RADIUS_RANGE: (f32, f32) = (0.05, 0.5);
+/// The stub that shows which way a socket faces, as a multiple of the ring.
+const SOCKET_NORMAL_LENGTH: f32 = 4.0;
+/// How much wider the halo around the aimed socket is drawn.
+const SOCKET_HALO: f32 = 1.8;
+/// How far up the view ray a ring floats, as a multiple of its radius, to clear
+/// the hull it sits on.
+const SOCKET_LIFT: f32 = 2.0;
 
 /// Keys the editor's own WASD camera drives (`wasd_controller`). Binding one to
 /// a section makes that section fire on every camera move once the ship flies,
@@ -1050,6 +1063,8 @@ pub(crate) fn draw_link_points(
     context: Res<EditContext>,
     nodes: SectionNodes,
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
+    // The eye, because a socket is sized by how far away it is.
+    cameras: Query<&GlobalTransform, With<crate::gallery::EditorCamera>>,
     mut gizmos: Gizmos<EditorGizmos>,
 ) {
     if !overlays.link_points {
@@ -1060,6 +1075,9 @@ pub(crate) fn draw_link_points(
     };
     // Sockets are solved in ship-local space and drawn in world space.
     let Ok(ship_pose) = q_ships.get(edited) else {
+        return;
+    };
+    let Some(eye) = cameras.iter().next().map(GlobalTransform::translation) else {
         return;
     };
 
@@ -1085,9 +1103,11 @@ pub(crate) fn draw_link_points(
         let origin = ship_pose.translation();
         draw_socket(
             &mut gizmos,
+            eye,
             origin,
             (ship_pose.rotation() * Vec3::Y).normalize_or(Vec3::Y),
             theme::PHOSPHOR,
+            true,
         );
         if let Some(part) = sections.get_section(armed) {
             let half = part.base.collider.unwrap_or_default().aabb_half_extents();
@@ -1123,12 +1143,17 @@ pub(crate) fn draw_link_points(
                 ship_pose.transform_point(section.position + section.rotation * point.position);
             let normal =
                 (ship_pose.rotation() * section.rotation * point.normal).normalize_or(Vec3::Z);
-            let colour = if aimed == Some((section_index, point_index)) {
-                theme::PHOSPHOR
+            // The one the ghost would take is drawn AMBER and haloed, the
+            // colour every other "this is the one" mark in the editor uses;
+            // the rest are full phosphor, which a grey hull can carry. Muted
+            // green ticks on grey plating read as scratches.
+            let taken_next = aimed == Some((section_index, point_index));
+            let colour = if taken_next {
+                theme::AMBER_NOVA
             } else {
-                theme::PHOSPHOR_MUTED
+                theme::PHOSPHOR
             };
-            draw_socket(&mut gizmos, position, normal, colour);
+            draw_socket(&mut gizmos, eye, position, normal, colour, taken_next);
         }
     }
 
@@ -1146,24 +1171,52 @@ pub(crate) fn draw_link_points(
     let transform = placement.solve.transform;
     draw_socket(
         &mut gizmos,
+        eye,
         ship_pose.transform_point(transform.translation + transform.rotation * source.position),
         (ship_pose.rotation() * transform.rotation * source.normal).normalize_or(Vec3::Z),
         match placement.solve.refusal {
             None => theme::PHOSPHOR,
             Some(_) => theme::RED,
         },
+        true,
     );
 }
 
-/// One socket marker: a ring on the socket's plane plus a stub along its
-/// normal, so both WHERE it is and which way it faces read at a glance.
-fn draw_socket(gizmos: &mut Gizmos<EditorGizmos>, position: Vec3, normal: Vec3, colour: Color) {
-    gizmos.circle(
-        Isometry3d::new(position, Quat::from_rotation_arc(Vec3::Z, normal)),
-        SOCKET_MARKER_RADIUS,
+/// One socket marker: a ring facing the eye plus a stub along its normal, so
+/// both WHERE it is and which way it faces read at a glance.
+///
+/// Sized from the EYE, not from the ship: see [`SOCKET_SCREEN_SIZE`]. `halo`
+/// draws a second ring around the first - shape, not only colour, for the one
+/// socket the ghost is about to take.
+fn draw_socket(
+    gizmos: &mut Gizmos<EditorGizmos>,
+    eye: Vec3,
+    position: Vec3,
+    normal: Vec3,
+    colour: Color,
+    halo: bool,
+) {
+    let (near, far) = SOCKET_RADIUS_RANGE;
+    let radius = (eye.distance(position) * SOCKET_SCREEN_SIZE).clamp(near, far);
+    // The ring faces the EYE, not the socket's plane: a ring lying on the plane
+    // goes edge-on the moment you look along the hull, which is a socket you
+    // cannot see. The stub carries the facing instead.
+    //
+    // It also floats a little way up the view ray, because a ring drawn ON the
+    // hull is half buried in it. Sliding towards the eye leaves it over the
+    // same pixel and clear of the surface.
+    let towards_eye = (eye - position).normalize_or(Vec3::Z);
+    let centre = position + towards_eye * radius * SOCKET_LIFT;
+    let facing = Isometry3d::new(centre, Quat::from_rotation_arc(Vec3::Z, towards_eye));
+    gizmos.circle(facing, radius, colour);
+    if halo {
+        gizmos.circle(facing, radius * SOCKET_HALO, colour);
+    }
+    gizmos.line(
+        position,
+        position + normal * radius * SOCKET_NORMAL_LENGTH,
         colour,
     );
-    gizmos.line(position, position + normal * SOCKET_NORMAL_LENGTH, colour);
 }
 
 /// Draw the preview ship's forward direction.
