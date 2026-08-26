@@ -88,6 +88,43 @@ the UI pass are separate tasks and run after this one, in that order.
   HELD until a probe run says they cost something. The editor does not lag and
   nothing was measured in this review.
 
+## Landed
+
+1. `271016ef` - the gates. 15 clippy errors, not the 11 the review reported:
+   the earlier count came from a wasm invocation without `--all-targets`, which
+   never reached the test targets. `catalog_drift` roster set to 45 slugs,
+   `SYSTEMS_INVARIANTS` 145 -> 173. Workspace clippy, wasm clippy,
+   `catalog_drift` and `cargo fmt --check` all exit 0.
+
+2. `4ef3c31b` - lint on load. `on_load_scenario` lints the config it is handed
+   and refuses on any Error, whether or not the merge ever saw the scenario.
+   Two tests: a scenario the merge never saw is linted on load, and a range
+   that chains to itself still starts.
+
+8. `6dcaf6e9` - the comment convention in `AGENTS.md`.
+
+3. Save and open are inverses. `Range` gained `flight`, which is the one thing
+   Play and a save disagree about. A save spawns the document and nothing else;
+   Play adds the hull an unfinished document has nothing to fly and skips a
+   ship node with nothing built on it. `sandbox_events` derives its picket
+   wakes, beacon sky swaps and death retries from the objects actually spawned,
+   so a deleted picket takes its handlers with it instead of leaving a filter
+   the loader now refuses. The second Player ship is refused on the driver row
+   through `EditorSays::refuse`, naming the ship in the way and the way out -
+   the status line rather than a greyed segment, because that is where the
+   editor already says no and one segment of a segmented control has no greyed
+   state. Add Ship already gave the second ship an AI pilot
+   (`placement.rs:176`), so the row was the only way in.
+
+   Proof: `the_script_only_names_what_the_range_spawns` (three ranges: flown,
+   unflown, pickets and beacons deleted), `a_save_never_invents_the_player_ship_the_document_lacks`,
+   `a_ship_with_nothing_built_on_it_survives_the_file`,
+   `a_second_ship_cannot_take_the_controls_while_another_flies`. Each was
+   mutation-checked against the old behaviour and failed. 306 `nova_editor` lib
+   tests pass. `system_ship_editor` run live under Xvfb: 45 steps, exit 0, no
+   panic - the saved document still reopens as 10 ships and 6 objects, which is
+   the unchanged path for a document that HAS a player ship.
+
 ## Proof
 
 Both gates run locally. A test that a saved document reopens as itself, and one

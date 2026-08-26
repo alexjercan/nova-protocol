@@ -71,6 +71,7 @@ pub(crate) const SAVED_RANGE: Range<'static> = Range {
     name: "Saved Range",
     hidden: false,
     form: HullForm::Prototype,
+    flight: false,
 };
 
 /// The document as content items: every design, then the range that places
@@ -136,8 +137,9 @@ pub(crate) struct LiftedShip {
     pub(crate) driver: ShipDriver,
     /// Which side it fights for, straight off the spawn.
     pub(crate) allegiance: Option<Allegiance>,
-    /// The AI's standing orders, straight off the spawn. Carried whatever the
-    /// driver is, so flipping a ship to AI and back does not lose them.
+    /// The AI's standing orders, read off an AI spawn. A player-flown or
+    /// adrift hull describes none, so one lifts with the defaults - which is
+    /// also what the editor shows the moment it is flipped to AI.
     pub(crate) pilot: AIControllerConfig,
     pub(crate) pose: Transform,
     pub(crate) skin: bool,

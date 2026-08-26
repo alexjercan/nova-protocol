@@ -1355,12 +1355,26 @@ pub(crate) fn on_inspector_choice(
 pub(crate) fn on_inspector_driver(
     activate: On<Activate>,
     options: Query<&InspectorDriver>,
-    mut ships: Query<&mut ShipNode>,
+    mut ships: Query<(Entity, &mut ShipNode, &NodeId)>,
+    mut says: EditorSays,
 ) {
     let Ok(option) = options.get(activate.entity) else {
         return;
     };
-    let Ok(mut ship) = ships.get_mut(option.ship) else {
+    // One ship flies. Lowering keeps the LAST Player ship it reads and routes
+    // the rest to the standing fleet, so a second one is a ship the document
+    // quietly loses on the next save - refuse it while it is still a click.
+    if option.driver == ShipDriver::Player {
+        let flown = ships
+            .iter()
+            .find(|(entity, ship, _)| *entity != option.ship && ship.driver == ShipDriver::Player)
+            .map(|(_, ship, id)| super::tree_text(&ship.name, &id.0).0);
+        if let Some(name) = flown {
+            says.refuse(format!("{name} already flies - set it to AI first"));
+            return;
+        }
+    }
+    let Ok((_, mut ship, _)) = ships.get_mut(option.ship) else {
         return;
     };
     if ship.driver != option.driver {

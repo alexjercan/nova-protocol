@@ -308,6 +308,79 @@ fn lower(world: &mut World) -> Vec<Content> {
         .expect("the lowering runs")
 }
 
+/// A document the builder has not finished: one AI escort with nothing built
+/// on it, and no ship they fly.
+fn unflown_document(world: &mut World) -> Entity {
+    let scenario = world
+        .spawn((
+            crate::node::ScenarioNode,
+            NodeId("scenario".to_string()),
+            NextChildOrdinal::default(),
+            Transform::default(),
+        ))
+        .id();
+    world.spawn((
+        ShipNode {
+            name: "Escort".to_string(),
+            driver: ShipDriver::Ai,
+            ..default()
+        },
+        NodeId("ship_2".to_string()),
+        NextChildOrdinal::default(),
+        Transform::from_xyz(0.0, 0.0, -20.0),
+        ChildOf(scenario),
+    ));
+    scenario
+}
+
+/// A world with the unfinished document in it and the context standing on it.
+fn world_with_unflown_document() -> World {
+    let mut world = World::new();
+    let scenario = unflown_document(&mut world);
+    world.insert_resource(EditContext {
+        path: vec![scenario],
+    });
+    world
+}
+
+/// A save is the DOCUMENT, not a flight. Play hands the runtime a hull to sit
+/// in when the builder has not made one, and writing that hull to the file
+/// would give them back a ship node they never added.
+#[test]
+fn a_save_never_invents_the_player_ship_the_document_lacks() {
+    let mut world = world_with_unflown_document();
+
+    let lifted = lift_content(&lower(&mut world)).expect("the file carries a range");
+
+    let ids: Vec<&str> = lifted.ships.iter().map(|ship| ship.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        ["ship_2"],
+        "only the ship the builder added comes back"
+    );
+    assert!(
+        lifted
+            .objects
+            .iter()
+            .all(|object| object.base.id != "player_spaceship"),
+        "and no hull the editor invented for Play"
+    );
+}
+
+/// A blank Add Ship is a decision not yet made. Play spawns nothing for it,
+/// but the node is the builder's place in the work and the file has to hold it.
+#[test]
+fn a_ship_with_nothing_built_on_it_survives_the_file() {
+    let mut world = world_with_unflown_document();
+
+    let lifted = lift_content(&lower(&mut world)).expect("the file carries a range");
+
+    let ship = &lifted.ships[0];
+    assert_eq!(ship.driver, ShipDriver::Ai);
+    assert!(ship.sections.is_empty(), "still nothing built on it");
+    assert_eq!(ship.pose.translation, Vec3::new(0.0, 0.0, -20.0));
+}
+
 /// A world with the fixture document in it and the context standing on it.
 fn world_with_document() -> World {
     let mut world = World::new();

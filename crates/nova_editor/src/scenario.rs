@@ -18,6 +18,8 @@
 //! object and you edited the world; the script is not something the editor
 //! edits yet.
 
+use std::collections::HashSet;
+
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::Binding;
 use nova_assets::prelude::*;
@@ -495,7 +497,10 @@ pub(crate) fn range_scenario(
         description: "A free-flight range: rocks, target hulks, dormant pickets and a planetoid."
             .to_string(),
         hidden: range.hidden,
-        events: sandbox_events(range.id, sandbox_objects(world, fleet, range.form)),
+        events: sandbox_events(
+            range.id,
+            sandbox_objects(world, fleet, range.form, range.flight),
+        ),
         ..ScenarioConfig::new(range.id.to_string(), range.name.to_string(), sky)
     }
 }
@@ -509,7 +514,8 @@ pub(crate) fn range_scenario(
 pub(crate) const DEFAULT_SKY: &str = "base/textures/cubemap.png";
 
 /// Which range a lowering is building: its id and name, whether the Scenarios
-/// picker lists it, and how its ships name their hulls.
+/// picker lists it, how its ships name their hulls, and whether it may stand
+/// in for what the document has not built yet.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Range<'a> {
     pub(crate) id: &'a str,
@@ -517,6 +523,14 @@ pub(crate) struct Range<'a> {
     /// Kept out of the Scenarios picker, which lists shipped content.
     pub(crate) hidden: bool,
     pub(crate) form: HullForm,
+    /// Whether the range may compose a FLIGHT rather than the document.
+    ///
+    /// Play tolerates an unfinished document: one with no player ship still
+    /// gets a hull to sit in, and a ship node with no sections spawns nothing
+    /// to fly into. A save must not. A file holding more or less than the
+    /// document is not the document, and opening it hands the builder back
+    /// something they did not build.
+    pub(crate) flight: bool,
 }
 
 /// The range Play hands off to: registered so the DEFEAT overlay's Retry can
@@ -527,6 +541,7 @@ pub(crate) const SANDBOX: Range<'static> = Range {
     name: "Editor Sandbox",
     hidden: true,
     form: HullForm::Inline,
+    flight: true,
 };
 
 /// Build the sandbox the editor plays: the range above, with the document in it.
@@ -545,19 +560,30 @@ pub(crate) fn sandbox_scenario(
 /// designed section by section and lowers through [`lower_fleet`], while an
 /// object node is placed and lowers verbatim. Both end up in the same OnStart
 /// handler, which is what makes them one saved scenario.
+///
+/// `flight` is what a save and a Play disagree about. A save spawns the
+/// document and nothing else, so that opening the file gives the same nodes
+/// back. Play adds what it needs to be flyable at all.
 fn sandbox_objects(
     mut objects: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
     form: HullForm,
+    flight: bool,
 ) -> Vec<ScenarioObjectConfig> {
-    objects.push(player_ship(&fleet.player, form));
-    // An EMPTY design spawns nothing: a blank Add Ship left in the document
-    // is a decision not yet made, not a zero-section spaceship to load.
+    // A document with no player ship still has to be flyable, so Play hands
+    // the runtime a bare hull to sit in. Saving one would write a ship node
+    // the builder never added.
+    if flight || !fleet.player.id.is_empty() {
+        objects.push(player_ship(&fleet.player, form));
+    }
+    // A blank Add Ship is a decision not yet made rather than a zero-section
+    // spaceship, so Play skips it. A save keeps it: the node is the builder's,
+    // and dropping it loses their place.
     objects.extend(
         fleet
             .standing
             .iter()
-            .filter(|ship| !ship.sections.is_empty())
+            .filter(|ship| !flight || !ship.sections.is_empty())
             .map(|ship| standing_ship(ship, form)),
     );
 
@@ -943,7 +969,21 @@ fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
 /// proximity, swap the sky at the beacons, and offer a retry when the player
 /// dies. No completion path: the standing objective is never completed and
 /// nothing chains anywhere but back here.
+///
+/// The script follows the objects. A handler naming an id nothing spawns is a
+/// lint error and the loader refuses the scenario over it, so deleting the
+/// picket a wake-up flips - or the beacon it triggers on - takes the handler
+/// with it.
 fn sandbox_events(id: &str, objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig> {
+    let spawned: HashSet<String> = objects
+        .iter()
+        .map(|object| object.base.id.clone())
+        .collect();
+    // Every handler below names the player as the ship that trips it.
+    let player_flies = spawned.contains(PLAYER_ID);
+    let picket_stands = |picket: &&Picket| player_flies && spawned.contains(picket.id);
+    let beacon_stands = |beacon: &&SkyBeacon| player_flies && spawned.contains(beacon.id);
+
     // The one outcome the sandbox has, and the retry it queues. `linger` holds
     // the switch until the overlay's Retry (or Enter) releases it.
     let retry = |message: &str| {
@@ -981,10 +1021,10 @@ fn sandbox_events(id: &str, objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioE
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
                 .chain(BELTS.iter().map(belt_scatter))
-                .chain(PICKETS.iter().map(trip_area))
+                .chain(PICKETS.iter().filter(picket_stands).map(trip_area))
                 // Every picket starts asleep, and its guard variable has to
                 // exist before the first filter reads it.
-                .chain(PICKETS.iter().map(|picket| {
+                .chain(PICKETS.iter().filter(picket_stands).map(|picket| {
                     EventActionConfig::VariableSet(VariableSetActionConfig {
                         key: woke_key(picket),
                         expression: boolean(false),
@@ -1012,31 +1052,40 @@ fn sandbox_events(id: &str, objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioE
                 }),
             ],
         },
-        // Death is the only outcome, and it offers this same range again.
-        ScenarioEventConfig {
-            name: EventConfig::OnDestroyed,
-            filters: player(PLAYER_ID),
-            actions: [EventActionConfig::DebugMessage(DebugMessageActionConfig {
-                message: "The player's spaceship was destroyed!".to_string(),
-            })]
-            .into_iter()
-            .chain(retry(
-                "Range is quiet. Your ship is part of the scenery now.",
-            ))
-            .collect(),
-        },
-        // Shot to pieces without dying: the same offer. A ship that never
-        // carried a weapon cannot reach this, so an unarmed build is not
-        // instantly "neutralized" off the line.
-        ScenarioEventConfig {
-            name: EventConfig::OnNeutralized,
-            filters: player(PLAYER_ID),
-            actions: retry("Nothing left to fight with - you drift the range dead."),
-        },
     ];
 
-    events.extend(PICKETS.iter().flat_map(wake_picket));
-    events.extend(SKY_BEACONS.iter().map(beacon_swaps_the_sky));
+    if player_flies {
+        events.extend([
+            // Death is the only outcome, and it offers this same range again.
+            ScenarioEventConfig {
+                name: EventConfig::OnDestroyed,
+                filters: player(PLAYER_ID),
+                actions: [EventActionConfig::DebugMessage(DebugMessageActionConfig {
+                    message: "The player's spaceship was destroyed!".to_string(),
+                })]
+                .into_iter()
+                .chain(retry(
+                    "Range is quiet. Your ship is part of the scenery now.",
+                ))
+                .collect(),
+            },
+            // Shot to pieces without dying: the same offer. A ship that never
+            // carried a weapon cannot reach this, so an unarmed build is not
+            // instantly "neutralized" off the line.
+            ScenarioEventConfig {
+                name: EventConfig::OnNeutralized,
+                filters: player(PLAYER_ID),
+                actions: retry("Nothing left to fight with - you drift the range dead."),
+            },
+        ]);
+    }
+    events.extend(PICKETS.iter().filter(picket_stands).flat_map(wake_picket));
+    events.extend(
+        SKY_BEACONS
+            .iter()
+            .filter(beacon_stands)
+            .map(beacon_swaps_the_sky),
+    );
     events
 }
 
@@ -1067,11 +1116,99 @@ mod tests {
             default_world_objects(),
             &LoweredFleet::default(),
             HullForm::Inline,
+            true,
         )
     }
 
     fn events() -> Vec<ScenarioEventConfig> {
         sandbox_events(SANDBOX_ID, objects())
+    }
+
+    /// Every id the SCRIPT names: the entities its filters match on, and the
+    /// ships its actions reach for. Not the spawns - those are where ids come
+    /// from rather than uses of one.
+    fn referenced_ids(events: &[ScenarioEventConfig]) -> HashSet<String> {
+        let mut ids = HashSet::new();
+        for event in events {
+            for filter in &event.filters {
+                if let EventFilterConfig::Entity(entity) = filter {
+                    ids.extend(entity.id.clone());
+                    ids.extend(entity.other_id.clone());
+                }
+            }
+            for action in &event.actions {
+                if let EventActionConfig::SetAllegiance(set) = action {
+                    ids.insert(set.id.clone());
+                }
+            }
+        }
+        ids
+    }
+
+    /// Every id the range PUTS on the board: the objects it spawns and the
+    /// areas it creates.
+    fn defined_ids(events: &[ScenarioEventConfig]) -> HashSet<String> {
+        events
+            .iter()
+            .flat_map(|event| &event.actions)
+            .filter_map(|action| match action {
+                EventActionConfig::SpawnScenarioObject(object) => Some(object.base.id.clone()),
+                EventActionConfig::CreateScenarioArea(area) => Some(area.id.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The script follows the objects, whatever the builder deleted.
+    ///
+    /// A handler naming an id nothing spawns is a lint ERROR and the loader
+    /// refuses the scenario over it, so a document that lost its pickets, its
+    /// beacons or its player ship has to lose their handlers too.
+    #[test]
+    fn the_script_only_names_what_the_range_spawns() {
+        let flown = LoweredFleet {
+            player: LoweredShip {
+                id: "ship_1".to_string(),
+                ..default()
+            },
+            standing: vec![],
+        };
+        let stripped: Vec<ScenarioObjectConfig> = default_world_objects()
+            .into_iter()
+            .filter(|object| {
+                !object.base.id.starts_with("picket_") && !object.base.id.starts_with("beacon_")
+            })
+            .collect();
+        let ranges = [
+            ("the whole range, flown", objects()),
+            (
+                "a save with no ship to fly it",
+                sandbox_objects(
+                    default_world_objects(),
+                    &LoweredFleet::default(),
+                    HullForm::Inline,
+                    false,
+                ),
+            ),
+            (
+                "a save whose pickets and beacons were deleted",
+                sandbox_objects(stripped, &flown, HullForm::Inline, false),
+            ),
+        ];
+
+        for (what, objects) in ranges {
+            let events = sandbox_events(SANDBOX_ID, objects);
+            let defined = defined_ids(&events);
+            let mut dangling: Vec<String> = referenced_ids(&events)
+                .difference(&defined)
+                .cloned()
+                .collect();
+            dangling.sort();
+            assert!(
+                dangling.is_empty(),
+                "{what}: the script names {dangling:?}, which the range never spawns"
+            );
+        }
     }
 
     fn find(objects: &[ScenarioObjectConfig], id: &str) -> ScenarioObjectConfig {
@@ -1105,6 +1242,7 @@ mod tests {
                         world_objects(&context, &q_objects),
                         &lower_fleet(&q_ships, &nodes),
                         HullForm::Inline,
+                        true,
                     )
                 },
             )
@@ -1652,7 +1790,7 @@ mod tests {
             ],
         };
 
-        let objects = sandbox_objects(default_world_objects(), &fleet, HullForm::Inline);
+        let objects = sandbox_objects(default_world_objects(), &fleet, HullForm::Inline, true);
         let escort = find(&objects, "ship_2");
         assert_eq!(escort.base.position, Vec3::new(24.0, 0.0, 0.0));
         let ScenarioObjectKind::Spaceship(ship) = &escort.kind else {
@@ -1715,7 +1853,7 @@ mod tests {
             }],
         };
 
-        let objects = sandbox_objects(default_world_objects(), &fleet, HullForm::Inline);
+        let objects = sandbox_objects(default_world_objects(), &fleet, HullForm::Inline, true);
         assert_eq!(
             find(&objects, PLAYER_ID).base.rotation,
             heading,
@@ -1796,7 +1934,7 @@ mod tests {
                 ..default()
             };
             let player = find(
-                &sandbox_objects(default_world_objects(), &lowered, HullForm::Inline),
+                &sandbox_objects(default_world_objects(), &lowered, HullForm::Inline, true),
                 PLAYER_ID,
             );
             let ScenarioObjectKind::Spaceship(ship) = player.kind else {

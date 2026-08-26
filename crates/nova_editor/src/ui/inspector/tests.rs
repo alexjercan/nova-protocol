@@ -26,6 +26,10 @@ fn inspector_app() -> App {
     // is on, which is the state a fresh editor opens in.
     app.init_resource::<EditorOverlays>();
     app.add_message::<TextFieldSubmitted>();
+    // A row that can REFUSE says why on the status line, so the rig carries
+    // the line and the clock that expires it.
+    app.init_resource::<crate::config::EditorStatus>();
+    app.init_resource::<Time>();
     app.world_mut().spawn(inspector_panel(UiSkin::default()));
     app.add_systems(Update, sync_inspector);
     app
@@ -564,6 +568,69 @@ fn a_ship_hands_itself_to_the_ai_from_its_driver_row() {
     assert_eq!(
         hull.allegiance, None,
         "a hull nobody drives is on nobody's side"
+    );
+}
+
+/// One ship flies. Lowering keeps the LAST Player ship it reads and routes the
+/// rest to the standing fleet, so a second one is a ship the document loses on
+/// the next save.
+#[test]
+fn a_second_ship_cannot_take_the_controls_while_another_flies() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    app.world_mut().spawn((
+        EditorNode,
+        ShipNode {
+            name: "Kestrel".to_string(),
+            driver: ShipDriver::Player,
+            ..default()
+        },
+        NodeId("ship_1".to_string()),
+        Transform::default(),
+        ChildOf(scenario),
+    ));
+    let escort = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ShipNode {
+                driver: ShipDriver::Ai,
+                ..default()
+            },
+            NodeId("ship_2".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+    app.world_mut().resource_mut::<EditContext>().enter(escort);
+    app.update();
+
+    let option = app
+        .world_mut()
+        .query::<(Entity, &InspectorDriver)>()
+        .iter(app.world())
+        .find(|(_, option)| option.driver == ShipDriver::Player)
+        .map(|(entity, _)| entity)
+        .expect("a player option");
+    app.world_mut().trigger(Activate { entity: option });
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<ShipNode>(escort)
+            .expect("the escort")
+            .driver,
+        ShipDriver::Ai,
+        "the escort keeps its pilot"
+    );
+    let (line, _) = app
+        .world()
+        .resource::<crate::config::EditorStatus>()
+        .line()
+        .expect("the refusal is said out loud");
+    assert_eq!(
+        line, "Kestrel already flies - set it to AI first",
+        "and the reason names the ship in the way and the way out"
     );
 }
 
