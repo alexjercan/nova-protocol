@@ -18,11 +18,12 @@
 //! asset that was replaced.
 //!
 //! What IS driven here is the cover. Sixteen files re-read and a registry
-//! rebuilt cost more than a frame, and paid in the open they read as a freeze
-//! - so [`ContentReload`] runs the reload as a small machine: the panel goes up
-//! on the press, the read waits until it has been rendered, and the resource
-//! lives until the files have landed and the frame after the merge came back
-//! smooth. `nova_core` draws the panel for as long as the resource exists.
+//! rebuilt cost more than a frame, and paid in the open they read as a
+//! freeze - so [`ContentReload`] runs the reload as a small machine: the
+//! panel goes up on the press, the read waits until it has been rendered,
+//! and the resource lives until the files have landed and the frame after
+//! the merge came back smooth. `nova_core` draws the panel for as long as
+//! the resource exists.
 
 /// Glob-import surface: `use nova_assets::reload::prelude::*`.
 pub mod prelude {

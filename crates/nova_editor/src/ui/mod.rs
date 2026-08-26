@@ -1114,10 +1114,6 @@ pub(crate) struct ShownScene {
 ///
 /// The same nodes `context_nodes` reports, plus the two rungs of the path, so
 /// the tree and the probe agree.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the document is five queries and the view is one flag"
-)]
 fn wanted_rows(
     context: &EditContext,
     q_scenarios: &Query<&NodeId, With<ScenarioNode>>,
@@ -1780,7 +1776,7 @@ pub(crate) fn on_crumb_step(
     // which frames whatever was entered - so a standing frame request steps
     // aside rather than writing the camera a second time in the same frame.
     if scenarios.contains(*node) {
-        context.to_root();
+        context.exit_all();
     } else {
         context.enter(*node);
     }

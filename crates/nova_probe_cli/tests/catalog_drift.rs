@@ -105,6 +105,12 @@ fn catalog_matches_disk() {
 /// comes up on death`): the hook is unreachable unless the predicate held, so
 /// the marker still cannot be emitted by a run that failed the claim.
 ///
+/// Four of `system_ship_editor`'s slugs are read the same way - `a floating
+/// picker edits the colour of a scenario object`, `the Key row arms the rebind
+/// and takes the key`, `the tree can be read as the ids an event names` and `a
+/// saved range is playable without restarting`. Each sits in an `on_enter` hook
+/// that reports and logs, one beat after the `until` that established it.
+///
 /// Three slugs are RECORDED OBSERVATIONS rather than claims - `the idle contact
 /// cost is recorded` and `the settled step cost is recorded` (bug_sandbox_soak)
 /// and `the swap cost is recorded` (bug_carve_apply) carry milliseconds, which
@@ -264,10 +270,10 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     (
         "system_ship_editor",
         &[
-            "new ship carries its controller",
+            "a blank ship is founded at its origin",
             "two clicks place two sections",
-            "select mode places nothing",
-            "delete removes the section clicked",
+            "select mode selects, and places nothing",
+            "Del removes the marked section",
             "the gallery lists the catalog",
             "the filter narrows the gallery",
             "the focus card names the part",
@@ -279,6 +285,34 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the shared mount fits a hull face",
             "an occupied socket refuses",
             "a blocked drive lane refuses",
+            "Add obeys the context",
+            "an Add row opens the gallery on its kind",
+            "a second ship stands beside the first",
+            "an offset ship builds in its own space",
+            "the scenario node lists both ships",
+            "the palette places a world object",
+            "the inspector writes a placed object's config",
+            "a number under its floor is refused where it is typed",
+            "one axis box writes one number",
+            "Delete removes a world object",
+            "a floating picker edits the colour of a scenario object",
+            "pointing at a ship lights its row in the tree",
+            "a world click selects the ship",
+            "a drag slides the ship on the ground plane",
+            "the Y handle moves the ship off the ground plane",
+            "Frame Selection puts the camera on the marked node",
+            "entering a node isolates it in the tree",
+            "a tree row reveals its kind and its whole id on hover",
+            "the Key row arms the rebind and takes the key",
+            "the inspector opens on the fields the kind is authored through",
+            "the tree can be read as the ids an event names",
+            "section ids survive exit and re-entry",
+            "the scenario node reports the document",
+            "a seeded hull is entered and inspected as a ship",
+            "a saved range is playable without restarting",
+            "a destructive verb asks first",
+            "the document survives a save and an open",
+            "ids minted after a load do not collide",
             "the flown ship re-derives the graph",
             "the flown ship wears the skin",
         ],
@@ -385,7 +419,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 145;
+const SYSTEMS_INVARIANTS: usize = 173;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

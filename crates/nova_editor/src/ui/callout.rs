@@ -182,8 +182,8 @@ pub(crate) fn sync_placement_callout(
 /// A refused pose gets NO mate line: naming the sockets under a refusal would
 /// describe a mate that is not going to happen. A legal one gets no fault line,
 /// which is what makes the red row mean one thing.
-fn callout_lines<'a>(
-    placement: &'a Placement,
+fn callout_lines(
+    placement: &Placement,
     sections: &GameSections,
     target: Option<&SectionConfig>,
 ) -> (Option<&'static str>, Option<String>) {

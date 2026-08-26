@@ -395,7 +395,7 @@ impl EditContext {
     }
 
     /// Straight back to the scenario node, however deep the path is.
-    pub(crate) fn to_root(&mut self) {
+    pub(crate) fn exit_all(&mut self) {
         self.path.truncate(1);
     }
 

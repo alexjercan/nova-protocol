@@ -24,7 +24,9 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
 use nova_assets::prelude::{EnabledMods, ReloadContent};
 use nova_gameplay::prelude::{Allegiance, AssetRef};
-use nova_modding::prelude::{BundleManifest, Content, ModMeta};
+use nova_modding::prelude::Content;
+#[cfg(not(target_arch = "wasm32"))]
+use nova_modding::prelude::{BundleManifest, ModMeta};
 use nova_scenario::prelude::{
     AIControllerConfig, EventActionConfig, EventConfig, ScenarioConfig, ScenarioObjectConfig,
     ScenarioObjectKind, SectionId, ShipConfig, ShipSource, SpaceshipController,
@@ -53,8 +55,10 @@ use crate::{
 /// is not something a save can reach.
 pub(crate) const SAVE_MOD_ID: &str = "editor_save";
 /// The bundle manifest inside that mod, relative to its own directory.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) const SAVE_BUNDLE_FILE: &str = "editor_save.bundle.ron";
 /// The one content file the manifest lists.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) const SAVE_CONTENT_FILE: &str = "editor_save.content.ron";
 
 /// The range a save writes: its own id, and hulls by reference.
@@ -99,6 +103,7 @@ pub(crate) fn document_content(
 }
 
 /// The manifest that makes the saved content a loadable mod.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn save_manifest() -> BundleManifest {
     BundleManifest {
         content: vec![SAVE_CONTENT_FILE.to_string()],

@@ -216,10 +216,7 @@ pub(crate) fn create_scenario_object(
         says.refuse("there is no scenario to add an object to");
         return;
     };
-    let at = camera
-        .iter()
-        .next()
-        .map_or(Vec3::ZERO, |pose| in_front_of(pose));
+    let at = camera.iter().next().map_or(Vec3::ZERO, in_front_of);
     let object = spawn_object_node(
         &mut commands,
         &mut ordinals,

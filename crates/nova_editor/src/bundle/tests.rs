@@ -312,8 +312,9 @@ fn lower(world: &mut World) -> Vec<Content> {
 fn world_with_document() -> World {
     let mut world = World::new();
     let scenario = document(&mut world);
-    let mut context = EditContext::default();
-    context.path = vec![scenario];
+    let context = EditContext {
+        path: vec![scenario],
+    };
     world.insert_resource(context);
     world
 }
@@ -415,8 +416,9 @@ fn a_re_save_writes_the_same_bytes() {
             Transform::default(),
         ))
         .id();
-    let mut context = EditContext::default();
-    context.path = vec![scenario];
+    let context = EditContext {
+        path: vec![scenario],
+    };
     reloaded.insert_resource(context);
     fill_document(&mut reloaded, scenario, lifted);
 
@@ -448,8 +450,9 @@ fn a_loaded_document_mints_ids_above_the_ones_it_read() {
             Transform::default(),
         ))
         .id();
-    let mut context = EditContext::default();
-    context.path = vec![scenario];
+    let context = EditContext {
+        path: vec![scenario],
+    };
     reloaded.insert_resource(context);
     fill_document(&mut reloaded, scenario, lifted);
 

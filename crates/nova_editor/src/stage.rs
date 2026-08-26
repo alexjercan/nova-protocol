@@ -264,7 +264,7 @@ const MARK_MARGIN: f32 = 0.06;
 
 /// The box drawn around a node of these bounds.
 fn mark_box(bounds: ColliderAabb) -> Transform {
-    let size = Vec3::from(bounds.size());
+    let size = bounds.size();
     let pad = size.max_element() * MARK_MARGIN;
     Transform::from_translation(bounds.center()).with_scale(size + Vec3::splat(pad))
 }

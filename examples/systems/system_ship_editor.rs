@@ -32,8 +32,8 @@
 //!    delete it again - the scenario node edits the range it stands on, not just the ships parked
 //!    on it, and a placed object is authorable rather than stuck with what the palette handed it;
 //! 10. turn the SKIN on and watch it follow the build - the bare ship, the same ship clad from
-//!    its own structure, and the cladding reflowing around a hull that is still in the
-//!    builder's hand. Play then proves the toggle rode the hand-off: the flown ship wears it.
+//!     its own structure, and the cladding reflowing around a hull that is still in the
+//!     builder's hand. Play then proves the toggle rode the hand-off: the flown ship wears it.
 //!
 //! Controls (interactive run): use the on-screen buttons to create ships and place sections.
 //!
@@ -2903,8 +2903,7 @@ fn the_placed_node_is_gone() -> Wait {
             && !world
                 .resource::<EditorProbe>()
                 .context_nodes
-                .iter()
-                .any(|node| *node == placed)
+                .contains(&placed)
     })
 }
 
@@ -3085,7 +3084,7 @@ fn the_tree_reads_as_ids() -> Wait {
         let Some(inside) = world.resource::<EditorProbe>().inside.clone() else {
             return false;
         };
-        scene_row_labels(world).iter().any(|label| *label == inside)
+        scene_row_labels(world).contains(&inside)
     })
 }
 

@@ -499,9 +499,9 @@ pub(crate) enum ViewToggle {
 
 /// A disabled row's text, and an enabled one's, for the label column and the
 /// shortcut column. Painted by a system rather than baked in at spawn because
-/// Edit > Delete greys and ungreys with the selection (see [`sync_menu_delete`])
-/// - and a row that only says "disabled" in its border is a row a builder keeps
-/// pressing.
+/// Edit > Delete greys and ungreys with the selection (see
+/// [`sync_menu_delete`]) - and a row that only says "disabled" in its border
+/// is a row a builder keeps pressing.
 const ITEM_LABEL: Color = theme::PHOSPHOR;
 /// The right-hand column: the shortcut, or a toggle's on/off mark.
 const ITEM_MARK: Color = theme::PHOSPHOR_MUTED;
