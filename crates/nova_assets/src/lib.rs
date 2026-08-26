@@ -21,6 +21,7 @@ mod collections;
 mod merge;
 mod mod_set;
 mod plugin;
+mod reload;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod loose;
@@ -31,7 +32,7 @@ pub mod persist;
 pub mod portal;
 pub mod storage;
 
-// The four private modules have no path of their own, so the crate root is
+// The five private modules have no path of their own, so the crate root is
 // where their preludes surface. The public modules are reachable as
 // `nova_assets::<module>::prelude::*` and are re-exported here only for the
 // names the crate's own consumers glob.
@@ -39,6 +40,7 @@ pub use collections::prelude::*;
 pub use merge::prelude::*;
 pub use mod_set::prelude::*;
 pub use plugin::prelude::*;
+pub use reload::prelude::*;
 
 /// Glob-import surface: `use nova_assets::prelude::*` brings the loaded-asset
 /// resources, the mod-set/portal types, and [`GameAssetsPlugin`] into scope.
@@ -53,7 +55,7 @@ pub mod prelude {
             UninstallPortalMod,
         },
         DownloadedMod, DownloadedMods, EnabledMods, GameAssets, GameAssetsPlugin, GameAssetsStates,
-        ModCatalog, ModInfo,
+        ModCatalog, ModInfo, ReloadContent, RELOAD_KEY,
     };
 }
 

@@ -25,6 +25,7 @@ use crate::{
         EnabledMods, ModCatalog,
     },
     portal,
+    reload::{reload_content, remerge_on_replaced_content, request_reload_on_key, ReloadContent},
 };
 #[cfg(target_arch = "wasm32")]
 use crate::{
@@ -181,6 +182,28 @@ impl Plugin for GameAssetsPlugin {
             build_mod_catalog
                 .run_if(resource_exists::<GameAssets>)
                 .run_if(resource_changed::<DownloadedMods>)
+                .run_if(not(in_state(GameAssetsStates::Loading))),
+        );
+
+        // The reload, the way Wesnoth does it: one key, anywhere, and the
+        // content is read off disk again. Chained so a press and its answer
+        // land in the same frame - a reload that took two frames to start
+        // would be a reload the builder pressed twice.
+        app.add_message::<ReloadContent>();
+        app.add_systems(
+            Update,
+            (request_reload_on_key, reload_content)
+                .chain()
+                .run_if(resource_exists::<GameAssets>)
+                .run_if(not(in_state(GameAssetsStates::Loading))),
+        );
+        // The reload's late half: a file that comes back CHANGED rebuilds the
+        // registries. Ungated by the installed set, which a re-saved mod does
+        // not change.
+        app.add_systems(
+            Update,
+            remerge_on_replaced_content
+                .run_if(resource_exists::<GameAssets>)
                 .run_if(not(in_state(GameAssetsStates::Loading))),
         );
 

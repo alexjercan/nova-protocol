@@ -2016,6 +2016,25 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(the_status_reads("saved"))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // The complaint this answers: a range saved here did not appear in the
+        // Scenarios list until the game was quit and started again, because
+        // content is merged once at boot. The save asks for the reload itself,
+        // so nothing is pressed here - the beat waits for the registry to hold
+        // what was just written.
+        .step("editor: the saved range is in the game's scenarios")
+        .until(the_scenarios_hold(SAVED_RANGE_ID))
+        .deadline(RELOAD_DEADLINE_SECS)
+        .add()
+        .step("editor: a save reaches the game without a restart")
+        .on_enter(|world: &mut World| {
+            nova_probe::probe_marker(
+                world,
+                "outcome: a saved range is playable without restarting",
+                serde_json::json!({}),
+            );
+            info!("editor: the reload put '{SAVED_RANGE_ID}' in the scenarios list");
+        })
+        .add()
         // Thrown away on purpose: a walk cannot restart the process, so New
         // Scenario is what stands in for one. It reseeds the stock range, which
         // has no `ship_2` in it - so a `ship_2` after the Open can only have
@@ -2900,6 +2919,26 @@ fn inspector_labels(world: &World) -> Vec<String> {
         .iter()
         .map(|(label, _)| label.clone())
         .collect()
+}
+
+/// The scenario id the editor's save writes its range under.
+#[cfg(feature = "debug")]
+const SAVED_RANGE_ID: &str = "editor_save";
+
+/// How long a reload gets: it re-reads every content file off disk and the
+/// merge runs after they land, so it is several frames rather than one.
+#[cfg(feature = "debug")]
+const RELOAD_DEADLINE_SECS: f32 = 10.0;
+
+/// Advance once the game's own scenario registry holds `id` - the list the
+/// Scenarios picker is drawn from.
+#[cfg(feature = "debug")]
+fn the_scenarios_hold(id: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        world
+            .get_resource::<GameScenarios>()
+            .is_some_and(|scenarios| scenarios.contains_key(id))
+    })
 }
 
 /// What the Scene rows READ as, in draw order - the label column only.

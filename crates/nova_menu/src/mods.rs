@@ -8,7 +8,7 @@ use bevy::{
 };
 use nova_assets::prelude::{
     DownloadedMods, EnabledMods, FetchPortalCatalog, InstallJobs, ModCatalog, ModInfo, ModMeta,
-    PortalEntry, RemoteCatalog, RemoteCatalogState,
+    PortalEntry, ReloadContent, RemoteCatalog, RemoteCatalogState,
 };
 use nova_mod_format::BASE_MOD_ID;
 use nova_ui::{
@@ -214,8 +214,15 @@ pub(crate) fn on_mods(
 pub(crate) fn on_mods_back(
     _activate: On<Activate>,
     mut panel: Single<&mut Visibility, With<ModsPanel>>,
+    mut reload: MessageWriter<ReloadContent>,
 ) {
     **panel = Visibility::Hidden;
+    // Everything behind this panel reads content: the Scenarios picker, the
+    // campaign list, the ship catalog. An install writes to disk and the merge
+    // is change-gated, so leaving is where the game catches up with what the
+    // portal just did - the same reload F5 asks for, at the moment it is
+    // certainly wanted.
+    reload.write(ReloadContent);
 }
 
 /// Switch the active mods tab: write [`ModsActiveTab`] (which re-arms

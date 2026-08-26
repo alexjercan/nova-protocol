@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 
 use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
+use nova_assets::prelude::{EnabledMods, ReloadContent};
 use nova_gameplay::prelude::AssetRef;
 use nova_modding::prelude::{BundleManifest, Content, ModMeta};
 use nova_scenario::prelude::{
@@ -344,6 +345,10 @@ pub(crate) fn apply_file_request(
     mut commands: Commands,
     mut request: ResMut<FileRequest>,
     time: Res<Time>,
+    // Optional: a headless fixture drives this worker without the content
+    // pipeline behind it, and a save that cannot be published is still a save.
+    mut enabled: Option<ResMut<EnabledMods>>,
+    mut reload: MessageWriter<ReloadContent>,
     mut context: ResMut<EditContext>,
     mut selected: ResMut<SelectedNode>,
     mut status: ResMut<EditorStatus>,
@@ -363,6 +368,15 @@ pub(crate) fn apply_file_request(
             );
             match write_save(&items) {
                 Ok(()) => {
+                    // ENABLED as well as installed. A save is the builder's own
+                    // document, not a stranger's mod: asking them to go and
+                    // switch it on in the Mods panel before their own range
+                    // appears in Scenarios is the friction the save was meant to
+                    // remove. Still theirs to turn off there.
+                    if let Some(enabled) = enabled.as_mut() {
+                        enabled.0.insert(SAVE_MOD_ID.to_string());
+                    }
+                    reload.write(ReloadContent);
                     info!("editor: saved the document as mod '{SAVE_MOD_ID}'");
                     status.say("saved", theme::PHOSPHOR, now);
                 }

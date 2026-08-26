@@ -285,8 +285,19 @@ pub fn load_downloaded_mods(
     asset_server: Res<AssetServer>,
     mut downloaded: ResMut<DownloadedMods>,
 ) {
+    refresh_downloaded_mods(&asset_server, &mut downloaded);
+}
+
+/// The same read, callable from outside a system.
+///
+/// The reload ([`crate::reload`]) needs it mid-run rather than at startup, and
+/// a mod written while the game is up - the editor's save - is named nowhere
+/// else: it is not in the catalog and it is not in the collection, so nothing
+/// but a re-read of the index knows it exists.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn refresh_downloaded_mods(asset_server: &AssetServer, downloaded: &mut DownloadedMods) {
     let records = mod_cache::read_index().unwrap_or_default();
-    start_downloaded_loads(records, &asset_server, &mut downloaded);
+    start_downloaded_loads(records, asset_server, downloaded);
 }
 
 /// The in-flight IndexedDB hydration: the spawned task parks the index records
