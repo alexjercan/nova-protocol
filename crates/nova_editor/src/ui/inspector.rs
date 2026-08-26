@@ -1019,6 +1019,27 @@ pub(crate) fn paint_field_reasons(
     }
 }
 
+/// Light the border of the colour block the pointer is over.
+///
+/// The block IS the button that opens the picker, and a button that never
+/// changes under the pointer reads as a readout. It cannot answer with its
+/// background the way every other button does - that background is the value
+/// it is showing - so the border is the whole of the affordance.
+pub(crate) fn paint_swatch_hover(
+    mut swatches: Query<(&Hovered, &mut BorderColor), With<InspectorSwatch>>,
+) {
+    for (hovered, mut border) in &mut swatches {
+        let wanted = if hovered.get() {
+            theme::PHOSPHOR
+        } else {
+            theme::PHOSPHOR.with_alpha(0.4)
+        };
+        if border.top != wanted {
+            border.set_all(wanted);
+        }
+    }
+}
+
 /// Where an edit lands on the node.
 #[derive(SystemParam)]
 pub(crate) struct EditTargets<'w, 's> {

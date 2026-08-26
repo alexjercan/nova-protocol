@@ -312,11 +312,16 @@ impl EditorSays<'_> {
     }
 }
 
-/// The rail's attitude readout: what the hull under construction would turn
-/// like, and which of the two ceilings says so. Repainted from the build state
-/// by `crate::attitude::sync_attitude_readout`.
+/// The rail's engineer readout: what the hull under construction weighs,
+/// pushes with, survives and would turn like. Repainted from the build state
+/// by `crate::readout::sync_ship_readout`.
 #[derive(Component)]
-pub(crate) struct AttitudeReadout;
+pub(crate) struct ShipReadout;
+
+/// The line under that block: which of the two attitude ceilings holds the
+/// turn rate down, and the one thing that would raise it.
+#[derive(Component)]
+pub(crate) struct ShipReadoutNote;
 
 /// The editor's key legend, bottom-left. Its text follows the armed tool, so
 /// the keys that do nothing in the current mode are not listed and the line
@@ -329,10 +334,17 @@ pub(crate) struct EditorKeyLegend;
 #[derive(Component)]
 pub(crate) struct SkinToggleCheckbox;
 
-/// The list of styles under the skin toggle. Shown only while the ship wears
-/// one, because a style is a property of a skin that is on.
+/// The list of styles under the skin toggle. Always shown, and greyed while
+/// the ship wears no skin: the greyed list is what advertises that the toggle
+/// leads somewhere.
 #[derive(Component)]
 pub(crate) struct StyleList;
+
+/// The colour block on a style row, carrying the paint that style puts on a
+/// hull's top surface - so the row can be dimmed and given its colour back
+/// without reading the catalog a second time.
+#[derive(Component)]
+pub(crate) struct StyleSwatch(pub(crate) Color);
 
 /// One row of that list, carrying the style id it picks - the same shape the
 /// tool rows use, so the shared `Selected` highlight marks the active style.

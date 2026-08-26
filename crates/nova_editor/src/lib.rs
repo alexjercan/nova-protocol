@@ -2,7 +2,7 @@
 //! hand it off to a scenario simulation.
 //!
 //! Structure:
-//! - `attitude`  - what the hull under construction would turn like
+//! - `readout`   - what the hull under construction weighs, pushes and turns like
 //! - `node`      - the document: the node tree and the edit context
 //! - `inspect`   - the reflected fields of the inspected node, and their write-back
 //! - `frame`     - putting the camera on a node, on demand
@@ -33,7 +33,6 @@ use nova_assets::prelude::{GameAssets, GameAssetsStates};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
-mod attitude;
 mod bundle;
 mod config;
 mod frame;
@@ -47,13 +46,13 @@ mod node;
 mod placement;
 mod preview;
 mod probe;
+mod readout;
 mod scenario;
 mod skin;
 mod snap;
 mod stage;
 mod ui;
 
-use attitude::sync_attitude_readout;
 use bundle::{apply_file_request, save_key, FileRequest};
 use config::{
     editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, HoveredNode, LastClick,
@@ -78,14 +77,15 @@ use placement::{
 };
 use probe::sync_editor_probe;
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
+use readout::sync_ship_readout;
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
 use stage::{draw_node_marks, draw_object_volumes, draw_world_grid};
 use ui::{
     callout::sync_placement_callout,
     inspector::{
-        apply_inspector_edits, hold_camera_while_typing, paint_field_reasons, sync_inspector,
-        typing_into_a_field,
+        apply_inspector_edits, hold_camera_while_typing, paint_field_reasons, paint_swatch_hover,
+        sync_inspector, typing_into_a_field,
     },
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_armed_menu, sync_menu_delete,
@@ -415,7 +415,7 @@ fn editor_plugin(app: &mut App) {
                 sync_menu_item_paint,
             )
                 .chain(),
-            sync_attitude_readout,
+            sync_ship_readout,
             sync_skin_toggle,
             sync_style_list,
             // The tree, the breadcrumb, the panels, the two greyable buttons
@@ -434,6 +434,7 @@ fn editor_plugin(app: &mut App) {
                 // goes away. One element, because the group around it is
                 // already at Bevy's tuple arity.
                 (sync_inspector, sync_colour_windows, paint_field_reasons).chain(),
+                paint_swatch_hover,
                 sync_context_panels,
                 sync_breadcrumb,
                 sync_rebind_button,

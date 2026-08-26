@@ -37,9 +37,10 @@ use nova_ui::{
 use crate::{
     bundle::ask_to_save,
     config::{
-        AttitudeReadout, ContextBreadcrumb, EditorKeyLegend, EditorOverlays, EditorStatus,
-        LastClick, PlacementStatus, PlayButton, RebindButton, SceneList, SceneRow, SectionChoice,
-        SelectedNode, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList,
+        ContextBreadcrumb, EditorKeyLegend, EditorOverlays, EditorStatus, LastClick,
+        PlacementStatus, PlayButton, RebindButton, SceneList, SceneRow, SectionChoice,
+        SelectedNode, ShipReadout, ShipReadoutNote, ShipSettings, SkinToggleCheckbox, StyleChoice,
+        StyleList, StyleSwatch,
     },
     frame::{ask_for, on_frame_selection, FrameRequest, FrameSelectionItem},
     gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
@@ -295,6 +296,15 @@ const PLAY_BLOCKED: &str = "Play (leave the ship)";
 /// their width back from the type and the indent instead (see [`scene_row`]).
 const RAIL_W: f32 = 150.0;
 
+/// How much of its own colour a style row keeps while the skin is off. Enough
+/// to read as the same list, not enough to be mistaken for the live one.
+const GREYED_STYLE_ALPHA: f32 = 0.3;
+
+/// Readout type size (px). The block lines its values up on a monospace column,
+/// so it must not WRAP: at 11px the longest line (`Turn   5.23 rad/s2`) is
+/// 119px inside a 130px rail, and a point more would fold it in half.
+const READOUT_TEXT: f32 = 11.0;
+
 /// Register the UI's observers (button colours, selection). The per-state
 /// systems and the `SectionChoice` setting observer are wired by the plugin,
 /// which owns those types.
@@ -318,10 +328,7 @@ pub(crate) fn setup_editor_scene(
     // The rail is built for the ship the editor opens on. With none entered the
     // checkbox starts bare, which is what a fresh ship is.
     let skinned = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
-    let listed: Vec<(String, String)> = styles
-        .iter()
-        .map(|style| (style.id.clone(), style.name.clone()))
-        .collect();
+    let listed = listed_styles(&styles);
     // Key + rim, the same bearings the parts viewer lights its turntable with.
     // The editor used to carry one light shining straight down, which put every
     // vertical face of every part in flat shadow - fine for a ship seen from
@@ -646,22 +653,40 @@ pub(crate) fn setup_editor_scene(
                         .with_children(|settings| {
                             settings.spawn(separator());
                             settings.spawn(panel_header("Ship Settings"));
-                            // The attitude readout: a property of the hull
-                            // being built, and it moves with every part placed.
-                            // Without it a hull that is too big to turn reads
-                            // as the game being broken rather than as a hull
-                            // that wants another computer.
+                            // The engineer readout: properties of the hull
+                            // being built, and they move with every part
+                            // placed. Without them a hull that is too big to
+                            // turn reads as the game being broken rather than
+                            // as a hull that wants another computer.
                             settings.spawn((
-                                Name::new("Attitude Readout"),
-                                AttitudeReadout,
+                                Name::new("Ship Readout"),
+                                ShipReadout,
                                 Text::new(""),
                                 TextFont {
-                                    font_size: FontSize::Px(12.0),
+                                    font_size: FontSize::Px(READOUT_TEXT),
+                                    ..default()
+                                },
+                                TextColor(theme::PHOSPHOR),
+                                Node {
+                                    margin: UiRect::top(px(4)),
+                                    ..default()
+                                },
+                            ));
+                            // The remedy, under the numbers it is about. Muted
+                            // and a size down, because it is the sentence a
+                            // builder reads ONCE per surprise and the block
+                            // above is the one they watch.
+                            settings.spawn((
+                                Name::new("Ship Readout Note"),
+                                ShipReadoutNote,
+                                Text::new(""),
+                                TextFont {
+                                    font_size: FontSize::Px(11.0),
                                     ..default()
                                 },
                                 TextColor(theme::PHOSPHOR_MUTED),
                                 Node {
-                                    margin: UiRect::vertical(px(4)),
+                                    margin: UiRect::bottom(px(4)),
                                     ..default()
                                 },
                             ));
@@ -701,12 +726,12 @@ pub(crate) fn setup_editor_scene(
                             settings
                                 .spawn((Name::new("Ship Style List"), StyleList, rail_list_node()))
                                 .with_children(|list| {
-                                    for (index, (id, name)) in listed.iter().enumerate() {
+                                    for (index, (id, name, colour)) in listed.iter().enumerate() {
                                         list.spawn((
                                             Name::new(format!("Style: {name}")),
                                             // The first is what an unset style
                                             // wears, so it starts marked.
-                                            style_row(id, name, index == 0, skin),
+                                            style_row(id, name, *colour, index == 0, skin),
                                             observe(on_style_choice),
                                         ));
                                     }
@@ -840,6 +865,34 @@ pub(crate) fn on_skin_toggle(
     if let Ok(mut ship) = q_ships.get_mut(ship) {
         ship.skin = !ship.skin;
     }
+}
+
+/// Styles a release build does not list. `placeholder` is the scaffolding the
+/// base bundle ships to prove the pipeline dresses plates at all (it is built
+/// by `nova_authoring::base_content::styles`), and it is not a look anybody
+/// would choose - but a debug build is exactly where somebody wants to look at
+/// it on a hull.
+const DEBUG_ONLY_STYLES: &[&str] = &["placeholder"];
+
+/// The style rows to build, out of the MERGED catalog - so a mod's style is
+/// listed beside the base ones without the editor knowing any id.
+///
+/// The colour is the paint the style puts on a hull's TOP surface, which is the
+/// face the build view mostly shows. A style that dresses no surface restates
+/// the built-in plate colours, and its row carries no colour rather than a
+/// guessed one.
+fn listed_styles(styles: &GameStyles) -> Vec<(String, String, Color)> {
+    styles
+        .iter()
+        .filter(|style| cfg!(feature = "debug") || !DEBUG_ONLY_STYLES.contains(&style.id.as_str()))
+        .map(|style| {
+            let colour = style
+                .surface(ShellSurface::Top)
+                .or_else(|| style.surfaces.first())
+                .map_or(Color::NONE, |dress| dress.color);
+            (style.id.clone(), style.name.clone(), colour)
+        })
+        .collect()
 }
 
 /// The style list's own column, so the rows read as one group under the toggle
@@ -1503,6 +1556,10 @@ pub(crate) fn sync_rebind_button(
 /// Writes an explicit id rather than a list index: the build state travels out
 /// to the scenario and back, and an index into a catalog a mod can grow would
 /// not survive that trip meaning the same thing.
+/// Picking a style off the greyed list also turns the skin ON. The list is
+/// visible while the skin is off so it can advertise what the toggle leads to,
+/// and an advertisement that answers a press with nothing is worse than no
+/// advertisement.
 pub(crate) fn on_style_choice(
     activate: On<Activate>,
     choices: Query<&StyleChoice>,
@@ -1514,11 +1571,16 @@ pub(crate) fn on_style_choice(
     };
     if let Ok(mut ship) = q_ships.get_mut(ship) {
         ship.style = Some(choice.0.clone());
+        ship.skin = true;
     }
 }
 
-/// Show the style list only while the ship wears a skin, and mark the row the
-/// build view is actually dressing plates in.
+/// Mark the row the build view is actually dressing plates in, and grey the
+/// whole list while the ship wears no skin.
+///
+/// GREYED rather than hidden: a list that appears when a checkbox is ticked is
+/// a list nobody knew the checkbox led to, and the styles are the reason to
+/// tick it. The rows stay pressable - see [`on_style_choice`].
 ///
 /// The FALLBACK is spelled here as well as in `crate::skin`, because the rail
 /// has to mark what is on screen: a ship that has picked no style wears the
@@ -1532,27 +1594,32 @@ pub(crate) fn sync_style_list(
     context: Res<EditContext>,
     q_ships: Query<&ShipNode>,
     styles: Res<GameStyles>,
-    mut lists: Query<&mut Node, With<StyleList>>,
-    rows: Query<(Entity, &StyleChoice, Has<Selected>)>,
+    rows: Query<(Entity, &StyleChoice, Has<Selected>, &Children)>,
+    mut labels: Query<&mut TextColor>,
+    mut swatches: Query<(&StyleSwatch, &mut BackgroundColor)>,
 ) {
     let ship = edited_ship(&context, &q_ships);
-    let display = if ship.is_some_and(|ship| ship.skin) {
-        Display::Flex
+    let skinned = ship.is_some_and(|ship| ship.skin);
+    let label = if skinned {
+        theme::PHOSPHOR
     } else {
-        Display::None
+        theme::PHOSPHOR_MUTED
     };
-    for mut node in &mut lists {
-        if node.display != display {
-            node.display = display;
-        }
-    }
+    let paint = if skinned { 1.0 } else { GREYED_STYLE_ALPHA };
 
-    let active = match ship.and_then(|ship| ship.style.as_deref()) {
-        Some(id) => styles.get_style(id),
-        None => styles.first(),
-    }
-    .map(|style| style.id.as_str());
-    for (entity, choice, selected) in &rows {
+    // Nothing is marked while the skin is off: the ship is wearing no style,
+    // and a mark on a greyed row says it is - in the one paint the greying has
+    // to fight to be read through.
+    let active = skinned
+        .then(|| {
+            match ship.and_then(|ship| ship.style.as_deref()) {
+                Some(id) => styles.get_style(id),
+                None => styles.first(),
+            }
+            .map(|style| style.id.as_str())
+        })
+        .flatten();
+    for (entity, choice, selected, children) in &rows {
         match (active == Some(choice.0.as_str()), selected) {
             (true, false) => {
                 commands.entity(entity).insert(Selected);
@@ -1561,6 +1628,19 @@ pub(crate) fn sync_style_list(
                 commands.entity(entity).remove::<Selected>();
             }
             _ => {}
+        }
+        for &child in children {
+            if let Ok(mut colour) = labels.get_mut(child) {
+                if colour.0 != label {
+                    colour.0 = label;
+                }
+            }
+            if let Ok((swatch, mut background)) = swatches.get_mut(child) {
+                let wanted = swatch.0.with_alpha(paint);
+                if background.0 != wanted {
+                    *background = wanted.into();
+                }
+            }
         }
     }
 }
@@ -2682,7 +2762,12 @@ mod tests {
         ShipStyleConfig {
             id: id.to_string(),
             name: id.to_string(),
-            surfaces: vec![],
+            surfaces: vec![StyleSurfaceConfig {
+                surface: ShellSurface::Top,
+                color: Color::linear_rgb(0.2, 0.3, 0.4),
+                roughness: 0.5,
+                metallic: 0.0,
+            }],
             fixtures: vec![],
         }
     }
@@ -2702,11 +2787,15 @@ mod tests {
         app.insert_resource(EditContext {
             path: vec![Entity::PLACEHOLDER, ship],
         });
+        let listed = listed_styles(&app.world().resource::<GameStyles>().clone());
         app.world_mut()
             .spawn((StyleList, rail_list_node()))
             .with_children(|list| {
-                for id in ["first", "second"] {
-                    list.spawn((StyleChoice(id.to_string()), observe(on_style_choice)));
+                for (id, name, colour) in &listed {
+                    list.spawn((
+                        style_row(id, name, *colour, false, UiSkin::default()),
+                        observe(on_style_choice),
+                    ));
                 }
             });
         app.add_systems(Update, sync_style_list);
@@ -2775,24 +2864,94 @@ mod tests {
         assert_eq!(marked(&mut app), vec!["second".to_string()]);
     }
 
-    /// A style is a property of a skin that is on. With the skin off the
-    /// list is not a control the builder can act on, so it is not on screen.
+    /// The scaffolding style proves the plate pipeline dresses a hull at all.
+    /// It is not a look anybody would choose, so a release build leaves it out
+    /// of the list - and a debug build is exactly where somebody wants to put
+    /// it on a ship and look at it.
     #[test]
-    fn the_style_list_is_hidden_while_the_ship_is_bare() {
+    fn the_scaffolding_style_is_listed_only_in_a_debug_build() {
+        let styles = GameStyles(vec![style("civilian"), style("placeholder")]);
+        let ids: Vec<String> = listed_styles(&styles)
+            .into_iter()
+            .map(|(id, _, _)| id)
+            .collect();
+        if cfg!(feature = "debug") {
+            assert_eq!(ids, vec!["civilian", "placeholder"]);
+        } else {
+            assert_eq!(ids, vec!["civilian"]);
+        }
+    }
+
+    /// A row shows the paint its style puts on a hull's top surface: five words
+    /// for five looks made a builder open each in turn to find out what they
+    /// meant.
+    #[test]
+    fn a_style_row_carries_the_colour_that_style_paints() {
+        let listed = listed_styles(&GameStyles(vec![style("civilian")]));
+        assert_eq!(
+            listed.first().map(|(_, _, colour)| *colour),
+            Some(Color::linear_rgb(0.2, 0.3, 0.4))
+        );
+    }
+
+    /// The colours the rows of the list are wearing, one entry per row.
+    fn swatch_alphas(app: &mut App) -> Vec<f32> {
+        app.world_mut()
+            .query_filtered::<&BackgroundColor, With<StyleSwatch>>()
+            .iter(app.world())
+            .map(|paint| paint.0.alpha())
+            .collect()
+    }
+
+    /// With the skin off the list is GREYED rather than hidden: it is the only
+    /// thing on the rail that says what ticking the box leads to, and a list
+    /// that appears on the tick is a list nobody knew was there.
+    #[test]
+    fn the_style_list_greys_while_the_ship_is_bare() {
         let mut app = app(false);
         app.update();
-        let display = |app: &mut App| {
+        assert_eq!(
             app.world_mut()
                 .query_filtered::<&Node, With<StyleList>>()
                 .single(app.world())
                 .expect("the list exists")
-                .display
-        };
-        assert_eq!(display(&mut app), Display::None);
+                .display,
+            Display::Flex,
+            "the list stays on screen while the skin is off"
+        );
+        assert!(
+            swatch_alphas(&mut app).iter().all(|alpha| *alpha < 1.0),
+            "and wears its colours dimmed: {:?}",
+            swatch_alphas(&mut app)
+        );
+        assert!(
+            marked(&mut app).is_empty(),
+            "a bare ship wears no style, so no row is marked as worn"
+        );
 
         set_skin(&mut app, true);
         app.update();
-        assert_eq!(display(&mut app), Display::Flex);
+        assert!(
+            swatch_alphas(&mut app).iter().all(|alpha| *alpha == 1.0),
+            "the skin gives the list its colour back: {:?}",
+            swatch_alphas(&mut app)
+        );
+    }
+
+    /// A greyed row is still a row: pressing one turns the skin on and dresses
+    /// the ship in it. An advertisement that answers a press with nothing is
+    /// worse than no advertisement.
+    #[test]
+    fn picking_a_style_off_the_greyed_list_turns_the_skin_on() {
+        let mut app = app(false);
+        app.update();
+        let second = row(&mut app, "second");
+        app.world_mut().trigger(Activate { entity: second });
+        app.update();
+
+        assert!(ship_node(&app).skin, "the press turned the skin on");
+        assert_eq!(ship_node(&app).style, Some("second".to_string()));
+        assert_eq!(marked(&mut app), vec!["second".to_string()]);
     }
 
     /// A 150px rail cannot hold `pdc_kinetic_turret_section_7`, and clipping it

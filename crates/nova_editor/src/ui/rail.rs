@@ -9,7 +9,7 @@ use nova_ui::{
     widget::{checkbox, list_row_colors, ListRow},
 };
 
-use crate::config::{SceneRow, SkinToggleCheckbox, StyleChoice};
+use crate::config::{SceneRow, SkinToggleCheckbox, StyleChoice, StyleSwatch};
 
 /// The skin toggle: a tool row that is a SETTING rather than a mode, so it
 /// carries the shared `checkbox` widget instead of a `ButtonValue`.
@@ -58,11 +58,23 @@ pub(crate) fn skin_toggle_row(on: bool, skin: UiSkin) -> impl Bundle {
 /// reconciler then repaints this one from its own `Selected`/`Hovered` without
 /// the editor owning any colour.
 ///
+/// `colour` is the paint the style puts on a hull's top surface, shown as a
+/// block in front of the name: the choice is a purely visual one, and five
+/// words for five looks made a builder open each in turn to find out what they
+/// meant.
+///
 /// Deliberately COMPACT - 22px against a tool button's 34. The rail is 150px
 /// wide on a 1024x768 window and the catalog is as long as the content merge
-/// makes it, so five looks at tool height push Play off the bottom of the
-/// screen. Measured, not guessed.
-pub(crate) fn style_row(id: &str, name: &str, selected: bool, skin: UiSkin) -> impl Bundle {
+/// makes it, so five styles at tool height push Play off the bottom of the
+/// screen. Measured, not guessed. The block is sized to the row for the same
+/// reason: the shared 22px `swatch` would set the height of the list.
+pub(crate) fn style_row(
+    id: &str,
+    name: &str,
+    colour: Color,
+    selected: bool,
+    skin: UiSkin,
+) -> impl Bundle {
     let (background, border) = list_row_colors(selected, false, skin);
     (
         ListRow,
@@ -73,24 +85,44 @@ pub(crate) fn style_row(id: &str, name: &str, selected: bool, skin: UiSkin) -> i
             width: percent(100),
             min_height: px(22),
             margin: UiRect::bottom(px(2)),
-            padding: UiRect::axes(px(10), px(2)),
+            padding: UiRect::axes(px(6), px(2)),
             border: UiRect::all(px(theme::BORDER_W)),
             align_items: AlignItems::Center,
+            column_gap: px(6),
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
         BorderColor::all(border),
         BackgroundColor(background),
-        children![(
-            Text::new(name.to_string()),
-            TextFont {
-                font_size: FontSize::Px(12.0),
-                ..default()
-            },
-            TextColor(theme::PHOSPHOR),
-        )],
+        children![
+            (
+                StyleSwatch(colour),
+                Node {
+                    width: px(STYLE_SWATCH),
+                    height: px(STYLE_SWATCH),
+                    flex_shrink: 0.0,
+                    border: UiRect::all(px(theme::BORDER_W)),
+                    border_radius: BorderRadius::all(px(2)),
+                    ..default()
+                },
+                BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
+                BackgroundColor(colour),
+            ),
+            (
+                Text::new(name.to_string()),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR),
+            )
+        ],
     )
 }
+
+/// The style block's side, in px. A square that fits inside a 22px row with its
+/// padding, which is what keeps the list as short as it was without one.
+const STYLE_SWATCH: f32 = 12.0;
 
 /// A root row's left padding, matching the other rails rows' `10px`-ish inset.
 const INDENT_BASE: f32 = 8.0;
