@@ -1,6 +1,6 @@
 # Editor polish: make the node editor feel finished
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 75
 - TAGS: v0.12.0, editor, ui, polish
 
@@ -183,6 +183,28 @@ steps; each number is one commit, as above.
     Wesnoth does it: `F5` reloads everything from disk on demand, and leaving
     the editor or the mod portal reloads on the way out, so what you just
     saved is there when you go looking for it. (10). M-L
+
+## The third-round plan, in order
+
+Step 28 gave a seeded spacecraft the ship MARKS. The complaint that came back
+is that the mark is all it got: it is still an object everywhere else.
+
+31. **A seeded spacecraft IS a ship node.** A hulk and a picket are hulls with
+    sections, and the document held them as opaque `ObjectNode`s carrying a
+    whole `SpaceshipConfig` - so a double click framed them instead of going
+    inside, and the Inspector read out the flattened config (two Hull rows, a
+    Fixed controller, seven AI-tuning fields). One representation of a hull
+    instead of two: `ShipDriver` grows the third state the scenario model
+    already has (Player / AI / None), `ShipNode` carries the allegiance and the
+    AI routine that make a picket a picket, and the seed and the file load both
+    lift an inline hull into ship node plus section children. Entering,
+    inspecting, focusing, plating and lowering then work on a picket for the
+    same reason they work on a built ship - it is the same kind of node. M-L
+32. **The reload gets a screen.** `F5` re-reads sixteen content files and
+    re-merges the registries in one frame, which reads as a freeze. Put the
+    cover up FIRST and do the work behind it: the panel goes up on the press,
+    the read starts once it has rendered, and it comes down when the files have
+    settled - the same shape the scenario load screen has. S-M
 
 ## Resolution
 
