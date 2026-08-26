@@ -509,6 +509,50 @@ fn a_turrets_fire_rate_is_reachable_through_its_joint_tree() {
     );
 }
 
+/// A vector inside a config is the pose's shape, not a comma-separated line:
+/// the row a builder edits an offset in has one box per axis.
+#[test]
+fn a_vector_in_a_config_is_three_boxes() {
+    let mut node = turret_with_muzzle(4.0);
+    let SectionSource::Inline(config) = &mut node.source else {
+        panic!("the fixture is inline");
+    };
+    let SectionKind::Turret(turret) = &mut config.kind else {
+        panic!("the fixture is a turret");
+    };
+    turret.root.offset = Vec3::new(0.0, 0.25, -1.5);
+    let rows = section_rows(&node, None);
+
+    assert_eq!(
+        row(&rows, "Offset").value,
+        RowValue::Axes(["0".to_string(), "0.25".to_string(), "-1.5".to_string()]),
+        "the offset is typed one axis at a time"
+    );
+}
+
+/// The box for one axis writes THAT axis: the panel hands each box the path of
+/// its own component, and the write is the same reflection walk every other
+/// field takes.
+#[test]
+fn one_axis_of_a_config_vector_writes_alone() {
+    let mut node = turret_with_muzzle(4.0);
+    let rows = section_rows(&node, None);
+    let mut path = row(&rows, "Offset").path.clone();
+    path.push(axis_step(1));
+
+    let mut config = node.resolve(None).expect("an inline section").clone();
+    write_field(section_config_mut(&mut config.kind), &path, false, "2.5")
+        .expect("a number goes into an axis");
+    node.source = SectionSource::Inline(config);
+
+    let rows = section_rows(&node, None);
+    assert_eq!(
+        row(&rows, "Offset").value,
+        RowValue::Axes(["0".to_string(), "2.5".to_string(), "0".to_string()]),
+        "Y took the number and the other two kept theirs"
+    );
+}
+
 /// And writing it lands on the muzzle rather than anywhere else.
 #[test]
 fn a_turrets_fire_rate_can_be_retuned() {

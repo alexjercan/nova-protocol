@@ -261,7 +261,9 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
     // A unit belongs to a NUMBER. A checkbox or a variant name has none, and
     // one drawn beside it would be a label for the wrong thing.
     let unit = match value {
-        RowValue::Text(_) => number_rule(&path).map_or("", |rule| rule.unit),
+        // A vector's three numbers share one unit, and the row's own line is
+        // where it goes - the same place the pose's Position row wears its.
+        RowValue::Text(_) | RowValue::Axes(_) => number_rule(&path).map_or("", |rule| rule.unit),
         _ => "",
     };
     InspectorRow {
@@ -436,6 +438,19 @@ fn walk(
             false,
             RowValue::Colour(colour_text(colour)),
         ));
+        return;
+    }
+    // A VECTOR anywhere gets the pose's shape: one row, three boxes. Typed
+    // into a single field it was `0, 0.064, -0.055` - three numbers a builder
+    // has to count commas through to change one of them, and a line long
+    // enough to wrap in a panel this narrow.
+    //
+    // A `Quat` is NOT given this. Its three boxes would have to be degrees,
+    // and a per-axis write walks reflection into the value's own fields -
+    // which on a quaternion are the raw x/y/z/w nobody authors. It stays one
+    // field, parsed as the same three degrees the pose's rotation row takes.
+    if let Some(vector) = value.try_downcast_ref::<Vec3>() {
+        out.push(walked(root, path, false, axes_of(*vector)));
         return;
     }
     if let Some(text) = leaf_text(value) {
@@ -1061,6 +1076,11 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
     ]
 }
 
+/// A vector as three typed numbers, each in the form every other number wears.
+fn axes_of(value: Vec3) -> RowValue {
+    RowValue::Axes([value.x, value.y, value.z].map(|part| number_text(f64::from(part))))
+}
+
 /// One vector row: three numbers, each in the form every other number wears.
 fn axes_row(root: FieldRoot, label: &str, unit: &'static str, value: Vec3) -> InspectorRow {
     InspectorRow {
@@ -1070,7 +1090,7 @@ fn axes_row(root: FieldRoot, label: &str, unit: &'static str, value: Vec3) -> In
         group: vec![TRANSFORM.to_string()],
         label: label.to_string(),
         unit,
-        value: RowValue::Axes([value.x, value.y, value.z].map(|part| number_text(f64::from(part)))),
+        value: axes_of(value),
     }
 }
 
