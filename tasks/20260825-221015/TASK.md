@@ -1,6 +1,6 @@
 # Editor polish: make the node editor feel finished
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.12.0, editor, ui, polish
 
@@ -207,6 +207,39 @@ is that the mark is all it got: it is still an object everywhere else.
     settled - the same shape the scenario load screen has. S-M
 
 ## Resolution
+
+CLOSED 2026-08-26. The two fourth-round steps landed, one commit each, on
+master:
+
+31. `0244191e` a seeded spacecraft IS a ship node - entered, inspected,
+    plated and lowered by the same code that serves a built one
+32. `0124f176` the reload happens behind a screen, not in the open
+
+Step 31 is the one representation the third round only marked. `ShipDriver`
+grew the `None` state the scenario model always had, so a hulk is a ship
+nobody drives rather than a different kind of node; `ShipNode` carries the
+allegiance and the AI routine, so a picket survives the round trip with its
+side and its 400-unit leash. The Inspector shows the allegiance and refuses to
+edit it: the driver is what chooses it, and two ways to say the same thing is
+what the step was written to remove.
+
+It also took a defect the walk found on the way: with the camera standing in a
+turn ring's plane - which is where the stock framing angle puts it - the ring's
+rim lies across the middle of the node and swallowed the press meant for the
+body. A ring seen edge-on cannot be turned anyway, so it leaves the stage.
+
+Step 32 owns the reload as a phase machine in `nova_assets` and lets
+`nova_core` mirror it: cover up, read on the frame after, down when the last
+file is back and a frame comes in short again. The settle test is what covers
+the MERGE, which is the expensive frame and lands after the files do.
+
+Verified live: the driven walk enters `picket_warden` from the tree and reads
+AI/Neutral off its panel, drags a ship on the plane again, and presses F5 for a
+cover it then waits out.
+
+REOPENED 2026-08-26 for the fourth round: (1) a seeded ship could not be edited
+as a ship, (2) F5 should not stutter, (3) Player/AI/None already covers the
+derelicts, so a double click should open them.
 
 CLOSED 2026-08-26. The nine follow-up steps landed, one commit each, on master:
 

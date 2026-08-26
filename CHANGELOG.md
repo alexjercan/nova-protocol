@@ -19,9 +19,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 - A range saved in the editor is an ordinary mod: each built ship a design, the
   range a scenario naming them. Editing a design moves every instance of it.
-- F5 reads every content file off disk again, and so does leaving the editor or
-  the mods panel, so a range saved in the editor is in the Scenarios list
-  without restarting the game.
+- F5 reads every content file off disk behind a loading screen, as does leaving
+  the editor or the mods panel: a range saved in the editor reaches the
+  Scenarios list without a restart.
 
 ### Interface & HUD
 
@@ -76,9 +76,9 @@ does NOT get an entry - and it is the only place they are written down.
   config back.
 - The Inspector says a node's id under its title, and View > Ids reads the whole
   tree as ids rather than names: what an event's filter will name them by.
-- A seeded spacecraft reads as the ship it is - the driver's mark, a place
-  beside the built ships, and a panel that opens on which hull it flies and who
-  flies it.
+- A seeded spacecraft IS a ship: it wears the driver's mark, opens on a double
+  click like any other, and its panel reads the hull it flies, who flies it and
+  which side it is on.
 - Backspace leaves the node you are inside, and so does one click on any rung
   above it: going up stopped needing a double click on the root.
 - Every vector is three axis-tinted boxes: a node's position, its rotation in
