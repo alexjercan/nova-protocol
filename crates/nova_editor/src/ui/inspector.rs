@@ -43,7 +43,9 @@ use crate::{
         RowValue,
     },
     keybind::on_rebind_action,
-    node::{EditContext, NodeId, ObjectNode, SectionNode, ShipDriver, ShipNode},
+    node::{
+        default_allegiance, EditContext, NodeId, ObjectNode, SectionNode, ShipDriver, ShipNode,
+    },
     ui::window::on_open_colour_window,
 };
 
@@ -851,7 +853,9 @@ fn build_rows(
                         value
                             .spawn((Name::new("Inspector Driver"), segmented_container(skin)))
                             .with_children(|options| {
-                                for option in [ShipDriver::Player, ShipDriver::Ai] {
+                                for option in
+                                    [ShipDriver::Player, ShipDriver::Ai, ShipDriver::Adrift]
+                                {
                                     let label = driver_label(option);
                                     let mut entity = options.spawn((
                                         Name::new(format!("Inspector Driver {label}")),
@@ -1342,7 +1346,12 @@ pub(crate) fn on_inspector_choice(
     }
 }
 
-/// Hand a ship to the player or to the AI.
+/// Hand a ship to the player, to the AI, or to nobody.
+///
+/// The side goes with the controls. A hull taken off the player and given to a
+/// pilot has to land somewhere, and the engine's answer for an unstated AI
+/// allegiance is ENEMY - so a derelict flipped to AI would open fire. See
+/// [`default_allegiance`].
 pub(crate) fn on_inspector_driver(
     activate: On<Activate>,
     options: Query<&InspectorDriver>,
@@ -1356,6 +1365,7 @@ pub(crate) fn on_inspector_driver(
     };
     if ship.driver != option.driver {
         ship.driver = option.driver;
+        ship.allegiance = default_allegiance(option.driver);
     }
 }
 

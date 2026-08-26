@@ -27,8 +27,8 @@ use crate::{
     keybind::EditorRebind,
     node::{
         node_of_view, sections_of, spawn_object_node, spawn_section_node, spawn_ship_node,
-        EditContext, NextChildOrdinal, NodeView, ObjectChoice, ObjectNode, SectionNode,
-        SectionNodes, ShipDriver, ShipNode,
+        EditContext, NextChildOrdinal, NodeId, NodeView, ObjectChoice, ObjectNode, SectionNode,
+        SectionNodes, ShipDriver, ShipNode, MINTED_SHIP_STEM,
     },
     preview::{insert_preview_section, PreviewRole},
     snap::{self, PlacedSection},
@@ -156,19 +156,28 @@ pub(crate) fn create_blank_ship(
     _activate: On<Activate>,
     mut commands: Commands,
     mut ordinals: Query<&mut NextChildOrdinal>,
-    q_ships: Query<(), With<ShipNode>>,
+    q_ships: Query<(&NodeId, &ShipNode)>,
     mut context: ResMut<EditContext>,
     mut says: EditorSays,
 ) {
-    let ships = q_ships.iter().count();
-    // The first ship of a document is the one the player flies; anything built
-    // beside it is scenery until something says otherwise. A second Player ship
-    // would make "which one do I fly" ambiguous, and the answer belongs to the
-    // ship rather than to the order the buttons were pressed.
-    let driver = if ships == 0 {
-        ShipDriver::Player
-    } else {
+    // MINTED ships only, for the slot: the stock range's hulks and pickets are
+    // ship nodes too, and they stand where the scenario put them rather than in
+    // this row - counting them would push the first blank ship a belt away.
+    let ships = q_ships
+        .iter()
+        .filter(|(id, _)| id.0.starts_with(MINTED_SHIP_STEM))
+        .count();
+    // A document with no ship the player flies gets one; anything built beside
+    // it is scenery until something says otherwise. A second Player ship would
+    // make "which one do I fly" ambiguous, and the answer belongs to the ship
+    // rather than to the order the buttons were pressed.
+    let flown = q_ships
+        .iter()
+        .any(|(_, ship)| ship.driver == ShipDriver::Player);
+    let driver = if flown {
         ShipDriver::Ai
+    } else {
+        ShipDriver::Player
     };
     if spawn_ship_node(&mut commands, &mut ordinals, &mut context, ships, driver).is_none() {
         says.refuse("there is no scenario to add a ship to");
@@ -1311,6 +1320,18 @@ mod tests {
             .collect()
     }
 
+    /// The ships the BUILDER added. The stock range seeds eight of its own -
+    /// five hulks and three pickets - and every one of them is a ship node, so
+    /// "how many ships are there" is no longer the question these tests ask.
+    fn minted_ship_nodes(app: &mut App) -> Vec<Entity> {
+        app.world_mut()
+            .query_filtered::<(Entity, &NodeId), With<ShipNode>>()
+            .iter(app.world())
+            .filter(|(_, id)| id.0.starts_with(MINTED_SHIP_STEM))
+            .map(|(entity, _)| entity)
+            .collect()
+    }
+
     fn object_nodes(app: &mut App) -> Vec<Entity> {
         app.world_mut()
             .query_filtered::<Entity, With<ObjectNode>>()
@@ -1328,9 +1349,9 @@ mod tests {
     /// The document is one scenario node, created once, and the editor opens
     /// OUTSIDE any ship - the "Add Ship" action still owns creation, exactly as
     /// the buttons did when an empty build state rebuilt nothing. The world it
-    /// opens onto is seeded; the SHIPS on it are not.
+    /// opens onto is seeded, hulls included; nothing on it is MINTED.
     #[test]
-    fn a_fresh_document_is_one_scenario_node_with_no_ships_on_it() {
+    fn a_fresh_document_is_one_scenario_node_with_no_minted_ships_on_it() {
         let mut app = document_app(vec![]);
 
         assert_eq!(
@@ -1340,7 +1361,11 @@ mod tests {
                 .count(),
             1
         );
-        assert!(ship_nodes(&mut app).is_empty());
+        assert!(minted_ship_nodes(&mut app).is_empty());
+        assert!(
+            !ship_nodes(&mut app).is_empty(),
+            "the seeded hulks and pickets are ships of the document"
+        );
         assert!(
             !object_nodes(&mut app).is_empty(),
             "the editor opens onto the sandbox range, not onto nothing"
@@ -1365,7 +1390,7 @@ mod tests {
 
         press_new_ship(&mut app);
 
-        let ships = ship_nodes(&mut app);
+        let ships = minted_ship_nodes(&mut app);
         assert_eq!(ships.len(), 1);
         assert_eq!(
             app.world().resource::<EditContext>().ship(),
@@ -1377,9 +1402,12 @@ mod tests {
                 .get::<ShipNode>(ships[0])
                 .map(|ship| ship.driver),
             Some(ShipDriver::Player),
-            "the first ship of a document is the one the player flies"
+            "a document with no ship the player flies gets one"
         );
-        assert!(section_nodes(&mut app).is_empty(), "and it starts empty");
+        assert!(
+            app.world().get::<Children>(ships[0]).is_none(),
+            "and it starts empty"
+        );
     }
 
     /// Two ships in one session, which is what the whole model exists for. A
@@ -1389,11 +1417,11 @@ mod tests {
         let mut app = document_app(vec![]);
 
         press_new_ship(&mut app);
-        let first = ship_nodes(&mut app);
+        let first = minted_ship_nodes(&mut app);
         assert_eq!(first.len(), 1);
 
         press_new_ship(&mut app);
-        let ships = ship_nodes(&mut app);
+        let ships = minted_ship_nodes(&mut app);
         assert_eq!(ships.len(), 2, "the first ship is still there");
 
         let second = *ships
@@ -1854,7 +1882,7 @@ mod tests {
         app.update();
 
         assert!(
-            section_nodes(&mut app).is_empty(),
+            !section_nodes(&mut app).contains(&section),
             "Del takes the marked part off"
         );
         assert_eq!(app.world().resource::<SelectedNode>().0, None);

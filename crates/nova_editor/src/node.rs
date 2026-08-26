@@ -17,13 +17,16 @@
 //! Picking therefore lands on a VIEW. Every pointer path maps it back with
 //! [`node_of_view`].
 
+use std::collections::BTreeMap;
+
 use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
-use nova_gameplay::prelude::AssetRef;
+use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::{
+    bundle::{insert_lifted_ship, lift_objects},
     config::{EditorSays, SelectedNode},
     gallery::EditorCamera,
     preview::{insert_preview_object, insert_preview_section, PreviewArt, PreviewRole},
@@ -84,6 +87,11 @@ pub(crate) struct ScenarioNode;
 /// A property of the SHIP, not of the edit context: "which ship do I fly" is
 /// answered by the document, so entering a ship to work on it cannot change
 /// which one Play hands to the player.
+///
+/// The same three states [`SpaceshipController`] has, because they answer the
+/// same question. A hull with nobody at the controls is what every derelict in
+/// a scenario is, and the editor could not say it until the seeded ones became
+/// nodes of this kind.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum ShipDriver {
     /// The ship the player flies on Play.
@@ -91,9 +99,35 @@ pub(crate) enum ShipDriver {
     Player,
     /// Driven by the AI once the scenario runs.
     Ai,
+    /// Nobody drives it: it station-keeps, takes damage and comes apart.
+    Adrift,
+}
+
+/// The side a ship of this kind stands on when nothing has chosen one.
+///
+/// AI ships stand NEUTRAL. A live pilot with no HOSTILE contact holds station,
+/// so a ship added beside the player's neither opens fire off the line nor
+/// gets shot by a woken picket - which is what "I put a second ship on the
+/// range" means. The engine's own default for an AI ship is `Enemy`, and a
+/// document that said nothing used to get that by accident.
+///
+/// A player ship and a derelict say nothing and take the engine's default:
+/// `Allegiance::Player` for one, none at all for the other.
+pub(crate) fn default_allegiance(driver: ShipDriver) -> Option<Allegiance> {
+    match driver {
+        ShipDriver::Ai => Some(Allegiance::Neutral),
+        ShipDriver::Player | ShipDriver::Adrift => None,
+    }
 }
 
 /// A ship being built: everything about it that is not one of its sections.
+///
+/// Also what a seeded hull is held as - a picket and a target hulk are ships
+/// the document did not mint, and holding them as anything else meant a double
+/// click could not go inside one. The three fields below the style are what a
+/// spawn says about a hull that the hull itself does not: `driver`,
+/// `allegiance` and `pilot` are exactly the parts of [`SpaceshipConfig`] that
+/// are not its section list.
 #[derive(Component, Debug, Clone)]
 pub(crate) struct ShipNode {
     /// What the ship is CALLED: the name the tree, the breadcrumb and the
@@ -109,6 +143,15 @@ pub(crate) struct ShipNode {
     pub(crate) style: Option<String>,
     /// Who drives it once the scenario runs.
     pub(crate) driver: ShipDriver,
+    /// Which side it fights for, or `None` to take the driver's own default -
+    /// Player ships read `Allegiance::Player`, AI ships `Allegiance::Enemy`.
+    /// `Some(Neutral)` is what makes a picket dormant.
+    pub(crate) allegiance: Option<Allegiance>,
+    /// The AI pilot's standing orders - patrol, orbit, leash, grace. Carried
+    /// whole rather than picked apart because it is the scenario's own type and
+    /// a picket's leash has to survive a trip through the document. Ignored
+    /// unless `driver` is [`ShipDriver::Ai`].
+    pub(crate) pilot: AIControllerConfig,
 }
 
 impl Default for ShipNode {
@@ -119,6 +162,8 @@ impl Default for ShipNode {
             skin: false,
             style: None,
             driver: ShipDriver::Player,
+            allegiance: None,
+            pilot: AIControllerConfig::default(),
         }
     }
 }
@@ -705,11 +750,15 @@ fn mint_id(ordinals: &mut Query<&mut NextChildOrdinal>, parent: Entity, prototyp
 /// state: Play and F1 round-trip it. It dies with the SESSION instead - Back
 /// to Main Menu runs [`teardown_document`] (owner decision, 2026-08-25), so a
 /// later Sandbox entry starts on a fresh scenario.
-pub(crate) fn ensure_document(mut commands: Commands, mut context: ResMut<EditContext>) {
+pub(crate) fn ensure_document(
+    mut commands: Commands,
+    sections: Option<Res<GameSections>>,
+    mut context: ResMut<EditContext>,
+) {
     if context.scenario().is_some() {
         return;
     }
-    found_document(&mut commands, &mut context);
+    found_document(&mut commands, sections.as_deref(), &mut context);
 }
 
 /// Found a document: one scenario node, seeded with the stock range, and the
@@ -720,10 +769,21 @@ pub(crate) fn ensure_document(mut commands: Commands, mut context: ResMut<EditCo
 /// now, not constants baked into the hand-off. Seeded HERE, once, when the
 /// document is created - a "the world looks empty, refill it" pass would
 /// resurrect everything the builder deleted on the next editor entry.
-pub(crate) fn found_document(commands: &mut Commands, context: &mut EditContext) -> Entity {
+pub(crate) fn found_document(
+    commands: &mut Commands,
+    sections: Option<&GameSections>,
+    context: &mut EditContext,
+) -> Entity {
     let scenario = found_empty_document(commands, context);
-    for object in default_world_objects() {
+    // Through the SAME lift a saved file goes through: the stock range's hulks
+    // and pickets are hulls with sections, and a hull the document held as an
+    // opaque object was one a double click could not go inside.
+    let seed = lift_objects(default_world_objects(), &BTreeMap::new());
+    for object in seed.objects {
         insert_object_node(commands, scenario, object);
+    }
+    for ship in seed.ships {
+        insert_lifted_ship(commands, sections, scenario, ship);
     }
     scenario
 }
@@ -759,6 +819,7 @@ pub(crate) fn found_empty_document(commands: &mut Commands, context: &mut EditCo
 pub(crate) fn reset_document(
     _activate: On<Activate>,
     mut commands: Commands,
+    sections: Option<Res<GameSections>>,
     mut context: ResMut<EditContext>,
     mut selected: ResMut<SelectedNode>,
     roots: Query<Entity, With<ScenarioNode>>,
@@ -767,7 +828,7 @@ pub(crate) fn reset_document(
         commands.entity(root).despawn();
     }
     selected.0 = None;
-    found_document(&mut commands, &mut context);
+    found_document(&mut commands, sections.as_deref(), &mut context);
 }
 
 /// Put one authored scenario object into the document under `scenario`, keeping
@@ -910,6 +971,13 @@ pub(crate) fn drop_edited_views(
     }
 }
 
+/// The stem every id the editor MINTS for a ship carries.
+///
+/// What tells a ship the builder added from one the range came with: a seeded
+/// hull keeps the scenario's own id (`picket_warden`, `hulk_0`), because that
+/// is what the wake handler flips.
+pub(crate) const MINTED_SHIP_STEM: &str = "ship";
+
 /// Add a BLANK ship to the document and go inside it.
 ///
 /// Additive: a second "Add Ship" is one more subtree standing beside the first
@@ -925,13 +993,14 @@ pub(crate) fn spawn_ship_node(
     driver: ShipDriver,
 ) -> Option<Entity> {
     let scenario = context.scenario()?;
-    let id = mint_id(ordinals, scenario, "ship");
+    let id = mint_id(ordinals, scenario, MINTED_SHIP_STEM);
     let ship = commands
         .spawn((
             EditorNode,
             ShipNode {
                 name: minted_name(&id.0),
                 driver,
+                allegiance: default_allegiance(driver),
                 ..default()
             },
             Name::new(format!("Ship Node {}", id.0)),
@@ -1105,9 +1174,18 @@ pub(crate) fn spawn_node_view(commands: &mut Commands, node: Entity, config: &Se
 pub(crate) fn rebuild_node_views(
     mut commands: Commands,
     sections: Option<Res<GameSections>>,
-    nodes: Query<(Entity, &NodeId, &SectionNode)>,
+    nodes: Query<(Entity, &NodeId, &SectionNode, Option<&Children>)>,
+    views: Query<(), With<NodeView>>,
 ) {
-    for (node, id, section) in &nodes {
+    for (node, id, section, children) in &nodes {
+        // A section founded THIS frame already has its body: `ensure_document`
+        // runs chained before this, and a second view would be a second mesh
+        // on the same node.
+        let bodied =
+            children.is_some_and(|children| children.iter().any(|child| views.contains(child)));
+        if bodied {
+            continue;
+        }
         let Some(config) = section.resolve(sections.as_deref()) else {
             warn!(
                 "editor: section '{}' names prototype '{}', which is not in the catalog - \
@@ -1430,9 +1508,9 @@ mod tests {
             .expect("the document is created");
 
         let mut standing: Vec<String> = world
-            .query::<(&NodeId, &ObjectNode)>()
+            .query_filtered::<&NodeId, Or<(With<ObjectNode>, With<ShipNode>)>>()
             .iter(&world)
-            .map(|(id, _)| id.0.clone())
+            .map(|id| id.0.clone())
             .collect();
         standing.sort();
         let mut authored: Vec<String> = default_world_objects()
@@ -1442,13 +1520,36 @@ mod tests {
         authored.sort();
         assert_eq!(standing, authored, "the whole range came up as nodes");
 
+        // The HULLS came up as ships, sections and all: a hulk the document
+        // held as an opaque object was one a double click could not open.
+        let hulks: Vec<&NodeId> = world
+            .query_filtered::<&NodeId, With<ShipNode>>()
+            .iter(&world)
+            .filter(|id| id.0.starts_with("hulk_"))
+            .collect();
+        assert_eq!(hulks.len(), 5, "every target hulk is a ship node");
+        assert!(
+            world
+                .query_filtered::<&NodeId, With<ShipNode>>()
+                .iter(&world)
+                .any(|id| id.0 == "picket_warden"),
+            "and so is every picket, under the id the wake handler flips"
+        );
+        assert!(
+            world.query::<&SectionNode>().iter(&world).count() > 5,
+            "a seeded hull's sections are nodes of their own"
+        );
+
         // And once only: a second entry into the editor finds the world it
         // left rather than standing a second copy of it up beside the first.
         world
             .run_system_once(ensure_document)
             .expect("the document check runs");
         assert_eq!(
-            world.query::<&ObjectNode>().iter(&world).count(),
+            world
+                .query_filtered::<(), Or<(With<ObjectNode>, With<ShipNode>)>>()
+                .iter(&world)
+                .count(),
             authored.len()
         );
     }

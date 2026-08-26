@@ -357,3 +357,38 @@ fn a_section_selected_inside_a_ship_gets_no_handles() {
 
     assert_eq!(rig(&app).1, Visibility::Hidden);
 }
+
+#[test]
+fn a_ring_the_camera_looks_along_leaves_the_stage() {
+    let mut app = gizmo_app();
+    let node = ship(&mut app, Vec3::ZERO);
+    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    let rings = [GizmoAxis::X, GizmoAxis::Y, GizmoAxis::Z].map(|axis| {
+        app.world_mut()
+            .spawn((turn_handle(axis), Visibility::Inherited))
+            .id()
+    });
+    let arm = app
+        .world_mut()
+        .spawn((move_handle(GizmoAxis::X), Visibility::Inherited))
+        .id();
+
+    place(&mut app);
+
+    // The fixture's camera stands in the X ring's plane and near enough the Y
+    // ring's - which is the stock framing angle, not a corner of one. A ring
+    // left there swallows the press that was meant for the body under it.
+    let shown = |entity| {
+        *app.world()
+            .get::<Visibility>(entity)
+            .expect("a handle keeps its visibility")
+    };
+    assert_eq!(shown(rings[0]), Visibility::Hidden, "X, seen edge-on");
+    assert_eq!(
+        shown(rings[1]),
+        Visibility::Hidden,
+        "Y, seen nearly edge-on"
+    );
+    assert_eq!(shown(rings[2]), Visibility::Inherited, "Z, seen square-on");
+    assert_eq!(shown(arm), Visibility::Inherited, "an arm is not a ring");
+}

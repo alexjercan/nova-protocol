@@ -69,6 +69,17 @@ const SCREEN_SPAN: f32 = 0.13;
 /// camera distance would be buried inside a corvette's hull at close range.
 const CLEARANCE: f32 = 1.3;
 
+/// How square-on a ring has to be before it is worth drawing, as the cosine
+/// between its axis and the line of sight.
+///
+/// A ring the camera looks ALONG is a ring nobody can turn: the angle a drag
+/// reads is measured in the ring's own plane, and from there that plane is a
+/// line - a pixel of pointer travel is most of a revolution. Worse, its rim
+/// then lies across the middle of the node, which is where the body drag
+/// presses. The stock framing angle stands the camera in the X ring's plane,
+/// so this is the DEFAULT view, not a corner of one.
+const SQUARE_ON: f32 = 0.2;
+
 /// The rig: one entity, moved onto the selected node and scaled every frame.
 #[derive(Component)]
 pub(crate) struct GizmoRig;
@@ -343,6 +354,7 @@ pub(crate) fn sync_gizmo(
     // one propagation apart.
     camera: Option<Single<&Transform, (With<EditorCamera>, Without<GizmoRig>)>>,
     rig: Option<Single<(&mut Transform, &mut Visibility), With<GizmoRig>>>,
+    mut q_handles: Query<(&GizmoHandle, &mut Visibility), Without<GizmoRig>>,
 ) {
     let Some(rig) = rig else {
         return;
@@ -367,6 +379,22 @@ pub(crate) fn sync_gizmo(
     let watched = camera.translation.distance(at);
     let arm = reach.max(watched * SCREEN_SPAN);
     let wanted = Transform::from_translation(at).with_scale(Vec3::splat(arm));
+
+    // Take the rings the camera is looking along off the stage. The rig has no
+    // rotation of its own, so an axis in rig space is that axis in the world.
+    let look = (camera.translation - at).normalize_or_zero();
+    for (handle, mut visibility) in &mut q_handles {
+        let square_on =
+            handle.kind != HandleKind::Turn || handle.axis.unit().dot(look).abs() >= SQUARE_ON;
+        let shown = if square_on {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        if *visibility != shown {
+            *visibility = shown;
+        }
+    }
 
     if *pose != wanted {
         *pose = wanted;

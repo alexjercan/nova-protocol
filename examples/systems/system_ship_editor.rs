@@ -176,6 +176,16 @@ const FLOWN_RANGE: &str = "editor_sandbox";
 #[cfg(feature = "debug")]
 const BEAT_DEADLINE_SECS: f32 = 20.0;
 
+/// How far, in pixels, the stage drag carries a grabbed node.
+///
+/// Short on purpose. The transform rig is scaled to a fixed share of the view,
+/// so its innermost handle geometry stands about 44 pixels off the node's
+/// origin at ANY camera distance; a longer sweep from the middle of a node
+/// crosses a ring and turns the ship instead of sliding it. Even this much is
+/// tens of world units out where the whole range is framed.
+#[cfg(feature = "debug")]
+const DRAG_SPAN: f32 = 25.0;
+
 /// In-step seconds the two asset-gated beats get: reaching the main menu, and
 /// reaching gameplay through it. Sized to outlast a cold load on a
 /// software-rendered CI GPU, and kept under the harness completion deadline so
@@ -1228,11 +1238,15 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outside a ship there is no edited ship to report"
             );
             assert!(probe.can_play, "Play is the scenario node's gesture");
-            assert_eq!(
-                probe.visible_ships,
-                vec!["ship_1".to_string(), "ship_2".to_string()],
-                "the scenario node puts every ship back on the stage"
-            );
+            // The two the run built, standing among the range's own hulls -
+            // the hulks and pickets are ship nodes of this document too.
+            for ship in ["ship_1", "ship_2", "picket_warden"] {
+                assert!(
+                    probe.visible_ships.iter().any(|node| node == ship),
+                    "the scenario node puts every ship back on the stage: {:?}",
+                    probe.visible_ships
+                );
+            }
             let listed = probe.context_nodes.clone();
             nova_probe::probe_marker(
                 world,
@@ -1612,7 +1626,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("editor: drag it across the plane")
         .on_enter(|world: &mut World| {
             let at = aim_at_the_first_ship(world).expect("the grabbed ship is on screen");
-            move_cursor(at + Vec2::new(90.0, 0.0))(world);
+            // Inside the hollow the whole way. The rig is scaled to a fixed
+            // share of the VIEW, so its rings sit at a constant screen radius
+            // however far the camera stands off - and a drag long enough to
+            // cross one hands the gesture to the handle it crossed.
+            move_cursor(at + Vec2::new(DRAG_SPAN, 0.0))(world);
         })
         .until(the_first_ship_moved())
         .deadline(BEAT_DEADLINE_SECS)
@@ -1979,7 +1997,13 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             let ships = inspector_reading(world, "Ships");
             let objects = inspector_reading(world, "Objects");
             let flown = inspector_reading(world, "Player Ship");
-            assert_eq!(ships, "2", "the run built two designs");
+            // The two the run built, standing among the stock range's own
+            // hulls - the hulks and pickets are ship nodes of this document
+            // too, so the count is not the walk's alone.
+            assert!(
+                ships.parse::<usize>().is_ok_and(|ships| ships >= 2),
+                "the run built two designs and the root counts them: {ships}"
+            );
             assert_ne!(objects, "0", "and stands them on a range with things on it");
             assert_ne!(
                 flown, "none",
@@ -1992,6 +2016,43 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             info!("editor: the root reads {ships} ship(s), {objects} object(s), flown by {flown}");
         })
+        .add()
+        // A hull the RANGE came with is a ship of this document, and the tree
+        // is the door into it: two clicks on a picket's row go inside it,
+        // exactly as they do on a ship the run built. It used to be an opaque
+        // object - a double click framed it, and the panel read out its whole
+        // flattened spawn config.
+        .double_click_a_widget("editor: enter a seeded picket", "Scene Row picket_warden")
+        .step("editor: inside the hull the range came with")
+        .until(inside_the_node("picket_warden"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: a seeded hull opens, and opens as a ship")
+        .on_enter(|world: &mut World| {
+            let sections = world.resource::<EditorProbe>().context_nodes.clone();
+            assert!(
+                !sections.is_empty(),
+                "a picket's sections are nodes of its own: {sections:?}"
+            );
+            let driver = inspector_reading(world, "Driver");
+            let side = inspector_reading(world, "Allegiance");
+            assert_eq!(driver, "AI", "a picket has a live pilot");
+            assert_eq!(
+                side, "Neutral",
+                "and the side that makes it dormant is on the panel that names it"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: a seeded hull is entered and inspected as a ship",
+                serde_json::json!({}),
+            );
+            info!("editor: inside picket_warden - {sections:?}, driven by {driver}, {side}");
+        })
+        .add()
+        .click_a_widget("editor: back out to the range", "Scene Row scenario")
+        .step("editor: back at the scenario node")
+        .until(at_the_scenario_node())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         // The round trip. The document the run built - two ships and the
         // range around them - goes to disk as a mod bundle, gets thrown away,
@@ -2470,7 +2531,12 @@ fn hull_section_name(world: &World) -> Option<String> {
         .map(|section| section.base.name.clone())
 }
 
-/// Count the preview ship's sections.
+/// Count the sections of the ship being EDITED.
+///
+/// The edit context's own list rather than a sweep of every `SectionMarker` in
+/// the world: the range's seeded hulks and pickets are ship nodes with sections
+/// of their own, so "how many parts are on the ship I am building" stopped
+/// being "how many section meshes exist".
 ///
 /// `&World` for the same reason [`count_named_with_prefix`] is: the beats read
 /// it and the predicates below wait on it, and one counter cannot disagree with
@@ -2478,8 +2544,8 @@ fn hull_section_name(world: &World) -> Option<String> {
 #[cfg(feature = "debug")]
 fn count_sections(world: &World) -> usize {
     world
-        .try_query_filtered::<(), With<SectionMarker>>()
-        .map_or(0, |mut sections| sections.iter(world).count())
+        .get_resource::<EditorProbe>()
+        .map_or(0, |probe| probe.ship.len())
 }
 
 /// Count the skin plates on screen - the editor's preview cladding, and after
@@ -2549,6 +2615,14 @@ fn back_inside_the_stamped_ship() -> Wait {
     std::sync::Arc::new(|world: &World| {
         let probe = world.resource::<EditorProbe>();
         probe.inside.is_some() && probe.ship.len() == world.resource::<EditorWalk>().ids.len()
+    })
+}
+
+/// Advance once the editor is INSIDE the node called `id`.
+#[cfg(feature = "debug")]
+fn inside_the_node(id: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        world.resource::<EditorProbe>().inside.as_deref() == Some(id)
     })
 }
 
@@ -3284,14 +3358,18 @@ fn subtree_text(world: &mut World, name: &str) -> Vec<String> {
 /// [`move_cursor`] takes - no scale-factor conversion belongs here.
 #[cfg(feature = "debug")]
 fn aim_at_a_section(world: &mut World) -> Option<Vec2> {
-    let mut q_sections = world.query_filtered::<&GlobalTransform, With<SectionMarker>>();
-    // The LOWEST-posed section rather than the first one the query yields:
-    // query order is an archetype detail that changes between runs, and a beat
-    // that clicks a different section each time proves nothing (see
-    // `placed_sections`).
+    let mut q_sections =
+        world.query_filtered::<(&GlobalTransform, &InheritedVisibility), With<SectionMarker>>();
+    // The LOWEST-posed VISIBLE section, rather than the first one the query
+    // yields: query order is an archetype detail that changes between runs,
+    // and a beat that clicks a different section each time proves nothing (see
+    // `placed_sections`). Visible is the half that scopes it to the ship being
+    // built - the range's own seeded hulks and pickets are ship nodes with
+    // sections of their own, and entering a ship takes them off the stage.
     let section_pos = q_sections
         .iter(world)
-        .map(GlobalTransform::translation)
+        .filter(|(_, visible)| visible.get())
+        .map(|(pose, _)| pose.translation())
         .min_by(|a, b| by_pose(*a, *b))?;
 
     let camera_entity = world

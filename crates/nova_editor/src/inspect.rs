@@ -208,10 +208,15 @@ impl RowValue {
 }
 
 /// What a driver option is called.
+///
+/// The scenario model's own words - a save writes `SpaceshipController::None`
+/// for the third one, and a builder reading the file should find the word the
+/// panel gave them.
 pub(crate) fn driver_label(driver: ShipDriver) -> &'static str {
     match driver {
         ShipDriver::Player => "Player",
         ShipDriver::Ai => "AI",
+        ShipDriver::Adrift => "None",
     }
 }
 
@@ -1052,7 +1057,17 @@ pub(crate) fn curated_object_rows(object: &ObjectNode, pose: &Transform) -> Vec<
     curate(object_rows(object, pose), object_picks(&object.kind))
 }
 
-/// The rows a ship shows: who flies it, and where it sits.
+/// What the Allegiance row says when the ship states no side and takes the
+/// one its driver implies.
+pub(crate) const IMPLIED_ALLEGIANCE: &str = "default";
+
+/// The rows a ship shows: who flies it, which side it is on, and where it
+/// sits.
+///
+/// Allegiance is READ here, not set: it is what makes a picket dormant and a
+/// hulk inert, so a builder has to be able to see it - but the only way to
+/// choose one today is to choose a driver, and a control that offered more
+/// than that would be offering to break the wake script.
 pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> {
     let mut rows = vec![
         name_row(ship.name.clone()),
@@ -1065,6 +1080,14 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             unit: "",
             value: RowValue::Driver(ship.driver),
         },
+        fixed(
+            FieldRoot::Config,
+            "Allegiance",
+            ship.allegiance.map_or_else(
+                || IMPLIED_ALLEGIANCE.to_string(),
+                |side| format!("{side:?}"),
+            ),
+        ),
     ];
     rows.extend(pose_rows(pose));
     rows

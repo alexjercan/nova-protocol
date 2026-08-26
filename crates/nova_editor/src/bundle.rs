@@ -23,11 +23,12 @@ use std::collections::BTreeMap;
 use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
 use nova_assets::prelude::{EnabledMods, ReloadContent};
-use nova_gameplay::prelude::AssetRef;
+use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_modding::prelude::{BundleManifest, Content, ModMeta};
 use nova_scenario::prelude::{
-    EventActionConfig, EventConfig, ScenarioConfig, ScenarioObjectConfig, ScenarioObjectKind,
-    SectionId, ShipConfig, ShipSource, SpaceshipController, SpaceshipSectionConfig,
+    AIControllerConfig, EventActionConfig, EventConfig, ScenarioConfig, ScenarioObjectConfig,
+    ScenarioObjectKind, SectionId, ShipConfig, ShipSource, SpaceshipController,
+    SpaceshipSectionConfig,
 };
 use nova_ship::prelude::GameSections;
 use nova_ui::theme;
@@ -115,7 +116,11 @@ pub(crate) fn save_manifest() -> BundleManifest {
     }
 }
 
-/// One ship as the document holds it, lifted back out of a saved file.
+/// One ship as the document holds it, lifted out of an authored spawn.
+///
+/// The seed and the save go through the same shape: a target hulk in the stock
+/// range and a design read back off disk are both hulls with sections, and
+/// giving them two lifts would be two ways for the document to hold one thing.
 #[derive(Debug, Clone)]
 pub(crate) struct LiftedShip {
     /// The node id, which is the prototype id the file wrote the design under.
@@ -124,6 +129,11 @@ pub(crate) struct LiftedShip {
     /// it reloads with an empty one and every surface falls back to the id.
     pub(crate) name: String,
     pub(crate) driver: ShipDriver,
+    /// Which side it fights for, straight off the spawn.
+    pub(crate) allegiance: Option<Allegiance>,
+    /// The AI's standing orders, straight off the spawn. Carried whatever the
+    /// driver is, so flipping a ship to AI and back does not lose them.
+    pub(crate) pilot: AIControllerConfig,
     pub(crate) pose: Transform,
     pub(crate) skin: bool,
     pub(crate) style: Option<String>,
@@ -145,11 +155,6 @@ pub(crate) struct LiftedDocument {
 /// `None` when the file carries no scenario: a content file of nothing but
 /// ship prototypes is a legal mod and an empty document, and the two are worth
 /// telling apart at the call site.
-///
-/// A spaceship whose hull names a prototype THIS FILE carries is a design the
-/// editor made and becomes a ship node. Anything else - an inline hull, a
-/// prototype from some other mod - stays an object, because the editor cannot
-/// edit a hull it did not write and would otherwise offer to.
 pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
     let designs: BTreeMap<&str, &ShipConfig> = items
         .iter()
@@ -162,15 +167,30 @@ pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
         Content::Scenario(scenario) => Some(scenario),
         _ => None,
     })?;
+    Some(lift_objects(spawned_on_start(scenario).cloned(), &designs))
+}
 
+/// Split authored spawns into the two things a document is made of.
+///
+/// A HULL becomes a ship node - its sections are nodes of their own and a
+/// double click goes inside it. Everything else is an object, placed and
+/// lowered verbatim.
+///
+/// The one hull that stays an object is one naming a prototype nothing here
+/// carries: the editor would have to invent the sections it cannot read, and a
+/// design it cannot show is not one it should offer to edit.
+pub(crate) fn lift_objects(
+    objects: impl IntoIterator<Item = ScenarioObjectConfig>,
+    designs: &BTreeMap<&str, &ShipConfig>,
+) -> LiftedDocument {
     let mut lifted = LiftedDocument::default();
-    for object in spawned_on_start(scenario) {
-        match lift_ship(object, &designs) {
+    for object in objects {
+        match lift_ship(&object, designs) {
             Some(ship) => lifted.ships.push(ship),
-            None => lifted.objects.push(object.clone()),
+            None => lifted.objects.push(object),
         }
     }
-    Some(lifted)
+    lifted
 }
 
 /// Every object the range spawns on start.
@@ -190,7 +210,12 @@ fn spawned_on_start(scenario: &ScenarioConfig) -> impl Iterator<Item = &Scenario
         })
 }
 
-/// The ship node this spawn stands for, or `None` if it is not one of ours.
+/// The ship node this spawn stands for, or `None` if it is not a hull the
+/// editor can show.
+///
+/// The node keeps the spawn's OWN id: a picket is `picket_warden` because the
+/// sandbox's wake handler flips that id, and the design a save wrote is
+/// referenced by the id it was written under.
 fn lift_ship(
     object: &ScenarioObjectConfig,
     designs: &BTreeMap<&str, &ShipConfig>,
@@ -198,33 +223,86 @@ fn lift_ship(
     let ScenarioObjectKind::Spaceship(spawn) = &object.kind else {
         return None;
     };
-    let ShipSource::Prototype(id) = &spawn.hull else {
-        return None;
+    let (id, hull) = match &spawn.hull {
+        // A design of this file's own, under the id it was written with.
+        ShipSource::Prototype(id) => (id.clone(), &designs.get(id.as_str())?.hull),
+        // A hull authored in place - every seeded ship of the stock range.
+        ShipSource::Inline(hull) => (object.base.id.clone(), hull),
     };
-    let design = designs.get(id.as_str())?;
-    let (driver, binds) = match &spawn.controller {
+    let (driver, pilot, binds) = match &spawn.controller {
         SpaceshipController::Player(config) => (
             ShipDriver::Player,
+            AIControllerConfig::default(),
             config
                 .input_mapping
                 .iter()
                 .map(|(section, binds)| (section.clone(), binds.clone()))
                 .collect(),
         ),
-        // An AI ship carries no input mapping and a driverless one is not a
-        // shape the editor writes; both are the document's non-player ships.
-        _ => (ShipDriver::Ai, BTreeMap::new()),
+        // An AI ship carries no input mapping, so its keys are the empty set;
+        // its standing orders are what make it the ship it is.
+        SpaceshipController::AI(pilot) => (ShipDriver::Ai, pilot.clone(), BTreeMap::new()),
+        SpaceshipController::None => (
+            ShipDriver::Adrift,
+            AIControllerConfig::default(),
+            BTreeMap::new(),
+        ),
     };
     Some(LiftedShip {
-        id: id.clone(),
+        id,
         name: object.base.name.clone(),
         driver,
+        allegiance: spawn.allegiance,
+        pilot,
         pose: Transform::from_translation(object.base.position).with_rotation(object.base.rotation),
-        skin: design.hull.skin,
-        style: design.hull.style.clone(),
-        sections: design.hull.sections.clone(),
+        skin: hull.skin,
+        style: hull.style.clone(),
+        sections: hull.sections.clone(),
         binds,
     })
+}
+
+/// Put one lifted ship into the document under `scenario`, sections and all.
+///
+/// Says the ordinal its section counter has to resume at, so a part placed on
+/// a loaded ship cannot mint an id the file already used.
+pub(crate) fn insert_lifted_ship(
+    commands: &mut Commands,
+    sections: Option<&GameSections>,
+    scenario: Entity,
+    ship: LiftedShip,
+) -> (Entity, u32) {
+    let node = insert_ship_node(
+        commands,
+        scenario,
+        NodeId(ship.id.clone()),
+        ShipNode {
+            name: ship.name.clone(),
+            skin: ship.skin,
+            style: ship.style.clone(),
+            driver: ship.driver,
+            allegiance: ship.allegiance,
+            pilot: ship.pilot.clone(),
+        },
+        ship.pose,
+    );
+    let ordinal = resume_ordinal(ship.sections.iter().map(|section| section.id.as_str()));
+    for section in ship.sections {
+        let binds = ship.binds.get(&section.id).cloned().unwrap_or_default();
+        insert_lifted_section(
+            commands,
+            sections,
+            node,
+            NodeId(section.id),
+            SectionNode {
+                source: section.source,
+                modifications: section.modifications,
+                binds,
+            },
+            Transform::from_translation(section.position).with_rotation(section.rotation),
+        );
+    }
+    (node, ordinal)
 }
 
 /// The ordinal a node's id counter must resume at so a fresh mint cannot
@@ -434,37 +512,12 @@ fn fill_document(world: &mut World, scenario: Entity, document: LiftedDocument) 
         }
         for ship in document.ships {
             ids.push(ship.id.clone());
-            let node = insert_ship_node(
+            ship_ordinals.push(insert_lifted_ship(
                 &mut commands,
+                sections.as_ref(),
                 scenario,
-                NodeId(ship.id.clone()),
-                ShipNode {
-                    name: ship.name.clone(),
-                    skin: ship.skin,
-                    style: ship.style.clone(),
-                    driver: ship.driver,
-                },
-                ship.pose,
-            );
-            ship_ordinals.push((
-                node,
-                resume_ordinal(ship.sections.iter().map(|section| section.id.as_str())),
+                ship,
             ));
-            for section in ship.sections {
-                let binds = ship.binds.get(&section.id).cloned().unwrap_or_default();
-                insert_lifted_section(
-                    &mut commands,
-                    sections.as_ref(),
-                    node,
-                    NodeId(section.id),
-                    SectionNode {
-                        source: section.source,
-                        modifications: section.modifications,
-                        binds,
-                    },
-                    Transform::from_translation(section.position).with_rotation(section.rotation),
-                );
-            }
         }
     }
     world.flush();

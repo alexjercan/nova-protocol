@@ -4,6 +4,7 @@
 //! be testing it.
 
 use bevy::ecs::system::RunSystemOnce;
+use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::{
     AIControllerConfig, AnchorConfig, AsteroidConfig, BeaconConfig, LightConfig,
     ScenarioObjectKind, SectionSource, ShipSource, SpaceshipConfig, SpaceshipController,
@@ -894,6 +895,43 @@ fn a_ship_reports_who_flies_it() {
     assert_eq!(
         row(&rows, "Driver").value,
         RowValue::Driver(ShipDriver::Player)
+    );
+    assert_eq!(
+        row(&rows, "Allegiance").value.reading(),
+        IMPLIED_ALLEGIANCE,
+        "a ship that states no side takes the one its driver implies"
+    );
+}
+
+/// A seeded hull is a ship node like any other, and this is the screen the
+/// complaint was about: a picket used to read out its whole flattened spawn
+/// config - two Hull rows, a fixed controller and seven AI-tuning fields.
+#[test]
+fn a_seeded_hull_reads_as_a_ship_rather_than_as_a_spawn_config() {
+    let picket = ShipNode {
+        name: "Picket Warden".to_string(),
+        driver: ShipDriver::Ai,
+        allegiance: Some(Allegiance::Neutral),
+        pilot: AIControllerConfig {
+            leash: Some(400.0),
+            ..default()
+        },
+        ..default()
+    };
+
+    let rows = ship_rows(&picket, &Transform::default());
+
+    assert_eq!(text_of(&rows, "Name"), "Picket Warden");
+    assert_eq!(row(&rows, "Driver").value, RowValue::Driver(ShipDriver::Ai));
+    assert_eq!(
+        row(&rows, "Allegiance").value.reading(),
+        "Neutral",
+        "what makes a picket dormant is on the screen that names it"
+    );
+    let names: Vec<&str> = rows.iter().map(|row| row.label.as_str()).collect();
+    assert!(
+        !names.contains(&"Leash") && !names.contains(&"Hull"),
+        "and the pilot's tuning is carried, not shown: {names:?}"
     );
 }
 

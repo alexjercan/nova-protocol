@@ -42,6 +42,7 @@ pub(crate) fn ship_mark(driver: ShipDriver) -> (&'static str, &'static str) {
     match driver {
         ShipDriver::Player => (SHIP_PLAYER, "SHIP - PLAYER"),
         ShipDriver::Ai => (SHIP_AI, "SHIP - AI"),
+        ShipDriver::Adrift => (SHIP_ADRIFT, "SHIP - ADRIFT"),
     }
 }
 
@@ -72,19 +73,17 @@ pub(crate) fn section_mark(
 ///
 /// Distinct from every section mark, and from every other object's - a mark
 /// that means two things is a mark a builder cannot trust anywhere. The one
-/// deliberate overlap is the SHIP marks, which a seeded hull shares with a
-/// built one because it is the same kind of thing.
+/// deliberate overlap is the SHIP marks: a hull the document cannot open - one
+/// naming a prototype from a mod this file does not carry - is still a ship,
+/// and says so with the same marks a ship node wears.
 pub(crate) fn object_mark(object: &ObjectNode) -> (&'static str, &'static str) {
     match &object.kind {
         // BULLSEYE - a well with a centre and no body.
         ScenarioObjectKind::Anchor(_) => ("\u{25ce}", "ANCHOR"),
         // BLACK CIRCLE - a rock.
         ScenarioObjectKind::Asteroid(_) => ("\u{25cf}", "ASTEROID"),
-        // A HULL, and the tree says so. A picket filed under a generic object
-        // mark read as scenery next to the ship being built, when it is the
-        // same kind of thing seeded rather than minted - so it wears the ship
-        // marks, told apart by who is at the controls exactly as a built ship
-        // is.
+        // A HULL, and the tree says so. Told apart by who is at the controls,
+        // exactly as a ship node is.
         ScenarioObjectKind::Spaceship(config) => spaceship_mark(&config.controller),
         // BLACK FLAG - a waypoint.
         ScenarioObjectKind::Beacon(_) => ("\u{2691}", "BEACON"),
@@ -96,10 +95,10 @@ pub(crate) fn object_mark(object: &ObjectNode) -> (&'static str, &'static str) {
     }
 }
 
-/// The mark a seeded hull wears, and what it means.
+/// The mark an unopenable hull wears, and what it means.
 ///
-/// The third state is the one a built ship cannot be in: a hull with no
-/// controller station-keeps, which is what every derelict in a scenario is.
+/// The same three states [`ship_mark`] answers with, off the authored
+/// controller rather than off the node's driver.
 fn spaceship_mark(controller: &SpaceshipController) -> (&'static str, &'static str) {
     match controller {
         SpaceshipController::Player(_) => (SHIP_PLAYER, "SHIP - PLAYER"),

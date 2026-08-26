@@ -341,6 +341,9 @@ fn lower_ship(
     LoweredShip {
         id: id.0.clone(),
         name: ship.name.clone(),
+        driver: ship.driver,
+        allegiance: ship.allegiance,
+        pilot: ship.pilot.clone(),
         sections: placed
             .iter()
             .map(|(_, id, section, transform)| SpaceshipSectionConfig {
@@ -386,7 +389,7 @@ pub(crate) fn lower_fleet(
         let lowered = lower_ship(entity, id, ship, *transform, nodes);
         match ship.driver {
             ShipDriver::Player => fleet.player = lowered,
-            ShipDriver::Ai => fleet.ai.push(lowered),
+            ShipDriver::Ai | ShipDriver::Adrift => fleet.standing.push(lowered),
         }
     }
     fleet
@@ -404,6 +407,12 @@ pub(crate) struct LoweredShip {
     /// What the builder called it, or empty where nothing did. The flown
     /// scenario shows it, which is the whole point of naming a ship.
     pub(crate) name: String,
+    /// Who is at the controls, which is what decides the spawn's controller.
+    driver: ShipDriver,
+    /// Which side it fights for, or `None` to take the driver's default.
+    allegiance: Option<Allegiance>,
+    /// The AI pilot's standing orders, used only by an AI-driven ship.
+    pilot: AIControllerConfig,
     pub(crate) sections: Vec<SpaceshipSectionConfig>,
     inputs: Vec<(SectionId, Vec<Binding>)>,
     pub(crate) skin: bool,
@@ -412,12 +421,12 @@ pub(crate) struct LoweredShip {
     rotation: Quat,
 }
 
-/// The whole document, lowered: the player's ship and every AI design beside
-/// it.
+/// The whole document, lowered: the player's ship and every hull standing
+/// beside it - escorts, seeded pickets, derelict hulks.
 #[derive(Default)]
 pub(crate) struct LoweredFleet {
     player: LoweredShip,
-    ai: Vec<LoweredShip>,
+    standing: Vec<LoweredShip>,
 }
 
 impl LoweredFleet {
@@ -428,7 +437,7 @@ impl LoweredFleet {
     /// nothing for an instance to reference and nothing to write.
     pub(crate) fn designs(&self) -> impl Iterator<Item = &LoweredShip> {
         std::iter::once(&self.player)
-            .chain(self.ai.iter())
+            .chain(self.standing.iter())
             .filter(|ship| !ship.id.is_empty())
     }
 }
@@ -546,10 +555,10 @@ fn sandbox_objects(
     // is a decision not yet made, not a zero-section spaceship to load.
     objects.extend(
         fleet
-            .ai
+            .standing
             .iter()
             .filter(|ship| !ship.sections.is_empty())
-            .map(|ship| ai_ship(ship, form)),
+            .map(|ship| standing_ship(ship, form)),
     );
 
     objects
@@ -732,7 +741,7 @@ fn player_ship(player: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
             rotation: player.rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            allegiance: None,
+            allegiance: player.allegiance,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: player.inputs.iter().cloned().collect(),
 
@@ -751,14 +760,21 @@ fn player_ship(player: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
     }
 }
 
-/// One AI-driver ship of the document, standing where the builder dragged it.
+/// One ship of the document that the player does not fly, standing where it
+/// was dragged to.
 ///
-/// NEUTRAL, like the pickets: a live AI pilot with no hostile contact holds
-/// station, so a scenery ship neither attacks the player off the line nor
-/// gets shot by the woken pickets. It flies (or sits) with exactly the
-/// sections it was built from - what you laid out on the stage is what the
-/// range holds.
-fn ai_ship(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
+/// Every fact about it comes off its own node: an escort the builder added is
+/// a NEUTRAL AI ship by default, a picket is the same with the leash it was
+/// seeded with, and a target hulk has nobody at the controls at all. It flies
+/// (or sits) with exactly the sections it was built from - what you laid out
+/// on the stage is what the range holds.
+fn standing_ship(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
+    let controller = match ship.driver {
+        // A ship the document lowers here is not the flown one, whatever its
+        // node says: `lower_fleet` routes the player's elsewhere.
+        ShipDriver::Player | ShipDriver::Ai => SpaceshipController::AI(ship.pilot.clone()),
+        ShipDriver::Adrift => SpaceshipController::None,
+    };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ship.id.clone(),
@@ -767,8 +783,8 @@ fn ai_ship(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
             rotation: ship.rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            allegiance: Some(Allegiance::Neutral),
-            controller: SpaceshipController::AI(AIControllerConfig::default()),
+            allegiance: ship.allegiance,
+            controller,
             hull: hull_of(ship, form),
             ..default()
         }),
@@ -1076,6 +1092,25 @@ mod tests {
             .expect("the lowering runs")
     }
 
+    /// Everything the hand-off spawns from the document: the world's objects,
+    /// and the fleet standing among them.
+    fn lower_range(world: &mut World) -> Vec<ScenarioObjectConfig> {
+        world
+            .run_system_once(
+                |context: Res<EditContext>,
+                 q_objects: ObjectNodes,
+                 q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
+                 nodes: SectionNodes| {
+                    sandbox_objects(
+                        world_objects(&context, &q_objects),
+                        &lower_fleet(&q_ships, &nodes),
+                        HullForm::Inline,
+                    )
+                },
+            )
+            .expect("the lowering runs")
+    }
+
     /// Stand the default range up in `world` as document nodes.
     fn stand_up_document(world: &mut World) {
         world.init_resource::<EditContext>();
@@ -1093,11 +1128,14 @@ mod tests {
         let mut world = World::new();
         stand_up_document(&mut world);
 
-        let lowered = lower(&mut world);
+        let lowered = lower_range(&mut world);
 
+        // The hulls go round through the ship half and the rest through the
+        // object half, and the range they land in is the one that was seeded.
         let mut got: Vec<String> = lowered
             .iter()
             .map(|object| object.base.id.clone())
+            .filter(|id| id != PLAYER_ID)
             .collect();
         got.sort();
         let mut want: Vec<String> = default_world_objects()
@@ -1111,6 +1149,26 @@ mod tests {
         // the rock the scenario spawns.
         let planetoid = find(&lowered, "planetoid");
         assert_eq!(planetoid.base.position, PLANETOID_POSITION);
+
+        // And what makes a picket a picket rides along with it: the wake
+        // handler flips a NEUTRAL ship to hostile, and the leash is what
+        // stops the woken one chasing across the whole range.
+        let ScenarioObjectKind::Spaceship(picket) = &find(&lowered, "picket_warden").kind else {
+            panic!("'picket_warden' should be a spaceship");
+        };
+        assert_eq!(picket.allegiance, Some(Allegiance::Neutral));
+        let SpaceshipController::AI(pilot) = &picket.controller else {
+            panic!("a picket has a live AI pilot");
+        };
+        assert_eq!(pilot.leash, Some(400.0));
+
+        let ScenarioObjectKind::Spaceship(hulk) = &find(&lowered, "hulk_0").kind else {
+            panic!("'hulk_0' should be a spaceship");
+        };
+        assert!(
+            matches!(hulk.controller, SpaceshipController::None),
+            "and a target hulk still has nobody at the controls"
+        );
     }
 
     /// An emptied range is an EMPTY range. The lowering keys on the document
@@ -1120,17 +1178,25 @@ mod tests {
     fn a_world_the_player_emptied_stays_empty() {
         let mut world = World::new();
         stand_up_document(&mut world);
-        let objects: Vec<Entity> = world
-            .query_filtered::<Entity, With<ObjectNode>>()
+        let standing: Vec<Entity> = world
+            .query_filtered::<Entity, Or<(With<ObjectNode>, With<ShipNode>)>>()
             .iter(&world)
             .collect();
-        for object in objects {
-            world.despawn(object);
+        for node in standing {
+            world.despawn(node);
         }
 
         assert!(
             lower(&mut world).is_empty(),
             "the document is the range, including when it is bare"
+        );
+        assert_eq!(
+            lower_range(&mut world)
+                .iter()
+                .map(|object| object.base.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![PLAYER_ID],
+            "and all that is left to spawn is the hull the player arrives in"
         );
     }
 
@@ -1542,11 +1608,13 @@ mod tests {
         );
     }
 
-    /// Every non-empty AI design in the document flies beside the player, at
-    /// the stage offset the builder dragged it to. Before this only the
-    /// player's ship was lowered, so a second ship simply never spawned.
+    /// Every non-empty standing design in the document flies beside the
+    /// player, at the stage offset the builder dragged it to, carrying the
+    /// side and the pilot its node holds. Before this only the player's ship
+    /// was lowered, so a second ship simply never spawned - and the side was
+    /// hard-coded here, so a picket lost its leash on the way through.
     #[test]
-    fn ai_ships_spawn_at_their_stage_offset_neutral_and_whole() {
+    fn standing_ships_spawn_at_their_stage_offset_with_their_own_orders() {
         let section = SpaceshipSectionConfig {
             id: "hull_1".to_string(),
             position: Vec3::ZERO,
@@ -1556,11 +1624,23 @@ mod tests {
         };
         let fleet = LoweredFleet {
             player: LoweredShip::default(),
-            ai: vec![
+            standing: vec![
                 LoweredShip {
                     id: "ship_2".to_string(),
-                    sections: vec![section],
+                    driver: ShipDriver::Ai,
+                    allegiance: Some(Allegiance::Neutral),
+                    pilot: AIControllerConfig {
+                        leash: Some(400.0),
+                        ..default()
+                    },
+                    sections: vec![section.clone()],
                     position: Vec3::new(24.0, 0.0, 0.0),
+                    ..default()
+                },
+                LoweredShip {
+                    id: "hulk_0".to_string(),
+                    driver: ShipDriver::Adrift,
+                    sections: vec![section],
                     ..default()
                 },
                 // A blank Add Ship left in the document: a decision not yet
@@ -1581,12 +1661,25 @@ mod tests {
         assert_eq!(
             ship.allegiance,
             Some(Allegiance::Neutral),
-            "a scenery ship takes no side until something says otherwise"
+            "the side the node holds is the side it spawns on"
         );
+        let SpaceshipController::AI(pilot) = &ship.controller else {
+            panic!("an AI-driver design is driven by the AI, as its node says");
+        };
+        assert_eq!(
+            pilot.leash,
+            Some(400.0),
+            "and the pilot's standing orders survive the trip through the document"
+        );
+
+        let ScenarioObjectKind::Spaceship(hulk) = &find(&objects, "hulk_0").kind else {
+            panic!("'hulk_0' should be a spaceship");
+        };
         assert!(
-            matches!(ship.controller, SpaceshipController::AI(_)),
-            "an AI-driver design is driven by the AI, as its node says"
+            matches!(hulk.controller, SpaceshipController::None),
+            "a hull with nobody at the controls spawns with nobody at the controls"
         );
+
         assert!(
             !objects.iter().any(|object| object.base.id == "ship_3"),
             "an empty design spawns nothing"
@@ -1613,7 +1706,7 @@ mod tests {
                 rotation: heading,
                 ..default()
             },
-            ai: vec![LoweredShip {
+            standing: vec![LoweredShip {
                 id: "ship_2".to_string(),
                 sections: vec![section],
                 position: Vec3::new(24.0, 0.0, 0.0),
@@ -1670,7 +1763,7 @@ mod tests {
                     (
                         fleet.player.position,
                         fleet
-                            .ai
+                            .standing
                             .iter()
                             .map(|ship| ship.position)
                             .collect::<Vec<_>>(),

@@ -110,17 +110,24 @@ fn a_spaceship_that_names_this_files_design_lifts_as_a_ship() {
     assert_eq!(ship.sections.len(), 1);
 }
 
-/// A hull the editor did not write stays an object: an inline hull, or a
-/// prototype belonging to some other mod. The editor cannot edit a design it
-/// does not hold, so it must not offer to.
+/// An INLINE hull is a ship the document can open: every section is right
+/// there in the file, so the node it becomes is one a double click goes inside.
+/// It takes the SPAWN's id, because that is the only name it has.
+///
+/// A hull naming a prototype nothing here carries stays an object. The editor
+/// would have to invent the sections it cannot read, and a design it cannot
+/// show is not one it should offer to edit.
 #[test]
-fn a_hull_this_file_does_not_carry_stays_an_object() {
+fn an_inline_hull_opens_and_a_hull_this_file_lacks_stays_an_object() {
     let items = vec![
         design("ship_1"),
         scenario(vec![
             spawn(instance(
                 "inline_hulk",
-                ShipSource::Inline(ShipHull::default()),
+                ShipSource::Inline(ShipHull {
+                    sections: vec![section("spine")],
+                    ..default()
+                }),
                 SpaceshipController::None,
             )),
             spawn(instance(
@@ -133,8 +140,16 @@ fn a_hull_this_file_does_not_carry_stays_an_object() {
 
     let lifted = lift_content(&items).expect("the file carries a scenario");
 
-    assert!(lifted.ships.is_empty());
-    assert_eq!(lifted.objects.len(), 2);
+    let hulk = lifted
+        .ships
+        .iter()
+        .find(|ship| ship.id == "inline_hulk")
+        .expect("the inline hull is a ship node");
+    assert_eq!(hulk.driver, ShipDriver::Adrift, "nobody is at the controls");
+    assert_eq!(hulk.sections.len(), 1, "and it brought its sections");
+
+    assert_eq!(lifted.objects.len(), 1);
+    assert_eq!(lifted.objects[0].base.id, "foreign");
 }
 
 /// The script is not layout: only the spawns come back, and a handler that is
@@ -243,6 +258,7 @@ fn document(world: &mut World) -> Entity {
                 skin: true,
                 style: Some("worn".to_string()),
                 driver: ShipDriver::Player,
+                ..default()
             },
             NodeId("ship_1".to_string()),
             NextChildOrdinal::default(),

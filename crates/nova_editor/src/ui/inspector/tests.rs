@@ -3,6 +3,7 @@
 //! `crate::inspect`; these tests are about the reconciler around it.
 
 use bevy::ecs::system::RunSystemOnce;
+use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::{
     AIControllerConfig, AsteroidConfig, BeaconConfig, ScenarioObjectKind, SectionSource,
     SpaceshipConfig, SpaceshipController,
@@ -536,6 +537,33 @@ fn a_ship_hands_itself_to_the_ai_from_its_driver_row() {
         app.world().get::<ShipNode>(ship).expect("the ship").driver,
         ShipDriver::Ai,
         "entering a ship clears the selection, so the driver row is reached through the context"
+    );
+    assert_eq!(
+        app.world()
+            .get::<ShipNode>(ship)
+            .expect("the ship")
+            .allegiance,
+        Some(Allegiance::Neutral),
+        "and the side goes with the controls: the engine's default for an \
+         unstated AI allegiance is ENEMY, so a hull handed to a pilot would \
+         otherwise open fire"
+    );
+
+    let option = app
+        .world_mut()
+        .query::<(Entity, &InspectorDriver)>()
+        .iter(app.world())
+        .find(|(_, option)| option.driver == ShipDriver::Adrift)
+        .map(|(entity, _)| entity)
+        .expect("a driverless option");
+    app.world_mut().trigger(Activate { entity: option });
+    app.update();
+
+    let hull = app.world().get::<ShipNode>(ship).expect("the ship");
+    assert_eq!(hull.driver, ShipDriver::Adrift);
+    assert_eq!(
+        hull.allegiance, None,
+        "a hull nobody drives is on nobody's side"
     );
 }
 
