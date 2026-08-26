@@ -29,7 +29,8 @@ pub mod prelude {
         slider_track, swatch, text_field, themed_button, toggle, BadgeKind, ButtonLabel,
         ButtonSpec, ButtonValue, ButtonVariant, ListRow, PanelSkin, SegmentedSkin, Selected,
         SliderBlock, SliderFill, SliderTrackSkin, TextField, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldSubmitted, TextFieldValue, ThemedButton, UiText, SLIDER_SEGMENTS,
+        TextFieldSpec, TextFieldSubmitted, TextFieldSystems, TextFieldValue, ThemedButton, UiText,
+        SLIDER_SEGMENTS,
     };
 }
 
@@ -120,8 +121,7 @@ pub(crate) fn build(app: &mut App) {
             // this same frame.
             reconcile_slider_track_skins,
             sync_slider_tracks.after(reconcile_slider_track_skins),
-            text_field_keyboard,
-            paint_text_fields,
+            (text_field_keyboard, paint_text_fields).in_set(TextFieldSystems),
         ),
     );
     // NOTE: route the font BEFORE UI text is measured/laid out (PostUpdate,

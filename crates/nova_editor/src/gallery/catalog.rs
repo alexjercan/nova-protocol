@@ -50,16 +50,20 @@ impl GalleryCategory {
         }
     }
 
+    /// The category a prototype of this kind lives under.
+    pub(crate) fn of(kind: &SectionKind) -> Self {
+        match kind {
+            SectionKind::Hull(_) => Self::Structure,
+            SectionKind::Thruster(_) => Self::Propulsion,
+            SectionKind::Controller(_) => Self::Control,
+            SectionKind::Turret(_) => Self::Weapons,
+            SectionKind::Torpedo(_) => Self::Ordnance,
+        }
+    }
+
     /// Whether a prototype of this kind belongs in the category.
     pub(crate) fn accepts(self, kind: &SectionKind) -> bool {
-        match self {
-            Self::All => true,
-            Self::Structure => matches!(kind, SectionKind::Hull(_)),
-            Self::Propulsion => matches!(kind, SectionKind::Thruster(_)),
-            Self::Control => matches!(kind, SectionKind::Controller(_)),
-            Self::Weapons => matches!(kind, SectionKind::Turret(_)),
-            Self::Ordnance => matches!(kind, SectionKind::Torpedo(_)),
-        }
+        self == Self::All || self == Self::of(kind)
     }
 }
 
@@ -102,31 +106,31 @@ pub(crate) fn extent(section: &SectionConfig) -> Vec3 {
         * 2.0
 }
 
-/// The kind's one-word name, for the tile's category line.
+/// The tile's category line: the name of the CHIP this part sits under, so a
+/// turret reads "weapons" both in the row that filters to it and on its own
+/// tile. Two words for one group made the row look like a different axis from
+/// the tiles.
 pub(crate) fn kind_label(kind: &SectionKind) -> &'static str {
-    match kind {
-        SectionKind::Hull(_) => "structure",
-        SectionKind::Thruster(_) => "propulsion",
-        SectionKind::Controller(_) => "control",
-        SectionKind::Turret(_) => "weapon",
-        SectionKind::Torpedo(_) => "ordnance",
-    }
+    GalleryCategory::of(kind).label()
 }
 
 /// The focus card's stat lines: the shared block every part has, then what its
 /// kind actually does. Kept as label/value pairs so the card stays a plain
 /// two-column list.
+///
+/// Keys are Title Case, as the inspector's field labels are: one screen said
+/// `hp` and the next said `Health`, which reads as two different readouts.
 pub(crate) fn stats(section: &SectionConfig) -> Vec<(String, String)> {
     let size = extent(section);
     let mut lines = vec![
-        ("kind".to_string(), kind_label(&section.kind).to_string()),
+        ("Kind".to_string(), kind_label(&section.kind).to_string()),
         (
-            "size".to_string(),
+            "Size".to_string(),
             format!("{:.2} x {:.2} x {:.2}", size.x, size.y, size.z),
         ),
-        ("hp".to_string(), format!("{:.0}", section.base.health)),
+        ("HP".to_string(), format!("{:.0}", section.base.health)),
         (
-            "sockets".to_string(),
+            "Sockets".to_string(),
             format!("{}", section.base.link_points.len()),
         ),
     ];
@@ -137,9 +141,9 @@ pub(crate) fn stats(section: &SectionConfig) -> Vec<(String, String)> {
 /// The kind-specific half of the focus card.
 fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
     match kind {
-        SectionKind::Hull(_) => vec![("role".to_string(), "passive structure".to_string())],
+        SectionKind::Hull(_) => vec![("Role".to_string(), "passive structure".to_string())],
         SectionKind::Thruster(thruster) => {
-            vec![("thrust".to_string(), format!("{:.2}", thruster.magnitude))]
+            vec![("Thrust".to_string(), format!("{:.2}", thruster.magnitude))]
         }
         SectionKind::Controller(controller) => vec![
             // Torque, not turn rate: what this computer twists with is the
@@ -147,31 +151,31 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
             // the hull. The rail's attitude readout answers that one, for the
             // ship actually being built.
             (
-                "torque".to_string(),
+                "Torque".to_string(),
                 format!("{:.0}", controller.max_torque),
             ),
             (
-                "steering lag".to_string(),
+                "Steering Lag".to_string(),
                 format!("{:.2} s", controller.steering_lag),
             ),
         ],
         SectionKind::Turret(turret) => vec![
             (
-                "damage".to_string(),
+                "Damage".to_string(),
                 format!("{:.1} {:?}", turret.bullet_damage, turret.bullet_kind),
             ),
             (
-                "muzzle".to_string(),
+                "Muzzle".to_string(),
                 format!("{:.0} u/s", turret.muzzle_speed),
             ),
             (
-                "ammo".to_string(),
+                "Ammo".to_string(),
                 turret
                     .ammo_capacity
                     .map_or_else(|| "unlimited".to_string(), |ammo| format!("{ammo}")),
             ),
             (
-                "reload".to_string(),
+                "Reload".to_string(),
                 turret.reload.map_or_else(
                     || "none".to_string(),
                     |reload| format!("+{} / {:.1} s idle", reload.amount, reload.delay),
@@ -180,24 +184,24 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
         ],
         SectionKind::Torpedo(torpedo) => vec![
             (
-                "blast".to_string(),
+                "Blast".to_string(),
                 format!(
                     "{:.0} @ {:.0} u",
                     torpedo.blast_damage, torpedo.blast_radius
                 ),
             ),
             (
-                "speed".to_string(),
+                "Speed".to_string(),
                 format!("{:.0} u/s", torpedo.torpedo_type.max_speed),
             ),
             (
-                "ammo".to_string(),
+                "Ammo".to_string(),
                 torpedo
                     .ammo_capacity
                     .map_or_else(|| "unlimited".to_string(), |ammo| format!("{ammo}")),
             ),
             (
-                "reload".to_string(),
+                "Reload".to_string(),
                 torpedo.reload.map_or_else(
                     || "none".to_string(),
                     |reload| format!("+{} / {:.1} s idle", reload.amount, reload.delay),
@@ -292,6 +296,49 @@ mod tests {
         assert!(browsable(&catalog(), GalleryCategory::All, "zzz").is_empty());
         // Category and filter compose.
         assert!(browsable(&catalog(), GalleryCategory::Propulsion, "racer").is_empty());
+    }
+
+    /// Every kind the gallery can list, one of each.
+    fn one_of_each() -> Vec<SectionKind> {
+        vec![
+            SectionKind::Hull(HullSectionConfig::default()),
+            SectionKind::Thruster(ThrusterSectionConfig::default()),
+            SectionKind::Controller(ControllerSectionConfig::default()),
+            SectionKind::Turret(TurretSectionConfig::default()),
+            SectionKind::Torpedo(TorpedoSectionConfig::default()),
+        ]
+    }
+
+    /// The word under a tile is the word on the chip that filters to it. Two
+    /// words for one group ("weapon" on the tile, "Weapons" on the chip) read
+    /// as two different ways of sorting the same parts.
+    #[test]
+    fn a_tile_reads_the_name_of_the_chip_it_sits_under() {
+        for kind in one_of_each() {
+            let category = GalleryCategory::of(&kind);
+            assert!(
+                GalleryCategory::ROW.contains(&category),
+                "{category:?} is not a chip in the row"
+            );
+            assert_eq!(kind_label(&kind), category.label());
+            assert!(category.accepts(&kind), "a chip must accept its own kind");
+            assert!(GalleryCategory::All.accepts(&kind));
+        }
+    }
+
+    /// One case rule across the editor: the focus card's keys are Title Case,
+    /// as the inspector's field labels are.
+    #[test]
+    fn every_stat_key_reads_as_a_field_label() {
+        for kind in one_of_each() {
+            let part = section("part", "Part", kind, false);
+            for (key, _) in stats(&part) {
+                assert!(
+                    key.chars().next().is_some_and(char::is_uppercase),
+                    "`{key}` is not Title Case"
+                );
+            }
+        }
     }
 
     /// An unset collider is the unit cube in physics, so it must be the unit

@@ -554,7 +554,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 lines.contains(&hull),
                 "the focus card must name `{hull}`; it read {lines:?}"
             );
-            for stat in ["hp", "size", "sockets"] {
+            for stat in ["HP", "Size", "Sockets"] {
                 assert!(
                     lines.iter().any(|line| line == stat),
                     "the focus card must read `{stat}`; it read {lines:?}"

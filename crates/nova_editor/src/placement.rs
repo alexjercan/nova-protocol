@@ -1188,7 +1188,7 @@ pub(crate) fn draw_link_points(
 /// Sized from the EYE, not from the ship: see [`SOCKET_SCREEN_SIZE`]. `halo`
 /// draws a second ring around the first - shape, not only colour, for the one
 /// socket the ghost is about to take.
-fn draw_socket(
+pub(crate) fn draw_socket(
     gizmos: &mut Gizmos<EditorGizmos>,
     eye: Vec3,
     position: Vec3,

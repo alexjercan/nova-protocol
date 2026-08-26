@@ -17,6 +17,15 @@ use crate::{skin::UiSkin, theme};
 const FONT_SIZE: f32 = 14.0;
 const CHARACTER_WIDTH: f32 = 8.4;
 
+/// Everything the field does with the keyboard and the pointer, as one handle.
+///
+/// A field's Enter both drops the focus and reports the typed text, and what
+/// the reader of that report decides (accept it, refuse it) has to land before
+/// anything repaints the field. Owners of that decision order themselves
+/// `after` this set.
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TextFieldSystems;
+
 /// Mutable text held by a [`TextField`].
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Eq)]
 pub struct TextFieldValue(pub String);

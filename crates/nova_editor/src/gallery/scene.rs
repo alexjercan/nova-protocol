@@ -8,14 +8,18 @@
 
 use bevy::{
     camera::primitives::Aabb,
+    core_pipeline::Skybox,
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
     ui::{ComputedNode, UiGlobalTransform},
 };
 use nova_ship::prelude::*;
+use nova_ui::theme;
 
 use crate::{
+    config::EditorGizmos,
     gallery::{catalog, GalleryState},
+    placement::draw_socket,
     preview::{insert_preview_section, PreviewRole},
     ExampleStates,
 };
@@ -102,19 +106,30 @@ impl Default for FocusView {
 #[derive(Component)]
 pub(crate) struct EditorCamera;
 
-/// The pose the camera had when the gallery parked it, restored on close.
+/// How the camera was set up when the gallery parked it, restored on close.
 ///
 /// Stored on the camera rather than in a `Local` so it dies with the scene: a
 /// second visit to the editor spawns a fresh camera and must not inherit the
 /// previous visit's parked pose.
 #[derive(Component)]
-pub(crate) struct ParkedPose(Transform);
+pub(crate) struct ParkedPose {
+    /// Where the builder had flown to.
+    transform: Transform,
+    /// The scenario's skybox, taken off the camera for as long as the gallery
+    /// is up. A cubemap draws behind everything, so one of its stars came
+    /// through the gallery's transparent tiles as a stray lit pixel under the
+    /// header. This stage is meant to be empty.
+    skybox: Option<Skybox>,
+}
 
 /// One 3D preview, bound to the UI cell it sits in.
 #[derive(Component)]
 pub(crate) struct GalleryItem {
     /// The UI node this preview centres itself on.
     cell: Entity,
+    /// The part's sockets, in its own unscaled local space. Carried only by the
+    /// focused preview, which is the one that draws them.
+    sockets: Vec<LinkPoint>,
     /// Largest authored axis of the part: the fit-to-cell size until the real
     /// meshes have loaded and [`measure_gallery_items`] has measured them.
     extent: f32,
@@ -141,6 +156,11 @@ pub(crate) fn spawn_tile(
         Name::new(format!("Gallery Preview {}", section.base.name)),
         GalleryItem {
             cell,
+            sockets: if focused {
+                section.base.link_points.clone()
+            } else {
+                Vec::new()
+            },
             extent,
             radius: None,
             focused,
@@ -173,28 +193,36 @@ pub(crate) fn spawn_tile(
 pub(crate) fn park_camera_for_gallery(
     mut commands: Commands,
     state: Res<GalleryState>,
-    camera: Option<Single<(Entity, &mut Transform, Option<&ParkedPose>), With<EditorCamera>>>,
+    camera: Option<
+        Single<(Entity, &mut Transform, Option<&Skybox>, Option<&ParkedPose>), With<EditorCamera>>,
+    >,
 ) {
     let Some(camera) = camera else {
         return;
     };
-    let (entity, mut transform, parked) = camera.into_inner();
+    let (entity, mut transform, skybox, parked) = camera.into_inner();
 
     if state.open {
         if parked.is_none() {
             commands
                 .entity(entity)
-                .insert(ParkedPose(*transform))
-                .remove::<WASDCameraController>();
+                .insert(ParkedPose {
+                    transform: *transform,
+                    skybox: skybox.cloned(),
+                })
+                .remove::<WASDCameraController>()
+                .remove::<Skybox>();
         }
         *transform = Transform::from_translation(STAGE_ORIGIN + Vec3::Z * STAGE_DISTANCE)
             .looking_at(STAGE_ORIGIN, Vec3::Y);
-    } else if let Some(ParkedPose(pose)) = parked {
-        *transform = *pose;
-        commands
-            .entity(entity)
-            .remove::<ParkedPose>()
-            .insert(WASDCameraController);
+    } else if let Some(parked) = parked {
+        *transform = parked.transform;
+        let sky = parked.skybox.clone();
+        let mut camera = commands.entity(entity);
+        camera.remove::<ParkedPose>().insert(WASDCameraController);
+        if let Some(sky) = sky {
+            camera.insert(sky);
+        }
     }
 }
 
@@ -361,6 +389,42 @@ pub(crate) fn drive_focus_view(
     } else {
         view.idle + time.delta_secs()
     };
+}
+
+/// Draw the focused part's sockets on the stage.
+///
+/// Where a part can mate is the question the focus view exists to answer, and
+/// the stat block could only count them. Same marks as the build view's, from
+/// the same [`draw_socket`], so a socket looks the same wherever it is met.
+pub(crate) fn draw_focus_sockets(
+    state: Res<GalleryState>,
+    camera: Option<Single<&GlobalTransform, With<EditorCamera>>>,
+    items: Query<(&GalleryItem, &GlobalTransform)>,
+    mut gizmos: Gizmos<EditorGizmos>,
+) {
+    if !state.open || !state.focused {
+        return;
+    }
+    let Some(camera) = camera else {
+        return;
+    };
+    let eye = camera.translation();
+
+    for (item, pose) in &items {
+        if !item.focused {
+            continue;
+        }
+        for socket in &item.sockets {
+            draw_socket(
+                &mut gizmos,
+                eye,
+                pose.transform_point(socket.position),
+                (pose.rotation() * socket.normal).normalize_or(Vec3::Z),
+                theme::PHOSPHOR,
+                false,
+            );
+        }
+    }
 }
 
 /// Pose the focused preview: the builder's orbit, and the turntable once they

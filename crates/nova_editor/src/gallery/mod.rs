@@ -120,6 +120,7 @@ pub(crate) fn register(app: &mut App) {
             scene::measure_gallery_items,
             scene::place_gallery_items,
             scene::pose_focused_item,
+            scene::draw_focus_sockets,
         )
             .chain()
             .run_if(in_state(ExampleStates::Editor)),
@@ -140,7 +141,7 @@ pub(crate) fn register(app: &mut App) {
 
 #[cfg(test)]
 mod tests {
-    use bevy::ui_widgets::Activate;
+    use bevy::{core_pipeline::Skybox, ui_widgets::Activate};
 
     use super::*;
     use crate::config::SectionChoice;
@@ -190,6 +191,82 @@ mod tests {
         // than to a neighbour.
         state.selected = 7;
         assert_eq!(state.selected_id(&sections), None);
+    }
+
+    /// The stage is empty by contract: the scenario's skybox comes off the
+    /// camera while the gallery is parked on it, and goes back on at the close.
+    /// A cubemap is not clipped by anything, so leaving it on put a star in
+    /// among the tiles.
+    #[test]
+    fn parking_the_camera_takes_the_skybox_off_and_gives_it_back() {
+        let mut app = App::new();
+        app.insert_resource(GalleryState {
+            open: true,
+            ..default()
+        });
+        app.add_systems(Update, scene::park_camera_for_gallery);
+        let flown_to = Vec3::new(1.0, 2.0, 3.0);
+        let camera = app
+            .world_mut()
+            .spawn((
+                scene::EditorCamera,
+                Transform::from_translation(flown_to),
+                Skybox {
+                    brightness: 42.0,
+                    ..default()
+                },
+            ))
+            .id();
+
+        app.update();
+        assert!(
+            app.world().get::<Skybox>(camera).is_none(),
+            "the parked camera must not draw the world's sky"
+        );
+
+        app.world_mut().resource_mut::<GalleryState>().open = false;
+        app.update();
+        let sky = app
+            .world()
+            .get::<Skybox>(camera)
+            .expect("closing the gallery gives the sky back");
+        assert_eq!(sky.brightness, 42.0, "and gives back the SAME sky");
+        assert_eq!(
+            app.world()
+                .get::<Transform>(camera)
+                .map(|pose| pose.translation),
+            Some(flown_to),
+            "along with the pose the builder had flown to"
+        );
+    }
+
+    /// Clearing the filter widens the grid and leaves the category alone: the
+    /// x beside the field answers "why is this grid short", and the chip row
+    /// answers a different question.
+    #[test]
+    fn clearing_the_filter_keeps_the_category() {
+        let mut world = World::new();
+        world.insert_resource(catalog_of(&["hull_a"]));
+        world.insert_resource(SectionChoice::default());
+        world.insert_resource(GalleryState {
+            open: true,
+            category: GalleryCategory::Weapons,
+            filter: "racer".to_string(),
+            selected: 4,
+            focused: true,
+            ..default()
+        });
+        world.add_observer(ui::on_gallery_action);
+        let row = world.spawn(GalleryAction::ClearFilter).id();
+
+        world.trigger(Activate { entity: row });
+        world.flush();
+
+        let state = world.resource::<GalleryState>();
+        assert!(state.filter.is_empty());
+        assert_eq!(state.category, GalleryCategory::Weapons);
+        assert_eq!(state.selected, 0, "a wider list renumbers the tiles");
+        assert!(state.open, "clearing a filter is not leaving the gallery");
     }
 
     /// An Add row that NAMES a kind opens the gallery on that kind, and on a

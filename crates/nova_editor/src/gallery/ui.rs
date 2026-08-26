@@ -90,6 +90,23 @@ pub(crate) enum GalleryAction {
     Page(isize),
     /// Put the caret in the filter field.
     FocusFilter,
+    /// Empty the filter, leaving the category alone.
+    ClearFilter,
+}
+
+/// The header's stock line: how many parts are listed, and out of how many when
+/// something is narrowing the list.
+///
+/// A count that only ever said "N parts" left an active filter invisible - a
+/// grid with one tile in it read as a catalog with one part in it.
+fn part_count(listed: usize, stocked: usize) -> String {
+    if listed == stocked {
+        return match listed {
+            1 => "1 part".to_string(),
+            many => format!("{many} parts"),
+        };
+    }
+    format!("{listed} of {stocked} parts")
 }
 
 /// Height of the tile's label strip. The strip is opaque so the name stays
@@ -125,6 +142,9 @@ pub(crate) fn rebuild_gallery(
     let pages = listed.len().div_ceil(PAGE).max(1);
     let page = state.selected / PAGE;
     let start = page * PAGE;
+    let stocked = catalog::browsable(&sections, GalleryCategory::All, "").len();
+    let narrowed = listed.len() != stocked;
+    let count = part_count(listed.len(), stocked);
 
     // Cells are spawned inside the layout closure but their previews are
     // spawned after it, so the closure can hand back the node each preview
@@ -202,6 +222,24 @@ pub(crate) fn rebuild_gallery(
 
                 header.spawn(filter_box(&state.filter, state.filter_focused));
 
+                if !state.filter.is_empty() {
+                    header
+                        .spawn(Node {
+                            width: px(30),
+                            ..default()
+                        })
+                        .with_children(|slot| {
+                            let mut spec = ButtonSpec::new("x").ghost();
+                            spec.min_height = 26.0;
+                            spec.font_size = 12.0;
+                            slot.spawn((
+                                Name::new("Gallery Clear Filter Button"),
+                                button(spec),
+                                GalleryAction::ClearFilter,
+                            ));
+                        });
+                }
+
                 for (label, name, step) in [
                     ("<", "Gallery Previous Page Button", -1),
                     (">", "Gallery Next Page Button", 1),
@@ -222,17 +260,16 @@ pub(crate) fn rebuild_gallery(
                 header.spawn((
                     Name::new("Gallery Page"),
                     UiText,
-                    Text::new(format!(
-                        "{} parts   page {}/{}",
-                        listed.len(),
-                        page + 1,
-                        pages
-                    )),
+                    Text::new(format!("{}   page {}/{}", count, page + 1, pages)),
                     TextFont {
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(if narrowed {
+                        theme::AMBER_NOVA
+                    } else {
+                        theme::PHOSPHOR_MUTED
+                    }),
                     Node {
                         margin: UiRect::left(px(6)),
                         ..default()
@@ -552,6 +589,14 @@ fn focus_body(
                     ));
                 }
 
+                // The actions sit on the FLOOR of the card. A stat block is a
+                // dozen lines and the card is the height of the screen, so
+                // buttons that followed the stats left the bottom half of the
+                // panel empty and the card looking half-drawn.
+                card.spawn(Node {
+                    flex_grow: 1.0,
+                    ..default()
+                });
                 card.spawn((
                     Name::new("Gallery Place Button"),
                     button(ButtonSpec::new("Place This Part").primary().key("Enter")),
@@ -574,10 +619,13 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
     // The caret is the focus tell, as it is in every text field: without one
     // there is no way to know whether a keystroke is about to filter or to
     // trigger a shortcut.
+    // Amber whenever the field is holding parts back, focused or not: the box
+    // is the only thing on screen that says WHY the grid is short.
     let (text, color) = match (focused, filter.is_empty()) {
-        (true, _) => (format!("{filter}_"), theme::SCREEN_TEXT),
+        (true, true) => ("_".to_string(), theme::SCREEN_TEXT),
+        (true, false) => (format!("{filter}_"), theme::AMBER_NOVA),
         (false, true) => ("/ to filter".to_string(), theme::PHOSPHOR_MUTED),
-        (false, false) => (filter.to_string(), theme::SCREEN_TEXT),
+        (false, false) => (filter.to_string(), theme::AMBER_NOVA),
     };
     (
         Name::new("Gallery Filter"),
@@ -594,10 +642,10 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(if focused {
-            theme::PHOSPHOR
-        } else {
-            theme::PHOSPHOR_MUTED
+        BorderColor::all(match (focused, filter.is_empty()) {
+            (_, false) => theme::AMBER_NOVA,
+            (true, true) => theme::PHOSPHOR,
+            (false, true) => theme::PHOSPHOR_MUTED,
         }),
         BackgroundColor(theme::SCREEN_0),
         children![(
@@ -673,6 +721,11 @@ pub(crate) fn on_gallery_action(
             state.open = true;
         }
         GalleryAction::FocusFilter => state.filter_focused = true,
+        GalleryAction::ClearFilter => {
+            state.filter.clear();
+            state.selected = 0;
+            state.focused = false;
+        }
         GalleryAction::Close => {
             state.open = false;
             state.focused = false;
@@ -708,5 +761,20 @@ pub(crate) fn on_gallery_action(
             let listed = catalog::browsable(&sections, state.category, &state.filter);
             state.step(step * PAGE as isize, listed.len());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The stock line counts one part as one part, and says what is being held
+    /// back the moment anything is.
+    #[test]
+    fn the_count_says_when_the_grid_is_not_the_whole_catalog() {
+        assert_eq!(part_count(31, 31), "31 parts");
+        assert_eq!(part_count(1, 1), "1 part");
+        assert_eq!(part_count(1, 31), "1 of 31 parts");
+        assert_eq!(part_count(0, 31), "0 of 31 parts");
     }
 }

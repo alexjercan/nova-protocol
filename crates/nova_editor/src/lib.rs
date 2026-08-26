@@ -545,7 +545,18 @@ fn editor_plugin(app: &mut App) {
     // camera dead.
     app.add_systems(
         Update,
-        (apply_inspector_edits, hold_camera_while_typing).run_if(in_state(ExampleStates::Editor)),
+        (
+            // Between the field and the panel's repaint, with a sync point on
+            // each edge: Enter drops the focus and reports the text in one
+            // frame, and the verdict is a COMMAND. A repaint that landed in
+            // the gap saw a field with neither focus nor error and painted the
+            // document value over the number the builder has to correct.
+            apply_inspector_edits
+                .after(nova_ui::prelude::TextFieldSystems)
+                .before(sync_inspector),
+            hold_camera_while_typing,
+        )
+            .run_if(in_state(ExampleStates::Editor)),
     );
 
     app.add_systems(
