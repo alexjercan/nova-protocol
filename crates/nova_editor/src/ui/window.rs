@@ -45,6 +45,8 @@ const INSPECTOR_GUTTER: f32 = 12.0;
 /// belongs to, so widening the Inspector moves the window instead of parking it
 /// underneath.
 const RIGHT_MARGIN: f32 = crate::ui::inspector::PANEL_W + INSPECTOR_GUTTER;
+/// The gutter a fresh window keeps between itself and the rail.
+const RAIL_GUTTER: f32 = 12.0;
 /// Where a fresh window's top edge sits, under the top bar.
 const TOP_MARGIN: f32 = 96.0;
 /// How much of a window must stay on screen when it is dragged: enough to
@@ -441,7 +443,7 @@ pub(crate) fn on_open_colour_window(
         return;
     }
     let size = screen.map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
-    let left = (size.x - RIGHT_MARGIN - WINDOW_W).max(8.0);
+    let left = fresh_window_left(size.x);
     commands.entity(*layer).with_children(|layer| {
         spawn_colour_window(
             layer,
@@ -452,6 +454,18 @@ pub(crate) fn on_open_colour_window(
             *skin,
         );
     });
+}
+
+/// Where a fresh window's left edge goes on a window `width` logical px wide.
+///
+/// Right-anchored, then bounded off the rail. At 760 logical px the band
+/// between the rail and the Inspector is 250 wide and the window is 300, so
+/// there is no place that clears both: it clears the RAIL and lets its right
+/// edge run under the Inspector - the panel the picker came from and
+/// duplicates - because the rail is the scene tree, which a colour has nothing
+/// to do with.
+fn fresh_window_left(width: f32) -> f32 {
+    (width - RIGHT_MARGIN - WINDOW_W).max(crate::ui::RAIL_W + RAIL_GUTTER)
 }
 
 /// The picker, in one place: the frame, its bar, the preview and the four

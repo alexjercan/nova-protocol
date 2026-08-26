@@ -6,7 +6,7 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
 use nova_ship::prelude::*;
-use nova_ui::prelude::{hang_at, take_keyboard_now, Hang, InputMode};
+use nova_ui::prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode};
 
 use crate::{
     config::{EditorSays, SelectedNode},
@@ -207,17 +207,25 @@ pub(crate) fn position_section_keybind_labels(
     for (SectionKeybindLabel { section }, mut node, mut text, mut visibility, computed) in
         &mut q_labels
     {
-        let anchor = q_section
+        // The chip's own height, from last frame's layout: the chip hangs
+        // ABOVE the part, and where its top edge goes depends on how tall it
+        // is. One frame stale is exact for a still camera and a pixel off
+        // while one moves.
+        let placed = q_section
             .get(*section)
             .ok()
             .and_then(|(section_transform, node_section)| {
-                let screen = cam
+                let anchor = cam
                     .world_to_viewport(cam_transform, section_transform.translation())
                     .ok()?;
-                Some((screen, node_section))
+                let spot = clear_of(anchor, CHIP_CLEARANCE_PX, viewport, &mut standing);
+                let corner = hang_at(spot, CHIP_HANG, computed, viewport)?;
+                Some((anchor, corner, node_section))
             });
-        let Some((anchor, node_section)) = anchor else {
-            // Behind the camera / off-viewport: do not draw.
+        let Some((anchor, corner, node_section)) = placed else {
+            // Behind the camera, or beside the frame: `world_to_viewport` errs
+            // on the first and answers an off-screen point for the second, so
+            // `hang_at` is the one that decides. Either way, do not draw.
             *visibility = Visibility::Hidden;
             for (SectionKeybindLeader { section: named }, _, mut leader) in &mut q_leaders {
                 if named == section && *leader != Visibility::Hidden {
@@ -226,25 +234,22 @@ pub(crate) fn position_section_keybind_labels(
             }
             continue;
         };
-        let spot = clear_of(anchor, &mut standing);
-        // The chip's own height, from last frame's layout: the chip hangs
-        // ABOVE the part, and where its top edge goes depends on how tall it
-        // is. One frame stale is exact for a still camera and a pixel off
-        // while one moves.
-        let corner = hang_at(spot, CHIP_HANG, computed, viewport);
         node.left = Val::Px(corner.x);
         node.top = Val::Px(corner.y);
         *visibility = Visibility::Visible;
 
         // The leader runs from the chip's foot down to the part itself, so a
-        // chip pushed clear of a pile still says which part it came from.
+        // chip pushed clear of a pile still says which part it came from. From
+        // the chip's OWN corner rather than from the spot it asked for: a chip
+        // slid along an edge is a chip the leader has to follow.
+        let foot = corner.y + computed.size().y * computed.inverse_scale_factor();
         for (SectionKeybindLeader { section: named }, mut leader, mut shown) in &mut q_leaders {
             if named != section {
                 continue;
             }
-            leader.left = Val::Px(spot.x);
-            leader.top = Val::Px(spot.y - LEADER_PX);
-            leader.height = Val::Px(LEADER_PX + (anchor.y - spot.y).max(0.0));
+            leader.left = Val::Px(corner.x - CHIP_OFFSET_PX);
+            leader.top = Val::Px(foot);
+            leader.height = Val::Px((anchor.y - foot).max(0.0));
             *shown = Visibility::Visible;
         }
 
@@ -257,22 +262,6 @@ pub(crate) fn position_section_keybind_labels(
             text.0 = wanted;
         }
     }
-}
-
-/// `anchor`, lifted until it is clear of every chip already placed.
-///
-/// UP, because the chip hangs above its part either way and the ship is
-/// usually below: a pile pushed downward walks over the hull it labels.
-fn clear_of(anchor: Vec2, standing: &mut Vec<Vec2>) -> Vec2 {
-    let mut spot = anchor;
-    while standing.iter().any(|taken| {
-        (taken.x - spot.x).abs() < CHIP_CLEARANCE_PX.x
-            && (taken.y - spot.y).abs() < CHIP_CLEARANCE_PX.y
-    }) {
-        spot.y -= CHIP_CLEARANCE_PX.y;
-    }
-    standing.push(spot);
-    spot
 }
 
 /// Take every chip off screen. The chips label the ship the builder is
@@ -873,36 +862,5 @@ mod tests {
             None,
             "rebind consumed"
         );
-    }
-
-    /// Two bound parts a hand's width apart on the hull project to the same few
-    /// pixels, and a pile of amber pills names nothing.
-    #[test]
-    fn a_chip_is_lifted_clear_of_the_one_already_there() {
-        let mut standing = Vec::new();
-        let first = clear_of(Vec2::new(100.0, 200.0), &mut standing);
-        let second = clear_of(Vec2::new(104.0, 202.0), &mut standing);
-
-        assert_eq!(
-            first,
-            Vec2::new(100.0, 200.0),
-            "the first chip stands still"
-        );
-        assert!(
-            second.y <= first.y - CHIP_CLEARANCE_PX.y,
-            "the second is lifted clear of it: {second:?} against {first:?}"
-        );
-        assert_eq!(second.x, 104.0, "and stays over its own part");
-    }
-
-    /// Chips far enough apart are left where their parts are: the rule is a
-    /// pile-breaker, not a layout.
-    #[test]
-    fn a_chip_with_room_is_left_where_its_part_is() {
-        let mut standing = Vec::new();
-        clear_of(Vec2::new(100.0, 200.0), &mut standing);
-        let apart = clear_of(Vec2::new(400.0, 200.0), &mut standing);
-
-        assert_eq!(apart, Vec2::new(400.0, 200.0));
     }
 }

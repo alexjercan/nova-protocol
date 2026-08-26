@@ -360,7 +360,7 @@ fn a_bar_over_a_pane_that_is_gone_is_not_painted() {
 mod float {
     use bevy::prelude::*;
 
-    use crate::screen::{hang_at, Hang};
+    use crate::screen::{clear_of, hang_at, Hang};
 
     /// A node measured at some scale factor, sized in PHYSICAL pixels the way
     /// layout reports it.
@@ -391,7 +391,7 @@ mod float {
             viewport,
         );
 
-        assert_eq!(at_1x, Vec2::new(360.0, 276.0));
+        assert_eq!(at_1x, Some(Vec2::new(360.0, 276.0)));
         assert_eq!(
             at_2x, at_1x,
             "the same label on a HiDPI screen went half its physical size out of place"
@@ -408,7 +408,7 @@ mod float {
             Vec2::new(1024.0, 768.0),
         );
 
-        assert_eq!(at, Vec2::new(360.0, 306.0));
+        assert_eq!(at, Some(Vec2::new(360.0, 306.0)));
     }
 
     /// A label anchored at the edge slides along it instead of hanging off it.
@@ -417,13 +417,15 @@ mod float {
         let viewport = Vec2::new(1024.0, 768.0);
         let node = measured(Vec2::new(200.0, 40.0), 1.0);
 
-        let right = hang_at(Vec2::new(1020.0, 400.0), Hang::below(0.0), &node, viewport);
+        let right = hang_at(Vec2::new(1020.0, 400.0), Hang::below(0.0), &node, viewport)
+            .expect("an anchor on the edge is still on screen");
         assert_eq!(
             right.x, 824.0,
             "pulled in by the width that would have hung over"
         );
 
-        let top = hang_at(Vec2::new(400.0, 10.0), Hang::above(0.0), &node, viewport);
+        let top = hang_at(Vec2::new(400.0, 10.0), Hang::above(0.0), &node, viewport)
+            .expect("an anchor near the top is still on screen");
         assert_eq!(top.y, 0.0, "and pushed down off the top edge");
     }
 
@@ -438,6 +440,88 @@ mod float {
             Vec2::new(320.0, 200.0),
         );
 
-        assert_eq!(at, Vec2::ZERO);
+        assert_eq!(at, Some(Vec2::ZERO));
+    }
+
+    /// R2.4: `Camera::world_to_viewport` has no x/y range check, so a node in
+    /// front of the camera but BESIDE the frame answers `Ok` with a point that
+    /// is not on screen. Clamping it pins a label to the border for something
+    /// nobody can see.
+    #[test]
+    fn an_anchor_off_the_screen_has_nowhere_to_hang() {
+        let viewport = Vec2::new(1024.0, 768.0);
+        let node = measured(Vec2::new(80.0, 20.0), 1.0);
+
+        for anchor in [
+            Vec2::new(-40.0, 300.0),
+            Vec2::new(1100.0, 300.0),
+            Vec2::new(400.0, -5.0),
+            Vec2::new(400.0, 900.0),
+        ] {
+            assert_eq!(
+                hang_at(anchor, Hang::above(4.0), &node, viewport),
+                None,
+                "{anchor:?} is outside {viewport:?}"
+            );
+        }
+    }
+
+    /// The pile the de-collision exists for: three anchors on the same few
+    /// pixels come back on three rows.
+    #[test]
+    fn a_second_label_on_the_same_point_is_lifted_clear() {
+        let viewport = Vec2::new(1024.0, 768.0);
+        let clearance = Vec2::new(52.0, 22.0);
+        let mut standing = Vec::new();
+
+        let spots: Vec<Vec2> = (0..3)
+            .map(|_| clear_of(Vec2::new(400.0, 300.0), clearance, viewport, &mut standing))
+            .collect();
+
+        assert_eq!(spots[0], Vec2::new(400.0, 300.0), "the first gets its spot");
+        assert_eq!(
+            spots[1],
+            Vec2::new(400.0, 278.0),
+            "the second lifts one row"
+        );
+        assert_eq!(
+            spots[2],
+            Vec2::new(400.0, 256.0),
+            "and the third clears both"
+        );
+    }
+
+    /// A far-apart anchor is left alone: the lift is for a pile, not a tax on
+    /// every label.
+    #[test]
+    fn a_label_with_room_stands_where_it_was_asked_to() {
+        let mut standing = vec![Vec2::new(400.0, 300.0)];
+        let spot = clear_of(
+            Vec2::new(700.0, 300.0),
+            Vec2::new(52.0, 22.0),
+            Vec2::new(1024.0, 768.0),
+            &mut standing,
+        );
+
+        assert_eq!(spot, Vec2::new(700.0, 300.0));
+    }
+
+    /// R2.4's second half: lifting past the top edge put every chip in the pile
+    /// on `y = 0`, which is the one outcome the de-collision exists to prevent.
+    /// With no room above, the column turns around and falls instead.
+    #[test]
+    fn a_pile_against_the_top_edge_falls_instead_of_stacking_off_screen() {
+        let viewport = Vec2::new(1024.0, 768.0);
+        let clearance = Vec2::new(52.0, 22.0);
+        let mut standing = Vec::new();
+
+        let spots: Vec<Vec2> = (0..4)
+            .map(|_| clear_of(Vec2::new(400.0, 20.0), clearance, viewport, &mut standing))
+            .collect();
+
+        assert_eq!(spots[0], Vec2::new(400.0, 20.0));
+        assert_eq!(spots[1], Vec2::new(400.0, 42.0), "no room up, so it falls");
+        assert_eq!(spots[2], Vec2::new(400.0, 64.0));
+        assert_eq!(spots[3], Vec2::new(400.0, 86.0));
     }
 }

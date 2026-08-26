@@ -17,6 +17,17 @@
 //! 2. Double the scale factor. The chip keeps the same logical offsets.
 //! 3. Go wide, then narrow. It keeps them again, and stays inside the viewport.
 //!
+//! The top bar is read at every shape as well. A number measured at 760x600
+//! says nothing about whether the bar at 760x600 can be READ: a flex column
+//! allowed below its own content overflows rather than clipping, and the run
+//! that only stamped the chip's offsets watched Play and the Ship menu draw
+//! over each other.
+//!
+//! The stage's nameplates are read at the end, from the scenario the editor
+//! opens with: several hulks a hand's width apart project to the same few
+//! pixels, and a placement with no de-collision draws `Derelict Hulk 1` and
+//! `Derelict Hulk 0` into one unreadable line.
+//!
 //! Portrait is out of scope on purpose: the bound is what makes this
 //! finishable.
 //!
@@ -77,6 +88,21 @@ const FOUNDING_PART: &str = "basic_thruster_section";
 /// The world-anchored label under test.
 #[cfg(feature = "debug")]
 const CHIP: &str = "Section Keybind Label";
+
+/// The top-bar controls that must never be drawn over one another: the five
+/// menus on the left, and Play in the middle of the screen.
+///
+/// The breadcrumb is not here because it can legitimately measure zero wide -
+/// it is inside a clip, which is the whole point of it.
+#[cfg(feature = "debug")]
+const BAR_CONTROLS: [&str; 6] = [
+    "File Menu Button",
+    "Edit Menu Button",
+    "View Menu Button",
+    "Add Menu Button",
+    "Ship Menu Button",
+    "Play Button",
+];
 
 /// A viewport point (logical px) with nothing under it on the 1024x768 window
 /// the app opens - where the founding click lands. The rail takes the left 210
@@ -153,6 +179,128 @@ fn offsets_now(world: &mut World) -> ChipOffsets {
         gap: anchor.y - rect.max.y,
         lead: rect.min.x - anchor.x,
     }
+}
+
+/// Every top-bar control stands in its own pixels.
+#[cfg(feature = "debug")]
+fn read_the_bar(shape: &'static str) -> impl Fn(&mut World) + Send + Sync + 'static {
+    move |world: &mut World| {
+        let placed: Vec<(&str, Rect)> = BAR_CONTROLS
+            .into_iter()
+            .map(|name| {
+                let rect = ui_node_rect(world, name)
+                    .unwrap_or_else(|| panic!("at {shape} the top bar draws `{name}`"));
+                (name, rect)
+            })
+            .collect();
+        for (index, (name, rect)) in placed.iter().enumerate() {
+            for (other, second) in &placed[index + 1..] {
+                let apart = rect.max.x <= second.min.x
+                    || second.max.x <= rect.min.x
+                    || rect.max.y <= second.min.y
+                    || second.max.y <= rect.min.y;
+                assert!(
+                    apart,
+                    "at {shape} `{name}` {rect:?} is drawn over `{other}` {second:?}: a bar \
+                     column allowed below its own content overflows instead of clipping, and \
+                     both labels come out unreadable"
+                );
+            }
+        }
+        nova_probe::probe_marker(
+            world,
+            "outcome: the top bar keeps its controls apart",
+            serde_json::json!({ "shape": shape, "controls": BAR_CONTROLS.len() }),
+        );
+        info!("scale: at {shape} the top bar still reads");
+    }
+}
+
+/// How tall the key legend may be, in logical pixels - the editor's own bound,
+/// which is the three rows the stock shape already draws.
+#[cfg(feature = "debug")]
+const LEGEND_MAX_H: f32 = 56.0;
+
+/// The key legend keeps to that bound at every shape.
+///
+/// It wraps by design, and a narrower band wraps it further: the same nine
+/// cells measured 56 tall at 1024x768 and 96 at 760x600, over the stage the
+/// hints are about.
+#[cfg(feature = "debug")]
+fn read_the_legend(shape: &'static str) -> impl Fn(&mut World) + Send + Sync + 'static {
+    move |world: &mut World| {
+        let rect =
+            ui_node_rect(world, "Editor Key Legend").expect("the editor draws its key legend");
+        assert!(
+            rect.height() <= LEGEND_MAX_H + DRIFT_PX,
+            "at {shape} the legend is {} tall: a hint strip that grows with how narrow the \
+             window is eats the build area it is a hint about",
+            rect.height()
+        );
+        info!("scale: at {shape} the legend is {} tall", rect.height());
+    }
+}
+
+/// The prefix every stage nameplate's `Name` carries.
+#[cfg(feature = "debug")]
+const PLATE: &str = "Name Plate ";
+
+/// Every nameplate on the stage stands in its own pixels.
+#[cfg(feature = "debug")]
+fn read_the_plates(world: &mut World) {
+    let mut plates = world.query::<(
+        &Name,
+        &bevy::ui::UiGlobalTransform,
+        &ComputedNode,
+        &InheritedVisibility,
+    )>();
+    let placed: Vec<(String, Rect)> = plates
+        .iter(world)
+        .filter(|(name, _, _, visible)| visible.get() && name.as_str().starts_with(PLATE))
+        .map(|(name, transform, computed, _)| {
+            let scale = computed.inverse_scale_factor();
+            (
+                name.as_str().to_string(),
+                Rect::from_center_size(transform.translation * scale, computed.size() * scale),
+            )
+        })
+        .filter(|(_, rect)| rect.width() > 0.0 && rect.height() > 0.0)
+        .collect();
+    assert!(
+        placed.len() >= 2,
+        "the scenario the editor opens with names several hulks, and the frame put {} plate(s) \
+         on screen - there is nothing here to collide",
+        placed.len()
+    );
+    for (index, (name, rect)) in placed.iter().enumerate() {
+        for (other, second) in &placed[index + 1..] {
+            let apart = rect.max.x <= second.min.x
+                || second.max.x <= rect.min.x
+                || rect.max.y <= second.min.y
+                || second.max.y <= rect.min.y;
+            assert!(
+                apart,
+                "`{name}` {rect:?} is drawn over `{other}` {second:?}: two hulls a hand's width \
+                 apart project to the same few pixels, and a pile of names names nothing"
+            );
+        }
+    }
+    nova_probe::probe_marker(
+        world,
+        "outcome: the stage's names stand apart",
+        serde_json::json!({ "plates": placed.len() }),
+    );
+    info!("scale: {} nameplates, none over another", placed.len());
+}
+
+/// Advance once the editor is back out at the scenario.
+#[cfg(feature = "debug")]
+fn outside_the_ship() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .get_resource::<EditorProbe>()
+            .is_some_and(|probe| probe.inside.is_none())
+    })
 }
 
 /// Set the window's scale factor, the way a HiDPI screen does.
@@ -315,6 +463,8 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .on_enter(|world: &mut World| {
             let offsets = offsets_now(world);
             world.insert_resource(offsets);
+            read_the_bar("1024x768")(world);
+            read_the_legend("1024x768")(world);
             info!(
                 "scale: at 1024x768 the chip hangs {} over the part, {} to the right",
                 offsets.gap, offsets.lead
@@ -336,6 +486,9 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("scale: the chip hangs the same at 2x")
         .on_enter(read_the_chip_held("2x"))
         .add()
+        .step("scale: the bar reads at 2x")
+        .on_enter(read_the_bar("2x"))
+        .add()
         // And back, so the shapes below are read in the scale they were sized
         // in.
         .step("scale: back to 1x")
@@ -356,6 +509,9 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("scale: the chip hangs the same wide")
         .on_enter(read_the_chip_held("1280x600"))
         .add()
+        .step("scale: the bar reads wide")
+        .on_enter(read_the_bar("1280x600"))
+        .add()
         .step("scale: go narrow")
         .on_enter(set_size(760.0, 600.0))
         .until(frames(SETTLE_FRAMES))
@@ -368,6 +524,38 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .add()
         .step("scale: the chip hangs the same narrow")
         .on_enter(read_the_chip_held("760x600"))
+        .add()
+        // The width this task's own Done-when nominates, and the one the bar
+        // came apart at.
+        .step("scale: the bar reads narrow")
+        .on_enter(read_the_bar("760x600"))
+        .add()
+        .step("scale: the legend keeps its bound narrow")
+        .on_enter(read_the_legend("760x600"))
+        .add()
+        // Out to the scenario, where the stage wears the document's names.
+        .step("scale: back to the stock shape")
+        .on_enter(set_size(1024.0, 768.0))
+        .until(frames(SETTLE_FRAMES))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("scale: leave the ship")
+        .on_enter(press_key(KeyCode::Escape))
+        .until(outside_the_ship())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("scale: release Escape again")
+        .on_enter(release_key(KeyCode::Escape))
+        .until(frames(SETTLE_FRAMES))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("scale: frame the whole scenario")
+        .on_enter(frame_the_ship)
+        .until(frames(SETTLE_FRAMES))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("scale: the plates stand apart")
+        .on_enter(read_the_plates)
         .add()
 }
 

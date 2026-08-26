@@ -146,14 +146,21 @@ pub(crate) fn sync_placement_callout(
             }
             continue;
         };
-        if *visibility != Visibility::Inherited {
-            *visibility = Visibility::Inherited;
-        }
         // Centred on the ghost's point and hung under it. The size is last
         // frame's, which is one frame stale on the frame the text changes and
         // exact on every other - a callout that jumped a few pixels once per
         // wording change is cheaper than a layout pass to place a label.
-        let corner = hang_at(spot, Hang::below(DROP), computed, viewport);
+        let Some(corner) = hang_at(spot, Hang::below(DROP), computed, viewport) else {
+            // The ghost is beside the frame, not behind the eye: still a
+            // projection, still nowhere to put a label.
+            if *visibility != Visibility::Hidden {
+                *visibility = Visibility::Hidden;
+            }
+            continue;
+        };
+        if *visibility != Visibility::Inherited {
+            *visibility = Visibility::Inherited;
+        }
         let left = px(corner.x);
         let top = px(corner.y);
         if node.left != left {

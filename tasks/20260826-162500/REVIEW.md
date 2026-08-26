@@ -78,7 +78,7 @@ see it.
   Change: extend the hold to any mode above Normal, one system reading
   `InputMode`, and delete the two hand-keyed copies.
 
-- [ ] R2.3 (MAJOR) crates/nova_editor/src/ui/mod.rs:478 - at 760x600 the Ship
+- [x] R2.3 (MAJOR) crates/nova_editor/src/ui/mod.rs:478 - at 760x600 the Ship
   menu button is drawn on top of the Play button. `Top Bar Left` is
   `flex_basis: px(0)`, `flex_grow: 1.0`, `min_width: px(0)`, with no
   `flex_shrink` and no clip, so it squeezes below the natural width of `EDITOR`
@@ -92,7 +92,7 @@ see it.
   Change: clip `Top Bar Left`, or give the menu row `flex_shrink: 0.0` and let
   the breadcrumb lose the pixels instead.
 
-- [ ] R2.4 (MAJOR) crates/nova_ui/src/screen/float.rs:50 - `hang_at` clamps an
+- [x] R2.4 (MAJOR) crates/nova_ui/src/screen/float.rs:50 - `hang_at` clamps an
   anchor that is OUTSIDE the viewport into it, so a label for an off-screen
   node pins to the border. None of the three sites it replaced clamped.
   `Camera::world_to_viewport` errors only on `NoViewportSize`, `InvalidData`,
@@ -291,7 +291,7 @@ see it.
   player-reachable path into the state was found, so this is a wrong comment
   rather than a defect - which is what the house comment rule exists to stop.
 
-- [ ] R2.19 (MINOR) crates/nova_editor/src/ui/plate.rs:257 - nameplates pile on
+- [x] R2.19 (MINOR) crates/nova_editor/src/ui/plate.rs:257 - nameplates pile on
   each other; the keybind chips they now share a placement loop with do not.
   `sync_nameplates` calls `hang_at` per plate with no de-collision, while
   `position_section_keybind_labels` has `clear_of` for exactly this. Rendered at
@@ -300,7 +300,7 @@ see it.
   Change: lift `clear_of` into `nova_ui::screen` beside `hang_at` and let both
   callers use it.
 
-- [ ] R2.20 (MINOR) crates/nova_editor/src/ui/window.rs:444 - the colour picker
+- [x] R2.20 (MINOR) crates/nova_editor/src/ui/window.rs:444 - the colour picker
   lands on the rail at a narrow width. `left = (size.x - RIGHT_MARGIN -
   WINDOW_W).max(8.0)`; at 760 logical px that is 148, and the window is 300
   wide, so it spans 148..448 against a rail of 0..210 - a 62 px overlap at
@@ -308,7 +308,7 @@ see it.
   literal and onto the panel's width; it did not give it a left bound.
   Not higher: the window is draggable.
 
-- [ ] R2.21 (MINOR) crates/nova_editor/src/ui/mod.rs:908 - the key legend wraps
+- [x] R2.21 (MINOR) crates/nova_editor/src/ui/mod.rs:908 - the key legend wraps
   to five rows over the narrow stage. `FlexWrap::Wrap` with eight cells and a
   stage band 250 px wide at 760x600 fills the bottom sixth of the buildable
   area and draws through the axis rose. Not higher:
@@ -550,3 +550,64 @@ Proof:
 - `system_input_modes` and `system_ship_editor` re-run live, both cycle
   complete.
 
+### Layout at any landscape size - R2.3, R2.4, R2.19, R2.20, R2.21
+
+`hang_at` answers `None` when the ANCHOR is outside the viewport instead of
+clamping it in. `Camera::world_to_viewport` has no x/y range check - it errs
+behind the eye and past the planes, and answers an off-screen point for
+something in front of the camera but beside the frame - so the three callers
+that hid only on `Err` were pinning labels to the border for things nobody can
+see. All three now hide on `None`, and the keybind chip's two hide paths became
+one.
+
+`clear_of` moved to `nova_ui::screen` beside it and grew the viewport it is
+placing inside. It lifts first, as it did, then FALLS once the column runs out
+of screen: lifting past the top edge recorded spots above the viewport, and
+`hang_at` put every one of those chips on `y = 0` - a pile on one pixel row,
+which is the single outcome the de-collision exists to prevent (R2.4).
+`sync_nameplates` calls it now, so `Derelict Hulk 1` and `Derelict Hulk 0` stand
+apart (R2.19). The chip's leader is derived from the chip's own clamped corner
+rather than from the spot it asked for, so a chip slid along an edge keeps its
+line to the part.
+
+`Top Bar Left` lost its `min_width: px(0)`. That defeats a flex item's automatic
+minimum, and an item allowed below its own content overflows rather than
+clipping - at 760x600 the menu row ran out under Play and the two labels drew
+over each other. The comment justifying it named the breadcrumb, which moved to
+the other column two commits before this range (R2.3).
+
+The colour picker takes a left bound off the rail. At 760 logical px the band
+between the rail and the Inspector is 250 wide against a 300-wide window, so
+there is no place that clears both: it clears the rail and lets its right edge
+run under the Inspector, the panel it came from (R2.20).
+
+The key legend is bounded to the height it already has at the stock shape.
+Uncapped it measured 56 at 1024x768 and 96 at 760x600 - the same nine cells,
+three rows against five, the bottom sixth of the buildable area drawn through
+the axis rose. The hints are ordered with the gestures a builder is about to
+make first, so what a narrow window loses is the tail (R2.21).
+
+Proof:
+
+- `cargo test -p nova_ui --lib` - 52 pass, five new around `hang_at` and
+  `clear_of`: an anchor outside each edge of the viewport, a pile lifted clear,
+  a label with room left alone, and a pile against the TOP edge that falls
+  instead of stacking off screen.
+- `cargo test -p nova_editor --lib` - 328 pass, one new: the picker's left bound
+  at 1024 and at 760. The two `clear_of` tests moved to nova_ui with the
+  function.
+- `cargo check --all-targets --features debug` clean.
+- `system_ui_scale` grew the proof R2.3 says it was missing: it now READS the
+  frame at every shape - the five menu buttons and Play never share a pixel, the
+  legend keeps its bound, and at the end it leaves the ship, frames the whole
+  scenario and asserts the nine nameplates stand apart. Live under Xvfb, cycle
+  complete.
+- Mutation check: putting `min_width: px(0)` back on `Top Bar Left` takes the
+  range down at 760x600 - `Add Menu Button` is drawn over `Play Button`,
+  exit 101. Taking `clear_of` out of `sync_nameplates` takes it down with the
+  reviewer's own evidence - `Name Plate Derelict Hulk 0` is drawn over
+  `Name Plate Derelict Hulk 1`, exit 101.
+- `system_ship_editor` re-run live, cycle complete.
+
+Not closed by this: the widths between 760 and 1024 are still unswept, and
+portrait is out of scope by the task's own bound.

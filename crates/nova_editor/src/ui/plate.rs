@@ -16,7 +16,7 @@
 use bevy::{color::Mix, picking::Pickable, prelude::*, ui::widget::TextShadow};
 use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ui::{
-    prelude::{hang_at, Hang, UiSkin, UiText},
+    prelude::{clear_of, hang_at, Hang, UiSkin, UiText},
     theme,
     widget::list_row_colors,
 };
@@ -31,6 +31,13 @@ use crate::{
 
 /// How far over the node's own top the plate floats, in logical pixels.
 const LIFT: f32 = 14.0;
+
+/// How much room a plate keeps to itself when it is pushed clear of another,
+/// on top of its own size.
+///
+/// Two hulls a hand's width apart project to the same few pixels, and the pile
+/// that makes reads as one unreadable name.
+const CROWD_GAP: f32 = 2.0;
 
 /// How solid the chip of screen behind a plate is.
 ///
@@ -230,6 +237,7 @@ pub(crate) fn sync_nameplates(
     let Some(viewport) = camera.logical_viewport_size() else {
         return;
     };
+    let mut standing = Vec::new();
     for (plate, mut node, mut visibility, computed) in plates {
         // Over the TOP of the node, not its middle: a label in the middle of a
         // hull is a label on the hull.
@@ -252,12 +260,22 @@ pub(crate) fn sync_nameplates(
             }
             continue;
         };
+        // Last frame's size, as the callout does: a plate that jumped a few
+        // pixels once per rename is cheaper than a layout pass to place a label.
+        let size = computed.size() * computed.inverse_scale_factor();
+        let spot = clear_of(spot, size + CROWD_GAP, viewport, &mut standing);
+        let Some(corner) = hang_at(spot, Hang::above(LIFT), computed, viewport) else {
+            // Beside the frame rather than behind the eye: in front of the
+            // camera and off to one side still projects, and it projects to a
+            // point that is not on screen.
+            if *visibility != Visibility::Hidden {
+                *visibility = Visibility::Hidden;
+            }
+            continue;
+        };
         if *visibility != Visibility::Inherited {
             *visibility = Visibility::Inherited;
         }
-        // Last frame's size, as the callout does: a plate that jumped a few
-        // pixels once per rename is cheaper than a layout pass to place a label.
-        let corner = hang_at(spot, Hang::above(LIFT), computed, viewport);
         let left = px(corner.x);
         let top = px(corner.y);
         if node.left != left {

@@ -333,7 +333,7 @@ const PLAY_BLOCKED: &str = "Play (leave the ship)";
 /// block the placement raycast. 210 here and 300 of Inspector leave the stage
 /// a 514px band with the centre inside it, which is the whole constraint - the
 /// rows spend the rest on the type and the indent (see [`scene_row`]).
-const RAIL_W: f32 = 210.0;
+pub(crate) const RAIL_W: f32 = 210.0;
 
 /// How much of its own colour a style row keeps while the skin is off. Enough
 /// to read as the same list, not enough to be mistaken for the live one.
@@ -477,9 +477,15 @@ pub(crate) fn setup_editor_scene(
                     Node {
                         flex_basis: px(0),
                         flex_grow: 1.0,
-                        // Without this a long breadcrumb wins the row and
-                        // shoulders Play off centre.
-                        min_width: px(0),
+                        // NO `min_width: px(0)` here, unlike the right column.
+                        // That defeats a flex item's automatic minimum, and an
+                        // item allowed below its own content does not clip -
+                        // it overflows. At 760x600 the menu row ran out under
+                        // Play and the two labels drew over each other. The
+                        // right column can afford it because its one child is
+                        // a clip; this column's children are the menus, and a
+                        // menu button that is not there to press is not a
+                        // narrower bar, it is a missing verb.
                         flex_direction: FlexDirection::Row,
                         align_items: AlignItems::Center,
                         column_gap: px(10),
@@ -911,6 +917,17 @@ pub(crate) fn setup_editor_scene(
                             align_items: AlignItems::Center,
                             column_gap: px(10),
                             row_gap: px(4),
+                            // Bounded to the height it already has at the
+                            // stock shape. The legend WRAPS by design, but the
+                            // band it wraps inside is 226px at 760x600 against
+                            // 490 at 1024x768, so the same nine cells go from
+                            // three rows to five - the bottom sixth of the
+                            // buildable area, drawn through the axis rose. The
+                            // hints are ordered with the gestures a builder is
+                            // about to make first (see `sync_key_legend`), so
+                            // what a narrow window loses is the tail.
+                            max_height: px(LEGEND_MAX_H),
+                            overflow: Overflow::clip(),
                             ..default()
                         },
                         Children::spawn(SpawnWith(move |cells: &mut RelatedSpawner<ChildOf>| {
@@ -1959,6 +1976,10 @@ pub(crate) fn sync_skin_toggle(
 /// that despawned and respawned its children would spend a frame empty every
 /// time a part was picked up.
 const LEGEND_CELLS: usize = 8;
+
+/// How tall the legend may grow, in logical pixels: three rows of cells and the
+/// gaps between them, which is what the stock 1024x768 shape already draws.
+const LEGEND_MAX_H: f32 = 56.0;
 
 /// The width a hint cell holds even when its words are shorter, so the hints
 /// line up into columns rather than into a paragraph.

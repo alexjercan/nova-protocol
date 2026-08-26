@@ -414,3 +414,20 @@ fn a_destructive_verb_asks_before_it_runs() {
         "the verb ran: the old root is gone and a fresh one stands in its place"
     );
 }
+
+/// R2.20: the picker is right-anchored off the Inspector, and at a narrow
+/// window that put it on the rail.
+#[test]
+fn a_fresh_window_stands_clear_of_the_rail() {
+    assert_eq!(
+        fresh_window_left(1024.0),
+        412.0,
+        "at the stock width it hangs off the Inspector's left edge"
+    );
+    assert!(
+        fresh_window_left(760.0) >= crate::ui::RAIL_W,
+        "at 760 there is no place that clears both panels, and the rail is the \
+         one it must not cover: {}",
+        fresh_window_left(760.0)
+    );
+}
