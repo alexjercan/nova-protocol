@@ -42,11 +42,24 @@
 //! ```
 
 #[cfg(feature = "debug")]
+#[path = "shared/editor_stage.rs"]
+mod editor_stage;
+#[cfg(feature = "debug")]
+#[path = "shared/editor_walk.rs"]
+mod editor_walk;
+
+#[cfg(feature = "debug")]
 use avian3d::prelude::Collider;
 #[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
+
+#[cfg(feature = "debug")]
+use crate::{
+    editor_stage::{ADD_MENU, EMPTY_SPACE},
+    editor_walk::{inside_a_ship, the_ship_is_up, BEAT_DEADLINE_SECS},
+};
 
 #[derive(Parser)]
 #[command(name = "bug_sandbox_soak")]
@@ -92,43 +105,6 @@ fn main() -> bevy::app::AppExit {
 
 /// In-step seconds a gesture beat gets before the run gives up on it.
 ///
-/// Every wait in the walk below is a CONDITION - the button laid out, the
-/// picking pointer registering the press, the preview ship spawned - so this is
-/// a backstop rather than a settle. A frame count could only say that some
-/// frames had gone by, which buys nothing when the point of the beat is that
-/// the editor has REACTED.
-#[cfg(feature = "debug")]
-const BEAT_DEADLINE_SECS: f32 = 20.0;
-
-/// Advance once the ship being EDITED has a section on it.
-///
-/// The probe's list, scoped to the edit context. A sweep of every
-/// `SectionMarker` in the world is already true before the founding click: a
-/// new document opens seeded with the stock range (`node.rs`), whose hulks and
-/// pickets are hulls with sections.
-#[cfg(feature = "debug")]
-fn the_ship_is_up() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        world
-            .get_resource::<EditorProbe>()
-            .is_some_and(|probe| !probe.ship.is_empty())
-    })
-}
-
-/// Advance once the editor is inside a ship - what Add Ship does.
-///
-/// False while there is no [`EditorProbe`] at all. The probe arrives with the
-/// editor and this walk starts in the menu, so a beat that READS the resource
-/// takes the whole run down on the way in rather than waiting for it.
-#[cfg(feature = "debug")]
-fn inside_a_ship() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        world
-            .get_resource::<EditorProbe>()
-            .is_some_and(|probe| probe.inside.is_some())
-    })
-}
-
 /// Advance once Play would hand off - the walk is back at the scenario node.
 /// False without a probe, for the reason [`inside_a_ship`] gives.
 #[cfg(feature = "debug")]
@@ -140,22 +116,9 @@ fn play_is_reachable() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pre
     })
 }
 
-/// The top-bar menu that carries the Add Ship row.
-#[cfg(feature = "debug")]
-const ADD_MENU: &str = "Add Menu Button";
-
 /// The part the walk founds the blank ship with.
 #[cfg(feature = "debug")]
 const FOUNDING_PART: &str = "basic_controller_section";
-
-/// A viewport point (logical px) with nothing under it on the 1024x768 window
-/// the app opens - where the founding click lands.
-///
-/// Below the stage's own middle and clear of all three panels: the rail takes
-/// the left 210, the inspector the right 300 (`ui/mod.rs`, `ui/inspector.rs`),
-/// so a click out at 760 lands ON the inspector and never reaches the stage.
-#[cfg(feature = "debug")]
-const EMPTY_SPACE: Vec2 = Vec2::new(460.0, 660.0);
 
 /// How long the run sits still. Long enough that a curve which is going to
 /// slide has slid: the collapse this range pins was complete within six

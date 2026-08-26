@@ -40,9 +40,26 @@
 //! ```
 
 #[cfg(feature = "debug")]
+#[path = "shared/editor_stage.rs"]
+mod editor_stage;
+#[cfg(feature = "debug")]
+#[path = "shared/editor_walk.rs"]
+mod editor_walk;
+#[cfg(feature = "debug")]
+#[path = "shared/section_aim.rs"]
+mod section_aim;
+
+#[cfg(feature = "debug")]
 use bevy::{prelude::*, window::PrimaryWindow};
 use clap::Parser;
 use nova_protocol::prelude::*;
+
+#[cfg(feature = "debug")]
+use crate::{
+    editor_stage::{ADD_MENU, EMPTY_SPACE},
+    editor_walk::{inside_a_ship, the_ship_is_up, BEAT_DEADLINE_SECS},
+    section_aim::a_section_on_screen,
+};
 
 #[derive(Parser)]
 #[command(name = "system_ui_scale")]
@@ -65,20 +82,12 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// In-step seconds a gesture beat gets before the run gives up on it.
-#[cfg(feature = "debug")]
-const BEAT_DEADLINE_SECS: f32 = 20.0;
-
 /// Frames a resize is given to reach layout in.
 ///
 /// A window change is not one frame's work: winit answers the request, the UI
 /// re-lays out, and the chip reads its own size from the pass before it.
 #[cfg(feature = "debug")]
 const SETTLE_FRAMES: u32 = 24;
-
-/// The top-bar menu carrying Add Ship.
-#[cfg(feature = "debug")]
-const ADD_MENU: &str = "Add Menu Button";
 
 /// The part the walk founds its ship with. A thruster because the chip only
 /// exists for a BINDABLE section: a hull takes no key and wears no chip.
@@ -104,12 +113,6 @@ const BAR_CONTROLS: [&str; 6] = [
     "Play Button",
 ];
 
-/// A viewport point (logical px) with nothing under it on the 1024x768 window
-/// the app opens - where the founding click lands. The rail takes the left 210
-/// and the inspector the right 300, so the clear band is narrow and off-centre.
-#[cfg(feature = "debug")]
-const EMPTY_SPACE: Vec2 = Vec2::new(460.0, 660.0);
-
 /// How far the chip may drift from the offsets it was stamped with, in logical
 /// pixels.
 ///
@@ -126,26 +129,6 @@ const DRIFT_PX: f32 = 2.0;
 struct ChipOffsets {
     gap: f32,
     lead: f32,
-}
-
-/// The viewport point the lowest visible section of the edited ship projects
-/// to - the world anchor the chip is placed against.
-#[cfg(feature = "debug")]
-fn part_on_screen(world: &mut World) -> Option<Vec2> {
-    let mut q_sections =
-        world.query_filtered::<(&GlobalTransform, &InheritedVisibility), With<SectionMarker>>();
-    let at = q_sections
-        .iter(world)
-        .filter(|(_, visible)| visible.get())
-        .map(|(pose, _)| pose.translation())
-        .next()?;
-    let camera_entity = world
-        .query_filtered::<Entity, With<Camera3d>>()
-        .iter(world)
-        .next()?;
-    let camera = world.get::<Camera>(camera_entity)?;
-    let camera_pose = world.get::<GlobalTransform>(camera_entity)?;
-    camera.world_to_viewport(camera_pose, at).ok()
 }
 
 /// The viewport, in the logical pixels a `Node` is placed in.
@@ -165,7 +148,7 @@ fn viewport(world: &mut World) -> Vec2 {
 /// Where the chip stands right now, against the part it names.
 #[cfg(feature = "debug")]
 fn offsets_now(world: &mut World) -> ChipOffsets {
-    let anchor = part_on_screen(world).expect("the founded thruster is on screen");
+    let anchor = a_section_on_screen(world).expect("the founded thruster is on screen");
     let rect = ui_node_rect(world, CHIP).expect("the thruster wears its keybind chip");
     let screen = viewport(world);
     assert!(
@@ -321,26 +304,6 @@ fn set_size(width: f32, height: f32) -> impl Fn(&mut World) + Send + Sync + 'sta
         let mut window = windows.single_mut(world).expect("one primary window");
         window.resolution.set(width, height);
     }
-}
-
-/// Advance once the editor is inside a ship - what Add Ship does.
-#[cfg(feature = "debug")]
-fn inside_a_ship() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        world
-            .get_resource::<EditorProbe>()
-            .is_some_and(|probe| probe.inside.is_some())
-    })
-}
-
-/// Advance once the ship being edited holds a section.
-#[cfg(feature = "debug")]
-fn the_ship_is_up() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        world
-            .get_resource::<EditorProbe>()
-            .is_some_and(|probe| !probe.ship.is_empty())
-    })
 }
 
 /// The walk: menu -> editor -> a ship founded with one bindable part -> the

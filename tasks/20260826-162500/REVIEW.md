@@ -208,7 +208,7 @@ see it.
   Not higher: no shipped format changed, and most of the rot landed earlier in
   the cycle. This is the last range before release.
 
-- [ ] R2.11 (MINOR) crates/nova_os_ui/src/map/scene.rs:413 and
+- [x] R2.11 (MINOR) crates/nova_os_ui/src/map/scene.rs:413 and
   crates/nova_os_ui/src/ship/scene.rs:569 - before layout the new unit
   conversion turns "cull every blip" into "stack every blip in the corner,
   visible". `inverse_scale_factor()` is 0 for an unmeasured node - this repo
@@ -235,7 +235,7 @@ see it.
   Not higher: the window is one frame and needs a click-release and an Escape
   inside it.
 
-- [ ] R2.13 (MINOR) examples/systems/system_input_modes.rs:262 - the Insert
+- [x] R2.13 (MINOR) examples/systems/system_input_modes.rs:262 - the Insert
   beat cannot have reached the field it credits. `press_key` writes
   `ButtonInput<KeyCode>` alone, while `text_field_keyboard` reads
   `MessageReader<KeyboardInput>` - which is why the Escape beat presses both
@@ -247,7 +247,7 @@ see it.
   Change: pair the press with `press_edit_key(Key::Delete)` and assert the Name
   row lost a character.
 
-- [ ] R2.14 (MINOR) crates/nova_editor/src/gizmo.rs:382 - `GizmoReach` is keyed
+- [x] R2.14 (MINOR) crates/nova_editor/src/gizmo.rs:382 - `GizmoReach` is keyed
   on a scale nothing can change. Sub-task 6 added `scale` to the cache key
   because "the Inspector's Scale field resizes a node with the rig still up".
   There is no Scale field - `pose_rows` builds Position and Rotation only, and
@@ -266,7 +266,7 @@ see it.
   this is most of a slow gesture.
   Change: compare `moved` against `held` and return `Ok(())` when they match.
 
-- [ ] R2.16 (MINOR) crates/nova_editor/src/inspect.rs:1316 - `curate` now
+- [x] R2.16 (MINOR) crates/nova_editor/src/inspect.rs:1316 - `curate` now
   allocates a `Vec<String>` plus a `pretty()` `String` per retained row, where
   it used to build one heading list per call. `sync_inspector` runs every frame
   with no change gate, so a `Spaceship` node with an inline hull allocates
@@ -326,7 +326,7 @@ see it.
   name `input_mode`, which is app-global and publishes a cross-plugin ordering
   handle.
 
-- [ ] R2.23 (MINOR) examples/systems/system_ui_scale.rs:108 - the two ranges
+- [x] R2.23 (MINOR) examples/systems/system_ui_scale.rs:108 - the two ranges
   added in this range carry byte-identical copies of the same helpers.
   `part_on_screen` and `aim_at_a_section` differ only in their name, as do
   `inside_a_ship`, `the_ship_is_up` and four constants, across
@@ -636,3 +636,65 @@ gallery covers, so a builder who leaves the gallery up for more than the four
 seconds `EditorStatus` holds sees nothing. What changed is that the document is
 written. Giving the gallery a surface of its own to say it on is a second
 question, and a bigger one than this finding.
+
+### Correctness and proof defects - R2.11, R2.13, R2.14, R2.16, R2.23
+
+Both NOVA OS scene panels return early when the viewport reports an inverse
+scale factor of 0. That is what an unmeasured node reports, and it collapsed
+`size` to zero AND every projected point to the origin - and `Vec2::ZERO`
+PASSES a bounds filter, so the frame the panel opens on piled every blip in the
+top-left corner instead of culling them (R2.11).
+
+`GizmoReach` is keyed on the node and invalidated by `ObjectBodyStale`, the
+announcement the body redraw already listens to. The scale it used to be keyed
+on is a number nothing in the editor can change - there is no Scale field and
+`inspect.rs` says there will not be one - while a rock's Radius rebuilds the
+mesh and leaves `Transform.scale` at one, so the arms stayed sized for the
+radius the rock used to have. A re-measure keeps going for three frames after
+the announcement, because the new body and its collider arrive over the frames
+that follow it, and a re-measure that finds nothing keeps the last real answer
+rather than collapsing the rig mid-rebuild (R2.14).
+
+`curate` reads the headings POSITIONALLY. `group` is `segments(path)` less its
+leaf and `segments` pushes one entry per field step, so the two run in step and
+`retain` visits its elements in order - which is the same answer the name
+comparison gave for every pick table there is, without the `Vec<String>` and
+the `pretty()` per retained row on a panel that has no change gate under it
+(R2.16).
+
+The Insert beat in `system_input_modes` presses BOTH halves of the key now and
+reads the Name box. `press_key` writes `ButtonInput` and a text field reads
+`KeyboardInput`, so the old beat proved only that no verb answered - which a
+field that never saw the key also passes. It puts the caret at the head of the
+name first, because the caret lands where the click did and Delete at the end
+of a value deletes nothing (R2.13).
+
+The four editor ranges share their walk. `shared/editor_stage.rs` carries the
+founding click and the Add menu, used by all four; `shared/editor_walk.rs`
+carries the beat deadline and the two probe waits, used by the three that walk
+to a founded ship; `shared/section_aim.rs` carries the projection, used by the
+two that aim at a part. Split by audience rather than into one module, because
+a range that includes a helper it does not call gets a dead-code warning for it.
+`system_ship_editor`'s `MENU_ADD` is `ADD_MENU` and its own founding literal is
+gone (R2.23).
+
+Proof:
+
+- `cargo test -p nova_editor --lib` - 330 pass. The gizmo's resize test is
+  rewritten around the announcement and the collider it swaps, and a second one
+  proves the same new body with nobody announcing it leaves the measurement
+  alone. A new inspector test proves a PICKED level keeps the heading its
+  fields sit under, which is what the positional read has to get right.
+- `cargo test -p nova_os_ui --lib` - 108 pass.
+- `cargo check --all-targets --features debug` clean, including the four ranges
+  with and without the `debug` feature.
+- Live under Xvfb, all cycle complete: `system_input_modes` (`the field took
+  Delete off 'Beacon 1'`), `system_ship_editor`, `bug_sandbox_soak` (65 unshot
+  rocks), `system_nova_os`, `system_ui_scale`.
+- Mutation check: dropping the `press_edit_key(Key::Delete)` half takes
+  `system_input_modes` down with `'Beacon 1' should have lost its first
+  character`, exit 101 - which is what the beat used to be.
+
+Not closed by this: R2.11 has no test. Both call sites need a camera with a
+real projection to reach, and the guard is two lines against a property this
+repo already documents at `nova_autopilot/src/input.rs:321`.

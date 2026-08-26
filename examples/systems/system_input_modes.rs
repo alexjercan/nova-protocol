@@ -32,11 +32,28 @@
 //! ```
 
 #[cfg(feature = "debug")]
+#[path = "shared/editor_stage.rs"]
+mod editor_stage;
+#[cfg(feature = "debug")]
+#[path = "shared/editor_walk.rs"]
+mod editor_walk;
+#[cfg(feature = "debug")]
+#[path = "shared/section_aim.rs"]
+mod section_aim;
+
+#[cfg(feature = "debug")]
 use bevy::{input::keyboard::Key, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
 #[cfg(feature = "debug")]
 use nova_ui::prelude::InputMode;
+
+#[cfg(feature = "debug")]
+use crate::{
+    editor_stage::{ADD_MENU, EMPTY_SPACE},
+    editor_walk::{inside_a_ship, the_ship_is_up, BEAT_DEADLINE_SECS},
+    section_aim::a_section_on_screen,
+};
 
 #[derive(Parser)]
 #[command(name = "system_input_modes")]
@@ -59,10 +76,6 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// In-step seconds a gesture beat gets before the run gives up on it.
-#[cfg(feature = "debug")]
-const BEAT_DEADLINE_SECS: f32 = 20.0;
-
 /// Frames a key that must do NOTHING is given to do it in.
 ///
 /// The other beats in this walk wait on an ack, because something happened.
@@ -71,10 +84,6 @@ const BEAT_DEADLINE_SECS: f32 = 20.0;
 /// was made would pass whether the arbiter worked or not.
 #[cfg(feature = "debug")]
 const SETTLE_FRAMES: u32 = 8;
-
-/// The top-bar menu carrying Add Ship and the object palette.
-#[cfg(feature = "debug")]
-const ADD_MENU: &str = "Add Menu Button";
 
 /// The palette row the walk adds its object from. A beacon carries a Name
 /// field, which is the text field the Insert beats need.
@@ -103,12 +112,6 @@ const FOUNDING_PART: &str = "basic_thruster_section";
 #[cfg(feature = "debug")]
 const KEY_ROW: &str = "Inspector Row Key";
 
-/// A viewport point (logical px) with nothing under it on the 1024x768 window
-/// the app opens - where the founding click lands. The rail takes the left 210
-/// and the inspector the right 300, so the clear band is narrow and off-centre.
-#[cfg(feature = "debug")]
-const EMPTY_SPACE: Vec2 = Vec2::new(460.0, 660.0);
-
 /// Advance once the keyboard belongs to `mode`.
 #[cfg(feature = "debug")]
 fn the_mode_is(mode: InputMode) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
@@ -116,19 +119,6 @@ fn the_mode_is(mode: InputMode) -> std::sync::Arc<nova_protocol::nova_debug::har
         world
             .get_resource::<InputMode>()
             .is_some_and(|current| *current == mode)
-    })
-}
-
-/// Advance once the editor is inside a ship - what Add Ship does.
-///
-/// False while there is no [`EditorProbe`] at all: the probe arrives with the
-/// editor and this walk starts in the menu.
-#[cfg(feature = "debug")]
-fn inside_a_ship() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        world
-            .get_resource::<EditorProbe>()
-            .is_some_and(|probe| probe.inside.is_some())
     })
 }
 
@@ -160,30 +150,6 @@ fn nodes_here(world: &World) -> usize {
     world
         .get_resource::<EditorProbe>()
         .map_or(0, |probe| probe.context_nodes.len())
-}
-
-/// The viewport point the lowest visible section of the edited ship projects
-/// to - where a click reaches the part itself.
-///
-/// Visible scopes it to the ship being built: the document opens seeded with a
-/// stock range whose hulks are ship nodes with sections of their own, and
-/// entering a ship takes those off the stage.
-#[cfg(feature = "debug")]
-fn aim_at_a_section(world: &mut World) -> Option<Vec2> {
-    let mut q_sections =
-        world.query_filtered::<(&GlobalTransform, &InheritedVisibility), With<SectionMarker>>();
-    let at = q_sections
-        .iter(world)
-        .filter(|(_, visible)| visible.get())
-        .map(|(pose, _)| pose.translation())
-        .next()?;
-    let camera_entity = world
-        .query_filtered::<Entity, With<Camera3d>>()
-        .iter(world)
-        .next()?;
-    let camera = world.get::<Camera>(camera_entity)?;
-    let camera_pose = world.get::<GlobalTransform>(camera_entity)?;
-    camera.world_to_viewport(camera_pose, at).ok()
 }
 
 /// The walk: menu -> editor -> an object typed into -> a ship browsed -> a
@@ -258,8 +224,25 @@ fn mode_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .step("modes: count what the document holds")
         .on_enter(stamp_the_count)
         .add()
+        // The caret lands where the CLICK did, which on a name shorter than
+        // its box is the end - and Delete at the end of a value deletes
+        // nothing. Home first, so the key has a character in front of it and
+        // the beat can say the field really took it.
+        .step("modes: put the caret at the head of the name")
+        .on_enter(press_edit_key(Key::Home))
+        .until(frames(SETTLE_FRAMES))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // BOTH halves of a real press, as the Escape beat below does: verbs
+        // read `ButtonInput`, and a text field reads `KeyboardInput`. Pressing
+        // the button edge alone proves only that no verb answered - which a
+        // field that never saw the key would also pass.
         .step("modes: press Delete with the caret in the field")
-        .on_enter(press_key(KeyCode::Delete))
+        .on_enter(|world: &mut World| {
+            stamp_the_name(world);
+            press_key(KeyCode::Delete)(world);
+            press_edit_key(Key::Delete)(world);
+        })
         .until(frames(SETTLE_FRAMES))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
@@ -406,7 +389,7 @@ fn mode_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         // under it.
         .step("modes: aim at the thruster")
         .on_enter(|world: &mut World| {
-            let at = aim_at_a_section(world)
+            let at = a_section_on_screen(world)
                 .expect("the founded thruster, the 3D camera and the window are all up");
             move_cursor(at)(world);
         })
@@ -488,6 +471,37 @@ fn counts(world: &World) -> (usize, usize) {
     (before, nodes_here(world))
 }
 
+/// What the Name box is showing, stamped so the beat after the press can say
+/// the key landed in it.
+#[cfg(feature = "debug")]
+fn stamp_the_name(world: &mut World) {
+    let name = field_text(world, NAME_FIELD);
+    assert!(
+        !name.is_empty(),
+        "the beacon arrives named, and a Delete against an empty box would prove nothing"
+    );
+    world.insert_resource(NameBefore(name));
+}
+
+/// The Name box's value before the Delete beat.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct NameBefore(String);
+
+/// What the box named `name` is showing.
+#[cfg(feature = "debug")]
+fn field_text(world: &World, name: &str) -> String {
+    world
+        .try_query::<(&Name, &nova_ui::prelude::TextFieldValue)>()
+        .and_then(|mut fields| {
+            fields
+                .iter(world)
+                .find(|(named, _)| named.as_str() == name)
+                .map(|(_, value)| value.0.clone())
+        })
+        .unwrap_or_default()
+}
+
 #[cfg(feature = "debug")]
 fn read_insert_kept_the_object(world: &mut World) {
     let (before, now) = counts(world);
@@ -496,12 +510,21 @@ fn read_insert_kept_the_object(world: &mut World) {
         "Delete with the caret in a field took a node off the document: the character belongs to \
          the field, and the tree is not the keyboard's owner while one is focused"
     );
+    let was = world.resource::<NameBefore>().0.clone();
+    let name = field_text(world, NAME_FIELD);
+    assert_eq!(
+        name,
+        was.chars().skip(1).collect::<String>(),
+        "the field did not take the Delete it was credited with: `{was}` should have lost its \
+         first character, and a beat that only counts nodes passes whether the key reached the \
+         box or went nowhere at all"
+    );
     nova_probe::probe_marker(
         world,
         "outcome: insert mode keeps delete off the tree",
-        serde_json::json!({ "nodes_before": before, "nodes_after": now }),
+        serde_json::json!({ "nodes_before": before, "nodes_after": now, "name": name }),
     );
-    info!("modes: the field took Delete, and the beacon stayed");
+    info!("modes: the field took Delete off `{was}`, and the beacon stayed");
 }
 
 #[cfg(feature = "debug")]
@@ -558,14 +581,4 @@ fn read_bind_kept_the_part(world: &mut World) {
         serde_json::json!({ "sections_before": before, "sections_after": now }),
     );
     info!("modes: the capture took Delete, and the thruster stayed");
-}
-
-/// Advance once the ship being EDITED has a section on it.
-#[cfg(feature = "debug")]
-fn the_ship_is_up() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        world
-            .get_resource::<EditorProbe>()
-            .is_some_and(|probe| !probe.ship.is_empty())
-    })
 }

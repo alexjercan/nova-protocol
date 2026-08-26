@@ -45,11 +45,20 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+#[cfg(feature = "debug")]
+#[path = "shared/editor_stage.rs"]
+mod editor_stage;
+
 // Only the debug-gated autopilot below names bevy types directly.
 #[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
+
+// Shared with the other editor walks: one point that is clear of all three
+// panels, so a range cannot drift onto a literal that lands on the Inspector.
+#[cfg(feature = "debug")]
+use crate::editor_stage::{ADD_MENU, EMPTY_SPACE};
 
 #[derive(Parser)]
 #[command(name = "system_ship_editor")]
@@ -207,10 +216,6 @@ const HULL_PROTOTYPE: &str = "reinforced_hull_section";
 #[cfg(feature = "debug")]
 const CONTROLLER_PROTOTYPE: &str = "basic_controller_section";
 
-/// The top bar's Add menu, the door every "one more node" gesture goes through.
-#[cfg(feature = "debug")]
-const MENU_ADD: &str = "Add Menu Button";
-
 /// The top bar's File menu: the verbs that touch the saved file.
 #[cfg(feature = "debug")]
 const MENU_FILE: &str = "File Menu Button";
@@ -230,14 +235,6 @@ const MENU_EDIT: &str = "Edit Menu Button";
 /// The top bar's Ship menu: the verbs of the ship the editor is inside.
 #[cfg(feature = "debug")]
 const MENU_SHIP: &str = "Ship Menu Button";
-
-/// A viewport point (logical px) with neither the ship nor a docked panel
-/// under it, on the 1024x768 window the app opens: low on the screen, and
-/// inside the 210..724 band the rail and the Inspector leave the stage.
-/// Pointing here is how a beat puts the ghost away without disarming the part
-/// it is holding.
-#[cfg(feature = "debug")]
-const EMPTY_SPACE: Vec2 = Vec2::new(560.0, 640.0);
 
 /// What a beat measured, so a later beat can say whether the gesture changed
 /// anything.
@@ -312,7 +309,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(state_is(GameStates::Playing))
         .deadline(BOOT_DEADLINE_SECS)
         .add()
-        .click_a_menu_item("editor: click Add > New Ship", MENU_ADD, "Add Ship Button")
+        .click_a_menu_item("editor: click Add > New Ship", ADD_MENU, "Add Ship Button")
         .step("editor: the blank ship is up and entered")
         .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
@@ -1034,7 +1031,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // world palette is greyed - it used to answer Asteroid by putting a
         // rock in a world the stage had stopped showing - and the same menu
         // offers the ship's parts instead.
-        .click_a_widget("editor: drop the Add menu inside a ship", MENU_ADD)
+        .click_a_widget("editor: drop the Add menu inside a ship", ADD_MENU)
         .step("editor: Add offers parts, not rocks, inside a ship")
         .on_enter(|world: &mut World| {
             assert!(
@@ -1164,7 +1161,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .click_a_menu_item(
             "editor: click Add > New Ship again",
-            MENU_ADD,
+            ADD_MENU,
             "Add Ship Button",
         )
         .step("editor: the second ship is up and entered")
@@ -1292,7 +1289,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // The world is a document too, not just the ships in it. The Add menu
         // places a rock in front of the camera, the tree lists it beside the
         // ships, and Delete takes it back off.
-        .click_a_menu_item("editor: place an asteroid", MENU_ADD, "Add Asteroid")
+        .click_a_menu_item("editor: place an asteroid", ADD_MENU, "Add Asteroid")
         .step("editor: the placed rock is a marked node in the tree")
         .until(an_object_was_placed("asteroid"))
         .deadline(BEAT_DEADLINE_SECS)
@@ -1497,7 +1494,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // A COLOUR is the one value in a config nobody can author by reading
         // it, so it gets a window of its own. The beacon is the shipped object
         // that has one.
-        .click_a_menu_item("editor: place a beacon", MENU_ADD, "Add Beacon")
+        .click_a_menu_item("editor: place a beacon", ADD_MENU, "Add Beacon")
         .step("editor: the beacon is the marked node")
         .until(an_object_was_placed("beacon"))
         .deadline(BEAT_DEADLINE_SECS)
@@ -2216,7 +2213,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // whole failure this beat is here to catch.
         .click_a_menu_item(
             "editor: place a rock after the load",
-            MENU_ADD,
+            ADD_MENU,
             "Add Asteroid",
         )
         .step("editor: the id minted after a load clears the loaded ones")

@@ -1381,16 +1381,19 @@ fn curate(rows: Vec<InspectorRow>, picks: &[FieldSpec]) -> Vec<InspectorRow> {
             // lines of tree over one number, and the tree is exactly what this
             // view was written to put away. A picked level keeps its heading:
             // a spaceship's Hull is a thing a builder chose to see.
-            let kept: Vec<String> = row
-                .path
-                .iter()
-                .filter(|step| named(step, &picked))
-                .filter_map(|step| match step {
-                    PathStep::Field(name) => Some(pretty(name)),
-                    PathStep::Item(_) | PathStep::Slot(_) => None,
-                })
-                .collect();
-            row.group.retain(|segment| kept.contains(segment));
+            //
+            // Read POSITIONALLY rather than by comparing the prettied text.
+            // `group` is `segments(path)` less its leaf and `segments` pushes
+            // one entry per FIELD step, so the two run in step - and `retain`
+            // visits its elements in order, once each. Building the list of
+            // kept names instead meant a `Vec<String>` and a `pretty()` per
+            // retained row, on a panel with no change gate under it.
+            let mut fields = row.path.iter().filter_map(|step| match step {
+                PathStep::Field(name) => Some(name.as_str()),
+                PathStep::Item(_) | PathStep::Slot(_) => None,
+            });
+            row.group
+                .retain(|_| fields.next().is_some_and(|name| picked(name)));
             row
         })
         .collect()

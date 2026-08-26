@@ -30,7 +30,7 @@ use crate::{
     config::SelectedNode,
     frame::node_bounds,
     gallery::{EditorCamera, GalleryState},
-    node::{EditContext, ObjectNode, ShipNode},
+    node::{EditContext, ObjectBodyStale, ObjectNode, ShipNode},
     ExampleStates,
 };
 
@@ -300,44 +300,64 @@ pub(crate) fn setup_gizmo(
 /// rig fighting the gesture.
 ///
 /// Sections are only added from INSIDE a ship and the rig is hidden in there,
-/// so the measurement stands until the selection moves - or until the node is
-/// RESIZED, which the Inspector's Scale field does with the rig still up.
+/// so the measurement stands until the selection moves - or until the node's
+/// body is REDRAWN, which is the one thing that resizes it with the rig still
+/// up. A rock's `radius`, a crate's `size` and a beacon's `radius` all rebuild
+/// the mesh and leave `Transform.scale` at `Vec3::ONE`, so a key on the scale
+/// answered nothing: there is no Scale field, and `inspect.rs` says there will
+/// not be one.
 #[derive(Resource, Default, Debug)]
 pub(crate) struct GizmoReach {
     /// The node the standing measurement belongs to.
     node: Option<Entity>,
-    /// The scale the standing measurement was taken at. Part of the key, not
-    /// of the answer: a node typed down to a tenth of its size otherwise wears
-    /// the rig of the size it had.
-    scale: Vec3,
     /// Half the node's diagonal with clearance, or `None` while nothing under
     /// the node has a collider to measure yet.
     reach: Option<f32>,
+    /// Frames of re-measuring still owed to an announced resize.
+    settling: u8,
 }
 
 impl GizmoReach {
-    /// The reach for `node` at `scale`, measuring it if that is a pair we have
-    /// not measured yet.
+    /// How long a re-measure keeps going after a resize is announced.
+    ///
+    /// The old body is despawned and the new one is built over the frames that
+    /// FOLLOW the announcement, and its collider arrives with the physics step
+    /// after that - so one measurement taken on the frame of the message can
+    /// still find the size that is on its way out.
+    const SETTLE_FRAMES: u8 = 3;
+
+    /// `node`'s body is being redrawn, so whatever was measured is about to
+    /// stop being true.
+    fn resized(&mut self, node: Entity) {
+        if self.node == Some(node) {
+            self.settling = Self::SETTLE_FRAMES;
+        }
+    }
+
+    /// The reach for `node`, measuring it if it is not a node we have a
+    /// standing measurement for.
     ///
     /// A node placed THIS frame has no collider until the physics step runs,
     /// and that measures as `None` rather than as zero - so the rig takes its
     /// size from the camera for a frame and picks up the real one as soon as
-    /// there is a real one.
+    /// there is a real one. A re-measure that finds nothing keeps the last
+    /// real answer rather than collapsing the rig mid-rebuild.
     fn measure(
         &mut self,
         node: Entity,
-        scale: Vec3,
         q_children: &Query<&Children>,
         q_bounds: &Query<&ColliderAabb, Without<Sensor>>,
     ) -> f32 {
-        if self.node != Some(node) || self.scale != scale {
+        if self.node != Some(node) {
             self.node = Some(node);
-            self.scale = scale;
             self.reach = None;
+            self.settling = 0;
         }
-        if self.reach.is_none() {
+        if self.reach.is_none() || self.settling > 0 {
+            self.settling = self.settling.saturating_sub(1);
             self.reach = node_bounds(node, q_children, q_bounds)
-                .map(|bounds| bounds.size().length() * 0.5 * CLEARANCE);
+                .map(|bounds| bounds.size().length() * 0.5 * CLEARANCE)
+                .or(self.reach);
         }
         self.reach.unwrap_or_default()
     }
@@ -361,7 +381,13 @@ pub(crate) fn sync_gizmo(
     camera: Option<Single<&Transform, (With<EditorCamera>, Without<GizmoRig>)>>,
     rig: Option<Single<(&mut Transform, &mut Visibility), With<GizmoRig>>>,
     mut q_handles: Query<(&GizmoHandle, &mut Visibility), Without<GizmoRig>>,
+    // The one thing that resizes a node with the rig up: the same announcement
+    // the body redraw listens to (see `crate::node::drop_edited_views`).
+    mut resized: MessageReader<ObjectBodyStale>,
 ) {
+    for ObjectBodyStale(node) in resized.read() {
+        reach.resized(*node);
+    }
     let Some(rig) = rig else {
         return;
     };
@@ -379,8 +405,7 @@ pub(crate) fn sync_gizmo(
     let at = staged.map_or_else(Vec3::default, |transform| transform.translation);
     // The node's own extent, so the arms clear a corvette's hull, floored by a
     // fraction of the viewing distance so a lone beacon is not a speck.
-    let scale = staged.map_or(Vec3::ONE, |transform| transform.scale);
-    let reach = reach.measure(node, scale, &q_children, &q_bounds);
+    let reach = reach.measure(node, &q_children, &q_bounds);
     let watched = camera.translation.distance(at);
     let arm = reach.max(watched * SCREEN_SPAN);
     let wanted = Transform::from_translation(at).with_scale(Vec3::splat(arm));

@@ -617,6 +617,37 @@ fn a_seeded_hull_opens_on_its_ship_and_its_driver() {
     );
 }
 
+/// The other half of the curation rule: a level that WAS picked keeps its
+/// heading, so the fields under it say which level they belong to. The panel
+/// reads the headings positionally against the path they were built from, and
+/// a row that lost its own level would sit in the list as if it were the
+/// node's own field.
+#[test]
+fn a_picked_level_keeps_the_heading_its_fields_sit_under() {
+    let picket = ObjectNode {
+        name: "Picket Warden".to_string(),
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            hull: ShipSource::Prototype("cargoa".to_string()),
+            controller: SpaceshipController::AI(AIControllerConfig::default()),
+            ..default()
+        }),
+    };
+
+    let rows = curated_object_rows(&picket, &Transform::default());
+    let under: Vec<(String, Vec<String>)> = rows
+        .iter()
+        .filter(|row| !row.group.is_empty())
+        .map(|row| (row.label.clone(), row.group.clone()))
+        .collect();
+
+    assert!(
+        under
+            .iter()
+            .any(|(_, group)| group.first().map(String::as_str) == Some("Controller")),
+        "the AI's own fields stand under Controller, the level a builder picked: {under:?}"
+    );
+}
+
 /// A vector inside a config is the pose's shape, not a comma-separated line:
 /// the row a builder edits an offset in has one box per axis.
 #[test]

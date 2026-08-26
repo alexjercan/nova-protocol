@@ -6,7 +6,7 @@ use avian3d::prelude::{Collider, SimpleCollider};
 use bevy::ecs::system::RunSystemOnce;
 
 use super::*;
-use crate::node::{EditorNode, NodeView};
+use crate::node::{EditorNode, NodeView, ObjectChoice};
 
 /// A ray from `from` through `towards`, the way a pointer's would arrive.
 fn ray(from: Vec3, towards: Vec3) -> Ray3d {
@@ -157,6 +157,7 @@ fn gizmo_app() -> App {
     app.init_resource::<SelectedNode>();
     app.init_resource::<GalleryState>();
     app.init_resource::<GizmoReach>();
+    app.add_message::<ObjectBodyStale>();
     app.world_mut().spawn((
         GizmoRig,
         Transform::default(),
@@ -263,19 +264,71 @@ fn the_rig_is_sized_from_where_the_camera_is_now() {
 }
 
 /// The other half of the measure-once rule. A turn must not resize the rig; a
-/// RESIZE must. The Inspector's Scale field is typed with the rig still up, and
-/// a measurement keyed on the node alone leaves it wearing the size it had.
+/// RESIZE must - and what resizes a node is its CONFIG. Scrubbing a rock's
+/// Radius rebuilds the mesh and leaves `Transform.scale` at one, so a
+/// measurement keyed on the scale never came back and the arms stayed sized
+/// for the radius the rock used to have.
 #[test]
-fn resizing_a_node_resizes_its_rig() {
+fn a_redrawn_body_resizes_its_rig() {
     let mut app = gizmo_app();
     // Close in, so the node's own extent decides the arm rather than the
     // camera-distance floor.
     let at = Vec3::new(0.0, 5.0, 28.0);
-    let node = ship(&mut app, at);
+    let node = rock(&mut app, at, Collider::sphere(3.0));
     app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
     place(&mut app);
     let before = rig(&app).0.scale.x;
 
+    regrow(&mut app, at, Collider::sphere(9.0));
+    app.world_mut().write_message(ObjectBodyStale(node));
+    place(&mut app);
+
+    let after = rig(&app).0.scale.x;
+    assert!(
+        after > before * 1.5,
+        "a rock scrubbed from radius 3 to radius 9 wears a bigger rig; it went \
+         {before} -> {after}"
+    );
+}
+
+/// And the announcement is what does it: the same new body with nobody saying
+/// so leaves the standing measurement alone, which is the rule that keeps a
+/// turn from making the arms swell.
+#[test]
+fn an_unannounced_body_leaves_the_rig_the_size_it_was() {
+    let mut app = gizmo_app();
+    let at = Vec3::new(0.0, 5.0, 28.0);
+    let node = rock(&mut app, at, Collider::sphere(3.0));
+    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    place(&mut app);
+    let before = rig(&app).0.scale.x;
+
+    regrow(&mut app, at, Collider::sphere(9.0));
+    place(&mut app);
+
+    assert_eq!(rig(&app).0.scale.x, before);
+}
+
+/// One rock on the stage, with a body under it to measure.
+fn rock(app: &mut App, at: Vec3, body: Collider) -> Entity {
+    let node = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ObjectNode {
+                name: "Rock".to_string(),
+                ..ObjectChoice::Asteroid.stock()
+            },
+            Transform::from_translation(at),
+        ))
+        .id();
+    app.world_mut()
+        .spawn((NodeView, ChildOf(node), body.aabb(at, Quat::IDENTITY)));
+    node
+}
+
+/// Swap the body under the selected node, the way a rebuilt mesh does.
+fn regrow(app: &mut App, at: Vec3, body: Collider) {
     let view = {
         let mut query = app
             .world()
@@ -284,18 +337,8 @@ fn resizing_a_node_resizes_its_rig() {
         query.single(app.world()).expect("one view")
     };
     app.world_mut()
-        .entity_mut(node)
-        .insert(Transform::from_translation(at).with_scale(Vec3::splat(0.25)));
-    app.world_mut()
         .entity_mut(view)
-        .insert(Collider::cuboid(1.0, 0.5, 2.0).aabb(at, Quat::IDENTITY));
-    place(&mut app);
-
-    let after = rig(&app).0.scale.x;
-    assert!(
-        after < before * 0.75,
-        "a quarter-size hull wears a smaller rig; it went {before} -> {after}"
-    );
+        .insert(body.aabb(at, Quat::IDENTITY));
 }
 
 #[test]

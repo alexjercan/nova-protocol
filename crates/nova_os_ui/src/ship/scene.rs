@@ -568,6 +568,13 @@ pub(crate) fn project_ship_blips(
     // asks for logical ones. Do the conversion once, here.
     let to_logical = computed.inverse_scale_factor();
     let size = computed.size() * to_logical;
+    // A node that has not been laid out yet reports an inverse scale factor of
+    // 0, which would collapse `size` to zero AND every projected point to the
+    // origin - and `Vec2::ZERO` PASSES the bounds filter below. One frame of
+    // every blip piled in the corner, each time the panel opens.
+    if to_logical <= 0.0 {
+        return;
+    }
     let list = sections.collect();
     let font = nova_os_font(ui_font.as_deref());
 
