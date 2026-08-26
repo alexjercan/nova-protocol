@@ -186,6 +186,33 @@ steps; each number is one commit, as above.
 
 ## Resolution
 
+CLOSED 2026-08-26. The nine follow-up steps landed, one commit each, on master:
+
+22. `682f4a02` one z ladder - the stage's own text sits under the chrome
+23. `054bd986` any key can be bound; the flight rig's claim is a note
+24. `1b5c0fd7` one click up the tree, and Backspace does the same
+25. `9497f31f` wider panels, a dragged scrollbar, three lines to a notch
+26. `a0084dec` every vector is three boxes, at any depth of any config
+27. `3b583c6c` a curated first screen per kind, with View > All Fields past it
+28. `f99dd504` a picket wears the ship marks, stands with the ships, reads
+    as one - which took the `Reflect` derive `SpaceshipConfig` never had
+29. `2d369e2d` the id under the Inspector title, and View > Ids on the tree
+30. `ec31e8ca` F5 re-reads the content; so does leaving the editor or mods
+
+Step 29 stops at READING the id. There is no clipboard in the tree, and
+pulling one in for a copy button would mean a native dependency the web build
+cannot follow; the id is now on screen beside the thing it names, which is what
+wiring an event actually needs.
+
+Step 30 also switches the editor's own save ON. Installed is not enabled
+anywhere else - a portal install deliberately waits for the player - but a save
+is the builder's own document, and asking them to go and enable it before their
+range appears in Scenarios is the friction the step was written to remove.
+
+Verified live: the driven walk gained beats for the curated turret, the id
+tree, and the one that answers the complaint directly - after File > Save the
+walk waits for `editor_save` to appear in `GameScenarios`, with no restart.
+
 REOPENED 2026-08-26 for the follow-up plan above; the 21 steps below stand.
 
 CLOSED 2026-08-26. All 21 steps landed, one commit each, on master:

@@ -19,6 +19,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 - A range saved in the editor is an ordinary mod: each built ship a design, the
   range a scenario naming them. Editing a design moves every instance of it.
+- F5 reads every content file off disk again, and so does leaving the editor or
+  the mods panel, so a range saved in the editor is in the Scenarios list
+  without restarting the game.
 
 ### Interface & HUD
 
@@ -40,12 +43,12 @@ does NOT get an entry - and it is the only place they are written down.
 - The selected ship or object carries move and turn handles: drag an arrow to
   slide it along one axis, a ring to spin it about one - so a node can go
   somewhere other than the ground plane.
-- The stage stands on a world grid: cells step by decades as the camera pulls
-  back, the origin carries its own X and Z lines, and the selection drops a
-  plumb line to the plane it flies over. View > World Grid turns it off.
-- Objects draw what they have no body to show: the sphere a beacon or a crate
-  fires OnEnter from, how far a lamp reaches, and which way a sun shines - each
-  light in its own colour. View > Object Volumes turns them off.
+- The stage stands on a world grid - cells stepping by decades as the camera
+  pulls back, the origin's own X and Z lines, a plumb line under the selection.
+  View > World Grid turns it off.
+- Objects draw what they have no body to show: a beacon's or a crate's trigger
+  sphere, a lamp's reach, a sun's direction, each in its own colour. View >
+  Object Volumes turns them off.
 - Play flies the whole document: every ship stands where it was dragged and
   faces where it was turned, and every non-empty AI design spawns as a neutral
   AI ship beside the player's.
@@ -68,14 +71,25 @@ does NOT get an entry - and it is the only place they are written down.
 - Inspector rows are typed to what they hold: a colour paints a swatch beside
   its hex, and an enum of bare names becomes a row of choices you can switch
   rather than a readout you cannot.
-- A node's position and rotation are three axis-tinted boxes each, in degrees
-  and yaw/pitch/roll, and typing one turns it. There is no scale row: Nova
-  sections mate, they do not stretch.
+- The Inspector opens on what a kind is authored through - a turret's fire rate
+  and ammunition, not its joint offsets - and View > All Fields brings the whole
+  config back.
+- The Inspector says a node's id under its title, and View > Ids reads the whole
+  tree as ids rather than names: what an event's filter will name them by.
+- A seeded spacecraft reads as the ship it is - the driver's mark, a place
+  beside the built ships, and a panel that opens on which hull it flies and who
+  flies it.
+- Backspace leaves the node you are inside, and so does one click on any rung
+  above it: going up stopped needing a double click on the root.
+- Every vector is three axis-tinted boxes: a node's position, its rotation in
+  yaw/pitch/roll degrees, and every offset in a config. There is no scale row -
+  Nova sections mate, they do not stretch.
 - The Inspector reaches into a node's lists - a turret's fire rate lives on a
   muzzle inside its joint tree - and draws them as an indented tree of ruled
   headings, not a column of long paths.
-- The Inspector scrolls, so a config taller than the panel is rolled down to
-  rather than running off the bottom of the screen.
+- Both side panels are wider and scroll: a bar beside each says how far down
+  the list runs and can be dragged, and a wheel notch moves three lines of the
+  list rather than one.
 - Pressing a colour's swatch opens a floating picker: four channel sliders over
   a live preview, dragged by its bar and closed by pressing the swatch again.
   It belongs to that row and goes away with it.
@@ -129,8 +143,8 @@ does NOT get an entry - and it is the only place they are written down.
 ### Internals & Tooling
 
 - The editor publishes its build state - armed tool, placement, gallery, edited
-  ship, the node you are inside, inspector rows, the status line - as read-only
-  data the driven ranges wait on instead of counting frames.
+  ship, inspector rows, the status line - as read-only data the driven ranges
+  wait on instead of counting frames.
 - Editor previews carry mesh and collider only: the behaviour half of a ship
   section is no longer inserted on something that will never fly.
 - Autopilot scripts can wait on a UI node laying out, on the picking pointer
